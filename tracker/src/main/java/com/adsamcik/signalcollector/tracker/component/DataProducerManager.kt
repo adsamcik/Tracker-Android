@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.tracker.component
 
 import android.content.Context
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.tracker.component.producer.ActivityDataProducer
 import com.adsamcik.signalcollector.tracker.component.producer.CellDataProducer
 import com.adsamcik.signalcollector.tracker.component.producer.WifiDataProducer

@@ -54,6 +54,7 @@ android {
 
 dependencies {
 	implementation(project(":common"))
+	implementation(project(":activity"))
 
 	Libraries.core(this)
 	Libraries.database(this)

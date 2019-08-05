@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.tracker.component.consumer
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.Observer
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
@@ -16,6 +15,7 @@ import com.adsamcik.signalcollector.tracker.component.consumer.pre.StepPreTracke
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 import com.adsamcik.signalcollector.common.data.MutableCollectionData
 import com.adsamcik.signalcollector.common.data.MutableTrackerSession
+import com.adsamcik.signalcollector.tracker.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

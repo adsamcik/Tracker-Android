@@ -1,11 +1,10 @@
 package com.adsamcik.signalcollector.tracker.component.producer
 
 import android.content.Context
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.service.ActivityService
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData

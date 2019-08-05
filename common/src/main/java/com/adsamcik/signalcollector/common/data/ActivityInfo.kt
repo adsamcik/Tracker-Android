@@ -21,8 +21,7 @@ class ActivityInfo(val activity: Int, val confidence: Int) : Parcelable {
 
 	constructor(parcel: Parcel) : this(
 			parcel.readInt(),
-			parcel.readInt()) {
-	}
+			parcel.readInt())
 
 	/**
 	 * Shortcut function for static version of this function

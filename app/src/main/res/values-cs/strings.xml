@@ -68,30 +68,12 @@
     <string name="longitude">zeměpisná délka</string>
 
 
-    <string name="notification_activity">aktivita %s</string>
-    <string name="notification_activity_watcher_info">Aktuální aktivita %1$s (%2$d%%)</string>
-    <plurals name="notification_cell_count">
-        <item quantity="one">1 mobilní vysílač v dosahu</item>
-        <item quantity="few">%d mobilní vysílače v dosahu</item>
-        <item quantity="other">%d mobilních vysílačů v dosahu</item>
-    </plurals>
-    <string name="notification_cell_current">aktivní %1$s %2$d dBm</string>
-    <string name="notification_looking_for_gps">Hledá se GPS</string>
-    <string name="notification_stop">Zastavit</string>
-    <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
-    <string name="notification_stop_til_recharge">Zastavit do nabití</string>
-    <string name="notification_tracker_active_ticker">Sběr dat je aktivní</string>
-    <string name="notification_tracking_active">Záznam dat je aktivní</string>
-    <string name="notification_wifi">%d Wi-Fi</string>
+
 
     <string name="open_source_licenses">Licence otevřeného softwaru</string>
 
-    <string name="settings_activity_freq_title">Frekvence aktualizace aktivity</string>
     <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
-    <string name="settings_activity_watcher_summary">Může (velmi) zlepšit spolehlivost služby na sběr dat</string>
-    <string name="settings_activity_watcher_title">Sledovač aktivity</string>
-    <string name="settings_auto_tracking_category">Automatický sběr dat</string>
-    <string name="settings_cell_enabled_title">Sběr mobilních sítí</string>
+
     <string name="settings_clear_cache_title">Smazat dočasné soubory</string>
     <string name="settings_clear_data_title">Smazat nasbíraná data</string>
     <string name="settings_clear_preferences_title">Smazat preference</string>
@@ -109,8 +91,6 @@
     </plurals>
     <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
     <string name="settings_debug_title">Vývojářské nástroje</string>
-    <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
-    <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
     <string name="settings_export_dialog_from">Od</string>
     <string name="settings_export_dialog_to">Do</string>
     <string name="settings_export_json_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
@@ -128,7 +108,6 @@
     </string-array>
     <string name="settings_length_system_title">Délkový systém</string>
     <string name="settings_licenses_title">Otevřené licence</string>
-    <string name="settings_location_enabled_title">Záznam polohy</string>
     <string name="settings_notifications_title">Notifikace</string>
     <string name="settings_other_title">Ostatní</string>
     <string-array name="settings_style_mode_names">
@@ -139,25 +118,9 @@
     <string name="settings_style_mode_title">Režim barev</string>
     <string name="settings_style_title">Vzhled</string>
     <string name="settings_title">Nastavení</string>
-    <string name="settings_tracking_enable_category">Možnosti ke sběru dat</string>
-    <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
-    <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
-    <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
-    <string name="settings_tracking_title">Sběr dat</string>
-    <string name="settings_wifi_enabled_title">Sběr Wi-Fi</string>
 
-    <string name="shortcut_start_tracking">Spustit záznam</string>
-    <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>
-    <string name="shortcut_stop_tracking">Zastavit záznam</string>
-    <string name="shortcut_stop_tracking_long">Zastavit záznamovou službu</string>
 
     <string name="show_tips_title">Zobrazovat tipy</string>
-
-    <string-array name="tracking_options_titles">
-        <item>Vypnuto</item>
-        <item>Pěšky</item>
-        <item>V pohybu</item>
-    </string-array>
 
     <string name="tutorial_activity_description">Aktivity můžete najít vpravo</string>
     <string name="tutorial_activity_title">Aktivita</string>
@@ -230,5 +193,4 @@
         <item quantity="few">Import dokončen. Úspěšně naimportovány %d soubory.</item>
         <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
     </plurals>
-    <string name="settings_activity_enabled_title">Sběr aktivity</string>
 </resources>

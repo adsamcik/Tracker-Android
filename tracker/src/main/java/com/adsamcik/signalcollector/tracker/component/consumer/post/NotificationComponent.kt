@@ -9,18 +9,17 @@ import android.location.Location
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
-import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.data.CollectionData
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.extension.formatDistance
 import com.adsamcik.signalcollector.common.extension.formatSpeed
 import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.common.style.StyleManager
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
-import com.adsamcik.signalcollector.common.data.CollectionData
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 import com.adsamcik.signalcollector.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.signalcollector.tracker.service.TrackerService
@@ -115,15 +114,17 @@ internal class NotificationComponent : PostTrackerComponent {
 
 	private fun prepareNotificationBase(context: Context): NotificationCompat.Builder {
 		val resources = context.resources
-		val intent = Intent(context, MainActivity::class.java)
+		val intent = Intent(Intent.ACTION_MAIN).apply {
+			addCategory(Intent.CATEGORY_HOME)
+		}
 
-		return NotificationCompat.Builder(context, resources.getString(R.string.channel_track_id))
+		return NotificationCompat.Builder(context, resources.getString(com.adsamcik.signalcollector.common.R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setSmallIcon(R.drawable.ic_signals)  // the done icon
 				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
 				.setWhen(Time.nowMillis)  // the time stamp
 				.setOngoing(true)
-				.setColor(ContextCompat.getColor(context, R.color.color_accent))
+				.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
 				.setContentIntent(TaskStackBuilder.create(context).run {
 					addNextIntentWithParentStack(intent)
 					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
@@ -137,6 +138,7 @@ internal class NotificationComponent : PostTrackerComponent {
 		df.roundingMode = RoundingMode.HALF_UP
 
 		val lengthSystem = Preferences.getLengthSystem(context)
+		//todo add localization support
 		val delimiter = ", "
 
 		if (location.hasSpeed()) {
@@ -144,7 +146,7 @@ internal class NotificationComponent : PostTrackerComponent {
 					.append(delimiter)
 		}
 
-		sb.append(resources.getString(R.string.info_altitude, resources.formatDistance(location.altitude, 2, lengthSystem)))
+		sb.append(resources.getString(R.string.notification_altitude, resources.formatDistance(location.altitude, 2, lengthSystem)))
 				.append(delimiter)
 
 		val activity = d.activity

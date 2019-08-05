@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_activity_freq_title">Frekvence aktualizace aktivity</string>
+    <string name="settings_activity_watcher_summary">Může (velmi) zlepšit spolehlivost služby na sběr dat</string>
+    <string name="settings_activity_watcher_title">Sledovač aktivity</string>
+</resources>

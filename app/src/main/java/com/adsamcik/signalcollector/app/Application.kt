@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.app
 
+import android.app.Application
 import android.os.Build
 import androidx.annotation.AnyThread
 import com.adsamcik.signalcollector.AppModuleInitializer
@@ -29,6 +30,7 @@ class Application : SplitCompatApplication() {
 				//it's fine, do nothing
 			}
 		}
+		proce
 	}
 
 	@AnyThread

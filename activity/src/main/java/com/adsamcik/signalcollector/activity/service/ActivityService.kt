@@ -4,16 +4,12 @@ import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.util.SparseArray
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ActivityRequestInfo
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
-import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.extension.powerManager
-import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.api.TrackerServiceApi
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService

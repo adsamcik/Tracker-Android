@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.tracker.component.consumer.pre
 
 import android.content.Context
 import androidx.lifecycle.Observer
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData

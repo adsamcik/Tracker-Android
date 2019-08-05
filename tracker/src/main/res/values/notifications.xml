@@ -7,6 +7,7 @@
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
     <string name="notification_wifi">%d Wi-Fi</string>
+    <string name="notification_altitude">%s altitude</string>
     <plurals name="notification_cell_count">
         <item quantity="one">1 cell in range</item>
         <item quantity="other">%d cells in range</item>

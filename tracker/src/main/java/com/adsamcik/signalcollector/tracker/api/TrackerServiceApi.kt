@@ -9,6 +9,8 @@ import com.adsamcik.signalcollector.tracker.service.TrackerService
 object TrackerServiceApi {
 	val sessionInfo: TrackerSessionInfo? get() = TrackerService.sessionInfo.value
 
+	val isActive: Boolean get() = TrackerService.isServiceRunning.value
+
 	fun startService(context: Context, isUserInitiated: Boolean) {
 		context.startForegroundService<TrackerService> {
 			putExtra(TrackerService.ARG_IS_USER_INITIATED, isUserInitiated)
