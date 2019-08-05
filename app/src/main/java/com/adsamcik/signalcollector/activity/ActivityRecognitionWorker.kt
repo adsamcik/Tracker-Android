@@ -7,8 +7,8 @@ import com.adsamcik.signalcollector.activity.recognizer.ActivityRecognitionResul
 import com.adsamcik.signalcollector.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.signalcollector.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.signalcollector.common.Reporter
+import com.adsamcik.signalcollector.common.data.MutableTrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 

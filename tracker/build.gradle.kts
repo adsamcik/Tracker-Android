@@ -53,6 +53,8 @@ android {
 }
 
 dependencies {
+	implementation(project(":common"))
+
 	Libraries.core(this)
 	Libraries.database(this)
 	Libraries.crashlytics(this)
