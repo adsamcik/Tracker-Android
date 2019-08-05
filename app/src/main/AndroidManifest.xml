@@ -21,7 +21,6 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-    <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
@@ -42,9 +41,6 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
         tools:targetApi="q">
-        <activity
-            android:name=".activity.ui.SessionActivityActivity"
-            android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".module.activity.ModuleActivity"/>
 
         <meta-data
@@ -118,17 +114,6 @@
             </intent-filter>
         </receiver>
         <receiver android:name=".tracker.receiver.TrackerTimeUnlockReceiver"/>
-
-        <service
-            android:name=".tracker.service.TrackerService"
-            android:foregroundServiceType="location"
-            android:exported="false"/>
-        <service
-            android:name=".activity.service.ActivityService"
-            android:exported="false"/>
-        <service
-            android:name=".activity.service.ActivityWatcherService"
-            android:exported="false"/>
         <service
             android:name=".import.service.ImportService"
             android:exported="false"/>

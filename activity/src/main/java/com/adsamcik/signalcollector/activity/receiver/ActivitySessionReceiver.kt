@@ -10,8 +10,6 @@ import androidx.work.WorkManager
 import com.adsamcik.signalcollector.activity.ActivityRecognitionWorker
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.extension.getPositiveLongExtraReportNull
-import com.adsamcik.signalcollector.common.useMock
-import java.util.concurrent.TimeUnit
 
 class ActivitySessionReceiver : BroadcastReceiver() {
 	private fun onSessionEnded(context: Context, intent: Intent) {

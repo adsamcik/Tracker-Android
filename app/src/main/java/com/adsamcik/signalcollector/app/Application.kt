@@ -10,7 +10,6 @@ import com.adsamcik.signalcollector.notification.NotificationChannels
 import com.adsamcik.signalcollector.shortcut.Shortcuts
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.google.android.play.core.splitcompat.SplitCompatApplication
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch

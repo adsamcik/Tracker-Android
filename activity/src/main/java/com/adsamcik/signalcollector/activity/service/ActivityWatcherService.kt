@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleService
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.activity.MainActivity
 import com.adsamcik.signalcollector.common.Time

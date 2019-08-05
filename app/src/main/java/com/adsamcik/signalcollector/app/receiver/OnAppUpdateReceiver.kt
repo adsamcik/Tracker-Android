@@ -36,9 +36,9 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 						val sessionDao = AppDatabase.getDatabase(context).sessionDao()
 						val workManager = WorkManager.getInstance(context)
 						sessionDao.getAll().forEachIf({ it.id < 0 }) {
-							val data = Data.Builder().putLong(ActivityRecognitionWorker.ARG_SESSION_ID, it.id).build()
-							val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
-									.addTag(ActivityRecognitionWorker.WORK_TAG)
+							val data = Data.Builder().putLong(com.adsamcik.signalcollector.activity.ActivityRecognitionWorker.ARG_SESSION_ID, it.id).build()
+							val workRequest = OneTimeWorkRequestBuilder<com.adsamcik.signalcollector.activity.ActivityRecognitionWorker>()
+									.addTag(com.adsamcik.signalcollector.activity.ActivityRecognitionWorker.WORK_TAG)
 									.setInputData(data)
 									.setConstraints(Constraints.Builder()
 											.setRequiresBatteryNotLow(true)

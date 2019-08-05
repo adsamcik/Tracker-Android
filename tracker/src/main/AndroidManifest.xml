@@ -1,2 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.adsamcik.signalcollector.tracker" />
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.adsamcik.signalcollector.tracker">
+    <application>
+        <service
+            android:name=".service.TrackerService"
+            android:foregroundServiceType="location"
+            android:exported="false"
+            tools:targetApi="q" />
+    </application>
+</manifest>
