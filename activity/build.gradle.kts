@@ -57,5 +57,6 @@ dependencies {
 
     Libraries.core(this)
     Libraries.crashlytics(this)
+    Libraries.location(this)
     Libraries.test(this)
 }
