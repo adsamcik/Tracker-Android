@@ -98,8 +98,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 
 		private fun buildTransition(transition: ActivityTransitionData): ActivityTransition {
 			return ActivityTransition.Builder()
-					.setActivityType(transition.type.value)
-					.setActivityTransition(transition.activity.value)
+					.setActivityType(transition.activity.value)
+					.setActivityTransition(transition.type.value)
 					.build()
 		}
 
