@@ -57,6 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.activityDao().insert(sessionActivity)
 		}
 
+		//todo wrap exposed database in an object that will take care of keeping it open when used
 		@WorkerThread
 		fun getDatabase(context: Context): AppDatabase {
 			return instance_ ?: createInstance(context)
