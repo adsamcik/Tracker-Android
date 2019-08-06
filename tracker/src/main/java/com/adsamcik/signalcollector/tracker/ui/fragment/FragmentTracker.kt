@@ -86,7 +86,10 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	override fun onStart() {
 		super.onStart()
 
-		button_settings.setOnClickListener { requireContext().startActivity(".SettingsActivity") }
+		button_settings.setOnClickListener {
+			val context = it.context
+			context.startActivity("${context.packageName}.preference.activity.SettingsActivity")
+		}
 
 		button_tracking.setOnClickListener {
 			val activity = activity!!
