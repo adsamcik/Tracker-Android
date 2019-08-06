@@ -9,7 +9,9 @@ import androidx.annotation.RequiresPermission
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.CellInfo
+import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
 import com.adsamcik.signalcollector.common.extension.hasReadPhonePermission
+import com.adsamcik.signalcollector.common.extension.telephonyManager
 import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerObserver
@@ -161,10 +163,17 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
 		this.context = context
+		telephonyManager = context.telephonyManager
+
+		if(Build.VERSION.SDK_INT >= 22) {
+			subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
+		}
 	}
 
 	override fun onDisable(context: Context) {
 		super.onDisable(context)
 		this.context = null
+		telephonyManager = null
+		subscriptionManager = null
 	}
 }
