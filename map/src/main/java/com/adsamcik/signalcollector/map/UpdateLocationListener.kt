@@ -172,7 +172,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 			if (useGyroscope) {
 				stopUsingGyroscope(returnToDefault)
 			}
-			button.setImageResource(R.drawable.ic_gps_not_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_gps_not_fixed_black_24dp)
 		}
 	}
 
@@ -224,7 +224,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		if (followMyPosition) {
 			when {
 				useGyroscope -> {
-					button.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
+					button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_gps_fixed_black_24dp)
 					stopUsingGyroscope(true)
 				}
 				else -> {
@@ -232,11 +232,11 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 					if (rotationVector != null) sensorManager.registerListener(this, rotationVector,
 							SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
 					animateToTilt(45f)
-					button.setImageResource(R.drawable.ic_compass)
+					button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_compass)
 				}
 			}
 		} else {
-			button.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_gps_fixed_black_24dp)
 			this.followMyPosition = true
 
 			if (lastUserPos != null)

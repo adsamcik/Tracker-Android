@@ -47,6 +47,7 @@ dependencies {
 	Libraries.test(this)
 	Libraries.introduction(this)
 
+	implementation(project(":app"))
 	implementation(project(":common"))
 	implementation(project(":activity"))
 }
