@@ -12,6 +12,9 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 	protected abstract val keyRes: Int
 	protected abstract val defaultRes: Int
 
+	var isEnabled: Boolean = false
+		private set
+
 	fun onAttach(context: Context) {
 		PreferenceObserver.observe(context,
 				keyRes = keyRes,
@@ -23,8 +26,15 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 		PreferenceObserver.removeObserver(context, keyRes, observer)
 	}
 
-	abstract fun onEnable(context: Context)
-	abstract fun onDisable(context: Context)
+	@CallSuper
+	open fun onEnable(context: Context) {
+		isEnabled = true
+	}
+
+	@CallSuper
+	open fun onDisable(context: Context) {
+		isEnabled = false
+	}
 
 	abstract fun onDataRequest(tempData: MutableCollectionTempData)
 }

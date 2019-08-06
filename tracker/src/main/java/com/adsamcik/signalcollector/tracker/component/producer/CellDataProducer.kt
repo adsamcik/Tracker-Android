@@ -159,10 +159,12 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 	}
 
 	override fun onEnable(context: Context) {
+		super.onEnable(context)
 		this.context = context
 	}
 
 	override fun onDisable(context: Context) {
+		super.onDisable(context)
 		this.context = null
 	}
 }

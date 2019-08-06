@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.tracker.api
 
 import android.content.Context
+import androidx.annotation.MainThread
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.activity.*
 import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
@@ -128,10 +129,12 @@ object BackgroundTrackingApi {
 		isActive = false
 	}
 
+	@MainThread
 	fun initialize(context: Context) {
 		if (appContext != null) return
 
 		appContext = context.applicationContext
+
 		PreferenceObserver.observe(context, R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default, observer)
 	}
 }

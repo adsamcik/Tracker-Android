@@ -81,7 +81,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 						true
 					}
 				}) {
-			wakeLock.release()
 			return
 		}
 
@@ -94,8 +93,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		if (!sessionInfo.isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 
 		lastCollectionDataMutable.postValue(CollectionDataEcho(collectionData, session))
-
-		wakeLock.release()
 	}
 
 

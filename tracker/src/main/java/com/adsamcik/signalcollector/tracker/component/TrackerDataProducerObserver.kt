@@ -4,5 +4,5 @@ import androidx.annotation.AnyThread
 
 @AnyThread
 internal interface TrackerDataProducerObserver {
-	fun onStateChange(isEnabled: Boolean, component: TrackerDataProducerComponent)
+	fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent)
 }

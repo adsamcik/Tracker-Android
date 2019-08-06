@@ -68,10 +68,12 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 	}
 
 	override fun onDisable(context: Context) {
+		super.onDisable(context)
 		context.unregisterReceiver(receiver)
 	}
 
 	override fun onEnable(context: Context) {
+		super.onEnable(context)
 		wifiManager = context.getSystemServiceTyped(Context.WIFI_SERVICE)
 
 		//Let's not waste precious scan requests onDataUpdated Pie and newer
