@@ -19,4 +19,12 @@
         <item>60</item>
         <item>120</item>
     </integer-array>
+    <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
+    <string name="notification_activity_watcher_ticker">Activity Watcher service active</string>
+
+    <!-- ACTIVITIES -->
+    <string name="settings_activity_title">Activities</string>
+    <string name="settings_activity_key" translatable="false">activities</string>
+
+    <string name="settings_activity_snackbar_message">Removed %s</string>
 </resources>

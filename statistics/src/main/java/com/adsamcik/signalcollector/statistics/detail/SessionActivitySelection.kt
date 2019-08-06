@@ -1,12 +1,12 @@
-package com.adsamcik.signalcollector.activity.ui
+package com.adsamcik.signalcollector.statistics.detail
 
 import android.content.Context
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
+import com.adsamcik.signalcollector.common.data.MutableTrackerSession
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.listItems
 import kotlinx.coroutines.CoroutineScope

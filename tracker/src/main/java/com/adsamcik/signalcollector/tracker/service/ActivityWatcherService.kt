@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.activity.service
+package com.adsamcik.signalcollector.tracker.service
 
 import android.app.Notification
 import android.app.NotificationManager
@@ -7,15 +7,16 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.activity.MainActivity
+import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
+import com.adsamcik.signalcollector.activity.R
 import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
 import com.adsamcik.signalcollector.common.extension.notificationManager
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.service.CoreService
+import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
-import com.adsamcik.signalcollector.tracker.service.TrackerService
 import java.util.*
 import kotlin.concurrent.scheduleAtFixedRate
 
@@ -23,7 +24,7 @@ import kotlin.concurrent.scheduleAtFixedRate
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
 class ActivityWatcherService : CoreService() {
-	private var activityInfo = ActivityService.lastActivity
+	private var activityInfo: ActivityInfo = ActivityRequestManager.lastActivity
 
 	private val timer: Timer = Timer()
 
@@ -37,12 +38,11 @@ class ActivityWatcherService : CoreService() {
 		val updatePreferenceInSeconds = Preferences.getPref(this).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
 
 		startForeground(NOTIFICATION_ID, updateNotification())
-		ActivityService.requestAutoTracking(this, this::class, updatePreferenceInSeconds)
 
 		notificationManager = (this as Context).notificationManager
 
 		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS) {
-			val newActivityInfo = ActivityService.lastActivity
+			val newActivityInfo = ActivityRequestManager.lastActivity
 			if (newActivityInfo != activityInfo) {
 				activityInfo = newActivityInfo
 				notificationManager.notify(NOTIFICATION_ID, updateNotification())
@@ -52,7 +52,6 @@ class ActivityWatcherService : CoreService() {
 
 	override fun onDestroy() {
 		super.onDestroy()
-		ActivityService.removeActivityRequest(this, this::class)
 		instance = null
 		timer.cancel()
 	}
@@ -63,14 +62,17 @@ class ActivityWatcherService : CoreService() {
 	}
 
 	private fun updateNotification(): Notification {
-		val intent = Intent(this, MainActivity::class.java)
+		val intent = Intent(Intent.ACTION_MAIN).apply {
+			addCategory(Intent.CATEGORY_HOME)
+		}
 		val builder = NotificationCompat.Builder(this, getString(R.string.channel_activity_watcher_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setTicker(getString(R.string.notification_tracker_active_ticker))  // the done text
+				.setTicker(getString(R.string.notification_activity_watcher_ticker))  // the done text
 				.setWhen(Time.nowMillis)  // the time stamp
 				.setVibrate(null)
+				.setOngoing(true)
 				.setContentIntent(PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
-				.setColor(ContextCompat.getColor(this, R.color.color_accent))
+				.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
 
 		builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
 		builder.setContentText(getString(R.string.notification_activity_watcher_info, activityInfo.getGroupedActivityName(this), activityInfo.confidence))
@@ -124,7 +126,6 @@ class ActivityWatcherService : CoreService() {
 		         trackerRunning: Boolean = TrackerService.isServiceRunning.value) {
 
 			if (updateInterval > 0 && autoTracking > 0) {
-				ActivityService.requestAutoTracking(context, ActivityWatcherService::class, updateInterval)
 				if (watcherPreference && !trackerLocked && !trackerRunning) {
 					if (instance == null) {
 						ContextCompat.startForegroundService(context, Intent(context, ActivityWatcherService::class.java))

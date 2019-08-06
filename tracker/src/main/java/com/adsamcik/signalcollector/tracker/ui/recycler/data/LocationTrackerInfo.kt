@@ -1,11 +1,11 @@
 package com.adsamcik.signalcollector.tracker.ui.recycler.data
 
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.data.Location
 import com.adsamcik.signalcollector.common.extension.formatDistance
 import com.adsamcik.signalcollector.common.extension.formatSpeed
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.tracker.R
 
 class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 	override val iconRes: Int = R.drawable.ic_outline_location_on_24px
@@ -55,6 +55,6 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		const val NAME_RESOURCE = R.string.location
+		val NAME_RESOURCE = R.string.location
 	}
 }

@@ -1,13 +1,12 @@
-package com.adsamcik.signalcollector.shortcut
+package com.adsamcik.signalcollector.tracker.shortcut
 
 import android.os.Bundle
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.common.Reporter
-import com.adsamcik.signalcollector.common.extension.startForegroundService
 import com.adsamcik.signalcollector.common.extension.stopService
-import com.adsamcik.signalcollector.shortcut.Shortcuts.ShortcutAction
-import com.adsamcik.signalcollector.tracker.service.TrackerService
+import com.adsamcik.signalcollector.tracker.api.TrackerServiceApi
+import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts.ShortcutAction
 
 /**
  * ShortcutActivity is activity that handles shortcut actions, so no UI is shown.
@@ -34,14 +33,10 @@ class ShortcutActivity : AppCompatActivity() {
 	private fun onActionReceived(action: ShortcutAction) {
 		when (action) {
 			Shortcuts.ShortcutAction.START_COLLECTION -> {
-				startForegroundService<TrackerService> {
-					putExtra(TrackerService.ARG_IS_USER_INITIATED, true)
-				}
+				TrackerServiceApi.startService(this, true)
 			}
 			Shortcuts.ShortcutAction.STOP_COLLECTION -> {
-				if (TrackerService.isServiceRunning.value) {
-					stopService<TrackerService>()
-				}
+				TrackerServiceApi.stopService(this)
 			}
 		}
 	}

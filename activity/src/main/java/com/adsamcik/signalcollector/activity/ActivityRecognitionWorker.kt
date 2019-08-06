@@ -12,7 +12,7 @@ import com.adsamcik.signalcollector.common.database.AppDatabase
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
+internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
 	private val activeRecognizers = listOf(OnFootActivityRecognizer(), VehicleActivityRecognizer())
 
 	override suspend fun doWork(): Result = coroutineScope {

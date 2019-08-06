@@ -8,13 +8,13 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.ActivityRecognitionWorker
-import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
+import com.adsamcik.signalcollector.activity.api.ActivityRecognitionApi
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.appVersion
 import com.adsamcik.signalcollector.common.extension.forEachIf
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -32,22 +32,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 				val lastVersion = getLong(keyLastVersion)
 
 				if (lastVersion < 311) {
-					GlobalScope.launch(Dispatchers.Default) {
-						val sessionDao = AppDatabase.getDatabase(context).sessionDao()
-						val workManager = WorkManager.getInstance(context)
-						sessionDao.getAll().forEachIf({ it.id < 0 }) {
-							val data = Data.Builder().putLong(com.adsamcik.signalcollector.activity.ActivityRecognitionWorker.ARG_SESSION_ID, it.id).build()
-							val workRequest = OneTimeWorkRequestBuilder<com.adsamcik.signalcollector.activity.ActivityRecognitionWorker>()
-									.addTag(com.adsamcik.signalcollector.activity.ActivityRecognitionWorker.WORK_TAG)
-									.setInputData(data)
-									.setConstraints(Constraints.Builder()
-											.setRequiresBatteryNotLow(true)
-											.build()
-									).build()
-
-							workManager.enqueue(workRequest)
-						}
-					}
+					ActivityRecognitionApi.rerunRecognitionForAll(context)
 				}
 
 				val version = context.appVersion()
@@ -55,7 +40,6 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 			}
 
 			TrackerLocker.initializeFromPersistence(context)
-			ActivityWatcherService.poke(context)
 		}
 	}
 }

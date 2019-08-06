@@ -16,10 +16,9 @@ data class DatabaseCellData(
 		@Embedded val cellInfo: CellInfo) {
 	@PrimaryKey(autoGenerate = false)
 	var id: String = when (cellInfo.type) {
-		CellType.Unknown -> throw IllegalAccessException()
-		CellType.GSM, CellType.WCDMA, CellType.LTE -> cellInfo.mcc + cellInfo.mnc + cellInfo.cellId
+		CellType.Unknown -> throw NotImplementedError()
+		CellType.GSM, CellType.WCDMA, CellType.LTE, CellType.NR -> cellInfo.mcc + cellInfo.mnc + cellInfo.cellId
 		CellType.CDMA -> cellInfo.cellId.toString()
-		CellType.NR -> TODO()
 	}
 }
 

@@ -7,5 +7,18 @@
             android:foregroundServiceType="location"
             android:exported="false"
             tools:targetApi="q" />
+
+        <activity
+            android:name=".shortcut.ShortcutActivity"
+            android:screenOrientation="portrait">
+        </activity>
+
+        <receiver android:name=".receiver.TrackerNotificationReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".receiver.TrackerTimeUnlockReceiver"/>
     </application>
 </manifest>

@@ -1,11 +1,11 @@
 package com.adsamcik.signalcollector.activity.recognizer
 
+import com.adsamcik.signalcollector.common.data.DetectedActivity
 import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
-import com.google.android.gms.location.DetectedActivity
 
-class VehicleActivityRecognizer : ActivityRecognizer {
+internal class VehicleActivityRecognizer : ActivityRecognizer {
 	override val precisionConfidence: Int = 75
 
 	override fun resolve(session: TrackerSession, locationCollection: Collection<DatabaseLocation>): ActivityRecognitionResult {

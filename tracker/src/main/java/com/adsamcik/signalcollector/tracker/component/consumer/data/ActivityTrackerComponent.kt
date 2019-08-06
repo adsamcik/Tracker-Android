@@ -16,22 +16,22 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> get() = mutableListOf(TrackerComponentRequirement.ACTIVITY)
 
 	private fun isNotConfidentWalk(activity: ActivityInfo): Boolean {
-		return activity.activity == DetectedActivity.WALKING &&
+		return activity.activityType == DetectedActivity.WALKING &&
 				activity.confidence < CONFIDENT_CONFIDENCE
 	}
 
-	private fun isUnknownOnFootActivity(activity: ActivityInfo) = activity.activity == DetectedActivity.ON_FOOT
-	private fun isRunning(activity: ActivityInfo) = activity.activity == DetectedActivity.RUNNING
-	private fun isWalking(activity: ActivityInfo) = activity.activity == DetectedActivity.WALKING
+	private fun isUnknownOnFootActivity(activity: ActivityInfo) = activity.activityType == DetectedActivity.ON_FOOT
+	private fun isRunning(activity: ActivityInfo) = activity.activityType == DetectedActivity.RUNNING
+	private fun isWalking(activity: ActivityInfo) = activity.activityType == DetectedActivity.WALKING
 
 	private fun isOnFoot(activity: ActivityInfo): Boolean {
 		return isUnknownOnFootActivity(activity) || isWalking(activity) || isRunning(activity)
 	}
 
 	private fun isUnknown(activity: ActivityInfo): Boolean {
-		return activity.activity == DetectedActivity.UNKNOWN ||
-				activity.activity == DetectedActivity.TILTING ||
-				activity.activity == DetectedActivity.STILL
+		return activity.activityType == DetectedActivity.UNKNOWN ||
+				activity.activityType == DetectedActivity.TILTING ||
+				activity.activityType == DetectedActivity.STILL
 	}
 
 	private fun determineActivityBySpeed(speed: Float, activity: ActivityInfo): ActivityInfo {
@@ -54,7 +54,7 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		val activity = tempData.getActivity(this)
 
 		//Bicycle activity is impossible to guess from position
-		if (activity.activity == DetectedActivity.ON_BICYCLE) return activity
+		if (activity.activityType == DetectedActivity.ON_BICYCLE) return activity
 
 		val stepCount = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
 		if (stepCount != null &&

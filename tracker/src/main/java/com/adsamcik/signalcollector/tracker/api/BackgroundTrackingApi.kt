@@ -2,26 +2,36 @@ package com.adsamcik.signalcollector.tracker.api
 
 import android.content.Context
 import androidx.lifecycle.Observer
-import com.adsamcik.signalcollector.activity.ActivityRequest
-import com.adsamcik.signalcollector.activity.ActivityRequestCallback
-import com.adsamcik.signalcollector.activity.ActivityRequestManager
+import com.adsamcik.signalcollector.activity.*
+import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
+import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
+import com.adsamcik.signalcollector.common.Assist
+import com.adsamcik.signalcollector.common.data.DetectedActivity
 import com.adsamcik.signalcollector.common.data.GroupedActivity
+import com.adsamcik.signalcollector.common.extension.powerManager
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.R
+import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 
 object BackgroundTrackingApi {
+	//todo add option for this in settings
+	private const val REQUIRED_CONFIDENCE = 75
 	private var appContext: Context? = null
 
 	private val callback: ActivityRequestCallback = { context, activity, _ ->
-		if (TrackerServiceApi.isActive) {
-			if (!canContinueBackgroundTracking(context, activity.groupedActivity)) {
-				TrackerServiceApi.stopService(context)
-			}
-		} else {
-			if (canBackgroundTrack(context, activity.groupedActivity)) {
-				TrackerServiceApi.startService(context, isUserInitiated = false)
+		if (activity.confidence >= REQUIRED_CONFIDENCE) {
+			if (TrackerServiceApi.isActive) {
+				if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
+						!canContinueBackgroundTracking(context, activity.groupedActivity)) {
+					TrackerServiceApi.stopService(context)
+				}
+			} else {
+				if (canBackgroundTrack(context, activity.groupedActivity) &&
+						canTrackerServiceBeStarted(context)) {
+					TrackerServiceApi.startService(context, isUserInitiated = false)
+				}
 			}
 		}
 	}
@@ -36,6 +46,10 @@ object BackgroundTrackingApi {
 	}
 
 	private var isActive = false
+
+	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
+			!context.powerManager.isPowerSaveMode &&
+			Assist.canTrack(context)
 
 	/**
 	 * Checks if background tracking can be activated
@@ -75,12 +89,32 @@ object BackgroundTrackingApi {
 	private fun getBackgroundTrackingActivityRequirement(context: Context) =
 			Preferences.getPref(context).getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
 
+	private fun buildTransitions(context: Context): List<ActivityTransitionData> {
+		val transitions = mutableListOf<ActivityTransitionData>()
+		val requiredActivityId = getBackgroundTrackingActivityRequirement(context)
+
+		if (requiredActivityId >= GroupedActivity.IN_VEHICLE.ordinal) {
+			transitions.add(ActivityTransitionData(DetectedActivity.IN_VEHICLE, ActivityTransitionType.ENTER))
+			transitions.add(ActivityTransitionData(DetectedActivity.ON_BICYCLE, ActivityTransitionType.ENTER))
+		}
+
+		if (requiredActivityId >= GroupedActivity.ON_FOOT.ordinal) {
+			transitions.add(ActivityTransitionData(DetectedActivity.ON_FOOT, ActivityTransitionType.ENTER))
+			transitions.add(ActivityTransitionData(DetectedActivity.RUNNING, ActivityTransitionType.ENTER))
+			transitions.add(ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER))
+		}
+
+		return transitions
+	}
+
 	private fun enable(context: Context) {
 		if (isActive) return
 
 		val interval = Preferences.getPref(context).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
-		val requestData = ActivityRequest(this::class, interval, callback)
+		val transitions = buildTransitions(context)
+		val requestData = ActivityRequestData(this::class, interval, transitions, callback)
 		ActivityRequestManager.requestActivity(context, requestData)
+		ActivityWatcherService.poke(context)
 
 		isActive = true
 	}
@@ -89,12 +123,15 @@ object BackgroundTrackingApi {
 		if (!isActive) return
 
 		ActivityRequestManager.removeActivityRequest(context, this::class)
+		ActivityWatcherService.poke(context)
+
 		isActive = false
 	}
 
 	fun initialize(context: Context) {
-		appContext = context.applicationContext
+		if (appContext != null) return
 
+		appContext = context.applicationContext
 		PreferenceObserver.observe(context, R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default, observer)
 	}
 }

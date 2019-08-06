@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.tracker.ui.recycler.data
 
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.WifiData
+import com.adsamcik.signalcollector.tracker.R
 
 class WifiTrackerInfo(var wifiData: WifiData) : TrackerInfo(NAME_RESOURCE) {
 	override val iconRes: Int = R.drawable.ic_outline_network_wifi_24px
@@ -14,6 +14,6 @@ class WifiTrackerInfo(var wifiData: WifiData) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		const val NAME_RESOURCE = R.string.wifi
+		val NAME_RESOURCE = R.string.wifi
 	}
 }

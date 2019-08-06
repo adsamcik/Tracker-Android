@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 9,
-    "identityHash": "6652cdaf91671e94770b42086dface4e",
+    "identityHash": "00cfc5aa32a5b25304340232bf13e4d0",
     "entities": [
       {
         "tableName": "location_data",
@@ -63,7 +63,7 @@
             "notNull": false
           },
           {
-            "fieldPath": "activityInfo.activity",
+            "fieldPath": "activityInfo.activityType",
             "columnName": "activity",
             "affinity": "INTEGER",
             "notNull": true
@@ -180,7 +180,16 @@
           ],
           "autoGenerate": true
         },
-        "indices": [],
+        "indices": [
+          {
+            "name": "index_tracker_session_session_activity_id",
+            "unique": false,
+            "columnNames": [
+              "session_activity_id"
+            ],
+            "createSql": "CREATE  INDEX `index_tracker_session_session_activity_id` ON `${TABLE_NAME}` (`session_activity_id`)"
+          }
+        ],
         "foreignKeys": [
           {
             "table": "activity",
@@ -434,7 +443,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6652cdaf91671e94770b42086dface4e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '00cfc5aa32a5b25304340232bf13e4d0')"
     ]
   }
 }

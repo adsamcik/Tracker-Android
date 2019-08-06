@@ -4,10 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.location.Location
 import android.os.Looper
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.TrackerTimerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerTimerErrorData
 import com.adsamcik.signalcollector.tracker.component.TrackerTimerErrorSeverity

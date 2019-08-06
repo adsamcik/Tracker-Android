@@ -1,15 +1,12 @@
 package com.adsamcik.signalcollector.common.data
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.ForeignKey
-import androidx.room.PrimaryKey
+import androidx.room.*
 
 @Entity(tableName = "tracker_session", foreignKeys = [ForeignKey(entity = SessionActivity::class,
 		parentColumns = ["id"],
 		childColumns = ["session_activity_id"],
 		onDelete = ForeignKey.SET_NULL,
-		onUpdate = ForeignKey.NO_ACTION)])
+		onUpdate = ForeignKey.NO_ACTION)], indices = [Index("session_activity_id")])
 open class TrackerSession(
 		id: Long = 0,
 		start: Long = 0,

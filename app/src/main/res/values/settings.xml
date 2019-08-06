@@ -74,11 +74,6 @@
     <string name="settings_module_group_title">Module settings</string>
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>
 
-    <!-- ACTIVITIES -->
-    <string name="settings_activity_title">Activities</string>
-    <string name="settings_activity_key" translatable="false">activities</string>
-
-    <string name="settings_activity_snackbar_message">Removed %s</string>
 
     <!-- LANGUAGE -->
     <string name="settings_language_title">Application language</string>

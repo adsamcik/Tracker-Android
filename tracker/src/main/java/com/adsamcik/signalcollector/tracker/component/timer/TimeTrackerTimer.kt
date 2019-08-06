@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.tracker.component.timer
 
 import android.content.Context
 import android.os.Handler
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.TrackerTimerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerTimerReceiver
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData

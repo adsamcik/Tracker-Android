@@ -11,32 +11,35 @@ import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
 import androidx.appcompat.widget.LinearLayoutCompat
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.style.RecyclerStyleView
-import com.adsamcik.signalcollector.common.style.StyleManager
-import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.data.*
-import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.firstParent
+import com.adsamcik.signalcollector.common.extension.observe
+import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleManager
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.useMock
-import com.adsamcik.signalcollector.preference.activity.SettingsActivity
+import com.adsamcik.signalcollector.tracker.R
+import com.adsamcik.signalcollector.tracker.api.TrackerServiceApi
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
-import com.adsamcik.signalcollector.common.data.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import com.adsamcik.signalcollector.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
-import kotlinx.android.synthetic.main.activity_ui.*
 import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.android.synthetic.main.fragment_tracker.view.*
 
@@ -83,13 +86,13 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	override fun onStart() {
 		super.onStart()
 
-		button_settings.setOnClickListener { startActivity<SettingsActivity> { } }
+		button_settings.setOnClickListener { requireContext().startActivity(".SettingsActivity") }
 
 		button_tracking.setOnClickListener {
 			val activity = activity!!
 			if (TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
 				TrackerLocker.lockTimeLock(activity, Time.MINUTE_IN_MILLISECONDS * LOCK_WHEN_CANCELLED)
-				SnackMaker(activity.findViewById(R.id.root) as View).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, LOCK_WHEN_CANCELLED, LOCK_WHEN_CANCELLED))
+				SnackMaker(rootCoordinatorLayout).addMessage(activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock, LOCK_WHEN_CANCELLED, LOCK_WHEN_CANCELLED))
 			} else {
 				toggleCollecting(activity, !TrackerService.isServiceRunning.value)
 			}
@@ -136,20 +139,26 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		if (useMock) mock()
 	}
 
+	private val rootCoordinatorLayout: CoordinatorLayout
+		get() {
+			val fragmentRoot = requireActivity().findViewById<View>(R.id.fragment_tracker_root)
+			return requireNotNull(fragmentRoot.firstParent<CoordinatorLayout>())
+		}
+
 	/**
 	 * Enables or disables collecting service
 	 *
 	 * @param enable ensures intended action
 	 */
 	private fun toggleCollecting(activity: FragmentActivity, enable: Boolean) {
-		if (TrackerService.isServiceRunning.value == enable) return
+		if (TrackerServiceApi.isActive == enable) return
 
 		val missingPermissions = Assist.checkTrackingPermissions(activity)
 
 		if (missingPermissions.isEmpty()) {
-			if (!TrackerService.isServiceRunning.value) {
+			if (!TrackerServiceApi.isActive) {
 				if (!Assist.isGNSSEnabled(activity)) {
-					SnackMaker(activity.root).addMessage(R.string.error_gnss_not_enabled,
+					SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_gnss_not_enabled,
 							priority = SnackMaker.SnackbarPriority.IMPORTANT,
 							actionRes = R.string.enable,
 							onActionClick = View.OnClickListener {
@@ -157,16 +166,13 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 								startActivity(locationOptionsIntent)
 							})
 				} else if (!Assist.canTrack(activity)) {
-					SnackMaker(activity.findViewById(R.id.root)).addMessage(R.string.error_nothing_to_track)
+					SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
 				} else {
-					activity.startForegroundService<TrackerService> {
-						putExtra(TrackerService.ARG_IS_USER_INITIATED, true)
-					}
-
+					TrackerServiceApi.startService(activity, isUserInitiated = true)
 					updateTrackerButton(true)
 				}
 			} else {
-				activity.stopService<TrackerService>()
+				TrackerServiceApi.stopService(activity)
 			}
 		} else if (Build.VERSION.SDK_INT >= 23) {
 			activity.requestPermissions(missingPermissions, 0)

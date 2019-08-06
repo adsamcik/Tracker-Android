@@ -82,6 +82,7 @@ tasks.withType<DokkaTask> {
 dependencies {
 	implementation(project(":common"))
 	implementation(project(":tracker"))
+	implementation(project(":activity"))
 
 	Libraries.core(this)
 	//1st party dependencies

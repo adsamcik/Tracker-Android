@@ -5,11 +5,11 @@ import androidx.preference.CheckBoxPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.preference.findPreference
 import com.adsamcik.signalcollector.preference.findPreferenceTyped
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
 
 class TrackerPreferencePage : PreferencePage {
 

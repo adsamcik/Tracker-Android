@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.tracker.ui.recycler.data
 
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
+import com.adsamcik.signalcollector.tracker.R
 import java.text.NumberFormat
 import java.util.*
 
@@ -32,6 +32,6 @@ class ActivityTrackerInfo(var activity: ActivityInfo) : TrackerInfo(NAME_RESOURC
 	}
 
 	companion object {
-		const val NAME_RESOURCE = R.string.tracker_activity_card_title
+		val NAME_RESOURCE = R.string.tracker_activity_card_title
 	}
 }

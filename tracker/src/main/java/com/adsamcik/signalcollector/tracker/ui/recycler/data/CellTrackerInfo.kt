@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.tracker.ui.recycler.data
 
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.data.CellData
 import com.adsamcik.signalcollector.common.data.CellType
+import com.adsamcik.signalcollector.tracker.R
 
 class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
 
@@ -32,6 +32,6 @@ class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		const val NAME_RESOURCE = R.string.cell
+		val NAME_RESOURCE = R.string.cell
 	}
 }

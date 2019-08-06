@@ -4,18 +4,13 @@ import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.ActivityTransitionData
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
-import com.adsamcik.signalcollector.common.extension.powerManager
-import com.adsamcik.signalcollector.tracker.api.TrackerServiceApi
-import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
-import com.adsamcik.signalcollector.tracker.service.TrackerService
-import com.google.android.gms.location.ActivityRecognition
-import com.google.android.gms.location.ActivityRecognitionResult
-import com.google.android.gms.location.DetectedActivity
+import com.adsamcik.signalcollector.common.data.DetectedActivity
+import com.google.android.gms.location.*
 import com.google.android.gms.tasks.Task
 
 /**
@@ -24,34 +19,38 @@ import com.google.android.gms.tasks.Task
  */
 internal class ActivityService : IntentService(this::class.java.simpleName) {
 	override fun onHandleIntent(intent: Intent?) {
-		val result = ActivityRecognitionResult.extractResult(intent)
 
+		if (ActivityRecognitionResult.hasResult(intent)) {
+			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
+			onActivityResult(result)
+		}
+
+		if (ActivityTransitionResult.hasResult(intent)) {
+			val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
+			onActivityTransitionResult(result)
+		}
+	}
+
+	private fun onActivityResult(result: ActivityRecognitionResult) {
 		val detectedActivity = ActivityInfo(result.mostProbableActivity)
 
 		lastActivity = detectedActivity
 		lastActivityElapsedTimeMillis = Time.elapsedRealtimeMillis
-
-		if (mBackgroundTracking && detectedActivity.confidence >= REQUIRED_CONFIDENCE) {
-			if (TrackerService.isServiceRunning.value) {
-				if (!TrackerService.sessionInfo.requireValue.isInitiatedByUser && !canContinueBackgroundTracking(this, detectedActivity.groupedActivity)) {
-					TrackerServiceApi.stopService(this)
-				}
-			} else if (canBackgroundTrack(this, detectedActivity.groupedActivity) && canTrackerServiceBeStarted(powerManager.isPowerSaveMode)) {
-				TrackerServiceApi.startService(this, false)
-			}
-		}
 	}
 
-	private fun canTrackerServiceBeStarted(isPowerSaveMode: Boolean) = !TrackerLocker.isLocked.value && !isPowerSaveMode && Assist.canTrack(this)
+	private fun onActivityTransitionResult(result: ActivityTransitionResult) {
+
+	}
+
 
 	/**
 	 * Singleton part of the service that holds information about active requests and last known activity.
 	 */
 	companion object {
-		private const val REQUIRED_CONFIDENCE = 75
 		private const val REQUEST_CODE_PENDING_INTENT = 4561201
 
-		private var mTask: Task<*>? = null
+		private var recognitionClientTask: Task<Void>? = null
+		private var transitionClientTask: Task<Void>? = null
 
 
 		/**
@@ -65,18 +64,51 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			private set
 
 
-
-
-
-		fun initializeActivityClient(context: Context, delayInS: Int): Boolean {
+		fun startActivityRecognition(context: Context, delayInS: Int, requestedTransitions: Collection<ActivityTransitionData>): Boolean {
 			return if (Assist.checkPlayServices(context)) {
-				val activityRecognitionClient = ActivityRecognition.getClient(context)
-				mTask = activityRecognitionClient.requestActivityUpdates((delayInS * Time.SECOND_IN_MILLISECONDS), getActivityDetectionPendingIntent(context))
+				val client = ActivityRecognition.getClient(context)
+				val intent = getActivityDetectionPendingIntent(context)
+				requestActivityRecognition(client, intent, delayInS)
+
+				if (requestedTransitions.isNotEmpty()) {
+					requestActivityTransition(client, intent, requestedTransitions)
+				}
+
 				//todo add handling of task failure
 				true
 			} else {
 				Reporter.report(Throwable("Unavailable play services"))
 				false
+			}
+		}
+
+		private fun requestActivityRecognition(client: ActivityRecognitionClient, intent: PendingIntent, delayInS: Int) {
+			recognitionClientTask = client.requestActivityUpdates(delayInS * Time.SECOND_IN_MILLISECONDS, intent)
+		}
+
+		private fun requestActivityTransition(client: ActivityRecognitionClient, intent: PendingIntent, requestedTransitions: Collection<ActivityTransitionData>) {
+			val transitions = buildTransitions(requestedTransitions)
+			val request = ActivityTransitionRequest(transitions)
+			transitionClientTask = client.requestActivityTransitionUpdates(request, intent)
+		}
+
+		private fun buildTransitions(requestedTransitions: Collection<ActivityTransitionData>): List<ActivityTransition> {
+			return requestedTransitions.distinct().map { buildTransition(it) }
+		}
+
+		private fun buildTransition(transition: ActivityTransitionData): ActivityTransition {
+			return ActivityTransition.Builder()
+					.setActivityType(transition.type.value)
+					.setActivityTransition(transition.activity.value)
+					.build()
+		}
+
+
+		fun stopActivityRecognition(context: Context) {
+			ActivityRecognition.getClient(context).run {
+				val intent = getActivityDetectionPendingIntent(context)
+				removeActivityUpdates(intent)
+				removeActivityTransitionUpdates(intent)
 			}
 		}
 

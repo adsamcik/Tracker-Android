@@ -5,7 +5,7 @@ import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 
-interface ActivityRecognizer {
+internal interface ActivityRecognizer {
 	/**
 	 * Represents how accurately can the algorithm detect activities.
 	 * More accurate algorithms will be preferred.

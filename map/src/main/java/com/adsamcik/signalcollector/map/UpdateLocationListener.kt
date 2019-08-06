@@ -9,10 +9,11 @@ import android.location.Location
 import android.os.Looper
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.service.ActivityService
+import com.adsamcik.signalcollector.activity.ActivityRequestData
+import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
@@ -79,7 +80,11 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		initializePositions()
 		subscribeToLocationUpdates(context, true)
 
-		ActivityService.requestActivity(context, UpdateLocationListener::class)
+		ActivityRequestManager.requestActivity(context, ActivityRequestData(UpdateLocationListener::class, 10, listOf(), this::onActivityUpdate))
+	}
+
+	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {
+		//todo
 	}
 
 	/**

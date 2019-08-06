@@ -20,7 +20,6 @@
     <string name="settings_cell_enabled_title">Sběr mobilních sítí</string>
 
     <string name="notification_activity">aktivita %s</string>
-    <string name="notification_activity_watcher_info">Aktuální aktivita %1$s (%2$d%%)</string>
     <plurals name="notification_cell_count">
         <item quantity="one">1 mobilní vysílač v dosahu</item>
         <item quantity="few">%d mobilní vysílače v dosahu</item>
@@ -39,4 +38,36 @@
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
     <string name="settings_location_enabled_title">Záznam polohy</string>
     <string name="settings_activity_enabled_title">Sběr aktivity</string>
+
+    <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
+
+    <string name="description_tracking_lock">Tlačítko pro odemčení zámku pro záznam dat</string>
+    <string name="description_tracking_start">Tlačítko pro spuštění záznamu dat</string>
+    <string name="description_tracking_stop">Tlačítko pro zastavení záznamu dat</string>
+
+    <string name="in_range">v dosahu</string>
+    <string name="cell_current">%1$s %2$d dbm</string>
+    <string name="current">aktuální</string>
+
+    <string name="tracker_activity_card_title">Aktivita</string>
+    <string name="tracker_activity_confidence">Jistota</string>
+    <string name="tracker_activity_title">Aktivita</string>
+    <string name="tracker_collections_title">Záznamů</string>
+    <string name="tracker_distance_title">Vzdáelnost</string>
+    <string name="tracker_session_age">Začátek relace</string>
+    <string name="tracker_session_card_title">Relace</string>
+    <string name="tracker_steps">Kroky</string>
+
+    <string name="altitude">výška</string>
+    <plurals name="main_collections">
+        <item quantity="one">1 záznam</item>
+        <item quantity="few">%d záznamy</item>
+        <item quantity="other">%d záznamů</item>
+    </plurals>
+    <string name="latitude">zeměpisná šířka</string>
+    <string name="longitude">zeměpisná délka</string>
+    <string name="speed">rychlost</string>
+    <string name="speed_value">%s/s</string>
+    <string name="vertical_accuracy">Vertikální přesnost</string>
+    <string name="horizontal_accuracy">horizontální přesnost</string>
 </resources>

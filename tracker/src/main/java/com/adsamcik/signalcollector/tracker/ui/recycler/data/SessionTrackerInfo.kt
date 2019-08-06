@@ -2,11 +2,11 @@ package com.adsamcik.signalcollector.tracker.ui.recycler.data
 
 import android.text.format.DateUtils
 import android.text.format.DateUtils.MINUTE_IN_MILLIS
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.extension.formatDistance
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.tracker.R
 
 class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURCE) {
 	override val iconRes: Int
@@ -41,6 +41,6 @@ class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURC
 	}
 
 	companion object {
-		const val NAME_RESOURCE = R.string.tracker_session_card_title
+		val NAME_RESOURCE = R.string.tracker_session_card_title
 	}
 }

@@ -58,11 +58,6 @@
         </provider>
 
         <activity
-            android:name=".shortcut.ShortcutActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/AppTheme.Launcher">
-        </activity>
-        <activity
             android:name=".app.activity.MainActivity"
             android:exported="true"
             android:launchMode="singleInstance"
@@ -103,17 +98,11 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".tracker.receiver.TrackerNotificationReceiver">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-            </intent-filter>
-        </receiver>
         <receiver android:name=".app.receiver.OnAppUpdateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
-        <receiver android:name=".tracker.receiver.TrackerTimeUnlockReceiver"/>
         <service
             android:name=".import.service.ImportService"
             android:exported="false"/>

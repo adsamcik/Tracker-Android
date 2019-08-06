@@ -1,4 +1,4 @@
-package com.adsamcik.signalcollector.shortcut
+package com.adsamcik.signalcollector.tracker.shortcut
 
 import android.content.Context
 import android.content.Intent
@@ -8,8 +8,8 @@ import android.graphics.drawable.Icon
 import androidx.annotation.DrawableRes
 import androidx.annotation.RequiresApi
 import androidx.annotation.StringRes
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.extension.shortcutManager
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 import java.util.*
 

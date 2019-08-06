@@ -6,11 +6,11 @@ import android.os.Build
 import android.telephony.*
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.data.CellInfo
 import com.adsamcik.signalcollector.common.extension.hasReadPhonePermission
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData

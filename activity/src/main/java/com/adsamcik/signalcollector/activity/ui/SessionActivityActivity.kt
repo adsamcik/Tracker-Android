@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.signalcollector.R
+import com.adsamcik.signalcollector.activity.R
 import com.adsamcik.signalcollector.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.signalcollector.activity.ui.recycler.ContextualSwipeTouchHelper
 import com.adsamcik.signalcollector.common.activity.DetailActivity

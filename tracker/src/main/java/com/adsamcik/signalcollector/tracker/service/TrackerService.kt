@@ -9,9 +9,6 @@ import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.service.ActivityService
-import com.adsamcik.signalcollector.activity.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
@@ -24,7 +21,6 @@ import com.adsamcik.signalcollector.common.misc.NonNullLiveData
 import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.service.CoreService
-import com.adsamcik.signalcollector.shortcut.Shortcuts
 import com.adsamcik.signalcollector.tracker.component.*
 import com.adsamcik.signalcollector.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.data.ActivityTrackerComponent
@@ -39,6 +35,8 @@ import com.adsamcik.signalcollector.tracker.component.timer.LocationTrackerTimer
 import com.adsamcik.signalcollector.tracker.component.timer.TimeTrackerTimer
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.signalcollector.common.data.MutableCollectionData
+import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
@@ -249,9 +247,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		sessionInfoMutable.value = null
 
 		ActivityWatcherService.poke(this, trackerRunning = false)
-		ActivityService.removeActivityRequest(this, this::class)
-
-
 
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
 			Shortcuts.updateShortcut(this,

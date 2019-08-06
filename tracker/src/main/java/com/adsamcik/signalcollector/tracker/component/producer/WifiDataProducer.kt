@@ -8,9 +8,9 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.SystemClock
-import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.extension.getSystemServiceTyped
+import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerObserver
