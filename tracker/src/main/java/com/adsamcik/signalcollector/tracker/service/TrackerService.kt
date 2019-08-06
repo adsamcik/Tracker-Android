@@ -90,6 +90,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			it.onDataUpdated(tempData, collectionData)
 		}
 
+		sessionComponent.onDataUpdated(tempData, collectionData)
+
 		postComponentList.forEachIf({ it.requirementsMet(tempData) }) {
 			it.onNewData(this, session, collectionData, tempData)
 		}
