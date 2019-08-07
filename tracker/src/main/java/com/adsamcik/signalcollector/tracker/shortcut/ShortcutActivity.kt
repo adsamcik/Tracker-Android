@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.signalcollector.common.Reporter
-import com.adsamcik.signalcollector.common.extension.stopService
 import com.adsamcik.signalcollector.tracker.api.TrackerServiceApi
 import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts.ShortcutAction
 

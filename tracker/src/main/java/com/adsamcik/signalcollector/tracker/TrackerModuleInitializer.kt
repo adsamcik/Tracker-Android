@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.tracker
 
 import android.content.Context
-import androidx.annotation.MainThread
 import com.adsamcik.signalcollector.common.Process
 import com.adsamcik.signalcollector.common.module.ModuleInitializer
 import com.adsamcik.signalcollector.tracker.api.BackgroundTrackingApi

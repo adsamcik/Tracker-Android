@@ -3,9 +3,11 @@ package com.adsamcik.signalcollector.tracker.api
 import android.content.Context
 import androidx.annotation.MainThread
 import androidx.lifecycle.Observer
-import com.adsamcik.signalcollector.activity.*
+import com.adsamcik.signalcollector.activity.ActivityRequestCallback
+import com.adsamcik.signalcollector.activity.ActivityRequestData
+import com.adsamcik.signalcollector.activity.ActivityTransitionData
+import com.adsamcik.signalcollector.activity.ActivityTransitionType
 import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
-import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.data.DetectedActivity
 import com.adsamcik.signalcollector.common.data.GroupedActivity
@@ -14,6 +16,7 @@ import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserver
 import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
+import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 
 object BackgroundTrackingApi {

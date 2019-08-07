@@ -13,7 +13,7 @@ import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.common.data.SessionActivity
 
 class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecyclerAdapter, private val canSwipeCallback: (SessionActivity) -> Boolean) : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
-	private val icon: Drawable = context.getDrawable(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_remove_circle_outline)!!
+	private val icon: Drawable = requireNotNull(context.getDrawable(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_remove_circle_outline))
 
 	private val colorController = StyleManager.createController()
 

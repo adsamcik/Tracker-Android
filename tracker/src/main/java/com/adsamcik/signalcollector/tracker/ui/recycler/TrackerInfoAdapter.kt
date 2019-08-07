@@ -6,9 +6,9 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.common.style.IViewChange
-import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.data.CollectionData
+import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.style.IViewChange
 import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.ui.recycler.data.*
 

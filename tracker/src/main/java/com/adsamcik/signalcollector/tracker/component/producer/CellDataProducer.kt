@@ -15,8 +15,8 @@ import com.adsamcik.signalcollector.common.extension.telephonyManager
 import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.CellScanData
+import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.signalcollector.tracker.data.collection.RegisteredOperator
 import java.util.*
 

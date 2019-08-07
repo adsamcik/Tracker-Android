@@ -8,7 +8,6 @@ import androidx.annotation.AnyThread
 import androidx.work.Constraints
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.extension.alarmManager
 import com.adsamcik.signalcollector.common.extension.stopService
@@ -16,6 +15,7 @@ import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.R
 import com.adsamcik.signalcollector.tracker.receiver.TrackerTimeUnlockReceiver
+import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
 import com.adsamcik.signalcollector.tracker.service.TrackerService
 
 /**

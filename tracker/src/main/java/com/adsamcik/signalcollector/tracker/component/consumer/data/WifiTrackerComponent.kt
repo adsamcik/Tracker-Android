@@ -2,11 +2,11 @@ package com.adsamcik.signalcollector.tracker.component.consumer.data
 
 import android.content.Context
 import android.location.Location
+import com.adsamcik.signalcollector.common.data.MutableCollectionData
 import com.adsamcik.signalcollector.common.extension.LocationExtensions
 import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
-import com.adsamcik.signalcollector.common.data.MutableCollectionData
 import com.adsamcik.signalcollector.tracker.data.collection.WifiScanData
 import kotlin.math.abs
 

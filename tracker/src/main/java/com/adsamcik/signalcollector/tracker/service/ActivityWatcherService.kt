@@ -7,8 +7,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
 import com.adsamcik.signalcollector.activity.R
+import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.GroupedActivity
