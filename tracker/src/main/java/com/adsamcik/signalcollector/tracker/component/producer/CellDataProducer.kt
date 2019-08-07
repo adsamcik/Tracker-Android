@@ -165,7 +165,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		this.context = context
 		telephonyManager = context.telephonyManager
 
-		if(Build.VERSION.SDK_INT >= 22) {
+		if (Build.VERSION.SDK_INT >= 22) {
 			subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
 		}
 	}

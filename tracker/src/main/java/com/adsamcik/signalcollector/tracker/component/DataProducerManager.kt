@@ -30,7 +30,7 @@ internal class DataProducerManager(context: Context) : TrackerDataProducerObserv
 	}
 
 	override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {
-		if(component.isEnabled == shouldBeEnabled) return
+		if (component.isEnabled == shouldBeEnabled) return
 
 		if (shouldBeEnabled) {
 			activeProducerList.add(component)

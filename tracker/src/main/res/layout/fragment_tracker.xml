@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.appcompat.widget.LinearLayoutCompat
-    android:id="@+id/fragment_tracker_root"
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/fragment_tracker_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:animateLayoutChanges="true"
@@ -30,7 +29,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_lock"
             android:tint="@color/text_primary"
-            app:srcCompat="@drawable/ic_lock_black_24dp"/>
+            app:srcCompat="@drawable/ic_lock_black_24dp" />
 
         <ImageButton
             android:id="@+id/button_tracking"
@@ -39,7 +38,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_start"
             android:tint="@color/text_primary"
-            app:srcCompat="@drawable/ic_play_circle_filled_black_24dp"/>
+            app:srcCompat="@drawable/ic_play_circle_filled_black_24dp" />
 
         <ImageButton
             android:id="@+id/button_settings"
@@ -49,7 +48,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_settings"
             android:tint="@color/text_primary"
-            app:srcCompat="@drawable/ic_settings_black_24dp"/>
+            app:srcCompat="@drawable/ic_settings_black_24dp" />
     </androidx.appcompat.widget.LinearLayoutCompat>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -66,6 +65,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/top_panel_root"/>
+        app:layout_constraintTop_toBottomOf="@id/top_panel_root" />
 
 </androidx.appcompat.widget.LinearLayoutCompat>

@@ -1,21 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
-                                              xmlns:app="http://schemas.android.com/apk/res-auto"
-                                              xmlns:tools="http://schemas.android.com/tools"
-                                              android:layout_width="match_parent"
-                                              android:layout_height="wrap_content"
-                                              android:orientation="horizontal"
-                                              android:paddingStart="16dp"
-                                              android:paddingTop="8dp"
-                                              android:paddingEnd="16dp"
-                                              android:paddingBottom="8dp">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="8dp">
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/icon"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:srcCompat="@drawable/ic_outline_network_wifi_24px"
-        />
+        app:srcCompat="@drawable/ic_outline_network_wifi_24px" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/title"
@@ -25,13 +24,13 @@
         android:layout_marginTop="3dp"
         android:layout_marginEnd="16dp"
         android:layout_weight="1"
-        tools:text="Distance"/>
+        tools:text="Distance" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        tools:text="1000"/>
+        tools:text="1000" />
 
 </androidx.appcompat.widget.LinearLayoutCompat>

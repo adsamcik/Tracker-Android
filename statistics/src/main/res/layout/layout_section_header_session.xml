@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
-                                              xmlns:tools="http://schemas.android.com/tools"
-                                              android:layout_width="match_parent"
-                                              android:layout_height="wrap_content"
-                                              android:orientation="horizontal"
-                                              android:paddingStart="@dimen/content_padding"
-                                              android:paddingTop="@dimen/content_padding"
-                                              android:paddingEnd="@dimen/content_padding"
-                                              android:paddingBottom="8dp">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingStart="@dimen/content_padding"
+    android:paddingTop="@dimen/content_padding"
+    android:paddingEnd="@dimen/content_padding"
+    android:paddingBottom="8dp">
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/text_time"
@@ -15,7 +15,7 @@
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        tools:text="27 January"/>
+        tools:text="27 January" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/text_distance"
@@ -24,6 +24,6 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:gravity="end"
-        tools:text="50km"/>
+        tools:text="50km" />
 
 </androidx.appcompat.widget.LinearLayoutCompat>

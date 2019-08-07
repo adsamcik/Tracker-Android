@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.tracker.data.session
 import android.os.Parcel
 import android.os.Parcelable
 
-data class TrackerSessionInfo(val isInitiatedByUser: Boolean): Parcelable {
+data class TrackerSessionInfo(val isInitiatedByUser: Boolean) : Parcelable {
 	constructor(parcel: Parcel) : this(parcel.readByte() != 0.toByte())
 
 	override fun writeToParcel(parcel: Parcel, flags: Int) {

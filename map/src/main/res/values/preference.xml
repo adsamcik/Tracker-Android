@@ -27,7 +27,6 @@
     </string-array>
 
 
-
     <string name="settings_map_max_heat_default" translatable="false">10</string>
     <string name="settings_map_max_heat_key" translatable="false">mapMaxHeat</string>
     <integer-array name="settings_map_max_heat_values">
