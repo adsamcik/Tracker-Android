@@ -32,39 +32,52 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 	}
 
 	fun update(collectionData: CollectionData, sessionData: TrackerSession) {
-		update<SessionTrackerInfo>(true, SessionTrackerInfo.NAME_RESOURCE, { SessionTrackerInfo(sessionData) }, { it.session = sessionData })
+		update(sessionData,
+				SessionTrackerInfo.NAME_RESOURCE,
+				{ SessionTrackerInfo(it) },
+				{ trackerInfo, value -> trackerInfo.session = value })
 
 		val location = collectionData.location
-		update<LocationTrackerInfo>(location != null, LocationTrackerInfo.NAME_RESOURCE, { LocationTrackerInfo(location!!) }, { it.location = location!! })
+		update(location,
+				LocationTrackerInfo.NAME_RESOURCE,
+				{ LocationTrackerInfo(it) },
+				{ trackerInfo, value -> trackerInfo.location = value })
 
 		val activity = collectionData.activity
-		update<ActivityTrackerInfo>(activity != null, ActivityTrackerInfo.NAME_RESOURCE, { ActivityTrackerInfo(activity!!) }, { it.activity = activity!! })
+		update(activity,
+				ActivityTrackerInfo.NAME_RESOURCE,
+				{ ActivityTrackerInfo(it) },
+				{ trackerInfo, value -> trackerInfo.activity = value })
 
 		val wifi = collectionData.wifi
-		update<WifiTrackerInfo>(wifi != null, WifiTrackerInfo.NAME_RESOURCE, { WifiTrackerInfo(wifi!!) }, { it.wifiData = wifi!! })
+		update(wifi,
+				WifiTrackerInfo.NAME_RESOURCE,
+				{ WifiTrackerInfo(it) },
+				{ trackerInfo, value -> trackerInfo.wifiData = value })
 
 		val cell = collectionData.cell
-		update<CellTrackerInfo>(cell != null, CellTrackerInfo.NAME_RESOURCE, { CellTrackerInfo(cell!!) }, { it.cellData = cell!! })
+		update(cell,
+				CellTrackerInfo.NAME_RESOURCE,
+				{ CellTrackerInfo(it) },
+				{ trackerInfo, value -> trackerInfo.cellData = value })
 	}
 
-	private inline fun <T> update(isAvailable: Boolean, nameRes: Int, factory: () -> TrackerInfo, updater: (T) -> Unit) {
+	private inline fun <T, Z> update(value: Z?, nameRes: Int, factory: (Z) -> T, setter: (T, Z) -> Unit) {
 		val index = data.indexOfFirst { it.nameRes == nameRes }
-		if (isAvailable) {
+		if (value != null) {
 			if (index >= 0) {
 				@Suppress("UNCHECKED_CAST")
-				updater(data[index] as T)
+				setter.invoke(data[index] as T, value)
 				notifyItemChanged(index)
 			} else {
 				val insertedAt = data.size
-				data.add(factory())
+				data.add(factory(value) as TrackerInfo)
 				notifyItemInserted(insertedAt)
 			}
 		} else if (index >= 0) {
 			data.removeAt(index)
 			notifyItemRemoved(index)
 		}
-
-
 	}
 
 	class ViewHolder(root: View, val content: ViewGroup, val title: TextView, val fields: MutableList<InfoField> = mutableListOf()) : RecyclerView.ViewHolder(root)
