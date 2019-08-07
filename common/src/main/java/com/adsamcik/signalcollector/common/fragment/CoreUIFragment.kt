@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
-import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.style.StyleController
 import com.adsamcik.signalcollector.common.style.StyleManager

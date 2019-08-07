@@ -14,8 +14,8 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.R
-import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.style.StyleView
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
 /**

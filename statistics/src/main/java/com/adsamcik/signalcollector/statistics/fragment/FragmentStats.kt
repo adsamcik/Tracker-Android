@@ -15,14 +15,14 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.recycler.card.table.TableCard
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.style.RecyclerStyleView
-import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
+import com.adsamcik.signalcollector.common.style.RecyclerStyleView
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.statistics.R
 import com.adsamcik.signalcollector.statistics.data.StatData
 import com.adsamcik.signalcollector.statistics.detail.activity.StatsDetailActivity

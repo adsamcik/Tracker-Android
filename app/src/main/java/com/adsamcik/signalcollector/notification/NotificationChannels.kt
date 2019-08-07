@@ -13,6 +13,7 @@ import com.adsamcik.signalcollector.R
 /**
  * Singleton that creates notification channels
  */
+//todo add option for modules to add channels
 object NotificationChannels {
 
 	fun prepareChannels(context: Context) {

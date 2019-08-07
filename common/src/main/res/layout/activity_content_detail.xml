@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.appcompat.widget.LinearLayoutCompat
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -26,7 +25,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/back"
             android:scaleType="centerInside"
-            app:srcCompat="@drawable/ic_arrow_back_black"/>
+            app:srcCompat="@drawable/ic_arrow_back_black" />
 
         <androidx.appcompat.widget.AppCompatTextView
             android:id="@+id/content_detail_title"
@@ -38,7 +37,7 @@
             android:gravity="center_vertical|start"
             android:maxLines="1"
             android:textAlignment="viewStart"
-            tools:text="Lorem ipsum"/>
+            tools:text="Lorem ipsum" />
     </androidx.appcompat.widget.LinearLayoutCompat>
 
     <androidx.appcompat.widget.LinearLayoutCompat
@@ -46,7 +45,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#FFFFFFFF"
-        android:orientation="vertical">
-    </androidx.appcompat.widget.LinearLayoutCompat>
+        android:orientation="vertical"></androidx.appcompat.widget.LinearLayoutCompat>
 
 </androidx.appcompat.widget.LinearLayoutCompat>

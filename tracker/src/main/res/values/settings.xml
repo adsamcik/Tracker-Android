@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_tracking_title">Tracking</string>
+
+    <!--- TRACKING -->
+    <string name="settings_disabled_recharge_title">Disabled until recharge</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
+    <string name="settings_disabled_recharge_default" translatable="false">false</string>
+
+    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
+    <string name="settings_disabled_time_default" translatable="false">0</string>
+
+    <string name="settings_auto_tracking_category">Automatic tracking</string>
+    <string name="settings_tracking_enable_category">Tracking options</string>
+
+    <string name="settings_location_enabled_title">Location tracking</string>
+    <string name="settings_activity_enabled_title">Activity tracking</string>
+    <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
+    <string name="settings_cell_enabled_title">Cell tracking</string>
+
+    <string-array name="tracking_options_titles">
+        <item>Disabled</item>
+        <item>On foot</item>
+        <item>In motion</item>
+    </string-array>
+
+    <integer-array name="tracking_options_drawables">
+        <item>@drawable/ic_close_black</item>
+        <item>@drawable/ic_directions_walk_white_24dp</item>
+        <item>@drawable/ic_directions_car_white_24dp</item>
+    </integer-array>
+
+    <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
+
+    <integer-array name="settings_tracking_min_distance_values">
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>40</item>
+        <item>50</item>
+        <item>80</item>
+        <item>100</item>
+    </integer-array>
+
+    <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
+
+    <integer-array name="settings_tracking_min_time_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>7</item>
+        <item>10</item>
+        <item>20</item>
+        <item>40</item>
+        <item>60</item>
+    </integer-array>
+
+
+    <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
+
+    <integer-array name="settings_tracking_required_accuracy">
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>35</item>
+        <item>50</item>
+        <item>75</item>
+        <item>100</item>
+        <item>200</item>
+        <item>500</item>
+        <item>1000</item>
+    </integer-array>
+
+</resources>

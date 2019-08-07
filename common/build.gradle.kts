@@ -64,7 +64,5 @@ dependencies {
 
 	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
 
-	implementation(fileTree("libs").setIncludes(listOf("*.jar")))
-
 	Libraries.test(this)
 }

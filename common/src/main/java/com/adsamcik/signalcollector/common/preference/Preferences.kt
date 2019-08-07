@@ -3,12 +3,12 @@ package com.adsamcik.signalcollector.common.preference
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.Resources
-import androidx.preference.PreferenceManager
 import androidx.annotation.ColorRes
 import androidx.annotation.DimenRes
 import androidx.annotation.IntegerRes
 import androidx.annotation.StringRes
 import androidx.core.content.res.ResourcesCompat
+import androidx.preference.PreferenceManager
 import com.adsamcik.signalcollector.common.R
 import com.adsamcik.signalcollector.common.misc.LengthSystem
 import com.adsamcik.signalcollector.common.misc.SpeedFormat

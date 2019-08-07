@@ -111,6 +111,8 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
 			execSQL("CREATE  INDEX `index_wifi_data_longitude` ON wifi_data (`longitude`)")
 			execSQL("CREATE  INDEX `index_wifi_data_latitude` ON wifi_data (`latitude`)")
 			execSQL("CREATE  INDEX `index_wifi_data_last_seen` ON wifi_data (`last_seen`)")
+
+			execSQL("CREATE  INDEX `index_tracker_session_session_activity_id` ON `location_data` (`session_activity_id`)")
 		}
 	}
 }

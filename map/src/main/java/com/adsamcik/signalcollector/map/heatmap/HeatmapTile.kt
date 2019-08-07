@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.map.heatmap
 
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
-import com.adsamcik.signalcollector.common.extension.toByteArray
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.common.extension.toByteArray
 import com.adsamcik.signalcollector.map.MapFunctions
 import kotlin.math.roundToInt
 

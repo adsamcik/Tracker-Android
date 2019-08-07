@@ -81,6 +81,8 @@ tasks.withType<DokkaTask> {
 //gradlew dependencyUpdates -Drevision=release
 dependencies {
 	implementation(project(":common"))
+	implementation(project(":tracker"))
+	implementation(project(":activity"))
 
 	Libraries.core(this)
 	//1st party dependencies

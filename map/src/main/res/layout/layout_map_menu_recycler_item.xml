@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<androidx.appcompat.widget.AppCompatTextView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.appcompat.widget.AppCompatTextView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/text_view"
     style="@style/TextAppearance.MaterialComponents.Body1"
@@ -11,4 +10,4 @@
     android:clickable="true"
     android:focusable="true"
     android:gravity="start"
-    tools:text="TEST NAME"/>
+    tools:text="TEST NAME" />

@@ -6,7 +6,6 @@ import com.adsamcik.signalcollector.common.data.*
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.tracker.data.session.MutableTrackerSession
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.Speed
 import io.jenetics.jpx.TrackSegment

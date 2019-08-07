@@ -7,5 +7,7 @@ enum class GroupedActivity {
 	STILL,
 	ON_FOOT,
 	IN_VEHICLE,
-	UNKNOWN
+	UNKNOWN;
+
+	val isIdle get() = this == UNKNOWN || this == STILL
 }

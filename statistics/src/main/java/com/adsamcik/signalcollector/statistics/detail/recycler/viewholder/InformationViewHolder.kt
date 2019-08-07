@@ -1,8 +1,8 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.viewholder
 
 import android.view.View
-import com.adsamcik.signalcollector.common.style.StyleController
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeViewHolder
+import com.adsamcik.signalcollector.common.style.StyleController
 import com.adsamcik.signalcollector.statistics.detail.recycler.data.InformationStatisticsData
 import kotlinx.android.synthetic.main.layout_stats_detail_item.view.*
 
