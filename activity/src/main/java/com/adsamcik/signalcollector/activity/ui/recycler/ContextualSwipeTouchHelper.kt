@@ -8,9 +8,9 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.style.StyleData
 import com.adsamcik.signalcollector.common.style.StyleManager
-import com.adsamcik.signalcollector.common.data.SessionActivity
 
 class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecyclerAdapter, private val canSwipeCallback: (SessionActivity) -> Boolean) : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
 	private val icon: Drawable = requireNotNull(context.getDrawable(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_remove_circle_outline))

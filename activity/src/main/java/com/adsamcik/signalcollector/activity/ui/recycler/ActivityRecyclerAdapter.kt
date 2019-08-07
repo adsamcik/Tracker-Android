@@ -9,9 +9,9 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.activity.R
-import com.adsamcik.signalcollector.common.style.IViewChange
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.style.IViewChange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

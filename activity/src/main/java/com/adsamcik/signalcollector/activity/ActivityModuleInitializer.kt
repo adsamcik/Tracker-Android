@@ -2,7 +2,6 @@ package com.adsamcik.signalcollector.activity
 
 import android.content.Context
 import android.content.IntentFilter
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.adsamcik.signalcollector.activity.receiver.ActivitySessionReceiver
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.module.ModuleInitializer

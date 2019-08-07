@@ -42,7 +42,7 @@ object Reporter {
 
 	fun report(exception: Throwable) {
 		if (BuildConfig.DEBUG) throw exception
-		
+
 		checkInitialized()
 		if (isEnabled) Crashlytics.logException(exception)
 	}
