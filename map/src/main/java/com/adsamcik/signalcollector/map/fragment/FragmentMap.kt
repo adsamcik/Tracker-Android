@@ -35,6 +35,9 @@ import com.adsamcik.signalcollector.commonmap.ColorMap
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.*
 import com.adsamcik.signalcollector.map.R
+import com.adsamcik.signalcollector.map.layer.MapLayerData
+import com.adsamcik.signalcollector.map.layer.MapLayerLogic
+import com.adsamcik.signalcollector.map.layer.logic.LocationHeatmapLogic
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
 import com.google.android.gms.maps.GoogleMap
@@ -377,18 +380,15 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 * Initializes map layers and menu button. If map layers are already initialized only initializes menu button.
 	 */
 	private fun loadMapLayers() {
-		val resources = resources
 		val mapLayers = mutableListOf(
-				MapLayer(LayerType.Location, resources.getString(com.adsamcik.signalcollector.common.R.string.location)),
-				MapLayer(LayerType.WiFi, resources.getString(com.adsamcik.signalcollector.common.R.string.wifi)),
-				MapLayer(LayerType.Cell, resources.getString(com.adsamcik.signalcollector.common.R.string.cell)))
+				LocationHeatmapLogic())
 		initializeMenuButton(mapLayers)
 	}
 
 	/**
 	 * Initialized draggable menu button
 	 */
-	private fun initializeMenuButton(mapLayers: List<MapLayer>) {
+	private fun initializeMenuButton(mapLayerData: List<MapLayerLogic>) {
 		//uses post to make sure heights and widths are available
 		map_menu_parent.post {
 			val activity = requireActivity()
@@ -402,12 +402,12 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			payload.onInitialized = {
 				fragmentMapMenu.set(it)
 				styleController.watchRecyclerView(RecyclerStyleView(it.requireView() as RecyclerView, 2))
-				if (mapLayers.isNotEmpty()) {
+				if (mapLayerData.isNotEmpty()) {
 					val adapter = it.adapter
 					adapter.clear()
-					adapter.addAll(mapLayers)
+					adapter.addAll(mapLayerData)
 					it.onClickListener = { layer, _ ->
-						mapController?.setLayer(activity, layer.type)
+						mapController?.setLayer(activity, layer)
 						map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
 					}
 					it.filter(mapLayerFilterRule)
@@ -430,7 +430,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			//payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
 			//payload.setOffsetsDp(Offset(0, 24))
 			map_menu_button.addPayload(payload)
-			if (mapLayers.isNotEmpty()) {
+			if (mapLayerData.isNotEmpty()) {
 				map_menu_button.visibility = VISIBLE
 			}
 		}

@@ -10,15 +10,15 @@ import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
-import com.adsamcik.signalcollector.map.MapLayer
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
+import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import kotlinx.android.synthetic.main.fragment_map_menu.*
 
-class FragmentMapMenu : Fragment(), IOnDemandView {
+internal class FragmentMapMenu : Fragment(), IOnDemandView {
 	val adapter: MapFilterableAdapter get() = recycler.adapter as MapFilterableAdapter
 
-	var onClickListener: ((mapLayer: MapLayer, position: Int) -> Unit)? = null
+	var onClickListener: ((mapLayerData: MapLayerLogic, position: Int) -> Unit)? = null
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		return inflater.inflate(R.layout.fragment_map_menu, container, false)
@@ -26,8 +26,8 @@ class FragmentMapMenu : Fragment(), IOnDemandView {
 
 	override fun onStart() {
 		super.onStart()
-		val adapter = MapFilterableAdapter(requireContext(), com.adsamcik.signalcollector.common.R.layout.recycler_item) { it.name }
 		val context = requireContext()
+		val adapter = MapFilterableAdapter(context, com.adsamcik.signalcollector.common.R.layout.recycler_item) { context.getString(it.data.nameRes) }
 
 		recycler.adapter = adapter
 		recycler.layoutManager = LinearLayoutManager(context)

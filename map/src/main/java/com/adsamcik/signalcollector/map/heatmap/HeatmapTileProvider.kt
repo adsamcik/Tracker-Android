@@ -1,24 +1,14 @@
 package com.adsamcik.signalcollector.map.heatmap
 
-import android.content.Context
 import android.graphics.Color
-import androidx.annotation.WorkerThread
-import com.adsamcik.signalcollector.common.extension.toDate
 import com.adsamcik.signalcollector.common.misc.ConditionVariableInt
 import com.adsamcik.signalcollector.common.misc.Int2
-import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
-import com.adsamcik.signalcollector.map.LayerType
 import com.adsamcik.signalcollector.map.MapController
 import com.adsamcik.signalcollector.map.MapFunctions
-import com.adsamcik.signalcollector.map.R
-import com.adsamcik.signalcollector.map.heatmap.creators.CellHeatmapTileCreator
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
-import com.adsamcik.signalcollector.map.heatmap.creators.LocationHeatmapTileCreator
-import com.adsamcik.signalcollector.map.heatmap.creators.WifiHeatmapTileCreator
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
-import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -29,15 +19,7 @@ import kotlin.math.roundToInt
 
 
 //todo refactor
-class HeatmapTileProvider(context: Context) : TileProvider {
-	private var heatmapTileCreator: HeatmapTileCreator? = null
-		set(value) {
-			heatmapCache.clear()
-			field = value
-		}
-
-	private val preferences = Preferences.getPref(context)
-
+class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator, private var initMaxHeat: Float) : TileProvider {
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
 	private val heatLock = ReentrantLock()
@@ -57,16 +39,11 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	private var heatmapSize: Int = 0
 	private lateinit var stamp: HeatmapStamp
 
-	private var maxHeat: Float = 0f
+	private var maxHeat: Float = initMaxHeat
 
-	var range: ClosedRange<Calendar>? = null
+	var range: LongRange = LongRange.EMPTY
 		set(value) {
-			field = if (value != null) {
-				value.start.toDate()..value.endInclusive.toDate().apply {
-					add(Calendar.DAY_OF_MONTH, 1)
-				}
-			} else
-				null
+			field = value
 			heatmapCache.clear()
 			resetMaxHeat()
 		}
@@ -78,6 +55,8 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 	}
 
 	fun updateQuality(quality: Float) {
+		if(this.quality == quality) return
+
 		this.quality = quality
 		heatmapSize = (quality * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
 		val stampRadius = HeatmapStamp.calculateOptimalRadius(heatmapSize)
@@ -96,23 +75,11 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 
 	private fun resetMaxHeat() {
 		heatLock.withLock {
-			maxHeat = preferences.getIntResString(
-					R.string.settings_map_max_heat_key,
-					R.string.settings_map_max_heat_default).toFloat()
+			maxHeat = initMaxHeat
 
 			//todo make this smarter so it actually takes nearest neighbour
 			maxHeat *= max(1f, 2f.pow(MAX_HEAT_ZOOM - lastZoom))
 		}
-	}
-
-	@WorkerThread
-	fun setHeatmapLayer(context: Context, layerType: LayerType) {
-		heatmapTileCreator = when (layerType) {
-			LayerType.Location -> LocationHeatmapTileCreator(context)
-			LayerType.Cell -> CellHeatmapTileCreator(context)
-			LayerType.WiFi -> WifiHeatmapTileCreator(context)
-		}
-		resetMaxHeat()
 	}
 
 	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
@@ -126,8 +93,6 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 				resetMaxHeat()
 			}
 		}
-
-		val heatmapProvider = heatmapTileCreator!!
 
 
 		val leftX = MapFunctions.toLon(x.toDouble(), zoom)
@@ -144,10 +109,15 @@ class HeatmapTileProvider(context: Context) : TileProvider {
 			heatmap = heatmapCache[key]!!
 		} else {
 			val range = range
-			heatmap = if (range == null) {
-				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, x, y, zoom, area, maxHeat)
-			} else {
-				heatmapProvider.getHeatmap(heatmapSize, stamp, colorScheme, range.start.timeInMillis, range.endInclusive.timeInMillis, x, y, zoom, area, maxHeat)
+			try {
+				heatmap = if (range == LongRange.EMPTY) {
+					tileCreator.getHeatmap(heatmapSize, stamp, colorScheme, x, y, zoom, area, maxHeat)
+				} else {
+					tileCreator.getHeatmap(heatmapSize, stamp, colorScheme, range.first, range.last, x, y, zoom, area, maxHeat)
+				}
+			}catch (e: Exception) {
+				e.printStackTrace()
+				throw e
 			}
 			heatmapCache[key] = heatmap
 		}
