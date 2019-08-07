@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/coordinator"
@@ -30,7 +29,7 @@
             app:interpolator="Decelerate"
             app:layout_constraintBottom_toBottomOf="@id/navigation_guideline"
             app:layout_constraintLeft_toLeftOf="parent"
-            tools:ignore="RtlHardcoded,RtlSymmetry"/>
+            tools:ignore="RtlHardcoded,RtlSymmetry" />
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/button_game"
@@ -46,7 +45,7 @@
             app:interpolator="Decelerate"
             app:layout_constraintBottom_toBottomOf="@id/navigation_guideline"
             app:layout_constraintRight_toRightOf="parent"
-            tools:ignore="RtlHardcoded,RtlSymmetry"/>
+            tools:ignore="RtlHardcoded,RtlSymmetry" />
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/button_map"
@@ -62,14 +61,13 @@
             app:targetAnchor="top"
             app:targetOffsetVertical="56dp"
             app:targetTranslationZ="24dp"
-            app:targetView="@id/root"
-            />
+            app:targetView="@id/root" />
 
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/navigation_guideline"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            app:layout_constraintGuide_end="24dp"/>
+            app:layout_constraintGuide_end="24dp" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

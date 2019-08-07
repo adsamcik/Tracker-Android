@@ -10,9 +10,9 @@
 
         <service
             android:name=".service.ActivityService"
-            android:exported="false"/>
+            android:exported="false" />
         <service
             android:name="com.adsamcik.signalcollector.tracker.service.ActivityWatcherService"
-            android:exported="false"/>
+            android:exported="false" />
     </application>
 </manifest>

@@ -1,4 +1,4 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <string name="app_name">Signals</string>
 
     <string name="wifi_new_title">New Wi-Fi</string>

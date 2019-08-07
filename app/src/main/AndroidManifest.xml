@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:tools="http://schemas.android.com/tools"
-          package="com.adsamcik.signalcollector">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.adsamcik.signalcollector">
 
     <uses-feature
         android:name="android.hardware.location.gps"
-        android:required="true"/>
+        android:required="true" />
     <uses-feature
         android:name="android.hardware.telephony"
-        android:required="false"/>
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.wifi"
-        android:required="false"/>
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.sensor.stepcounter"
-        android:required="false"/>
+        android:required="false" />
 
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
-    <permission android:name="com.adsamcik.signalcollector.permission.TRACKER"/>
+    <permission android:name="com.adsamcik.signalcollector.permission.TRACKER" />
 
     <!-- TODO REMOVE requestLegacyExternalStorage ONCE FILE LIBRARY SUPPORTS SCOPED STORAGE -->
     <application
@@ -39,11 +39,11 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
         tools:targetApi="q">
-        <activity android:name=".module.activity.ModuleActivity"/>
+        <activity android:name=".module.activity.ModuleActivity" />
 
         <meta-data
             android:name="android.max_aspect"
-            android:value="10"/>
+            android:value="10" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -52,7 +52,7 @@
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/sharable_paths"/>
+                android:resource="@xml/sharable_paths" />
         </provider>
 
         <activity
@@ -64,54 +64,55 @@
             android:windowSoftInputMode="adjustResize"
             tools:targetApi="n">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
             android:name=".export.activity.ExportActivity"
             android:screenOrientation="portrait">
             <intent-filter>
-                <action android:name="android.intent.action.PICK"/>
+                <action android:name="android.intent.action.PICK" />
 
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.OPENABLE"/>
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.OPENABLE" />
 
-                <data android:mimeType="application/zip"/>
+                <data android:mimeType="application/zip" />
             </intent-filter>
         </activity>
         <activity
             android:name=".license.LicenseActivity"
-            android:screenOrientation="portrait"/>
+            android:screenOrientation="portrait" />
         <activity
             android:name=".preference.activity.SettingsActivity"
-            android:parentActivityName=".app.activity.MainActivity"/>
+            android:parentActivityName=".app.activity.MainActivity" />
 
         <activity
             android:name=".debug.activity.StatusActivity"
-            android:exported="true"/>
+            android:exported="true" />
 
         <receiver android:name=".app.receiver.BootReceiver">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
         <receiver android:name=".app.receiver.OnAppUpdateReceiver">
             <intent-filter>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
         <service
             android:name=".import.service.ImportService"
-            android:exported="false"/>
+            android:exported="false" />
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="@string/GEO_API"/>
+            android:value="@string/GEO_API" />
 
         <meta-data
             android:name="firebase_crashlytics_collection_enabled"
-            android:value="false"/>
+            android:value="false" />
 
     </application>
 
