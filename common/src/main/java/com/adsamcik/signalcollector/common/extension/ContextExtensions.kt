@@ -83,6 +83,29 @@ fun Context.startActivity(
 }
 
 /**
+ * Starts new activity
+ *
+ * @param className Path to the activity class
+ */
+fun Context.startActivity(className: String) {
+	val intent = Intent()
+	intent.setClassName(this, className)
+	startActivity(intent)
+}
+
+/**
+ * Starts new activity
+ *
+ * @param className Path to the activity class
+ */
+fun Activity.startActivity(className: String) {
+	val intent = Intent()
+	intent.setClassName(this, className)
+	startActivity(intent)
+}
+
+
+/**
  * Starts new service
  *
  * @param init Initialization function to setup the intent if needed

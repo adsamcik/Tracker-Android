@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.map.fragment
 
 import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Point
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.location.Geocoder
@@ -16,7 +15,6 @@ import android.view.ViewGroup
 import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.*

@@ -1,0 +1,20 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="error_nothing_to_track">You need to track more than time</string>
+
+    <string name="in_range">in range</string>
+    <string name="current">current</string>
+    <string name="cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm</string>
+
+    <plurals name="main_collections">
+        <item quantity="one">1 collection</item>
+        <item quantity="other">%d collections</item>
+    </plurals>
+
+    <string name="latitude">latitude</string>
+    <string name="longitude">longitude</string>
+    <string name="altitude">altitude</string>
+    <string name="speed">speed</string>
+    <string name="speed_value">%s/s</string>
+    <string name="horizontal_accuracy">horizontal accuracy</string>
+    <string name="vertical_accuracy">vertical accuracy</string>
+</resources>

@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
-                                              xmlns:tools="http://schemas.android.com/tools"
-                                              android:layout_width="match_parent"
-                                              android:layout_height="200dp"
-                                              android:orientation="vertical"
-                                              android:paddingStart="16dp"
-                                              android:paddingTop="8dp"
-                                              android:paddingEnd="16dp"
-                                              android:paddingBottom="8dp">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="200dp"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="8dp">
 
 
     <androidx.appcompat.widget.AppCompatTextView
@@ -17,13 +17,13 @@
         android:layout_weight="0"
         android:drawablePadding="16dp"
         tools:drawableStart="@drawable/ic_outline_map_24dp"
-        tools:text="Distance"/>
+        tools:text="Distance" />
 
     <com.github.mikephil.charting.charts.LineChart
         android:id="@+id/line_chart"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_weight="1"/>
+        android:layout_weight="1" />
 
 
 </androidx.appcompat.widget.LinearLayoutCompat>

@@ -47,7 +47,7 @@ dependencies {
 	Libraries.test(this)
 	Libraries.introduction(this)
 
-	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))
 	implementation(project(":common"))
+	implementation(project(":activity"))
 }

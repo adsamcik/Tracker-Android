@@ -9,10 +9,11 @@ import android.location.Location
 import android.os.Looper
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.content.ContextCompat
-import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.activity.service.ActivityService
+import com.adsamcik.signalcollector.activity.ActivityRequestData
+import com.adsamcik.signalcollector.activity.api.ActivityRequestManager
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
@@ -79,7 +80,11 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		initializePositions()
 		subscribeToLocationUpdates(context, true)
 
-		ActivityService.requestActivity(context, UpdateLocationListener::class)
+		ActivityRequestManager.requestActivity(context, ActivityRequestData(UpdateLocationListener::class, 10, listOf(), this::onActivityUpdate))
+	}
+
+	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {
+		//todo
 	}
 
 	/**
@@ -152,8 +157,9 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		if (rotationVector != null) sensorManager.unregisterListener(this, rotationVector)
 		targetBearing = 0f
 		targetTilt = 0f
-		if (returnToDefault)
+		if (returnToDefault) {
 			animateTo(targetPosition, targetZoom, 0f, 0f, DURATION_SHORT)
+		}
 	}
 
 	/**
@@ -167,7 +173,7 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 			if (useGyroscope) {
 				stopUsingGyroscope(returnToDefault)
 			}
-			button.setImageResource(R.drawable.ic_gps_not_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_gps_not_fixed_black_24dp)
 		}
 	}
 
@@ -219,36 +225,40 @@ class UpdateLocationListener(context: Context, private val map: GoogleMap, priva
 		if (followMyPosition) {
 			when {
 				useGyroscope -> {
-					button.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
+					button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_gps_fixed_black_24dp)
 					stopUsingGyroscope(true)
 				}
 				else -> {
 					useGyroscope = true
-					if (rotationVector != null) sensorManager.registerListener(this, rotationVector,
-							SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
+					if (rotationVector != null) {
+						sensorManager.registerListener(this, rotationVector,
+								SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
+					}
 					animateToTilt(45f)
-					button.setImageResource(R.drawable.ic_compass)
+					button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_compass)
 				}
 			}
 		} else {
-			button.setImageResource(R.drawable.ic_gps_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.signalcollector.common.R.drawable.ic_gps_fixed_black_24dp)
 			this.followMyPosition = true
 
-			if (lastUserPos != null)
-				moveTo(lastUserPos!!)
+			if (lastUserPos != null) {
+				moveTo(requireNotNull(lastUserPos))
+			}
 
 			eventListener += GoogleMap.OnCameraMoveStartedListener {
-				if (it == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE)
+				if (it == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
 					stopUsingUserPosition(button, true)
+				}
 			}
 		}
 	}
 
 	private fun moveTo(latlng: LatLng, animate: Boolean = true) {
 		val zoom = map.cameraPosition.zoom.coerceIn(MIN_MOVE_ZOOM, MAX_MOVE_ZOOM)
-		if (animate)
+		if (animate) {
 			animateToPositionZoom(latlng, zoom)
-		else {
+		} else {
 			teleportToPositionZoom(latlng, zoom)
 		}
 

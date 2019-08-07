@@ -9,12 +9,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.signalcollector.common.useMock
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
-import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LATITUDE
-import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MAX_LONGITUDE
-import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LATITUDE
-import com.adsamcik.signalcollector.commonmap.CoordinateBounds.Companion.MIN_LONGITUDE
 import com.adsamcik.signalcollector.map.MapLayer
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter

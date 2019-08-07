@@ -2,9 +2,9 @@ package com.adsamcik.signalcollector.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.common.preference.Preferences
 
 class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	private val dao = AppDatabase.getDatabase(context).locationDao()

@@ -6,6 +6,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.adsamcik.signalcollector.common.data.DetectedActivityTypeConverter
 import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
@@ -22,7 +23,7 @@ import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 	DatabaseCellData::class,
 	SessionActivity::class],
 		version = 9)
-@TypeConverters(CellTypeTypeConverter::class)
+@TypeConverters(CellTypeTypeConverter::class, DetectedActivityTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun locationDao(): LocationDataDao
@@ -34,6 +35,8 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun cellDao(): CellDataDao
 
 	abstract fun activityDao(): ActivityDao
+
+	abstract fun generalDao(): GeneralDao
 
 	companion object {
 		private var instance_: AppDatabase? = null
@@ -55,15 +58,10 @@ abstract class AppDatabase : RoomDatabase() {
 
 			database.activityDao().insert(sessionActivity)
 		}
-
+		
 		@WorkerThread
 		fun getDatabase(context: Context): AppDatabase {
 			return instance_ ?: createInstance(context)
-		}
-
-		fun closeDatabase() {
-			instance_?.close()
-			instance_ = null
 		}
 
 		@WorkerThread

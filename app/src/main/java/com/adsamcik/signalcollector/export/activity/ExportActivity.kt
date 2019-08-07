@@ -8,7 +8,6 @@ import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatEditText
-import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
@@ -148,11 +147,11 @@ class ExportActivity : DetailActivity() {
 	private fun checkExternalStoragePermissions(): Boolean {
 		if (Build.VERSION.SDK_INT > 22) {
 			val requiredPermissions = mutableListOf<String>()
-			if (hasExternalStorageReadPermission) {
+			if (!hasExternalStorageReadPermission) {
 				requiredPermissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
 			}
 
-			if (hasExternalStorageWritePermission) {
+			if (!hasExternalStorageWritePermission) {
 				requiredPermissions.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
 			}
 
@@ -177,7 +176,7 @@ class ExportActivity : DetailActivity() {
 			val database = AppDatabase.getDatabase(applicationContext)
 			val locationDao = database.locationDao()
 
-			val result = if(exporter.canSelectDateRange) {
+			val result = if (exporter.canSelectDateRange) {
 				val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 				if (locations.isEmpty()) {

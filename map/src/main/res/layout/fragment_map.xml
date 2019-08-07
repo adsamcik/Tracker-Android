@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                                                   xmlns:app="http://schemas.android.com/apk/res-auto"
-                                                   xmlns:tools="http://schemas.android.com/tools"
-                                                   android:layout_width="match_parent"
-                                                   android:layout_height="match_parent"
-                                                   android:animateLayoutChanges="true"
-                                                   android:focusable="true"
-                                                   android:focusableInTouchMode="true">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:animateLayoutChanges="true"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
 
     <FrameLayout
         android:id="@+id/container_map"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="match_parent" />
 
     <FrameLayout
         android:id="@+id/map_menu_parent"
@@ -30,7 +30,7 @@
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="@id/map_ui_parent"
-        tools:ignore="UselessLeaf"/>
+        tools:ignore="UselessLeaf" />
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/map_ui_parent"
@@ -59,7 +59,7 @@
             app:interpolator="Decelerate"
             app:targetAnchor="top"
             app:targetTranslationZ="4dp"
-            app:targetView="@id/map_ui_parent"/>
+            app:targetView="@id/map_ui_parent" />
 
         <LinearLayout
             android:id="@+id/layout_map_controls"
@@ -86,7 +86,7 @@
                 android:textColor="?android:textColorPrimary"
                 android:textColorHint="?android:textColorSecondary"
                 android:textSize="16sp"
-                tools:targetApi="28"/>
+                tools:targetApi="28" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/button_map_date_range"
@@ -94,7 +94,7 @@
                 android:layout_height="@dimen/map_searchbar_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/description_my_location"
-                app:srcCompat="@drawable/ic_date_range_black_24dp"/>
+                app:srcCompat="@drawable/ic_date_range_black_24dp" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/button_map_my_location"
@@ -102,7 +102,7 @@
                 android:layout_height="@dimen/map_searchbar_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/description_my_location"
-                app:srcCompat="@drawable/ic_gps_not_fixed_black_24dp"/>
+                app:srcCompat="@drawable/ic_gps_not_fixed_black_24dp" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/button_map_search"
@@ -110,7 +110,7 @@
                 android:layout_height="@dimen/map_searchbar_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/description_map_search"
-                app:srcCompat="@drawable/ic_search_black_24dp"/>
+                app:srcCompat="@drawable/ic_search_black_24dp" />
         </LinearLayout>
     </androidx.appcompat.widget.LinearLayoutCompat>
 </androidx.constraintlayout.widget.ConstraintLayout>

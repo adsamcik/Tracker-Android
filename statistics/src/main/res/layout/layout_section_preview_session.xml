@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
-                                              xmlns:tools="http://schemas.android.com/tools"
-                                              android:layout_width="match_parent"
-                                              android:layout_height="wrap_content"
-                                              android:background="?android:attr/selectableItemBackground"
-                                              android:orientation="vertical"
-                                              android:padding="@dimen/content_padding">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?android:attr/selectableItemBackground"
+    android:orientation="vertical"
+    android:padding="@dimen/content_padding">
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/text_time"
         style="@style/TextAppearance.MaterialComponents.Body2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        tools:text="16:37"/>
+        tools:text="16:37" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/text_title"
         style="@style/TextAppearance.MaterialComponents.Headline6"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        tools:text="Afternoon run"/>
+        tools:text="Afternoon run" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/text_info"
         style="@style/TextAppearance.MaterialComponents.Body2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        tools:text="90m | 10km | 500kcal"/>
+        tools:text="90m | 10km | 500kcal" />
 
 
 </androidx.appcompat.widget.LinearLayoutCompat>

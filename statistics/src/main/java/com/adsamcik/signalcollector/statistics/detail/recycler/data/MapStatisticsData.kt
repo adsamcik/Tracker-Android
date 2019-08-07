@@ -1,7 +1,7 @@
 package com.adsamcik.signalcollector.statistics.detail.recycler.data
 
-import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
 import com.google.android.gms.maps.model.LatLng

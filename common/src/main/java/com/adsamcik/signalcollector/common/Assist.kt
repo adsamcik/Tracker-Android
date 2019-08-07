@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.common
 import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.Context
-import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Point
 import android.graphics.drawable.Drawable
@@ -14,7 +13,6 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Surface
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.extension.locationManager

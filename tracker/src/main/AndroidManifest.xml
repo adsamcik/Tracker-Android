@@ -1,0 +1,46 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.adsamcik.signalcollector.tracker">
+
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="true" />
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.sensor.stepcounter"
+        android:required="false" />
+
+
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <permission android:name="com.adsamcik.signalcollector.permission.TRACKER" />
+
+    <application>
+        <service
+            android:name=".service.TrackerService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            tools:targetApi="q" />
+
+        <activity
+            android:name=".shortcut.ShortcutActivity"
+            android:screenOrientation="portrait"></activity>
+
+        <receiver android:name=".receiver.TrackerNotificationReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".receiver.TrackerTimeUnlockReceiver" />
+    </application>
+</manifest>
