@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.export
 
 import android.content.Context
+import androidx.sqlite.db.SimpleSQLiteQuery
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import java.io.File
@@ -10,10 +11,12 @@ class DatabaseExportFile : ExportFile {
 
 	override fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
 		val db = AppDatabase.getDatabase(context)
-		AppDatabase.closeDatabase()
 		val dbFile = context.getDatabasePath(db.openHelper.databaseName)
 		val targetFile = File(destinationDirectory, "$desiredName.db")
-		dbFile.copyTo(targetFile, true)
+		db.generalDao().checkpoint(SimpleSQLiteQuery("pragma wal_checkpoint(full)"))
+		db.runInTransaction {
+			dbFile.copyTo(targetFile, true)
+		}
 		return ExportResult(targetFile, "application/vnd.sqlite3")
 	}
 }

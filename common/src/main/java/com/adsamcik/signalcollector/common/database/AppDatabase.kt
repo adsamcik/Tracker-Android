@@ -36,6 +36,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun activityDao(): ActivityDao
 
+	abstract fun generalDao(): GeneralDao
+
 	companion object {
 		private var instance_: AppDatabase? = null
 
@@ -56,16 +58,10 @@ abstract class AppDatabase : RoomDatabase() {
 
 			database.activityDao().insert(sessionActivity)
 		}
-
-		//todo wrap exposed database in an object that will take care of keeping it open when used
+		
 		@WorkerThread
 		fun getDatabase(context: Context): AppDatabase {
 			return instance_ ?: createInstance(context)
-		}
-
-		fun closeDatabase() {
-			instance_?.close()
-			instance_ = null
 		}
 
 		@WorkerThread
