@@ -145,23 +145,23 @@
             android:title="@string/settings_export_title"
             app:icon="@drawable/ic_outline_share_24px">
             <androidx.preference.Preference
-                android:icon="@drawable/ic_file_outline_json"
+                android:icon="@drawable/ic_json"
                 android:key="@string/settings_export_json_key"
                 android:summary="@string/settings_export_json_summary"
                 android:title="@string/settings_export_json_title" />
             <androidx.preference.Preference
-                android:icon="@drawable/ic_file_outline_gps"
+                android:icon="@drawable/ic_icons8_gpx"
                 android:key="@string/settings_export_gpx_key"
                 android:summary="@string/settings_export_gpx_summary"
                 android:title="@string/settings_export_gpx_title" />
             <androidx.preference.Preference
-                android:icon="@drawable/ic_file_outline_gps"
+                android:icon="@drawable/ic_icons8_kml"
                 android:key="@string/settings_export_kml_key"
                 android:summary="@string/settings_export_kml_summary"
                 android:title="@string/settings_export_kml_title" />
 
             <androidx.preference.Preference
-                android:icon="@drawable/ic_file_outline_database"
+                android:icon="@drawable/ic_database_export"
                 android:key="@string/settings_export_sqlite_key"
                 android:summary="@string/settings_export_sqlite_summary"
                 android:title="@string/settings_export_sqlite_title" />
