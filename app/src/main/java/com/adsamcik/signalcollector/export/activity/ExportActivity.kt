@@ -148,11 +148,11 @@ class ExportActivity : DetailActivity() {
 	private fun checkExternalStoragePermissions(): Boolean {
 		if (Build.VERSION.SDK_INT > 22) {
 			val requiredPermissions = mutableListOf<String>()
-			if (hasExternalStorageReadPermission) {
+			if (!hasExternalStorageReadPermission) {
 				requiredPermissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
 			}
 
-			if (hasExternalStorageWritePermission) {
+			if (!hasExternalStorageWritePermission) {
 				requiredPermissions.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
 			}
 
