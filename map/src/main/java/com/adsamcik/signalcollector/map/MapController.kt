@@ -61,17 +61,7 @@ internal class MapController(context: Context, val map: GoogleMap) {
 		onEnable(context)
 	}
 
-	init {
-		/*tileProvider.onHeatChange = { heat, heatChange ->
-			if (heatChange / (heat - heatChange) > HEAT_CHANGE_THRESHOLD_PERCENTAGE) {
-				tileProvider.synchronizeMaxHeat()
-				clearTileCache()
-			}
-		}*/
-	}
-
 	companion object {
 		const val MAX_ZOOM = 17f
-		private const val HEAT_CHANGE_THRESHOLD_PERCENTAGE = 0.05f
 	}
 }

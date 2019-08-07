@@ -19,7 +19,8 @@ import kotlin.math.roundToInt
 
 
 //todo refactor
-class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator, private var initMaxHeat: Float) : TileProvider {
+internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
+                                   private var initMaxHeat: Float) : TileProvider {
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
 	private val heatLock = ReentrantLock()
@@ -106,7 +107,7 @@ class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator, private v
 		val key = Int2(x, y)
 		val heatmap: HeatmapTile
 		if (heatmapCache.containsKey(key)) {
-			heatmap = heatmapCache[key]!!
+			heatmap = requireNotNull(heatmapCache[key])
 		} else {
 			val range = range
 			try {
@@ -149,7 +150,7 @@ class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator, private v
 	}
 
 	companion object {
-		const val MIN_TILE_SIZE: Int = 256
-		const val MAX_HEAT_ZOOM = MapController.MAX_ZOOM
+		private const val MIN_TILE_SIZE: Int = 256
+		private const val MAX_HEAT_ZOOM = MapController.MAX_ZOOM
 	}
 }

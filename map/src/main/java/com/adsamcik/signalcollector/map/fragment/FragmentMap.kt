@@ -37,6 +37,7 @@ import com.adsamcik.signalcollector.map.*
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.layer.MapLayerData
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
+import com.adsamcik.signalcollector.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.signalcollector.map.layer.logic.LocationHeatmapLogic
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
@@ -381,7 +382,8 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 */
 	private fun loadMapLayers() {
 		val mapLayers = mutableListOf(
-				LocationHeatmapLogic())
+				LocationHeatmapLogic(),
+				CellHeatmapLogic())
 		initializeMenuButton(mapLayers)
 	}
 

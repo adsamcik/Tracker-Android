@@ -15,6 +15,9 @@ import com.adsamcik.signalcollector.common.database.data.CellTypeTypeConverter
 import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 
 @Database(entities = [DatabaseLocation::class,
@@ -51,14 +54,19 @@ abstract class AppDatabase : RoomDatabase() {
 			return instance
 		}
 
+		//todo move this away so it's not run every time database is initialized
 		private fun initialize(context: Context, database: AppDatabase) {
-			val sessionActivity = NativeSessionActivity.values().map {
-				it.getSessionActivity(context)
-			}
+			GlobalScope.launch(Dispatchers.Default) {
+				val activityDao = database.activityDao()
 
-			database.activityDao().insert(sessionActivity)
+				val sessionActivity = NativeSessionActivity.values().map {
+					it.getSessionActivity(context)
+				}
+
+				activityDao.insert(sessionActivity)
+			}
 		}
-		
+
 		@WorkerThread
 		fun getDatabase(context: Context): AppDatabase {
 			return instance_ ?: createInstance(context)

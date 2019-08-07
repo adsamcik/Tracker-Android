@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.map.layer.logic
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.map.MapController
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTileProvider
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
@@ -55,6 +56,13 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 		val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
 
 		overlay = map.addTileOverlay(tileOverlayOptions)
+
+		tileProvider.onHeatChange = { heat, heatChange ->
+			if (heatChange / (heat - heatChange) > HEAT_CHANGE_THRESHOLD_PERCENTAGE) {
+				tileProvider.synchronizeMaxHeat()
+				overlay.clearTileCache()
+			}
+		}
 	}
 
 	override fun onDisable(map: GoogleMap) {
@@ -63,5 +71,9 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 
 	override fun update() {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	}
+
+	companion object {
+		private const val HEAT_CHANGE_THRESHOLD_PERCENTAGE = 0.05f
 	}
 }

@@ -7,7 +7,7 @@ import com.adsamcik.signalcollector.common.extension.toByteArray
 import com.adsamcik.signalcollector.map.MapFunctions
 import kotlin.math.roundToInt
 
-class HeatmapTile(
+internal class HeatmapTile(
 		val heatmapSize: Int,
 		val stamp: HeatmapStamp,
 		val colorScheme: HeatmapColorScheme,

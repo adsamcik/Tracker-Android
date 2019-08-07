@@ -6,13 +6,18 @@ import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
+import java.util.concurrent.locks.StampedLock
 
-interface HeatmapTileCreator {
+internal interface HeatmapTileCreator {
 	val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
 
 	val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
 
 	val weightNormalizationValue: Double
+
+	fun generateStamp(heatmapSize: Int, zoom: Float, quality: Float): HeatmapStamp
+
+	private fun scaleStampSize(baseSize: Float, quality: Float): Float = baseSize * quality
 
 	fun getHeatmap(heatmapSize: Int, stamp: HeatmapStamp, colorScheme: HeatmapColorScheme, from: Long, to: Long, x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float): HeatmapTile {
 		return createHeatmap(heatmapSize, stamp, colorScheme, x, y, z, area, maxHeat) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->

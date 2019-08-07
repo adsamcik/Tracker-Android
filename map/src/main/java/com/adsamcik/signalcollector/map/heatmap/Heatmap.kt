@@ -40,11 +40,17 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 
 	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(x, y, weight, HeatmapStamp.default9x9)
 
-	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) = addPointWithStamp(x, y, stamp) { 1f }
+	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) =
+			addPointWithStamp(x, y, stamp) { original, input ->
+				original + input
+			}
 
-	fun addWeightedPointWithStamp(x: Int, y: Int, weight: Float, stamp: HeatmapStamp) = addPointWithStamp(x, y, stamp) { weight }
+	fun addWeightedPointWithStamp(x: Int, y: Int, weight: Float, stamp: HeatmapStamp) =
+			addPointWithStamp(x, y, stamp) { original, input ->
+				original + input * weight
+			}
 
-	private inline fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp, weightFunc: () -> Float) {
+	private inline fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp, mergeFunction: (original: Float, input: Float) -> Float) {
 		//todo validate that odd numbers don't cause some weird artifacts
 		val halfStampHeight = stamp.height / 2
 		val halfStampWidth = stamp.width / 2
@@ -71,9 +77,10 @@ class Heatmap(val width: Int, val height: Int = width, var maxHeat: Float = 0f, 
 
 			for (itX in x0 until x1) {
 				val heatValue = data[heatIndex]
-				data[heatIndex] = heatValue + stamp.stampData[stampIndex] * weightFunc.invoke()
-				if (dynamicHeat && heatValue > maxHeat) {
-					maxHeat = heatValue
+				val newHeatValue = mergeFunction(heatValue, stamp.stampData[stampIndex])
+				data[heatIndex] = newHeatValue
+				if (dynamicHeat && newHeatValue > maxHeat) {
+					maxHeat = newHeatValue
 				}
 
 				assert(heatValue >= 0f)
