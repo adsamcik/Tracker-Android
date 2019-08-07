@@ -143,7 +143,7 @@
         app:icon="@drawable/ic_outline_folder_24px">
         <androidx.preference.PreferenceScreen
             android:title="@string/settings_export_title"
-            app:icon="@drawable/ic_outline_share_24px">
+            app:icon="@drawable/ic_export">
             <androidx.preference.Preference
                 android:icon="@drawable/ic_json"
                 android:key="@string/settings_export_json_key"
