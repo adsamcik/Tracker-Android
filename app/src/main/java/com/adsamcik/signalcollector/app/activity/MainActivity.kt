@@ -12,12 +12,12 @@ import com.adsamcik.signalcollector.app.HomeIntroduction
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.CoreUIActivity
-import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.guidelineEnd
 import com.adsamcik.signalcollector.common.extension.transaction
 import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
+import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.module.PayloadFragment
 import com.adsamcik.signalcollector.tracker.ui.fragment.FragmentTracker

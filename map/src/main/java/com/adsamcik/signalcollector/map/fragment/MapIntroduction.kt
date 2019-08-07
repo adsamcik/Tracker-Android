@@ -2,8 +2,8 @@ package com.adsamcik.signalcollector.map.fragment
 
 import android.view.View
 import androidx.fragment.app.FragmentActivity
-import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.introduction.Introduction
 import com.adsamcik.signalcollector.map.R
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.shapes.Circle

@@ -49,8 +49,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 	companion object {
 		private const val REQUEST_CODE_PENDING_INTENT = 4561201
 
-		private var recognitionClientTask: Task<Void>? = null
-		private var transitionClientTask: Task<Void>? = null
+		private var recognitionClientTask: Task<*>? = null
+		private var transitionClientTask: Task<*>? = null
 
 
 		/**

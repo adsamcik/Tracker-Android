@@ -3,21 +3,11 @@ package com.adsamcik.signalcollector.app.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.work.Constraints
-import androidx.work.Data
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.activity.api.ActivityRecognitionApi
-import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.appVersion
-import com.adsamcik.signalcollector.common.extension.forEachIf
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
-import com.adsamcik.signalcollector.tracker.service.ActivityWatcherService
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 
 /**
  * Receiver that is subscribed to update event so some actions can be performed and services are restored

@@ -5,7 +5,7 @@ import com.adsamcik.signalcollector.common.data.NativeSessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 
-internal interface ActivityRecognizer {
+internal interface IActivityRecognizer {
 	/**
 	 * Represents how accurately can the algorithm detect activities.
 	 * More accurate algorithms will be preferred.
@@ -16,6 +16,13 @@ internal interface ActivityRecognizer {
 	val precisionConfidence: Int
 
 	fun resolve(session: TrackerSession, locationCollection: Collection<DatabaseLocation>): ActivityRecognitionResult
+}
+
+internal abstract class ActivityRecognizer : IActivityRecognizer {
+
+	protected data class ActivitySum(var count: Int = 0, var confidenceSum: Int = 0) {
+		val confidence get() = if (count == 0) 0 else confidenceSum / count
+	}
 }
 
 data class ActivityRecognitionResult(val recognizedActivity: NativeSessionActivity?, @IntRange(from = 0, to = 100) val confidence: Int) {

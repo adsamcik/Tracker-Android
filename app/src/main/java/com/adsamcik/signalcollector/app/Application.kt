@@ -6,8 +6,8 @@ import com.adsamcik.signalcollector.activity.ActivityModuleInitializer
 import com.adsamcik.signalcollector.common.module.ModuleInitializer
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.notification.NotificationChannels
-import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts
 import com.adsamcik.signalcollector.tracker.TrackerModuleInitializer
+import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope

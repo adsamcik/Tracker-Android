@@ -6,7 +6,7 @@ import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import kotlin.math.roundToInt
 
-internal class OnFootActivityRecognizer : ActivityRecognizer {
+internal class OnFootActivityRecognizer : ActivityRecognizer() {
 	override val precisionConfidence: Int = 75
 
 	override fun resolve(session: TrackerSession, locationCollection: Collection<DatabaseLocation>): ActivityRecognitionResult {
@@ -41,10 +41,6 @@ internal class OnFootActivityRecognizer : ActivityRecognizer {
 		}
 
 		return ActivityRecognitionResult(NativeSessionActivity.WALK, walk.confidence)
-	}
-
-	data class ActivitySum(var count: Int = 0, var confidenceSum: Int = 0) {
-		val confidence get() = if (count == 0) 0 else confidenceSum / count
 	}
 
 	companion object {

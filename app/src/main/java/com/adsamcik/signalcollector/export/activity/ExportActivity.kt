@@ -8,7 +8,6 @@ import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatEditText
-import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
