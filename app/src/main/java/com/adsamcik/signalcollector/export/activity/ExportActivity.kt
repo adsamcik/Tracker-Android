@@ -176,7 +176,7 @@ class ExportActivity : DetailActivity() {
 			val database = AppDatabase.getDatabase(applicationContext)
 			val locationDao = database.locationDao()
 
-			val result = if(exporter.canSelectDateRange) {
+			val result = if (exporter.canSelectDateRange) {
 				val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 				if (locations.isEmpty()) {
