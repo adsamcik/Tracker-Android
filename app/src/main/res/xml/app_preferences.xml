@@ -168,7 +168,7 @@
         </androidx.preference.PreferenceScreen>
 
         <androidx.preference.Preference
-            android:icon="@drawable/ic_database_import"
+            android:icon="@drawable/ic_import"
             android:key="@string/settings_import_key"
             android:summary="@string/settings_import_summary"
             android:title="@string/settings_import_title" />
