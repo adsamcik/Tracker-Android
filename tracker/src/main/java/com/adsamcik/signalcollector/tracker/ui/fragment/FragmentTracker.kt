@@ -189,7 +189,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		collectionData.location = location
 		collectionData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
 		collectionData.wifi = WifiData(location, Time.nowMillis, listOf(WifiInfo(), WifiInfo(), WifiInfo()))
-		collectionData.cell = CellData(listOf(CellInfo("MOCK", CellType.LTE, 0, "123", "456", 90, -30, 0)), 8)
+		collectionData.cell = CellData(listOf(CellInfo(NetworkOperator("123", "321", "MOCK"), 123456, CellType.LTE, 90, -30, 0)), 8)
 
 		val session = TrackerSession(0, Time.nowMillis - 5 * Time.MINUTE_IN_MILLISECONDS, Time.nowMillis, true, 56, 5410f, 15f, 5000f, 154)
 
