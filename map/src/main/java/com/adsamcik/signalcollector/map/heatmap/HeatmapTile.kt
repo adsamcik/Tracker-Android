@@ -25,12 +25,12 @@ internal class HeatmapTile(
 		val ty = MapFunctions.toTileY(location.latitude, tileCount)
 		val x = ((tx - data.x) * data.heatmapSize).roundToInt()
 		val y = ((ty - data.y) * data.heatmapSize).roundToInt()
-		heatmap.addWeightedPointWithStamp(x, y, location.normalizedWeight.toFloat(), data.config.stamp)
+		heatmap.addWeightedPointWithStamp(x, y, data.config.stamp, location.normalizedWeight.toFloat(), data.config.mergeFunction)
 	}
 
 
 	fun toByteArray(bitmapSize: Int): ByteArray {
-		val array = heatmap.renderSaturatedTo(data.config.colorScheme, heatmap.maxHeat) { it.coerceAtLeast(0.1f) }
+		val array = heatmap.renderSaturatedTo(data.config.colorScheme, heatmap.maxHeat) { it }
 		val bitmap = Bitmap.createBitmap(array, data.heatmapSize, data.heatmapSize, Bitmap.Config.ARGB_8888)
 
 		return if (data.heatmapSize != bitmapSize) {

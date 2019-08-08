@@ -133,7 +133,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val activity = requireActivity()
 			val database = AppDatabase.getDatabase(activity)
 			val wifiDao = database.wifiDao()
-			val cellDao = database.cellDao()
+			val cellDao = database.cellLocationDao()
 			val locationDao = database.locationDao()
 			val sessionDao = database.sessionDao()
 			val sumSessionData = sessionDao.getSummary()
@@ -144,7 +144,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(sumSessionData.distanceInM, 1, Preferences.getLengthSystem(activity))),
 					StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
-					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_cell_count), cellDao.uniqueCount().formatReadable()),
 					StatData(resources.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
 			)

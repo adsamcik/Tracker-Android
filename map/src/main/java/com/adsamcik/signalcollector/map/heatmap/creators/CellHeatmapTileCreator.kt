@@ -4,13 +4,14 @@ import android.content.Context
 import com.adsamcik.signalcollector.common.data.CellType
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.common.style.ColorConstants
 import com.adsamcik.signalcollector.common.style.ColorGenerator
 import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import kotlin.math.max
 
 internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
-	private val dao = AppDatabase.getDatabase(context).cellDao()
+	private val dao = AppDatabase.getDatabase(context).cellLocationDao()
 
 	override val weightNormalizationValue: Double = 0.0
 
@@ -21,7 +22,8 @@ internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
 		val cellTypeCount = CellType.values().size
-		val colorMap = ColorGenerator.generateWithGolden(1.0, cellTypeCount)
+		val colorMap = mutableListOf(ColorConstants.TRANSPARENT)
+		colorMap.addAll(ColorGenerator.generateWithGolden(1.0, cellTypeCount))
 		return HeatmapConfig(generateStamp(heatmapSize),
 				HeatmapColorScheme.fromArray(colorMap, 0),
 				(cellTypeCount - 1).toFloat(),

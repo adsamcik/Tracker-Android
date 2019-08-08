@@ -39,7 +39,7 @@ internal data class HeatmapColorScheme constructor(val colors: IntArray) {
 				}
 			}
 
-			data[0] = 0
+			data[0] = argbArray.first()
 			data[data.size - 1] = argbArray.last()
 
 			return HeatmapColorScheme(data)

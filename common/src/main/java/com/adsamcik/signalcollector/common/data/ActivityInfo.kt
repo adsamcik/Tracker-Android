@@ -115,15 +115,3 @@ enum class DetectedActivity(val value: Int) {
 		}
 	}
 }
-
-class DetectedActivityTypeConverter {
-	@TypeConverter
-	fun toDetectedActivity(value: Int): DetectedActivity {
-		return DetectedActivity.fromDetectedType(value)
-	}
-
-	@TypeConverter
-	fun fromDetectedActivity(value: DetectedActivity): Int {
-		return value.value
-	}
-}

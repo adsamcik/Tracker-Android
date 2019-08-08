@@ -29,7 +29,9 @@ import com.adsamcik.signalcollector.tracker.component.consumer.data.ActivityTrac
 import com.adsamcik.signalcollector.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.data.WifiTrackerComponent
-import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseCellComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseLocationComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseWifiComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.pre.StepPreTrackerComponent
@@ -146,9 +148,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(WifiTrackerComponent())
 		}
 
+		//todo add only components that can actually be used
 		postComponentList.apply {
 			add(notificationComponent)
-			add(DatabaseTrackerComponent())
+			add(DatabaseCellComponent())
+			add(DatabaseLocationComponent())
+			add(DatabaseWifiComponent())
 		}.forEach { it.onEnable(this) }
 	}
 

@@ -39,16 +39,16 @@ internal class Heatmap(val width: Int, val height: Int = width, var maxHeat: Flo
 	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(x, y, weight, HeatmapStamp.default9x9)
 
 	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) =
-			addPointWithStamp(x, y, stamp, 1f) { original, input, _ ->
+			addWeightedPointWithStamp(x, y, stamp, 1f) { original, input, _ ->
 				original + input
 			}
 
 	fun addWeightedPointWithStamp(x: Int, y: Int, weightValue: Float, stamp: HeatmapStamp) =
-			addPointWithStamp(x, y, stamp, weightValue) { original, input, weight ->
+			addWeightedPointWithStamp(x, y, stamp, weightValue) { original, input, weight ->
 				original + input * weight
 			}
 
-	private inline fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp, weight: Float, mergeFunction: (current: Float, input: Float, weight: Float) -> Float) {
+	fun addWeightedPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp, weight: Float, mergeFunction: (current: Float, input: Float, weight: Float) -> Float) {
 		//todo validate that odd numbers don't cause some weird artifacts
 		val halfStampHeight = stamp.height / 2
 		val halfStampWidth = stamp.width / 2

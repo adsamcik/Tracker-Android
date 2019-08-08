@@ -8,7 +8,12 @@ fun Parcel.requireString(): String {
 	return requireNotNull(value)
 }
 
-fun <T> Parcel.requireArrayList(creator: Parcelable.Creator<T>): ArrayList<T> {
+fun <T : Parcelable> Parcel.requireArrayList(creator: Parcelable.Creator<T>): ArrayList<T> {
 	val value = createTypedArrayList(creator)
+	return requireNotNull(value)
+}
+
+fun <T : Parcelable> Parcel.requireParcelable(loader: ClassLoader?): T {
+	val value = readParcelable<T>(loader)
 	return requireNotNull(value)
 }
