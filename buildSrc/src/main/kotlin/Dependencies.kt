@@ -85,9 +85,6 @@ object Libraries {
 			work(this)
 
 			kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
-
-			androidTestImplementation("androidx.test:runner:1.1.1")
-			androidTestImplementation("androidx.test.espresso:espresso-core:3.1.1")
 		}
 	}
 
@@ -164,6 +161,7 @@ object Libraries {
 
 	fun test(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
+			androidTestImplementation("junit:junit:4.12")
 			androidTestImplementation("androidx.test:runner:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
