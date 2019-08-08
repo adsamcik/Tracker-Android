@@ -117,7 +117,10 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
 			execSQL("CREATE TABLE IF NOT EXISTS networkOperator (`mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `name` TEXT NOT NULL, PRIMARY KEY(`mcc`, `mnc`))")
 
 			execSQL("DROP TABLE cell_data")
-			execSQL("CREATE TABLE IF NOT EXISTS cell_data (`id` TEXT NOT NULL, `location_id` INTEGER, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `cell_id` INTEGER NOT NULL, `type` INTEGER NOT NULL, `asu` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`location_id`) REFERENCES `location_data`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )")
+			execSQL("CREATE TABLE IF NOT EXISTS network_operator (`mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `name` TEXT, PRIMARY KEY(`mcc`, `mnc`))")
+			execSQL("CREATE TABLE IF NOT EXISTS cell_location (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `cell_id` INTEGER NOT NULL, `type` INTEGER NOT NULL, `asu` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL)")
+			execSQL("CREATE  INDEX `index_cell_location_mcc_mnc_cell_id` ON cell_location (`mcc`, `mnc`, `cell_id`)")
+			execSQL("CREATE  INDEX `index_cell_location_time` ON cell_location (`time`)")
 		}
 	}
 }
