@@ -120,39 +120,24 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 
 	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: List<NetworkOperator>): CellInfo? {
 		return if (cellInfo is CellInfoLte) {
-			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-			if (operator != null) {
-				CellInfo.newInstance(cellInfo, operator.name)
-			} else {
-				CellInfo.newInstance(cellInfo, null)
+			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 			}
 		} else if (Build.VERSION.SDK_INT >= 29 && cellInfo is CellInfoNr) {
-			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-			if (operator != null) {
-				CellInfo.newInstance(cellInfo, operator.name)
-			} else {
-				CellInfo.newInstance(cellInfo, null)
+			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+				CellInfo(cellInfo.cellIdentity as CellIdentityNr, cellInfo.cellSignalStrength as CellSignalStrengthNr, it)
 			}
 		} else if (cellInfo is CellInfoGsm) {
-			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-			if (operator != null) {
-				CellInfo.newInstance(cellInfo, operator.name)
-			} else {
-				CellInfo.newInstance(cellInfo, null)
+			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 			}
 		} else if (cellInfo is CellInfoWcdma) {
-			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-			if (operator != null) {
-				CellInfo.newInstance(cellInfo, operator.name)
-			} else {
-				CellInfo.newInstance(cellInfo, null)
+			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 			}
 		} else if (cellInfo is CellInfoCdma) {
-			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
-			if (operator != null) {
-				CellInfo.newInstance(cellInfo, operator.name)
-			} else {
-				CellInfo.newInstance(cellInfo, null)
+			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 			}
 		} else {
 			Reporter.report(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
