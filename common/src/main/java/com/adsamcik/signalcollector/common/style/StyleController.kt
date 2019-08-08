@@ -21,6 +21,7 @@ import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.Assist
+import com.adsamcik.signalcollector.common.extension.remove
 import com.adsamcik.signalcollector.common.style.StyleManager.layerColor
 import com.adsamcik.signalcollector.common.style.StyleManager.styleData
 import com.google.android.material.button.MaterialButton
@@ -55,7 +56,7 @@ class StyleController : CoroutineScope {
 	 * Colors listener array. Holds all listeners.
 	 *
 	 */
-	private val styleChangeListeners = ArrayList<OnStyleChangeListener>(0)
+	private val styleChangeListeners = mutableListOf<OnStyleChangeListener>()
 
 	private var suspendLock = ReentrantLock()
 	private var updateRequestedWhileSuspended: Boolean = false

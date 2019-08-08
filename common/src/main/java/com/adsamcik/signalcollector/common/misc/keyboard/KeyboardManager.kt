@@ -14,7 +14,7 @@ typealias KeyboardListener = (state: Boolean, keyboardHeight: Int) -> Unit
  * Manages access to the Android soft keyboard.
  */
 class KeyboardManager(private val rootView: View) {
-	private val listeners = ArrayList<KeyboardListener>()
+	private val listeners = mutableListOf<KeyboardListener>()
 	private var wasOpen = false
 	private var keyboardHeight = 0
 	private var defaultDiff = 0
