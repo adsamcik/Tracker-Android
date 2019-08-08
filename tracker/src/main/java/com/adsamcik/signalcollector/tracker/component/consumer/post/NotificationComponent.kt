@@ -135,7 +135,7 @@ internal class NotificationComponent : PostTrackerComponent {
 		val resources = context.resources
 		val sb = StringBuilder()
 		val df = DecimalFormat.getNumberInstance()
-		df.roundingMode = RoundingMode.HALF_UP
+		df.setRoundingMode(RoundingMode.HALF_UP)
 
 		val lengthSystem = Preferences.getLengthSystem(context)
 		//todo add localization support

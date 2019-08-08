@@ -1,18 +1,21 @@
 package com.adsamcik.signalcollector.common.misc
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.withLock
 import kotlin.concurrent.write
+import kotlin.coroutines.CoroutineContext
 
 typealias ConditionChecker<T> = (T) -> Boolean
 typealias JobFunction = suspend CoroutineScope.() -> Unit
 
-open class ConditionVariable<T>(default: T) {
+open class ConditionVariable<T>(default: T): CoroutineScope {
+	private val job = SupervisorJob()
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Main + job
+
 	protected val waiterLock: ReentrantLock = ReentrantLock()
 	protected val valueLock: ReentrantReadWriteLock = ReentrantReadWriteLock()
 
@@ -33,7 +36,7 @@ open class ConditionVariable<T>(default: T) {
 		waiterLock.withLock {
 			waiters.removeAll {
 				if (it.first.invoke(value)) {
-					GlobalScope.launch(block = it.second)
+					launch(block = it.second)
 					true
 				} else {
 					false
@@ -44,7 +47,7 @@ open class ConditionVariable<T>(default: T) {
 
 	fun addWaiter(checker: ConditionChecker<T>, job: JobFunction) {
 		if (checker.invoke(value)) {
-			GlobalScope.launch(block = job)
+			launch(block = job)
 		} else {
 			waiterLock.withLock {
 				waiters.add(Pair(checker, job))

@@ -6,7 +6,6 @@ import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTile
-import java.util.concurrent.locks.StampedLock
 
 internal interface HeatmapTileCreator {
 	val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
@@ -15,42 +14,43 @@ internal interface HeatmapTileCreator {
 
 	val weightNormalizationValue: Double
 
-	fun generateStamp(heatmapSize: Int, zoom: Float, quality: Float): HeatmapStamp
+	fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig
 
-	private fun scaleStampSize(baseSize: Float, quality: Float): Float = baseSize * quality
+	fun generateStamp(heatmapSize: Int): HeatmapStamp
 
-	fun getHeatmap(heatmapSize: Int, stamp: HeatmapStamp, colorScheme: HeatmapColorScheme, from: Long, to: Long, x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float): HeatmapTile {
-		return createHeatmap(heatmapSize, stamp, colorScheme, x, y, z, area, maxHeat) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
+	fun scaleStampSize(baseSize: Float, quality: Float): Float = baseSize * quality
+
+	fun getHeatmap(data: HeatmapData, from: Long, to: Long): HeatmapTile {
+		return createHeatmap(data) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
 			getAllInsideAndBetween(from, to, topLatitude, rightLongitude, bottomLatitude, leftLongitude)
 		}
 	}
 
-	fun getHeatmap(heatmapSize: Int, stamp: HeatmapStamp, colorScheme: HeatmapColorScheme, x: Int, y: Int, z: Int, area: CoordinateBounds, maxHeat: Float): HeatmapTile {
-		return createHeatmap(heatmapSize, stamp, colorScheme, x, y, z, area, maxHeat) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
+	fun getHeatmap(data: HeatmapData): HeatmapTile {
+		return createHeatmap(data) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
 			getAllInside(topLatitude, rightLongitude, bottomLatitude, leftLongitude)
 		}
 	}
 
-	private fun createHeatmap(heatmapSize: Int,
-	                          stamp: HeatmapStamp,
-	                          colorScheme: HeatmapColorScheme,
-	                          x: Int,
-	                          y: Int,
-	                          z: Int,
-	                          area: CoordinateBounds,
-	                          maxHeat: Float,
+	private fun createHeatmap(data: HeatmapData,
 	                          getLocations: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>): HeatmapTile {
-		assert(heatmapSize.isPowerOfTwo())
-		assert(area.left < area.right)
-		assert(area.bottom < area.top)
+		val config = data.config
 
-		val extendLatitude = area.height * (stamp.height.toDouble() / heatmapSize.toDouble())
-		val extendLongitude = area.width * (stamp.width.toDouble() / heatmapSize.toDouble())
+		assert(data.heatmapSize.isPowerOfTwo())
+		assert(data.area.left < data.area.right)
+		assert(data.area.bottom < data.area.top)
+
+		val extendLatitude = data.area.height * (config.stamp.height.toDouble() / data.heatmapSize.toDouble())
+		val extendLongitude = data.area.width * (config.stamp.width.toDouble() / data.heatmapSize.toDouble())
 
 		assert(extendLatitude > 0)
 		assert(extendLongitude > 0)
 
-		val allInside = getLocations.invoke(area.top + extendLatitude, area.right + extendLongitude, area.bottom - extendLatitude, area.left - extendLongitude)
+		val allInside = getLocations.invoke(
+				data.area.top + extendLatitude,
+				data.area.right + extendLongitude,
+				data.area.bottom - extendLatitude,
+				data.area.left - extendLongitude)
 		//val allInside = dao.getAllInside(area.top, area.right, area.bottom, area.left)
 
 		if (weightNormalizationValue != 0.0) {
@@ -61,8 +61,21 @@ internal interface HeatmapTileCreator {
 		}
 
 		//todo add dynamic heat (most things are ready for it, just find use for it)
-		val heatmap = HeatmapTile(heatmapSize, stamp, colorScheme, x, y, z, maxHeat, false)
+		val heatmap = HeatmapTile(data)
 		heatmap.addAll(allInside.sortedWith(compareBy({ it.longitude }, { it.latitude })))
 		return heatmap
 	}
 }
+
+internal data class HeatmapConfig(val stamp: HeatmapStamp,
+                                  val colorScheme: HeatmapColorScheme,
+                                  val maxHeat: Float,
+                                  val dynamicHeat: Boolean = false,
+                                  val mergeFunction: (current: Float, input: Float, weight: Float) -> Float)
+
+internal data class HeatmapData(val config: HeatmapConfig,
+                                val heatmapSize: Int,
+                                val x: Int,
+                                val y: Int,
+                                val zoom: Int,
+                                val area: CoordinateBounds)

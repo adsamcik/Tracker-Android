@@ -17,7 +17,7 @@ import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerCompone
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.signalcollector.tracker.data.collection.CellScanData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
-import com.adsamcik.signalcollector.tracker.data.collection.RegisteredOperator
+import com.adsamcik.signalcollector.common.data.NetworkOperator
 import java.util.*
 
 internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : TrackerDataProducerComponent(changeReceiver) {
@@ -59,7 +59,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 			val mcc = networkOperator.substring(0, 3)
 			val mnc = networkOperator.substring(3)
 
-			val registeredOperator = RegisteredOperator(mcc, mnc, telephonyManager.networkOperatorName)
+			val registeredOperator = NetworkOperator(mcc, mnc, telephonyManager.networkOperatorName)
 
 			getScanData(telephonyManager, listOf(registeredOperator))
 		} else {
@@ -70,7 +70,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 	@RequiresApi(22)
 	@RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
 	private fun getScanData(telephonyManager: TelephonyManager, subscriptionManager: SubscriptionManager): CellScanData? {
-		val list = mutableListOf<RegisteredOperator>()
+		val list = mutableListOf<NetworkOperator>()
 		subscriptionManager.activeSubscriptionInfoList.forEach {
 			val mcc: String?
 			val mnc: String?
@@ -86,7 +86,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 			}
 
 			if (mcc != null && mnc != null) {
-				list.add(RegisteredOperator(mcc, mnc, it.carrierName.toString()))
+				list.add(NetworkOperator(mcc, mnc, it.carrierName.toString()))
 			}
 		}
 
@@ -97,7 +97,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		}
 	}
 
-	private fun getScanData(telephonyManager: TelephonyManager, registeredOperators: List<RegisteredOperator>): CellScanData? {
+	private fun getScanData(telephonyManager: TelephonyManager, registeredOperators: List<NetworkOperator>): CellScanData? {
 		//Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
 		@SuppressLint("MissingPermission")
 		val cellInfo = telephonyManager.allCellInfo ?: return null
@@ -118,7 +118,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		return CellScanData(registeredOperators, cellInfo, registeredCells)
 	}
 
-	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: List<RegisteredOperator>): CellInfo? {
+	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: List<NetworkOperator>): CellInfo? {
 		return if (cellInfo is CellInfoLte) {
 			val operator = registeredOperator.find { it.sameNetwork(cellInfo) }
 			if (operator != null) {

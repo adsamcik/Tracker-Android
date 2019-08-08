@@ -15,12 +15,8 @@ import kotlin.coroutines.CoroutineContext
 
 abstract class CoreUIFragment : CoreFragment() {
 	private var themeLocationRequestCode = 4513
-	private val job = SupervisorJob()
 
 	protected val styleController: StyleController = StyleManager.createController()
-
-	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {

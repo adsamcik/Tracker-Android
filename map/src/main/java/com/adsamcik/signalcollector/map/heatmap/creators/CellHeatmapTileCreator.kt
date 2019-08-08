@@ -1,10 +1,15 @@
 package com.adsamcik.signalcollector.map.heatmap.creators
 
 import android.content.Context
+import com.adsamcik.signalcollector.common.data.CellType
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.signalcollector.common.style.ColorGenerator
+import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
+import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
+import kotlin.math.max
 
-class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
+internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	private val dao = AppDatabase.getDatabase(context).cellDao()
 
 	override val weightNormalizationValue: Double = 0.0
@@ -14,4 +19,19 @@ class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	override val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
 		get() = dao::getAllInside
 
+	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
+		val cellTypeCount = CellType.values().size
+		val colorMap = ColorGenerator.generateWithGolden(1.0, cellTypeCount)
+		return HeatmapConfig(generateStamp(heatmapSize),
+				HeatmapColorScheme.fromArray(colorMap, 0),
+				(cellTypeCount - 1).toFloat(),
+				false) { original, _, weight ->
+			max(original, weight)
+		}
+	}
+
+	override fun generateStamp(heatmapSize: Int): HeatmapStamp {
+		val radius = heatmapSize / 16 + 1
+		return HeatmapStamp.generateNonlinear(radius) { 1f }
+	}
 }

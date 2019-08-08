@@ -5,20 +5,14 @@ import androidx.core.graphics.scale
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.common.extension.toByteArray
 import com.adsamcik.signalcollector.map.MapFunctions
+import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapData
 import kotlin.math.roundToInt
 
 internal class HeatmapTile(
-		val heatmapSize: Int,
-		val stamp: HeatmapStamp,
-		val colorScheme: HeatmapColorScheme,
-		val x: Int,
-		val y: Int,
-		zoom: Int,
-		maxHeat: Float = 0f,
-		dynamicHeat: Boolean = maxHeat <= 0f) {
-	val heatmap: Heatmap = Heatmap(heatmapSize, heatmapSize, maxHeat, dynamicHeat)
+		val data: HeatmapData) {
+	val heatmap: Heatmap = Heatmap(data.heatmapSize, data.heatmapSize, data.config.maxHeat, data.config.dynamicHeat)
 
-	val tileCount: Int = MapFunctions.getTileCount(zoom)
+	private val tileCount: Int = MapFunctions.getTileCount(data.zoom)
 
 	val maxHeat: Float get() = heatmap.maxHeat
 
@@ -29,17 +23,17 @@ internal class HeatmapTile(
 	fun add(location: Database2DLocationWeightedMinimal) {
 		val tx = MapFunctions.toTileX(location.longitude, tileCount)
 		val ty = MapFunctions.toTileY(location.latitude, tileCount)
-		val x = ((tx - x) * heatmapSize).roundToInt()
-		val y = ((ty - y) * heatmapSize).roundToInt()
-		heatmap.addWeightedPointWithStamp(x, y, location.normalizedWeight.toFloat(), stamp)
+		val x = ((tx - data.x) * data.heatmapSize).roundToInt()
+		val y = ((ty - data.y) * data.heatmapSize).roundToInt()
+		heatmap.addWeightedPointWithStamp(x, y, location.normalizedWeight.toFloat(), data.config.stamp)
 	}
 
 
 	fun toByteArray(bitmapSize: Int): ByteArray {
-		val array = heatmap.renderSaturatedTo(colorScheme, heatmap.maxHeat) { it.coerceAtLeast(0.1f) }
-		val bitmap = Bitmap.createBitmap(array, heatmapSize, heatmapSize, Bitmap.Config.ARGB_8888)
+		val array = heatmap.renderSaturatedTo(data.config.colorScheme, heatmap.maxHeat) { it.coerceAtLeast(0.1f) }
+		val bitmap = Bitmap.createBitmap(array, data.heatmapSize, data.heatmapSize, Bitmap.Config.ARGB_8888)
 
-		return if (heatmapSize != bitmapSize) {
+		return if (data.heatmapSize != bitmapSize) {
 			bitmap.scale(bitmapSize, bitmapSize, false).toByteArray()
 		} else
 			bitmap.toByteArray()

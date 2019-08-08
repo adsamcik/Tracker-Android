@@ -6,6 +6,7 @@ import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.MapController
 import com.adsamcik.signalcollector.map.MapFunctions
+import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapData
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
@@ -56,7 +57,7 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 	}
 
 	fun updateQuality(quality: Float) {
-		if(this.quality == quality) return
+		if (this.quality == quality) return
 
 		this.quality = quality
 		heatmapSize = (quality * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
@@ -111,12 +112,15 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 		} else {
 			val range = range
 			try {
+				val config = tileCreator.createHeatmapConfig(heatmapSize, maxHeat)
+				val data = HeatmapData(config, heatmapSize, x, y, zoom, area)
+
 				heatmap = if (range == LongRange.EMPTY) {
-					tileCreator.getHeatmap(heatmapSize, stamp, colorScheme, x, y, zoom, area, maxHeat)
+					tileCreator.getHeatmap(data)
 				} else {
-					tileCreator.getHeatmap(heatmapSize, stamp, colorScheme, range.first, range.last, x, y, zoom, area, maxHeat)
+					tileCreator.getHeatmap(data, range.first, range.last)
 				}
-			}catch (e: Exception) {
+			} catch (e: Exception) {
 				e.printStackTrace()
 				throw e
 			}
