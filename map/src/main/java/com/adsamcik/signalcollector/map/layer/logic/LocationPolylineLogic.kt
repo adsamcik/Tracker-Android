@@ -1,6 +1,9 @@
 package com.adsamcik.signalcollector.map.layer.logic
 
 import android.content.Context
+import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.data.LengthUnit
+import com.adsamcik.signalcollector.common.data.Location
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
 import com.adsamcik.signalcollector.map.R
@@ -8,6 +11,7 @@ import com.adsamcik.signalcollector.map.layer.MapLayerData
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +38,7 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 
 	private var map: GoogleMap? = null
 	private var dao: LocationDataDao? = null
+	private var activePolyline: Polyline? = null
 
 	override fun onEnable(context: Context, map: GoogleMap) {
 		this.map = map
@@ -44,6 +49,7 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	override fun onDisable(map: GoogleMap) {
 		this.map = null
 		this.dao = null
+		activePolyline?.remove()
 	}
 
 	override fun update(context: Context) {
@@ -56,13 +62,14 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 			}
 
 			val options = PolylineOptions().apply {
+				geodesic(true)
 				addAll(data.map { LatLng(it.latitude, it.longitude) })
 			}
 
 			launch(Dispatchers.Main) {
+				activePolyline?.remove()
 				requireNotNull(map).apply {
-					clear()
-					addPolyline(options)
+					activePolyline = addPolyline(options)
 				}
 			}
 		}
