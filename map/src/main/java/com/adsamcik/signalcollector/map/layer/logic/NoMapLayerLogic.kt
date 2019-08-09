@@ -20,7 +20,7 @@ internal class NoMapLayerLogic : MapLayerLogic {
 	override val supportsAutoUpdate: Boolean
 		get() = false
 
-	override fun update() {}
+	override fun update(context: Context) {}
 	override fun onEnable(context: Context, map: GoogleMap) {}
 	override fun onDisable(map: GoogleMap) {}
 }

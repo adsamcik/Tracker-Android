@@ -14,12 +14,12 @@ internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
 		return HeatmapConfig(generateStamp(heatmapSize),
 				HeatmapColorScheme.fromArray(listOf(Pair(0.05, ColorConstants.TRANSPARENT),
-						Pair(0.3, ColorConstants.GREEN),
-						Pair(0.7, ColorConstants.ORANGE),
+						Pair(0.2, ColorConstants.GREEN),
+						Pair(0.8, ColorConstants.ORANGE),
 						Pair(1.0, ColorConstants.RED)), 100),
-				80f,
+				20f,
 				false) { current, input, weight ->
-			max(current, input * weight)
+			current + input * weight
 		}
 	}
 

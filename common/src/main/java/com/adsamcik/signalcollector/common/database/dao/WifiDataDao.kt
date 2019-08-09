@@ -33,10 +33,18 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	@Query("SELECT * from wifi_data")
 	fun getAll(): List<DatabaseWifiData>
 
-	@Query("SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data WHERE latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude")
+	@Query("""
+		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data 
+		WHERE latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude
+		GROUP BY lat, lon
+		""")
 	fun getAllInside(topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
-	@Query("SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data WHERE last_seen >= :from and last_seen <= :to and latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude")
+	@Query("""
+		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data 
+		WHERE last_seen >= :from and last_seen <= :to and latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude
+		GROUP BY lat, lon
+	""")
 	fun getAllInsideAndBetween(from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
 	@Query("SELECT COUNT(*) from wifi_data")

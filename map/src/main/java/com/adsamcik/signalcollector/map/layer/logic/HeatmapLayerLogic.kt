@@ -3,7 +3,6 @@ package com.adsamcik.signalcollector.map.layer.logic
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.adsamcik.signalcollector.common.preference.Preferences
-import com.adsamcik.signalcollector.map.MapController
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.heatmap.HeatmapTileProvider
 import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapTileCreator
@@ -69,7 +68,7 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 		overlay.remove()
 	}
 
-	override fun update() {
+	override fun update(context: Context) {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
 

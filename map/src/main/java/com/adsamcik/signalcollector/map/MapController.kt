@@ -31,7 +31,7 @@ internal class MapController(context: Context, val map: GoogleMap) {
 	}
 
 	private fun update() {
-		activeLayer.update()
+		//activeLayer.update()
 	}
 
 	fun onEnable(context: Context) {

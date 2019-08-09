@@ -39,6 +39,7 @@ import com.adsamcik.signalcollector.map.layer.MapLayerData
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import com.adsamcik.signalcollector.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.signalcollector.map.layer.logic.LocationHeatmapLogic
+import com.adsamcik.signalcollector.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.signalcollector.map.layer.logic.WifiHeatmapLogic
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
 import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
@@ -382,10 +383,11 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 * Initializes map layers and menu button. If map layers are already initialized only initializes menu button.
 	 */
 	private fun loadMapLayers() {
-		val mapLayers = mutableListOf(
+		val mapLayers: List<MapLayerLogic> = mutableListOf(
 				LocationHeatmapLogic(),
 				CellHeatmapLogic(),
-				WifiHeatmapLogic())
+				WifiHeatmapLogic(),
+				LocationPolylineLogic())
 		initializeMenuButton(mapLayers)
 	}
 

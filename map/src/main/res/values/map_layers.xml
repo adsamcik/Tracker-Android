@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="map_layer_location_heatmap">Location heatmap</string>
+    <string name="map_layer_location_polyline">Location polyline</string>
     <string name="map_layer_cell_heatmap">Cell heatmap</string>
     <string name="map_layer_wifi_heatmap">Wi-Fi heatmap</string>
 </resources>

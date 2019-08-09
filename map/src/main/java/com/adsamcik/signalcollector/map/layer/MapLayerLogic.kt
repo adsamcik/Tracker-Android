@@ -13,5 +13,5 @@ internal interface MapLayerLogic {
 
 	fun onDisable(map: GoogleMap)
 
-	fun update()
+	fun update(context: Context)
 }
