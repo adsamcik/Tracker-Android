@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.*
@@ -33,9 +34,10 @@ import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.commonmap.ColorMap
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
-import com.adsamcik.signalcollector.map.*
+import com.adsamcik.signalcollector.map.MapController
+import com.adsamcik.signalcollector.map.MapEventListener
 import com.adsamcik.signalcollector.map.R
-import com.adsamcik.signalcollector.map.layer.MapLayerData
+import com.adsamcik.signalcollector.map.UpdateLocationListener
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import com.adsamcik.signalcollector.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.signalcollector.map.layer.logic.LocationHeatmapLogic
@@ -146,6 +148,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 		locationListener?.subscribeToLocationUpdates(activity)
 
 		IntroductionManager.showIntroduction(activity, MapIntroduction())
+		initializeKeyboardDetection()
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -187,17 +190,26 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 		styleController.let { StyleManager.recycleController(it) }
 	}
 
+	private fun updateIconList(isKeyboardOpen: Boolean) {
+		val shouldBeVisible = !isKeyboardOpen
+
+		button_map_date_range.isVisible = shouldBeVisible
+		button_map_legend.isVisible = shouldBeVisible
+		button_map_my_location.isVisible = shouldBeVisible
+	}
+
 	/**
 	 * Keyboard listener
 	 * Is object variable so it can be unsubscribed when map is closed
 	 */
-	private val keyboardListener: KeyboardListener = { opened, keyboardHeight ->
+	private val keyboardListener: KeyboardListener = { isOpen, keyboardHeight ->
 		val activity = activity
 		//map_menu_button is null in some rare cases. I am not entirely sure when it happens, but it seems to be quite rare so checking for null is probably OK atm
 		if (activity != null && map_menu_button != null) {
 			val (position, navbarHeight) = getNavigationBarSize(activity)
+			updateIconList(isOpen)
 			//check payloads
-			when (opened) {
+			when (isOpen) {
 				true -> {
 					if (position == NavBarPosition.BOTTOM) {
 						val top = searchOriginalMargin +
@@ -257,7 +269,6 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 * Initializes UI elements and colors
 	 */
 	private fun initializeUserElements() {
-		initializeKeyboardDetection()
 		edittext_map_search.setOnEditorActionListener { textView, _, _ ->
 			search(textView.text.toString())
 			true
@@ -410,7 +421,6 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 				styleController.watchRecyclerView(RecyclerStyleView(it.requireView() as RecyclerView, 2))
 				if (mapLayerData.isNotEmpty()) {
 					val adapter = it.adapter
-					adapter.clear()
 					adapter.addAll(mapLayerData)
 					it.onClickListener = { layer, _ ->
 						mapController?.setLayer(activity, layer)

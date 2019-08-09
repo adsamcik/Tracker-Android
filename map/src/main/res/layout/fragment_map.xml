@@ -61,56 +61,78 @@
             app:targetTranslationZ="4dp"
             app:targetView="@id/map_ui_parent" />
 
-        <LinearLayout
+        <androidx.appcompat.widget.LinearLayoutCompat
             android:id="@+id/layout_map_controls"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:background="@color/color_primary"
+            android:background="@drawable/background_map_controls"
             android:elevation="8dp"
             android:orientation="horizontal">
 
-            <androidx.appcompat.widget.AppCompatEditText
-                android:id="@+id/edittext_map_search"
+            <androidx.appcompat.widget.LinearLayoutCompat
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:hint="@string/map_search"
-                android:imeOptions="actionSearch"
-                android:importantForAutofill="no"
-                android:inputType="text|textNoSuggestions"
-                android:paddingStart="@dimen/activity_horizontal_margin"
-                android:paddingTop="8dp"
-                android:paddingEnd="56dp"
-                android:paddingBottom="8dp"
-                android:textColor="?android:textColorPrimary"
-                android:textColorHint="?android:textColorSecondary"
-                android:textSize="16sp"
-                tools:targetApi="28" />
+                android:background="@drawable/background_map_search">
+
+                <androidx.appcompat.widget.AppCompatEditText
+                    android:id="@+id/edittext_map_search"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent"
+                    android:gravity="center_vertical"
+                    android:hint="@string/map_search"
+                    android:imeOptions="actionSearch"
+                    android:importantForAutofill="no"
+                    android:inputType="text|textNoSuggestions"
+                    android:paddingStart="@dimen/content_padding"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="@dimen/content_padding"
+                    android:paddingBottom="8dp"
+                    android:textColor="?android:textColorPrimary"
+                    android:textColorHint="?android:textColorSecondary"
+                    android:textSize="16sp"
+                    tools:targetApi="28" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/button_map_search"
+                    android:layout_width="@dimen/map_button_size"
+                    android:layout_height="@dimen/map_button_size"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/description_map_search"
+                    android:scaleType="centerInside"
+                    app:srcCompat="@drawable/ic_search_black_24dp" />
+
+            </androidx.appcompat.widget.LinearLayoutCompat>
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/button_map_legend"
+                android:layout_width="@dimen/map_button_size"
+                android:layout_height="@dimen/map_button_size"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/description_legend"
+                android:scaleType="centerInside"
+                app:srcCompat="@drawable/ic_map_legend" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/button_map_date_range"
-                android:layout_width="@dimen/map_searchbar_button_size"
-                android:layout_height="@dimen/map_searchbar_button_size"
+                android:layout_width="@dimen/map_button_size"
+                android:layout_height="@dimen/map_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/description_my_location"
+                android:contentDescription="@string/description_date_range"
+                android:scaleType="centerInside"
                 app:srcCompat="@drawable/ic_date_range_black_24dp" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/button_map_my_location"
-                android:layout_width="@dimen/map_searchbar_button_size"
-                android:layout_height="@dimen/map_searchbar_button_size"
+                android:layout_width="@dimen/map_button_size"
+                android:layout_height="@dimen/map_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/description_my_location"
+                android:scaleType="centerInside"
                 app:srcCompat="@drawable/ic_gps_not_fixed_black_24dp" />
 
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/button_map_search"
-                android:layout_width="@dimen/map_searchbar_button_size"
-                android:layout_height="@dimen/map_searchbar_button_size"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/description_map_search"
-                app:srcCompat="@drawable/ic_search_black_24dp" />
-        </LinearLayout>
+        </androidx.appcompat.widget.LinearLayoutCompat>
     </androidx.appcompat.widget.LinearLayoutCompat>
 </androidx.constraintlayout.widget.ConstraintLayout>
