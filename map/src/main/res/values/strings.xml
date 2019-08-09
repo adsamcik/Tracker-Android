@@ -15,4 +15,5 @@
     <string name="tips_map_overlay_title">Map layers</string>
     <string name="tips_map_overlay_description">Tapping or pulling up this bar will open selection of map layers</string>
 
+    <string name="map_date_range_not_supported">Date range not supported on this overlay</string>
 </resources>

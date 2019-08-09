@@ -8,6 +8,7 @@ internal interface MapLayerLogic {
 	val supportsAutoUpdate: Boolean
 	var dateRange: LongRange
 	var quality: Float
+	val availableRange: LongRange
 
 	fun onEnable(context: Context, map: GoogleMap)
 

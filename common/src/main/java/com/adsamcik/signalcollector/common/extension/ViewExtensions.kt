@@ -160,7 +160,7 @@ inline fun <reified T> View.firstParent(): T? {
 fun <T> View.firstParent(iClass: Class<T>): T? {
 	var parent = parent
 	while (parent != null) {
-		if (iClass.isInstance(iClass)) {
+		if (iClass.isInstance(parent)) {
 			@Suppress("unchecked_cast")
 			return parent as T
 		}

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.common.database.data.DatabaseCellLocation
+import com.adsamcik.signalcollector.common.database.data.DateRange
 
 @Dao
 interface CellLocationDao : BaseDao<DatabaseCellLocation> {
@@ -24,4 +25,7 @@ interface CellLocationDao : BaseDao<DatabaseCellLocation> {
 
 	@Query("SELECT COUNT(*) from cell_location GROUP BY mcc, mnc, cell_id")
 	fun uniqueCount(): Long
+
+	@Query("SELECT MIN(time) as start, MAX(time) as endInclusive from cell_location")
+	fun range(): DateRange
 }

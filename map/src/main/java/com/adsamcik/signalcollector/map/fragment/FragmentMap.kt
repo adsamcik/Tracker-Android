@@ -15,13 +15,14 @@ import android.view.ViewGroup
 import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.*
-import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
+import com.adsamcik.signalcollector.common.dialog.dateTimeRangePicker
 import com.adsamcik.signalcollector.common.extension.*
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.introduction.IntroductionManager
@@ -43,18 +44,16 @@ import com.adsamcik.signalcollector.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.signalcollector.map.layer.logic.LocationHeatmapLogic
 import com.adsamcik.signalcollector.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.signalcollector.map.layer.logic.WifiHeatmapLogic
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
+import com.afollestad.materialdialogs.MaterialDialog
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.android.synthetic.main.fragment_map.*
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.IOException
-import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -79,8 +78,6 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	private var keyboardInitialized = AtomicBoolean(false)
 
 	private var fragmentMapMenu: AtomicReference<FragmentMapMenu?> = AtomicReference(null)
-
-	private var dateRange: ClosedRange<Calendar>? = null
 
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
 		val activity = fActivity
@@ -140,10 +137,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			this.mapFragment = mapFragment
 		}
 
-		mapController?.let {
-			GlobalScope.launch { it.setDateRange(dateRange) }
-			it.onEnable(activity)
-		}
+		mapController?.onEnable(activity)
 
 		locationListener?.subscribeToLocationUpdates(activity)
 
@@ -289,10 +283,25 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 		}
 
 		button_map_date_range.setOnClickListener {
-			val fragmentManager = fragmentManager
-					?: throw NullPointerException("FragmentManager must not be null")
+			launch(Dispatchers.Default) {
+				val mapController = requireNotNull(mapController)
+				val availableRange = mapController.availableDateRange
+				val selectedRange = mapController.dateRange
 
-			DateTimeRangeDialog().apply {
+				launch(Dispatchers.Main
+				) {
+					if (availableRange.last <= availableRange.first) {
+						SnackMaker(requireNotNull(it.firstParent<ConstraintLayout>())).addMessage(R.string.map_date_range_not_supported)
+					} else {
+						MaterialDialog(it.context).dateTimeRangePicker(availableRange, selectedRange) {
+							mapController.dateRange = it
+						}.show()
+					}
+				}
+			}
+
+
+			/*DateTimeRangeDialog().apply {
 				arguments = Bundle().apply {
 					putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
 						val dateRange = this@FragmentMap.dateRange
@@ -308,7 +317,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 					this@FragmentMap.dateRange = range
 					mapController?.setDateRange(range)
 				}
-			}.show(fragmentManager, "Map date range dialog")
+			}.show(fragmentManager, "Map date range dialog")*/
 		}
 
 		button_map_my_location.setOnClickListener {

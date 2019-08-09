@@ -15,6 +15,12 @@ internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 
 	override val weightNormalizationValue: Double = 0.0
 
+	override val availableRange: LongRange
+		get() {
+			val range = dao.range()
+			return LongRange(range.start, range.endInclusive)
+		}
+
 	override val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
 		get() = dao::getAllInsideAndBetween
 	override val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>

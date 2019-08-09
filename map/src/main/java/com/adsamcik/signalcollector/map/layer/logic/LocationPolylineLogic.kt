@@ -40,6 +40,16 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 			context?.let { update(it) }
 		}
 
+	override val availableRange: LongRange
+		get() {
+			val range = dao?.range()
+			return if (range == null) {
+				LongRange.EMPTY
+			} else {
+				LongRange(range.start, range.endInclusive)
+			}
+		}
+
 	private var map: GoogleMap? = null
 	private var context: Context? = null
 	private var dao: LocationDataDao? = null

@@ -13,6 +13,7 @@ import com.google.android.gms.maps.model.TileOverlayOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
@@ -20,6 +21,9 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
+
+	override var availableRange: LongRange = LongRange.EMPTY
+		protected set
 
 	override var dateRange: LongRange
 		get() = provider.range
@@ -46,6 +50,11 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 
 	override fun onEnable(context: Context, map: GoogleMap) {
 		val tileCreator = getTileCreator(context)
+
+		launch {
+			availableRange = tileCreator.availableRange
+		}
+
 		val maxHeat = Preferences.getPref(context).getIntResString(
 				R.string.settings_map_max_heat_key,
 				R.string.settings_map_max_heat_default).toFloat()

@@ -10,7 +10,6 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.extension.cloneCalendar
@@ -21,9 +20,6 @@ import com.adsamcik.signalcollector.export.ExportFile
 import com.adsamcik.signalcollector.export.ExportResult
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.folderChooser
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.layout_data_export.*
 import kotlinx.coroutines.Dispatchers
@@ -89,7 +85,9 @@ class ExportActivity : DetailActivity() {
 			range = monthBefore..now
 
 			val clickListener = { _: View ->
-				DateTimeRangeDialog().apply {
+
+				TODO()
+				/*DateTimeRangeDialog().apply {
 					arguments = Bundle().apply {
 						putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
 							setCanPickDateRange(true)
@@ -103,7 +101,7 @@ class ExportActivity : DetailActivity() {
 					successCallback = { range ->
 						this@ExportActivity.range = range
 					}
-				}.show(supportFragmentManager, "Map date range dialog")
+				}.show(supportFragmentManager, "Map date range dialog")*/
 			}
 
 			edittext_date_range_from.setOnClickListener(clickListener)

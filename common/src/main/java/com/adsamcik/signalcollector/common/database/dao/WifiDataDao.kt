@@ -5,6 +5,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
+import com.adsamcik.signalcollector.common.database.data.DateRange
 
 @Dao
 interface WifiDataDao : BaseDao<DatabaseWifiData> {
@@ -49,4 +50,7 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 
 	@Query("SELECT COUNT(*) from wifi_data")
 	fun count(): Long
+
+	@Query("SELECT MIN(last_seen) as start, MAX(last_seen) as endInclusive from wifi_data")
+	fun range(): DateRange
 }

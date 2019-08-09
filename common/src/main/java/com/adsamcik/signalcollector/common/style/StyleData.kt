@@ -34,7 +34,7 @@ data class StyleData(@ColorInt private val backgroundColor: Int,
 	 * @param isInverted True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun foregroundColor(isInverted: Boolean): Int = if (isInverted) backgroundColor else foregroundColor
+	fun foregroundColor(isInverted: Boolean = false): Int = if (isInverted) backgroundColor else foregroundColor
 
 	/**
 	 * Returns proper base background color for given StyleView
@@ -48,7 +48,7 @@ data class StyleData(@ColorInt private val backgroundColor: Int,
 	 * @param isInverted True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun backgroundColor(isInverted: Boolean): Int = if (isInverted) foregroundColor else backgroundColor
+	fun backgroundColor(isInverted: Boolean = false): Int = if (isInverted) foregroundColor else backgroundColor
 
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true

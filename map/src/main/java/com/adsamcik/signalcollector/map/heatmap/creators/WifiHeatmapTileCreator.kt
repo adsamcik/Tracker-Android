@@ -30,6 +30,12 @@ internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 
 	private val dao = AppDatabase.getDatabase(context).wifiDao()
 
+	override val availableRange: LongRange
+		get() {
+			val range = dao.range()
+			return LongRange(range.start, range.endInclusive)
+		}
+
 	override val weightNormalizationValue: Double = 0.0
 
 	override val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>

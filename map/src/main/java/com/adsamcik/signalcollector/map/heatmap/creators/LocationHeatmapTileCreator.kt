@@ -27,6 +27,12 @@ internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator
 
 	private val dao = AppDatabase.getDatabase(context).locationDao()
 
+	override val availableRange: LongRange
+		get() {
+			val range = dao.range()
+			return LongRange(range.start, range.endInclusive)
+		}
+
 	override val weightNormalizationValue: Double = Preferences
 			.getPref(context)
 			.getIntRes(R.string.settings_tracking_required_accuracy_key, R.integer.settings_tracking_required_accuracy_default)

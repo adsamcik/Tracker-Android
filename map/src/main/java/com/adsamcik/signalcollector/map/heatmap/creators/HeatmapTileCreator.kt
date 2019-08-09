@@ -1,5 +1,6 @@
 package com.adsamcik.signalcollector.map.heatmap.creators
 
+import android.content.Context
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.common.extension.isPowerOfTwo
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
@@ -11,6 +12,8 @@ internal interface HeatmapTileCreator {
 	val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
 
 	val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+
+	val availableRange: LongRange
 
 	val weightNormalizationValue: Double
 
