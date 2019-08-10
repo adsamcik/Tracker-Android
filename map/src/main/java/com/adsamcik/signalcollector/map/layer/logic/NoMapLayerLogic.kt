@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.map.layer.logic
 
 import android.content.Context
+import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.layer.MapLayerData
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import com.google.android.gms.maps.GoogleMap
@@ -15,7 +16,7 @@ internal class NoMapLayerLogic : MapLayerLogic {
 
 	@Suppress("unchecked_cast")
 	override val data: MapLayerData
-		get() = MapLayerData(this::class as KClass<MapLayerLogic>, 0)
+		get() = MapLayerData(this::class as KClass<MapLayerLogic>, R.string.map_layer_none)
 
 	override val supportsAutoUpdate: Boolean
 		get() = false
