@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
+import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
@@ -45,15 +46,16 @@ import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 //todo move TrackerService to it's own process
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
 
-	private val componentLock = ReentrantLock()
+	private val componentMutex = Mutex()
 
 	private var timerComponent: TrackerTimerComponent = NoTimer()
 
@@ -227,10 +229,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	override fun onUpdate(tempData: MutableCollectionTempData) {
 		launch {
-			componentLock.lock()
+			componentMutex.lock()
 
 			if (!isServiceRunning.value) {
-				componentLock.unlock()
+				componentMutex.unlock()
 				return@launch
 			}
 
@@ -241,7 +243,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				Reporter.report(e)
 			} finally {
 				wakeLock.release()
-				componentLock.unlock()
+				componentMutex.unlock()
 			}
 		}
 	}
@@ -255,43 +257,50 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
+	@MainThread
+	private suspend fun onDestroyComponents(context: Context) {
+		dataProducerManager?.onDisable()
+		preComponentList.forEach { it.onDisable(context) }
+		postComponentList.forEach { it.onDisable(context) }
+
+		//Can be null if TrackerServices is immediately stopped after start
+		if (sessionComponent != null) {
+			val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
+				putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
+				`package` = this@TrackerService.packageName
+			}
+			sendBroadcast(sessionEndIntent, "com.adsamcik.signalcollector.permission.TRACKER")
+		}
+	}
+
+	private fun onDestroyServiceMetaData() {
+		isServiceRunningMutable.value = false
+		sessionInfoMutable.value = null
+	}
+
 
 	override fun onDestroy() {
 		super.onDestroy()
+		val context = this
 
-		componentLock.withLock {
-			timerComponent.onDisable(this)
+		runBlocking {
+			componentMutex.withLock {
+				timerComponent.onDisable(context)
+				stopForeground(true)
+				onDestroyServiceMetaData()
 
-			stopForeground(true)
-			isServiceRunningMutable.value = false
-			sessionInfoMutable.value = null
+				ActivityWatcherService.poke(context, trackerRunning = false)
 
-			ActivityWatcherService.poke(this, trackerRunning = false)
-
-			if (android.os.Build.VERSION.SDK_INT >= 25) {
-				Shortcuts.updateShortcut(this,
-						Shortcuts.TRACKING_ID,
-						R.string.shortcut_start_tracking,
-						R.string.shortcut_start_tracking_long,
-						R.drawable.ic_play_circle_filled_black_24dp,
-						Shortcuts.ShortcutAction.START_COLLECTION)
-			}
-
-			//This work needs to be done, but might take extra time so it's fine to do it in GlobalScope
-			val appContext = applicationContext
-			launch(Dispatchers.Main) {
-				dataProducerManager?.onDisable()
-				preComponentList.forEach { it.onDisable(appContext) }
-				postComponentList.forEach { it.onDisable(appContext) }
-			}
-
-			//Can be null if TrackerServices is immediately stopped after start
-			if (sessionComponent != null) {
-				val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
-					putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
-					`package` = this@TrackerService.packageName
+				if (android.os.Build.VERSION.SDK_INT >= 25) {
+					Shortcuts.updateShortcut(context,
+							Shortcuts.TRACKING_ID,
+							R.string.shortcut_start_tracking,
+							R.string.shortcut_start_tracking_long,
+							R.drawable.ic_play_circle_filled_black_24dp,
+							Shortcuts.ShortcutAction.START_COLLECTION)
 				}
-				sendBroadcast(sessionEndIntent, "com.adsamcik.signalcollector.permission.TRACKER")
+
+				onDestroyComponents(context)
 			}
 		}
 	}
