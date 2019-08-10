@@ -9,6 +9,7 @@ import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.data.SessionActivity
+import com.adsamcik.signalcollector.common.style.ColorFunctions
 import com.adsamcik.signalcollector.common.style.StyleData
 import com.adsamcik.signalcollector.common.style.StyleManager
 
@@ -32,8 +33,9 @@ class ContextualSwipeTouchHelper(context: Context, val adapter: ActivityRecycler
 	private fun updateColor(styleData: StyleData) {
 		val backgroundColor = styleData.backgroundColor(false)
 		val foregroundColor = styleData.foregroundColor(false)
+		val luminance = styleData.perceivedLuminance(false)
 
-		backgroundPaint.color = StyleManager.layerColor(backgroundColor, 1)
+		backgroundPaint.color = ColorFunctions.getBackgroundLayerColor(backgroundColor, luminance, 1)
 		foregroundPaint.color = foregroundColor
 
 		icon.setTint(foregroundColor)

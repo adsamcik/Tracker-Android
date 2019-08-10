@@ -2,6 +2,7 @@ package com.adsamcik.signalcollector.common.style
 
 import android.graphics.Color
 import androidx.annotation.ColorInt
+import androidx.annotation.IntRange
 import androidx.core.graphics.alpha
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
@@ -11,12 +12,12 @@ import kotlin.math.floor
 /**
  * Brightens given color component with given value and ensures it is not larger than 255
  */
-fun brightenComponent(component: Int, value: Int): Int = (component + value).coerceIn(0, 255)
+fun brightenComponent(component: Int, @IntRange(from = 0, to = 255) value: Int): Int = (component + value).coerceIn(0, 255)
 
 /**
  * Brightens color by components with given value.
  */
-fun brightenColor(@ColorInt color: Int, value: Int): Int {
+fun brightenColor(@ColorInt color: Int, @IntRange(from = 0, to = 255) value: Int): Int {
 	val r = brightenComponent(Color.red(color), value)
 	val g = brightenComponent(Color.green(color), value)
 	val b = brightenComponent(Color.blue(color), value)
@@ -56,9 +57,11 @@ fun perceivedLuminance(@ColorInt color: Int): Double = 0.299 * relRed(color) + 0
  * @param color packed ARGB color
  * @return Value from [Byte.MIN_VALUE] to [Byte.MAX_VALUE]
  */
-fun perceivedRelLuminance(@ColorInt color: Int): Byte = floor((perceivedLuminance(color) - 0.5) * 255).toByte()
+fun perceivedRelLuminance(@ColorInt color: Int): Int = floor((perceivedLuminance(color) - 0.5) * 255).toInt()
 
 object ColorFunctions {
+	const val LIGHTNESS_PER_LEVEL: Int = 17
+
 	fun averageRgb(first: Int, second: Int): Int {
 		val red = (first.red + second.red) / 2
 		val green = (first.green + second.green) / 2
@@ -72,5 +75,20 @@ object ColorFunctions {
 		val blue = (first.blue + second.blue) / 2
 		val alpha = (first.alpha + second.alpha) / 2
 		return Color.argb(alpha, red, green, blue)
+	}
+
+	@ColorInt
+	fun getBackgroundLayerColor(@ColorInt backgroundColor: Int, @IntRange(from = -127, to = 127) luminance: Int, layerDelta: Int): Int {
+		return if (layerDelta == 0) {
+			backgroundColor
+		} else {
+			val brightenMultiplier = if (luminance <= 0) {
+				LIGHTNESS_PER_LEVEL
+			} else {
+				-LIGHTNESS_PER_LEVEL
+			}
+
+			brightenColor(backgroundColor, brightenMultiplier * layerDelta)
+		}
 	}
 }

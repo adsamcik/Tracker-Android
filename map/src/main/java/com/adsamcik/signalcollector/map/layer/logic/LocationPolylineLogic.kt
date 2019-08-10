@@ -95,7 +95,7 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 				sessionDao.getAll()
 			} else {
 				sessionDao.getAllBetween(dateRange.first, dateRange.last)
-			}
+			}.sortedBy { it.start }
 
 			val colors = ColorGenerator.generateWithGolden(sessions.size)
 
