@@ -4,7 +4,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
-import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
@@ -46,7 +45,6 @@ import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -282,12 +280,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	override fun onDestroy() {
 		super.onDestroy()
 		val context = this
+		stopForeground(true)
+		onDestroyServiceMetaData()
 
-		runBlocking {
+		launch(Dispatchers.Main) {
 			componentMutex.withLock {
 				timerComponent.onDisable(context)
-				stopForeground(true)
-				onDestroyServiceMetaData()
 
 				ActivityWatcherService.poke(context, trackerRunning = false)
 
