@@ -3,6 +3,8 @@ package com.adsamcik.signalcollector.map.layer.logic
 import android.content.Context
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
+import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
+import com.adsamcik.signalcollector.common.style.ColorGenerator
 import com.adsamcik.signalcollector.map.R
 import com.adsamcik.signalcollector.map.layer.MapLayerData
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
@@ -23,6 +25,7 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
+	@Suppress("UNCHECKED_CAST")
 	override val data: MapLayerData
 		get() = MapLayerData(this::class as KClass<MapLayerLogic>, R.string.map_layer_location_polyline)
 	override val supportsAutoUpdate: Boolean
@@ -42,7 +45,7 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 
 	override val availableRange: LongRange
 		get() {
-			val range = dao?.range()
+			val range = locationDao?.range()
 			return if (range == null) {
 				LongRange.EMPTY
 			} else {
@@ -52,45 +55,65 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 
 	private var map: GoogleMap? = null
 	private var context: Context? = null
-	private var dao: LocationDataDao? = null
-	private var activePolyline: Polyline? = null
+	private var locationDao: LocationDataDao? = null
+	private var sessionDao: SessionDataDao? = null
+	private var activePolylines: MutableList<Polyline> = mutableListOf()
 
 	override fun onEnable(context: Context, map: GoogleMap) {
 		this.map = map
-		this.dao = AppDatabase.getDatabase(context).locationDao()
+		AppDatabase.getDatabase(context).let { db ->
+			this.locationDao = db.locationDao()
+			this.sessionDao = db.sessionDao()
+		}
+
 		this.context = context
 		update(context)
 	}
 
+	private fun clearActivePolylines() {
+		activePolylines.forEach { it.remove() }
+		activePolylines.clear()
+	}
+
 	override fun onDisable(map: GoogleMap) {
+		clearActivePolylines()
 		this.map = null
-		this.dao = null
+		this.locationDao = null
+		this.sessionDao = null
 		this.context = null
-		activePolyline?.remove()
 	}
 
 	//todo color based on activity
 	override fun update(context: Context) {
+		clearActivePolylines()
+
 		launch {
-			val locationDao = requireNotNull(dao)
-			val data = if (dateRange == LongRange.EMPTY) {
-				locationDao.getAll()
+			val sessionDao = requireNotNull(sessionDao)
+			val locationDao = requireNotNull(locationDao)
+
+			val sessions = if (dateRange == LongRange.EMPTY) {
+				sessionDao.getAll()
 			} else {
-				locationDao.getAllBetween(dateRange.first, dateRange.last)
+				sessionDao.getAllBetween(dateRange.first, dateRange.last)
 			}
 
-			val options = PolylineOptions().apply {
-				geodesic(true)
-				addAll(data.map { LatLng(it.latitude, it.longitude) })
-			}
+			val colors = ColorGenerator.generateWithGolden(sessions.size)
 
-			launch(Dispatchers.Main) {
-				activePolyline?.remove()
-				requireNotNull(map).apply {
-					activePolyline = addPolyline(options)
+			sessions.forEachIndexed { index, session ->
+				val locations = locationDao.getAllBetween(session.start, session.end)
+				val polylineOptions = PolylineOptions().apply {
+					geodesic(true)
+					addAll(locations.map { LatLng(it.latitude, it.longitude) })
+					color(colors[index])
+				}
+
+				launch(Dispatchers.Main) {
+					requireNotNull(map).let { map ->
+						val polyline = map.addPolyline(polylineOptions)
+						activePolylines.add(polyline)
+					}
 				}
 			}
 		}
 	}
-
 }
