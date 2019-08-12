@@ -48,6 +48,9 @@ import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.material.picker.CalendarConstraints
+import com.google.android.material.picker.MaterialDatePicker
+import com.google.android.material.picker.Month
 import kotlinx.android.synthetic.main.fragment_map.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -284,7 +287,9 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			launch(Dispatchers.Default) {
 				val mapController = requireNotNull(mapController)
 				val availableRange = mapController.availableDateRange
-				val selectedRange = mapController.dateRange
+				val selectedRange = mapController.dateRange.coerceIn(availableRange)
+				/*val rangeFrom = createCalendarWithTime(availableRange.first)
+				val rangeTo = createCalendarWithTime(availableRange.last)*/
 
 				launch(Dispatchers.Main
 				) {
@@ -294,6 +299,22 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 						MaterialDialog(it.context).dateTimeRangePicker(availableRange, selectedRange) {
 							mapController.dateRange = it
 						}.show()
+
+						/*val constraints = CalendarConstraints.Builder()
+								.setStart(Month.create(rangeFrom.year, rangeFrom.month))
+								.setEnd(Month.create(rangeTo.year, rangeTo.month))
+						MaterialDatePicker.Builder.dateRangePicker()
+								.setCalendarConstraints(constraints.build())
+								.setTheme(com.adsamcik.signalcollector.common.R.style.CalendarPicker)
+								.build(
+
+								).apply {
+									addOnPositiveButtonClickListener {
+										val from = it.first ?: selectedRange.first
+										val to = it.second ?: from
+										mapController.dateRange = from..to
+									}
+								}.show(requireFragmentManager(), "picker")*/
 					}
 				}
 			}

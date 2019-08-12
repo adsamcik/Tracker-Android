@@ -18,4 +18,5 @@
             app:singleLine="true"
             app:singleSelection="true" />
     </HorizontalScrollView>
+
 </androidx.appcompat.widget.LinearLayoutCompat>

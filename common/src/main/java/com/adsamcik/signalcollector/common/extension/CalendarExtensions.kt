@@ -14,6 +14,14 @@ fun createCalendarWithDate(year: Int, monthOfYear: Int, dayOfMonth: Int): Calend
 	}
 }
 
+fun createCalendarWithTime(time: Long): Calendar {
+	return if (Build.VERSION.SDK_INT >= 26)
+		Calendar.Builder().setInstant(time).build()
+	else {
+		Date(time).toCalendar()
+	}
+}
+
 fun Date.toCalendar(): Calendar {
 	val calendar = Calendar.getInstance()
 	calendar.time = this
@@ -64,3 +72,9 @@ fun Calendar.cloneCalendar(): Calendar {
 fun Calendar.toTimeSinceMidnight(): Long = get(Calendar.HOUR_OF_DAY) * Time.HOUR_IN_MILLISECONDS +
 		get(Calendar.MINUTE) * Time.MINUTE_IN_MILLISECONDS +
 		get(Calendar.SECOND) * Time.SECOND_IN_MILLISECONDS
+
+val Calendar.month: Int get() = get(Calendar.MONTH)
+val Calendar.day: Int get() = get(Calendar.DAY_OF_MONTH)
+val Calendar.year: Int get() = get(Calendar.YEAR)
+
+
