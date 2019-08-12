@@ -3,24 +3,24 @@ package com.adsamcik.signalcollector.map.fragment
 
 import android.Manifest
 import android.content.Context
-import android.graphics.Point
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.location.Geocoder
 import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
-import android.view.View.*
+import android.view.View.GONE
+import android.view.View.VISIBLE
 import android.view.ViewGroup
 import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.view.isGone
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
-import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.draggable.*
+import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Assist.getNavigationBarSize
 import com.adsamcik.signalcollector.common.dialog.dateTimeRangePicker
@@ -31,7 +31,6 @@ import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardListener
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardManager
 import com.adsamcik.signalcollector.common.misc.keyboard.NavBarPosition
-import com.adsamcik.signalcollector.common.style.RecyclerStyleView
 import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.commonmap.ColorMap
@@ -48,10 +47,9 @@ import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.material.picker.CalendarConstraints
-import com.google.android.material.picker.MaterialDatePicker
-import com.google.android.material.picker.Month
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.android.synthetic.main.fragment_map.*
+import kotlinx.android.synthetic.main.layout_map_bottom_sheet_peek.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -173,6 +171,11 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 					.setText(if (hasPermissions) com.adsamcik.signalcollector.common.R.string.error_play_services_not_available else com.adsamcik.signalcollector.common.R.string.error_missing_permission)
 		}
 
+		fragmentView.setOnTouchListener { _, _ ->
+			edittext_map_search.clearFocus()
+			true
+		}
+
 		return fragmentView
 	}
 
@@ -189,7 +192,6 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 		val shouldBeVisible = !isKeyboardOpen
 
 		button_map_date_range.isVisible = shouldBeVisible
-		button_map_legend.isVisible = shouldBeVisible
 		button_map_my_location.isVisible = shouldBeVisible
 	}
 
@@ -200,41 +202,41 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	private val keyboardListener: KeyboardListener = { isOpen, keyboardHeight ->
 		val activity = activity
 		//map_menu_button is null in some rare cases. I am not entirely sure when it happens, but it seems to be quite rare so checking for null is probably OK atm
-		if (activity != null && map_menu_button != null) {
+		if (activity != null && map_menu_draggable != null) {
 			val (position, navbarHeight) = getNavigationBarSize(activity)
-			updateIconList(isOpen)
 			//check payloads
+
 			when (isOpen) {
 				true -> {
 					if (position == NavBarPosition.BOTTOM) {
 						val top = searchOriginalMargin +
 								keyboardHeight +
-								map_menu_button.height +
+								map_menu_draggable.height +
 								edittext_map_search.paddingBottom +
 								edittext_map_search.paddingTop + edittext_map_search.height
 
-						map_ui_parent.marginBottom = searchOriginalMargin + keyboardHeight
-						map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
+						//map_ui_parent.marginBottom = searchOriginalMargin + keyboardHeight
+						//map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
 					}
 				}
 				false -> {
 					val baseBottomMarginPx = 32.dp
 					if (position == NavBarPosition.BOTTOM) {
-						map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + baseBottomMarginPx
+						//map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + baseBottomMarginPx
 						map?.setPadding(0, 0, 0, navbarHeight.y)
 					} else {
-						map_ui_parent.marginBottom = searchOriginalMargin + baseBottomMarginPx
+						//map_ui_parent.marginBottom = searchOriginalMargin + baseBottomMarginPx
 						map?.setPadding(0, 0, 0, 0)
 					}
 				}
 			}
 
 			//Update map_menu_button position after UI has been redrawn
-			map_menu_button.post {
+			/*map_menu_button.post {
 				if (map_menu_button != null) {
 					map_menu_button.moveToState(map_menu_button.state, false)
 				}
-			}
+			}*/
 		}
 	}
 
@@ -245,7 +247,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 * Relies on detecting bigger layout size changes.
 	 */
 	private fun initializeKeyboardDetection() {
-		if (keyboardInitialized.get()) {
+		/*if (keyboardInitialized.get()) {
 			val keyboardManager = keyboardManager
 					?: throw NullPointerException("KeyboardManager should never be null when keyboardInitialized is true")
 			keyboardManager.onDisplaySizeChanged()
@@ -257,13 +259,15 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 
 			keyboardManager.addKeyboardListener(keyboardListener)
 			keyboardInitialized.set(true)
-		}
+		}*/
 	}
 
 	/**
 	 * Initializes UI elements and colors
 	 */
 	private fun initializeUserElements() {
+		initializeNavbarOffset()
+
 		edittext_map_search.setOnEditorActionListener { textView, _, _ ->
 			search(textView.text.toString())
 			true
@@ -274,13 +278,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 		}
 
 		edittext_map_search.setOnFocusChangeListener { _, hasFocus ->
-			if (hasFocus) {
-				button_map_my_location.visibility = VISIBLE
-				button_map_date_range.visibility = VISIBLE
-			} else {
-				button_map_my_location.visibility = INVISIBLE
-				button_map_date_range.visibility = INVISIBLE
-			}
+			updateIconList(hasFocus)
 		}
 
 		button_map_date_range.setOnClickListener {
@@ -339,12 +337,34 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 			}.show(fragmentManager, "Map date range dialog")*/
 		}
 
+		val behavior = BottomSheetBehavior.from(map_ui_parent)
+		//todo add dynamic navbar height
+		behavior.peekHeight = 80.dp + navbar_space.layoutParams.height + layout_map_controls.marginBottom
+		behavior.isFitToContents = false
+		behavior.setExpandedOffset(120.dp)
+		behavior.state = BottomSheetBehavior.STATE_EXPANDED
+
 		button_map_my_location.setOnClickListener {
 			locationListener?.onMyPositionButtonClick(it as AppCompatImageButton)
 		}
 
-		styleController.watchView(StyleView(map_menu_button, MAP_MENU_BUTTON_LAYER, 0))
-		styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
+		styleController.watchView(StyleView(map_ui_parent, MAP_MENU_BUTTON_LAYER))
+		//styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
+	}
+
+	private fun initializeNavbarOffset() {
+		val (position, navDim) = Assist.getNavigationBarSize(requireContext())
+		if (navDim.x > navDim.y) {
+			navDim.x = 0
+		} else {
+			navDim.y = 0
+		}
+
+		if (position == NavBarPosition.BOTTOM) {
+			navbar_space.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+				height = navDim.y
+			}
+		}
 	}
 
 	/**
@@ -381,7 +401,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	private fun animateMenuDrawable(@DrawableRes drawableRes: Int) {
 		context?.let { context ->
 			val drawable = context.getDrawable(drawableRes) as AnimatedVectorDrawable
-			map_menu_button.setImageDrawable(drawable)
+			map_menu_draggable.setImageDrawable(drawable)
 			drawable.start()
 		}
 	}
@@ -431,52 +451,52 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 	 * Initialized draggable menu button
 	 */
 	private fun initializeMenuButton(mapLayerData: List<MapLayerLogic>) {
-		if (mapLayerData.isEmpty()) {
-			map_menu_button.isGone = true
-			return
-		}
+		/*	if (mapLayerData.isEmpty()) {
+				map_menu_button.isGone = true
+				return
+			}
 
-		//uses post to make sure heights and widths are available
-		map_menu_parent.post {
-			val activity = requireActivity()
-			val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_button)
-			payload.initialTranslation = Point(0, map_menu_parent.height)
-			payload.stickToTarget = true
-			payload.anchor = DragTargetAnchor.LeftTop
-			payload.offsets = Offset(0, map_menu_button.height)
-			payload.width = map_menu_parent.width
-			payload.height = map_menu_parent.height
-			payload.destroyPayloadAfter = 0L
-			payload.onInitialized = {
-				fragmentMapMenu.set(it)
-				styleController.watchRecyclerView(RecyclerStyleView(it.requireView() as RecyclerView, 2))
-				it.adapter.addAll(mapLayerData)
-				it.onClickListener = { layer, _ ->
-					mapController?.setLayer(activity, layer)
-					map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
+			//uses post to make sure heights and widths are available
+			map_menu_parent.post {
+				val activity = requireActivity()
+				val payload = DraggablePayload(activity, FragmentMapMenu::class.java, map_menu_parent, map_menu_button)
+				payload.initialTranslation = Point(0, map_menu_parent.height)
+				payload.stickToTarget = true
+				payload.anchor = DragTargetAnchor.LeftTop
+				payload.offsets = Offset(0, map_menu_button.height)
+				payload.width = map_menu_parent.width
+				payload.height = map_menu_parent.height
+				payload.destroyPayloadAfter = 0L
+				payload.onInitialized = {
+					fragmentMapMenu.set(it)
+					styleController.watchRecyclerView(RecyclerStyleView(it.requireView() as RecyclerView, 2))
+					it.adapter.addAll(mapLayerData)
+					it.onClickListener = { layer, _ ->
+						mapController?.setLayer(activity, layer)
+						map_menu_button.moveToState(DraggableImageButton.State.INITIAL, true)
+					}
+					it.filter(mapLayerFilterRule)
 				}
-				it.filter(mapLayerFilterRule)
-			}
-			payload.onBeforeDestroyed = {
-				fragmentMapMenu.set(null)
-				styleController.stopWatchingRecyclerView(R.id.recycler)
-			}
+				payload.onBeforeDestroyed = {
+					fragmentMapMenu.set(null)
+					styleController.stopWatchingRecyclerView(R.id.recycler)
+				}
 
-			map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->
-				if (hasStateChanged) {
-					if (state == DraggableImageButton.State.TARGET) {
-						animateMenuDrawable(R.drawable.up_to_down)
-					} else if (state == DraggableImageButton.State.INITIAL) {
-						animateMenuDrawable(R.drawable.down_to_up)
+				map_menu_button.onEnterStateListener = { _, state, _, hasStateChanged ->
+					if (hasStateChanged) {
+						if (state == DraggableImageButton.State.TARGET) {
+							animateMenuDrawable(R.drawable.up_to_down)
+						} else if (state == DraggableImageButton.State.INITIAL) {
+							animateMenuDrawable(R.drawable.down_to_up)
+						}
 					}
 				}
+				//payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
+				//payload.setOffsetsDp(Offset(0, 24))
+				map_menu_button.addPayload(payload)
 			}
-			//payload.initialTranslation = Point(map_menu_parent.x.toInt(), map_menu_parent.y.toInt() + map_menu_parent.height)
-			//payload.setOffsetsDp(Offset(0, 24))
-			map_menu_button.addPayload(payload)
-		}
 
-		map_menu_button.extendTouchAreaBy(0, 12.dp, 0, 0)
+			map_menu_button.extendTouchAreaBy(0, 12.dp, 0, 0)*/
 	}
 
 	override fun onCameraIdle() {
@@ -492,7 +512,7 @@ class FragmentMap : CoreUIFragment(), GoogleMap.OnCameraIdleListener, OnMapReady
 
 		private const val ANIMATE_TO_ZOOM = 13f
 
-		private const val MAP_MENU_BUTTON_LAYER = 2
+		private const val MAP_MENU_BUTTON_LAYER = 0
 		private const val MAP_CONTROLS_LAYER = 3
 	}
 

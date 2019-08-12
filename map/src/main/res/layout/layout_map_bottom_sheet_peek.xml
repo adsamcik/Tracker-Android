@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/map_menu_draggable"
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:elevation="4dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_pill" />
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/layout_map_controls"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="@dimen/content_padding"
+        android:elevation="8dp"
+        android:gravity="top"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/content_padding"
+        android:paddingEnd="@dimen/content_padding">
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="0dp"
+            android:layout_height="@dimen/map_button_size"
+            android:layout_weight="1"
+            android:background="@drawable/background_map_search">
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/edittext_map_search"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:gravity="center_vertical"
+                android:hint="@string/map_search"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
+                android:inputType="text|textNoSuggestions"
+                android:paddingStart="@dimen/content_padding"
+                android:paddingTop="8dp"
+                android:paddingEnd="@dimen/content_padding"
+                android:paddingBottom="8dp"
+                android:textColor="?android:textColorPrimary"
+                android:textColorHint="?android:textColorSecondary"
+                android:textSize="16sp"
+                tools:targetApi="28" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/button_map_search"
+                android:layout_width="@dimen/map_button_size"
+                android:layout_height="@dimen/map_button_size"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/description_map_search"
+                android:scaleType="centerInside"
+                app:srcCompat="@drawable/ic_search_black_24dp" />
+
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/button_map_date_range"
+            android:layout_width="@dimen/map_button_size"
+            android:layout_height="@dimen/map_button_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/description_date_range"
+            android:scaleType="centerInside"
+            app:srcCompat="@drawable/ic_date_range_black_24dp" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/button_map_my_location"
+            android:layout_width="@dimen/map_button_size"
+            android:layout_height="@dimen/map_button_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/description_my_location"
+            android:scaleType="centerInside"
+            app:srcCompat="@drawable/ic_gps_not_fixed_black_24dp" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+</merge>
