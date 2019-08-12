@@ -7,26 +7,26 @@ object Libraries {
 		internal const val coreKtx = "1.2.0-alpha03"
 		internal const val appcompat = "1.1.0-rc01"
 		internal const val room = "2.1.0"
-		internal const val fragment = "1.1.0-rc03"
+		internal const val fragment = "1.2.0-alpha02"
 		public const val kotlin: String = "1.3.41"
 		public const val dokka: String = "0.9.18"
 		internal const val moshi = "1.8.0"
 		internal const val work = "2.2.0-rc01"
-		internal const val lifecycle = "2.2.0-alpha02"
+		internal const val lifecycle = "2.2.0-alpha03"
 		internal const val preference = "1.1.0-rc01"
 		internal const val material = "1.1.0-alpha09"
-		internal const val coroutines = "1.3.0-RC"
+		internal const val coroutines = "1.3.0-RC2"
 
 		internal const val maps = "17.0.0"
-		internal const val location = "17.0.0"
 		internal const val firebaseCore = "17.0.1"
-		internal const val recyclerView = "1.1.0-beta01"
+		internal const val recyclerView = "1.1.0-beta02"
 		internal const val paging = "2.1.0"
 
 		internal const val crashlytics = "2.10.1"
 
-		internal const val playServicesBase = "17.0.0"
+		internal const val playServicesBase = "17.1.0"
 		internal const val playCore = "1.6.1"
+		internal const val playLocation = "17.0.0"
 
 		internal const val sublimePicker = "2.1.2"
 		internal const val spotlight = "2.1.0"
@@ -75,6 +75,7 @@ object Libraries {
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
 			implementation("androidx.fragment:fragment:${Versions.fragment}")
+			implementation("androidx.fragment:fragment-ktx:${Versions.fragment}")
 			implementation("com.google.android.material:material:${Versions.material}")
 			implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
 			implementation("com.google.android.play:core:${Versions.playCore}")
@@ -111,7 +112,7 @@ object Libraries {
 
 	fun location(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.google.android.gms:play-services-location:${Versions.location}")
+			implementation("com.google.android.gms:play-services-location:${Versions.playLocation}")
 		}
 	}
 

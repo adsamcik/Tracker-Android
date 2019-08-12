@@ -78,7 +78,6 @@ tasks.withType<DokkaTask> {
 	}
 }
 
-//gradlew dependencyUpdates -Drevision=release
 dependencies {
 	implementation(project(":common"))
 	implementation(project(":tracker"))
