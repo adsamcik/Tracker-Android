@@ -50,8 +50,8 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		val navBarHeight = navBarSize.second.y
 
 		recycler.addItemDecoration(SimpleMarginDecoration(
-				firstRowMargin = statusBarHeight + contentPadding,
-				lastRowMargin = navBarHeight + contentPadding))
+				firstLineMargin = statusBarHeight + contentPadding,
+				lastLineMargin = navBarHeight + contentPadding))
 
 		styleController.watchView(StyleView(rootView, layer = 1, maxDepth = 0))
 		styleController.watchRecyclerView(RecyclerStyleView(recycler, onlyChildren = true, childrenLayer = 2))

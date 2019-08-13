@@ -6,7 +6,7 @@ import com.google.android.gms.maps.GoogleMap
  * New class that handles all camera listener events.
  * During refactoring of the Map fragment, it was necessary to introduce safe way to add and remove listeners even if it is as of implementing unnecessary
  */
-class MapEventListener(val map: GoogleMap) {
+internal class MapEventListener(val map: GoogleMap) {
 	private val onCameraMoveListeners: MutableList<GoogleMap.OnCameraMoveListener> = mutableListOf()
 	private val onCameraIdleListeners: MutableList<GoogleMap.OnCameraIdleListener> = mutableListOf()
 	private val onCameraMoveStartedListeners: MutableList<GoogleMap.OnCameraMoveStartedListener> = mutableListOf()

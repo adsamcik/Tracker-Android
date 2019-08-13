@@ -2,12 +2,16 @@ package com.adsamcik.signalcollector.map
 
 import android.content.Context
 import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.preference.Preferences
+import com.adsamcik.signalcollector.commonmap.ColorMap
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import com.adsamcik.signalcollector.map.layer.logic.NoMapLayerLogic
 import com.google.android.gms.maps.GoogleMap
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import kotlinx.android.synthetic.main.fragment_map.*
 
-internal class MapController(context: Context, val map: GoogleMap) {
+internal class MapController(context: Context, paddingBottom: Int, val map: GoogleMap) {
 	private var activeLayer: MapLayerLogic = NoMapLayerLogic()
 	private var quality: Float = 1f
 
@@ -53,13 +57,20 @@ internal class MapController(context: Context, val map: GoogleMap) {
 		uiSettings.isIndoorLevelPickerEnabled = false
 		uiSettings.isCompassEnabled = false
 		uiSettings.isMyLocationButtonEnabled = false
+		map.setPadding(0, 0, 0, paddingBottom)
 
 		map.setMaxZoomPreference(MAX_ZOOM)
+
+		ColorMap.addListener(context, map)
 	}
 
 	//initialize layerType
 	init {
 		onEnable(context)
+	}
+
+	fun onDestroy() {
+		ColorMap.removeListener(map)
 	}
 
 	companion object {

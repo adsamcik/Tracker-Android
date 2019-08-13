@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.annotation.LayoutRes
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
@@ -14,11 +15,11 @@ abstract class SimpleFilterableAdapter<DataType, FilterType>(context: Context,
                                                              initialCollection: MutableList<DataType> = mutableListOf()) :
 		BaseFilterableAdapter<DataType, FilterType, SimpleFilterableAdapter.ViewHolder>(stringMethod, initialCollection) {
 
-	class ViewHolder(view: View, val titleView: AppCompatTextView) : RecyclerView.ViewHolder(view)
+	class ViewHolder(view: View, val titleView: TextView) : RecyclerView.ViewHolder(view)
 
 	protected val mInflater: LayoutInflater = LayoutInflater.from(context)
 
-	abstract fun getTitleView(root: View): AppCompatTextView
+	abstract fun getTitleView(root: View): TextView
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 		holder.titleView.text = getItemName(position)

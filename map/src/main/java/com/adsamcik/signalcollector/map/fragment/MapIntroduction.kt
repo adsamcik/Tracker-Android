@@ -39,7 +39,7 @@ class MapIntroduction : Introduction() {
 					.setDescription(getString(R.string.tips_map_my_location_description))
 					.build()
 
-			target = findViewById<View>(R.id.map_menu_draggable)
+			target = findViewById<View>(R.id.map_sheet_drag_area)
 			//radius = Math.sqrt(Math.pow(button_activity.height.toDouble(), 2.0) + Math.pow(button_activity.width.toDouble(), 2.0)) / 2
 			val mapMenuButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)

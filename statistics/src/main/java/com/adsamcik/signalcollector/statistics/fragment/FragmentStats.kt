@@ -94,10 +94,10 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			this.layoutManager = layoutManager
 
 			addItemDecoration(SectionedDividerDecoration(viewModel.adapter, context, layoutManager.orientation))
-			addItemDecoration(SimpleMarginDecoration(spaceBetweenItems = 0,
+			addItemDecoration(SimpleMarginDecoration(verticalMargin = 0,
 					horizontalMargin = 0,
-					firstRowMargin = statusBarHeight + contentPadding,
-					lastRowMargin = navBarHeight + contentPadding))
+					firstLineMargin = statusBarHeight + contentPadding,
+					lastLineMargin = navBarHeight + contentPadding))
 		}
 
 		styleController.watchRecyclerView(RecyclerStyleView(recyclerView, onlyChildren = true, childrenLayer = 2))

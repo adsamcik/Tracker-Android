@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <androidx.appcompat.widget.AppCompatImageView
-        android:id="@+id/map_menu_draggable"
+        android:id="@+id/map_sheet_drag_area"
         android:layout_width="match_parent"
         android:layout_height="32dp"
         android:elevation="4dp"
@@ -18,9 +18,7 @@
         android:layout_marginBottom="@dimen/content_padding"
         android:elevation="8dp"
         android:gravity="top"
-        android:orientation="horizontal"
-        android:paddingStart="@dimen/content_padding"
-        android:paddingEnd="@dimen/content_padding">
+        android:orientation="horizontal">
 
         <androidx.appcompat.widget.LinearLayoutCompat
             android:layout_width="0dp"
@@ -41,11 +39,11 @@
                 android:inputType="text|textNoSuggestions"
                 android:paddingStart="@dimen/content_padding"
                 android:paddingTop="8dp"
-                android:paddingEnd="@dimen/content_padding"
                 android:paddingBottom="8dp"
                 android:textColor="?android:textColorPrimary"
                 android:textColorHint="?android:textColorSecondary"
                 android:textSize="16sp"
+                tools:ignore="RtlSymmetry"
                 tools:targetApi="28" />
 
             <androidx.appcompat.widget.AppCompatImageButton

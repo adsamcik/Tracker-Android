@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -17,9 +18,12 @@
         android:clickable="true"
         android:focusable="true"
         android:orientation="vertical"
+        android:paddingStart="@dimen/content_padding"
+        android:paddingEnd="@dimen/content_padding"
+        android:visibility="invisible"
         app:behavior_hideable="false"
-        app:behavior_peekHeight="80dp"
-        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+        tools:behavior_peekHeight="94dp">
 
         <include layout="@layout/layout_map_bottom_sheet_peek" />
 

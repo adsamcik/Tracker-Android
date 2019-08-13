@@ -157,6 +157,11 @@ inline fun <reified T> View.firstParent(): T? {
 	return firstParent(T::class.java)
 }
 
+inline fun <reified T : Any> View.requireParent(): T {
+	return requireNotNull(firstParent(T::class.java))
+}
+
+
 fun <T> View.firstParent(iClass: Class<T>): T? {
 	var parent = parent
 	while (parent != null) {
