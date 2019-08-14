@@ -15,63 +15,83 @@ import com.adsamcik.signalcollector.common.extension.dp
 class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
                              private val horizontalMargin: Int = 16.dp,
                              private val firstLineMargin: Int = 16.dp,
-                             private val lastLineMargin: Int = 16.dp) : RecyclerView.ItemDecoration() {
-	override fun getItemOffsets(outRect: Rect, view: View,
-	                            parent: RecyclerView, state: RecyclerView.State) {
+                             private val lastLineMargin: Int = 16.dp
+) : RecyclerView.ItemDecoration() {
 
+
+	private fun setOffsetsHorizontal(outRect: Rect,
+	                                 parent: RecyclerView,
+	                                 position: Int,
+	                                 columnCount: Int
+	) {
 		with(outRect) {
-			val columnCount: Int
-			val orientation: Int
-			when (val layoutManager = parent.layoutManager) {
-				is GridLayoutManager -> {
-					columnCount = layoutManager.spanCount
-					orientation = layoutManager.orientation
-				}
-				is LinearLayoutManager -> {
-					columnCount = 1
-					orientation = layoutManager.orientation
-				}
-				is StaggeredGridLayoutManager -> {
-					columnCount = layoutManager.spanCount
-					orientation = layoutManager.orientation
-				}
-				else -> {
-					columnCount = 1
-					orientation = RecyclerView.VERTICAL
-				}
+			left = if (position < columnCount) {
+				firstLineMargin
+			} else {
+				horizontalMargin
 			}
 
-			val position = parent.getChildAdapterPosition(view)
+			val itemCount = parent.adapter?.itemCount ?: 0
+			if (position >= itemCount - columnCount) right = lastLineMargin
 
-			when (orientation) {
-				RecyclerView.VERTICAL -> {
-					top = if (position < columnCount) {
-						firstLineMargin
-					} else {
-						verticalMargin
-					}
+			top = verticalMargin
+			bottom = verticalMargin
+		}
+	}
 
-					val itemCount = parent.adapter?.itemCount ?: 0
-					if (position >= itemCount - columnCount) bottom = lastLineMargin
-
-					left = horizontalMargin
-					right = horizontalMargin
-				}
-				RecyclerView.HORIZONTAL -> {
-					left = if (position < columnCount) {
-						firstLineMargin
-					} else {
-						horizontalMargin
-					}
-
-					val itemCount = parent.adapter?.itemCount ?: 0
-					if (position >= itemCount - columnCount) right = lastLineMargin
-
-					top = verticalMargin
-					bottom = verticalMargin
-				}
-				else -> throw IllegalStateException("Orientation with value $orientation is unknown")
+	private fun setOffsetsVertical(outRect: Rect,
+	                               parent: RecyclerView,
+	                               position: Int,
+	                               columnCount: Int
+	) {
+		with(outRect) {
+			top = if (position < columnCount) {
+				firstLineMargin
+			} else {
+				verticalMargin
 			}
+
+			val itemCount = parent.adapter?.itemCount ?: 0
+			if (position >= itemCount - columnCount) bottom = lastLineMargin
+
+			left = horizontalMargin
+			right = horizontalMargin
+		}
+	}
+
+	override fun getItemOffsets(outRect: Rect,
+	                            view: View,
+	                            parent: RecyclerView,
+	                            state: RecyclerView.State
+	) {
+
+		val columnCount: Int
+		val orientation: Int
+		when (val layoutManager = parent.layoutManager) {
+			is GridLayoutManager          -> {
+				columnCount = layoutManager.spanCount
+				orientation = layoutManager.orientation
+			}
+			is LinearLayoutManager        -> {
+				columnCount = 1
+				orientation = layoutManager.orientation
+			}
+			is StaggeredGridLayoutManager -> {
+				columnCount = layoutManager.spanCount
+				orientation = layoutManager.orientation
+			}
+			else                          -> {
+				columnCount = 1
+				orientation = RecyclerView.VERTICAL
+			}
+		}
+
+		val position = parent.getChildAdapterPosition(view)
+
+		when (orientation) {
+			RecyclerView.VERTICAL   -> setOffsetsVertical(outRect, parent, position, columnCount)
+			RecyclerView.HORIZONTAL -> setOffsetsHorizontal(outRect, parent, position, columnCount)
+			else                    -> throw IllegalStateException("Orientation with value $orientation is unknown")
 		}
 	}
 }
