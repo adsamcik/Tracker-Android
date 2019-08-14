@@ -6,7 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.ViewModelProviders
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
@@ -45,7 +45,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		viewModel = ViewModelProviders.of(this).get(StatsViewModel::class.java)
+		viewModel = ViewModelProvider(this).get(StatsViewModel::class.java)
 
 		viewModel.sessionLiveData.observe(this, this::onDataUpdated)
 	}

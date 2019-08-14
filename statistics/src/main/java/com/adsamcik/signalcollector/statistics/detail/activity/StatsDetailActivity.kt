@@ -10,6 +10,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -75,7 +76,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		if (sessionId <= 0L) throw IllegalArgumentException("Argument $ARG_SESSION_ID must be set with valid value!")
 
-		viewModel = ViewModelProviders.of(this)[ViewModel::class.java].also {
+		viewModel = ViewModelProvider(this)[ViewModel::class.java].also {
 			launch(Dispatchers.Default) {
 				it.initialize(this@StatsDetailActivity, sessionId)
 			}
