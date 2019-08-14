@@ -216,7 +216,7 @@ internal class MapSheetController(context: Context,
 				/*val rangeFrom = createCalendarWithTime(availableRange.first)
 				val rangeTo = createCalendarWithTime(availableRange.last)*/
 
-				launch {
+				launch(Dispatchers.Main) {
 					if (availableRange.last <= availableRange.first) {
 						SnackMaker(it.requireParent<CoordinatorLayout>()).addMessage(R.string.map_layer_no_data)
 					} else {
