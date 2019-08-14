@@ -18,9 +18,10 @@ internal class MapFilterableAdapter(context: Context, @LayoutRes resource: Int, 
 
 	override fun filter(item: MapLayerLogic, filterObject: CoordinateBounds?): Boolean {
 		val bounds = item.data.bounds
-		return if (filterObject != null)
+		return if (filterObject != null) {
 			bounds.top > filterObject.bottom && bounds.right > filterObject.left && bounds.bottom < filterObject.top && bounds.left < filterObject.right
-		else
+		} else {
 			true
+		}
 	}
 }
