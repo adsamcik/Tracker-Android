@@ -9,7 +9,6 @@ import android.widget.Space
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.GridLayoutManager
@@ -99,7 +98,7 @@ internal class MapSheetController(context: Context,
 					val parentHeight = (bottomSheet.parent as View).height
 					val maxHeightDifference = parentHeight - expandedOffset - peekHeight
 					map.setPadding(0, 0, 0, (peekHeight + slideOffset * maxHeightDifference).roundToInt())
-					
+
 					val progress = slideOffset / halfExpandedRatio
 					navbarSpace.updateLayoutParams {
 						height = ((1 - progress) * navbarDim.y).roundToInt()
@@ -109,11 +108,9 @@ internal class MapSheetController(context: Context,
 
 			@SuppressLint("SwitchIntDef")
 			override fun onStateChanged(bottomSheet: View, newState: Int) {
-				/*when (newState) {
-					BottomSheetBehavior.STATE_HALF_EXPANDED -> navbarSpace.isGone = true
-					BottomSheetBehavior.STATE_EXPANDED -> navbarSpace.isGone = true
-					BottomSheetBehavior.STATE_COLLAPSED -> navbarSpace.isGone = false
-				}*/
+				when (newState) {
+					BottomSheetBehavior.STATE_COLLAPSED, BottomSheetBehavior.STATE_HALF_EXPANDED -> keyboardManager.hideKeyboard()
+				}
 			}
 
 		})
@@ -121,6 +118,15 @@ internal class MapSheetController(context: Context,
 		rootLayout.alpha = 0f
 		rootLayout.visibility = View.VISIBLE
 		rootLayout.animate().alpha(1f).start()
+	}
+
+	init {
+		rootLayout.findViewById<View>(R.id.map_sheet_drag_area).setOnClickListener {
+			when (sheetBehavior.state) {
+				BottomSheetBehavior.STATE_HALF_EXPANDED, BottomSheetBehavior.STATE_COLLAPSED -> sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+				BottomSheetBehavior.STATE_EXPANDED -> sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+			}
+		}
 	}
 
 	private var stateBeforeKeyboard: Int = sheetBehavior.state
