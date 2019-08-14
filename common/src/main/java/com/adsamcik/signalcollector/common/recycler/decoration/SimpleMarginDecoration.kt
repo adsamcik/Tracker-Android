@@ -44,7 +44,7 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
 			val position = parent.getChildAdapterPosition(view)
 
 			when (orientation) {
-				RecyclerView.HORIZONTAL -> {
+				RecyclerView.VERTICAL -> {
 					top = if (position < columnCount) firstLineMargin
 					else verticalMargin
 
@@ -54,7 +54,7 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
 					left = horizontalMargin
 					right = horizontalMargin
 				}
-				RecyclerView.VERTICAL -> {
+				RecyclerView.HORIZONTAL -> {
 					left = if (position < columnCount) firstLineMargin
 					else horizontalMargin
 
