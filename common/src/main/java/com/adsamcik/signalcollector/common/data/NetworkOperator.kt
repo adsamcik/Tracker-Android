@@ -20,7 +20,8 @@ data class NetworkOperator(
 		 * Mobile country code
 		 * Replaced with System ID on CDMA
 		 */
-		val name: String?) : Parcelable {
+		val name: String?
+) : Parcelable {
 
 	constructor(parcel: Parcel) : this(
 			parcel.requireString(),

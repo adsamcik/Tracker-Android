@@ -76,7 +76,8 @@ class SnackMaker(view: View) : CoroutineScope {
 	               @SnackDuration duration: Int = LENGTH_LONG,
 	               priority: SnackbarPriority,
 	               @StringRes actionRes: Int,
-	               onActionClick: View.OnClickListener) {
+	               onActionClick: View.OnClickListener
+	) {
 		val action = resources.getString(actionRes)
 		val message = resources.getString(messageRes)
 		addSnackbar(SnackbarRecipe(message, duration, priority, action, onActionClick))
@@ -88,7 +89,7 @@ class SnackMaker(view: View) : CoroutineScope {
 
 	private fun addSnackbar(snackbarRecipe: SnackbarRecipe) {
 		when (snackbarRecipe.priority) {
-			SnackbarPriority.QUEUE -> {
+			SnackbarPriority.QUEUE     -> {
 				queue.add(snackbarRecipe)
 				lock.withLock {
 					if (current == null) {
@@ -156,7 +157,8 @@ class SnackMaker(view: View) : CoroutineScope {
 	                          val priority: SnackbarPriority,
 	                          val action: String? = null,
 	                          val onActionClick: View.OnClickListener? = null,
-	                          val onDismissed: (() -> Unit)? = null)
+	                          val onDismissed: (() -> Unit)? = null
+	)
 
 	enum class SnackbarPriority {
 		QUEUE,

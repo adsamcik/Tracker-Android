@@ -10,7 +10,8 @@ open class TrackerSessionSummary(var duration: Long,
                                  var distanceOnFootInM: Float,
                                  @ColumnInfo(name = "distance_in_vehicle")
                                  var distanceInVehicleInM: Float,
-                                 var steps: Int)
+                                 var steps: Int
+)
 
 
 open class TrackerSessionTimeSummary(var time: Long,
@@ -19,4 +20,5 @@ open class TrackerSessionTimeSummary(var time: Long,
                                      distanceInM: Float,
                                      distanceOnFootInM: Float,
                                      distanceInVehicleInM: Float,
-                                     steps: Int) : TrackerSessionSummary(duration, collections, distanceInM, distanceOnFootInM, distanceInVehicleInM, steps)
+                                     steps: Int
+) : TrackerSessionSummary(duration, collections, distanceInM, distanceOnFootInM, distanceInVehicleInM, steps)

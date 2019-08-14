@@ -157,8 +157,8 @@ object Assist {
 		val preferences = Preferences.getPref(context)
 
 		return preferences.getBooleanRes(R.string.settings_location_enabled_key, R.string.settings_location_enabled_default) ||
-				preferences.getBooleanRes(R.string.settings_cell_enabled_key, R.string.settings_cell_enabled_default) ||
-				preferences.getBooleanRes(R.string.settings_wifi_enabled_key, R.string.settings_wifi_enabled_default)
+		       preferences.getBooleanRes(R.string.settings_cell_enabled_key, R.string.settings_cell_enabled_default) ||
+		       preferences.getBooleanRes(R.string.settings_wifi_enabled_key, R.string.settings_wifi_enabled_default)
 	}
 
 	/**
@@ -208,9 +208,9 @@ object Assist {
 		val resources = context.resources
 		val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
 		return when {
-			resourceId > 0 -> resources.getDimensionPixelSize(resourceId)
+			resourceId > 0                                 -> resources.getDimensionPixelSize(resourceId)
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> 24.dp
-			else -> 25.dp
+			else                                           -> 25.dp
 		}
 	}
 

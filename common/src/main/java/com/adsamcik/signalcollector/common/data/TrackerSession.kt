@@ -17,7 +17,8 @@ open class TrackerSession(
 		distanceOnFootInM: Float = 0f,
 		distanceInVehicleInM: Float = 0f,
 		steps: Int = 0,
-		sessionActivityId: Long? = null) {
+		sessionActivityId: Long? = null
+) {
 
 	@PrimaryKey(autoGenerate = true)
 	open var id: Long = id
@@ -73,7 +74,8 @@ class MutableTrackerSession(
 		distanceOnFootInM: Float,
 		distanceInVehicleInM: Float,
 		steps: Int,
-		sessionActivityId: Long? = null) :
+		sessionActivityId: Long? = null
+) :
 		TrackerSession(id,
 				start,
 				end,

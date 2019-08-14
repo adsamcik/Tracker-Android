@@ -154,10 +154,10 @@ open class Preferences {
 
 		private fun getMutablePref(context: Context): MutablePreferences {
 			return preferences
-					?: MutablePreferences(context).also {
-						preferences = it
-						PreferenceObserver.initialize(it.sharedPreferences)
-					}
+			       ?: MutablePreferences(context).also {
+				       preferences = it
+				       PreferenceObserver.initialize(it.sharedPreferences)
+			       }
 		}
 
 		fun getLengthSystem(context: Context): LengthSystem {

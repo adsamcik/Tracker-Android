@@ -25,14 +25,16 @@ data class StyleView(override val view: View,
                      @IntRange(from = 0, to = Int.MAX_VALUE.toLong())
                      override val maxDepth: Int = Int.MAX_VALUE,
                      val isBackgroundEnabled: Boolean = true,
-                     override val isInverted: Boolean = false) : BaseStyleView
+                     override val isInverted: Boolean = false
+) : BaseStyleView
 
 
 data class RecyclerStyleView(override val view: RecyclerView,
                              override val layer: Int = 0,
                              val childrenLayer: Int = layer,
                              val onlyChildren: Boolean = false,
-                             override val isInverted: Boolean = false) : BaseStyleView {
+                             override val isInverted: Boolean = false
+) : BaseStyleView {
 	override val maxDepth: Int
 		get() = Int.MAX_VALUE
 }

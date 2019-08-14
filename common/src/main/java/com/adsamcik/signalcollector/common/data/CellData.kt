@@ -16,7 +16,8 @@ data class CellData(
 		 * Total cell count
 		 * default null if not collected.
 		 */
-		val totalCount: Int) : Parcelable {
+		val totalCount: Int
+) : Parcelable {
 	constructor(parcel: Parcel) : this(
 			parcel.requireArrayList(CellInfo),
 			parcel.readInt())

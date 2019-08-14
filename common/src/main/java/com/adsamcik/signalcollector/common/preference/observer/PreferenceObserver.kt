@@ -33,12 +33,12 @@ object PreferenceObserver {
 
 	private fun invokeAnyObserver(key: String, value: Any) {
 		when (value) {
-			is String -> stringObserver.invoke(key, value)
+			is String  -> stringObserver.invoke(key, value)
 			is Boolean -> booleanObserver.invoke(key, value)
-			is Int -> intObserver.invoke(key, value)
-			is Long -> longObserver.invoke(key, value)
-			is Float -> floatObserver.invoke(key, value)
-			else -> throw NotImplementedError("${value.javaClass.name} not supported!")
+			is Int     -> intObserver.invoke(key, value)
+			is Long    -> longObserver.invoke(key, value)
+			is Float   -> floatObserver.invoke(key, value)
+			else       -> throw NotImplementedError("${value.javaClass.name} not supported!")
 		}
 	}
 

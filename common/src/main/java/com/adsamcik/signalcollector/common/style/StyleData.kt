@@ -8,7 +8,8 @@ import androidx.core.graphics.green
 import androidx.core.graphics.red
 
 data class StyleData(@ColorInt private val backgroundColor: Int,
-                     @ColorInt private val foregroundColor: Int) {
+                     @ColorInt private val foregroundColor: Int
+) {
 
 	private val baseColorHSL: FloatArray = FloatArray(3)
 	@IntRange(from = 0, to = 255)

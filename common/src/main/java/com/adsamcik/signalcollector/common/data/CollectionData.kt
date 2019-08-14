@@ -42,7 +42,8 @@ data class MutableCollectionData(
 		override var location: Location? = null,
 		override var activity: ActivityInfo? = null,
 		override var cell: CellData? = null,
-		override var wifi: WifiData? = null) : CollectionData {
+		override var wifi: WifiData? = null
+) : CollectionData {
 
 
 	constructor(parcel: Parcel) : this(

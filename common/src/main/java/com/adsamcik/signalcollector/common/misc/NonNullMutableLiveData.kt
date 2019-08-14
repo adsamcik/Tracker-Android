@@ -7,7 +7,7 @@ import androidx.lifecycle.Observer
 abstract class NonNullLiveData<T>(defaultValue: T) : LiveData<T>(defaultValue) {
 	override fun getValue(): T {
 		return super.getValue()
-				?: throw NullPointerException("Value was null. This should NEVER happen!")
+		       ?: throw NullPointerException("Value was null. This should NEVER happen!")
 	}
 
 	fun observe(owner: LifecycleOwner, body: (T) -> Unit) {

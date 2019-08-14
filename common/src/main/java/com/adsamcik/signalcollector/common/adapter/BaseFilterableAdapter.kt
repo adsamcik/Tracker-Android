@@ -13,7 +13,8 @@ import kotlinx.coroutines.launch
  */
 abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : RecyclerView.ViewHolder>
 (stringMethod: (DataType) -> String,
- initialCollection: MutableList<DataType>) : RecyclerView.Adapter<ViewHolder>() {
+ initialCollection: MutableList<DataType>
+) : RecyclerView.Adapter<ViewHolder>() {
 
 	/**
 	 * Collection contains raw elements before filtering

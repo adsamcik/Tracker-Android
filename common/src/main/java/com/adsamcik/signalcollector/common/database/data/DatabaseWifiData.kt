@@ -18,7 +18,8 @@ data class DatabaseWifiData(
 		@ColumnInfo(name = "ssid") var SSID: String,
 		var capabilities: String,
 		var frequency: Int = 0,
-		var level: Int = 0) {
+		var level: Int = 0
+) {
 
 	constructor(time: Long, wifiData: WifiInfo, location: Location) : this(wifiData.bssid, location.longitude, location.latitude, location.altitude, time, time, wifiData.ssid, wifiData.capabilities, wifiData.frequency, wifiData.level)
 

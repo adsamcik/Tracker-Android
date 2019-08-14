@@ -15,7 +15,8 @@ data class WifiData(
 		/**
 		 * Array of collected wifi networks
 		 */
-		val inRange: List<WifiInfo>) : Parcelable {
+		val inRange: List<WifiInfo>
+) : Parcelable {
 	constructor(parcel: Parcel) : this(
 			parcel.readParcelable(Location::class.java.classLoader),
 			parcel.readLong(),

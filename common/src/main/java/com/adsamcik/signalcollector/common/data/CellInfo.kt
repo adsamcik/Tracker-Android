@@ -58,7 +58,8 @@ data class CellInfo
 		 * Signal strength as int 0...4 calculated by device
 		 */
 		@Ignore
-		var level: Int = 0) : Parcelable {
+		var level: Int = 0
+) : Parcelable {
 
 	constructor(parcel: Parcel) : this(
 			parcel.requireParcelable(NetworkOperator::class.java.classLoader),

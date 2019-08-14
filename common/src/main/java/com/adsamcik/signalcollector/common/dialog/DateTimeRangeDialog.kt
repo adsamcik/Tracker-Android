@@ -15,7 +15,8 @@ import java.util.*
 
 fun MaterialDialog.dateTimeRangePicker(allowedRange: LongRange,
                                        selectedRange: LongRange,
-                                       successCallback: (range: LongRange) -> Unit): MaterialDialog {
+                                       successCallback: (range: LongRange) -> Unit
+): MaterialDialog {
 	if (allowedRange.last <= allowedRange.first) {
 		throw IllegalArgumentException()
 	}

@@ -123,7 +123,7 @@ fun Resources.formatSpeed(metersPerSecond: Double, digits: Int, lengthSystem: Le
 	return when (speedFormat) {
 		SpeedFormat.Second -> getString(R.string.per_second_abbr, formatDistance(metersPerSecond, digits, lengthSystem))
 		SpeedFormat.Minute -> getString(R.string.per_minute_abbr, formatDistance(metersPerSecond * Time.SECONDS_IN_A_MINUTE, digits, lengthSystem))
-		SpeedFormat.Hour -> getString(R.string.per_hour_abbr, formatDistance(metersPerSecond * Time.SECONDS_IN_AN_HOUR, digits, lengthSystem))
+		SpeedFormat.Hour   -> getString(R.string.per_hour_abbr, formatDistance(metersPerSecond * Time.SECONDS_IN_AN_HOUR, digits, lengthSystem))
 	}
 }
 
@@ -137,8 +137,8 @@ fun Resources.formatDistance(meters: Float, digits: Int, unit: LengthSystem): St
 
 fun Resources.formatDistance(meters: Double, digits: Int, unit: LengthSystem): String {
 	return when (unit) {
-		LengthSystem.Metric -> formatMetric(meters, digits)
-		LengthSystem.Imperial -> {
+		LengthSystem.Metric       -> formatMetric(meters, digits)
+		LengthSystem.Imperial     -> {
 			val feet = 3.280839895 * meters
 			formatImperial(feet, digits)
 		}

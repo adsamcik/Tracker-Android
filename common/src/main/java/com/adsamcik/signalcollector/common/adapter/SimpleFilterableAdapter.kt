@@ -11,7 +11,8 @@ import androidx.recyclerview.widget.RecyclerView
 abstract class SimpleFilterableAdapter<DataType, FilterType>(context: Context,
                                                              @LayoutRes private val resource: Int,
                                                              stringMethod: (DataType) -> String,
-                                                             initialCollection: MutableList<DataType> = mutableListOf()) :
+                                                             initialCollection: MutableList<DataType> = mutableListOf()
+) :
 		BaseFilterableAdapter<DataType, FilterType, SimpleFilterableAdapter.ViewHolder>(stringMethod, initialCollection) {
 
 	class ViewHolder(view: View, val titleView: TextView) : RecyclerView.ViewHolder(view)

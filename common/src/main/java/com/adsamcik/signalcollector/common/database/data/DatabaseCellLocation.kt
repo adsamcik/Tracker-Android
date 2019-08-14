@@ -13,7 +13,8 @@ data class DatabaseCellLocation(val time: Long,
                                 val type: CellType,
                                 val asu: Int,
                                 @Embedded
-                                val location: BaseLocation) {
+                                val location: BaseLocation
+) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0L
 }

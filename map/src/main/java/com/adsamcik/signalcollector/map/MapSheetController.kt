@@ -51,7 +51,8 @@ internal class MapSheetController(context: Context,
                                   private val rootLayout: ViewGroup,
                                   private val mapController: MapController,
                                   private val locationListener: UpdateLocationListener,
-                                  private val mapEventListener: MapEventListener) : CoroutineScope, GoogleMap.OnCameraIdleListener {
+                                  private val mapEventListener: MapEventListener
+) : CoroutineScope, GoogleMap.OnCameraIdleListener {
 	private val job = SupervisorJob()
 
 	override val coroutineContext: CoroutineContext
@@ -187,7 +188,10 @@ internal class MapSheetController(context: Context,
 
 	override fun onCameraIdle() {
 		val bounds = map.projection.visibleRegion.latLngBounds
-		mapLayerFilterRule.updateBounds(bounds.northeast.latitude, bounds.northeast.longitude, bounds.southwest.latitude, bounds.southwest.longitude)
+		mapLayerFilterRule.updateBounds(bounds.northeast.latitude,
+				bounds.northeast.longitude,
+				bounds.southwest.latitude,
+				bounds.southwest.longitude)
 		//fragmentMapMenu.get()?.filter(mapLayerFilterRule)
 	}
 
@@ -243,12 +247,11 @@ internal class MapSheetController(context: Context,
 					}
 				}
 			}
-
 		}
 		rootLayout.button_map_my_location.setOnClickListener {
 			locationListener.onMyPositionButtonClick(it as AppCompatImageButton)
 		}
-		//styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
+		// styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
 	}
 
 	init {
@@ -269,6 +272,7 @@ internal class MapSheetController(context: Context,
 		}
 	}
 
+	@Suppress("UNUSED")
 	private fun onItemClicked(position: Int, item: MapLayerLogic) {
 		mapController.setLayer(rootLayout.context, item)
 

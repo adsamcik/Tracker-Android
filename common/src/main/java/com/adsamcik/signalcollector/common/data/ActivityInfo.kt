@@ -16,7 +16,8 @@ import com.adsamcik.signalcollector.common.R
 class ActivityInfo(
 		@ColumnInfo(name = "activity")
 		val activityType: Int,
-		val confidence: Int) : Parcelable {
+		val confidence: Int
+) : Parcelable {
 	constructor(detectedActivity: com.google.android.gms.location.DetectedActivity) : this(detectedActivity.type, detectedActivity.confidence)
 
 	constructor(detectedActivity: DetectedActivity, confidence: Int) : this(detectedActivity.value, confidence)
@@ -61,10 +62,10 @@ class ActivityInfo(
 		 */
 		fun getGroupedActivityName(context: Context, resolvedActivity: GroupedActivity): String =
 				when (resolvedActivity) {
-					GroupedActivity.STILL -> context.getString(R.string.activity_idle)
-					GroupedActivity.ON_FOOT -> context.getString(R.string.activity_on_foot)
+					GroupedActivity.STILL      -> context.getString(R.string.activity_idle)
+					GroupedActivity.ON_FOOT    -> context.getString(R.string.activity_on_foot)
 					GroupedActivity.IN_VEHICLE -> context.getString(R.string.activity_in_vehicle)
-					GroupedActivity.UNKNOWN -> context.getString(R.string.activity_unknown)
+					GroupedActivity.UNKNOWN    -> context.getString(R.string.activity_unknown)
 				}
 	}
 
@@ -110,7 +111,7 @@ enum class DetectedActivity(val value: Int) {
 	companion object {
 		fun fromDetectedType(type: Int): DetectedActivity {
 			return values().find { it.value == type }
-					?: throw IllegalArgumentException("Activity type with value $type is not defined.")
+			       ?: throw IllegalArgumentException("Activity type with value $type is not defined.")
 		}
 	}
 }

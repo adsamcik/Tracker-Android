@@ -35,7 +35,8 @@ import androidx.fragment.app.Fragment
 inline fun <reified T : Any> Activity.startActivity(
 		requestCode: Int = -1,
 		options: Bundle? = null,
-		noinline init: Intent.() -> Unit = {}) {
+		noinline init: Intent.() -> Unit = {}
+) {
 	val intent = newIntent<T>()
 	intent.init()
 	startActivityForResult(intent, requestCode, options)
@@ -50,7 +51,8 @@ inline fun <reified T : Any> Activity.startActivity(
  */
 inline fun <reified T : Any> Fragment.startActivity(
 		options: Bundle? = null,
-		noinline init: Intent.() -> Unit = {}) {
+		noinline init: Intent.() -> Unit = {}
+) {
 	requireContext().startActivity<T>(options, init)
 }
 
@@ -62,7 +64,8 @@ inline fun <reified T : Any> Fragment.startActivity(
  */
 inline fun <reified T : Any> Context.startActivity(
 		options: Bundle? = null,
-		noinline init: Intent.() -> Unit = {}) {
+		noinline init: Intent.() -> Unit = {}
+) {
 
 	val intent = newIntent<T>()
 	intent.init()
@@ -77,7 +80,8 @@ inline fun <reified T : Any> Context.startActivity(
  */
 fun Context.startActivity(
 		action: String,
-		uri: Uri) {
+		uri: Uri
+) {
 	val intent = Intent(action, uri)
 	startActivity(intent)
 }
@@ -111,7 +115,8 @@ fun Activity.startActivity(className: String) {
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Any> Context.startService(
-		noinline init: Intent.() -> Unit = {}) {
+		noinline init: Intent.() -> Unit = {}
+) {
 	val intent = newIntent<T>()
 	intent.init()
 	startService(intent)
@@ -123,7 +128,8 @@ inline fun <reified T : Any> Context.startService(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Any> Context.startForegroundService(
-		noinline init: Intent.() -> Unit = {}) {
+		noinline init: Intent.() -> Unit = {}
+) {
 	val intent = newIntent<T>()
 	intent.init()
 	ContextCompat.startForegroundService(this, intent)

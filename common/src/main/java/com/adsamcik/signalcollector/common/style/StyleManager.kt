@@ -193,8 +193,8 @@ object StyleManager {
 					timerActive = true
 					val timer = Timer("ColorUpdate", true)
 					when (colorList.size) {
-						2 -> startUpdate2(timer)
-						4 -> startUpdate4(timer)
+						2    -> startUpdate2(timer)
+						4    -> startUpdate4(timer)
 						else -> throw IllegalStateException()
 					}
 
@@ -230,18 +230,18 @@ object StyleManager {
 			val sunrise = sunsetRise.nextSunrise()
 			val format = SimpleDateFormat("HH:mm:ss dd-MM-yyyy", Locale.getDefault())
 			Log.d("StyleManager", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-					"Sunrise is at ${format.format(sunrise.time)} " +
-					"and sun sets at ${format.format(sunset.time)}")
+			                      "Sunrise is at ${format.format(sunrise.time)} " +
+			                      "and sun sets at ${format.format(sunset.time)}")
 
 			Log.d("StyleManager", "Update rate is $period")
 		}
 	}
 
 	private fun getTimeOfDay(value: Int) = when (value) {
-		0 -> "Morning"
-		1 -> "Noon"
-		2 -> "Evening"
-		3 -> "Night"
+		0    -> "Morning"
+		1    -> "Noon"
+		2    -> "Evening"
+		3    -> "Night"
 		else -> "Bug"
 	}
 
@@ -255,7 +255,7 @@ object StyleManager {
 				currentIndex = 1
 				sunrise
 			}
-			else -> {
+			else                                                                            -> {
 				currentIndex = 0
 				sunset
 			}

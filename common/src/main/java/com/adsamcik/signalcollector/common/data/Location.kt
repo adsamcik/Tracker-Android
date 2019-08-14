@@ -32,7 +32,8 @@ data class Location(
 		val verticalAccuracy: Float?,
 		val speed: Float?,
 		@ColumnInfo(name = "s_acc")
-		val speedAccuracy: Float?) : Parcelable {
+		val speedAccuracy: Float?
+) : Parcelable {
 
 	constructor(parcel: Parcel) : this(
 			parcel.readLong(),
@@ -124,7 +125,8 @@ data class Location(
 		             firstLongitude: Double,
 		             secondLatitude: Double,
 		             secondLongitude: Double,
-		             unit: LengthUnit): Double {
+		             unit: LengthUnit
+		): Double {
 			val lat1Rad = firstLatitude.deg2rad()
 			val lat2Rad = secondLatitude.deg2rad()
 			val latDistance = (secondLatitude - firstLatitude).deg2rad()
@@ -134,15 +136,15 @@ data class Location(
 			val sinLonDistance = kotlin.math.sin(lonDistance / 2)
 
 			val a = sinLatDistance * sinLatDistance +
-					kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
-					sinLonDistance * sinLonDistance
+			        kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
+			        sinLonDistance * sinLonDistance
 			val c = 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
 
 			val distance = EARTH_CIRCUMFERENCE * c
 			return when (unit) {
-				LengthUnit.Meter -> distance
-				LengthUnit.Kilometer -> distance / 1000
-				LengthUnit.Mile -> distance / 1.609
+				LengthUnit.Meter        -> distance
+				LengthUnit.Kilometer    -> distance / 1000
+				LengthUnit.Mile         -> distance / 1.609
 				LengthUnit.NauticalMile -> distance / 1.852
 			}
 		}
@@ -157,7 +159,8 @@ data class Location(
 		             secondLatitude: Double,
 		             secondLongitude: Double,
 		             secondAltitude: Double,
-		             unit: LengthUnit): Double {
+		             unit: LengthUnit
+		): Double {
 			val latLonDistance = distance(firstLatitude, firstLongitude, secondLatitude, secondLongitude, unit)
 			val altitudeDifference = (secondAltitude - firstAltitude)
 			return sqrt(altitudeDifference * altitudeDifference + latLonDistance * latLonDistance)
@@ -188,7 +191,8 @@ data class BaseLocation(@Json(name = "lat")
                         val longitude: Double,
                         @Json(name = "alt")
                         @ColumnInfo(name = "alt")
-                        val altitude: Double?) {
+                        val altitude: Double?
+) {
 
 	constructor(location: Location) : this(location.latitude, location.longitude, location.altitude)
 }
