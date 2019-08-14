@@ -1,32 +1,35 @@
 package com.adsamcik.signalcollector.statistics
 
 import android.content.Context
-import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.SessionActivity
+import com.adsamcik.signalcollector.common.extension.dayOfYear
 import com.adsamcik.signalcollector.common.extension.toDate
+import com.adsamcik.signalcollector.common.extension.year
 import java.text.SimpleDateFormat
 import java.util.*
 
+
 object StatsFormat {
-	//todo improve localization support
+	//todo improve separator localization
 	fun formatRange(start: Calendar, end: Calendar): String {
 		val today = Calendar.getInstance().toDate()
 		val startDate = start.time
 		val endDate = end.time
 
-		val timePattern = "hh:mm"
-
 		val locale = Locale.getDefault()
 
-		return if ((startDate.time / Time.DAY_IN_MILLISECONDS) == (endDate.time / Time.DAY_IN_MILLISECONDS)) {
-			val dateFormat = SimpleDateFormat("d MMMM", locale)
-			val timeFormat = SimpleDateFormat(timePattern, locale)
+		var dateFormat = SimpleDateFormat.getDateInstance(SimpleDateFormat.MEDIUM, locale) as SimpleDateFormat
+
+		if (start.year == today.year) {
+			dateFormat = dateFormat.noYear()
+		}
+
+		return if (start.dayOfYear == end.dayOfYear && start.year == end.year) {
+			val timeFormat = SimpleDateFormat.getTimeInstance(SimpleDateFormat.SHORT, locale)
 			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"
 		} else {
-			val datePattern = if (start.get(Calendar.YEAR) == today.get(Calendar.YEAR)) "d MMMM"
-			else "d MMMM yyyy"
-
-			val format = SimpleDateFormat("$datePattern $timePattern", locale)
+			val timeFormat = SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT, locale) as SimpleDateFormat
+			val format = SimpleDateFormat("${dateFormat.toPattern()} ${timeFormat.toPattern()}", locale)
 			"${format.format(startDate)} - ${format.format(endDate)}"
 		}
 	}
@@ -44,5 +47,10 @@ object StatsFormat {
 		} else {
 			context.getString(R.string.stats_evening, day, activityName)
 		}
+	}
+
+	private fun SimpleDateFormat.noYear(): SimpleDateFormat {
+		applyPattern(toPattern().replace("[^\\p{Alpha}]*y+[^\\p{Alpha}]*".toRegex(), ""))
+		return this
 	}
 }
