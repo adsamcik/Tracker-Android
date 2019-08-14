@@ -12,7 +12,8 @@ abstract class ListRecyclerViewHolder<DataType : ListRecyclerData<*>>(
 		rootView: View,
 		private val title: TextView,
 		private val recycler: RecyclerView,
-		private val layer: Int) : MultiTypeViewHolder<DataType>(rootView) {
+		private val layer: Int
+) : MultiTypeViewHolder<DataType>(rootView) {
 	abstract fun bindRecycler(value: DataType, recycler: RecyclerView)
 
 	override fun bind(value: DataType, styleController: StyleController) {

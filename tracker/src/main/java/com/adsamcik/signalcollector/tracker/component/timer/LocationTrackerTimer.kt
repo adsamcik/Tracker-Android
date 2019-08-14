@@ -53,7 +53,7 @@ internal class LocationTrackerTimer : TrackerTimerComponent {
 
 			val previousLocation = previousLocation
 			if (previousLocation != null &&
-					(locationResult.lastLocation.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos) < PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS) {
+			    (locationResult.lastLocation.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos) < PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS) {
 				val distance = location.distanceTo(previousLocation)
 				setPreviousLocation(previousLocation, distance)
 			}

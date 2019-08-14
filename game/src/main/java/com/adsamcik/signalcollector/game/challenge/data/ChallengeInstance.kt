@@ -9,7 +9,8 @@ import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntryE
 abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : ChallengeInstance<ExtraData, Instance>>(
 		val data: ChallengeEntry,
 		val definition: ChallengeDefinition<Instance>,
-		val extra: ExtraData) {
+		val extra: ExtraData
+) {
 
 	val startTime: Long get() = data.startTime
 

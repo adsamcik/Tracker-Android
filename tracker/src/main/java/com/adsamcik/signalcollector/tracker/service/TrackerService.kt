@@ -175,7 +175,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 
 		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
-				?: DEFAULT_IS_USER_INITIATED
+		                      ?: DEFAULT_IS_USER_INITIATED
 
 		isServiceRunningMutable.value = true
 

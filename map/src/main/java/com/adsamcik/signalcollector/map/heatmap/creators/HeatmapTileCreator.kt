@@ -35,7 +35,8 @@ internal interface HeatmapTileCreator {
 	}
 
 	private fun createHeatmap(data: HeatmapData,
-	                          getLocations: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>): HeatmapTile {
+	                          getLocations: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+	): HeatmapTile {
 		val config = data.config
 
 		assert(data.heatmapSize.isPowerOfTwo())
@@ -73,11 +74,13 @@ internal data class HeatmapConfig(val stamp: HeatmapStamp,
                                   val colorScheme: HeatmapColorScheme,
                                   val maxHeat: Float,
                                   val dynamicHeat: Boolean = false,
-                                  val mergeFunction: (current: Float, input: Float, weight: Float) -> Float)
+                                  val mergeFunction: (current: Float, input: Float, weight: Float) -> Float
+)
 
 internal data class HeatmapData(val config: HeatmapConfig,
                                 val heatmapSize: Int,
                                 val x: Int,
                                 val y: Int,
                                 val zoom: Int,
-                                val area: CoordinateBounds)
+                                val area: CoordinateBounds
+)

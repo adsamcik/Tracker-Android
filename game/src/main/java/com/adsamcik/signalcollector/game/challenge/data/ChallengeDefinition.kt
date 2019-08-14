@@ -9,7 +9,8 @@ import androidx.annotation.StringRes
 abstract class ChallengeDefinition<ChallengeInstanceType : ChallengeInstance<*, *>>(
 		@StringRes val titleRes: Int,
 		@StringRes val descriptionRes: Int,
-		val defaultDuration: Long) {
+		val defaultDuration: Long
+) {
 
 	abstract val type: ChallengeType
 

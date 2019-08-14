@@ -21,7 +21,7 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 
 		val database = AppDatabase.getDatabase(applicationContext)
 		val session = database.sessionDao().get(sessionId)
-				?: return@coroutineScope fail("Session with id $sessionId not found.")
+		              ?: return@coroutineScope fail("Session with id $sessionId not found.")
 		val locationCollection = database.locationDao().getAllBetween(session.start, session.end)
 
 		val deferredResults = activeRecognizers.map {

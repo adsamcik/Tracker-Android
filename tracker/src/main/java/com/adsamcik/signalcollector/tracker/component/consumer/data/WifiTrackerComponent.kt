@@ -48,7 +48,8 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 	                    collectionData: MutableCollectionData,
 	                    firstLocation: Location,
 	                    secondLocation: Location,
-	                    distanceBetweenFirstAndSecond: Float) {
+	                    distanceBetweenFirstAndSecond: Float
+	) {
 		val timeDelta = (scanData.relativeTimeNanos - firstLocation.elapsedRealtimeNanos).toDouble() / (secondLocation.elapsedRealtimeNanos - firstLocation.elapsedRealtimeNanos).toDouble()
 		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
 		if (wifiDistance <= MAX_DISTANCE_TO_WIFI) {

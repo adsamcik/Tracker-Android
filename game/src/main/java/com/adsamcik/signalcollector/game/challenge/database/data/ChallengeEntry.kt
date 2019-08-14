@@ -12,7 +12,8 @@ data class ChallengeEntry(val type: ChallengeType,
                           val startTime: Long,
                           @ColumnInfo(name = "end_time")
                           val endTime: Long,
-                          val difficulty: ChallengeDifficulty) {
+                          val difficulty: ChallengeDifficulty
+) {
 
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0L

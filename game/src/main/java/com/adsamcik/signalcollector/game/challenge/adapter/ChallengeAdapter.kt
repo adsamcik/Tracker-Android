@@ -23,7 +23,8 @@ class ChallengeAdapter(mContext: Context, private var mDataSource: Array<Challen
 	                 val difficultyTextView: TextView,
 	                 val timeTextView: TextView,
 	                 val progressBar: ProgressBar,
-	                 val progressText: TextView) : RecyclerView.ViewHolder(itemView)
+	                 val progressText: TextView
+	) : RecyclerView.ViewHolder(itemView)
 
 
 	private val mInflater: LayoutInflater = mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater

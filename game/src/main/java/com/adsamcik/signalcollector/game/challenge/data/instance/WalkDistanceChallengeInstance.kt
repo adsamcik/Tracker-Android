@@ -12,8 +12,8 @@ import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 
 class WalkDistanceChallengeInstance(data: ChallengeEntry,
                                     definition: ChallengeDefinition<WalkDistanceChallengeInstance>,
-                                    extra: WalkDistanceChallengeEntity)
-	: ChallengeInstance<WalkDistanceChallengeEntity, WalkDistanceChallengeInstance>(data, definition, extra) {
+                                    extra: WalkDistanceChallengeEntity
+) : ChallengeInstance<WalkDistanceChallengeEntity, WalkDistanceChallengeInstance>(data, definition, extra) {
 
 	override val persistence
 		get() = WalkDistanceChallengePersistence()

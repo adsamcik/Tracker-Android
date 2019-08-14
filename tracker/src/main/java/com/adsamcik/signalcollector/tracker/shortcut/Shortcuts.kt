@@ -60,7 +60,8 @@ object Shortcuts {
 	                           @StringRes shortLabelRes: Int,
 	                           @StringRes longLabelRes: Int,
 	                           @DrawableRes iconResource: Int,
-	                           action: ShortcutAction): ShortcutInfo {
+	                           action: ShortcutAction
+	): ShortcutInfo {
 		with(context) {
 			val shortLabel = getString(shortLabelRes)
 			val longLabel = getString(longLabelRes)
@@ -89,7 +90,8 @@ object Shortcuts {
 	                   @StringRes shortLabelRes: Int,
 	                   @StringRes longLabelRes: Int,
 	                   @DrawableRes iconResource: Int,
-	                   shortcutAction: ShortcutAction) {
+	                   shortcutAction: ShortcutAction
+	) {
 		initializeShortcuts(context)
 		val shortcutManager = context.shortcutManager
 		val shortcuts = shortcutManager.dynamicShortcuts

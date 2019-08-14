@@ -33,7 +33,7 @@ internal class NotificationComponent : PostTrackerComponent {
 
 	private val requireNotificationManager: NotificationManager
 		get() = notificationManager
-				?: throw NullPointerException("Notification manager must be initialized")
+		        ?: throw NullPointerException("Notification manager must be initialized")
 
 	override suspend fun onDisable(context: Context) {
 		notificationManager = null

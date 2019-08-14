@@ -21,7 +21,8 @@ import kotlin.math.roundToInt
 
 //todo refactor
 internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
-                                   private var initMaxHeat: Float) : TileProvider {
+                                   private var initMaxHeat: Float
+) : TileProvider {
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
 	private val heatLock = ReentrantLock()

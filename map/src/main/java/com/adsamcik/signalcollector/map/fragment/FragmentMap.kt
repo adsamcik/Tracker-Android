@@ -86,7 +86,7 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 			mapFragment.getMapAsync(this)
 
 			val fragmentManager = fragmentManager
-					?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
+			                      ?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
 
 			fragmentManager.transaction {
 				replace(R.id.container_map, mapFragment)

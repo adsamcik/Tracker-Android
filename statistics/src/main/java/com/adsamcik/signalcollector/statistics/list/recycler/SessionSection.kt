@@ -90,7 +90,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		} else {
 			launch {
 				val activity = AppDatabase.getDatabase(context).activityDao().get(activityId)
-						?: SessionActivity.UNKNOWN
+				               ?: SessionActivity.UNKNOWN
 
 				launch(Dispatchers.Main) {
 					holder.title.text = StatsFormat.createTitle(context, startCalendar, activity)
@@ -118,10 +118,12 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 
 	private class HeaderViewHolder(rootView: View,
 	                               val time: TextView,
-	                               val distance: TextView) : RecyclerView.ViewHolder(rootView)
+	                               val distance: TextView
+	) : RecyclerView.ViewHolder(rootView)
 
 	private class ItemViewHolder(rootView: View,
 	                             val title: TextView,
 	                             val time: TextView,
-	                             val info: TextView) : RecyclerView.ViewHolder(rootView)
+	                             val info: TextView
+	) : RecyclerView.ViewHolder(rootView)
 }

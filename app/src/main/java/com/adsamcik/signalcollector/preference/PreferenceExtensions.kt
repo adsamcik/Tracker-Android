@@ -22,7 +22,7 @@ fun <T : Preference> PreferenceFragmentCompat.findDirectPreferenceByTitleTyped(t
  */
 fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): Preference {
 	return preferenceScreen?.findDirectPreferenceByTitle(title)
-			?: throw PreferenceNotFoundException("Preference with title $title not found")
+	       ?: throw PreferenceNotFoundException("Preference with title $title not found")
 }
 
 
@@ -35,7 +35,7 @@ fun PreferenceFragmentCompat.findDirectPreferenceByTitle(title: CharSequence): P
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(key: CharSequence): T {
 	return findPreference(key)
-			?: throw PreferenceNotFoundException("Preference with title $key not found")
+	       ?: throw PreferenceNotFoundException("Preference with title $key not found")
 }
 
 /**
@@ -47,7 +47,7 @@ fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(key: CharSeque
  */
 fun <T : Preference> PreferenceFragmentCompat.findPreferenceTyped(@StringRes titleId: Int): T {
 	return findPreference(getString(titleId))
-			?: throw PreferenceNotFoundException("Preference with title id $titleId not found")
+	       ?: throw PreferenceNotFoundException("Preference with title id $titleId not found")
 }
 
 /**

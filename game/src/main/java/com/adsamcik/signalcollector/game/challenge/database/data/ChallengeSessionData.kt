@@ -9,4 +9,5 @@ class ChallengeSessionData(
 		@PrimaryKey
 		val id: Long = 0,
 		@ColumnInfo(name = "challenge_processed")
-		var isChallengeProcessed: Boolean)
+		var isChallengeProcessed: Boolean
+)

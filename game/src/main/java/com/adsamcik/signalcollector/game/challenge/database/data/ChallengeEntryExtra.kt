@@ -10,7 +10,8 @@ abstract class ChallengeEntryExtra(
 		@ColumnInfo(name = "entry_id")
 		val entryId: Long,
 		@ColumnInfo(name = "completed")
-		var isCompleted: Boolean) {
+		var isCompleted: Boolean
+) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0
 }

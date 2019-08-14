@@ -190,7 +190,7 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun getExportFileName() = edittext_filename.text?.toString()
-			?: getString(R.string.export_default_file_name)
+	                                  ?: getString(R.string.export_default_file_name)
 
 	private fun export(directory: File, onPick: ((ExportResult) -> Unit)? = null) {
 		val from = this.range.start

@@ -10,4 +10,5 @@ class ExplorerChallengeEntity(entryId: Long,
                               @ColumnInfo(name = "required_location_count")
                               val requiredLocationCount: Int,
                               @ColumnInfo(name = "location_count")
-                              var locationCount: Int) : ChallengeEntryExtra(entryId, isCompleted)
+                              var locationCount: Int
+) : ChallengeEntryExtra(entryId, isCompleted)

@@ -182,15 +182,15 @@ class StatsDetailActivity : DetailActivity() {
 
 		launch(Dispatchers.Default) {
 			val sessionActivity = when {
-				activityId == null -> null
-				activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(this@StatsDetailActivity)
-				else -> if (activityId == 0L || activityId == -1L) {
-					null
-				} else {
-					val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity).activityDao()
-					activityDao.get(activityId)
-				}
-			} ?: SessionActivity.UNKNOWN
+				                      activityId == null -> null
+				                      activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(this@StatsDetailActivity)
+				                      else -> if (activityId == 0L || activityId == -1L) {
+					                      null
+				                      } else {
+					                      val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity).activityDao()
+					                      activityDao.get(activityId)
+				                      }
+			                      } ?: SessionActivity.UNKNOWN
 
 			val title = StatsFormat.createTitle(this@StatsDetailActivity, startCalendar, sessionActivity)
 

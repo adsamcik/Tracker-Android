@@ -72,7 +72,8 @@ class GpxImport : FileImport {
 
 	private fun handleSegment(database: AppDatabase,
 	                          segment: TrackSegment,
-	                          session: MutableTrackerSession) {
+	                          session: MutableTrackerSession
+	) {
 		var lastLocation: Location? = null
 
 		val locationDao = database.locationDao()
@@ -95,7 +96,8 @@ class GpxImport : FileImport {
 	}
 
 	private fun saveSession(database: AppDatabase,
-	                        session: TrackerSession) {
+	                        session: TrackerSession
+	) {
 		val sessionDao = database.sessionDao()
 		sessionDao.insert(session)
 	}

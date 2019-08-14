@@ -157,7 +157,8 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 	}
 
 	override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView,
-	                            state: RecyclerView.State) {
+	                            state: RecyclerView.State
+	) {
 		val divider = mDivider
 		if (divider == null) {
 			outRect.set(0, 0, 0, 0)

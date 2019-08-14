@@ -28,12 +28,12 @@ object BackgroundTrackingApi {
 		if (activity.confidence >= REQUIRED_CONFIDENCE) {
 			if (TrackerServiceApi.isActive) {
 				if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
-						!canContinueBackgroundTracking(context, activity.groupedActivity)) {
+				    !canContinueBackgroundTracking(context, activity.groupedActivity)) {
 					TrackerServiceApi.stopService(context)
 				}
 			} else {
 				if (canBackgroundTrack(context, activity.groupedActivity) &&
-						canTrackerServiceBeStarted(context)) {
+				    canTrackerServiceBeStarted(context)) {
 					TrackerServiceApi.startService(context, isUserInitiated = false)
 				}
 			}
@@ -52,8 +52,8 @@ object BackgroundTrackingApi {
 	private var isActive = false
 
 	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
-			!context.powerManager.isPowerSaveMode &&
-			Assist.canTrack(context)
+	                                                           !context.powerManager.isPowerSaveMode &&
+	                                                           Assist.canTrack(context)
 
 	/**
 	 * Checks if background tracking can be activated
@@ -64,8 +64,8 @@ object BackgroundTrackingApi {
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 		val preferences = Preferences.getPref(context)
 		if (groupedActivity.isIdle ||
-				TrackerService.isServiceRunning.value ||
-				preferences.getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default)) {
+		    TrackerService.isServiceRunning.value ||
+		    preferences.getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default)) {
 			return false
 		}
 
@@ -86,8 +86,8 @@ object BackgroundTrackingApi {
 		val preference = getBackgroundTrackingActivityRequirement(context)
 		val prefActivity = GroupedActivity.values()[preference]
 		return prefActivity == GroupedActivity.IN_VEHICLE ||
-				(prefActivity == GroupedActivity.ON_FOOT &&
-						(groupedActivity == GroupedActivity.ON_FOOT || groupedActivity == GroupedActivity.UNKNOWN))
+		       (prefActivity == GroupedActivity.ON_FOOT &&
+		        (groupedActivity == GroupedActivity.ON_FOOT || groupedActivity == GroupedActivity.UNKNOWN))
 	}
 
 	private fun getBackgroundTrackingActivityRequirement(context: Context) =

@@ -11,7 +11,8 @@ import kotlin.reflect.KClass
 internal data class MapLayerData(val id: KClass<MapLayerLogic>,
                                  @StringRes val nameRes: Int,
                                  val bounds: CoordinateBounds,
-                                 var legend: Legend? = null) {
+                                 var legend: Legend? = null
+) {
 
 	constructor(id: KClass<MapLayerLogic>,
 	            nameRes: Int,
@@ -19,7 +20,8 @@ internal data class MapLayerData(val id: KClass<MapLayerLogic>,
 	            right: Double = MAX_LONGITUDE,
 	            bottom: Double = MIN_LATITUDE,
 	            left: Double = MIN_LONGITUDE,
-	            legend: Legend? = null) : this(id, nameRes, CoordinateBounds(top, right, bottom, left), legend)
+	            legend: Legend? = null
+	) : this(id, nameRes, CoordinateBounds(top, right, bottom, left), legend)
 
 	companion object {
 		/**

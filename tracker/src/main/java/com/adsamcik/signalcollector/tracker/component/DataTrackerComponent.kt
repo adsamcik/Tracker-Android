@@ -7,5 +7,6 @@ import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 internal interface DataTrackerComponent : TrackerComponent, TrackerDataConsumerComponent {
 	@WorkerThread
 	suspend fun onDataUpdated(tempData: CollectionTempData,
-	                          collectionData: MutableCollectionData)
+	                          collectionData: MutableCollectionData
+	)
 }

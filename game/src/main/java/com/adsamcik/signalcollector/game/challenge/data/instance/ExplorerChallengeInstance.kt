@@ -14,8 +14,8 @@ import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 
 class ExplorerChallengeInstance(entry: ChallengeEntry,
                                 definition: ChallengeDefinition<ExplorerChallengeInstance>,
-                                data: ExplorerChallengeEntity)
-	: ChallengeInstance<ExplorerChallengeEntity, ExplorerChallengeInstance>(entry, definition, data) {
+                                data: ExplorerChallengeEntity
+) : ChallengeInstance<ExplorerChallengeEntity, ExplorerChallengeInstance>(entry, definition, data) {
 
 	override val persistence = ExplorerChallengePersistence()
 

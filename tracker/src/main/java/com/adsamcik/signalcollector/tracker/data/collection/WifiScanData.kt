@@ -14,7 +14,8 @@ data class WifiScanData(
 		/**
 		 * Scan result data
 		 */
-		val data: Array<ScanResult>) {
+		val data: Array<ScanResult>
+) {
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
 		if (javaClass != other?.javaClass) return false

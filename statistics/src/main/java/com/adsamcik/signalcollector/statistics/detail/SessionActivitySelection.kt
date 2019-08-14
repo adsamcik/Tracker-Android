@@ -17,7 +17,8 @@ import kotlin.coroutines.CoroutineContext
 
 class SessionActivitySelection(private val context: Context,
                                private val activityList: List<SessionActivity>,
-                               private val session: TrackerSession) : CoroutineScope {
+                               private val session: TrackerSession
+) : CoroutineScope {
 	private val job = SupervisorJob()
 
 	override val coroutineContext: CoroutineContext

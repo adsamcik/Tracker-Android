@@ -9,7 +9,8 @@ import com.adsamcik.signalcollector.map.heatmap.creators.HeatmapData
 import kotlin.math.roundToInt
 
 internal class HeatmapTile(
-		val data: HeatmapData) {
+		val data: HeatmapData
+) {
 	val heatmap: Heatmap = Heatmap(data.heatmapSize, data.heatmapSize, data.config.maxHeat, data.config.dynamicHeat)
 
 	private val tileCount: Int = MapFunctions.getTileCount(data.zoom)

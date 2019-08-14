@@ -8,7 +8,8 @@ import com.adsamcik.signalcollector.common.data.Location
 data class CoordinateBounds(private var topBound: Double = MIN_LATITUDE,
                             private var rightBound: Double = MIN_LONGITUDE,
                             private var bottomBound: Double = MAX_LATITUDE,
-                            private var leftBound: Double = MAX_LONGITUDE) {
+                            private var leftBound: Double = MAX_LONGITUDE
+) {
 
 	val top: Double get() = this.topBound
 	val right: Double get() = this.rightBound
