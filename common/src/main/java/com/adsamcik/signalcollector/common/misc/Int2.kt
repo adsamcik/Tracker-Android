@@ -187,8 +187,8 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 	 */
 	operator fun get(i: Int): Int {
 		return when (i) {
-			0    -> x
-			1    -> y
+			0 -> x
+			1 -> y
 			else -> throw IndexOutOfBoundsException("Index: $i")
 		}
 	}
@@ -201,11 +201,11 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 	 */
 	fun setAt(i: Int, value: Int) {
 		when (i) {
-			0    -> {
+			0 -> {
 				x = value
 				return
 			}
-			1    -> {
+			1 -> {
 				y = value
 				return
 			}
@@ -221,11 +221,11 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 	 */
 	fun addAt(i: Int, value: Int) {
 		when (i) {
-			0    -> {
+			0 -> {
 				x += value
 				return
 			}
-			1    -> {
+			1 -> {
 				y += value
 				return
 			}

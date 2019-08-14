@@ -109,10 +109,10 @@ abstract class DetailActivity : CoreUIActivity() {
 	private fun <T : ViewGroup> createContentLayout(scrollable: Boolean, addContentPadding: Boolean, tClass: Class<T>): T {
 		//Casts are safe and due to limitations it was done this way. Can be revisited in the future for improvements.
 		return when (tClass) {
-			LinearLayout::class.java                                      -> createLinearContentLayout(scrollable, addContentPadding) as T
+			LinearLayout::class.java -> createLinearContentLayout(scrollable, addContentPadding) as T
 			androidx.constraintlayout.widget.ConstraintLayout::class.java -> createConstraintContentLayout(scrollable, addContentPadding) as T
-			FrameLayout::class.java                                       -> createFrameContentLayout(addContentPadding) as T
-			else                                                          -> throw NotImplementedError("Support for ${tClass.name} is not implemented")
+			FrameLayout::class.java -> createFrameContentLayout(addContentPadding) as T
+			else -> throw NotImplementedError("Support for ${tClass.name} is not implemented")
 		}
 	}
 

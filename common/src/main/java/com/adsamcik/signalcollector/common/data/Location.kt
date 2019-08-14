@@ -142,9 +142,9 @@ data class Location(
 
 			val distance = EARTH_CIRCUMFERENCE * c
 			return when (unit) {
-				LengthUnit.Meter        -> distance
-				LengthUnit.Kilometer    -> distance / 1000
-				LengthUnit.Mile         -> distance / 1.609
+				LengthUnit.Meter -> distance
+				LengthUnit.Kilometer -> distance / 1000
+				LengthUnit.Mile -> distance / 1.609
 				LengthUnit.NauticalMile -> distance / 1.852
 			}
 		}

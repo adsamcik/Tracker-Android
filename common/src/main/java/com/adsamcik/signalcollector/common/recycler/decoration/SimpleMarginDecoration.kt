@@ -68,11 +68,11 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
 		val columnCount: Int
 		val orientation: Int
 		when (val layoutManager = parent.layoutManager) {
-			is GridLayoutManager          -> {
+			is GridLayoutManager -> {
 				columnCount = layoutManager.spanCount
 				orientation = layoutManager.orientation
 			}
-			is LinearLayoutManager        -> {
+			is LinearLayoutManager -> {
 				columnCount = 1
 				orientation = layoutManager.orientation
 			}
@@ -80,7 +80,7 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
 				columnCount = layoutManager.spanCount
 				orientation = layoutManager.orientation
 			}
-			else                          -> {
+			else -> {
 				columnCount = 1
 				orientation = RecyclerView.VERTICAL
 			}
@@ -89,9 +89,9 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
 		val position = parent.getChildAdapterPosition(view)
 
 		when (orientation) {
-			RecyclerView.VERTICAL   -> setOffsetsVertical(outRect, parent, position, columnCount)
+			RecyclerView.VERTICAL -> setOffsetsVertical(outRect, parent, position, columnCount)
 			RecyclerView.HORIZONTAL -> setOffsetsHorizontal(outRect, parent, position, columnCount)
-			else                    -> throw IllegalStateException("Orientation with value $orientation is unknown")
+			else -> throw IllegalStateException("Orientation with value $orientation is unknown")
 		}
 	}
 }

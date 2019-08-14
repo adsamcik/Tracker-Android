@@ -193,8 +193,8 @@ object StyleManager {
 					timerActive = true
 					val timer = Timer("ColorUpdate", true)
 					when (colorList.size) {
-						2    -> startUpdate2(timer)
-						4    -> startUpdate4(timer)
+						2 -> startUpdate2(timer)
+						4 -> startUpdate4(timer)
 						else -> throw IllegalStateException()
 					}
 
@@ -238,10 +238,10 @@ object StyleManager {
 	}
 
 	private fun getTimeOfDay(value: Int) = when (value) {
-		0    -> "Morning"
-		1    -> "Noon"
-		2    -> "Evening"
-		3    -> "Night"
+		0 -> "Morning"
+		1 -> "Noon"
+		2 -> "Evening"
+		3 -> "Night"
 		else -> "Bug"
 	}
 
@@ -255,7 +255,7 @@ object StyleManager {
 				currentIndex = 1
 				sunrise
 			}
-			else                                                                            -> {
+			else -> {
 				currentIndex = 0
 				sunset
 			}

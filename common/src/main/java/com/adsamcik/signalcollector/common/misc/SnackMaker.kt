@@ -89,7 +89,7 @@ class SnackMaker(view: View) : CoroutineScope {
 
 	private fun addSnackbar(snackbarRecipe: SnackbarRecipe) {
 		when (snackbarRecipe.priority) {
-			SnackbarPriority.QUEUE     -> {
+			SnackbarPriority.QUEUE -> {
 				queue.add(snackbarRecipe)
 				lock.withLock {
 					if (current == null) {

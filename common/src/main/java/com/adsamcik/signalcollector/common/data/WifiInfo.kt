@@ -97,14 +97,14 @@ data class WifiInfo(
 		if (Build.VERSION.SDK_INT > 22) {
 			this.centerFreq0 = sr.centerFreq0
 			when (sr.channelWidth) {
-				CHANNEL_WIDTH_20MHZ          -> channelWidth = 20
-				CHANNEL_WIDTH_40MHZ          -> channelWidth = 40
+				CHANNEL_WIDTH_20MHZ -> channelWidth = 20
+				CHANNEL_WIDTH_40MHZ -> channelWidth = 40
 				CHANNEL_WIDTH_80MHZ_PLUS_MHZ -> {
 					this.centerFreq1 = sr.centerFreq1
 					channelWidth = 80
 				}
-				CHANNEL_WIDTH_80MHZ          -> channelWidth = 80
-				CHANNEL_WIDTH_160MHZ         -> channelWidth = 160
+				CHANNEL_WIDTH_80MHZ -> channelWidth = 80
+				CHANNEL_WIDTH_160MHZ -> channelWidth = 160
 			}
 
 			this.isPasspoint = sr.isPasspointNetwork

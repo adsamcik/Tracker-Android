@@ -406,9 +406,9 @@ class StyleController : CoroutineScope {
 	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(styleData)
-			is ImageView     -> view.setColorFilter(foregroundColor)
-			is TextView      -> updateStyleForeground(view, foregroundColor)
-			is SeekBar       -> updateStyleForeground(view, foregroundColor)
+			is ImageView -> view.setColorFilter(foregroundColor)
+			is TextView -> updateStyleForeground(view, foregroundColor)
+			is SeekBar -> updateStyleForeground(view, foregroundColor)
 		}
 	}
 
@@ -416,7 +416,7 @@ class StyleController : CoroutineScope {
 	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int, luminance: Int): Boolean {
 		val background = view.background
 		when {
-			view is MaterialButton        -> {
+			view is MaterialButton -> {
 				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
 				view.rippleColor = ColorStateList.valueOf(nextLevel)
 				view.setBackgroundColor(bgColor)
