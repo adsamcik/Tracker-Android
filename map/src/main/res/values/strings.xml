@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="map_search">Search</string>
+    <string name="map_search">Search…</string>
     <string name="map_search_no_text">Searching for nothing is not very useful</string>
     <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
 
@@ -14,5 +14,4 @@
 
     <string name="tips_map_overlay_title">Map layers</string>
     <string name="tips_map_overlay_description">Tapping or pulling up this bar will open selection of map layers</string>
-
 </resources>

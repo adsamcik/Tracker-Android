@@ -60,7 +60,9 @@ dependencies {
 	Libraries.location(this)
 	Libraries.preference(this)
 	Libraries.introduction(this)
-	Libraries.test(this)
+	Libraries.dateTimePicker(this)
+
+	implementation("com.savvi.datepicker:rangepicker:1.3.0")
 
 	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
 

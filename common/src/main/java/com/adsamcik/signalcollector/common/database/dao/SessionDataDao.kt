@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.database.data.DateRange
 import com.adsamcik.signalcollector.common.database.data.TrackerSessionSummary
 import com.adsamcik.signalcollector.common.database.data.TrackerSessionTimeSummary
 
@@ -24,6 +25,9 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 
 	@Query("SELECT * FROM tracker_session")
 	fun getAll(): List<TrackerSession>
+
+	@Query("SELECT * from tracker_session where `end` >= :from and start <= :to")
+	fun getAllBetween(from: Long, to: Long): List<TrackerSession>
 
 
 	@Query("SELECT * FROM tracker_session ORDER BY start DESC")
@@ -63,5 +67,8 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 
 	@Query("SELECT COUNT(*) FROM tracker_session")
 	fun count(): Long
+
+	@Query("SELECT MIN(start) as start, MAX(`end`) as endInclusive from tracker_session")
+	fun range(): DateRange
 
 }

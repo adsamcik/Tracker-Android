@@ -3,7 +3,7 @@ package com.adsamcik.signalcollector.map
 import android.renderscript.Double2
 import kotlin.math.*
 
-object MapFunctions {
+internal object MapFunctions {
 	fun getTileCount(zoom: Int): Int {
 		return 2.0.pow(zoom).toInt()
 	}

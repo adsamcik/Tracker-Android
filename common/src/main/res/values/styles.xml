@@ -9,4 +9,8 @@
         <item name="android:textSize">24sp</item>
         <item name="android:letterSpacing">0</item>
     </style>
+
+    <style name="CalendarPicker" parent="Theme.MaterialComponents">
+
+    </style>
 </resources>

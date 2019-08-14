@@ -20,7 +20,7 @@ class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
 		val resources = holder.resources
 		cellData.registeredCells.forEach {
 			holder.getBoldText().apply {
-				title.text = it.operatorName
+				title.text = it.networkOperator.name
 				value.text = resources.getString(R.string.cell_current, it.type.name, it.dbm)
 			}
 		}

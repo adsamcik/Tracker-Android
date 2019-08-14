@@ -5,7 +5,6 @@ import android.os.Parcel
 import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
-import androidx.room.TypeConverter
 import com.adsamcik.signalcollector.common.R
 
 /**
@@ -113,17 +112,5 @@ enum class DetectedActivity(val value: Int) {
 			return values().find { it.value == type }
 					?: throw IllegalArgumentException("Activity type with value $type is not defined.")
 		}
-	}
-}
-
-class DetectedActivityTypeConverter {
-	@TypeConverter
-	fun toDetectedActivity(value: Int): DetectedActivity {
-		return DetectedActivity.fromDetectedType(value)
-	}
-
-	@TypeConverter
-	fun fromDetectedActivity(value: DetectedActivity): Int {
-		return value.value
 	}
 }

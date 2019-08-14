@@ -47,14 +47,13 @@ object StyleManager {
 	private var darkTextColor: Int = 0
 	private var lightTextColor: Int = 0
 
-	var styleData = StyleData(0, 0)
+	var styleData: StyleData = StyleData(0, 0)
 		private set
 
 	private val controllerLock = ReentrantLock()
 	private val colorListLock = ReentrantLock()
 
 	private const val TEXT_ALPHA = 222
-	private const val BRIGHTEN_PER_LEVEL = 17
 
 	/**
 	 * Creates color manager instance
@@ -115,20 +114,6 @@ object StyleManager {
 	}
 
 	/**
-	 * Returns proper color for given layer
-	 *
-	 * @param color base color
-	 * @param layer layer (should be positive)
-	 */
-	fun layerColor(@ColorInt color: Int, layer: Int): Int {
-		return if (layer == 0) {
-			color
-		} else {
-			brightenColor(color, BRIGHTEN_PER_LEVEL * layer)
-		}
-	}
-
-	/**
 	 * Add all given colors to colorList. This is usually not the way you want to initialize the colors. Consider using load from preferences.
 	 *
 	 * @param colors colors to add
@@ -172,14 +157,14 @@ object StyleManager {
 		val perceivedLuminance = perceivedRelLuminance(backgroundColor)
 		val foregroundColor: Int = if (perceivedLuminance > 0) darkTextColor else lightTextColor
 
-		val colorData = StyleData(backgroundColor, foregroundColor)
+		val styleData = StyleData(backgroundColor, foregroundColor)
 
 
-		styleData = colorData
+		this.styleData = styleData
 
 		controllerLock.withLock {
 			controllerCollection.forEach {
-				it.update(colorData)
+				it.update(styleData)
 			}
 		}
 	}
@@ -363,7 +348,7 @@ object StyleManager {
 		synchronized(timerActive) {
 			if (timerActive) {
 				timerActive = false
-				timer!!.cancel()
+				requireNotNull(timer).cancel()
 			}
 		}
 	}

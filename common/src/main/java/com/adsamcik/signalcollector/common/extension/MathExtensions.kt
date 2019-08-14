@@ -58,6 +58,10 @@ fun Int.rescale(originalRange: ClosedRange<Int>, newRange: ClosedRange<Int>): In
 	return normalized.roundToInt()
 }
 
+fun LongRange.coerceIn(range: ClosedRange<Long>): LongRange {
+	return start.coerceIn(range)..endInclusive.coerceIn(range)
+}
+
 /**
  * Returns additive inverse of this value
  *

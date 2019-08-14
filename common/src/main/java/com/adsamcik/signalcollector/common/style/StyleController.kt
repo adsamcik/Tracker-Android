@@ -21,7 +21,6 @@ import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.Assist
-import com.adsamcik.signalcollector.common.style.StyleManager.layerColor
 import com.adsamcik.signalcollector.common.style.StyleManager.styleData
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
@@ -55,7 +54,7 @@ class StyleController : CoroutineScope {
 	 * Colors listener array. Holds all listeners.
 	 *
 	 */
-	private val styleChangeListeners = ArrayList<OnStyleChangeListener>(0)
+	private val styleChangeListeners = mutableListOf<OnStyleChangeListener>()
 
 	private var suspendLock = ReentrantLock()
 	private var updateRequestedWhileSuspended: Boolean = false
@@ -117,10 +116,13 @@ class StyleController : CoroutineScope {
 			if (adapter is IViewChange) {
 				adapter.onViewChangedListener = {
 					val styleData = styleData
-					val backgroundColor = styleData.backgroundColor(styleView.isInverted)
-					val foregroundColor = styleData.foregroundColor(styleView.isInverted)
+					//todo consider wrapping this in an object
+					val backgroundColor = styleData.backgroundColorFor(styleView)
+					val foregroundColor = styleData.foregroundColorFor(styleView)
+					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 					updateStyle(backgroundColor,
 							foregroundColor,
+							perceivedLuminance,
 							it,
 							styleView.childrenLayer,
 							styleView.maxDepth)
@@ -131,8 +133,9 @@ class StyleController : CoroutineScope {
 
 					override fun onChildViewAdded(parent: View, child: View) {
 						val styleData = styleData
-						updateStyle(styleData.backgroundColor(styleView.isInverted),
-								styleData.foregroundColor(styleView.isInverted),
+						updateStyle(styleData.backgroundColorFor(styleView),
+								styleData.foregroundColorFor(styleView),
+								styleData.perceivedLuminanceFor(styleView),
 								child,
 								styleView.childrenLayer,
 								styleView.maxDepth)
@@ -293,46 +296,51 @@ class StyleController : CoroutineScope {
 	private fun updateInternal(styleView: RecyclerStyleView, styleData: StyleData) {
 		val backgroundColor = styleData.backgroundColorFor(styleView)
 		val foregroundColor = styleData.foregroundColorFor(styleView)
+		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
 		launch(Dispatchers.Main) {
-			updateStyle(styleView, backgroundColor, foregroundColor)
+			updateStyle(styleView, backgroundColor, foregroundColor, perceivedLuminance)
 		}
 	}
 
 	private fun updateInternal(styleView: StyleView, styleData: StyleData) {
 		val backgroundColor = styleData.backgroundColorFor(styleView)
 		val foregroundColor = styleData.foregroundColorFor(styleView)
+		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
 		launch(Dispatchers.Main) {
-			updateStyle(backgroundColor, foregroundColor, styleView.view, styleView.layer, styleView.maxDepth)
+			updateStyle(backgroundColor, foregroundColor, perceivedLuminance, styleView.view, styleView.layer, styleView.maxDepth)
 		}
 	}
 
 	@MainThread
 	private fun updateStyle(styleData: RecyclerStyleView,
 	                        @ColorInt backgroundColor: Int,
-	                        @ColorInt foregroundColor: Int) {
+	                        @ColorInt foregroundColor: Int,
+	                        backgroundLuminance: Int) {
 		if (!styleData.onlyChildren) {
 			updateStyleForeground(styleData.view, foregroundColor)
-			updateStyle(backgroundColor, foregroundColor, styleData.view, styleData.layer, 0)
+			updateStyle(backgroundColor, foregroundColor, backgroundLuminance, styleData.view, styleData.layer, 0)
 		}
 
 		val iterator = styleData.view.children.iterator()
 
 		for (item in iterator) {
-			updateStyle(backgroundColor, foregroundColor, item, styleData.childrenLayer, Int.MAX_VALUE)
+			updateStyle(backgroundColor, foregroundColor, backgroundLuminance, item, styleData.childrenLayer, Int.MAX_VALUE)
 		}
 	}
 
 	@MainThread
 	private fun updateStyle(@ColorInt backgroundColor: Int,
 	                        @ColorInt foregroundColor: Int,
+	                        backgroundLuminance: Int,
 	                        view: View,
 	                        layer: Int,
 	                        depthLeft: Int) {
 		var newLayer = layer
 
-		val wasBackgroundUpdated = updateBackgroundDrawable(view, layerColor(backgroundColor, layer))
+		val backgroundLayerColor = ColorFunctions.getBackgroundLayerColor(backgroundColor, backgroundLuminance, layer)
+		val wasBackgroundUpdated = updateBackgroundDrawable(view, backgroundLayerColor, backgroundLuminance)
 		if (wasBackgroundUpdated) newLayer++
 
 		if (view is ViewGroup) {
@@ -341,7 +349,7 @@ class StyleController : CoroutineScope {
 			val newDepthLeft = depthLeft - 1
 
 			for (i in 0 until view.childCount) {
-				updateStyle(backgroundColor, foregroundColor, view.getChildAt(i), newLayer, newDepthLeft)
+				updateStyle(backgroundColor, foregroundColor, backgroundLuminance, view.getChildAt(i), newLayer, newDepthLeft)
 			}
 		} else {
 			updateStyleForeground(view, foregroundColor)
@@ -362,7 +370,7 @@ class StyleController : CoroutineScope {
 		val alpha = view.currentTextColor.alpha
 		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
 		view.setTextColor(newTextColor)
-		view.setHintTextColor(brightenColor(newTextColor, LIGHTNESS_PER_LEVEL))
+		view.setHintTextColor(brightenColor(newTextColor, ColorFunctions.LIGHTNESS_PER_LEVEL))
 		view.compoundDrawables.forEach { if (it != null) updateStyleForeground(it, foregroundColor) }
 	}
 
@@ -403,17 +411,17 @@ class StyleController : CoroutineScope {
 	}
 
 	@MainThread
-	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int): Boolean {
+	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int, luminance: Int): Boolean {
 		val background = view.background
 		when {
 			view is MaterialButton -> {
-				val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
+				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
 				view.rippleColor = ColorStateList.valueOf(nextLevel)
 				view.setBackgroundColor(bgColor)
 			}
 			background?.isVisible == true -> {
 				if (background is RippleDrawable) {
-					val nextLevel = brightenColor(bgColor, LIGHTNESS_PER_LEVEL)
+					val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
 					background.setColor(Assist.getPressedState(nextLevel))
 					background.setTint(bgColor)
 				} else {
@@ -431,9 +439,5 @@ class StyleController : CoroutineScope {
 			}
 		}
 		return false
-	}
-
-	companion object {
-		const val LIGHTNESS_PER_LEVEL = 25
 	}
 }

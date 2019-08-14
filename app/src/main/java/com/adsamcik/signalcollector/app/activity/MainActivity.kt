@@ -2,10 +2,14 @@ package com.adsamcik.signalcollector.app.activity
 
 import android.graphics.Color
 import android.graphics.Point
+import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import androidx.core.view.doOnNextLayout
+import androidx.core.view.isVisible
 import com.adsamcik.draggable.*
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.HomeIntroduction
@@ -155,6 +159,8 @@ class MainActivity : CoreUIActivity() {
 		val splitInstallManager = SplitInstallManagerFactory.create(this)
 		val installedModules = splitInstallManager.installedModules
 
+		val exclusions = mutableListOf<Rect>()
+
 		if (installedModules.contains(Module.STATISTICS.moduleName)) {
 			initializeStatsButton(size)
 		} else {
@@ -178,6 +184,22 @@ class MainActivity : CoreUIActivity() {
 		params.behavior = NavigationGuidelinesOffsetBehavior(navigation_guideline)
 		root.layoutParams = params
 		root.requestLayout()*/
+		if (Build.VERSION.SDK_INT >= 29) {
+			root.doOnNextLayout {
+				fun addExclusion(view: View, exclusions: MutableList<Rect>) {
+					if (view.isVisible) {
+						val outRect = Rect()
+						view.getGlobalVisibleRect(outRect)
+						exclusions.add(outRect)
+					}
+				}
+
+				addExclusion(button_stats, exclusions)
+				addExclusion(button_game, exclusions)
+
+				root.systemGestureExclusionRects = exclusions
+			}
+		}
 	}
 
 	private fun hideBottomLayer() {

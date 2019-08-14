@@ -3,34 +3,34 @@ import org.gradle.kotlin.dsl.kotlin
 
 object Libraries {
 	object Versions {
-		const val constraintLayout = "2.0.0-beta2"
-		const val coreKtx = "1.1.0-rc02"
-		const val appcompat = "1.1.0-rc01"
-		const val room = "2.1.0"
-		const val fragment = "1.1.0-rc03"
-		const val kotlin = "1.3.41"
-		const val dokka = "0.9.18"
-		const val moshi = "1.8.0"
-		const val work = "2.2.0-rc01"
-		const val lifecycle = "2.2.0-alpha02"
-		const val preference = "1.1.0-rc01"
-		const val material = "1.1.0-alpha09"
-		const val coroutines = "1.3.0-RC"
+		internal const val constraintLayout = "2.0.0-beta2"
+		internal const val coreKtx = "1.2.0-alpha03"
+		internal const val appcompat = "1.1.0-rc01"
+		internal const val room = "2.1.0"
+		internal const val fragment = "1.2.0-alpha02"
+		public const val kotlin: String = "1.3.41"
+		public const val dokka: String = "0.9.18"
+		internal const val moshi = "1.8.0"
+		internal const val work = "2.2.0-rc01"
+		internal const val lifecycle = "2.2.0-alpha03"
+		internal const val preference = "1.1.0-rc01"
+		internal const val material = "1.1.0-alpha09"
+		internal const val coroutines = "1.3.0-RC2"
 
-		const val maps = "17.0.0"
-		const val location = "17.0.0"
-		const val firebaseCore = "17.0.1"
-		const val recyclerView = "1.1.0-beta01"
-		const val paging = "2.1.0"
+		internal const val maps = "17.0.0"
+		internal const val firebaseCore = "17.0.1"
+		internal const val recyclerView = "1.1.0-beta02"
+		internal const val paging = "2.1.0"
 
-		const val crashlytics = "2.10.1"
+		internal const val crashlytics = "2.10.1"
 
-		const val playServicesBase = "17.0.0"
-		const val playCore = "1.6.1"
+		internal const val playServicesBase = "17.1.0"
+		internal const val playCore = "1.6.1"
+		internal const val playLocation = "17.0.0"
 
-		const val sublimePicker = "2.1.2"
-		const val spotlight = "2.1.0"
-		const val dialogs = "3.1.0"
+		internal const val sublimePicker = "2.1.2"
+		internal const val spotlight = "2.1.0"
+		internal const val dialogs = "3.1.0"
 
 		object Test {
 			const val androidxTest = "1.2.0"
@@ -75,6 +75,7 @@ object Libraries {
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
 			implementation("androidx.fragment:fragment:${Versions.fragment}")
+			implementation("androidx.fragment:fragment-ktx:${Versions.fragment}")
 			implementation("com.google.android.material:material:${Versions.material}")
 			implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
 			implementation("com.google.android.play:core:${Versions.playCore}")
@@ -85,9 +86,6 @@ object Libraries {
 			work(this)
 
 			kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
-
-			androidTestImplementation("androidx.test:runner:1.1.1")
-			androidTestImplementation("androidx.test.espresso:espresso-core:3.1.1")
 		}
 	}
 
@@ -114,7 +112,7 @@ object Libraries {
 
 	fun location(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.google.android.gms:play-services-location:${Versions.location}")
+			implementation("com.google.android.gms:play-services-location:${Versions.playLocation}")
 		}
 	}
 
@@ -164,6 +162,7 @@ object Libraries {
 
 	fun test(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
+			androidTestImplementation("junit:junit:4.12")
 			androidTestImplementation("androidx.test:runner:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")

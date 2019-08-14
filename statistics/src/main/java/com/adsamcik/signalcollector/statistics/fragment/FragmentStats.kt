@@ -6,7 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.ViewModelProviders
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
@@ -45,7 +45,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		viewModel = ViewModelProviders.of(this).get(StatsViewModel::class.java)
+		viewModel = ViewModelProvider(this).get(StatsViewModel::class.java)
 
 		viewModel.sessionLiveData.observe(this, this::onDataUpdated)
 	}
@@ -94,10 +94,10 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			this.layoutManager = layoutManager
 
 			addItemDecoration(SectionedDividerDecoration(viewModel.adapter, context, layoutManager.orientation))
-			addItemDecoration(SimpleMarginDecoration(spaceBetweenItems = 0,
+			addItemDecoration(SimpleMarginDecoration(verticalMargin = 0,
 					horizontalMargin = 0,
-					firstRowMargin = statusBarHeight + contentPadding,
-					lastRowMargin = navBarHeight + contentPadding))
+					firstLineMargin = statusBarHeight + contentPadding,
+					lastLineMargin = navBarHeight + contentPadding))
 		}
 
 		styleController.watchRecyclerView(RecyclerStyleView(recyclerView, onlyChildren = true, childrenLayer = 2))
@@ -133,7 +133,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val activity = requireActivity()
 			val database = AppDatabase.getDatabase(activity)
 			val wifiDao = database.wifiDao()
-			val cellDao = database.cellDao()
+			val cellDao = database.cellLocationDao()
 			val locationDao = database.locationDao()
 			val sessionDao = database.sessionDao()
 			val sumSessionData = sessionDao.getSummary()
@@ -144,7 +144,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					StatData(resources.getString(R.string.stats_distance_total), resources.formatDistance(sumSessionData.distanceInM, 1, Preferences.getLengthSystem(activity))),
 					StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
-					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable()),
+					StatData(resources.getString(R.string.stats_cell_count), cellDao.uniqueCount().formatReadable()),
 					StatData(resources.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
 			)

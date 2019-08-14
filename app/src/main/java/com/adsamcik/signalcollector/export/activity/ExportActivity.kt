@@ -10,10 +10,12 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.FileProvider
 import com.adsamcik.signalcollector.R
-import com.adsamcik.signalcollector.app.dialog.DateTimeRangeDialog
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
 import com.adsamcik.signalcollector.common.database.AppDatabase
+import com.adsamcik.signalcollector.common.dialog.dateTimeRangePicker
 import com.adsamcik.signalcollector.common.extension.cloneCalendar
+import com.adsamcik.signalcollector.common.extension.createCalendarWithTime
 import com.adsamcik.signalcollector.common.extension.hasExternalStorageReadPermission
 import com.adsamcik.signalcollector.common.extension.hasExternalStorageWritePermission
 import com.adsamcik.signalcollector.common.misc.SnackMaker
@@ -21,9 +23,6 @@ import com.adsamcik.signalcollector.export.ExportFile
 import com.adsamcik.signalcollector.export.ExportResult
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.folderChooser
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_DATE_PICKER
-import com.appeaser.sublimepickerlibrary.helpers.SublimeOptions.ACTIVATE_TIME_PICKER
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.android.synthetic.main.layout_data_export.*
 import kotlinx.coroutines.Dispatchers
@@ -68,7 +67,7 @@ class ExportActivity : DetailActivity() {
 
 		sharableDir = File(filesDir, SHARABLE_DIR_NAME)
 
-		val exporterType = intent.extras!![EXPORTER_KEY] as Class<*>
+		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
 		exporter = exporterType.newInstance() as ExportFile
 
 		root = createLinearContentParent(false)
@@ -86,10 +85,35 @@ class ExportActivity : DetailActivity() {
 				add(Calendar.MONTH, -1)
 			}
 
-			range = monthBefore..now
+			range = monthBefore..in15minutes
 
-			val clickListener = { _: View ->
-				DateTimeRangeDialog().apply {
+
+			val clickListener: (View) -> Unit = { view: View ->
+				launch(Dispatchers.Default) {
+					val sessionDao = AppDatabase.getDatabase(view.context).sessionDao()
+					val availableRange = sessionDao.range().let {
+						if (it.start == 0L && it.endInclusive == 0L) {
+							LongRange.EMPTY
+						} else {
+							LongRange(it.start, it.endInclusive)
+						}
+					}
+
+					if (availableRange.isEmpty()) {
+						//todo improve this message to be properly shown in time
+						SnackMaker(root).addMessage(R.string.settings_export_no_data)
+						return@launch
+					}
+
+					val selectedRange = LongRange(range.start.timeInMillis, range.endInclusive.timeInMillis)
+					launch(Dispatchers.Main) {
+						MaterialDialog(view.context).dateTimeRangePicker(availableRange, selectedRange) {
+							range = createCalendarWithTime(it.first)..createCalendarWithTime(it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS)
+						}.show()
+					}
+				}
+
+				/*DateTimeRangeDialog().apply {
 					arguments = Bundle().apply {
 						putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
 							setCanPickDateRange(true)
@@ -103,7 +127,7 @@ class ExportActivity : DetailActivity() {
 					successCallback = { range ->
 						this@ExportActivity.range = range
 					}
-				}.show(supportFragmentManager, "Map date range dialog")
+				}.show(supportFragmentManager, "Map date range dialog")*/
 			}
 
 			edittext_date_range_from.setOnClickListener(clickListener)

@@ -78,7 +78,6 @@ tasks.withType<DokkaTask> {
 	}
 }
 
-//gradlew dependencyUpdates -Drevision=release
 dependencies {
 	implementation(project(":common"))
 	implementation(project(":tracker"))
@@ -97,7 +96,6 @@ dependencies {
 	implementation("com.jaredrummler:colorpicker:1.1.0")
 
 	implementation("de.psdev.licensesdialog:licensesdialog:2.1.0")
-	Libraries.dateTimePicker(this)
 	Libraries.fileChooser(this)
 
 	//GPX

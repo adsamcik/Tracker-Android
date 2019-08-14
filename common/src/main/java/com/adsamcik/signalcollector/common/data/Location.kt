@@ -179,6 +179,20 @@ data class Location(
 	}
 }
 
+@JsonClass(generateAdapter = true)
+data class BaseLocation(@Json(name = "lat")
+                        @ColumnInfo(name = "lat")
+                        val latitude: Double,
+                        @Json(name = "lon")
+                        @ColumnInfo(name = "lon")
+                        val longitude: Double,
+                        @Json(name = "alt")
+                        @ColumnInfo(name = "alt")
+                        val altitude: Double?) {
+
+	constructor(location: Location) : this(location.latitude, location.longitude, location.altitude)
+}
+
 enum class LengthUnit {
 	Meter,
 	Kilometer,

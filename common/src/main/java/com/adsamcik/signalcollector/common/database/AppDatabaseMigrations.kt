@@ -112,7 +112,13 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
 			execSQL("CREATE  INDEX `index_wifi_data_latitude` ON wifi_data (`latitude`)")
 			execSQL("CREATE  INDEX `index_wifi_data_last_seen` ON wifi_data (`last_seen`)")
 
-			execSQL("CREATE  INDEX `index_tracker_session_session_activity_id` ON `location_data` (`session_activity_id`)")
+			execSQL("CREATE  INDEX `index_tracker_session_session_activity_id` ON tracker_session (`session_activity_id`)")
+
+			execSQL("DROP TABLE cell_data")
+			execSQL("CREATE TABLE IF NOT EXISTS network_operator (`mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `name` TEXT, PRIMARY KEY(`mcc`, `mnc`))")
+			execSQL("CREATE TABLE IF NOT EXISTS cell_location (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `cell_id` INTEGER NOT NULL, `type` INTEGER NOT NULL, `asu` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL)")
+			execSQL("CREATE  INDEX `index_cell_location_mcc_mnc_cell_id` ON cell_location (`mcc`, `mnc`, `cell_id`)")
+			execSQL("CREATE  INDEX `index_cell_location_time` ON cell_location (`time`)")
 		}
 	}
 }

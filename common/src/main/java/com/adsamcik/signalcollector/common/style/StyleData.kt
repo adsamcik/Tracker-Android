@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.common.style
 
 import androidx.annotation.ColorInt
+import androidx.annotation.IntRange
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
@@ -10,7 +11,8 @@ data class StyleData(@ColorInt private val backgroundColor: Int,
                      @ColorInt private val foregroundColor: Int) {
 
 	private val baseColorHSL: FloatArray = FloatArray(3)
-	val perceivedLuminance: Byte
+	@IntRange(from = 0, to = 255)
+	private val perceivedLuminance: Int
 
 	val luminance get() = baseColorHSL[2]
 	val saturation get() = baseColorHSL[1]
@@ -34,7 +36,7 @@ data class StyleData(@ColorInt private val backgroundColor: Int,
 	 * @param isInverted True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun foregroundColor(isInverted: Boolean): Int = if (isInverted) backgroundColor else foregroundColor
+	fun foregroundColor(isInverted: Boolean = false): Int = if (isInverted) backgroundColor else foregroundColor
 
 	/**
 	 * Returns proper base background color for given StyleView
@@ -48,7 +50,26 @@ data class StyleData(@ColorInt private val backgroundColor: Int,
 	 * @param isInverted True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun backgroundColor(isInverted: Boolean): Int = if (isInverted) foregroundColor else backgroundColor
+	fun backgroundColor(isInverted: Boolean = false, layer: Int = 0): Int {
+		val color: Int
+		val luminance: Int
+
+		if (isInverted) {
+			color = foregroundColor
+			luminance = -perceivedLuminance
+		} else {
+			color = backgroundColor
+			luminance = perceivedLuminance
+		}
+
+		return ColorFunctions.getBackgroundLayerColor(color, luminance, layer)
+	}
+
+	fun perceivedLuminance(isInverted: Boolean): Int {
+		return if (isInverted) 255 - perceivedLuminance else perceivedLuminance
+	}
+
+	fun perceivedLuminanceFor(styleView: BaseStyleView): Int = perceivedLuminance(styleView.isInverted)
 
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true

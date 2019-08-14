@@ -195,6 +195,22 @@ class MigrationTest {
 		}
 	}
 
+	@Test
+	@Throws(IOException::class)
+	fun migrate8To9() {
+		val db = helper.createDatabase(TEST_DB, 8)
+
+		db.execSQL("INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (1, 200, 300, 1, 10, 1000, 50, 0, 0)")
+		db.execSQL("INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (2, 400, 600, 1, 20, 2000, 100, 0, 0)")
+		db.execSQL("INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (3, 600, 400, 0, 20, 2000, 100, 0, 0)")
+		db.execSQL("INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (4, 400, 600, 0, 0, 2000, 100, 0, 0)")
+
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 9, true, MIGRATION_8_9).apply {
+		}
+	}
+
 	companion object {
 		private const val TEST_DB = "migration-test"
 	}

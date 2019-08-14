@@ -29,7 +29,9 @@ import com.adsamcik.signalcollector.tracker.component.consumer.data.ActivityTrac
 import com.adsamcik.signalcollector.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.data.WifiTrackerComponent
-import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseCellComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseLocationComponent
+import com.adsamcik.signalcollector.tracker.component.consumer.post.DatabaseWifiComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.pre.StepPreTrackerComponent
@@ -41,19 +43,24 @@ import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 //todo move TrackerService to it's own process
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
 
+	private val componentMutex = Mutex()
+
 	private var timerComponent: TrackerTimerComponent = NoTimer()
 
 	private val notificationComponent: NotificationComponent = NotificationComponent()
 
-	private lateinit var dataProducerManager: DataProducerManager
+	private var dataProducerManager: DataProducerManager? = null
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
 	//todo can crash if ended too quickly because uninitialized
@@ -61,17 +68,16 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
 	//Kept here and used internally in case something went wrong and service was launched again with different info
-	private lateinit var sessionInfo: TrackerSessionInfo
-	private lateinit var sessionComponent: SessionTrackerComponent
-	private val session: TrackerSession get() = sessionComponent.session
-
+	private var sessionInfo: TrackerSessionInfo? = null
+	private var sessionComponent: SessionTrackerComponent? = null
+	private val session: TrackerSession get() = requireNotNull(sessionComponent).session
 
 	/**
 	 * Collects data from necessary places and sensors and creates new MutableCollectionData instance
 	 */
 	@WorkerThread
 	private suspend fun updateData(tempData: MutableCollectionTempData) {
-		dataProducerManager.getData(tempData)
+		requireNotNull(dataProducerManager).getData(tempData)
 
 		//if we don't know the accuracy the location is worthless
 		if (!preComponentList.all {
@@ -90,13 +96,13 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			it.onDataUpdated(tempData, collectionData)
 		}
 
-		sessionComponent.onDataUpdated(tempData, collectionData)
+		requireNotNull(sessionComponent).onDataUpdated(tempData, collectionData)
 
 		postComponentList.forEachIf({ it.requirementsMet(tempData) }) {
 			it.onNewData(this, session, collectionData, tempData)
 		}
 
-		if (!sessionInfo.isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
+		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 
 		lastCollectionDataMutable.postValue(CollectionDataEcho(collectionData, session))
 	}
@@ -146,9 +152,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(WifiTrackerComponent())
 		}
 
+		//todo add only components that can actually be used
 		postComponentList.apply {
 			add(notificationComponent)
-			add(DatabaseTrackerComponent())
+			add(DatabaseCellComponent())
+			add(DatabaseLocationComponent())
+			add(DatabaseWifiComponent())
 		}.forEach { it.onEnable(this) }
 	}
 
@@ -217,16 +226,22 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
-	override fun onUpdate(tempData: MutableCollectionTempData) {
-		launch {
-			wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
-			try {
-				updateData(tempData)
-			} catch (e: Exception) {
-				Reporter.report(e)
-			} finally {
-				wakeLock.release()
-			}
+	override fun onUpdate(tempData: MutableCollectionTempData): Job = launch {
+		componentMutex.lock()
+
+		if (!isServiceRunning.value) {
+			componentMutex.unlock()
+			return@launch
+		}
+
+		wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
+		try {
+			updateData(tempData)
+		} catch (e: Exception) {
+			Reporter.report(e)
+		} finally {
+			wakeLock.release()
+			componentMutex.unlock()
 		}
 	}
 
@@ -239,40 +254,59 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
+	@MainThread
+	private suspend fun onDestroyComponents(context: Context) {
+		dataProducerManager?.onDisable()
+		preComponentList.forEach { it.onDisable(context) }
+		postComponentList.forEach { it.onDisable(context) }
+
+		//Can be null if TrackerServices is immediately stopped after start
+		if (sessionComponent != null) {
+			val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
+				putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
+				`package` = this@TrackerService.packageName
+			}
+			sendBroadcast(sessionEndIntent, "com.adsamcik.signalcollector.permission.TRACKER")
+		}
+	}
+
+	private fun onDestroyServiceMetaData() {
+		isServiceRunningMutable.value = false
+		sessionInfoMutable.value = null
+	}
+
 
 	override fun onDestroy() {
 		super.onDestroy()
-
-		timerComponent.onDisable(this)
-
 		stopForeground(true)
-		isServiceRunningMutable.value = false
-		sessionInfoMutable.value = null
+		onDestroyServiceMetaData()
 
-		ActivityWatcherService.poke(this, trackerRunning = false)
-
-		if (android.os.Build.VERSION.SDK_INT >= 25) {
-			Shortcuts.updateShortcut(this,
-					Shortcuts.TRACKING_ID,
-					R.string.shortcut_start_tracking,
-					R.string.shortcut_start_tracking_long,
-					R.drawable.ic_play_circle_filled_black_24dp,
-					Shortcuts.ShortcutAction.START_COLLECTION)
+		val tempData = MutableCollectionTempData(Time.nowMillis, Time.elapsedRealtimeNanos)
+		onUpdate(tempData).invokeOnCompletion {
+			onDestroyCleanup()
 		}
+	}
 
-		//This work needs to be done, but might take extra time so it's fine to do it in GlobalScope
-		val appContext = applicationContext
+	private fun onDestroyCleanup() {
+		val context = this
 		launch(Dispatchers.Main) {
-			dataProducerManager.onDisable()
-			preComponentList.forEach { it.onDisable(appContext) }
-			postComponentList.forEach { it.onDisable(appContext) }
-		}
+			componentMutex.withLock {
+				timerComponent.onDisable(context)
 
-		val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
-			putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
-			`package` = this@TrackerService.packageName
+				ActivityWatcherService.poke(context, trackerRunning = false)
+
+				if (android.os.Build.VERSION.SDK_INT >= 25) {
+					Shortcuts.updateShortcut(context,
+							Shortcuts.TRACKING_ID,
+							R.string.shortcut_start_tracking,
+							R.string.shortcut_start_tracking_long,
+							R.drawable.ic_play_circle_filled_black_24dp,
+							Shortcuts.ShortcutAction.START_COLLECTION)
+				}
+
+				onDestroyComponents(context)
+			}
 		}
-		sendBroadcast(sessionEndIntent, "com.adsamcik.signalcollector.permission.TRACKER")
 	}
 
 	companion object {

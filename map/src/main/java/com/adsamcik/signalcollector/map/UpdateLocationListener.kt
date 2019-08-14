@@ -26,7 +26,7 @@ import com.google.android.gms.maps.model.*
 import java.lang.Math.toDegrees
 
 //todo add activity icon instead of generic location icon when possible
-class UpdateLocationListener(context: Context, private val map: GoogleMap, private val eventListener: MapEventListener) : SensorEventListener {
+internal class UpdateLocationListener(context: Context, private val map: GoogleMap, private val eventListener: MapEventListener) : SensorEventListener {
 	private var followMyPosition: Boolean = false
 	private var useGyroscope = false
 

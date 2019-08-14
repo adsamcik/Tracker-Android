@@ -1,29 +1,35 @@
 package com.adsamcik.signalcollector.common.database
 
 import android.content.Context
+import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.adsamcik.signalcollector.common.data.DetectedActivityTypeConverter
 import com.adsamcik.signalcollector.common.data.NativeSessionActivity
+import com.adsamcik.signalcollector.common.data.NetworkOperator
 import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.database.converter.CellTypeConverter
+import com.adsamcik.signalcollector.common.database.converter.DetectedActivityTypeConverter
 import com.adsamcik.signalcollector.common.database.dao.*
-import com.adsamcik.signalcollector.common.database.data.CellTypeTypeConverter
-import com.adsamcik.signalcollector.common.database.data.DatabaseCellData
+import com.adsamcik.signalcollector.common.database.data.DatabaseCellLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 
 @Database(entities = [DatabaseLocation::class,
 	TrackerSession::class,
 	DatabaseWifiData::class,
-	DatabaseCellData::class,
-	SessionActivity::class],
+	SessionActivity::class,
+	NetworkOperator::class,
+	DatabaseCellLocation::class],
 		version = 9)
-@TypeConverters(CellTypeTypeConverter::class, DetectedActivityTypeConverter::class)
+@TypeConverters(CellTypeConverter::class, DetectedActivityTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun locationDao(): LocationDataDao
@@ -32,7 +38,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun wifiDao(): WifiDataDao
 
-	abstract fun cellDao(): CellDataDao
+	abstract fun cellOperatorDao(): CellOperatorDao
+	abstract fun cellLocationDao(): CellLocationDao
 
 	abstract fun activityDao(): ActivityDao
 
@@ -51,15 +58,21 @@ abstract class AppDatabase : RoomDatabase() {
 			return instance
 		}
 
+		//todo move this away so it's not run every time database is initialized
 		private fun initialize(context: Context, database: AppDatabase) {
-			val sessionActivity = NativeSessionActivity.values().map {
-				it.getSessionActivity(context)
-			}
+			GlobalScope.launch(Dispatchers.Default) {
+				val activityDao = database.activityDao()
 
-			database.activityDao().insert(sessionActivity)
+				val sessionActivity = NativeSessionActivity.values().map {
+					it.getSessionActivity(context)
+				}
+
+				activityDao.insert(sessionActivity)
+			}
 		}
-		
-		@WorkerThread
+
+		@AnyThread
+		@Synchronized
 		fun getDatabase(context: Context): AppDatabase {
 			return instance_ ?: createInstance(context)
 		}
@@ -70,7 +83,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 			database.runInTransaction {
 				database.sessionDao().deleteAll()
-				database.cellDao().deleteAll()
+				database.cellLocationDao().deleteAll()
+				database.cellOperatorDao().deleteAll()
 				database.locationDao().deleteAll()
 				database.wifiDao().deleteAll()
 			}

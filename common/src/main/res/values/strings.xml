@@ -53,6 +53,11 @@
     <!-- unused for now -->
     <string name="activity_icon">Activity icon</string>
 
-
     <string name="undo">undo</string>
+
+    <plurals name="map_date_range_last_days">
+        <item quantity="one">Today</item>
+        <item quantity="other">Last %d days</item>
+    </plurals>
+    <string name="map_date_range_all">All</string>
 </resources>

@@ -10,7 +10,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModelProviders
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -75,7 +75,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		if (sessionId <= 0L) throw IllegalArgumentException("Argument $ARG_SESSION_ID must be set with valid value!")
 
-		viewModel = ViewModelProviders.of(this)[ViewModel::class.java].also {
+		viewModel = ViewModelProvider(this)[ViewModel::class.java].also {
 			launch(Dispatchers.Default) {
 				it.initialize(this@StatsDetailActivity, sessionId)
 			}
@@ -101,9 +101,18 @@ class StatsDetailActivity : DetailActivity() {
 			} else {
 				add_item_layout.visibility = View.VISIBLE
 				header_root.updatePadding(top = 16.dp)
-				button_change_activity.setOnClickListener { showActivitySelectionDialog() }
+				findViewById<View>(R.id.button_change_activity).setOnClickListener { showActivitySelectionDialog() }
+				findViewById<View>(R.id.button_remove_session).setOnClickListener { removeSession() }
 			}
 		})
+	}
+
+	private fun removeSession() {
+		launch(Dispatchers.Default) {
+			val dao = AppDatabase.getDatabase(this@StatsDetailActivity).sessionDao()
+			dao.delete(viewModel.session.requireValue)
+			finish()
+		}
 	}
 
 	private fun showActivitySelectionDialog() {

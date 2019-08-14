@@ -6,6 +6,7 @@ import androidx.room.Transaction
 import com.adsamcik.signalcollector.common.data.Location
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
+import com.adsamcik.signalcollector.common.database.data.DateRange
 
 @Dao
 interface LocationDataDao : BaseDao<DatabaseLocation> {
@@ -36,6 +37,8 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	@Query("SELECT COUNT(*) FROM location_data")
 	fun count(): Long
 
+	@Query("SELECT MIN(time) as start, MAX(time) as endInclusive from location_data")
+	fun range(): DateRange
 
 	@Transaction
 	fun newLocations(list: List<Pair<Double, Double>>, time: Long, accuracy: Double): List<Pair<Double, Double>> {

@@ -1,116 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:animateLayoutChanges="true"
-    android:focusable="true"
-    android:focusableInTouchMode="true">
+    android:layout_height="match_parent">
 
     <FrameLayout
         android:id="@+id/container_map"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <FrameLayout
-        android:id="@+id/map_menu_parent"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginStart="@dimen/activity_horizontal_margin"
-        android:layout_marginTop="39dp"
-        android:layout_marginEnd="@dimen/activity_horizontal_margin"
-        android:layout_marginBottom="64dp"
-        android:clipChildren="false"
-        android:clipToPadding="false"
-        android:gravity="bottom"
-        android:orientation="vertical"
-        android:translationZ="3dp"
-        app:layout_constraintBottom_toBottomOf="@id/map_ui_parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="@id/map_ui_parent"
-        tools:ignore="UselessLeaf" />
-
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/map_ui_parent"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="140dp"
-        android:clipChildren="false"
-        android:clipToPadding="false"
-        android:gravity="bottom"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/background_map_menu"
+        android:clickable="true"
+        android:focusable="true"
         android:orientation="vertical"
-        android:padding="@dimen/activity_horizontal_margin"
-        android:translationZ="3dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:paddingStart="@dimen/content_padding"
+        android:paddingEnd="@dimen/content_padding"
+        android:visibility="invisible"
+        app:behavior_hideable="false"
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+        tools:behavior_peekHeight="94dp">
 
-        <com.adsamcik.draggable.DraggableImageButton
-            android:id="@+id/map_menu_button"
-            android:layout_width="match_parent"
-            android:layout_height="24dp"
-            android:background="@drawable/background_map_menu"
-            android:elevation="4dp"
-            android:src="@drawable/ic_arrow_upward_black"
-            app:axis="Y"
-            app:interpolator="Decelerate"
-            app:targetAnchor="top"
-            app:targetTranslationZ="4dp"
-            app:targetView="@id/map_ui_parent" />
+        <include layout="@layout/layout_map_bottom_sheet_peek" />
 
-        <LinearLayout
-            android:id="@+id/layout_map_controls"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@color/color_primary"
-            android:elevation="8dp"
-            android:orientation="horizontal">
+        <Space
+            android:id="@+id/navbar_space"
+            android:layout_width="1dp"
+            android:layout_height="0dp" />
 
-            <androidx.appcompat.widget.AppCompatEditText
-                android:id="@+id/edittext_map_search"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:hint="@string/map_search"
-                android:imeOptions="actionSearch"
-                android:importantForAutofill="no"
-                android:inputType="text|textNoSuggestions"
-                android:paddingStart="@dimen/activity_horizontal_margin"
-                android:paddingTop="8dp"
-                android:paddingEnd="56dp"
-                android:paddingBottom="8dp"
-                android:textColor="?android:textColorPrimary"
-                android:textColorHint="?android:textColorSecondary"
-                android:textSize="16sp"
-                tools:targetApi="28" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/button_map_date_range"
-                android:layout_width="@dimen/map_searchbar_button_size"
-                android:layout_height="@dimen/map_searchbar_button_size"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/description_my_location"
-                app:srcCompat="@drawable/ic_date_range_black_24dp" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/button_map_my_location"
-                android:layout_width="@dimen/map_searchbar_button_size"
-                android:layout_height="@dimen/map_searchbar_button_size"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/description_my_location"
-                app:srcCompat="@drawable/ic_gps_not_fixed_black_24dp" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/button_map_search"
-                android:layout_width="@dimen/map_searchbar_button_size"
-                android:layout_height="@dimen/map_searchbar_button_size"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/description_map_search"
-                app:srcCompat="@drawable/ic_search_black_24dp" />
-        </LinearLayout>
+        <include layout="@layout/layout_map_bottom_sheet_content" />
     </androidx.appcompat.widget.LinearLayoutCompat>
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

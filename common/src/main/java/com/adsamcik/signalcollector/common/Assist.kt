@@ -229,4 +229,10 @@ object Assist {
 	fun getPressedState(pressedColor: Int): ColorStateList {
 		return ColorStateList(arrayOf(intArrayOf()), intArrayOf(pressedColor))
 	}
+
+	fun calculateNoOfColumns(context: Context, columnWidthDp: Float): Int {
+		val displayMetrics = context.resources.displayMetrics
+		val screenWidthDp = displayMetrics.widthPixels / displayMetrics.density
+		return (screenWidthDp / columnWidthDp + 0.5).toInt()
+	}
 }
