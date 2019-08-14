@@ -29,7 +29,10 @@ abstract class SimpleFilterableAdapter<DataType, FilterType>(context: Context,
 		val view = mInflater.inflate(resource, parent, false)
 		val viewHolder = ViewHolder(view, getTitleView(view))
 
-		view.setOnClickListener { onItemClickListener?.invoke(viewHolder.adapterPosition) }
+		view.setOnClickListener {
+			val position = viewHolder.adapterPosition
+			onItemClickListener?.invoke(position, getItem(position))
+		}
 		return viewHolder
 	}
 

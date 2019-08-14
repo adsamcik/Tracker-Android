@@ -29,6 +29,7 @@ import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
+import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import com.adsamcik.signalcollector.map.layer.logic.*
 import com.afollestad.materialdialogs.MaterialDialog
 import com.google.android.gms.maps.GoogleMap
@@ -122,9 +123,11 @@ internal class MapSheetController(context: Context,
 
 	init {
 		rootLayout.findViewById<View>(R.id.map_sheet_drag_area).setOnClickListener {
-			when (sheetBehavior.state) {
-				BottomSheetBehavior.STATE_HALF_EXPANDED, BottomSheetBehavior.STATE_COLLAPSED -> sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
-				BottomSheetBehavior.STATE_EXPANDED -> sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+			sheetBehavior.state = when (sheetBehavior.state) {
+				BottomSheetBehavior.STATE_COLLAPSED -> BottomSheetBehavior.STATE_HALF_EXPANDED
+				BottomSheetBehavior.STATE_HALF_EXPANDED -> BottomSheetBehavior.STATE_EXPANDED
+				BottomSheetBehavior.STATE_EXPANDED -> BottomSheetBehavior.STATE_COLLAPSED
+				else -> throw IllegalStateException()
 			}
 		}
 	}
@@ -203,6 +206,12 @@ internal class MapSheetController(context: Context,
 		rootLayout.findViewById<View>(R.id.button_map_date_range).setOnClickListener {
 			launch(Dispatchers.Default) {
 				val availableRange = mapController.availableDateRange
+
+				if (availableRange.isEmpty()) {
+					SnackMaker(rootLayout).addMessage(R.string.map_layer_no_data)
+					return@launch
+				}
+
 				val selectedRange = mapController.dateRange.coerceIn(availableRange)
 				/*val rangeFrom = createCalendarWithTime(availableRange.first)
 				val rangeTo = createCalendarWithTime(availableRange.last)*/
@@ -272,7 +281,16 @@ internal class MapSheetController(context: Context,
 			addItemDecoration(SimpleMarginDecoration(0, 4.dp, 0, 0))
 			adapter = MapFilterableAdapter(context, R.layout.layout_layer_icon) { context.getString(it.data.nameRes) }.apply {
 				addAll(mapLayerList)
+				onItemClickListener = this@MapSheetController::onItemClicked
 			}
+		}
+	}
+
+	private fun onItemClicked(position: Int, item: MapLayerLogic) {
+		mapController.setLayer(rootLayout.context, item)
+
+		if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
+			sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 		}
 	}
 

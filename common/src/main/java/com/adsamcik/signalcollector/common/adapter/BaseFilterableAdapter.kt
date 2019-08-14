@@ -32,7 +32,7 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 
 	protected var filterObject: FilterType? = null
 
-	var onItemClickListener: ((position: Int) -> Unit)? = null
+	var onItemClickListener: ((position: Int, item: DataType) -> Unit)? = null
 
 	val filteredCount: Int
 		get() = mDisplayCollection.size
