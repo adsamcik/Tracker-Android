@@ -1,13 +1,11 @@
 package com.adsamcik.signalcollector.map.heatmap.creators
 
 import android.content.Context
-import android.graphics.Color
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.signalcollector.common.style.ColorConstants
 import com.adsamcik.signalcollector.map.heatmap.HeatmapColorScheme
 import com.adsamcik.signalcollector.map.heatmap.HeatmapStamp
-import kotlin.math.max
 import kotlin.math.pow
 
 internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {

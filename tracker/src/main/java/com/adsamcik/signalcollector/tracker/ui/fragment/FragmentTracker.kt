@@ -22,7 +22,10 @@ import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.*
-import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.observe
+import com.adsamcik.signalcollector.common.extension.requireParent
+import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration

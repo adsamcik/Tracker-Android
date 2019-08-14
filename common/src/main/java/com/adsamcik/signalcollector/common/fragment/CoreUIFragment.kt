@@ -9,9 +9,6 @@ import com.adsamcik.signalcollector.common.extension.hasLocationPermission
 import com.adsamcik.signalcollector.common.style.StyleController
 import com.adsamcik.signalcollector.common.style.StyleManager
 import com.google.android.gms.location.LocationServices
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlin.coroutines.CoroutineContext
 
 abstract class CoreUIFragment : CoreFragment() {
 	private var themeLocationRequestCode = 4513

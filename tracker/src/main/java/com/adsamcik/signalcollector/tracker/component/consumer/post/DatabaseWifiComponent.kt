@@ -1,10 +1,11 @@
 package com.adsamcik.signalcollector.tracker.component.consumer.post
 
 import android.content.Context
-import com.adsamcik.signalcollector.common.data.*
+import com.adsamcik.signalcollector.common.data.CollectionData
+import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.WifiDataDao
-import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
 import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequirement

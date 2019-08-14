@@ -7,7 +7,6 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
-import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DateRange
 import com.adsamcik.signalcollector.common.database.data.TrackerSessionSummary
 import com.adsamcik.signalcollector.common.database.data.TrackerSessionTimeSummary

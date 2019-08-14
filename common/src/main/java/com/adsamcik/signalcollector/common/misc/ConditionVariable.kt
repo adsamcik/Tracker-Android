@@ -1,6 +1,9 @@
 package com.adsamcik.signalcollector.common.misc
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -11,7 +14,7 @@ import kotlin.coroutines.CoroutineContext
 typealias ConditionChecker<T> = (T) -> Boolean
 typealias JobFunction = suspend CoroutineScope.() -> Unit
 
-open class ConditionVariable<T>(default: T): CoroutineScope {
+open class ConditionVariable<T>(default: T) : CoroutineScope {
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job

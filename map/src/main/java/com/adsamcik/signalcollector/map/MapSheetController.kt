@@ -243,7 +243,7 @@ internal class MapSheetController(context: Context,
 					}
 				}
 			}
-			
+
 		}
 		rootLayout.button_map_my_location.setOnClickListener {
 			locationListener.onMyPositionButtonClick(it as AppCompatImageButton)

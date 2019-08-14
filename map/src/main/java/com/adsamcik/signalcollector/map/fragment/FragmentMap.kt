@@ -22,12 +22,10 @@ import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.commonmap.ColorMap
 import com.adsamcik.signalcollector.map.*
-import com.adsamcik.signalcollector.map.layer.MapLayerLogic
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.android.synthetic.main.fragment_map.*
 
 @Suppress("unused")

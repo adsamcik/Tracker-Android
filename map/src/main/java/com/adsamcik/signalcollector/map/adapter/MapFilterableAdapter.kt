@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.View
 import android.widget.TextView
 import androidx.annotation.LayoutRes
-import androidx.appcompat.widget.AppCompatTextView
 import com.adsamcik.signalcollector.common.adapter.BaseFilterableAdapter
 import com.adsamcik.signalcollector.common.adapter.SimpleFilterableAdapter
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds

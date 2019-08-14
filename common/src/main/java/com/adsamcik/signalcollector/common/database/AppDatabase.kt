@@ -1,7 +1,6 @@
 package com.adsamcik.signalcollector.common.database
 
 import android.content.Context
-import android.telephony.CellLocation
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import androidx.room.Database

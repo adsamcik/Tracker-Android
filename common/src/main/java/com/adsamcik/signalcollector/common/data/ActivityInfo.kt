@@ -5,7 +5,6 @@ import android.os.Parcel
 import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
-import androidx.room.TypeConverter
 import com.adsamcik.signalcollector.common.R
 
 /**
