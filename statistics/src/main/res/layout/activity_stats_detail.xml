@@ -13,6 +13,7 @@
         android:id="@+id/add_item_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:layout_gravity="bottom|center_horizontal"
         android:background="#FFFFFF"
         android:visibility="gone">
@@ -23,7 +24,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="@dimen/content_padding"
-            tools:text="Change activity" />
+            android:text="@string/change_activity" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/button_remove_session"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="@dimen/content_padding"
+            android:text="@string/remove_session" />
+
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
