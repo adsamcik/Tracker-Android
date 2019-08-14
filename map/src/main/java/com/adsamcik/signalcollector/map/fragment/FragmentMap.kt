@@ -146,7 +146,7 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		val mapEventListener = MapEventListener(map)
 		this.mapEventListener = mapEventListener
 
-		val mapController = MapController(context, BottomSheetBehavior.from(map_ui_parent).peekHeight, map)
+		val mapController = MapController(context, map)
 		val locationListener = UpdateLocationListener(context, map, mapEventListener)
 
 		this.mapController = mapController

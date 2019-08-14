@@ -11,7 +11,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.android.synthetic.main.fragment_map.*
 
-internal class MapController(context: Context, paddingBottom: Int, val map: GoogleMap) {
+internal class MapController(context: Context, val map: GoogleMap) {
 	private var activeLayer: MapLayerLogic = NoMapLayerLogic()
 	private var quality: Float = 1f
 
@@ -57,7 +57,6 @@ internal class MapController(context: Context, paddingBottom: Int, val map: Goog
 		uiSettings.isIndoorLevelPickerEnabled = false
 		uiSettings.isCompassEnabled = false
 		uiSettings.isMyLocationButtonEnabled = false
-		map.setPadding(0, 0, 0, paddingBottom)
 
 		map.setMaxZoomPreference(MAX_ZOOM)
 

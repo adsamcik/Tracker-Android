@@ -5,12 +5,9 @@ import android.content.Context
 import android.location.Geocoder
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
 import android.widget.Space
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
@@ -19,7 +16,10 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.dialog.dateTimeRangePicker
-import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.extension.coerceIn
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.marginBottom
+import com.adsamcik.signalcollector.common.extension.requireParent
 import com.adsamcik.signalcollector.common.misc.Int2
 import com.adsamcik.signalcollector.common.misc.SnackMaker
 import com.adsamcik.signalcollector.common.misc.keyboard.KeyboardListener
@@ -43,13 +43,14 @@ import kotlinx.coroutines.launch
 import java.io.IOException
 import java.util.*
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.roundToInt
 
 internal class MapSheetController(context: Context,
-                         private val map: GoogleMap,
-                         private val rootLayout: ViewGroup,
-                         private val mapController: MapController,
-                         private val locationListener: UpdateLocationListener,
-                         private val mapEventListener: MapEventListener) : CoroutineScope, GoogleMap.OnCameraIdleListener {
+                                  private val map: GoogleMap,
+                                  private val rootLayout: ViewGroup,
+                                  private val mapController: MapController,
+                                  private val locationListener: UpdateLocationListener,
+                                  private val mapEventListener: MapEventListener) : CoroutineScope, GoogleMap.OnCameraIdleListener {
 	private val job = SupervisorJob()
 
 	override val coroutineContext: CoroutineContext
@@ -89,21 +90,30 @@ internal class MapSheetController(context: Context,
 		//todo add dynamic navbar height
 		peekHeight = 80.dp + navbarSpace.layoutParams.height + rootLayout.layout_map_controls.marginBottom
 		isFitToContents = false
-		setExpandedOffset(120.dp)
+		val expandedOffset = 120.dp
+		setExpandedOffset(expandedOffset)
 		state = BottomSheetBehavior.STATE_COLLAPSED
 		setBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
 			override fun onSlide(bottomSheet: View, slideOffset: Float) {
-
+				if (slideOffset in 0f..halfExpandedRatio) {
+					val parentHeight = (bottomSheet.parent as View).height
+					val maxHeightDifference = parentHeight - expandedOffset - peekHeight
+					map.setPadding(0, 0, 0, (peekHeight + slideOffset * maxHeightDifference).roundToInt())
+					
+					val progress = slideOffset / halfExpandedRatio
+					navbarSpace.updateLayoutParams {
+						height = ((1 - progress) * navbarDim.y).roundToInt()
+					}
+				}
 			}
 
 			@SuppressLint("SwitchIntDef")
 			override fun onStateChanged(bottomSheet: View, newState: Int) {
-				//todo animate this
-				when (newState) {
+				/*when (newState) {
 					BottomSheetBehavior.STATE_HALF_EXPANDED -> navbarSpace.isGone = true
 					BottomSheetBehavior.STATE_EXPANDED -> navbarSpace.isGone = true
 					BottomSheetBehavior.STATE_COLLAPSED -> navbarSpace.isGone = false
-				}
+				}*/
 			}
 
 		})
@@ -258,6 +268,10 @@ internal class MapSheetController(context: Context,
 				addAll(mapLayerList)
 			}
 		}
+	}
+
+	init {
+		map.setPadding(0, 0, 0, sheetBehavior.peekHeight)
 	}
 
 	/**
