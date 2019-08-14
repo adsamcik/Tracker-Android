@@ -14,6 +14,7 @@ import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.signalcollector.common.Assist
+import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.dialog.dateTimeRangePicker
 import com.adsamcik.signalcollector.common.extension.coerceIn
 import com.adsamcik.signalcollector.common.extension.dp
@@ -221,7 +222,7 @@ internal class MapSheetController(context: Context,
 						SnackMaker(it.requireParent<CoordinatorLayout>()).addMessage(R.string.map_layer_no_data)
 					} else {
 						MaterialDialog(it.context).dateTimeRangePicker(availableRange, selectedRange) {
-							mapController.dateRange = it
+							mapController.dateRange = it.first..it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
 						}.show()
 
 						/*val constraints = CalendarConstraints.Builder()
@@ -242,25 +243,7 @@ internal class MapSheetController(context: Context,
 					}
 				}
 			}
-
-
-			/*DateTimeRangeDialog().apply {
-				arguments = Bundle().apply {
-					putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
-						val dateRange = this@FragmentMap.dateRange
-						if (dateRange != null) {
-							setDateParams(dateRange.start, dateRange.endInclusive)
-						}
-
-						setDisplayOptions(ACTIVATE_DATE_PICKER)
-						setCanPickDateRange(true)
-					})
-				}
-				successCallback = { range ->
-					this@FragmentMap.dateRange = range
-					mapController?.setDateRange(range)
-				}
-			}.show(fragmentManager, "Map date range dialog")*/
+			
 		}
 		rootLayout.button_map_my_location.setOnClickListener {
 			locationListener.onMyPositionButtonClick(it as AppCompatImageButton)

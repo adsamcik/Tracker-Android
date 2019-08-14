@@ -61,6 +61,8 @@
     <string name="settings_export_dialog_from">From</string>
     <string name="settings_export_dialog_to">To</string>
 
+    <string name="settings_export_no_data">No data to export</string>
+
     <string name="settings_import_title">Import</string>
     <string name="settings_import_key" translatable="false">import</string>
     <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s)</string>
