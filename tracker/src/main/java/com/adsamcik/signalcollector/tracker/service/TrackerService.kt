@@ -43,6 +43,7 @@ import com.adsamcik.signalcollector.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.signalcollector.tracker.locker.TrackerLocker
 import com.adsamcik.signalcollector.tracker.shortcut.Shortcuts
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -225,24 +226,22 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
-	override fun onUpdate(tempData: MutableCollectionTempData) {
-		launch {
-			componentMutex.lock()
+	override fun onUpdate(tempData: MutableCollectionTempData): Job = launch {
+		componentMutex.lock()
 
-			if (!isServiceRunning.value) {
-				componentMutex.unlock()
-				return@launch
-			}
+		if (!isServiceRunning.value) {
+			componentMutex.unlock()
+			return@launch
+		}
 
-			wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
-			try {
-				updateData(tempData)
-			} catch (e: Exception) {
-				Reporter.report(e)
-			} finally {
-				wakeLock.release()
-				componentMutex.unlock()
-			}
+		wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
+		try {
+			updateData(tempData)
+		} catch (e: Exception) {
+			Reporter.report(e)
+		} finally {
+			wakeLock.release()
+			componentMutex.unlock()
 		}
 	}
 
@@ -279,10 +278,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	override fun onDestroy() {
 		super.onDestroy()
-		val context = this
 		stopForeground(true)
 		onDestroyServiceMetaData()
 
+		val tempData = MutableCollectionTempData(Time.nowMillis, Time.elapsedRealtimeNanos)
+		onUpdate(tempData).invokeOnCompletion {
+			onDestroyCleanup()
+		}
+	}
+
+	private fun onDestroyCleanup() {
+		val context = this
 		launch(Dispatchers.Main) {
 			componentMutex.withLock {
 				timerComponent.onDisable(context)

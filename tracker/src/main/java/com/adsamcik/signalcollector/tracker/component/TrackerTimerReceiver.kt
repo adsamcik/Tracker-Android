@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.tracker.component
 import androidx.annotation.MainThread
 import androidx.annotation.StringRes
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
+import kotlinx.coroutines.Job
 
 internal interface TrackerTimerReceiver {
 	/**
@@ -10,7 +11,7 @@ internal interface TrackerTimerReceiver {
 	 * Executed on main thread so longer running tasks should be run on worker thread.
 	 */
 	@MainThread
-	fun onUpdate(tempData: MutableCollectionTempData)
+	fun onUpdate(tempData: MutableCollectionTempData): Job
 
 	/**
 	 * Called when error occurs.
