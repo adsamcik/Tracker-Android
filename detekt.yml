@@ -249,8 +249,9 @@ formatting:
   PackageName:
     active: true
     autoCorrect: true
+## Cannot use because tab indentation is not supported
   ParameterListWrapping:
-    active: true
+    active: false
     autoCorrect: true
     indentSize: 2
   SpacingAroundColon:
