@@ -454,13 +454,13 @@ style:
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
     ignoreNumbers: '-1,0,1,2'
     ignoreHashCodeFunction: true
-    ignorePropertyDeclaration: false
+    ignorePropertyDeclaration: true
     ignoreConstantDeclaration: true
     ignoreCompanionObjectPropertyDeclaration: true
-    ignoreAnnotation: false
+    ignoreAnnotation: true
     ignoreNamedArgument: true
-    ignoreEnums: false
-    ignoreRanges: false
+    ignoreEnums: true
+    ignoreRanges: true
   MandatoryBracesIfStatements:
     active: true
   MaxLineLength:

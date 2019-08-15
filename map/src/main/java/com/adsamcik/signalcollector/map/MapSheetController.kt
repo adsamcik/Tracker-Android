@@ -95,9 +95,9 @@ internal class MapSheetController(
 
 	private val sheetBehavior = BottomSheetBehavior.from(rootLayout).apply {
 		// todo add dynamic navbar height
-		peekHeight = 80.dp + navbarSpace.layoutParams.height + rootLayout.layout_map_controls.marginBottom
+		peekHeight = PEEK_CONTENT_HEIGHT_DP.dp + navbarSpace.layoutParams.height + rootLayout.layout_map_controls.marginBottom
 		isFitToContents = false
-		val expandedOffset = 120.dp
+		val expandedOffset = EXPANDED_TOP_OFFSET_DP.dp
 		setExpandedOffset(expandedOffset)
 		state = BottomSheetBehavior.STATE_COLLAPSED
 		setBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
@@ -144,44 +144,19 @@ internal class MapSheetController(
 	 * Keyboard listener
 	 * Is object variable so it can be unsubscribed when map is closed
 	 */
-	private val keyboardListener: KeyboardListener = { isOpen, keyboardHeight ->
+	private val keyboardListener: KeyboardListener = { isOpen, _ ->
 		// map_menu_button is null in some rare cases. I am not entirely sure when it happens,
 		// but it seems to be quite rare so checking for null is probably OK atm
 		// check payloads
 		updateIconList(isOpen)
 		when (isOpen) {
 			true -> {
-				/*if (position == NavBarPosition.BOTTOM) {
-					val top = searchOriginalMargin +
-							keyboardHeight +
-							map_menu_draggable.height +
-							edittext_map_search.paddingBottom +
-							edittext_map_search.paddingTop + edittext_map_search.height
-
-					//map_ui_parent.marginBottom = searchOriginalMargin + keyboardHeight
-					//map?.setPadding(map_ui_parent.paddingLeft, 0, 0, top)
-				}*/
 				stateBeforeKeyboard = sheetBehavior.state
 				sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
 			}
 			false -> {
-				val baseBottomMarginPx = 32.dp
-				if (navbarPosition == NavBarPosition.BOTTOM) {
-					// map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + baseBottomMarginPx
-					map.setPadding(0, 0, 0, navbarDim.y)
-				} else {
-					// map_ui_parent.marginBottom = searchOriginalMargin + baseBottomMarginPx
-					map.setPadding(0, 0, 0, 0)
-				}
 				sheetBehavior.state = stateBeforeKeyboard
 			}
-
-			// Update map_menu_button position after UI has been redrawn
-			/*map_menu_button.post {
-				if (map_menu_button != null) {
-					map_menu_button.moveToState(map_menu_button.state, false)
-				}
-			}*/
 		}
 	}
 
@@ -277,7 +252,7 @@ internal class MapSheetController(
 		}
 	}
 
-	private fun onItemClicked(position: Int, item: MapLayerLogic) {
+	private fun onItemClicked(@Suppress("UNUSED") position: Int, item: MapLayerLogic) {
 		mapController.setLayer(rootLayout.context, item)
 
 		if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
@@ -335,5 +310,8 @@ internal class MapSheetController(
 
 	companion object {
 		private const val ANIMATE_TO_ZOOM = 13f
+
+		private const val EXPANDED_TOP_OFFSET_DP = 120
+		private const val PEEK_CONTENT_HEIGHT_DP = 80
 	}
 }
