@@ -19,7 +19,7 @@ android {
 	compileSdkVersion(Android.compile)
 	buildToolsVersion(Android.buildTools)
 	defaultConfig {
-		applicationId = "com.adsamcik.tracker"
+		applicationId = "com.adsamcik.signalcollector"
 		minSdkVersion(Android.min)
 		targetSdkVersion(Android.target)
 		versionCode = 310
