@@ -12,17 +12,19 @@ import com.adsamcik.signalcollector.common.extension.dp
 /**
  * Implementation of [RecyclerView.ItemDecoration] for [CardListAdapter]. It will add uniform margin to all sides.
  */
-class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
-                             private val horizontalMargin: Int = 16.dp,
-                             private val firstLineMargin: Int = 16.dp,
-                             private val lastLineMargin: Int = 16.dp
+class SimpleMarginDecoration(
+		private val verticalMargin: Int = 16.dp,
+		private val horizontalMargin: Int = 16.dp,
+		private val firstLineMargin: Int = 16.dp,
+		private val lastLineMargin: Int = 16.dp
 ) : RecyclerView.ItemDecoration() {
 
 
-	private fun setOffsetsHorizontal(outRect: Rect,
-	                                 parent: RecyclerView,
-	                                 position: Int,
-	                                 columnCount: Int
+	private fun setOffsetsHorizontal(
+			outRect: Rect,
+			parent: RecyclerView,
+			position: Int,
+			columnCount: Int
 	) {
 		with(outRect) {
 			left = if (position < columnCount) {
@@ -39,10 +41,11 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
 		}
 	}
 
-	private fun setOffsetsVertical(outRect: Rect,
-	                               parent: RecyclerView,
-	                               position: Int,
-	                               columnCount: Int
+	private fun setOffsetsVertical(
+			outRect: Rect,
+			parent: RecyclerView,
+			position: Int,
+			columnCount: Int
 	) {
 		with(outRect) {
 			top = if (position < columnCount) {
@@ -59,10 +62,11 @@ class SimpleMarginDecoration(private val verticalMargin: Int = 16.dp,
 		}
 	}
 
-	override fun getItemOffsets(outRect: Rect,
-	                            view: View,
-	                            parent: RecyclerView,
-	                            state: RecyclerView.State
+	override fun getItemOffsets(
+			outRect: Rect,
+			view: View,
+			parent: RecyclerView,
+			state: RecyclerView.State
 	) {
 
 		val columnCount: Int

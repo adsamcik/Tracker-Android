@@ -21,7 +21,7 @@ import com.squareup.moshi.JsonClass
 /**
  * Data class that contains all the information about Cell.
  * It works universally with every supported cell technology
- * Supported technologies are GSM, CDMA, WCDMA and LTE
+ * Supported technologies are GSM, CDMA, WCDMA, LTE and NR
  */
 @Suppress("DEPRECATION")
 @JsonClass(generateAdapter = true)
@@ -31,8 +31,7 @@ data class CellInfo
  *
  * @param type         [type]
  * @param cellId           [cellId]
- * @param mcc          [mcc]
- * @param mnc          [mnc]
+ * @param networkOperator          [networkOperator]
  * @param dbm          [dbm]
  * @param asu          [asu]
  * @param level        [CellInfo.level]
@@ -78,7 +77,8 @@ data class CellInfo
 			parcel.readInt(),
 			parcel.readInt())
 
-	constructor(networkOperator: NetworkOperator, type: CellType, cellId: Long, asu: Int) : this(networkOperator, cellId, type, asu, 0, 0)
+	constructor(networkOperator: NetworkOperator, type: CellType, cellId: Long, asu: Int)
+			: this(networkOperator, cellId, type, asu, 0, 0)
 
 
 	/**
@@ -88,8 +88,15 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityGsm, signalStrength: CellSignalStrengthGsm, networkOperator: NetworkOperator) :
-			this(networkOperator, identity.cid.toLong(), CellType.GSM, signalStrength.asuLevel, signalStrength.dbm, signalStrength.level)
+	constructor(identity: CellIdentityGsm,
+	            signalStrength: CellSignalStrengthGsm,
+	            networkOperator: NetworkOperator)
+			: this(networkOperator,
+			identity.cid.toLong(),
+			CellType.GSM,
+			signalStrength.asuLevel,
+			signalStrength.dbm,
+			signalStrength.level)
 
 
 	/**
@@ -99,8 +106,15 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityCdma, signalStrength: CellSignalStrengthCdma, networkOperator: NetworkOperator) :
-			this(networkOperator, identity.basestationId.toLong(), CellType.CDMA, signalStrength.asuLevel, signalStrength.dbm, signalStrength.level)
+	constructor(identity: CellIdentityCdma,
+	            signalStrength: CellSignalStrengthCdma,
+	            networkOperator: NetworkOperator)
+			: this(networkOperator,
+			identity.basestationId.toLong(),
+			CellType.CDMA,
+			signalStrength.asuLevel,
+			signalStrength.dbm,
+			signalStrength.level)
 
 	/**
 	 * Creates new instance of CellInfo from WCDMA cell info
@@ -109,8 +123,15 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityWcdma, signalStrength: CellSignalStrengthWcdma, networkOperator: NetworkOperator) :
-			this(networkOperator, identity.cid.toLong(), CellType.CDMA, signalStrength.asuLevel, signalStrength.dbm, signalStrength.level)
+	constructor(identity: CellIdentityWcdma,
+	            signalStrength: CellSignalStrengthWcdma,
+	            networkOperator: NetworkOperator)
+			: this(networkOperator,
+			identity.cid.toLong(),
+			CellType.CDMA,
+			signalStrength.asuLevel,
+			signalStrength.dbm,
+			signalStrength.level)
 
 
 	/**
@@ -120,8 +141,15 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityLte, signalStrength: CellSignalStrengthLte, networkOperator: NetworkOperator) :
-			this(networkOperator, identity.ci.toLong(), CellType.CDMA, signalStrength.asuLevel, signalStrength.dbm, signalStrength.level)
+	constructor(identity: CellIdentityLte,
+	            signalStrength: CellSignalStrengthLte,
+	            networkOperator: NetworkOperator)
+			: this(networkOperator,
+			identity.ci.toLong(),
+			CellType.CDMA,
+			signalStrength.asuLevel,
+			signalStrength.dbm,
+			signalStrength.level)
 
 
 	/**
@@ -133,8 +161,15 @@ data class CellInfo
 	 */
 
 	@RequiresApi(29)
-	constructor(identity: CellIdentityNr, signalStrength: CellSignalStrengthNr, networkOperator: NetworkOperator) :
-			this(networkOperator, identity.nci, CellType.CDMA, signalStrength.asuLevel, signalStrength.dbm, signalStrength.level)
+	constructor(identity: CellIdentityNr,
+	            signalStrength: CellSignalStrengthNr,
+	            networkOperator: NetworkOperator)
+			: this(networkOperator,
+			identity.nci,
+			CellType.CDMA,
+			signalStrength.asuLevel,
+			signalStrength.dbm,
+			signalStrength.level)
 
 	override fun writeToParcel(parcel: Parcel, flags: Int) {
 		parcel.writeParcelable(networkOperator, flags)

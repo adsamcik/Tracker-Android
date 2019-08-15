@@ -5,9 +5,9 @@ import com.adsamcik.signalcollector.common.Time
 import java.util.*
 
 fun createCalendarWithDate(year: Int, monthOfYear: Int, dayOfMonth: Int): Calendar {
-	return if (Build.VERSION.SDK_INT >= 26)
+	return if (Build.VERSION.SDK_INT >= 26) {
 		Calendar.Builder().setDate(year, monthOfYear, dayOfMonth).build()
-	else {
+	} else {
 		val cal = Calendar.getInstance()
 		cal.set(year, monthOfYear, dayOfMonth, 0, 0, 0)
 		cal
@@ -15,9 +15,9 @@ fun createCalendarWithDate(year: Int, monthOfYear: Int, dayOfMonth: Int): Calend
 }
 
 fun createCalendarWithTime(time: Long): Calendar {
-	return if (Build.VERSION.SDK_INT >= 26)
+	return if (Build.VERSION.SDK_INT >= 26) {
 		Calendar.Builder().setInstant(time).build()
-	else {
+	} else {
 		Date(time).toCalendar()
 	}
 }
@@ -29,7 +29,8 @@ fun Date.toCalendar(): Calendar {
 }
 
 /**
- * Rounds calendar to date by settings [Calendar.HOUR_OF_DAY], [Calendar.MINUTE], [Calendar.SECOND], [Calendar.MILLISECOND] to 0
+ * Rounds calendar to date by settings [Calendar.HOUR_OF_DAY], [Calendar.MINUTE],
+ * [Calendar.SECOND], [Calendar.MILLISECOND] to 0
  */
 fun Calendar.roundToDate() {
 	set(Calendar.HOUR_OF_DAY, 0)

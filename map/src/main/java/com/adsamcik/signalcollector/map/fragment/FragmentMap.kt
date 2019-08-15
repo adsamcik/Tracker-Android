@@ -64,10 +64,10 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 	 * @return i
 	 * s permission available atm
 	 */
-	private fun checkLocationPermission(context: Context, request: Boolean): Boolean {
+	private fun checkLocationPermission(context: Context): Boolean {
 		if (context.hasLocationPermission) {
 			return true
-		} else if (request && Build.VERSION.SDK_INT >= 23) {
+		} else if (Build.VERSION.SDK_INT >= 23) {
 			activity?.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_LOCATION_CODE)
 		}
 		return false
@@ -113,7 +113,7 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 		val activity = requireActivity()
-		hasPermissions = checkLocationPermission(activity, true)
+		hasPermissions = checkLocationPermission(activity)
 		val fragmentView: View
 		if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
