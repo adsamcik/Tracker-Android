@@ -8,7 +8,10 @@ import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.Location
 
 @Entity(tableName = "location_data", indices = [Index("lat"), Index("lon"), Index("time")])
-data class DatabaseLocation(@Embedded val location: Location, @Embedded val activityInfo: ActivityInfo) {
+data class DatabaseLocation(
+		@Embedded val location: Location,
+		@Embedded val activityInfo: ActivityInfo
+) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Int = 0
 

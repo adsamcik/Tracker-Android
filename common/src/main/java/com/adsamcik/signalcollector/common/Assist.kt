@@ -77,9 +77,15 @@ object Assist {
 		// navigation bar on the right
 		if (appUsableSize.x < realScreenSize.x) {
 			//App supports only phones so there should be no scenario where orientation is 0 or 180
-			return Pair(
-					if (rotation == Surface.ROTATION_90 || Build.VERSION.SDK_INT < 26) NavBarPosition.RIGHT else NavBarPosition.LEFT,
-					Int2(realScreenSize.x - appUsableSize.x, appUsableSize.y))
+			val position = if (rotation == Surface.ROTATION_90 || Build.VERSION.SDK_INT < 26) {
+				NavBarPosition.RIGHT
+			} else {
+				NavBarPosition.LEFT
+			}
+
+			val dimension = Int2(realScreenSize.x - appUsableSize.x, appUsableSize.y)
+
+			return Pair(position, dimension)
 		}
 
 		// navigation bar at the bottom
@@ -123,7 +129,12 @@ object Assist {
 		val minute = coord.toInt()
 		coord = (coord - minute) * 60
 		val second = coord.toInt()
-		return String.format(Locale.ENGLISH, "%02d", degree) + "\u00B0 " + String.format(Locale.ENGLISH, "%02d", minute) + "' " + String.format(Locale.ENGLISH, "%02d", second) + "\""
+		return String.format(Locale.ENGLISH, "%02d", degree) +
+				"\u00B0 " +
+				String.format(Locale.ENGLISH, "%02d", minute) +
+				"' " +
+				String.format(Locale.ENGLISH, "%02d", second) +
+				"\""
 	}
 
 	/**

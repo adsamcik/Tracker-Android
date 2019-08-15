@@ -62,9 +62,9 @@ open class TrackerSession(
 		protected set
 
 	companion object {
-		const val RECEIVER_SESSION_STARTED = "tracker.intent.action.SESSION_START"
-		const val RECEIVER_SESSION_ENDED = "tracker.intent.action.SESSION_END"
-		const val RECEIVER_SESSION_ID = "id"
+		const val RECEIVER_SESSION_STARTED: String = "tracker.intent.action.SESSION_START"
+		const val RECEIVER_SESSION_ENDED: String = "tracker.intent.action.SESSION_END"
+		const val RECEIVER_SESSION_ID: String = "id"
 	}
 }
 

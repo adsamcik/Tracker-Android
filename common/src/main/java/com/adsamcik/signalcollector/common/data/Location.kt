@@ -55,7 +55,15 @@ data class Location(
 			if (Build.VERSION.SDK_INT >= 26 && location.hasSpeedAccuracy()) location.speedAccuracyMetersPerSecond else null)
 
 
-	constructor(location: Location) : this(location.time, location.latitude, location.longitude, location.altitude, location.horizontalAccuracy, location.verticalAccuracy, location.speed, location.speedAccuracy)
+	constructor(location: Location)
+			: this(location.time,
+			location.latitude,
+			location.longitude,
+			location.altitude,
+			location.horizontalAccuracy,
+			location.verticalAccuracy,
+			location.speed,
+			location.speedAccuracy)
 
 
 	/// <summary>
@@ -166,11 +174,14 @@ data class Location(
 			return sqrt(altitudeDifference * altitudeDifference + latLonDistance * latLonDistance)
 		}
 
-		private fun calculateLineOfLongitudeM(latitude: Double) = kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
+		private fun calculateLineOfLongitudeM(latitude: Double) =
+				kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
 
-		fun longitudeAccuracy(precisionInMeters: Double, latitude: Double) = precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
+		fun longitudeAccuracy(precisionInMeters: Double, latitude: Double): Double =
+				precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
 
-		fun latitudeAccuracy(precisionInMeters: Double) = (METER_DEGREE_LATITUDE * precisionInMeters).round(6)
+		fun latitudeAccuracy(precisionInMeters: Double): Double =
+				(METER_DEGREE_LATITUDE * precisionInMeters).round(6)
 
 		override fun createFromParcel(parcel: Parcel): Location {
 			return Location(parcel)

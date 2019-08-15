@@ -9,5 +9,5 @@ enum class GroupedActivity {
 	IN_VEHICLE,
 	UNKNOWN;
 
-	val isIdle get() = this == UNKNOWN || this == STILL
+	val isIdle: Boolean get() = this == UNKNOWN || this == STILL
 }
