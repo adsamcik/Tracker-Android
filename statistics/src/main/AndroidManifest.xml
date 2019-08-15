@@ -12,7 +12,7 @@
     </dist:module>
 
     <application tools:ignore="AllowBackup,GoogleAppIndexingWarning,MissingApplicationIcon">
-        <activity android:name=".detail.activity.StatsDetailActivity" />
+        <activity android:name="com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity" />
     </application>
 
 </manifest>

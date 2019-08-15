@@ -1,18 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.adsamcik.signalcollector.activity">
+    package="com.adsamcik.tracker.activity">
 
     <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" />
 
     <application>
         <activity
-            android:name=".ui.SessionActivityActivity"
+            android:name="com.adsamcik.tracker.activity.ui.SessionActivityActivity"
             android:windowSoftInputMode="adjustResize" />
 
         <service
-            android:name=".service.ActivityService"
+            android:name="com.adsamcik.tracker.activity.service.ActivityService"
             android:exported="false" />
         <service
-            android:name="com.adsamcik.signalcollector.tracker.service.ActivityWatcherService"
+            android:name="com.adsamcik.tracker.tracker.service.ActivityWatcherService"
             android:exported="false" />
     </application>
 </manifest>

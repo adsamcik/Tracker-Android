@@ -7,7 +7,7 @@
         "client_info": {
             "mobilesdk_app_id": "1:123456789012:android:1234567890123456",
             "android_client_info": {
-                "package_name": "com.adsamcik.signalcollector"
+                "package_name": "tracker"
             }
         },
         "oauth_client": [{
@@ -18,7 +18,7 @@
                 "client_id": "",
                 "client_type": 1,
                 "android_info": {
-                    "package_name": "com.adsamcik.signalcollector",
+                    "package_name": "tracker",
                     "certificate_hash": ""
                 }
             }

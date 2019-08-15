@@ -13,7 +13,7 @@
         android:layout_height="match_parent"
         android:background="#166f72"
         android:clipChildren="false"
-        tools:context="com.adsamcik.signalcollector.app.activity.MainActivity">
+        tools:context="com.adsamcik.tracker.app.activity.MainActivity">
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/button_stats"

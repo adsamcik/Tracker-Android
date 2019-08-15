@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.adsamcik.signalcollector.tracker">
+    package="com.adsamcik.tracker.tracker">
 
     <uses-feature
         android:name="android.hardware.location.gps"
@@ -22,25 +22,25 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
-    <permission android:name="com.adsamcik.signalcollector.permission.TRACKER" />
+    <permission android:name="com.adsamcik.tracker.permission.TRACKER" />
 
     <application>
         <service
-            android:name=".service.TrackerService"
+            android:name="com.adsamcik.tracker.tracker.service.TrackerService"
             android:exported="false"
             android:foregroundServiceType="location"
             tools:targetApi="q" />
 
         <activity
-            android:name=".shortcut.ShortcutActivity"
+            android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"
             android:screenOrientation="portrait"></activity>
 
-        <receiver android:name=".receiver.TrackerNotificationReceiver">
+        <receiver android:name="com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".receiver.TrackerTimeUnlockReceiver" />
+        <receiver android:name="com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver" />
     </application>
 </manifest>
