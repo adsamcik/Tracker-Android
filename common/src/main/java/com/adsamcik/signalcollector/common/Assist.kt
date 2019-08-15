@@ -30,6 +30,7 @@ import kotlin.math.pow
 /**
  * All purpose utility singleton containing various utility functions
  */
+@Suppress("TooManyFunctions")
 object Assist {
 
 	/**
@@ -51,7 +52,8 @@ object Assist {
 	 * Returns orientation of the device as one of the following constants
 	 * [Surface.ROTATION_0], [Surface.ROTATION_90], [Surface.ROTATION_180], [Surface.ROTATION_270].
 	 *
-	 * @return One of the following [Surface.ROTATION_0], [Surface.ROTATION_90], [Surface.ROTATION_180], [Surface.ROTATION_270]
+	 * @return One of the following [Surface.ROTATION_0], [Surface.ROTATION_90],
+	 * [Surface.ROTATION_180], [Surface.ROTATION_270]
 	 */
 	fun orientation(context: Context): Int {
 		return context.windowManager.defaultDisplay.rotation
@@ -77,7 +79,7 @@ object Assist {
 		// navigation bar on the right
 		if (appUsableSize.x < realScreenSize.x) {
 			//App supports only phones so there should be no scenario where orientation is 0 or 180
-			val position = if (rotation == Surface.ROTATION_90 || Build.VERSION.SDK_INT < 26) {
+			val position = if (rotation == Surface.ROTATION_90 || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
 				NavBarPosition.RIGHT
 			} else {
 				NavBarPosition.LEFT
@@ -105,7 +107,7 @@ object Assist {
 	 * @return permissions that app does not have, null if api is lower than 23 or all permission are acquired
 	 */
 	fun checkTrackingPermissions(context: Context): Array<String> {
-		if (Build.VERSION.SDK_INT > 22) {
+		if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1) {
 			val permissions = ArrayList<String>()
 			if (!context.hasLocationPermission) {
 				permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -173,6 +175,7 @@ object Assist {
 				preferences.getBooleanRes(R.string.settings_wifi_enabled_key, R.string.settings_wifi_enabled_default)
 	}
 
+	private const val PLAY_SERVICES_REQUEST_ID = 9000
 	/**
 	 * Checks if play services are available
 	 *
@@ -180,12 +183,13 @@ object Assist {
 	 * @return true if available
 	 */
 	fun checkPlayServices(activity: Activity): Boolean {
-		val playServicesResolutionRequest = 9000
+		val playServicesResolutionRequest = PLAY_SERVICES_REQUEST_ID
 		val api = GoogleApiAvailability.getInstance()
 		val resultCode = api.isGooglePlayServicesAvailable(activity)
 		if (resultCode != ConnectionResult.SUCCESS) {
-			if (api.isUserResolvableError(resultCode))
+			if (api.isUserResolvableError(resultCode)) {
 				api.getErrorDialog(activity, resultCode, playServicesResolutionRequest).show()
+			}
 
 			return false
 		}
@@ -217,6 +221,7 @@ object Assist {
 	}
 
 	//todo consider using WindowInsets
+	@Suppress("MagicNumber")
 	fun getStatusBarHeight(context: Context): Int {
 		val resources = context.resources
 		val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
@@ -251,4 +256,3 @@ object Assist {
 		return (screenWidthDp / columnWidthDp + 0.5).toInt()
 	}
 }
-

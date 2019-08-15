@@ -21,44 +21,13 @@ class TrackerPreferencePage : PreferencePage {
 
 	override fun onExit(caller: PreferenceFragmentCompat) {}
 
-	override fun onEnter(caller: PreferenceFragmentCompat) {
-		val context = caller.requireContext()
-		snackMaker = SnackMaker(caller.view!!)
 
-		caller.findPreference(R.string.settings_tracking_activity_key)
-				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-			ActivityWatcherService.onAutoTrackingPreferenceChange(context, newValue as Int)
-			return@OnPreferenceChangeListener true
-		}
-
-		caller.findPreference(R.string.settings_activity_watcher_key)
-				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-			ActivityWatcherService.onWatcherPreferenceChange(context, newValue as Boolean)
-			return@OnPreferenceChangeListener true
-		}
-
-		caller.findPreference(R.string.settings_activity_freq_key)
-				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-			ActivityWatcherService.onActivityIntervalPreferenceChange(context, newValue as Int)
-			return@OnPreferenceChangeListener true
-		}
-
-		caller.findPreference(R.string.settings_disabled_recharge_key)
-				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-			if (newValue as Boolean) {
-				TrackerLocker.lockUntilRecharge(context)
-			} else {
-				TrackerLocker.unlockRechargeLock(context)
-			}
-
-			return@OnPreferenceChangeListener true
-		}
-
+	private fun initializeEnableTrackingPreferences(caller: PreferenceFragmentCompat) {
 		val locationPreference = caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_location_enabled_key)
 		val wifiPreference = caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_wifi_enabled_key)
 		val cellPreference = caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_cell_enabled_key)
 
-
+		val context = caller.requireContext()
 		val packageManager = context.packageManager
 		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)) {
 			wifiPreference.isEnabled = false
@@ -96,6 +65,44 @@ class TrackerPreferencePage : PreferencePage {
 				true
 			}
 		}
+	}
+
+	private fun initializeAutoTrackingPreferences(caller: PreferenceFragmentCompat) {
+		caller.findPreference(R.string.settings_tracking_activity_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
+			ActivityWatcherService.onAutoTrackingPreferenceChange(preference.context, newValue as Int)
+			return@OnPreferenceChangeListener true
+		}
+
+		caller.findPreference(R.string.settings_activity_watcher_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
+			ActivityWatcherService.onWatcherPreferenceChange(preference.context, newValue as Boolean)
+			return@OnPreferenceChangeListener true
+		}
+
+		caller.findPreference(R.string.settings_activity_freq_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
+			ActivityWatcherService.onActivityIntervalPreferenceChange(preference.context, newValue as Int)
+			return@OnPreferenceChangeListener true
+		}
+
+		caller.findPreference(R.string.settings_disabled_recharge_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
+			if (newValue as Boolean) {
+				TrackerLocker.lockUntilRecharge(preference.context)
+			} else {
+				TrackerLocker.unlockRechargeLock(preference.context)
+			}
+
+			return@OnPreferenceChangeListener true
+		}
+	}
+
+	override fun onEnter(caller: PreferenceFragmentCompat) {
+		snackMaker = SnackMaker(caller.requireView())
+
+		initializeAutoTrackingPreferences(caller)
+		initializeEnableTrackingPreferences(caller)
 	}
 
 }

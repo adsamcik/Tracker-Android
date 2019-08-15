@@ -11,9 +11,9 @@ import kotlinx.coroutines.launch
 /**
  * Abstract class that contains basic implementation to allow filtering.
  */
-abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : RecyclerView.ViewHolder>
-(stringMethod: (DataType) -> String,
- initialCollection: MutableList<DataType>
+abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : RecyclerView.ViewHolder>(
+		stringMethod: (DataType) -> String,
+		initialCollection: MutableList<DataType>
 ) : RecyclerView.Adapter<ViewHolder>() {
 
 	/**
@@ -75,10 +75,11 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 			}
 		}
 
-		if (anyPassed)
+		if (anyPassed) {
 			GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
 				notifyDataSetChanged()
 			}
+		}
 	}
 
 	/**
@@ -111,7 +112,8 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 
 	/**
 	 * Triggers filtering of the whole adapter using filter object.
-	 * This object is used by implementation to filter items. It can be of different type than the containing objects to provide
+	 * This object is used by implementation to filter items.
+	 * It can be of different type than the containing objects to provide
 	 * the exact information that is needed for proper filtering.
 	 *
 	 * @param filterObject Object used for filtering
