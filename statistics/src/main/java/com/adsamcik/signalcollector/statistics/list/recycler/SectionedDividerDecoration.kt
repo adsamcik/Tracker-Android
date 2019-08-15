@@ -13,7 +13,9 @@ import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapt
 import kotlin.math.roundToInt
 
 //Needs to inherit DividerItemDecoration for StyleController
-class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapter, context: Context, orientation: Int) : DividerItemDecoration(context, orientation) {
+class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapter,
+                                 context: Context,
+                                 orientation: Int) : DividerItemDecoration(context, orientation) {
 
 	companion object {
 		const val HORIZONTAL = LinearLayout.HORIZONTAL
@@ -39,7 +41,8 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 		val a = context.obtainStyledAttributes(ATTRS)
 		mDivider = a.getDrawable(0)
 		if (mDivider == null) {
-			Log.w(TAG, "@android:attr/listDivider was not set in the theme used for this " + "DividerItemDecoration. Please set that attribute all call setDrawable()")
+			Log.w(TAG,
+					"@android:attr/listDivider was not set in the theme used for this " + "DividerItemDecoration. Please set that attribute all call setDrawable()")
 		}
 		a.recycle()
 		setOrientation(orientation)

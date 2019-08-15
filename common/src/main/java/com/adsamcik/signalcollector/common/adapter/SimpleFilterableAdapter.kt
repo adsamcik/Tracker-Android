@@ -13,7 +13,8 @@ abstract class SimpleFilterableAdapter<DataType, FilterType>(context: Context,
                                                              stringMethod: (DataType) -> String,
                                                              initialCollection: MutableList<DataType> = mutableListOf()
 ) :
-		BaseFilterableAdapter<DataType, FilterType, SimpleFilterableAdapter.ViewHolder>(stringMethod, initialCollection) {
+		BaseFilterableAdapter<DataType, FilterType, SimpleFilterableAdapter.ViewHolder>(stringMethod,
+				initialCollection) {
 
 	class ViewHolder(view: View, val titleView: TextView) : RecyclerView.ViewHolder(view)
 

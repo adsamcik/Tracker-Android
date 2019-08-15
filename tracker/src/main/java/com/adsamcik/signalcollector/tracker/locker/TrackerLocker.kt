@@ -63,8 +63,10 @@ object TrackerLocker {
 	fun initializeFromPersistence(context: Context) {
 		val preferences = Preferences.getPref(context)
 
-		setTimeLock(context, preferences.getLongResString(R.string.settings_disabled_time_key, R.string.settings_disabled_time_default))
-		setRechargeLock(context, preferences.getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default))
+		setTimeLock(context, preferences.getLongResString(R.string.settings_disabled_time_key,
+				R.string.settings_disabled_time_default))
+		setRechargeLock(context, preferences.getBooleanRes(R.string.settings_disabled_recharge_key,
+				R.string.settings_disabled_recharge_default))
 	}
 
 	private fun setRechargeLock(context: Context, lock: Boolean) {

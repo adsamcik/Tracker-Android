@@ -50,27 +50,32 @@ class LicenseActivity : DetailActivity() {
 				.also { frameLayout.addView(it) }
 				.apply {
 					layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-					layoutManager = LinearLayoutManager(this@LicenseActivity).also { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+					layoutManager = LinearLayoutManager(
+							this@LicenseActivity).also { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
 					this.adapter = adapter
 				}
 
 
 		val licenseDialogString = "LicensesDialog"
 
-		CustomLicense(licenseDialogString, Notice(licenseDialogString, "https://github.com/PSDev/LicensesDialog", "Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20()))
+		CustomLicense(licenseDialogString, Notice(licenseDialogString, "https://github.com/PSDev/LicensesDialog",
+				"Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20()))
 				.also { adapter.addLicense(it) }
 
 		val materialCommunityIconTitle = "Material Design Community Icons"
 
-		CustomLicense(materialCommunityIconTitle, Notice(materialCommunityIconTitle, "http://materialdesignicons.com/", "Copyright (c) 2014, Austin Andrews", object : License() {
+		CustomLicense(materialCommunityIconTitle, Notice(materialCommunityIconTitle, "http://materialdesignicons.com/",
+				"Copyright (c) 2014, Austin Andrews", object : License() {
 			override fun getUrl(): String = "https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web"
 
 			override fun getName(): String = "SIL OPEN FONT LICENSE Version 1.1"
 
-			override fun readSummaryTextFromResources(context: Context?): String = getContent(context, R.raw.material_community_icon_license)
+			override fun readSummaryTextFromResources(context: Context?): String = getContent(context,
+					R.raw.material_community_icon_license)
 
 			override fun getVersion(): String = "1.1"
-			override fun readFullTextFromResources(context: Context?): String = getContent(context, R.raw.material_community_icon_license)
+			override fun readFullTextFromResources(context: Context?): String = getContent(context,
+					R.raw.material_community_icon_license)
 
 		})).also { adapter.addLicense(it) }
 

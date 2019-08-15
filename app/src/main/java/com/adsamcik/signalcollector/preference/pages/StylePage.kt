@@ -55,9 +55,11 @@ class StylePage : PreferencePage {
 
 			val context = it.context
 
-			morning.saveValue(sp.getInt(morningKey, ContextCompat.getColor(context, R.color.settings_color_morning_default)))
+			morning.saveValue(
+					sp.getInt(morningKey, ContextCompat.getColor(context, R.color.settings_color_morning_default)))
 			day.saveValue(sp.getInt(dayKey, ContextCompat.getColor(context, R.color.settings_color_day_default)))
-			evening.saveValue(sp.getInt(eveningKey, ContextCompat.getColor(context, R.color.settings_color_evening_default)))
+			evening.saveValue(
+					sp.getInt(eveningKey, ContextCompat.getColor(context, R.color.settings_color_evening_default)))
 			night.saveValue(sp.getInt(nightKey, ContextCompat.getColor(context, R.color.settings_color_night_default)))
 
 			true

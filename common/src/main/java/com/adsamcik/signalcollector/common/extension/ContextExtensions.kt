@@ -228,7 +228,8 @@ inline val Context.alarmManager: AlarmManager get() = getSystemServiceTyped(Cont
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.
  */
-inline val Context.shortcutManager: ShortcutManager @RequiresApi(25) get() = getSystemServiceTyped(Context.SHORTCUT_SERVICE)
+inline val Context.shortcutManager: ShortcutManager
+	@RequiresApi(25) get() = getSystemServiceTyped(Context.SHORTCUT_SERVICE)
 
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.

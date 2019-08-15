@@ -96,7 +96,8 @@ data class Location(
 	 * @param precisionLongitudeInMeters Round longitude coordinate to meters
 	 * @return New location containing rounded latitude and longitude and the rest of the original location data
 	 */
-	fun roundTo(precisionLatitudeInMeters: Double, precisionLongitudeInMeters: Double = precisionLatitudeInMeters): Location {
+	fun roundTo(precisionLatitudeInMeters: Double,
+	            precisionLongitudeInMeters: Double = precisionLatitudeInMeters): Location {
 		val accLatitude = latitudeAccuracy(precisionLatitudeInMeters)
 		val roundedLatitude = (latitude - latitude % accLatitude).round(6)
 

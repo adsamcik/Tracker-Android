@@ -7,7 +7,8 @@ import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequiremen
 import com.adsamcik.signalcollector.tracker.component.TrackerDataConsumerComponent
 import com.google.android.gms.location.LocationResult
 
-internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos: Long) : CollectionTempData(timeMillis, elapsedRealtimeNanos) {
+internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos: Long) : CollectionTempData(timeMillis,
+		elapsedRealtimeNanos) {
 	override val map: MutableMap<String, InternalData> = mutableMapOf()
 
 	fun <T : Any> set(key: String, value: T) {

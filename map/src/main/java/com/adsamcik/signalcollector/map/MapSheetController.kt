@@ -245,7 +245,9 @@ internal class MapSheetController(
 		rootLayout.findViewById<RecyclerView>(R.id.recycler_layers).apply {
 			layoutManager = GridLayoutManager(context, 2, GridLayoutManager.HORIZONTAL, false)
 			addItemDecoration(SimpleMarginDecoration(0, 4.dp, 0, 0))
-			adapter = MapFilterableAdapter(context, R.layout.layout_layer_icon) { context.getString(it.data.nameRes) }.apply {
+			adapter = MapFilterableAdapter(context, R.layout.layout_layer_icon) {
+				context.getString(it.data.nameRes)
+			}.apply {
 				addAll(mapLayerList)
 				onItemClickListener = this@MapSheetController::onItemClicked
 			}

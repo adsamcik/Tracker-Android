@@ -10,7 +10,12 @@ import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.ActivityInfo
 import com.adsamcik.signalcollector.common.data.DetectedActivity
-import com.google.android.gms.location.*
+import com.google.android.gms.location.ActivityRecognition
+import com.google.android.gms.location.ActivityRecognitionClient
+import com.google.android.gms.location.ActivityRecognitionResult
+import com.google.android.gms.location.ActivityTransition
+import com.google.android.gms.location.ActivityTransitionRequest
+import com.google.android.gms.location.ActivityTransitionResult
 import com.google.android.gms.tasks.Task
 
 /**
@@ -64,7 +69,9 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			private set
 
 
-		fun startActivityRecognition(context: Context, delayInS: Int, requestedTransitions: Collection<ActivityTransitionData>): Boolean {
+		fun startActivityRecognition(context: Context,
+		                             delayInS: Int,
+		                             requestedTransitions: Collection<ActivityTransitionData>): Boolean {
 			return if (Assist.checkPlayServices(context)) {
 				val client = ActivityRecognition.getClient(context)
 				val intent = getActivityDetectionPendingIntent(context)
@@ -82,11 +89,15 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			}
 		}
 
-		private fun requestActivityRecognition(client: ActivityRecognitionClient, intent: PendingIntent, delayInS: Int) {
+		private fun requestActivityRecognition(client: ActivityRecognitionClient,
+		                                       intent: PendingIntent,
+		                                       delayInS: Int) {
 			recognitionClientTask = client.requestActivityUpdates(delayInS * Time.SECOND_IN_MILLISECONDS, intent)
 		}
 
-		private fun requestActivityTransition(client: ActivityRecognitionClient, intent: PendingIntent, requestedTransitions: Collection<ActivityTransitionData>) {
+		private fun requestActivityTransition(client: ActivityRecognitionClient,
+		                                      intent: PendingIntent,
+		                                      requestedTransitions: Collection<ActivityTransitionData>) {
 			val transitions = buildTransitions(requestedTransitions)
 			val request = ActivityTransitionRequest(transitions)
 			transitionClientTask = client.requestActivityTransitionUpdates(request, intent)
@@ -119,7 +130,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			val intent = Intent(context.applicationContext, ActivityService::class.java)
 			// We use FLAG_UPDATE_CURRENT so that we getPref the same pending intent back when calling
 			// requestActivityUpdates() and removeActivityUpdates().
-			return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+			return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent,
+					PendingIntent.FLAG_UPDATE_CURRENT)
 		}
 	}
 }

@@ -40,7 +40,8 @@ internal class MapController(context: Context, val map: GoogleMap) {
 		val pref = Preferences.getPref(context)
 		val resources = context.resources
 
-		val quality = pref.getFloat(resources.getString(R.string.settings_map_quality_key), resources.getString(R.string.settings_map_quality_default).toFloat())
+		val quality = pref.getFloat(resources.getString(R.string.settings_map_quality_key),
+				resources.getString(R.string.settings_map_quality_default).toFloat())
 
 		this.quality = quality
 		activeLayer.quality = quality

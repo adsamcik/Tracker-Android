@@ -17,7 +17,8 @@ import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.signalcollector.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
 
-@Database(entities = [ChallengeSessionData::class, ChallengeEntry::class, ExplorerChallengeEntity::class, WalkDistanceChallengeEntity::class, StepChallengeEntity::class],
+@Database(
+		entities = [ChallengeSessionData::class, ChallengeEntry::class, ExplorerChallengeEntity::class, WalkDistanceChallengeEntity::class, StepChallengeEntity::class],
 		version = 1)
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
@@ -36,7 +37,8 @@ abstract class ChallengeDatabase : RoomDatabase() {
 		private var instance_: ChallengeDatabase? = null
 
 		private fun createInstance(context: Context): ChallengeDatabase {
-			val instance = Room.databaseBuilder(context.applicationContext, ChallengeDatabase::class.java, "challenge_database")
+			val instance = Room.databaseBuilder(context.applicationContext, ChallengeDatabase::class.java,
+					"challenge_database")
 					.build()
 
 			instance_ = instance

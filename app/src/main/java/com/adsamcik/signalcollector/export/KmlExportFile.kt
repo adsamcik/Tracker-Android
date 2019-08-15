@@ -13,7 +13,10 @@ import java.util.*
 class KmlExportFile : ExportFile {
 	override val canSelectDateRange: Boolean = true
 
-	override fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult {
+	override fun export(context: Context,
+	                    locationData: List<DatabaseLocation>,
+	                    destinationDirectory: File,
+	                    desiredName: String): ExportResult {
 		val targetFile = File(destinationDirectory, "$desiredName.kml")
 		serialize(targetFile, locationData)
 
@@ -41,11 +44,13 @@ class KmlExportFile : ExportFile {
 
 	private fun writeLocation(streamWriter: OutputStreamWriter, location: Location) {
 		streamWriter.write("<Placemark><TimeStamp><when>${formatTime(location.time)}</when></TimeStamp>")
-		streamWriter.write("<Point><coordinates>${location.longitude},${location.latitude},${location.altitude}</coordinates></Point></Placemark>")
+		streamWriter.write(
+				"<Point><coordinates>${location.longitude},${location.latitude},${location.altitude}</coordinates></Point></Placemark>")
 	}
 
 	private fun writeBeginning(streamWriter: OutputStreamWriter) {
-		streamWriter.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>")
+		streamWriter.write(
+				"<?xml version=\"1.0\" encoding=\"UTF-8\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>")
 	}
 
 	private fun writeEnding(streamWriter: OutputStreamWriter) {

@@ -69,12 +69,15 @@ object ActivityRequestManager {
 		val minInterval = getMinInterval()
 		val transitions = getTransitions()
 
-		if (minInterval != ActivityRequestManager.minInterval || transitions.size != ActivityRequestManager.transitions.size || !transitions.containsAll(ActivityRequestManager.transitions)) {
+		if (minInterval != ActivityRequestManager.minInterval || transitions.size != ActivityRequestManager.transitions.size || !transitions.containsAll(
+						ActivityRequestManager.transitions)) {
 			updateActivityService(context, minInterval, transitions)
 		}
 	}
 
-	private fun updateActivityService(context: Context, interval: Int, transitions: Collection<ActivityTransitionData>) {
+	private fun updateActivityService(context: Context,
+	                                  interval: Int,
+	                                  transitions: Collection<ActivityTransitionData>) {
 		minInterval = interval
 		ActivityRequestManager.transitions = transitions
 		ActivityService.startActivityRecognition(context, minInterval, transitions)

@@ -32,7 +32,9 @@ import com.google.android.gms.maps.model.MarkerOptions
 import java.lang.Math.toDegrees
 
 //todo add activity icon instead of generic location icon when possible
-internal class UpdateLocationListener(context: Context, private val map: GoogleMap, private val eventListener: MapEventListener) : SensorEventListener {
+internal class UpdateLocationListener(context: Context,
+                                      private val map: GoogleMap,
+                                      private val eventListener: MapEventListener) : SensorEventListener {
 	private var followMyPosition: Boolean = false
 	private var useGyroscope = false
 
@@ -86,7 +88,8 @@ internal class UpdateLocationListener(context: Context, private val map: GoogleM
 		initializePositions()
 		subscribeToLocationUpdates(context, true)
 
-		ActivityRequestManager.requestActivity(context, ActivityRequestData(UpdateLocationListener::class, 10, listOf(), this::onActivityUpdate))
+		ActivityRequestManager.requestActivity(context,
+				ActivityRequestData(UpdateLocationListener::class, 10, listOf(), this::onActivityUpdate))
 	}
 
 	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {

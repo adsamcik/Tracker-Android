@@ -10,7 +10,11 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
-import com.adsamcik.draggable.*
+import com.adsamcik.draggable.DragAxis
+import com.adsamcik.draggable.DragTargetAnchor
+import com.adsamcik.draggable.DraggableImageButton
+import com.adsamcik.draggable.DraggablePayload
+import com.adsamcik.draggable.Offset
 import com.adsamcik.signalcollector.R
 import com.adsamcik.signalcollector.app.HomeIntroduction
 import com.adsamcik.signalcollector.common.Assist
@@ -289,9 +293,12 @@ class MainActivity : CoreUIActivity() {
 
 	override fun onBackPressed() {
 		when {
-			button_map.state == DraggableImageButton.State.TARGET -> button_map.moveToState(DraggableImageButton.State.INITIAL, true)
-			button_stats.state == DraggableImageButton.State.TARGET -> button_stats.moveToState(DraggableImageButton.State.INITIAL, true)
-			button_game.state == DraggableImageButton.State.TARGET -> button_game.moveToState(DraggableImageButton.State.INITIAL, true)
+			button_map.state == DraggableImageButton.State.TARGET -> button_map.moveToState(
+					DraggableImageButton.State.INITIAL, true)
+			button_stats.state == DraggableImageButton.State.TARGET -> button_stats.moveToState(
+					DraggableImageButton.State.INITIAL, true)
+			button_game.state == DraggableImageButton.State.TARGET -> button_game.moveToState(
+					DraggableImageButton.State.INITIAL, true)
 			else -> super.onBackPressed()
 		}
 	}

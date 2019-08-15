@@ -13,5 +13,6 @@ internal class LocationHeatmapLogic : HeatmapLayerLogic() {
 		return LocationHeatmapTileCreator(context)
 	}
 
-	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>, R.string.map_layer_location_heatmap)
+	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
+			R.string.map_layer_location_heatmap)
 }

@@ -162,12 +162,14 @@ open class Preferences {
 		}
 
 		fun getLengthSystem(context: Context): LengthSystem {
-			val preference = getPref(context).getStringRes(R.string.settings_length_system_key, R.string.settings_length_system_default)
+			val preference = getPref(context).getStringRes(R.string.settings_length_system_key,
+					R.string.settings_length_system_default)
 			return LengthSystem.valueOf(preference)
 		}
 
 		fun getSpeedFormat(context: Context): SpeedFormat {
-			val preference = getPref(context).getStringRes(R.string.settings_speed_format_key, R.string.settings_speed_format_default)
+			val preference = getPref(context).getStringRes(R.string.settings_speed_format_key,
+					R.string.settings_speed_format_default)
 			return SpeedFormat.valueOf(preference)
 		}
 	}

@@ -27,10 +27,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 
-class SessionSection(private val time: Long, private val distance: Double) : StatelessSection(SectionParameters.builder()
-		.headerResourceId(R.layout.layout_section_header_session)
-		.itemResourceId(R.layout.layout_section_preview_session)
-		.build()), CoroutineScope {
+class SessionSection(private val time: Long, private val distance: Double) : StatelessSection(
+		SectionParameters.builder()
+				.headerResourceId(R.layout.layout_section_header_session)
+				.itemResourceId(R.layout.layout_section_preview_session)
+				.build()), CoroutineScope {
 
 	private val job = SupervisorJob()
 

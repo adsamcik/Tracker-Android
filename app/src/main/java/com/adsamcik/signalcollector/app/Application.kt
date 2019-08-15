@@ -23,7 +23,8 @@ class Application : SplitCompatApplication() {
 		val activeModules = Module.getActiveModuleInfo(this)
 		activeModules.forEach {
 			try {
-				val initializer = it.module.loadClass<ModuleInitializer>("${it.module.moduleName.capitalize()}${ModuleInitializer::class.java.simpleName}")
+				val initializer = it.module.loadClass<ModuleInitializer>(
+						"${it.module.moduleName.capitalize()}${ModuleInitializer::class.java.simpleName}")
 				initializer.newInstance().initialize(this)
 			} catch (e: ClassNotFoundException) {
 				//it's fine, do nothing

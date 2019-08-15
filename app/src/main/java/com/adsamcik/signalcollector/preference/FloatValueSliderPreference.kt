@@ -16,7 +16,8 @@ import com.adsamcik.slider.implementations.FloatValueSlider
  * It allows Slider to be used as preference.
  */
 class FloatValueSliderPreference : Preference {
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs,
+			defStyleAttr, defStyleRes) {
 		initAttributes(context, attrs)
 	}
 
@@ -86,7 +87,9 @@ class FloatValueSliderPreference : Preference {
 
 		slider.setPreferences(sharedPreferences, key, mInitialValue)
 
-		slider.setOnValueChangeListener { value, fromUser -> if (fromUser) onPreferenceChangeListener?.onPreferenceChange(this, value) }
+		slider.setOnValueChangeListener { value, fromUser ->
+			if (fromUser) onPreferenceChangeListener?.onPreferenceChange(this, value)
+		}
 
 		this.slider = slider
 	}

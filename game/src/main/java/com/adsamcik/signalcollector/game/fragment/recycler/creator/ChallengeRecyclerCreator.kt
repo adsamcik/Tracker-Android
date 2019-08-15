@@ -23,6 +23,7 @@ class ChallengeRecyclerCreator : MultiTypeViewHolderCreator<GameRecyclerData> {
 		}
 
 		@Suppress("unchecked_cast")
-		return ChallengeRecyclerViewHolder(rootView, rootView.findViewById(R.id.title), recycler, 2) as MultiTypeViewHolder<GameRecyclerData>
+		return ChallengeRecyclerViewHolder(rootView, rootView.findViewById(R.id.title), recycler,
+				2) as MultiTypeViewHolder<GameRecyclerData>
 	}
 }

@@ -69,7 +69,8 @@ object Shortcuts {
 			return ShortcutInfo.Builder(this, id)
 					.setShortLabel(shortLabel)
 					.setIcon(Icon.createWithResource(this, iconResource))
-					.setIntent(Intent(context, ShortcutActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK).setAction(ACTION).putExtra(ACTION_STRING, action.ordinal))
+					.setIntent(Intent(context, ShortcutActivity::class.java).setFlags(
+							Intent.FLAG_ACTIVITY_NEW_TASK).setAction(ACTION).putExtra(ACTION_STRING, action.ordinal))
 					.setLongLabel(longLabel)
 					.build()
 		}

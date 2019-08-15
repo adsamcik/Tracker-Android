@@ -2,7 +2,8 @@ package com.adsamcik.signalcollector.common.recycler.multitype
 
 import com.adsamcik.signalcollector.common.style.StyleController
 
-open class MultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<DataTypeEnum>>(styleController: StyleController) : BaseMultiTypeAdapter<Data>(styleController) {
+open class MultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<DataTypeEnum>>(styleController: StyleController) :
+		BaseMultiTypeAdapter<Data>(styleController) {
 
 	/**
 	 * Registers [MultiTypeViewHolderCreator] for given [DataTypeEnum].

@@ -10,7 +10,8 @@ import com.adsamcik.signalcollector.game.challenge.data.instance.WalkDistanceCha
 import com.adsamcik.signalcollector.game.challenge.database.ChallengeDatabase
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 
-class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) : ChallengeBuilder<WalkDistanceChallengeInstance>(definition) {
+class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) : ChallengeBuilder<WalkDistanceChallengeInstance>(
+		definition) {
 
 	private var distanceRequired: Float = 0f
 
@@ -28,7 +29,8 @@ class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallenge
 	}
 
 	override fun buildChallenge(context: Context, entry: ChallengeEntry): WalkDistanceChallengeInstance {
-		return WalkDistanceChallengeInstance(entry, definition, WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f))
+		return WalkDistanceChallengeInstance(entry, definition,
+				WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f))
 	}
 
 	override fun persistExtra(database: ChallengeDatabase, challenge: WalkDistanceChallengeInstance) {

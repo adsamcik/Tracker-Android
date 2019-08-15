@@ -51,7 +51,9 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 			resetMaxHeat()
 		}
 
-	private val colorScheme = HeatmapColorScheme.fromArray(listOf(Pair(0.1, Color.TRANSPARENT), Pair(0.3, Color.BLUE), Pair(0.7, Color.YELLOW), Pair(1.0, Color.RED)), 100)
+	private val colorScheme = HeatmapColorScheme.fromArray(
+			listOf(Pair(0.1, Color.TRANSPARENT), Pair(0.3, Color.BLUE), Pair(0.7, Color.YELLOW), Pair(1.0, Color.RED)),
+			100)
 
 	init {
 		resetMaxHeat()

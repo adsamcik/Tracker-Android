@@ -2,7 +2,12 @@ package com.adsamcik.signalcollector
 
 import android.view.View
 import androidx.annotation.CheckResult
-import androidx.test.espresso.*
+import androidx.test.espresso.AmbiguousViewMatcherException
+import androidx.test.espresso.NoMatchingRootException
+import androidx.test.espresso.NoMatchingViewException
+import androidx.test.espresso.UiController
+import androidx.test.espresso.ViewAction
+import androidx.test.espresso.ViewInteraction
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers
 

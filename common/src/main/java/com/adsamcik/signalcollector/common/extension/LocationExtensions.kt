@@ -68,7 +68,8 @@ object LocationExtensions {
 
 	fun toGoogleLat(lat: Double, tileCount: Int): Double {
 		val latRad = lat.deg2rad()
-		return tileCount * (1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0
+		return tileCount * (1.0 - kotlin.math.ln(
+				kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0
 	}
 
 	fun countPixelSize(latitude: Double, zoom: Int): Double {

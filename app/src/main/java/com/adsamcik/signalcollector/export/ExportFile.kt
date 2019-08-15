@@ -7,5 +7,8 @@ import java.io.File
 interface ExportFile {
 	val canSelectDateRange: Boolean
 
-	fun export(context: Context, locationData: List<DatabaseLocation>, destinationDirectory: File, desiredName: String): ExportResult
+	fun export(context: Context,
+	           locationData: List<DatabaseLocation>,
+	           destinationDirectory: File,
+	           desiredName: String): ExportResult
 }

@@ -85,7 +85,10 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 		}
 	}
 
-	class ViewHolder(root: View, val content: ViewGroup, val title: TextView, val fields: MutableList<InfoField> = mutableListOf()) : RecyclerView.ViewHolder(root)
+	class ViewHolder(root: View,
+	                 val content: ViewGroup,
+	                 val title: TextView,
+	                 val fields: MutableList<InfoField> = mutableListOf()) : RecyclerView.ViewHolder(root)
 
 	data class InfoField(val title: TextView, val value: TextView)
 }

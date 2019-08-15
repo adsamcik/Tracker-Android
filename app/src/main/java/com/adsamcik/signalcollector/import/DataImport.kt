@@ -22,7 +22,8 @@ class DataImport {
 	val supportedImporterExtensions get() = activeImporterList.flatMap { it.supportedExtensions }
 	val supportedArchiveExtractorExtensions get() = activeArchiveExtractorList.flatMap { it.supportedExtensions }
 
-	val supportedExtensions: Collection<String> get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions)
+	val supportedExtensions: Collection<String>
+		get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions)
 
 	init {
 		val importList = mutableListOf<FileImport>()

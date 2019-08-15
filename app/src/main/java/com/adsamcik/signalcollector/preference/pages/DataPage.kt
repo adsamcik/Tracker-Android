@@ -78,7 +78,8 @@ class DataPage : PreferencePage {
 		return when {
 			validateImportPermissions(activity) -> true
 			Build.VERSION.SDK_INT >= 23 -> {
-				activity.requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), PERMISSION_READ_EXTERNAL_REQUEST)
+				activity.requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
+						PERMISSION_READ_EXTERNAL_REQUEST)
 				false
 			}
 			else -> throw PermissionException("Permission to read external storage is missing")

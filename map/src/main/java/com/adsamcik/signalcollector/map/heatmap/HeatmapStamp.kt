@@ -16,7 +16,8 @@ internal data class HeatmapStamp(var width: Int, var height: Int, val stampData:
 				for (x in 0 until diameter) {
 					val xMinusRadius = x - radius
 					val yMinusRadius = y - radius
-					val baseDistance = sqrt(((xMinusRadius * xMinusRadius) + (yMinusRadius * yMinusRadius)).toFloat()) / (radius + 1).toFloat()
+					val baseDistance = sqrt(
+							((xMinusRadius * xMinusRadius) + (yMinusRadius * yMinusRadius)).toFloat()) / (radius + 1).toFloat()
 					val distance = distFunction(baseDistance).coerceIn(0f, 1f)
 					stampData[x + yOffset] = 1f - distance
 				}

@@ -6,6 +6,7 @@ import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailDa
 import com.adsamcik.signalcollector.statistics.detail.recycler.StatisticDetailType
 import com.github.mikephil.charting.data.Entry
 
-class LineChartStatisticsData(@DrawableRes val iconRes: Int, @StringRes val titleRes: Int, val values: List<Entry>) : StatisticDetailData {
+class LineChartStatisticsData(@DrawableRes val iconRes: Int, @StringRes val titleRes: Int, val values: List<Entry>) :
+		StatisticDetailData {
 	override val type: StatisticDetailType = StatisticDetailType.LineChart
 }

@@ -13,7 +13,8 @@ import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.LocationResult
 
 internal class ActivityTrackerComponent : DataTrackerComponent {
-	override val requiredData: Collection<TrackerComponentRequirement> get() = mutableListOf(TrackerComponentRequirement.ACTIVITY)
+	override val requiredData: Collection<TrackerComponentRequirement>
+		get() = mutableListOf(TrackerComponentRequirement.ACTIVITY)
 
 	private fun isNotConfidentWalk(activity: ActivityInfo): Boolean {
 		return activity.activityType == DetectedActivity.WALKING &&

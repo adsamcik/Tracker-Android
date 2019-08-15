@@ -229,9 +229,10 @@ object StyleManager {
 			val sunset = sunsetRise.nextSunset()
 			val sunrise = sunsetRise.nextSunrise()
 			val format = SimpleDateFormat("HH:mm:ss dd-MM-yyyy", Locale.getDefault())
-			Log.d("StyleManager", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-					"Sunrise is at ${format.format(sunrise.time)} " +
-					"and sun sets at ${format.format(sunset.time)}")
+			Log.d("StyleManager",
+					"Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
+							"Sunrise is at ${format.format(sunrise.time)} " +
+							"and sun sets at ${format.format(sunset.time)}")
 
 			Log.d("StyleManager", "Update rate is $period")
 		}
@@ -271,7 +272,8 @@ object StyleManager {
 		val sunriseTime = sunsetRise.nextSunrise().toTimeSinceMidnight()
 
 		val dayTime = (sunsetTime - sunriseTime) / 2 + sunriseTime
-		val nightTime = ((Time.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(Time.DAY_IN_MILLISECONDS)
+		val nightTime = ((Time.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(
+				Time.DAY_IN_MILLISECONDS)
 
 		if (time > sunsetTime) {
 			if (nightTime > sunsetTime) {
@@ -332,7 +334,8 @@ object StyleManager {
 
 	private fun calculateUpdateCount(): Int {
 		colorListLock.withLock {
-			if (colorList.size < 2) throw IllegalStateException("Update rate cannot be calculated for less than 2 colors")
+			if (colorList.size < 2) throw IllegalStateException(
+					"Update rate cannot be calculated for less than 2 colors")
 
 			val currentColor = colorList[currentIndex]
 			val targetColor = colorList[nextIndex]
@@ -358,7 +361,8 @@ object StyleManager {
 	 */
 	fun initializeFromPreferences(context: Context) {
 		val preferences = Preferences.getPref(context)
-		val mode = preferences.getStringAsIntResString(R.string.settings_style_mode_key, R.string.settings_style_mode_default)
+		val mode = preferences.getStringAsIntResString(R.string.settings_style_mode_key,
+				R.string.settings_style_mode_default)
 
 		stopUpdate()
 
@@ -370,12 +374,15 @@ object StyleManager {
 			if (mode == 0) {
 				addColors(listOf(day))
 			} else {
-				val night = preferences.getColorRes(R.string.settings_color_night_key, R.color.settings_color_night_default)
+				val night = preferences.getColorRes(R.string.settings_color_night_key,
+						R.color.settings_color_night_default)
 				if (mode == 1) {
 					addColors(listOf(day, night))
 				} else {
-					val morning = preferences.getColorRes(R.string.settings_color_morning_key, R.color.settings_color_morning_default)
-					val evening = preferences.getColorRes(R.string.settings_color_evening_key, R.color.settings_color_evening_default)
+					val morning = preferences.getColorRes(R.string.settings_color_morning_key,
+							R.color.settings_color_morning_default)
+					val evening = preferences.getColorRes(R.string.settings_color_evening_key,
+							R.color.settings_color_evening_default)
 					addColors(listOf(morning, day, evening, night))
 				}
 			}
@@ -413,7 +420,9 @@ object StyleManager {
 	/**
 	 * Color update task that calculates delta update based on parameters. It is used for color transitions.
 	 */
-	internal class ColorUpdateTask(private val periodLength: Long, private var currentTime: Long = 0, private val deltaTime: Long) : TimerTask() {
+	internal class ColorUpdateTask(private val periodLength: Long,
+	                               private var currentTime: Long = 0,
+	                               private val deltaTime: Long) : TimerTask() {
 		override fun run() {
 			currentTime = (currentTime + deltaTime).rem(periodLength)
 			val delta = currentTime.toFloat() / periodLength

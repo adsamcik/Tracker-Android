@@ -225,7 +225,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private fun initializeTimer() {
 		val preferences = Preferences.getPref(this)
-		val useLocation = preferences.getBooleanRes(R.string.settings_location_enabled_key, R.string.settings_location_enabled_default)
+		val useLocation = preferences.getBooleanRes(R.string.settings_location_enabled_key,
+				R.string.settings_location_enabled_default)
 
 		timerComponent = if (useLocation) {
 			LocationTrackerTimer()

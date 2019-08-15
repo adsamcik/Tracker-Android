@@ -25,7 +25,8 @@ internal abstract class ActivityRecognizer : IActivityRecognizer {
 	}
 }
 
-data class ActivityRecognitionResult(val recognizedActivity: NativeSessionActivity?, @IntRange(from = 0, to = 100) val confidence: Int) {
+data class ActivityRecognitionResult(val recognizedActivity: NativeSessionActivity?, @IntRange(from = 0,
+		to = 100) val confidence: Int) {
 	val requireRecognizedActivity: NativeSessionActivity
 		get() = recognizedActivity ?: throw NullPointerException("Recognized activity was null")
 }

@@ -12,7 +12,8 @@ import com.adsamcik.signalcollector.common.database.AppDatabase
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
+internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context,
+		workerParams) {
 	private val activeRecognizers = listOf(OnFootActivityRecognizer(), VehicleActivityRecognizer())
 
 	override suspend fun doWork(): Result = coroutineScope {
@@ -21,7 +22,7 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 
 		val database = AppDatabase.getDatabase(applicationContext)
 		val session = database.sessionDao().get(sessionId)
-		              ?: return@coroutineScope fail("Session with id $sessionId not found.")
+				?: return@coroutineScope fail("Session with id $sessionId not found.")
 		val locationCollection = database.locationDao().getAllBetween(session.start, session.end)
 
 		val deferredResults = activeRecognizers.map {

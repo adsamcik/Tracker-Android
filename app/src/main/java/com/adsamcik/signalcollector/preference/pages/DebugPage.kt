@@ -39,7 +39,8 @@ class DebugPage : PreferencePage {
 						.setContentTitle(getString(R.string.did_you_know))
 						.setContentText(facts[rng.nextInt(facts.size)])
 						.setWhen(Time.nowMillis)
-				val notificationManager = it.context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+				val notificationManager = it.context.getSystemService(
+						Context.NOTIFICATION_SERVICE) as NotificationManager
 				notificationManager.notify(Notifications.uniqueNotificationId(), notificationBuilder.build())
 				false
 			}

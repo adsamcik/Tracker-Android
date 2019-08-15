@@ -13,5 +13,6 @@ internal class CellHeatmapLogic : HeatmapLayerLogic() {
 		return CellHeatmapTileCreator(context)
 	}
 
-	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>, R.string.map_layer_cell_heatmap)
+	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
+			R.string.map_layer_cell_heatmap)
 }

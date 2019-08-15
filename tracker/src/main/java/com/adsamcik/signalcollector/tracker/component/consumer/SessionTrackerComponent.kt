@@ -58,7 +58,8 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 			if (distance != null &&
 					previousLocation != null &&
-					(tempData.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
+					(tempData.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20,
+							minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
 							distance <= minDistanceInMeters * 2f)) {
 
 				when (tempData.tryGetActivity()?.groupedActivity) {
@@ -76,8 +77,10 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onDisable(context: Context) {
-		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key, minDistanceInMetersObserver)
-		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key, minUpdateDelayInSecondsObserver)
+		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key,
+				minDistanceInMetersObserver)
+		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key,
+				minUpdateDelayInSecondsObserver)
 
 		mutableSession.apply {
 			end = Time.nowMillis
@@ -89,8 +92,10 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onEnable(context: Context) {
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key, R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key,
+				R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
+		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key,
+				R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
 
 		withContext(coroutineContext) {
 			initializeSession(context)

@@ -104,17 +104,19 @@ class StatsDetailActivity : DetailActivity() {
 
 
 
-		addAction(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_edit, R.string.edit_session, View.OnClickListener {
-			if (add_item_layout.isVisible) {
-				add_item_layout.visibility = View.GONE
-				header_root.updatePadding(top = 0)
-			} else {
-				add_item_layout.visibility = View.VISIBLE
-				header_root.updatePadding(top = 16.dp)
-				findViewById<View>(R.id.button_change_activity).setOnClickListener { showActivitySelectionDialog() }
-				findViewById<View>(R.id.button_remove_session).setOnClickListener { removeSession() }
-			}
-		})
+		addAction(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_edit, R.string.edit_session,
+				View.OnClickListener {
+					if (add_item_layout.isVisible) {
+						add_item_layout.visibility = View.GONE
+						header_root.updatePadding(top = 0)
+					} else {
+						add_item_layout.visibility = View.VISIBLE
+						header_root.updatePadding(top = 16.dp)
+						findViewById<View>(
+								R.id.button_change_activity).setOnClickListener { showActivitySelectionDialog() }
+						findViewById<View>(R.id.button_remove_session).setOnClickListener { removeSession() }
+					}
+				})
 	}
 
 	private fun removeSession() {
@@ -193,7 +195,8 @@ class StatsDetailActivity : DetailActivity() {
 		launch(Dispatchers.Default) {
 			val sessionActivity = when {
 				activityId == null -> null
-				activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(this@StatsDetailActivity)
+				activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(
+						this@StatsDetailActivity)
 				else -> if (activityId == 0L || activityId == -1L) {
 					null
 				} else {
@@ -221,10 +224,16 @@ class StatsDetailActivity : DetailActivity() {
 
 
 		val data = mutableListOf(
-				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_directions_24px, R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
-				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_white_24dp, R.string.stats_distance_on_foot, resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
-				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_shoe_print, R.string.stats_steps, session.steps.formatReadable()),
-				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute, R.string.stats_distance_in_vehicle, resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_directions_24px,
+						R.string.stats_distance_total, resources.formatDistance(session.distanceInM, 2, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_directions_walk_white_24dp,
+						R.string.stats_distance_on_foot,
+						resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_shoe_print,
+						R.string.stats_steps, session.steps.formatReadable()),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_baseline_commute,
+						R.string.stats_distance_in_vehicle,
+						resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)))
 
 		adapter.addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
 	}
@@ -242,7 +251,8 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	private fun addLocationMap(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
-		val locationData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations), AppendPriority(AppendBehavior.Start))
+		val locationData = SortableAdapter.SortableData<StatisticDetailData>(MapStatisticsData(locations),
+				AppendPriority(AppendBehavior.Start))
 		launch(Dispatchers.Main) {
 			adapter.add(locationData)
 		}
@@ -271,9 +281,11 @@ class StatsDetailActivity : DetailActivity() {
 					recordedSpeed.toDouble()
 				} else {
 					val distance = if (currentAltitude != null && previousAltitude != null) {
-						Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude, current.longitude, currentAltitude, LengthUnit.Meter)
+						Location.distance(previous.latitude, previous.longitude, previousAltitude, current.latitude,
+								current.longitude, currentAltitude, LengthUnit.Meter)
 					} else {
-						Location.distance(previous.latitude, previous.longitude, current.latitude, current.longitude, LengthUnit.Meter)
+						Location.distance(previous.latitude, previous.longitude, current.latitude, current.longitude,
+								LengthUnit.Meter)
 					}
 
 					distance / secondsElapsed
@@ -337,17 +349,24 @@ class StatsDetailActivity : DetailActivity() {
 		val lengthSystem = Preferences.getLengthSystem(this)
 
 		val altitudeStatisticsList = listOf(
-				InformationStatisticsData(R.drawable.arrow_top_right_bold_outline, R.string.stats_ascended, resources.formatDistance(ascended, 1, lengthSystem)),
-				InformationStatisticsData(R.drawable.arrow_bottom_right_bold_outline, R.string.stats_descended, resources.formatDistance(descended, 1, lengthSystem)),
-				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain, R.string.stats_elevation_max, resources.formatDistance(maxAltitude, 1, lengthSystem)),
-				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain, R.string.stats_elevation_min, resources.formatDistance(minAltitude, 1, lengthSystem)),
-				LineChartStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain, R.string.stats_elevation, elevationList)
+				InformationStatisticsData(R.drawable.arrow_top_right_bold_outline, R.string.stats_ascended,
+						resources.formatDistance(ascended, 1, lengthSystem)),
+				InformationStatisticsData(R.drawable.arrow_bottom_right_bold_outline, R.string.stats_descended,
+						resources.formatDistance(descended, 1, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain,
+						R.string.stats_elevation_max, resources.formatDistance(maxAltitude, 1, lengthSystem)),
+				InformationStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain,
+						R.string.stats_elevation_min, resources.formatDistance(minAltitude, 1, lengthSystem)),
+				LineChartStatisticsData(com.adsamcik.signalcollector.common.R.drawable.ic_outline_terrain,
+						R.string.stats_elevation, elevationList)
 		)
 
 		addStatisticsData(adapter, altitudeStatisticsList, AppendPriority(AppendBehavior.Any))
 	}
 
-	private fun addStatisticsData(adapter: StatsDetailAdapter, data: List<StatisticDetailData>, appendPriority: AppendPriority) {
+	private fun addStatisticsData(adapter: StatsDetailAdapter,
+	                              data: List<StatisticDetailData>,
+	                              appendPriority: AppendPriority) {
 		launch(Dispatchers.Main) {
 			adapter.addAll(data.map { SortableAdapter.SortableData(it, appendPriority) })
 		}

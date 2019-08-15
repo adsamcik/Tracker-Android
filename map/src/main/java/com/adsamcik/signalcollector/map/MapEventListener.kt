@@ -44,7 +44,11 @@ internal class MapEventListener(val map: GoogleMap) {
 
 	operator fun plusAssign(listener: GoogleMap.OnCameraMoveStartedListener) {
 		if (onCameraMoveStartedListeners.isEmpty()) {
-			map.setOnCameraMoveStartedListener { reason -> onCameraMoveStartedListeners.forEach { it.onCameraMoveStarted(reason) } }
+			map.setOnCameraMoveStartedListener { reason ->
+				onCameraMoveStartedListeners.forEach {
+					it.onCameraMoveStarted(reason)
+				}
+			}
 		}
 		onCameraMoveStartedListeners.add(listener)
 	}

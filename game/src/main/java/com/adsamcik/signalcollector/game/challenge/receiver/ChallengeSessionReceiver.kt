@@ -48,7 +48,8 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 
 	override fun onReceive(context: Context, intent: Intent) {
 		//The receiver might be subscribed even though the challenges are disabled. Subscribing on demand could be really complicated.
-		if (Preferences.getPref(context).getBooleanRes(R.string.settings_game_challenge_enable_key, R.string.settings_game_challenge_enable_default)) {
+		if (Preferences.getPref(context).getBooleanRes(R.string.settings_game_challenge_enable_key,
+						R.string.settings_game_challenge_enable_default)) {
 			when (intent.action) {
 				TrackerSession.RECEIVER_SESSION_STARTED -> onSessionStarted(context)
 				TrackerSession.RECEIVER_SESSION_ENDED -> onSessionEnded(context, intent)

@@ -12,7 +12,9 @@ import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 
-class LineChartViewHolder(root: View, val title: TextView, val chart: LineChart) : MultiTypeViewHolder<LineChartStatisticsData>(root) {
+class LineChartViewHolder(root: View,
+                          val title: TextView,
+                          val chart: LineChart) : MultiTypeViewHolder<LineChartStatisticsData>(root) {
 
 
 	private fun onColorChange(styleData: StyleData) {

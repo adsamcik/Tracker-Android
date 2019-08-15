@@ -28,7 +28,8 @@ import com.adsamcik.signalcollector.tracker.data.collection.CellScanData
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
 import java.util.*
 
-internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : TrackerDataProducerComponent(changeReceiver) {
+internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : TrackerDataProducerComponent(
+		changeReceiver) {
 	override val keyRes: Int = R.string.settings_cell_enabled_key
 	override val defaultRes: Int = R.string.settings_cell_enabled_default
 
@@ -77,7 +78,8 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 
 	@RequiresApi(22)
 	@RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
-	private fun getScanData(telephonyManager: TelephonyManager, subscriptionManager: SubscriptionManager): CellScanData? {
+	private fun getScanData(telephonyManager: TelephonyManager,
+	                        subscriptionManager: SubscriptionManager): CellScanData? {
 		val list = mutableListOf<NetworkOperator>()
 		subscriptionManager.activeSubscriptionInfoList.forEach {
 			val mcc: String?
@@ -105,7 +107,8 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		}
 	}
 
-	private fun getScanData(telephonyManager: TelephonyManager, registeredOperators: List<NetworkOperator>): CellScanData? {
+	private fun getScanData(telephonyManager: TelephonyManager,
+	                        registeredOperators: List<NetworkOperator>): CellScanData? {
 		//Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
 		@SuppressLint("MissingPermission")
 		val cellInfo = telephonyManager.allCellInfo ?: return null
@@ -126,14 +129,16 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		return CellScanData(registeredOperators, cellInfo, registeredCells)
 	}
 
-	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo, registeredOperator: List<NetworkOperator>): CellInfo? {
+	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo,
+	                              registeredOperator: List<NetworkOperator>): CellInfo? {
 		return if (cellInfo is CellInfoLte) {
 			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
 				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 			}
 		} else if (Build.VERSION.SDK_INT >= 29 && cellInfo is CellInfoNr) {
 			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-				CellInfo(cellInfo.cellIdentity as CellIdentityNr, cellInfo.cellSignalStrength as CellSignalStrengthNr, it)
+				CellInfo(cellInfo.cellIdentity as CellIdentityNr, cellInfo.cellSignalStrength as CellSignalStrengthNr,
+						it)
 			}
 		} else if (cellInfo is CellInfoGsm) {
 			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {

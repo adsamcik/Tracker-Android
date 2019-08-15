@@ -13,7 +13,13 @@ import com.adsamcik.signalcollector.common.preference.ModuleSettings
 import com.adsamcik.signalcollector.common.style.RecyclerStyleView
 import com.adsamcik.signalcollector.module.Module
 import com.adsamcik.signalcollector.preference.fragment.FragmentSettings
-import com.adsamcik.signalcollector.preference.pages.*
+import com.adsamcik.signalcollector.preference.pages.DataPage
+import com.adsamcik.signalcollector.preference.pages.DebugPage
+import com.adsamcik.signalcollector.preference.pages.ExportPage
+import com.adsamcik.signalcollector.preference.pages.PreferencePage
+import com.adsamcik.signalcollector.preference.pages.RootPage
+import com.adsamcik.signalcollector.preference.pages.StylePage
+import com.adsamcik.signalcollector.preference.pages.TrackerPreferencePage
 
 /**
  * Settings Activity contains local settings and hosts debugging features
@@ -56,7 +62,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		val modules = Module.getActiveModuleInfo(this)
 		modules.forEach {
 			try {
-				val tClass = it.module.loadClass<ModuleSettings>("preference.${it.module.moduleName.capitalize()}Settings")
+				val tClass = it.module.loadClass<ModuleSettings>(
+						"preference.${it.module.moduleName.capitalize()}Settings")
 				val instance = tClass.newInstance()
 				moduleSettingsList[it.module] = instance
 			} catch (e: ClassNotFoundException) {

@@ -13,7 +13,8 @@ import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 import java.util.*
 
-class ResourceLicenseObject(override val name: String, val from: Int, val length: Int, val resources: Resources) : LicenseObject {
+class ResourceLicenseObject(override val name: String, val from: Int, val length: Int, val resources: Resources) :
+		LicenseObject {
 	override val notice: Notice
 		get() = resolveNotice()
 
@@ -63,7 +64,8 @@ class ResourceLicenseObject(override val name: String, val from: Int, val length
 
 	private fun getLicense(): License {
 		val licenseText = loadLicense()
-		return if (licenseText.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || licenseText.startsWith("https://api.github.com/licenses/apache-2.0")) {
+		return if (licenseText.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || licenseText.startsWith(
+						"https://api.github.com/licenses/apache-2.0")) {
 			ApacheSoftwareLicense20()
 		} else if (licenseText.startsWith("http://www.opensource.org/licenses/mit-license")) {
 			MITLicense()

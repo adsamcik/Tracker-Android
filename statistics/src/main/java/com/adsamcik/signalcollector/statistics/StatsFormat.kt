@@ -28,7 +28,8 @@ object StatsFormat {
 			val timeFormat = SimpleDateFormat.getTimeInstance(SimpleDateFormat.SHORT, locale)
 			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"
 		} else {
-			val timeFormat = SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT, locale) as SimpleDateFormat
+			val timeFormat = SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT,
+					locale) as SimpleDateFormat
 			val format = SimpleDateFormat("${dateFormat.toPattern()} ${timeFormat.toPattern()}", locale)
 			"${format.format(startDate)} - ${format.format(endDate)}"
 		}

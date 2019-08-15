@@ -65,7 +65,8 @@ object BackgroundTrackingApi {
 		val preferences = Preferences.getPref(context)
 		if (groupedActivity.isIdle ||
 				TrackerService.isServiceRunning.value ||
-				preferences.getBooleanRes(R.string.settings_disabled_recharge_key, R.string.settings_disabled_recharge_default)) {
+				preferences.getBooleanRes(R.string.settings_disabled_recharge_key,
+						R.string.settings_disabled_recharge_default)) {
 			return false
 		}
 
@@ -92,7 +93,8 @@ object BackgroundTrackingApi {
 	}
 
 	private fun getBackgroundTrackingActivityRequirement(context: Context) =
-			Preferences.getPref(context).getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
+			Preferences.getPref(context).getIntResString(R.string.settings_tracking_activity_key,
+					R.string.settings_tracking_activity_default)
 
 	private fun buildTransitions(context: Context): List<ActivityTransitionData> {
 		val transitions = mutableListOf<ActivityTransitionData>()
@@ -140,6 +142,7 @@ object BackgroundTrackingApi {
 
 		appContext = context.applicationContext
 
-		PreferenceObserver.observe(context, R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default, observer)
+		PreferenceObserver.observe(context, R.string.settings_tracking_activity_key,
+				R.string.settings_tracking_activity_default, observer)
 	}
 }

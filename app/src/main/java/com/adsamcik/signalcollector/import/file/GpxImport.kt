@@ -2,7 +2,12 @@ package com.adsamcik.signalcollector.import.file
 
 import androidx.annotation.RequiresApi
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.data.*
+import com.adsamcik.signalcollector.common.data.ActivityInfo
+import com.adsamcik.signalcollector.common.data.LengthUnit
+import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.MutableTrackerSession
+import com.adsamcik.signalcollector.common.data.SessionActivity
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation

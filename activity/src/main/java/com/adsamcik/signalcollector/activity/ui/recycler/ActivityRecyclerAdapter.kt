@@ -18,7 +18,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivityViewHolder>(), IViewChange, CoroutineScope {
+class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivityViewHolder>(),
+		IViewChange,
+		CoroutineScope {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val job = SupervisorJob()

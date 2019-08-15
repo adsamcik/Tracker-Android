@@ -108,7 +108,8 @@ class ExportActivity : DetailActivity() {
 					val selectedRange = LongRange(range.start.timeInMillis, range.endInclusive.timeInMillis)
 					launch(Dispatchers.Main) {
 						MaterialDialog(view.context).dateTimeRangePicker(availableRange, selectedRange) {
-							range = createCalendarWithTime(it.first)..createCalendarWithTime(it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS)
+							range = createCalendarWithTime(it.first)..createCalendarWithTime(
+									it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS)
 						}.show()
 					}
 				}

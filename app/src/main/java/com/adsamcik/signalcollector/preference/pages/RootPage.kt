@@ -84,7 +84,9 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 						.isChecked = true
 			} else if (clickCount >= 4) {
 				val remainingClickCount = 7 - clickCount
-				showToast(context, resources.getQuantityString(R.plurals.settings_debug_available_in, remainingClickCount, remainingClickCount))
+				showToast(context,
+						resources.getQuantityString(R.plurals.settings_debug_available_in, remainingClickCount,
+								remainingClickCount))
 			}
 			true
 		}

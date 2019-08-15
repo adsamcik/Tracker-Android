@@ -22,7 +22,10 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	private var cellOperatorDao: CellOperatorDao? = null
 
 
-	override fun onNewData(context: Context, session: TrackerSession, collectionData: CollectionData, tempData: CollectionTempData) {
+	override fun onNewData(context: Context,
+	                       session: TrackerSession,
+	                       collectionData: CollectionData,
+	                       tempData: CollectionTempData) {
 		val cellData = collectionData.cell
 		if (cellData != null) {
 			val location = collectionData.location

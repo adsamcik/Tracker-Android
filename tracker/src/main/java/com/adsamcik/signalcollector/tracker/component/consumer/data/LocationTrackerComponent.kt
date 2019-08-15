@@ -7,7 +7,8 @@ import com.adsamcik.signalcollector.tracker.component.TrackerComponentRequiremen
 import com.adsamcik.signalcollector.tracker.data.collection.CollectionTempData
 
 internal class LocationTrackerComponent : DataTrackerComponent {
-	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(TrackerComponentRequirement.LOCATION)
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
+			TrackerComponentRequirement.LOCATION)
 
 	override suspend fun onDisable(context: Context) {}
 	override suspend fun onEnable(context: Context) {}

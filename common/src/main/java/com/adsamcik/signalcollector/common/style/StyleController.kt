@@ -313,7 +313,8 @@ class StyleController : CoroutineScope {
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
 		launch(Dispatchers.Main) {
-			updateStyle(backgroundColor, foregroundColor, perceivedLuminance, styleView.view, styleView.layer, styleView.maxDepth)
+			updateStyle(backgroundColor, foregroundColor, perceivedLuminance, styleView.view, styleView.layer,
+					styleView.maxDepth)
 		}
 	}
 
@@ -331,7 +332,8 @@ class StyleController : CoroutineScope {
 		val iterator = styleData.view.children.iterator()
 
 		for (item in iterator) {
-			updateStyle(backgroundColor, foregroundColor, backgroundLuminance, item, styleData.childrenLayer, Int.MAX_VALUE)
+			updateStyle(backgroundColor, foregroundColor, backgroundLuminance, item, styleData.childrenLayer,
+					Int.MAX_VALUE)
 		}
 	}
 
@@ -355,7 +357,8 @@ class StyleController : CoroutineScope {
 			val newDepthLeft = depthLeft - 1
 
 			for (i in 0 until view.childCount) {
-				updateStyle(backgroundColor, foregroundColor, backgroundLuminance, view.getChildAt(i), newLayer, newDepthLeft)
+				updateStyle(backgroundColor, foregroundColor, backgroundLuminance, view.getChildAt(i), newLayer,
+						newDepthLeft)
 			}
 		} else {
 			updateStyleForeground(view, foregroundColor)

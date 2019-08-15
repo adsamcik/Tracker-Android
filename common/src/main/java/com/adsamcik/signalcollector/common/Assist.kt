@@ -167,7 +167,8 @@ object Assist {
 	fun canTrack(context: Context): Boolean {
 		val preferences = Preferences.getPref(context)
 
-		return preferences.getBooleanRes(R.string.settings_location_enabled_key, R.string.settings_location_enabled_default) ||
+		return preferences.getBooleanRes(R.string.settings_location_enabled_key,
+				R.string.settings_location_enabled_default) ||
 				preferences.getBooleanRes(R.string.settings_cell_enabled_key, R.string.settings_cell_enabled_default) ||
 				preferences.getBooleanRes(R.string.settings_wifi_enabled_key, R.string.settings_wifi_enabled_default)
 	}
@@ -234,7 +235,9 @@ object Assist {
 		return Looper.myLooper() == Looper.getMainLooper()
 	}
 
-	fun getBackgroundDrawable(pressedColor: Int, backgroundDrawable: Drawable? = null, mask: Drawable? = null): RippleDrawable {
+	fun getBackgroundDrawable(pressedColor: Int,
+	                          backgroundDrawable: Drawable? = null,
+	                          mask: Drawable? = null): RippleDrawable {
 		return RippleDrawable(getPressedState(pressedColor), backgroundDrawable, mask)
 	}
 

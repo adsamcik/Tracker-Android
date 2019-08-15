@@ -18,7 +18,10 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 	private var locationDao: LocationDataDao? = null
 
 
-	override fun onNewData(context: Context, session: TrackerSession, collectionData: CollectionData, tempData: CollectionTempData) {
+	override fun onNewData(context: Context,
+	                       session: TrackerSession,
+	                       collectionData: CollectionData,
+	                       tempData: CollectionTempData) {
 		val location = collectionData.location
 		if (location != null) {
 			val activity = collectionData.activity ?: ActivityInfo.UNKNOWN

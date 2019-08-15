@@ -19,13 +19,15 @@ class HomeIntroduction : Introduction() {
 		activity.apply {
 			val resources = resources
 			//todo add next button to library
-			val buttonData = SimpleTarget.ButtonData(resources.getString(com.adsamcik.signalcollector.common.R.string.next_part)) { _, spotlight ->
+			val buttonData = SimpleTarget.ButtonData(
+					resources.getString(com.adsamcik.signalcollector.common.R.string.next_part)) { _, spotlight ->
 				spotlight.next()
 			}
 
 			val welcome = SimpleTarget.Builder(this)
 					.setTitle(resources.getString(R.string.tutorial_welcome_title))
-					.addButtonData(SimpleTarget.ButtonData(resources.getString(com.adsamcik.signalcollector.common.R.string.skip_tips)) { _, spotlight ->
+					.addButtonData(SimpleTarget.ButtonData(resources.getString(
+							com.adsamcik.signalcollector.common.R.string.skip_tips)) { _, spotlight ->
 						spotlight.finishSpotlight()
 					})
 					.addButtonData(buttonData)

@@ -21,7 +21,8 @@ class WalkDistanceChallengeInstance(data: ChallengeEntry,
 	override fun getDescription(context: Context): String {
 		val lengthSystem = Preferences.getLengthSystem(context)
 		val resources = context.resources
-		return resources.getString(definition.descriptionRes, resources.formatDistance(extra.requiredDistanceInM, 1, lengthSystem))
+		return resources.getString(definition.descriptionRes,
+				resources.formatDistance(extra.requiredDistanceInM, 1, lengthSystem))
 	}
 
 	override val progress: Double

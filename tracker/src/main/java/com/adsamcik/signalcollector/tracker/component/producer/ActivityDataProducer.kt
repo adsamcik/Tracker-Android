@@ -11,7 +11,8 @@ import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerCompone
 import com.adsamcik.signalcollector.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
 
-internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver) : TrackerDataProducerComponent(changeReceiver) {
+internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver) : TrackerDataProducerComponent(
+		changeReceiver) {
 	override val keyRes: Int
 		get() = R.string.settings_activity_enabled_key
 	override val defaultRes: Int
@@ -41,8 +42,10 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 
 	override fun onEnable(context: Context) {
 		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key, R.integer.settings_tracking_min_time_default)
-		ActivityRequestManager.requestActivity(context, ActivityRequestData(this::class, minUpdateDelayInSeconds, listOf(), this::onActivityChanged))
+		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
+				R.integer.settings_tracking_min_time_default)
+		ActivityRequestManager.requestActivity(context,
+				ActivityRequestData(this::class, minUpdateDelayInSeconds, listOf(), this::onActivityChanged))
 	}
 
 	override fun onDisable(context: Context) {

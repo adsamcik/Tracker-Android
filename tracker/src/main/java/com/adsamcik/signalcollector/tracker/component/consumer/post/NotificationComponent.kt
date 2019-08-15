@@ -44,7 +44,10 @@ internal class NotificationComponent : PostTrackerComponent {
 		notificationManager = context.notificationManager
 	}
 
-	override fun onNewData(context: Context, session: TrackerSession, collectionData: CollectionData, tempData: CollectionTempData) {
+	override fun onNewData(context: Context,
+	                       session: TrackerSession,
+	                       collectionData: CollectionData,
+	                       tempData: CollectionTempData) {
 		val location = tempData.tryGetLocation()
 		notify(generateNotification(context, location, collectionData))
 	}
@@ -65,7 +68,9 @@ internal class NotificationComponent : PostTrackerComponent {
 
 	private fun notify(notification: Notification) = requireNotificationManager.notify(NOTIFICATION_ID, notification)
 
-	private fun generateNotification(context: Context, location: Location? = null, data: CollectionData? = null): Notification {
+	private fun generateNotification(context: Context,
+	                                 location: Location? = null,
+	                                 data: CollectionData? = null): Notification {
 		val builder = prepareNotificationBase(context)
 
 		val resources = context.resources
@@ -78,7 +83,8 @@ internal class NotificationComponent : PostTrackerComponent {
 			else -> {
 				//todo improve title
 				builder.setContentTitle(resources.getString(R.string.notification_tracking_active))
-				builder.setStyle(NotificationCompat.BigTextStyle().bigText(buildNotificationText(context, location, data)))
+				builder.setStyle(
+						NotificationCompat.BigTextStyle().bigText(buildNotificationText(context, location, data)))
 			}
 		}
 
@@ -97,15 +103,21 @@ internal class NotificationComponent : PostTrackerComponent {
 			stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, notificationAction)
 			val stop = PendingIntent.getBroadcast(context, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
 			if (trackingSessionInfo.isInitiatedByUser) {
-				builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp, resources.getString(R.string.notification_stop), stop)
+				builder.addAction(R.drawable.ic_pause_circle_filled_black_24dp,
+						resources.getString(R.string.notification_stop), stop)
 			} else {
-				builder.addAction(R.drawable.ic_battery_alert_black, resources.getString(R.string.notification_stop_til_recharge), stop)
+				builder.addAction(R.drawable.ic_battery_alert_black,
+						resources.getString(R.string.notification_stop_til_recharge), stop)
 
 				val stopForMinutesIntent = Intent(context, TrackerNotificationReceiver::class.java)
-				stopForMinutesIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, TrackerNotificationReceiver.STOP_MINUTES_EXTRA)
+				stopForMinutesIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING,
+						TrackerNotificationReceiver.STOP_MINUTES_EXTRA)
 				stopForMinutesIntent.putExtra(TrackerNotificationReceiver.STOP_MINUTES_EXTRA, stopForMinutes)
-				val stopForMinutesAction = PendingIntent.getBroadcast(context, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
-				builder.addAction(R.drawable.ic_stop_black_24dp, resources.getString(R.string.notification_stop_for_minutes, stopForMinutes), stopForMinutesAction)
+				val stopForMinutesAction = PendingIntent.getBroadcast(context, 1, stopIntent,
+						PendingIntent.FLAG_UPDATE_CURRENT)
+				builder.addAction(R.drawable.ic_stop_black_24dp,
+						resources.getString(R.string.notification_stop_for_minutes, stopForMinutes),
+						stopForMinutesAction)
 			}
 		}
 
@@ -118,7 +130,8 @@ internal class NotificationComponent : PostTrackerComponent {
 			addCategory(Intent.CATEGORY_HOME)
 		}
 
-		return NotificationCompat.Builder(context, resources.getString(com.adsamcik.signalcollector.common.R.string.channel_track_id))
+		return NotificationCompat.Builder(context,
+				resources.getString(com.adsamcik.signalcollector.common.R.string.channel_track_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setSmallIcon(R.drawable.ic_signals)  // the done icon
 				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
@@ -146,7 +159,8 @@ internal class NotificationComponent : PostTrackerComponent {
 					.append(delimiter)
 		}
 
-		sb.append(resources.getString(R.string.notification_altitude, resources.formatDistance(location.altitude, 2, lengthSystem)))
+		sb.append(resources.getString(R.string.notification_altitude,
+				resources.formatDistance(location.altitude, 2, lengthSystem)))
 				.append(delimiter)
 
 		val activity = d.activity
@@ -167,7 +181,8 @@ internal class NotificationComponent : PostTrackerComponent {
 			sb
 					.append(resources.getString(R.string.notification_cell_current, mainCell.type.name, mainCell.dbm))
 					.append(' ')
-					.append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount, cell.totalCount))
+					.append(resources.getQuantityString(R.plurals.notification_cell_count, cell.totalCount,
+							cell.totalCount))
 					.append(delimiter)
 		}
 

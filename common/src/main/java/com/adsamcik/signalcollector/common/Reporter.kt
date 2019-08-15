@@ -33,7 +33,8 @@ object Reporter {
 			this.context = WeakReference(context.applicationContext)
 		}
 
-		PreferenceObserver.observe(context, R.string.settings_error_reporting_key, R.string.settings_error_reporting_default, loggingObserver)
+		PreferenceObserver.observe(context, R.string.settings_error_reporting_key,
+				R.string.settings_error_reporting_default, loggingObserver)
 	}
 
 	private fun checkInitialized() {

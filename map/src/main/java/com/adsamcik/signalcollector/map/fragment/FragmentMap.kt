@@ -120,7 +120,8 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		} else {
 			fragmentView = inflater.inflate(com.adsamcik.signalcollector.common.R.layout.layout_error, container, false)
 			fragmentView.findViewById<AppCompatTextView>(com.adsamcik.signalcollector.common.R.id.activity_error_text)
-					.setText(if (hasPermissions) com.adsamcik.signalcollector.common.R.string.error_play_services_not_available else com.adsamcik.signalcollector.common.R.string.error_missing_permission)
+					.setText(
+							if (hasPermissions) com.adsamcik.signalcollector.common.R.string.error_play_services_not_available else com.adsamcik.signalcollector.common.R.string.error_missing_permission)
 		}
 
 		/*fragmentView.setOnTouchListener { _, _ ->
@@ -154,7 +155,8 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		this.mapController = mapController
 		this.locationListener = locationListener
 
-		mapSheetController = MapSheetController(context, map, map_ui_parent, mapController, locationListener, mapEventListener)
+		mapSheetController = MapSheetController(context, map, map_ui_parent, mapController, locationListener,
+				mapEventListener)
 
 		ColorMap.addListener(context, map)
 

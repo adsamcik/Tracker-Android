@@ -2,7 +2,9 @@ package com.adsamcik.signalcollector.utility
 
 import com.adsamcik.signalcollector.common.extension.contains
 import com.adsamcik.signalcollector.common.extension.toDate
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4

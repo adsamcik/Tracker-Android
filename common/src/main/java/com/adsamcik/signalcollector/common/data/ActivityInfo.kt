@@ -18,7 +18,8 @@ class ActivityInfo(
 		val activityType: Int,
 		val confidence: Int
 ) : Parcelable {
-	constructor(detectedActivity: com.google.android.gms.location.DetectedActivity) : this(detectedActivity.type, detectedActivity.confidence)
+	constructor(detectedActivity: com.google.android.gms.location.DetectedActivity) : this(detectedActivity.type,
+			detectedActivity.confidence)
 
 	constructor(detectedActivity: DetectedActivity, confidence: Int) : this(detectedActivity.value, confidence)
 

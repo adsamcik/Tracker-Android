@@ -58,7 +58,8 @@ class SummarySection : StatelessSection(SectionParameters.builder()
 		return LinearLayoutCompat(parent.context).apply {
 			orientation = LinearLayoutCompat.HORIZONTAL
 			layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-			val contentPadding = parent.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding)
+			val contentPadding = parent.resources.getDimension(
+					com.adsamcik.signalcollector.common.R.dimen.content_padding)
 					.roundToInt()
 			setPadding(contentPadding, 0, contentPadding, 0)
 		}
