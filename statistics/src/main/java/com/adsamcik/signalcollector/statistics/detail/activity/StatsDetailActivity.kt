@@ -393,3 +393,4 @@ class StatsDetailActivity : DetailActivity() {
 		const val ARG_SESSION_ID = "session_id"
 	}
 }
+

@@ -90,3 +90,4 @@ class IntValueSliderPreference : Preference {
 		this.slider = slider
 	}
 }
+

@@ -197,3 +197,4 @@ abstract class DetailActivity : CoreUIActivity() {
 	                         var elevation: Int? = null,
 	                         var useColorControllerForContent: Boolean = false)
 }
+

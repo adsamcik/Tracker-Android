@@ -62,3 +62,4 @@ object Reporter {
 		if (isEnabled) Crashlytics.log(message)
 	}
 }
+

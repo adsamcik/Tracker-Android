@@ -30,3 +30,4 @@ internal enum class TrackerTimerErrorSeverity {
 	NOTIFY_USER,
 	WARNING
 }
+

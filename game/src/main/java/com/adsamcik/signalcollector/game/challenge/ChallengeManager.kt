@@ -96,3 +96,4 @@ object ChallengeManager {
 		return selectedChallenge.newInstance(context, Time.nowMillis)
 	}
 }
+

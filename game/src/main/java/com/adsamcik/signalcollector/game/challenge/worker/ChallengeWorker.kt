@@ -50,3 +50,4 @@ class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker
 	}
 
 }
+

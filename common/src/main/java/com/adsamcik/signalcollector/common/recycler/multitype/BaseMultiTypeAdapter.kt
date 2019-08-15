@@ -40,3 +40,4 @@ open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleContr
 	class NotRegisteredException(message: String) : Exception(message)
 	class AlreadyRegisteredException(message: String) : Exception(message)
 }
+

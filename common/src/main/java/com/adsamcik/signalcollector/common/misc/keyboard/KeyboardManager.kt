@@ -95,3 +95,4 @@ class KeyboardManager(private val rootView: View) {
 		private const val KEYBOARD_VISIBLE_THRESHOLD_DP = 100
 	}
 }
+

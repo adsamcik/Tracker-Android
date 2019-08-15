@@ -132,3 +132,4 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 		internal const val PREVIOUS_LOCATION = "previousLocation"
 	}
 }
+

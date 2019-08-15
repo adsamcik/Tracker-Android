@@ -38,3 +38,4 @@ internal object MapFunctions {
 		return Double2(oneTile * 360.0, oneTile * 180.0)
 	}
 }
+

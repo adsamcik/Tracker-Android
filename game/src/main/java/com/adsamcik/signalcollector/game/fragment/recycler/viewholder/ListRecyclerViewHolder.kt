@@ -28,3 +28,4 @@ abstract class ListRecyclerViewHolder<DataType : ListRecyclerData<*>>(
 		styleController.stopWatchingRecyclerView(recycler)
 	}
 }
+

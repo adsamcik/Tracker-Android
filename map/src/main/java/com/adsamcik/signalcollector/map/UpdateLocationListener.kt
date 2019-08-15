@@ -304,3 +304,4 @@ internal class UpdateLocationListener(context: Context,
 		private const val LOCATION_UPDATE_INTERVAL = 2 * Time.SECOND_IN_MILLISECONDS
 	}
 }
+

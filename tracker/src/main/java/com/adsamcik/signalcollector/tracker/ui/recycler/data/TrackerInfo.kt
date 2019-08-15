@@ -70,3 +70,4 @@ abstract class TrackerInfo(@StringRes val nameRes: Int) {
 		}
 	}
 }
+

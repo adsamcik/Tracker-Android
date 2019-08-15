@@ -146,3 +146,4 @@ object BackgroundTrackingApi {
 				R.string.settings_tracking_activity_default, observer)
 	}
 }
+

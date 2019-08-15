@@ -67,3 +67,4 @@ class StatusActivity : DetailActivity() {
 		return title.id
 	}
 }
+

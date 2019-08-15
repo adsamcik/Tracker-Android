@@ -62,3 +62,4 @@ data class CoordinateBounds(private var topBound: Double = MIN_LATITUDE,
 		const val MAX_LONGITUDE: Double = 180.0
 	}
 }
+

@@ -147,3 +147,4 @@ data class WifiInfo(
 		}
 	}
 }
+

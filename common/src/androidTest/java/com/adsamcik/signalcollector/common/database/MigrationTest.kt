@@ -241,3 +241,4 @@ class MigrationTest {
 		private const val TEST_DB = "migration-test"
 	}
 }
+

@@ -144,3 +144,4 @@ object PreferenceObserver {
 	}
 
 }
+

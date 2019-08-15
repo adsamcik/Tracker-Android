@@ -26,3 +26,4 @@ fun Data.getLongReportNull(key: String): Long? {
 	if (value == null) Reporter.report(IllegalArgumentException("Argument $key was not specified"))
 	return value
 }
+

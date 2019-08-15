@@ -65,3 +65,4 @@ internal data class HeatmapStamp(var width: Int, var height: Int, val stampData:
 		return result
 	}
 }
+

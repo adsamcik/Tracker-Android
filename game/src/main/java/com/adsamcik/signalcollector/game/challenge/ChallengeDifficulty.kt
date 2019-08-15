@@ -21,3 +21,4 @@ enum class ChallengeDifficulty {
 
 	abstract val difficultyStringRes: Int
 }
+

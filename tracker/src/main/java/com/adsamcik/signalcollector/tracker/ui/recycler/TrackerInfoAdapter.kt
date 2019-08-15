@@ -92,3 +92,4 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 
 	data class InfoField(val title: TextView, val value: TextView)
 }
+

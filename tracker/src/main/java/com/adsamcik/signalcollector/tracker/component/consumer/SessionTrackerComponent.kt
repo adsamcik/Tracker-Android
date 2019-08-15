@@ -133,3 +133,4 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 		const val MERGE_SESSION_MAX_AGE = 10 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
+

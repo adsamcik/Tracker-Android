@@ -44,3 +44,4 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		wifiDao = AppDatabase.getDatabase(context).wifiDao()
 	}
 }
+

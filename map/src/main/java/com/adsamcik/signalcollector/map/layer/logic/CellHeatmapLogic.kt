@@ -16,3 +16,4 @@ internal class CellHeatmapLogic : HeatmapLayerLogic() {
 	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
 			R.string.map_layer_cell_heatmap)
 }
+

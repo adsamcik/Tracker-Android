@@ -119,3 +119,4 @@ class SessionActivityActivity : DetailActivity() {
 		swipeTouchHelper.onDestroy()
 	}
 }
+

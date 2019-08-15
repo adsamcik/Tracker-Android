@@ -82,3 +82,4 @@ interface BaseUpsertDao<T> : BaseDao<T> {
 		}
 	}
 }
+

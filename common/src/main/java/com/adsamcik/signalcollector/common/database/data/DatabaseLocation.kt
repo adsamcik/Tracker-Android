@@ -23,3 +23,4 @@ data class DatabaseLocation(
 
 	val time: Long get() = location.time
 }
+

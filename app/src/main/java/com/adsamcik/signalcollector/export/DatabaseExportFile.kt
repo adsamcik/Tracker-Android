@@ -23,3 +23,4 @@ class DatabaseExportFile : ExportFile {
 		return ExportResult(targetFile, "application/vnd.sqlite3")
 	}
 }
+

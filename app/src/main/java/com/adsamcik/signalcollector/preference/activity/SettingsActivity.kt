@@ -155,3 +155,4 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		}
 	}
 }
+

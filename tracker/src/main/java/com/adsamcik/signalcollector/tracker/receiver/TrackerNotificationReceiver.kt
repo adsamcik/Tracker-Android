@@ -39,3 +39,4 @@ class TrackerNotificationReceiver : BroadcastReceiver() {
 		const val LOCK_TIME_ACTION: Int = 2
 	}
 }
+

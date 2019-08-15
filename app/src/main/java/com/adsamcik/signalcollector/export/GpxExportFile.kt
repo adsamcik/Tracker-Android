@@ -49,3 +49,4 @@ class GpxExportFile : ExportFile {
 		}
 	}
 }
+

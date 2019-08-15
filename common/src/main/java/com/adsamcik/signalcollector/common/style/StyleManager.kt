@@ -430,3 +430,4 @@ object StyleManager {
 		}
 	}
 }
+

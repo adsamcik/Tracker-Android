@@ -11,3 +11,4 @@ class DatabaseMaintenance {
 		clearInvalidSessions.executeUpdateDelete()
 	}
 }
+

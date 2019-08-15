@@ -12,3 +12,4 @@ class ExplorerChallengeEntity(entryId: Long,
                               @ColumnInfo(name = "location_count")
                               var locationCount: Int
 ) : ChallengeEntryExtra(entryId, isCompleted)
+

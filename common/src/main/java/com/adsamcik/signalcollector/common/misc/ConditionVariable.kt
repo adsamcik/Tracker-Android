@@ -72,3 +72,4 @@ class ConditionVariableInt(value: Int) : ConditionVariable<Int>(value) {
 		return value
 	}
 }
+

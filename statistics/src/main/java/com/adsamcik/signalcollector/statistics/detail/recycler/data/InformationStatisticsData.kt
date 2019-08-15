@@ -8,3 +8,4 @@ class InformationStatisticsData(@DrawableRes val iconRes: Int, val titleRes: Int
 		StatisticDetailData {
 	override val type: StatisticDetailType = StatisticDetailType.Information
 }
+

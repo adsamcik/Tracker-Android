@@ -103,3 +103,4 @@ class SimpleMarginDecoration(
 		const val DEFAULT_MARGIN_DP = 16
 	}
 }
+

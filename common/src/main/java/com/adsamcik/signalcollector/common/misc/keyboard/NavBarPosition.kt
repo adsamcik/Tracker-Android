@@ -9,3 +9,4 @@ enum class NavBarPosition {
 	RIGHT,
 	UNKNOWN
 }
+

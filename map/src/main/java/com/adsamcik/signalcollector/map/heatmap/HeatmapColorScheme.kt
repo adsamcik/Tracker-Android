@@ -190,3 +190,4 @@ internal data class HeatmapColorScheme constructor(val colors: IntArray) {
 		}
 	}
 }
+

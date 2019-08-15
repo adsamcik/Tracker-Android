@@ -175,3 +175,4 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 	}
 
 }
+

@@ -24,3 +24,4 @@ open class TrackerSessionTimeSummary(
 		distanceInVehicleInM: Float,
 		steps: Int
 ) : TrackerSessionSummary(duration, collections, distanceInM, distanceOnFootInM, distanceInVehicleInM, steps)
+

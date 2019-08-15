@@ -49,3 +49,4 @@ class SessionActivitySelection(private val context: Context,
 		}
 	}
 }
+

@@ -120,3 +120,4 @@ class GpxImport : FileImport {
 		return location
 	}
 }
+

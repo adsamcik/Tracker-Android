@@ -98,3 +98,4 @@ class CustomResourceLicense(val licenseText: String) : License() {
 
 	override fun readFullTextFromResources(context: Context?): String = this.licenseText
 }
+

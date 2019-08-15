@@ -69,3 +69,4 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(private
 
 	protected abstract fun persistExtra(database: ChallengeDatabase, challenge: ChallengeType)
 }
+

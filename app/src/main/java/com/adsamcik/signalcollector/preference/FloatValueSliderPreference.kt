@@ -94,3 +94,4 @@ class FloatValueSliderPreference : Preference {
 		this.slider = slider
 	}
 }
+

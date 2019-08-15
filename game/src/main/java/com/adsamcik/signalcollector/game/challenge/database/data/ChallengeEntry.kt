@@ -18,3 +18,4 @@ data class ChallengeEntry(val type: ChallengeType,
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0L
 }
+

@@ -17,3 +17,4 @@ class StringFilterableAdapter(context: Context, @LayoutRes resource: Int, string
 		return filterObject == null || item.contains(filterObject)
 	}
 }
+

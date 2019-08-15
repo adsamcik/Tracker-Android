@@ -38,3 +38,4 @@ abstract class SimpleFilterableAdapter<DataType, FilterType>(context: Context,
 	}
 
 }
+

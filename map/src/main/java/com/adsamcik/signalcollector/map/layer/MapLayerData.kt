@@ -35,3 +35,4 @@ internal data class MapLayerData(val id: KClass<MapLayerLogic>,
 data class ValueColor(val name: String, val color: Int)
 
 data class Legend(val items: List<ValueColor>)
+

@@ -72,3 +72,4 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 		cellOperatorDao = database.cellOperatorDao()
 	}
 }
+

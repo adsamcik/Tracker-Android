@@ -16,3 +16,4 @@ internal class WifiHeatmapLogic : HeatmapLayerLogic() {
 	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
 			R.string.map_layer_wifi_heatmap)
 }
+

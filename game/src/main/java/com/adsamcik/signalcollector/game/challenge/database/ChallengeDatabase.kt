@@ -55,3 +55,4 @@ abstract class ChallengeDatabase : RoomDatabase() {
 		}
 	}
 }
+

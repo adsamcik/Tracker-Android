@@ -10,3 +10,4 @@ internal interface DataTrackerComponent : TrackerComponent, TrackerDataConsumerC
 	                          collectionData: MutableCollectionData
 	)
 }
+

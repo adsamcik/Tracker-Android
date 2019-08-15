@@ -11,3 +11,4 @@ class ChallengeRecyclerViewHolder(rootView: View, title: TextView, recycler: Rec
 		recycler.adapter = value.dataAdapter
 	}
 }
+

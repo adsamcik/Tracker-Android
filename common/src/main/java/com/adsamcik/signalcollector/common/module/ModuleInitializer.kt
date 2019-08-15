@@ -7,3 +7,4 @@ interface ModuleInitializer {
 	@WorkerThread
 	fun initialize(context: Context)
 }
+

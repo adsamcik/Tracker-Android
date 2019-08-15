@@ -33,3 +33,4 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 		}
 	}
 }
+

@@ -20,3 +20,4 @@ fun <T> LiveData<T>.observe(owner: LifecycleOwner, body: (T?) -> Unit) {
  */
 val <T> LiveData<T>.requireValue: T
 	get() = value ?: throw NullPointerException("Value cannot be null.")
+

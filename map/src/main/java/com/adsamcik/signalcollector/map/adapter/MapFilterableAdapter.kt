@@ -32,3 +32,4 @@ internal class MapFilterableAdapter(
 		}
 	}
 }
+

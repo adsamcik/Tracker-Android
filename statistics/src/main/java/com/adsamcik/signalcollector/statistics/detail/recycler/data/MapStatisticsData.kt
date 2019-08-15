@@ -13,3 +13,4 @@ class MapStatisticsData(val locations: Collection<LatLng>, val bounds: Coordinat
 			CoordinateBounds().apply { updateBounds(locations.map { it.location }) })
 
 }
+

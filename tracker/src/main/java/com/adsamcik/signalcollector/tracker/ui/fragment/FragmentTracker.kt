@@ -234,3 +234,4 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		const val LOCK_WHEN_CANCELLED = 60
 	}
 }
+

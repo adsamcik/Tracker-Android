@@ -8,3 +8,4 @@ interface MultiTypeData<T : Enum<*>> : BaseMultiTypeData {
 	override val typeValue: Int get() = type.ordinal
 	val type: T
 }
+

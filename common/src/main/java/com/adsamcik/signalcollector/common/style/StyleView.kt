@@ -38,3 +38,4 @@ data class RecyclerStyleView(override val view: RecyclerView,
 	override val maxDepth: Int
 		get() = Int.MAX_VALUE
 }
+

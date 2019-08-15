@@ -98,3 +98,4 @@ internal class LocationTrackerTimer : TrackerTimerComponent {
 		const val MAX_LOCATION_AGE_IN_NANOS = 10 * Time.SECOND_IN_NANOSECONDS
 	}
 }
+

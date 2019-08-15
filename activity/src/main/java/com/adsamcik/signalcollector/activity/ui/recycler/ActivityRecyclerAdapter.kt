@@ -60,3 +60,4 @@ class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivit
 		launch { add(item, priority) }
 	}
 }
+

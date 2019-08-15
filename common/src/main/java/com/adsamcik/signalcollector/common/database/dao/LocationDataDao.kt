@@ -67,3 +67,4 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 		}
 	}
 }
+

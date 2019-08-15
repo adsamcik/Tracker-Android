@@ -57,3 +57,4 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		private const val MAX_ACTIVITY_AGE_IN_MILLIS = Time.MINUTE_IN_MILLISECONDS
 	}
 }
+

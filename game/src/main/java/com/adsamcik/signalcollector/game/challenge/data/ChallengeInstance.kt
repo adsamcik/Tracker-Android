@@ -51,3 +51,4 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : Cha
 		persistence.persist(context, this as Instance)
 	}
 }
+

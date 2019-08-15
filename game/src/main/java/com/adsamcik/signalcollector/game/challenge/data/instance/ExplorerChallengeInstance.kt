@@ -49,3 +49,4 @@ class ExplorerChallengeInstance(entry: ChallengeEntry,
 		private const val ACCURACY_IN_METERS = 20.0
 	}
 }
+

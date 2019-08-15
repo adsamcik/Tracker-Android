@@ -68,3 +68,4 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 		private const val MAX_DISTANCE_TO_WIFI = 100
 	}
 }
+

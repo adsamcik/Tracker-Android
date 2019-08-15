@@ -41,3 +41,4 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 		locationDao = AppDatabase.getDatabase(context).locationDao()
 	}
 }
+

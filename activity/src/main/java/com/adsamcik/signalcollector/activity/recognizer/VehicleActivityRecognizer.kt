@@ -48,3 +48,4 @@ internal class VehicleActivityRecognizer : ActivityRecognizer() {
 	}
 
 }
+

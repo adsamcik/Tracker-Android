@@ -12,3 +12,4 @@ class WalkDistanceChallengeEntity(entryId: Long,
                                   @ColumnInfo(name = "distance")
                                   var distanceInM: Float
 ) : ChallengeEntryExtra(entryId, isCompleted)
+

@@ -16,3 +16,4 @@ class InformationViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailD
 		return InformationViewHolder(view) as MultiTypeViewHolder<StatisticDetailData>
 	}
 }
+

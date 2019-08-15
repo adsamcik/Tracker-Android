@@ -114,3 +114,4 @@ object Shortcuts {
 		STOP_COLLECTION
 	}
 }
+

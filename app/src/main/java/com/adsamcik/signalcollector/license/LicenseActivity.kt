@@ -143,3 +143,4 @@ class LicenseActivity : DetailActivity() {
 		private class ViewHolder(val button: AppCompatButton, root: View) : RecyclerView.ViewHolder(root)
 	}
 }
+

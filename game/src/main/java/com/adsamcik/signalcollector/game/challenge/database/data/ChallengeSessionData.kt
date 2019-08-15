@@ -11,3 +11,4 @@ class ChallengeSessionData(
 		@ColumnInfo(name = "challenge_processed")
 		var isChallengeProcessed: Boolean
 )
+

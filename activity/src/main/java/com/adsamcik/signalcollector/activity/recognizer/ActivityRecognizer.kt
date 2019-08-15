@@ -30,3 +30,4 @@ data class ActivityRecognitionResult(val recognizedActivity: NativeSessionActivi
 	val requireRecognizedActivity: NativeSessionActivity
 		get() = recognizedActivity ?: throw NullPointerException("Recognized activity was null")
 }
+

@@ -184,3 +184,4 @@ private fun Resources.formatAncientRome(passus: Double, digits: Int): String {
 		getString(R.string.passus, passus.formatReadable(digits))
 	}
 }
+

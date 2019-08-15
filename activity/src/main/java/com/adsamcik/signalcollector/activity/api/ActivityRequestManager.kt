@@ -91,3 +91,4 @@ object ActivityRequestManager {
 		return min
 	}
 }
+

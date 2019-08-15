@@ -174,3 +174,4 @@ open class Preferences {
 		}
 	}
 }
+

@@ -18,3 +18,4 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 		collectionData.setLocation(locationResult.lastLocation)
 	}
 }
+

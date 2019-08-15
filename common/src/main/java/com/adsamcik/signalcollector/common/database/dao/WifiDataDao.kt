@@ -62,3 +62,4 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	@Query("SELECT MIN(last_seen) as start, MAX(last_seen) as endInclusive from wifi_data")
 	fun range(): DateRange
 }
+

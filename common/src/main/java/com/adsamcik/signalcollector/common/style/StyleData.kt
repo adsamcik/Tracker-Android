@@ -94,3 +94,4 @@ data class StyleData(@ColorInt private val backgroundColor: Int,
 		return result
 	}
 }
+

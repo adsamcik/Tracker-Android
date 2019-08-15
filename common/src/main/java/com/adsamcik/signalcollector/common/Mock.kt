@@ -35,3 +35,4 @@ val isEmulator: Boolean
 			|| Build.MANUFACTURER.contains("Genymotion")
 			|| Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")
 			|| "google_sdk" == Build.PRODUCT)
+

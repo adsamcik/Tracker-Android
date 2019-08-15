@@ -126,3 +126,4 @@ class ContextualSwipeTouchHelper(context: Context,
 		super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
 	}
 }
+

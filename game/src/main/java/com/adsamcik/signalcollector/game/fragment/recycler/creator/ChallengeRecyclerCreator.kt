@@ -27,3 +27,4 @@ class ChallengeRecyclerCreator : MultiTypeViewHolderCreator<GameRecyclerData> {
 				2) as MultiTypeViewHolder<GameRecyclerData>
 	}
 }
+

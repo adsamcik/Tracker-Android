@@ -161,3 +161,4 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 		private const val MAX_HEAT_ZOOM = MapController.MAX_ZOOM
 	}
 }
+

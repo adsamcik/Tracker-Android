@@ -34,3 +34,4 @@ class LineChartViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailDat
 	}
 
 }
+

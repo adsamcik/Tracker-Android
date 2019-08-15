@@ -35,3 +35,4 @@ class WalkDistanceChallengeInstance(data: ChallengeEntry,
 	}
 
 }
+

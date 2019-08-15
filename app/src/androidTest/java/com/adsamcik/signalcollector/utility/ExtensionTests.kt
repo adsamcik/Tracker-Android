@@ -34,3 +34,4 @@ class ExtensionTests {
 		assertEquals(0, calRound[Calendar.MILLISECOND])
 	}
 }
+

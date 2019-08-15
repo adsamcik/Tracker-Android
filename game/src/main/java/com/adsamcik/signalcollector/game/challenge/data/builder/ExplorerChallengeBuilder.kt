@@ -36,3 +36,4 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 		database.explorerDao.insert(challenge.extra)
 	}
 }
+

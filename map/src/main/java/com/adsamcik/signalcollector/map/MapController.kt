@@ -74,3 +74,4 @@ internal class MapController(context: Context, val map: GoogleMap) {
 		const val MAX_ZOOM = 17f
 	}
 }
+

@@ -16,3 +16,4 @@ internal class LocationHeatmapLogic : HeatmapLayerLogic() {
 	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
 			R.string.map_layer_location_heatmap)
 }
+

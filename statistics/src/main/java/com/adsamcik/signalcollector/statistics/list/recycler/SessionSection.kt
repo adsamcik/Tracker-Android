@@ -128,3 +128,4 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 	                             val info: TextView
 	) : RecyclerView.ViewHolder(rootView)
 }
+

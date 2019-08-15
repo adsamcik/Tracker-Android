@@ -146,3 +146,4 @@ internal class TargetHeatmap(val width: Int,
 		return buffer
 	}
 }
+

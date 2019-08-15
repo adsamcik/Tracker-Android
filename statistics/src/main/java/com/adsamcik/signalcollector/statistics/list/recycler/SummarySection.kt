@@ -68,3 +68,4 @@ class SummarySection : StatelessSection(SectionParameters.builder()
 	data class ButtonData(@StringRes val text: Int, val onClick: () -> Unit)
 	private data class ViewHolder(val layout: ViewGroup) : RecyclerView.ViewHolder(layout)
 }
+

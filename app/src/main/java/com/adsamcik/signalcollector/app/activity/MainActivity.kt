@@ -303,3 +303,4 @@ class MainActivity : CoreUIActivity() {
 		}
 	}
 }
+

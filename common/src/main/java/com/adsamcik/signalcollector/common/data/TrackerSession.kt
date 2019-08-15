@@ -163,3 +163,4 @@ class MutableTrackerSession(
 			session.distanceInVehicleInM,
 			session.steps)
 }
+

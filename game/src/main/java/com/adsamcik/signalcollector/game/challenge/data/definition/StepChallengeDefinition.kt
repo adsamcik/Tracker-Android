@@ -26,3 +26,4 @@ class StepChallengeDefinition : ChallengeDefinition<StepChallengeInstance>(R.str
 		private const val BASE_DAY_COUNT = 2
 	}
 }
+

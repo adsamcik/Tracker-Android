@@ -47,3 +47,4 @@ data class SessionActivity(
 		}
 	}
 }
+

@@ -31,3 +31,4 @@ class StepChallengeInstance(data: ChallengeEntry,
 		extra.stepCount += session.steps
 	}
 }
+

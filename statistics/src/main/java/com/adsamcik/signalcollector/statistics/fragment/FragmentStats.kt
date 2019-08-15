@@ -251,3 +251,4 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	}
 }
 
+

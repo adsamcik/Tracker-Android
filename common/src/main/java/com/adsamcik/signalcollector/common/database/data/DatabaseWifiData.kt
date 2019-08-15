@@ -28,3 +28,4 @@ data class DatabaseWifiData(
 	constructor(time: Long, wifiData: WifiInfo) : this(wifiData.bssid, null, null, null, time, time, wifiData.ssid,
 			wifiData.capabilities, wifiData.frequency, wifiData.level)
 }
+

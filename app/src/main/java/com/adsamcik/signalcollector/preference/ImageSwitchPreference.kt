@@ -171,3 +171,4 @@ class ImageSwitchPreference : Preference {
 			get() = imageView ?: throw NullPointerException("ImageView was null")
 	}
 }
+

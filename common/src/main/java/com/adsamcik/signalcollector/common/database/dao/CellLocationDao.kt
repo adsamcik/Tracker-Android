@@ -37,3 +37,4 @@ interface CellLocationDao : BaseDao<DatabaseCellLocation> {
 	@Query("SELECT MIN(time) as start, MAX(time) as endInclusive from cell_location")
 	fun range(): DateRange
 }
+

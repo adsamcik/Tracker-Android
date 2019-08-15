@@ -121,3 +121,4 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 	}
 
 }
+

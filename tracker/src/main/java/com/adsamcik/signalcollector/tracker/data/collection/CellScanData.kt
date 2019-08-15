@@ -7,3 +7,4 @@ internal data class CellScanData(val registeredOperators: List<NetworkOperator>,
                                  val cellScanData: List<CellInfo>,
                                  val registeredCells: List<com.adsamcik.signalcollector.common.data.CellInfo>
 )
+

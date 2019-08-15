@@ -37,3 +37,4 @@ class StepChallengeBuilder(private val definition: StepChallengeDefinition) : Ch
 		database.stepDao.insert(challenge.extra)
 	}
 }
+

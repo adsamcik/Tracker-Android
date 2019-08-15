@@ -72,3 +72,4 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 		const val WORK_TAG = "ActivityRecognition"
 	}
 }
+

@@ -23,3 +23,4 @@ data class DatabaseCellLocation(
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0L
 }
+

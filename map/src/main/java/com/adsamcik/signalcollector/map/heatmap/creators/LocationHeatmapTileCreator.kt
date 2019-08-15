@@ -45,3 +45,4 @@ internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator
 
 	override val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal> = dao::getAllInside
 }
+

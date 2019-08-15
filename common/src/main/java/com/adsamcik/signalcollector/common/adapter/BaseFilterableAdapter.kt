@@ -134,3 +134,4 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	 */
 	protected abstract fun filter(item: DataType, filterObject: FilterType?): Boolean
 }
+

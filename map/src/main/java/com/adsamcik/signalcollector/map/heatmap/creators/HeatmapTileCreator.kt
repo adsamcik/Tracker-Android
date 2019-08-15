@@ -84,3 +84,4 @@ internal data class HeatmapData(val config: HeatmapConfig,
                                 val zoom: Int,
                                 val area: CoordinateBounds
 )
+

@@ -24,3 +24,4 @@ abstract class ChallengeDefinition<ChallengeInstanceType : ChallengeInstance<*, 
 		const val MIN_DURATION_MULTIPLIER = 0.25
 	}
 }
+

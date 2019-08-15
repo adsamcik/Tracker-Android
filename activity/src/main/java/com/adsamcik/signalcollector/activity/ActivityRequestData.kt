@@ -20,3 +20,4 @@ enum class ActivityTransitionType(val value: Int) {
 	ENTER(ActivityTransition.ACTIVITY_TRANSITION_ENTER),
 	EXIT(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
 }
+

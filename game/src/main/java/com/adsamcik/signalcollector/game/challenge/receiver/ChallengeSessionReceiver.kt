@@ -62,3 +62,4 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 		val DELAY_IN_MINUTES = if (useMock) 0L else 60L
 	}
 }
+

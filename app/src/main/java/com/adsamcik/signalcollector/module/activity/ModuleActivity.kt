@@ -191,3 +191,4 @@ class ModuleActivity : DetailActivity() {
 		private const val CONFIRMATION_REQUEST_CODE = 1
 	}
 }
+

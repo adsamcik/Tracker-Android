@@ -34,3 +34,4 @@ class NonNullLiveMutableData<T>(defaultValue: T) : NonNullLiveData<T>(defaultVal
 		super.setValue(value)
 	}
 }
+

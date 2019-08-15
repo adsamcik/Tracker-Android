@@ -41,3 +41,4 @@ object NotificationChannels {
 		mNotificationManager.createNotificationChannel(mChannel)
 	}
 }
+

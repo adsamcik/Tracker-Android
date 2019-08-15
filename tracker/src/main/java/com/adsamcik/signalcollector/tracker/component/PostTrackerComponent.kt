@@ -13,3 +13,4 @@ internal interface PostTrackerComponent : TrackerComponent, TrackerDataConsumerC
 	              collectionData: CollectionData,
 	              tempData: CollectionTempData)
 }
+

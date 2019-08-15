@@ -10,3 +10,4 @@ class LineChartStatisticsData(@DrawableRes val iconRes: Int, @StringRes val titl
 		StatisticDetailData {
 	override val type: StatisticDetailType = StatisticDetailType.LineChart
 }
+

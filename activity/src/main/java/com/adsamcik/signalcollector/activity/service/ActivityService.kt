@@ -135,3 +135,4 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 		}
 	}
 }
+

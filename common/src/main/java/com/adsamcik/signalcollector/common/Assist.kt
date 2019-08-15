@@ -251,3 +251,4 @@ object Assist {
 		return (screenWidthDp / columnWidthDp + 0.5).toInt()
 	}
 }
+

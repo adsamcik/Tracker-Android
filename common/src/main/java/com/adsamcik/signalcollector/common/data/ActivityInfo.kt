@@ -116,3 +116,4 @@ enum class DetectedActivity(val value: Int) {
 		}
 	}
 }
+

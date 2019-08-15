@@ -92,3 +92,4 @@ class PreferenceNotFoundException : Exception {
 	constructor(message: String?, cause: Throwable?, enableSuppression: Boolean, writableStackTrace: Boolean) : super(
 			message, cause, enableSuppression, writableStackTrace)
 }
+

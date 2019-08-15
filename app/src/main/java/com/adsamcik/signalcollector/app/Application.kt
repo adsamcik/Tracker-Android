@@ -48,3 +48,4 @@ class Application : SplitCompatApplication() {
 	}
 
 }
+

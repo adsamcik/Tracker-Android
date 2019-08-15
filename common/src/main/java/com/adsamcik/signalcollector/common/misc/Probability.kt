@@ -66,3 +66,4 @@ object Probability {
 		return -ln(1 - (1 - exp(-lambda)) * uniform()) / lambda
 	}
 }
+

@@ -61,3 +61,4 @@ class LineChartViewHolder(root: View,
 	}
 
 }
+

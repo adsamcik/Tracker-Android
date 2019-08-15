@@ -60,3 +60,4 @@ class DebugPage : PreferencePage {
 	}
 
 }
+

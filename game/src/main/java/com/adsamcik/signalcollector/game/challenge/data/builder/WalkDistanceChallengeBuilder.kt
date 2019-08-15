@@ -37,3 +37,4 @@ class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallenge
 		database.walkDistanceDao.insert(challenge.extra)
 	}
 }
+

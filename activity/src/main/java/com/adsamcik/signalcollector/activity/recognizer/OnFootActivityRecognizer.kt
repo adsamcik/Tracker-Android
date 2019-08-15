@@ -49,3 +49,4 @@ internal class OnFootActivityRecognizer : ActivityRecognizer() {
 	}
 
 }
+

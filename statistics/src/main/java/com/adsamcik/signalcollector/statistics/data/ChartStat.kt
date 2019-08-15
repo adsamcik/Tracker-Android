@@ -9,3 +9,4 @@ enum class ChartType {
 	Scatter,
 	Bubble
 }
+

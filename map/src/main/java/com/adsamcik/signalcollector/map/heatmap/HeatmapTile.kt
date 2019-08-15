@@ -45,3 +45,4 @@ internal class HeatmapTile(
 		const val BASE_HEATMAP_SIZE: Int = 128
 	}
 }
+

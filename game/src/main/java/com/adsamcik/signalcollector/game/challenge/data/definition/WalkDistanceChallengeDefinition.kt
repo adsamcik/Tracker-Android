@@ -26,3 +26,4 @@ class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChalleng
 	}
 
 }
+

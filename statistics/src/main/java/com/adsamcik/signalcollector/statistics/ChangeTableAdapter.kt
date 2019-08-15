@@ -19,3 +19,4 @@ internal class ChangeTableAdapter(@StyleRes themeInt: Int) : CardListAdapter<Tab
 		onViewChangedListener?.invoke(holder.cardView)
 	}
 }
+
