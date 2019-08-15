@@ -250,7 +250,8 @@ formatting:
     active: true
     autoCorrect: true
   ParameterListWrapping:
-    active: false
+  # Cannot use because tab indentation is not supported
+    active: true
     autoCorrect: true
     indentSize: 2
   SpacingAroundColon:
