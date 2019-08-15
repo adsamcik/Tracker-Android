@@ -136,8 +136,8 @@ data class Location(
 			val sinLonDistance = kotlin.math.sin(lonDistance / 2)
 
 			val a = sinLatDistance * sinLatDistance +
-			        kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
-			        sinLonDistance * sinLonDistance
+					kotlin.math.cos(lat1Rad) * kotlin.math.cos(lat2Rad) *
+					sinLonDistance * sinLonDistance
 			val c = 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
 
 			val distance = EARTH_CIRCUMFERENCE * c

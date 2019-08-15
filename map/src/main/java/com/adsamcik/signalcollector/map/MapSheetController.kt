@@ -31,7 +31,11 @@ import com.adsamcik.signalcollector.common.style.StyleView
 import com.adsamcik.signalcollector.commonmap.CoordinateBounds
 import com.adsamcik.signalcollector.map.adapter.MapFilterableAdapter
 import com.adsamcik.signalcollector.map.layer.MapLayerLogic
-import com.adsamcik.signalcollector.map.layer.logic.*
+import com.adsamcik.signalcollector.map.layer.logic.CellHeatmapLogic
+import com.adsamcik.signalcollector.map.layer.logic.LocationHeatmapLogic
+import com.adsamcik.signalcollector.map.layer.logic.LocationPolylineLogic
+import com.adsamcik.signalcollector.map.layer.logic.NoMapLayerLogic
+import com.adsamcik.signalcollector.map.layer.logic.WifiHeatmapLogic
 import com.afollestad.materialdialogs.MaterialDialog
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
@@ -46,12 +50,13 @@ import java.util.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.roundToInt
 
-internal class MapSheetController(context: Context,
-                                  private val map: GoogleMap,
-                                  private val rootLayout: ViewGroup,
-                                  private val mapController: MapController,
-                                  private val locationListener: UpdateLocationListener,
-                                  private val mapEventListener: MapEventListener
+internal class MapSheetController(
+		context: Context,
+		private val map: GoogleMap,
+		private val rootLayout: ViewGroup,
+		private val mapController: MapController,
+		private val locationListener: UpdateLocationListener,
+		private val mapEventListener: MapEventListener
 ) : CoroutineScope, GoogleMap.OnCameraIdleListener {
 	private val job = SupervisorJob()
 
@@ -89,7 +94,7 @@ internal class MapSheetController(context: Context,
 	}
 
 	private val sheetBehavior = BottomSheetBehavior.from(rootLayout).apply {
-		//todo add dynamic navbar height
+		// todo add dynamic navbar height
 		peekHeight = 80.dp + navbarSpace.layoutParams.height + rootLayout.layout_map_controls.marginBottom
 		isFitToContents = false
 		val expandedOffset = 120.dp
@@ -115,7 +120,6 @@ internal class MapSheetController(context: Context,
 					BottomSheetBehavior.STATE_COLLAPSED, BottomSheetBehavior.STATE_HALF_EXPANDED -> keyboardManager.hideKeyboard()
 				}
 			}
-
 		})
 
 		rootLayout.alpha = 0f
@@ -141,8 +145,9 @@ internal class MapSheetController(context: Context,
 	 * Is object variable so it can be unsubscribed when map is closed
 	 */
 	private val keyboardListener: KeyboardListener = { isOpen, keyboardHeight ->
-		//map_menu_button is null in some rare cases. I am not entirely sure when it happens, but it seems to be quite rare so checking for null is probably OK atm
-		//check payloads
+		// map_menu_button is null in some rare cases. I am not entirely sure when it happens,
+		// but it seems to be quite rare so checking for null is probably OK atm
+		// check payloads
 		updateIconList(isOpen)
 		when (isOpen) {
 			true -> {
@@ -162,16 +167,16 @@ internal class MapSheetController(context: Context,
 			false -> {
 				val baseBottomMarginPx = 32.dp
 				if (navbarPosition == NavBarPosition.BOTTOM) {
-					//map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + baseBottomMarginPx
+					// map_ui_parent.marginBottom = searchOriginalMargin + navbarHeight.y + baseBottomMarginPx
 					map.setPadding(0, 0, 0, navbarDim.y)
 				} else {
-					//map_ui_parent.marginBottom = searchOriginalMargin + baseBottomMarginPx
+					// map_ui_parent.marginBottom = searchOriginalMargin + baseBottomMarginPx
 					map.setPadding(0, 0, 0, 0)
 				}
 				sheetBehavior.state = stateBeforeKeyboard
 			}
 
-			//Update map_menu_button position after UI has been redrawn
+			// Update map_menu_button position after UI has been redrawn
 			/*map_menu_button.post {
 				if (map_menu_button != null) {
 					map_menu_button.moveToState(map_menu_button.state, false)
@@ -181,7 +186,7 @@ internal class MapSheetController(context: Context,
 	}
 
 	private val keyboardManager = KeyboardManager(rootLayout).apply {
-		//searchOriginalMargin = (map_ui_parent.layoutParams as CoordinatorLayout.LayoutParams).bottomMargin
+		// searchOriginalMargin = (map_ui_parent.layoutParams as CoordinatorLayout.LayoutParams).bottomMargin
 		onDisplaySizeChanged()
 		addKeyboardListener(keyboardListener)
 	}
@@ -192,7 +197,7 @@ internal class MapSheetController(context: Context,
 				bounds.northeast.longitude,
 				bounds.southwest.latitude,
 				bounds.southwest.longitude)
-		//fragmentMapMenu.get()?.filter(mapLayerFilterRule)
+		// fragmentMapMenu.get()?.filter(mapLayerFilterRule)
 	}
 
 	/**
@@ -272,7 +277,6 @@ internal class MapSheetController(context: Context,
 		}
 	}
 
-	@Suppress("UNUSED")
 	private fun onItemClicked(position: Int, item: MapLayerLogic) {
 		mapController.setLayer(rootLayout.context, item)
 

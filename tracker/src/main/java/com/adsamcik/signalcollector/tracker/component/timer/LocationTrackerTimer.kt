@@ -13,7 +13,11 @@ import com.adsamcik.signalcollector.tracker.component.TrackerTimerErrorData
 import com.adsamcik.signalcollector.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.signalcollector.tracker.component.TrackerTimerReceiver
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
-import com.google.android.gms.location.*
+import com.google.android.gms.location.LocationAvailability
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
 
 internal class LocationTrackerTimer : TrackerTimerComponent {
 	override val requiredPermissions: Collection<String> get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -53,7 +57,7 @@ internal class LocationTrackerTimer : TrackerTimerComponent {
 
 			val previousLocation = previousLocation
 			if (previousLocation != null &&
-			    (locationResult.lastLocation.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos) < PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS) {
+					(locationResult.lastLocation.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos) < PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS) {
 				val distance = location.distanceTo(previousLocation)
 				setPreviousLocation(previousLocation, distance)
 			}
@@ -81,7 +85,8 @@ internal class LocationTrackerTimer : TrackerTimerComponent {
 	}
 
 	override fun onDisable(context: Context) {
-		LocationServices.getFusedLocationProviderClient(context).removeLocationUpdates(locationCallback)
+		LocationServices.getFusedLocationProviderClient(context)
+				.removeLocationUpdates(locationCallback)
 		this.receiver = null
 	}
 

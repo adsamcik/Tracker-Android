@@ -111,7 +111,7 @@ enum class DetectedActivity(val value: Int) {
 	companion object {
 		fun fromDetectedType(type: Int): DetectedActivity {
 			return values().find { it.value == type }
-			       ?: throw IllegalArgumentException("Activity type with value $type is not defined.")
+					?: throw IllegalArgumentException("Activity type with value $type is not defined.")
 		}
 	}
 }

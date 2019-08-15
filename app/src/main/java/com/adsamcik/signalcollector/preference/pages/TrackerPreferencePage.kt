@@ -23,22 +23,26 @@ class TrackerPreferencePage : PreferencePage {
 		val context = caller.requireContext()
 		snackMaker = SnackMaker(caller.view!!)
 
-		caller.findPreference(R.string.settings_tracking_activity_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+		caller.findPreference(R.string.settings_tracking_activity_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			ActivityWatcherService.onAutoTrackingPreferenceChange(context, newValue as Int)
 			return@OnPreferenceChangeListener true
 		}
 
-		caller.findPreference(R.string.settings_activity_watcher_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+		caller.findPreference(R.string.settings_activity_watcher_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			ActivityWatcherService.onWatcherPreferenceChange(context, newValue as Boolean)
 			return@OnPreferenceChangeListener true
 		}
 
-		caller.findPreference(R.string.settings_activity_freq_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+		caller.findPreference(R.string.settings_activity_freq_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			ActivityWatcherService.onActivityIntervalPreferenceChange(context, newValue as Int)
 			return@OnPreferenceChangeListener true
 		}
 
-		caller.findPreference(R.string.settings_disabled_recharge_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+		caller.findPreference(R.string.settings_disabled_recharge_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
 			if (newValue as Boolean) {
 				TrackerLocker.lockUntilRecharge(context)
 			} else {

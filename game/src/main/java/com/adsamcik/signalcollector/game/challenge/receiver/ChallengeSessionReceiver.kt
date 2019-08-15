@@ -3,7 +3,11 @@ package com.adsamcik.signalcollector.game.challenge.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.work.*
+import androidx.work.Constraints
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.extension.getPositiveLongExtraReportNull
 import com.adsamcik.signalcollector.common.preference.Preferences
@@ -26,7 +30,8 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 		val id = intent.getPositiveLongExtraReportNull(ARG_ID) ?: return
 
 		GlobalScope.launch {
-			ChallengeDatabase.getDatabase(context).sessionDao.insert(ChallengeSessionData(id, false))
+			ChallengeDatabase.getDatabase(context)
+					.sessionDao.insert(ChallengeSessionData(id, false))
 			val workManager = WorkManager.getInstance(context)
 			val data = Data.Builder().putLong(ChallengeWorker.ARG_SESSION_ID, id).build()
 			val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()

@@ -17,7 +17,12 @@ import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
-import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.extension.formatAsDuration
+import com.adsamcik.signalcollector.common.extension.formatAsShortDateTime
+import com.adsamcik.signalcollector.common.extension.formatDistance
+import com.adsamcik.signalcollector.common.extension.formatReadable
+import com.adsamcik.signalcollector.common.extension.observe
+import com.adsamcik.signalcollector.common.extension.startActivity
 import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.decoration.SimpleMarginDecoration
@@ -83,7 +88,8 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		//weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
 
 		//todo unify this in some way so it can be easily reused for any recycler currently also in FragmentGame
-		val contentPadding = activity.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding).toInt()
+		val contentPadding = activity.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding)
+				.toInt()
 		val statusBarHeight = Assist.getStatusBarHeight(activity)
 		val navBarSize = Assist.getNavigationBarSize(activity)
 		val navBarHeight = navBarSize.second.y

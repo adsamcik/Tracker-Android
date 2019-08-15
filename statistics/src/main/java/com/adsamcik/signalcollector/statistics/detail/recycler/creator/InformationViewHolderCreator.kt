@@ -10,7 +10,8 @@ import com.adsamcik.signalcollector.statistics.detail.recycler.viewholder.Inform
 
 class InformationViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailData> {
 	override fun createViewHolder(parent: ViewGroup): MultiTypeViewHolder<StatisticDetailData> {
-		val view = LayoutInflater.from(parent.context).inflate(R.layout.layout_stats_detail_item, parent, false)
+		val view = LayoutInflater.from(parent.context)
+				.inflate(R.layout.layout_stats_detail_item, parent, false)
 		@Suppress("unchecked_cast")
 		return InformationViewHolder(view) as MultiTypeViewHolder<StatisticDetailData>
 	}

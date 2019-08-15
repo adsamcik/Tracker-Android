@@ -57,9 +57,9 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 			val previousLocation = tempData.tryGetPreviousLocation()
 
 			if (distance != null &&
-			    previousLocation != null &&
-			    (tempData.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
-			     distance <= minDistanceInMeters * 2f)) {
+					previousLocation != null &&
+					(tempData.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20, minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
+							distance <= minDistanceInMeters * 2f)) {
 
 				when (tempData.tryGetActivity()?.groupedActivity) {
 					GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
@@ -110,8 +110,8 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 			val lastSessionAge = now - lastSessionEnd
 
 			if (lastSessionAge in 1..MERGE_SESSION_MAX_AGE &&
-			    lastSession.isUserInitiated == isUserInitiated &&
-			    !isUserInitiated) {
+					lastSession.isUserInitiated == isUserInitiated &&
+					!isUserInitiated) {
 				mutableSession = MutableTrackerSession(lastSession)
 				continuingSession = true
 			}

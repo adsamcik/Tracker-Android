@@ -8,7 +8,11 @@ import androidx.room.TypeConverters
 import com.adsamcik.signalcollector.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.signalcollector.game.challenge.data.entity.WalkDistanceChallengeEntity
-import com.adsamcik.signalcollector.game.challenge.database.dao.*
+import com.adsamcik.signalcollector.game.challenge.database.dao.ChallengeEntryDao
+import com.adsamcik.signalcollector.game.challenge.database.dao.ExplorerChallengeDao
+import com.adsamcik.signalcollector.game.challenge.database.dao.SessionChallengeDataDao
+import com.adsamcik.signalcollector.game.challenge.database.dao.StepChallengeDao
+import com.adsamcik.signalcollector.game.challenge.database.dao.WalkDistanceChallengeDao
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.signalcollector.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.signalcollector.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
@@ -44,7 +48,8 @@ abstract class ChallengeDatabase : RoomDatabase() {
 		}
 
 		fun getTestDatabase(context: Context): ChallengeDatabase {
-			return Room.inMemoryDatabaseBuilder(context.applicationContext, ChallengeDatabase::class.java).build()
+			return Room.inMemoryDatabaseBuilder(context.applicationContext, ChallengeDatabase::class.java)
+					.build()
 		}
 	}
 }

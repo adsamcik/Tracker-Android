@@ -47,10 +47,12 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		val devEnabledDefaultRes = R.string.settings_debug_enabled_default
 
 		val debugPreference = caller.findPreference(R.string.settings_debug_key).apply {
-			isVisible = Preferences.getPref(context).getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
+			isVisible = Preferences.getPref(context)
+					.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
 		}
 
-		caller.findPreference(R.string.show_tips_key).onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
+		caller.findPreference(R.string.show_tips_key)
+				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
 			if (newValue as Boolean) {
 				Preferences.getPref(preference.context).edit {
 					removeKeyByPrefix(Introduction.prefix)
@@ -78,7 +80,8 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 				}
 				showToast(context, resources.getString(R.string.settings_debug_available))
 				debugPreference.isVisible = true
-				caller.findPreferenceTyped<SwitchPreferenceCompat>(devEnabledKeyRes).isChecked = true
+				caller.findPreferenceTyped<SwitchPreferenceCompat>(devEnabledKeyRes)
+						.isChecked = true
 			} else if (clickCount >= 4) {
 				val remainingClickCount = 7 - clickCount
 				showToast(context, resources.getQuantityString(R.plurals.settings_debug_available_in, remainingClickCount, remainingClickCount))

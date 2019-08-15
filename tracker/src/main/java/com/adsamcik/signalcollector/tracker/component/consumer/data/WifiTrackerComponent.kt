@@ -22,7 +22,8 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 			val location = locationResult.lastLocation
 			val locations = locationResult.locations
 			if (locations.size >= 2) {
-				val nearestLocation = locations.sortedBy { abs(scanData.relativeTimeNanos - it.elapsedRealtimeNanos) }.take(2)
+				val nearestLocation = locations.sortedBy { abs(scanData.relativeTimeNanos - it.elapsedRealtimeNanos) }
+						.take(2)
 				val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
 
 				val first = nearestLocation[firstIndex]

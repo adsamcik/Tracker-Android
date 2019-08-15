@@ -44,7 +44,8 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		recycler.layoutManager = LinearLayoutManager(context)
 
 
-		val contentPadding = context.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding).toInt()
+		val contentPadding = context.resources.getDimension(com.adsamcik.signalcollector.common.R.dimen.content_padding)
+				.toInt()
 		val statusBarHeight = Assist.getStatusBarHeight(context)
 		val navBarSize = Assist.getNavigationBarSize(context)
 		val navBarHeight = navBarSize.second.y

@@ -33,8 +33,8 @@ object IntroductionManager {
 		val preferences = Preferences.getPref(activity)
 		try {
 			return if (!anyShown &&
-			           preferences.getBooleanRes(R.string.show_tips_key, R.string.show_tips_default) &&
-			           !preferences.getBoolean(introduction.preference, false)) {
+					preferences.getBooleanRes(R.string.show_tips_key, R.string.show_tips_default) &&
+					!preferences.getBoolean(introduction.preference, false)) {
 
 				val targets = introduction.getTargets(activity)
 
@@ -45,7 +45,8 @@ object IntroductionManager {
 						.setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 230))
 						.setAnimation(AccelerateDecelerateInterpolator())
 						.setOnSpotlightEndedListener {
-							Preferences.getPref(activity).edit { setBoolean(introduction.preference, true) }
+							Preferences.getPref(activity)
+									.edit { setBoolean(introduction.preference, true) }
 							introduction.onDone()
 							onDone()
 						}

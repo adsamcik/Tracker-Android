@@ -20,7 +20,8 @@ class StatusActivity : DetailActivity() {
 		super.onCreate(savedInstanceState)
 		val layout = createScrollableContentParent(true, androidx.constraintlayout.widget.ConstraintLayout::class.java)
 		val workManager = WorkManager.getInstance(this)
-		val waitForRechargeStates = workManager.getWorkInfosByTag(TrackerLocker.WORK_DISABLE_TILL_RECHARGE_TAG).get()
+		val waitForRechargeStates = workManager.getWorkInfosByTag(TrackerLocker.WORK_DISABLE_TILL_RECHARGE_TAG)
+				.get()
 
 		val isWaitingForRecharge = waitForRechargeStates != null && waitForRechargeStates.size > 0
 

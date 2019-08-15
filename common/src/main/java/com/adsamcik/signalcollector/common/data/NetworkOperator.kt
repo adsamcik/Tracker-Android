@@ -3,7 +3,12 @@ package com.adsamcik.signalcollector.common.data
 import android.os.Build
 import android.os.Parcel
 import android.os.Parcelable
-import android.telephony.*
+import android.telephony.CellIdentityNr
+import android.telephony.CellInfoCdma
+import android.telephony.CellInfoGsm
+import android.telephony.CellInfoLte
+import android.telephony.CellInfoNr
+import android.telephony.CellInfoWcdma
 import androidx.annotation.RequiresApi
 import androidx.room.Entity
 import com.adsamcik.signalcollector.common.extension.requireString

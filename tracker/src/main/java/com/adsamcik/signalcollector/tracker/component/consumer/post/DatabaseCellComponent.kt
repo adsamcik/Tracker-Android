@@ -1,7 +1,12 @@
 package com.adsamcik.signalcollector.tracker.component.consumer.post
 
 import android.content.Context
-import com.adsamcik.signalcollector.common.data.*
+import com.adsamcik.signalcollector.common.data.BaseLocation
+import com.adsamcik.signalcollector.common.data.CellData
+import com.adsamcik.signalcollector.common.data.CellInfo
+import com.adsamcik.signalcollector.common.data.CollectionData
+import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.dao.CellLocationDao
 import com.adsamcik.signalcollector.common.database.dao.CellOperatorDao

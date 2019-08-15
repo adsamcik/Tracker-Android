@@ -203,10 +203,10 @@ formatting:
   Indentation:
     active: false
     autoCorrect: true
-    indentSize: 4
+    indentSize: 2
     continuationIndentSize: 4
   MaximumLineLength:
-    active: true
+    active: false
     maxLineLength: 120
   ModifierOrdering:
     active: true
@@ -245,14 +245,14 @@ formatting:
     active: true
     autoCorrect: true
   NoWildcardImports:
-    active: true
+    active: false
   PackageName:
     active: true
     autoCorrect: true
   ParameterListWrapping:
     active: true
     autoCorrect: true
-    indentSize: 4
+    indentSize: 2
   SpacingAroundColon:
     active: true
     autoCorrect: true
@@ -529,7 +529,7 @@ style:
   UnusedPrivateClass:
     active: true
   UnusedPrivateMember:
-    active: true
+    active: false
     allowedNames: "(_|ignored|expected|serialVersionUID)"
   UseCheckOrError:
     active: false

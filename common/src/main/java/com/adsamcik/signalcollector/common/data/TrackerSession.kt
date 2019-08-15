@@ -1,6 +1,10 @@
 package com.adsamcik.signalcollector.common.data
 
-import androidx.room.*
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
 
 @Entity(tableName = "tracker_session", foreignKeys = [ForeignKey(entity = SessionActivity::class,
 		parentColumns = ["id"],

@@ -12,7 +12,8 @@ import kotlinx.android.synthetic.main.layout_stats_detail_line_chart.view.*
 class LineChartViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailData> {
 
 	override fun createViewHolder(parent: ViewGroup): MultiTypeViewHolder<StatisticDetailData> {
-		val view = LayoutInflater.from(parent.context).inflate(R.layout.layout_stats_detail_line_chart, parent, false)
+		val view = LayoutInflater.from(parent.context)
+				.inflate(R.layout.layout_stats_detail_line_chart, parent, false)
 
 		val chart = view.line_chart.apply {
 			isClickable = false

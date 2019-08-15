@@ -19,10 +19,20 @@ import com.adsamcik.recycler.AppendPriority
 import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.common.Time
 import com.adsamcik.signalcollector.common.activity.DetailActivity
-import com.adsamcik.signalcollector.common.data.*
+import com.adsamcik.signalcollector.common.data.LengthUnit
+import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.NativeSessionActivity
+import com.adsamcik.signalcollector.common.data.SessionActivity
+import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.AppDatabase
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
-import com.adsamcik.signalcollector.common.extension.*
+import com.adsamcik.signalcollector.common.extension.dp
+import com.adsamcik.signalcollector.common.extension.formatDistance
+import com.adsamcik.signalcollector.common.extension.formatReadable
+import com.adsamcik.signalcollector.common.extension.formatSpeed
+import com.adsamcik.signalcollector.common.extension.observe
+import com.adsamcik.signalcollector.common.extension.requireValue
+import com.adsamcik.signalcollector.common.extension.toCalendar
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.signalcollector.common.recycler.multitype.MultiTypeData
@@ -182,15 +192,16 @@ class StatsDetailActivity : DetailActivity() {
 
 		launch(Dispatchers.Default) {
 			val sessionActivity = when {
-				                      activityId == null -> null
-				                      activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(this@StatsDetailActivity)
-				                      else -> if (activityId == 0L || activityId == -1L) {
-					                      null
-				                      } else {
-					                      val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity).activityDao()
-					                      activityDao.get(activityId)
-				                      }
-			                      } ?: SessionActivity.UNKNOWN
+				activityId == null -> null
+				activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(this@StatsDetailActivity)
+				else -> if (activityId == 0L || activityId == -1L) {
+					null
+				} else {
+					val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity)
+							.activityDao()
+					activityDao.get(activityId)
+				}
+			} ?: SessionActivity.UNKNOWN
 
 			val title = StatsFormat.createTitle(this@StatsDetailActivity, startCalendar, sessionActivity)
 

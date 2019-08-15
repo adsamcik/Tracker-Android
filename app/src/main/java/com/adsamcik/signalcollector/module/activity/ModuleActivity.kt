@@ -160,7 +160,8 @@ class ModuleActivity : DetailActivity() {
 		val modulesToUninstall get() = modules.filter { (!it.shouldBeInstalled).and(it.isInstalled) }
 
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-			val view = LayoutInflater.from(parent.context).inflate(R.layout.layout_recycler_toggle_item, parent, false)
+			val view = LayoutInflater.from(parent.context)
+					.inflate(R.layout.layout_recycler_toggle_item, parent, false)
 			val checkbox = view.findViewById<AppCompatCheckBox>(R.id.checkbox)
 			return ViewHolder(view, checkbox)
 		}

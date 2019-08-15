@@ -17,7 +17,7 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 
 	private fun isNotConfidentWalk(activity: ActivityInfo): Boolean {
 		return activity.activityType == DetectedActivity.WALKING &&
-		       activity.confidence < CONFIDENT_CONFIDENCE
+				activity.confidence < CONFIDENT_CONFIDENCE
 	}
 
 	private fun isUnknownOnFootActivity(activity: ActivityInfo) = activity.activityType == DetectedActivity.ON_FOOT
@@ -30,8 +30,8 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 
 	private fun isUnknown(activity: ActivityInfo): Boolean {
 		return activity.activityType == DetectedActivity.UNKNOWN ||
-		       activity.activityType == DetectedActivity.TILTING ||
-		       activity.activityType == DetectedActivity.STILL
+				activity.activityType == DetectedActivity.TILTING ||
+				activity.activityType == DetectedActivity.STILL
 	}
 
 	private fun determineActivityBySpeed(speed: Float, activity: ActivityInfo): ActivityInfo {
@@ -40,7 +40,7 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		} else if (speed > MAX_ON_FOOT_SPEED && isUnknownOnFootActivity(activity)) {
 			ActivityInfo(DetectedActivity.IN_VEHICLE, 75)
 		} else if (speed > MAX_WALK_SPEED_METERS_PER_SECOND &&
-		           (isNotConfidentWalk(activity) || isUnknownOnFootActivity(activity))) {
+				(isNotConfidentWalk(activity) || isUnknownOnFootActivity(activity))) {
 			ActivityInfo(DetectedActivity.RUNNING, 80)
 		} else if (speed > DEFINITELY_VEHICLE_SPEED && isUnknown(activity)) {
 			ActivityInfo(DetectedActivity.IN_VEHICLE, 75)
@@ -58,8 +58,8 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 
 		val stepCount = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
 		if (stepCount != null &&
-		    stepCount >= tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
-		    (speed == null || speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND)) {
+				stepCount >= tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
+				(speed == null || speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND)) {
 			if (isOnFoot(activity)) return activity
 			else if (isUnknown(activity)) return ActivityInfo(DetectedActivity.ON_FOOT, 90)
 		}
@@ -85,8 +85,8 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		val previousLocation = tempData.tryGetPreviousLocation()
 		val distance = tempData.tryGetDistance()
 		val speed = if (locationResult != null &&
-		                previousLocation != null &&
-		                distance != null) {
+				previousLocation != null &&
+				distance != null) {
 			getSpeed(locationResult, previousLocation, distance)
 		} else {
 			null

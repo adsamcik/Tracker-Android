@@ -157,8 +157,8 @@ object Assist {
 		val preferences = Preferences.getPref(context)
 
 		return preferences.getBooleanRes(R.string.settings_location_enabled_key, R.string.settings_location_enabled_default) ||
-		       preferences.getBooleanRes(R.string.settings_cell_enabled_key, R.string.settings_cell_enabled_default) ||
-		       preferences.getBooleanRes(R.string.settings_wifi_enabled_key, R.string.settings_wifi_enabled_default)
+				preferences.getBooleanRes(R.string.settings_cell_enabled_key, R.string.settings_cell_enabled_default) ||
+				preferences.getBooleanRes(R.string.settings_wifi_enabled_key, R.string.settings_wifi_enabled_default)
 	}
 
 	/**
@@ -200,7 +200,8 @@ object Assist {
 	 * @param millis    duration of animation
 	 */
 	fun verticalSmoothScrollTo(viewGroup: ViewGroup, y: Int, millis: Int) {
-		ObjectAnimator.ofInt(viewGroup, "scrollY", viewGroup.scrollY, y).setDuration(millis.toLong()).start()
+		ObjectAnimator.ofInt(viewGroup, "scrollY", viewGroup.scrollY, y)
+				.setDuration(millis.toLong()).start()
 	}
 
 	//todo consider using WindowInsets

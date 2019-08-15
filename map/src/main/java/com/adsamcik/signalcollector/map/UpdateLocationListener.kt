@@ -22,7 +22,13 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.*
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.Circle
+import com.google.android.gms.maps.model.CircleOptions
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import java.lang.Math.toDegrees
 
 //todo add activity icon instead of generic location icon when possible
@@ -217,7 +223,8 @@ internal class UpdateLocationListener(context: Context, private val map: GoogleM
 	}
 
 	private fun animateTo(position: LatLng?, zoom: Float, tilt: Float, bearing: Float, duration: Int) {
-		val builder = CameraPosition.Builder(map.cameraPosition).target(position).zoom(zoom).tilt(tilt).bearing(bearing)
+		val builder = CameraPosition.Builder(map.cameraPosition).target(position).zoom(zoom)
+				.tilt(tilt).bearing(bearing)
 		map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), duration, null)
 	}
 

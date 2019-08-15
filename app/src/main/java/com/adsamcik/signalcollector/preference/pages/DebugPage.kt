@@ -44,16 +44,17 @@ class DebugPage : PreferencePage {
 				false
 			}
 
-			caller.findPreference(R.string.settings_clear_preferences_key).setOnPreferenceClickListener { pref ->
-				val context = pref.context
-				ConfirmDialog.create(context, pref.title.toString()) {
-					Preferences.getPref(context).edit {
-						clear()
-					}
-				}
+			caller.findPreference(R.string.settings_clear_preferences_key)
+					.setOnPreferenceClickListener { pref ->
+						val context = pref.context
+						ConfirmDialog.create(context, pref.title.toString()) {
+							Preferences.getPref(context).edit {
+								clear()
+							}
+						}
 
-				false
-			}
+						false
+					}
 		}
 	}
 

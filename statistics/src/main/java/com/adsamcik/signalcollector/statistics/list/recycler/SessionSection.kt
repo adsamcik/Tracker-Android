@@ -90,7 +90,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		} else {
 			launch {
 				val activity = AppDatabase.getDatabase(context).activityDao().get(activityId)
-				               ?: SessionActivity.UNKNOWN
+						?: SessionActivity.UNKNOWN
 
 				launch(Dispatchers.Main) {
 					holder.title.text = StatsFormat.createTitle(context, startCalendar, activity)

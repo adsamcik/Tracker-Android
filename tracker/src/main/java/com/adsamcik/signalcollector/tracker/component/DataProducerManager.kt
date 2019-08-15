@@ -5,7 +5,13 @@ import com.adsamcik.signalcollector.tracker.component.producer.ActivityDataProdu
 import com.adsamcik.signalcollector.tracker.component.producer.CellDataProducer
 import com.adsamcik.signalcollector.tracker.component.producer.WifiDataProducer
 import com.adsamcik.signalcollector.tracker.data.collection.MutableCollectionTempData
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 internal class DataProducerManager(context: Context) : TrackerDataProducerObserver, CoroutineScope {

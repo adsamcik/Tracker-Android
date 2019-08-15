@@ -33,7 +33,7 @@ internal class NotificationComponent : PostTrackerComponent {
 
 	private val requireNotificationManager: NotificationManager
 		get() = notificationManager
-		        ?: throw NullPointerException("Notification manager must be initialized")
+				?: throw NullPointerException("Notification manager must be initialized")
 
 	override suspend fun onDisable(context: Context) {
 		notificationManager = null
@@ -157,7 +157,8 @@ internal class NotificationComponent : PostTrackerComponent {
 
 		val wifi = d.wifi
 		if (wifi != null) {
-			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size)).append(delimiter)
+			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size))
+					.append(delimiter)
 		}
 
 		val cell = d.cell

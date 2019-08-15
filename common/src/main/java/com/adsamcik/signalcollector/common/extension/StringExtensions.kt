@@ -106,7 +106,8 @@ fun Float.formatReadable(digits: Int): String {
 
 fun Long.formatAsShortDateTime(): String {
 	val date = Date(this)
-	return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT).format(date)
+	return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT)
+			.format(date)
 }
 
 fun Resources.formatSpeed(metersPerSecond: Float, digits: Int, lengthSystem: LengthSystem, speedFormat: SpeedFormat): String {

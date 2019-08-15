@@ -230,8 +230,8 @@ object StyleManager {
 			val sunrise = sunsetRise.nextSunrise()
 			val format = SimpleDateFormat("HH:mm:ss dd-MM-yyyy", Locale.getDefault())
 			Log.d("StyleManager", "Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-			                      "Sunrise is at ${format.format(sunrise.time)} " +
-			                      "and sun sets at ${format.format(sunset.time)}")
+					"Sunrise is at ${format.format(sunrise.time)} " +
+					"and sun sets at ${format.format(sunset.time)}")
 
 			Log.d("StyleManager", "Update rate is $period")
 		}

@@ -35,7 +35,8 @@ class ActivityWatcherService : CoreService() {
 
 		instance = this
 
-		val updatePreferenceInSeconds = Preferences.getPref(this).getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
+		val updatePreferenceInSeconds = Preferences.getPref(this)
+				.getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
 
 		startForeground(NOTIFICATION_ID, updateNotification())
 

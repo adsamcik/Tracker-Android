@@ -23,7 +23,15 @@ import com.adsamcik.signalcollector.common.misc.NonNullLiveMutableData
 import com.adsamcik.signalcollector.common.preference.Preferences
 import com.adsamcik.signalcollector.common.service.CoreService
 import com.adsamcik.signalcollector.tracker.R
-import com.adsamcik.signalcollector.tracker.component.*
+import com.adsamcik.signalcollector.tracker.component.DataProducerManager
+import com.adsamcik.signalcollector.tracker.component.DataTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.NoTimer
+import com.adsamcik.signalcollector.tracker.component.PostTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.PreTrackerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerTimerComponent
+import com.adsamcik.signalcollector.tracker.component.TrackerTimerErrorData
+import com.adsamcik.signalcollector.tracker.component.TrackerTimerErrorSeverity
+import com.adsamcik.signalcollector.tracker.component.TrackerTimerReceiver
 import com.adsamcik.signalcollector.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.data.ActivityTrackerComponent
 import com.adsamcik.signalcollector.tracker.component.consumer.data.CellTrackerComponent
@@ -175,7 +183,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 
 		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
-		                      ?: DEFAULT_IS_USER_INITIATED
+				?: DEFAULT_IS_USER_INITIATED
 
 		isServiceRunningMutable.value = true
 

@@ -21,7 +21,11 @@ import com.adsamcik.signalcollector.common.fragment.CoreUIFragment
 import com.adsamcik.signalcollector.common.introduction.IntroductionManager
 import com.adsamcik.signalcollector.common.style.StyleManager
 import com.adsamcik.signalcollector.commonmap.ColorMap
-import com.adsamcik.signalcollector.map.*
+import com.adsamcik.signalcollector.map.MapController
+import com.adsamcik.signalcollector.map.MapEventListener
+import com.adsamcik.signalcollector.map.MapSheetController
+import com.adsamcik.signalcollector.map.R
+import com.adsamcik.signalcollector.map.UpdateLocationListener
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -86,7 +90,7 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 			mapFragment.getMapAsync(this)
 
 			val fragmentManager = fragmentManager
-			                      ?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
+					?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
 
 			fragmentManager.transaction {
 				replace(R.id.container_map, mapFragment)

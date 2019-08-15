@@ -21,7 +21,16 @@ import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.signalcollector.common.Assist
 import com.adsamcik.signalcollector.common.Reporter
 import com.adsamcik.signalcollector.common.Time
-import com.adsamcik.signalcollector.common.data.*
+import com.adsamcik.signalcollector.common.data.ActivityInfo
+import com.adsamcik.signalcollector.common.data.CellData
+import com.adsamcik.signalcollector.common.data.CellInfo
+import com.adsamcik.signalcollector.common.data.CellType
+import com.adsamcik.signalcollector.common.data.Location
+import com.adsamcik.signalcollector.common.data.MutableCollectionData
+import com.adsamcik.signalcollector.common.data.NetworkOperator
+import com.adsamcik.signalcollector.common.data.TrackerSession
+import com.adsamcik.signalcollector.common.data.WifiData
+import com.adsamcik.signalcollector.common.data.WifiInfo
 import com.adsamcik.signalcollector.common.extension.dp
 import com.adsamcik.signalcollector.common.extension.observe
 import com.adsamcik.signalcollector.common.extension.requireParent

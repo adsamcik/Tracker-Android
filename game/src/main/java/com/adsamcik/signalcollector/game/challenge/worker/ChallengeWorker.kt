@@ -16,7 +16,7 @@ class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker
 	override fun doWork(): Result {
 		val applicationContext = applicationContext
 		val sessionId = inputData.getPositiveLongReportNull(ARG_SESSION_ID)
-		                ?: return Result.failure()
+				?: return Result.failure()
 
 		val database = ChallengeDatabase.getDatabase(applicationContext)
 		val sessionDao = database.sessionDao
@@ -26,7 +26,7 @@ class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker
 		if (challengeSession.isChallengeProcessed) return Result.success()
 
 		val trackerSession = AppDatabase.getDatabase(applicationContext).sessionDao().get(sessionId)
-		                     ?: return Result.failure()
+				?: return Result.failure()
 
 		val notificationManager = applicationContext.notificationManager
 		val resources = applicationContext.resources

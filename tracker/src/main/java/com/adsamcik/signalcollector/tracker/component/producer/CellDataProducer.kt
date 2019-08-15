@@ -3,7 +3,15 @@ package com.adsamcik.signalcollector.tracker.component.producer
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
-import android.telephony.*
+import android.telephony.CellIdentityNr
+import android.telephony.CellInfoCdma
+import android.telephony.CellInfoGsm
+import android.telephony.CellInfoLte
+import android.telephony.CellInfoNr
+import android.telephony.CellInfoWcdma
+import android.telephony.CellSignalStrengthNr
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import com.adsamcik.signalcollector.common.Assist

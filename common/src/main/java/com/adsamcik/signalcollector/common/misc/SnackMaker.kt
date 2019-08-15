@@ -9,7 +9,10 @@ import androidx.annotation.StringRes
 import com.adsamcik.signalcollector.common.extension.require
 import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.snackbar.Snackbar.*
+import com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE
+import com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+import com.google.android.material.snackbar.Snackbar.LENGTH_SHORT
+import com.google.android.material.snackbar.Snackbar.make
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

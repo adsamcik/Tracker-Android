@@ -29,6 +29,6 @@ class PreferenceListenerType<T> {
 	}
 
 	private fun getListenerGroup(key: String): MutableLiveData<T> = map[key]
-	                                                                ?: MutableLiveData<T>().also { map[key] = it }
+			?: MutableLiveData<T>().also { map[key] = it }
 
 }

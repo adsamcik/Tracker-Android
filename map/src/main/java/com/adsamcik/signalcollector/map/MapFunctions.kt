@@ -1,7 +1,13 @@
 package com.adsamcik.signalcollector.map
 
 import android.renderscript.Double2
-import kotlin.math.*
+import kotlin.math.PI
+import kotlin.math.atan
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.pow
+import kotlin.math.tan
 
 internal object MapFunctions {
 	fun getTileCount(zoom: Int): Int {

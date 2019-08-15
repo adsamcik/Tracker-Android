@@ -2,7 +2,16 @@ package com.adsamcik.signalcollector.common.data
 
 import android.os.Parcel
 import android.os.Parcelable
-import android.telephony.*
+import android.telephony.CellIdentityCdma
+import android.telephony.CellIdentityGsm
+import android.telephony.CellIdentityLte
+import android.telephony.CellIdentityNr
+import android.telephony.CellIdentityWcdma
+import android.telephony.CellSignalStrengthCdma
+import android.telephony.CellSignalStrengthGsm
+import android.telephony.CellSignalStrengthLte
+import android.telephony.CellSignalStrengthNr
+import android.telephony.CellSignalStrengthWcdma
 import androidx.annotation.RequiresApi
 import androidx.room.ColumnInfo
 import androidx.room.Ignore

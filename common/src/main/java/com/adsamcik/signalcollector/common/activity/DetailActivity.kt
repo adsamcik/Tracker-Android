@@ -8,7 +8,11 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import androidx.annotation.*
+import androidx.annotation.CallSuper
+import androidx.annotation.DrawableRes
+import androidx.annotation.LayoutRes
+import androidx.annotation.MainThread
+import androidx.annotation.StringRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams

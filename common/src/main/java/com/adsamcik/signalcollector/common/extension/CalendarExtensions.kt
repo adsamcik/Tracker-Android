@@ -70,8 +70,8 @@ fun Calendar.cloneCalendar(): Calendar {
  * Returns time since midnight in milliseconds
  */
 fun Calendar.toTimeSinceMidnight(): Long = get(Calendar.HOUR_OF_DAY) * Time.HOUR_IN_MILLISECONDS +
-                                           get(Calendar.MINUTE) * Time.MINUTE_IN_MILLISECONDS +
-                                           get(Calendar.SECOND) * Time.SECOND_IN_MILLISECONDS
+		get(Calendar.MINUTE) * Time.MINUTE_IN_MILLISECONDS +
+		get(Calendar.SECOND) * Time.SECOND_IN_MILLISECONDS
 
 val Calendar.month: Int get() = get(Calendar.MONTH)
 val Calendar.day: Int get() = get(Calendar.DAY_OF_MONTH)

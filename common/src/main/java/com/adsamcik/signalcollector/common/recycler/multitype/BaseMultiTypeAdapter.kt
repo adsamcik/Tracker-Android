@@ -15,7 +15,7 @@ open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleContr
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MultiTypeViewHolder<Data> {
 		val type = typeMap[viewType]
-		           ?: throw NotRegisteredException("Type $viewType not registered")
+				?: throw NotRegisteredException("Type $viewType not registered")
 		return type.createViewHolder(parent)
 	}
 

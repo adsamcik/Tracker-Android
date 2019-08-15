@@ -13,7 +13,13 @@ import com.adsamcik.signalcollector.common.data.SessionActivity
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.database.converter.CellTypeConverter
 import com.adsamcik.signalcollector.common.database.converter.DetectedActivityTypeConverter
-import com.adsamcik.signalcollector.common.database.dao.*
+import com.adsamcik.signalcollector.common.database.dao.ActivityDao
+import com.adsamcik.signalcollector.common.database.dao.CellLocationDao
+import com.adsamcik.signalcollector.common.database.dao.CellOperatorDao
+import com.adsamcik.signalcollector.common.database.dao.GeneralDao
+import com.adsamcik.signalcollector.common.database.dao.LocationDataDao
+import com.adsamcik.signalcollector.common.database.dao.SessionDataDao
+import com.adsamcik.signalcollector.common.database.dao.WifiDataDao
 import com.adsamcik.signalcollector.common.database.data.DatabaseCellLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseLocation
 import com.adsamcik.signalcollector.common.database.data.DatabaseWifiData
@@ -91,7 +97,8 @@ abstract class AppDatabase : RoomDatabase() {
 		}
 
 		fun getTestDatabase(context: Context): AppDatabase {
-			return Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java).build()
+			return Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java)
+					.build()
 		}
 
 	}

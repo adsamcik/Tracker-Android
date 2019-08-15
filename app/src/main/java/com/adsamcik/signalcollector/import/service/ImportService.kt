@@ -30,7 +30,7 @@ class ImportService : CoreService() {
 		}
 
 		val path = intent.getStringExtra(ARG_FILE_PATH)
-		           ?: throw NullPointerException("Argument $ARG_FILE_PATH needs to be set")
+				?: throw NullPointerException("Argument $ARG_FILE_PATH needs to be set")
 
 		val file = File(path)
 

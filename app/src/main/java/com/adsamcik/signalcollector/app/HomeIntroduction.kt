@@ -30,7 +30,8 @@ class HomeIntroduction : Introduction() {
 					})
 					.addButtonData(buttonData)
 					.setShape(Circle(PointF(0f, 0f), 0f))
-					.setDescription(resources.getString(R.string.tutorial_welcome_description)).build()
+					.setDescription(resources.getString(R.string.tutorial_welcome_description))
+					.build()
 
 			//var radius = Math.sqrt(Math.pow(button_settings.height.toDouble(), 2.0) + Math.pow(button_settings.width.toDouble(), 2.0)) / 2
 			// var point = PointF()

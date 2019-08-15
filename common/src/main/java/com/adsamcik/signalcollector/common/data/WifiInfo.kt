@@ -1,7 +1,11 @@
 package com.adsamcik.signalcollector.common.data
 
 import android.net.wifi.ScanResult
-import android.net.wifi.ScanResult.*
+import android.net.wifi.ScanResult.CHANNEL_WIDTH_160MHZ
+import android.net.wifi.ScanResult.CHANNEL_WIDTH_20MHZ
+import android.net.wifi.ScanResult.CHANNEL_WIDTH_40MHZ
+import android.net.wifi.ScanResult.CHANNEL_WIDTH_80MHZ
+import android.net.wifi.ScanResult.CHANNEL_WIDTH_80MHZ_PLUS_MHZ
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Parcel

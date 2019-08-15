@@ -1,7 +1,12 @@
 package com.adsamcik.signalcollector.common.misc
 
 import com.adsamcik.signalcollector.common.Time
-import kotlin.math.*
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 object Probability {

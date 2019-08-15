@@ -10,7 +10,12 @@ import com.adsamcik.signalcollector.common.data.CollectionData
 import com.adsamcik.signalcollector.common.data.TrackerSession
 import com.adsamcik.signalcollector.common.style.IViewChange
 import com.adsamcik.signalcollector.tracker.R
-import com.adsamcik.signalcollector.tracker.ui.recycler.data.*
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.ActivityTrackerInfo
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.CellTrackerInfo
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.LocationTrackerInfo
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.SessionTrackerInfo
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.TrackerInfo
+import com.adsamcik.signalcollector.tracker.ui.recycler.data.WifiTrackerInfo
 
 class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>(), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
