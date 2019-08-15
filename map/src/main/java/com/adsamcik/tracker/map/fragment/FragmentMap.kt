@@ -119,9 +119,15 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
 		} else {
 			fragmentView = inflater.inflate(com.adsamcik.tracker.common.R.layout.layout_error, container, false)
+
+			val textRes = if (hasPermissions) {
+				com.adsamcik.tracker.common.R.string.error_play_services_not_available
+			} else {
+				com.adsamcik.tracker.common.R.string.error_missing_permission
+			}
+
 			fragmentView.findViewById<AppCompatTextView>(com.adsamcik.tracker.common.R.id.activity_error_text)
-					.setText(
-							if (hasPermissions) com.adsamcik.tracker.common.R.string.error_play_services_not_available else com.adsamcik.tracker.common.R.string.error_missing_permission)
+					.setText(textRes)
 		}
 
 		/*fragmentView.setOnTouchListener { _, _ ->
@@ -159,11 +165,6 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 				mapEventListener)
 
 		ColorMap.addListener(context, map)
-
-		//does not work well with bearing. Known bug in Google maps api since 2014.
-		//Unfortunately had to be implemented anyway under new UI because Google requires Google logo to be visible at all times.
-		//val padding = navbarHeight(c)
-		//map.setPadding(0, 0, 0, padding)
 
 		map.setOnMapClickListener {
 			map_ui_parent.visibility = if (map_ui_parent.visibility == VISIBLE) GONE else VISIBLE
