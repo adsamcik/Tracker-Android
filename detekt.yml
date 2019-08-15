@@ -180,7 +180,7 @@ exceptions:
      - RuntimeException
 
 formatting:
-  active: true
+  active: false
   android: true
   autoCorrect: true
   AnnotationOnSeparateLine:
