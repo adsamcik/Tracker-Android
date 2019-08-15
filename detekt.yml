@@ -87,7 +87,7 @@ complexity:
   TooManyFunctions:
     active: true
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
-    thresholdInFiles: 11
+    thresholdInFiles: 20
     thresholdInClasses: 11
     thresholdInInterfaces: 11
     thresholdInObjects: 11
@@ -251,7 +251,7 @@ formatting:
     autoCorrect: true
   ParameterListWrapping:
   # Cannot use because tab indentation is not supported
-    active: true
+    active: false
     autoCorrect: true
     indentSize: 2
   SpacingAroundColon:
