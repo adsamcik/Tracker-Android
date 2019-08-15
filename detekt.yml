@@ -249,11 +249,6 @@ formatting:
   PackageName:
     active: true
     autoCorrect: true
-  ParameterListWrapping:
-  # Cannot use because tab indentation is not supported
-    active: false
-    autoCorrect: true
-    indentSize: 2
   SpacingAroundColon:
     active: true
     autoCorrect: true
