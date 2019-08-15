@@ -34,7 +34,6 @@ open class TrackerSession(
 	open var end: Long = end
 		protected set
 
-	//todo Write migration for this
 	@ColumnInfo(name = "user_initiated")
 	open var isUserInitiated: Boolean = isUserInitiated
 		protected set

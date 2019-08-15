@@ -80,31 +80,5 @@ object MathExtensions {
 		val diff = to - from
 		return from + diff * fraction
 	}
-
-	@ColorInt
-	fun lerpRgb(fraction: Double, @ColorInt from: Int, @ColorInt to: Int): Int {
-		var red = from.red
-		var green = from.green
-		var blue = from.blue
-
-		red += ((to.red - red) * fraction).roundToInt().coerceIn(0, 255)
-		green += ((to.green - green) * fraction).roundToInt().coerceIn(0, 255)
-		blue += ((to.blue - blue) * fraction).roundToInt().coerceIn(0, 255)
-		return Color.rgb(red, green, blue)
-	}
-
-	@ColorInt
-	fun lerpArgb(fraction: Double, @ColorInt from: Int, @ColorInt to: Int): Int {
-		var alpha = from.alpha
-		var red = from.red
-		var green = from.green
-		var blue = from.blue
-
-		red += ((to.red - red) * fraction).roundToInt().coerceIn(0, 255)
-		green += ((to.green - green) * fraction).roundToInt().coerceIn(0, 255)
-		blue += ((to.blue - blue) * fraction).roundToInt().coerceIn(0, 255)
-		alpha += ((to.alpha - alpha) * fraction).roundToInt().coerceIn(0, 255)
-		return Color.rgb(red, green, blue)
-	}
 }
 

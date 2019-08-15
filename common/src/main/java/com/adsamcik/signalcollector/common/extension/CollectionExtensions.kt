@@ -10,8 +10,9 @@ import kotlin.math.roundToInt
  */
 inline fun <T> Collection<T>.contains(func: (T) -> Boolean): Boolean {
 	forEach {
-		if (func(it))
+		if (func(it)) {
 			return true
+		}
 	}
 	return false
 }

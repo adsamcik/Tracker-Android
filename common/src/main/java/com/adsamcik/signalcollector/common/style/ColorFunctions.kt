@@ -8,6 +8,7 @@ import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * Brightens given color component with given value and ensures it is not larger than 255
@@ -15,7 +16,7 @@ import kotlin.math.floor
 fun brightenComponent(
 		component: Int,
 		@IntRange(from = MIN_COLOR_COMPONENT_VALUE.toLong(), to = MAX_COLOR_COMPONENT_VALUE.toLong()) value: Int
-): Int = (component + value).coerceIn(MIN_COLOR_COMPONENT_VALUE.toInt(), MAX_COLOR_COMPONENT_VALUE.toInt())
+): Int = (component + value).coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
 
 /**
  * Brightens color by components with given value.
@@ -47,6 +48,9 @@ fun relBlue(@ColorInt color: Int): Double = Color.blue(color) / MAX_COLOR_COMPON
 
 private const val MAX_COLOR_COMPONENT_VALUE = 255.0
 private const val MIN_COLOR_COMPONENT_VALUE = 0.0
+
+private const val COMPONENT_MAX_COERCE = MAX_COLOR_COMPONENT_VALUE.toInt()
+private const val COMPONENT_MIN_COERCE = MIN_COLOR_COMPONENT_VALUE.toInt()
 
 /**
  * Returns perceived relative luminance using an algorithm taken from formula for converting
@@ -104,6 +108,32 @@ object ColorFunctions {
 
 			brightenColor(backgroundColor, brightenMultiplier * layerDelta)
 		}
+	}
+
+	@ColorInt
+	fun lerpRgb(fraction: Double, @ColorInt from: Int, @ColorInt to: Int): Int {
+		var red = from.red
+		var green = from.green
+		var blue = from.blue
+
+		red += ((to.red - red) * fraction).roundToInt().coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
+		green += ((to.green - green) * fraction).roundToInt().coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
+		blue += ((to.blue - blue) * fraction).roundToInt().coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
+		return Color.rgb(red, green, blue)
+	}
+
+	@ColorInt
+	fun lerpArgb(fraction: Double, @ColorInt from: Int, @ColorInt to: Int): Int {
+		var alpha = from.alpha
+		var red = from.red
+		var green = from.green
+		var blue = from.blue
+
+		red += ((to.red - red) * fraction).roundToInt().coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
+		green += ((to.green - green) * fraction).roundToInt().coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
+		blue += ((to.blue - blue) * fraction).roundToInt().coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
+		alpha += ((to.alpha - alpha) * fraction).roundToInt().coerceIn(COMPONENT_MIN_COERCE, COMPONENT_MAX_COERCE)
+		return Color.rgb(red, green, blue)
 	}
 }
 

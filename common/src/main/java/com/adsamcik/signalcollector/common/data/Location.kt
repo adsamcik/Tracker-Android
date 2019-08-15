@@ -83,14 +83,16 @@ data class Location(
 	/// <param name="unit">unity type</param>
 	/// <returns></returns>
 	fun distance(location: Location, unit: LengthUnit): Double {
-		return if (location.altitude == null || altitude == null)
+		return if (location.altitude == null || altitude == null) {
 			distanceFlat(location, unit)
-		else
+		} else {
 			distance(latitude, longitude, altitude, location.latitude, location.longitude, location.altitude, unit)
+		}
 	}
 
 	/**
-	 * Creates new location with rounded latitude to [precisionLatitudeInMeters] and longitude to [precisionLongitudeInMeters]
+	 * Creates new location with rounded latitude to [precisionLatitudeInMeters]
+	 * and longitude to [precisionLongitudeInMeters]
 	 *
 	 * @param precisionLatitudeInMeters Round latitude coordinate to meters
 	 * @param precisionLongitudeInMeters Round longitude coordinate to meters
@@ -162,13 +164,15 @@ data class Location(
 		 * Returns approximate distance between 2 3D coordinates.
 		 * This function uses Pythagorean theorem for altitude
 		 */
-		fun distance(firstLatitude: Double,
-		             firstLongitude: Double,
-		             firstAltitude: Double,
-		             secondLatitude: Double,
-		             secondLongitude: Double,
-		             secondAltitude: Double,
-		             unit: LengthUnit
+		@Suppress("LongParameterList")
+		fun distance(
+				firstLatitude: Double,
+				firstLongitude: Double,
+				firstAltitude: Double,
+				secondLatitude: Double,
+				secondLongitude: Double,
+				secondAltitude: Double,
+				unit: LengthUnit
 		): Double {
 			val latLonDistance = distance(firstLatitude, firstLongitude, secondLatitude, secondLongitude, unit)
 			val altitudeDifference = (secondAltitude - firstAltitude)
@@ -195,15 +199,16 @@ data class Location(
 }
 
 @JsonClass(generateAdapter = true)
-data class BaseLocation(@Json(name = "lat")
-                        @ColumnInfo(name = "lat")
-                        val latitude: Double,
-                        @Json(name = "lon")
-                        @ColumnInfo(name = "lon")
-                        val longitude: Double,
-                        @Json(name = "alt")
-                        @ColumnInfo(name = "alt")
-                        val altitude: Double?
+data class BaseLocation(
+		@Json(name = "lat")
+		@ColumnInfo(name = "lat")
+		val latitude: Double,
+		@Json(name = "lon")
+		@ColumnInfo(name = "lon")
+		val longitude: Double,
+		@Json(name = "alt")
+		@ColumnInfo(name = "alt")
+		val altitude: Double?
 ) {
 
 	constructor(location: Location) : this(location.latitude, location.longitude, location.altitude)
