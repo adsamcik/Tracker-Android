@@ -465,7 +465,7 @@ style:
     excludePackageStatements: true
     excludeImportStatements: true
     excludeCommentStatements: false
-    excludes: "**/test/**,**/androidTest/**"
+    excludes: "**/test/**,**/androidTest/**,**/AppDatabaseMigrations.kt"
   MayBeConst:
     active: true
   ModifierOrder:
