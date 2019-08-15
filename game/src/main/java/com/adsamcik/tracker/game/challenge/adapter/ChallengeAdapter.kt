@@ -9,14 +9,16 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.formatAsDuration
+import com.adsamcik.tracker.common.extension.toIntPercent
 import com.adsamcik.tracker.common.style.IViewChange
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
+import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*
 import java.util.*
 
 class ChallengeAdapter(mContext: Context,
-                       private var mDataSource: Array<ChallengeInstance<*, *>>) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(),
-		IViewChange {
+                       private var mDataSource: Array<ChallengeInstance<*, *>>
+) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(), IViewChange {
 
 	class ViewHolder(itemView: View,
 	                 val titleTextView: TextView,
@@ -57,7 +59,7 @@ class ChallengeAdapter(mContext: Context,
 		holder.descriptionTextView.text = challenge.getDescription(context)
 		holder.difficultyTextView.text = context.getString(challenge.difficulty.difficultyStringRes)
 
-		val progress = (challenge.progress * 100.0).toInt()
+		val progress = challenge.progress.toIntPercent()
 		holder.progressBar.progress = progress
 		holder.progressText.text = String.format(Locale.getDefault(), "%d%%", progress)
 
@@ -65,7 +67,4 @@ class ChallengeAdapter(mContext: Context,
 
 		onViewChangedListener?.invoke(holder.itemView)
 	}
-
-
 }
-

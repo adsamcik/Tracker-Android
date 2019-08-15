@@ -13,6 +13,7 @@ internal class CellHeatmapLogic : HeatmapLayerLogic() {
 		return CellHeatmapTileCreator(context)
 	}
 
+	@Suppress("Unchecked_cast")
 	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
 			R.string.map_layer_cell_heatmap)
 }

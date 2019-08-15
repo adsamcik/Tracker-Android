@@ -7,6 +7,7 @@ import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolderCreator
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.viewholder.LineChartViewHolder
+import kotlinx.android.synthetic.main.layout_stats_detail_line_chart.view.*
 
 class LineChartViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailData> {
 

@@ -13,7 +13,6 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.signalcollector.map.R
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.dialog.dateTimeRangePicker

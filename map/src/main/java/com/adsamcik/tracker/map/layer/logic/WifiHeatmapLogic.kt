@@ -13,6 +13,7 @@ internal class WifiHeatmapLogic : HeatmapLayerLogic() {
 		return WifiHeatmapTileCreator(context)
 	}
 
+	@Suppress("Unchecked_cast")
 	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
 			R.string.map_layer_wifi_heatmap)
 }
