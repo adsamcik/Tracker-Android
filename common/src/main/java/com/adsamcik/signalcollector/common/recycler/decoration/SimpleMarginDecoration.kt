@@ -13,10 +13,10 @@ import com.adsamcik.signalcollector.common.extension.dp
  * Implementation of [RecyclerView.ItemDecoration] for [CardListAdapter]. It will add uniform margin to all sides.
  */
 class SimpleMarginDecoration(
-		private val verticalMargin: Int = 16.dp,
-		private val horizontalMargin: Int = 16.dp,
-		private val firstLineMargin: Int = 16.dp,
-		private val lastLineMargin: Int = 16.dp
+		private val verticalMargin: Int = DEFAULT_MARGIN_DP.dp,
+		private val horizontalMargin: Int = DEFAULT_MARGIN_DP.dp,
+		private val firstLineMargin: Int = DEFAULT_MARGIN_DP.dp,
+		private val lastLineMargin: Int = DEFAULT_MARGIN_DP.dp
 ) : RecyclerView.ItemDecoration() {
 
 
@@ -97,5 +97,9 @@ class SimpleMarginDecoration(
 			RecyclerView.HORIZONTAL -> setOffsetsHorizontal(outRect, parent, position, columnCount)
 			else -> throw IllegalStateException("Orientation with value $orientation is unknown")
 		}
+	}
+
+	companion object {
+		const val DEFAULT_MARGIN_DP = 16
 	}
 }

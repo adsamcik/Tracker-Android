@@ -1,5 +1,7 @@
 package com.adsamcik.signalcollector.common.extension
 
+import kotlin.math.roundToInt
+
 /**
  * Find if collection contains any item satisfying [func]
  *
@@ -90,4 +92,20 @@ inline fun <T, R> Iterable<T>.mapIf(condition: (T) -> Boolean, action: (T) -> R)
 		collection.add(action(it))
 	}
 	return collection
+}
+
+fun DoubleArray.toIntArray(): IntArray {
+	val intArray = IntArray(size)
+	for (i in 0 until size) {
+		intArray[i] = this[i].toInt()
+	}
+	return intArray
+}
+
+fun DoubleArray.roundToIntArray(): IntArray {
+	val intArray = IntArray(size)
+	for (i in 0 until size) {
+		intArray[i] = this[i].roundToInt()
+	}
+	return intArray
 }

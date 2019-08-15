@@ -17,9 +17,10 @@ import com.adsamcik.signalcollector.common.preference.observer.PreferenceObserve
 
 /**
  * Object that simplifies access to some preferences
- * It contains many preferences as constant values so they don't have to be stored in SharedPreferences which creates unnecessary lookup
+ * It contains many preferences as constant values so
+ * they don't have to be stored in SharedPreferences which creates unnecessary lookup
  */
-@Suppress("UNUSED")
+@Suppress("Unused", "TooManyFunctions")
 open class Preferences {
 	protected val resources: Resources
 	protected val sharedPreferences: SharedPreferences

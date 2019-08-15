@@ -9,7 +9,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import com.adsamcik.signalcollector.common.preference.Preferences
 
-@Suppress("WeakerAccess", "UNUSED")
+@Suppress("WeakerAccess", "Unused", "TooManyFunctions")
 @MainThread
 object PreferenceObserver {
 	private val intObserver = PreferenceListenerType<Int>()
@@ -20,7 +20,9 @@ object PreferenceObserver {
 
 	private var isInitialized = false
 
-	private val onSharedPreferenceChangeListener = { sharedPreferences: SharedPreferences, key: String -> invokeAnyObserver(key, sharedPreferences) }
+	private val onSharedPreferenceChangeListener = { sharedPreferences: SharedPreferences, key: String ->
+		invokeAnyObserver(key, sharedPreferences)
+	}
 
 	fun initialize(preferences: SharedPreferences) {
 		preferences.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener)
@@ -43,41 +45,59 @@ object PreferenceObserver {
 	}
 
 	@JvmName("observeInt")
-	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int, observer: Observer<Int>, owner: LifecycleOwner? = null) {
+	fun observe(context: Context,
+	            @StringRes keyRes: Int,
+	            @StringRes defaultRes: Int,
+	            observer: Observer<Int>,
+	            owner: LifecycleOwner? = null) {
 		Preferences.getPref(context).getIntResString(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(context, intObserver, keyRes, observer, owner)
 	}
 
 	@JvmName("observeIntRes")
-	fun observeIntRes(context: Context, @StringRes keyRes: Int, @IntegerRes defaultRes: Int, observer: Observer<Int>, owner: LifecycleOwner? = null) {
+	fun observeIntRes(context: Context, @StringRes keyRes: Int,
+	                  @IntegerRes defaultRes: Int,
+	                  observer: Observer<Int>,
+	                  owner: LifecycleOwner? = null) {
 		Preferences.getPref(context).getIntRes(keyRes, defaultRes).run { observer.onChanged(this) }
 		observe(context, intObserver, keyRes, observer, owner)
 	}
 
 	@JvmName("observeLong")
-	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int, observer: Observer<Long>, owner: LifecycleOwner? = null) {
+	fun observe(
+			context: Context,
+			@StringRes keyRes: Int,
+			@StringRes defaultRes: Int,
+			observer: Observer<Long>,
+			owner: LifecycleOwner? = null) {
 		Preferences.getPref(context).getLongResString(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(context, longObserver, keyRes, observer, owner)
 	}
 
 	@JvmName("observeFloat")
-	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int, observer: Observer<Float>, owner: LifecycleOwner? = null) {
+	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int,
+	            observer: Observer<Float>,
+	            owner: LifecycleOwner? = null) {
 		Preferences.getPref(context).getFloatResString(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(context, floatObserver, keyRes, observer, owner)
 	}
 
 	@JvmName("observeBoolean")
-	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int, observer: Observer<Boolean>, owner: LifecycleOwner? = null) {
+	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int,
+	            observer: Observer<Boolean>,
+	            owner: LifecycleOwner? = null) {
 		Preferences.getPref(context).getBooleanRes(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(context, booleanObserver, keyRes, observer, owner)
 	}
 
 	@JvmName("observeString")
-	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int, observer: Observer<String>, owner: LifecycleOwner? = null) {
+	fun observe(context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int,
+	            observer: Observer<String>,
+	            owner: LifecycleOwner? = null) {
 		Preferences.getPref(context).getStringRes(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(context, stringObserver, keyRes, observer, owner)
@@ -108,12 +128,17 @@ object PreferenceObserver {
 		removeObserver(context, stringObserver, keyRes, observer)
 	}
 
-	private fun <T> removeObserver(context: Context, type: PreferenceListenerType<T>, @StringRes keyRes: Int, observer: Observer<T>) {
+	private fun <T> removeObserver(context: Context,
+	                               type: PreferenceListenerType<T>, @StringRes keyRes: Int,
+	                               observer: Observer<T>) {
 		val key = context.getString(keyRes)
 		type.removeObserver(key, observer)
 	}
 
-	private fun <T> observe(context: Context, type: PreferenceListenerType<T>, @StringRes keyRes: Int, observer: Observer<T>, owner: LifecycleOwner? = null) {
+	private fun <T> observe(context: Context,
+	                        type: PreferenceListenerType<T>, @StringRes keyRes: Int,
+	                        observer: Observer<T>,
+	                        owner: LifecycleOwner? = null) {
 		val key = context.getString(keyRes)
 		if (owner != null) type.observe(key, observer, owner) else type.observe(key, observer)
 	}

@@ -28,10 +28,11 @@ class KeyboardManager(private val rootView: View) {
 		val isOpen = heightDiff > threshold
 
 		if (isOpen != wasOpen) {
-			keyboardHeight = if (isOpen)
+			keyboardHeight = if (isOpen) {
 				heightDiff - defaultDiff
-			else
+			} else {
 				0
+			}
 
 			wasOpen = isOpen
 			listeners.forEach { it.invoke(isOpen, keyboardHeight) }

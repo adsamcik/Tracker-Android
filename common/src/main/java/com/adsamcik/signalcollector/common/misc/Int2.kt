@@ -5,6 +5,7 @@ package com.adsamcik.signalcollector.common.misc
  * Improved Kotlin support
  * Add support for equality checks
  */
+@Suppress("TooManyFunctions", "Unused")
 data class Int2(var x: Int = 0, var y: Int = 0) {
 
 	/** @hide

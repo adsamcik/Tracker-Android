@@ -6,7 +6,9 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.signalcollector.common.style.IViewChange
 import com.adsamcik.signalcollector.common.style.StyleController
 
-open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleController: StyleController) : SortableAdapter<Data, MultiTypeViewHolder<Data>>(), IViewChange {
+open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleController: StyleController) :
+		SortableAdapter<Data, MultiTypeViewHolder<Data>>(),
+		IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val typeMap = mutableMapOf<Int, MultiTypeViewHolderCreator<Data>>()

@@ -3,6 +3,7 @@ package com.adsamcik.signalcollector.common.extension
 import android.location.Location
 import kotlin.math.pow
 
+@Suppress("Unused")
 object LocationExtensions {
 	const val EARTH_CIRCUMFERENCE: Int = 40075000
 	const val METER_DEGREE_LATITUDE: Double = 360.0 / EARTH_CIRCUMFERENCE

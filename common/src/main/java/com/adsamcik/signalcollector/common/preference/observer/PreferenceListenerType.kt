@@ -28,7 +28,6 @@ class PreferenceListenerType<T> {
 		if (listenerGroup.hasObservers()) map.remove(key)
 	}
 
-	private fun getListenerGroup(key: String): MutableLiveData<T> = map[key]
-			?: MutableLiveData<T>().also { map[key] = it }
-
+	private fun getListenerGroup(key: String): MutableLiveData<T> =
+			map[key] ?: MutableLiveData<T>().also { map[key] = it }
 }

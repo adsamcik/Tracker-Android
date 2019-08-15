@@ -1,6 +1,7 @@
 package com.adsamcik.signalcollector.common.misc
 
 import com.adsamcik.signalcollector.common.Time
+import com.adsamcik.signalcollector.common.extension.toIntArray
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -9,33 +10,35 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
+@Suppress("Unused", "Private")
 object Probability {
-	val random: Random = Random(Time.nowMillis)
+	private val random: Random = Random(Time.nowMillis)
 
 	/**
 	 * Returns random number with uniform distribution
 	 */
-	@Suppress("UNUSED")
 	fun uniform(from: Int, until: Int): Int = random.nextInt(from, until)
 
 	/**
 	 * Returns random number with uniform distribution
 	 */
-	@Suppress("UNUSED")
 	fun uniform(from: Double, until: Double): Double = random.nextDouble(from, until)
 
 	/**
 	 * Returns random value between 0 (inclusive) and 1 (exclusive)
 	 */
-	@Suppress("PRIVATE")
+	@Suppress("Private")
 	fun uniform(): Double = random.nextDouble()
 
 	/**
 	 * Returns two random numbers with normal distribution with mean [mean] and standard deviation [standardDeviation]
 	 *
-	 * Two numbers are returned because they are calculated using Box–Muller method https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform which has very little overhead in calculating 2nd value
+	 * Two numbers are returned because they are calculated using Box–Muller method
+	 * https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
+	 * which has very little overhead in calculating 2nd value
 	 */
-	fun normal(mean: Double = 0.5, standardDeviation: Double = 0.22): Array<Double> {
+	@Suppress("MagicNumber")
+	fun normal(mean: Double = 0.5, standardDeviation: Double = 0.22): DoubleArray {
 		val u = uniform()
 		val v = uniform()
 
@@ -44,17 +47,16 @@ object Probability {
 		val x = lnSqrt * cos(twoPiV)
 		val y = lnSqrt * sin(twoPiV)
 
-		return arrayOf(mean + standardDeviation * x, mean + standardDeviation * y)
+		return doubleArrayOf(mean + standardDeviation * x, mean + standardDeviation * y)
 	}
-
 
 	/**
 	 * @see normal
 	 */
-	@Suppress("UNUSED")
-	fun normal(mean: Int, standardDeviation: Int): Array<Int> {
+	@Suppress("Private")
+	fun normal(mean: Int, standardDeviation: Int): IntArray {
 		val normalDouble = normal(mean.toDouble(), standardDeviation.toDouble())
-		return normalDouble.map { it.toInt() }.toTypedArray()
+		return normalDouble.toIntArray()
 	}
 
 	/**

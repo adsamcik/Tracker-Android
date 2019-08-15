@@ -255,4 +255,3 @@ val Context.applicationName: String
 @Suppress("unused")
 val Activity.tag: String
 	get() = applicationName + this::class.java.simpleName
-

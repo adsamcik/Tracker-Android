@@ -21,7 +21,6 @@ fun Data.getPositiveLongReportNull(key: String): Long? {
 	}
 }
 
-
 fun Data.getLongReportNull(key: String): Long? {
 	val value = getLong(key)
 	if (value == null) Reporter.report(IllegalArgumentException("Argument $key was not specified"))
