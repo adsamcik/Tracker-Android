@@ -101,8 +101,6 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		mapController?.onEnable(activity)
 
 		locationListener?.subscribeToLocationUpdates(activity)
-
-		IntroductionManager.showIntroduction(activity, MapIntroduction())
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,10 +143,6 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		styleController.let { StyleManager.recycleController(it) }
 	}
 
-	/**
-	 * Called when map is ready and initializes everything that needs to be initialized after maps loading
-	 */
-//todo refactor
 	override fun onMapReady(map: GoogleMap) {
 		val context = context ?: return
 
@@ -168,6 +162,10 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 
 		map.setOnMapClickListener {
 			map_ui_parent.visibility = if (map_ui_parent.visibility == VISIBLE) GONE else VISIBLE
+		}
+
+		map_ui_parent.post {
+			IntroductionManager.showIntroduction(requireActivity(), MapIntroduction())
 		}
 	}
 

@@ -6,12 +6,15 @@
 
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 
+    <string name="tips_map_sheet_title">More options</string>
+    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+
     <string name="tips_map_search_title">Search</string>
     <string name="tips_map_search_description">Type in this area to search. Tapping on the magnifying glass on the right triggers the search, or you can use your keyboards search button, if it has one.</string>
 
     <string name="tips_map_my_location_title">My location</string>
     <string name="tips_map_my_location_description">Tapping on this button moves you to your location. Map will follow your location until you move the map manually. Tapping on it again while following shows you the direction you are facing.</string>
 
-    <string name="tips_map_overlay_title">Map layers</string>
-    <string name="tips_map_overlay_description">Tapping or pulling up this bar will open selection of map layers</string>
+    <string name="tips_map_date_range_title">Date range</string>
+    <string name="tips_map_date_range_description">Selecting date range can show you only data for the range you desire.</string>
 </resources>

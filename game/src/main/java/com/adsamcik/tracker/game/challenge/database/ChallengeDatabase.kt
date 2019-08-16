@@ -18,7 +18,13 @@ import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
 
 @Database(
-		entities = [ChallengeSessionData::class, ChallengeEntry::class, ExplorerChallengeEntity::class, WalkDistanceChallengeEntity::class, StepChallengeEntity::class],
+		entities = [
+			ChallengeSessionData::class,
+			ChallengeEntry::class,
+			ExplorerChallengeEntity::class,
+			WalkDistanceChallengeEntity::class,
+			StepChallengeEntity::class
+		],
 		version = 1)
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {

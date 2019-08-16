@@ -6,13 +6,13 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeType
 
 class ChallengeDifficultyTypeConverter {
 	@TypeConverter
-	fun toInt(difficulty: ChallengeDifficulty) = difficulty.ordinal
+	fun toInt(difficulty: ChallengeDifficulty): Int = difficulty.ordinal
 
 	@TypeConverter
 	fun difficultyToEnum(ordinal: Int): ChallengeDifficulty = ChallengeDifficulty.values()[ordinal]
 
 	@TypeConverter
-	fun toInt(type: ChallengeType) = type.ordinal
+	fun toInt(type: ChallengeType): Int = type.ordinal
 
 	@TypeConverter
 	fun typeToEnum(ordinal: Int): ChallengeType = ChallengeType.values()[ordinal]

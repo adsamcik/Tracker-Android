@@ -19,7 +19,9 @@ class MapIntroduction : Introduction() {
 				spotlight.next()
 			}
 
-			var target = findViewById<View>(R.id.layout_map_controls)
+			val dp8 = RECTANGLE_RADIUS_DP.dp.toFloat()
+
+			var target = findViewById<View>(R.id.map_search_parent)
 			val searchTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_search_title))
@@ -28,11 +30,10 @@ class MapIntroduction : Introduction() {
 						spotlight.finishSpotlight()
 					})
 					.addButtonData(buttonData)
-					.setShape(RoundedRectangle(target, 8.dp.toFloat(), 8.dp.toFloat()))
+					.setShape(RoundedRectangle(target, dp8, dp8))
 					.setDescription(getString(R.string.tips_map_search_description)).build()
 
 			target = findViewById<View>(R.id.button_map_my_location)
-			//radius = Math.sqrt(Math.pow(button_stats.height.toDouble(), 2.0) + Math.pow(button_stats.width.toDouble(), 2.0)) / 2
 			val myLocationButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_my_location_title))
@@ -42,17 +43,29 @@ class MapIntroduction : Introduction() {
 					.build()
 
 			target = findViewById<View>(R.id.map_sheet_drag_area)
-			//radius = Math.sqrt(Math.pow(button_activity.height.toDouble(), 2.0) + Math.pow(button_activity.width.toDouble(), 2.0)) / 2
 			val mapMenuButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
-					.setTitle(getString(R.string.tips_map_overlay_title))
+					.setTitle(getString(R.string.tips_map_sheet_title))
 					.addButtonData(buttonData)
-					.setShape(RoundedRectangle(target, 8.dp.toFloat(), 8.dp.toFloat()))
-					.setDescription(getString(R.string.tips_map_overlay_description))
+					.setShape(RoundedRectangle(target, dp8, dp8))
+					.setDescription(getString(R.string.tips_map_sheet_description))
 					.build()
 
-			return listOf(searchTarget, myLocationButtonTarget, mapMenuButtonTarget)
+			target = findViewById<View>(R.id.button_map_date_range)
+			val dateRangeTarget = SimpleTarget.Builder(this)
+					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
+					.setTitle(getString(R.string.tips_map_date_range_title))
+					.addButtonData(buttonData)
+					.setShape(Circle(target))
+					.setDescription(getString(R.string.tips_map_date_range_description))
+					.build()
+
+			return listOf(mapMenuButtonTarget, searchTarget, myLocationButtonTarget, dateRangeTarget)
 		}
+	}
+
+	companion object {
+		private const val RECTANGLE_RADIUS_DP = 8
 	}
 
 }

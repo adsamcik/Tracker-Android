@@ -32,35 +32,33 @@ object IntroductionManager {
 	fun showIntroduction(activity: FragmentActivity, introduction: Introduction): Boolean {
 		val preferences = Preferences.getPref(activity)
 		try {
-			return if (!anyShown &&
+			if (!anyShown &&
 					preferences.getBooleanRes(R.string.show_tips_key, R.string.show_tips_default) &&
 					!preferences.getBoolean(introduction.preference, false)) {
 
 				val targets = introduction.getTargets(activity)
 
-				if (targets.isEmpty()) return false
+				if (targets.isNotEmpty()) {
+					Spotlight.with(activity)
+							.setTargets(targets)
+							.setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 230))
+							.setAnimation(AccelerateDecelerateInterpolator())
+							.setOnSpotlightEndedListener {
+								Preferences.getPref(activity)
+										.edit { setBoolean(introduction.preference, true) }
+								introduction.onDone()
+								onDone()
+							}
+							.start()
 
-				Spotlight.with(activity)
-						.setTargets(targets)
-						.setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 230))
-						.setAnimation(AccelerateDecelerateInterpolator())
-						.setOnSpotlightEndedListener {
-							Preferences.getPref(activity)
-									.edit { setBoolean(introduction.preference, true) }
-							introduction.onDone()
-							onDone()
-						}
-						.start()
-
-				anyShown = true
-				true
-			} else {
-				false
+					anyShown = true
+					return true
+				}
 			}
-		} catch (e: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			Reporter.report(e)
-			return false
 		}
+		return false
 	}
 
 	private fun onDone() {

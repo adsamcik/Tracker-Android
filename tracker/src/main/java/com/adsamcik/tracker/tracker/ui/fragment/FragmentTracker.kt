@@ -17,6 +17,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Reporter
@@ -75,21 +76,23 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 				Reporter.report(RuntimeException("Item animator was null or invalid type"))
 			}
 
-			post {
-				val computedWidth = measuredWidth - paddingStart - paddingEnd
-				val oneSideHorizontalMargin = 8.dp
-				val totalHorizontalMargin = oneSideHorizontalMargin * 2
-				val maxWidth = 220.dp + totalHorizontalMargin
-				val minWidth = 125.dp + totalHorizontalMargin
-				val minColumnCount = kotlin.math.max(computedWidth / maxWidth, 1)
-				val columnPlusOneWidth = computedWidth / (minColumnCount + 1)
-				val columnCount = if (columnPlusOneWidth < minWidth) minColumnCount else minColumnCount + 1
-				layoutManager = StaggeredGridLayoutManager(columnCount, LinearLayoutManager.VERTICAL)
-				addItemDecoration(SimpleMarginDecoration(horizontalMargin = oneSideHorizontalMargin))
-			}
+			post { initializeTrackerRecycler() }
 		}
 
 		return view
+	}
+
+	private fun RecyclerView.initializeTrackerRecycler() {
+		val computedWidth = measuredWidth - paddingStart - paddingEnd
+		val oneSideHorizontalMargin = RECYCLER_HORIZONTAL_MARGIN.dp
+		val totalHorizontalMargin = oneSideHorizontalMargin * 2
+		val maxWidth = MAX_RECYCLER_COLUMN_WIDTH.dp + totalHorizontalMargin
+		val minWidth = MIN_RECYCLER_COLUMN_WIDTH.dp + totalHorizontalMargin
+		val minColumnCount = kotlin.math.max(computedWidth / maxWidth, 1)
+		val columnPlusOneWidth = computedWidth / (minColumnCount + 1)
+		val columnCount = if (columnPlusOneWidth < minWidth) minColumnCount else minColumnCount + 1
+		layoutManager = StaggeredGridLayoutManager(columnCount, LinearLayoutManager.VERTICAL)
+		addItemDecoration(SimpleMarginDecoration(horizontalMargin = oneSideHorizontalMargin))
 	}
 
 	override fun onStart() {
@@ -97,11 +100,11 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 		button_settings.setOnClickListener {
 			val context = it.context
-			context.startActivity("${context.packageName}.preference.activity.SettingsActivity")
+			context.startActivity("com.adsamcik.tracker.preference.activity.SettingsActivity")
 		}
 
 		button_tracking.setOnClickListener {
-			val activity = activity!!
+			val activity = requireActivity()
 			if (TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
 				TrackerLocker.lockTimeLock(activity, Time.MINUTE_IN_MILLISECONDS * LOCK_WHEN_CANCELLED)
 				SnackMaker(rootCoordinatorLayout).addMessage(
@@ -147,7 +150,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 		val orientation = Assist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
-			tracker_recycler.setPadding(72.dp, 0, 72.dp, 0)
+			tracker_recycler.setPadding(RECYCLER_HORIZONTAL_PADDING.dp, 0, RECYCLER_HORIZONTAL_PADDING.dp, 0)
 		}
 
 		if (useMock) mock()
@@ -158,6 +161,27 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 			val fragmentRoot = requireActivity().findViewById<View>(R.id.fragment_tracker_root)
 			return fragmentRoot.requireParent()
 		}
+
+	private fun startTracking(activity: FragmentActivity) {
+		if (!Assist.isGNSSEnabled(activity)) {
+			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_gnss_not_enabled,
+					priority = SnackMaker.SnackbarPriority.IMPORTANT,
+					actionRes = R.string.enable,
+					onActionClick = View.OnClickListener {
+						val locationOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+						startActivity(locationOptionsIntent)
+					})
+		} else if (!Assist.canTrack(activity)) {
+			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
+		} else {
+			TrackerServiceApi.startService(activity, isUserInitiated = true)
+			updateTrackerButton(true)
+		}
+	}
+
+	private fun stopTracking(activity: FragmentActivity) {
+		TrackerServiceApi.stopService(activity)
+	}
 
 	/**
 	 * Enables or disables collecting service
@@ -171,29 +195,17 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 		if (missingPermissions.isEmpty()) {
 			if (!TrackerServiceApi.isActive) {
-				if (!Assist.isGNSSEnabled(activity)) {
-					SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_gnss_not_enabled,
-							priority = SnackMaker.SnackbarPriority.IMPORTANT,
-							actionRes = R.string.enable,
-							onActionClick = View.OnClickListener {
-								val locationOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-								startActivity(locationOptionsIntent)
-							})
-				} else if (!Assist.canTrack(activity)) {
-					SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
-				} else {
-					TrackerServiceApi.startService(activity, isUserInitiated = true)
-					updateTrackerButton(true)
-				}
+				startTracking(activity)
 			} else {
-				TrackerServiceApi.stopService(activity)
+				stopTracking(activity)
 			}
-		} else if (Build.VERSION.SDK_INT >= 23) {
+		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			activity.requestPermissions(missingPermissions, 0)
 		}
 	}
 
 	//todo improve this
+	@Suppress("MagicNumber")
 	private fun mock() {
 		val collectionData = MutableCollectionData(Time.nowMillis)
 		val location = Location(collectionData.time, 15.0, 15.0, 123.0, 6f, 3f, 10f, 15f)
@@ -231,7 +243,12 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	}
 
 	companion object {
-		const val LOCK_WHEN_CANCELLED = 60
+		private const val LOCK_WHEN_CANCELLED = 60
+		private const val MIN_RECYCLER_COLUMN_WIDTH = 125
+		private const val MAX_RECYCLER_COLUMN_WIDTH = 220
+		private const val RECYCLER_HORIZONTAL_MARGIN = 8
+
+		private const val RECYCLER_HORIZONTAL_PADDING = 72
 	}
 }
 

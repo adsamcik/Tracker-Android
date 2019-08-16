@@ -94,7 +94,6 @@ internal class MapSheetController(
 	}
 
 	private val sheetBehavior = BottomSheetBehavior.from(rootLayout).apply {
-		// todo add dynamic navbar height
 		peekHeight = PEEK_CONTENT_HEIGHT_DP.dp + navbarSpace.layoutParams.height + rootLayout.layout_map_controls.marginBottom
 		isFitToContents = false
 		val expandedOffset = EXPANDED_TOP_OFFSET_DP.dp
