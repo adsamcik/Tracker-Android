@@ -2,21 +2,23 @@ package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.tracker.common.style.ColorConstants
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.pow
 
+@Suppress("MagicNumber")
 internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
-		return HeatmapConfig(generateStamp(heatmapSize),
-				HeatmapColorScheme.fromArray(listOf(Pair(0.05, ColorConstants.TRANSPARENT),
+		return HeatmapConfig(
+				HeatmapColorScheme.fromArray(listOf(
+						Pair(0.0, ColorConstants.TRANSPARENT),
 						Pair(0.2, ColorConstants.GREEN),
 						Pair(0.8, ColorConstants.ORANGE),
 						Pair(1.0, ColorConstants.RED)), 100),
 				20f,
-				false) { current, input, weight ->
+				false)
+		{ current, input, weight ->
 			current + input * weight
 		}
 	}
@@ -36,8 +38,6 @@ internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 
 	override val weightNormalizationValue: Double = 0.0
 
-	override val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
-		get() = dao::getAllInsideAndBetween
-	override val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
-		get() = dao::getAllInside
+	override val getAllInsideAndBetween get() = dao::getAllInsideAndBetween
+	override val getAllInside get() = dao::getAllInside
 }

@@ -4,7 +4,7 @@
 
     <uses-feature
         android:name="android.hardware.location.gps"
-        android:required="true" />
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
@@ -33,7 +33,7 @@
 
         <activity
             android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"
-            android:screenOrientation="portrait"></activity>
+            android:screenOrientation="portrait" />
 
         <receiver android:name="com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver">
             <intent-filter>

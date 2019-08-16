@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.heatmap
 
 import android.graphics.Color
+import com.adsamcik.tracker.common.Reporter
 import com.adsamcik.tracker.common.misc.ConditionVariableInt
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.commonmap.CoordinateBounds
@@ -82,14 +83,12 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 		heatLock.withLock {
 			maxHeat = initMaxHeat
 
-			//todo make this smarter so it actually takes nearest neighbour
+			// todo make this smarter so it actually takes nearest neighbour
 			maxHeat *= max(1f, 2f.pow(MAX_HEAT_ZOOM - lastZoom))
 		}
 	}
 
-	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
-		tileRequestCount.incrementAndGet()
-		//Ensure that everything is up to date. It's fine to lock every time, since it is called only handful of times at once.
+	private fun clearHeatmapIfZoomChanged(zoom: Int) {
 		heatLock.withLock {
 			if (lastZoom != zoom) {
 				heatmapCache.clear()
@@ -98,7 +97,35 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 				resetMaxHeat()
 			}
 		}
+	}
 
+	private fun updateHeat(heatmap: Heatmap, zoom: Int) {
+		heatLock.withLock {
+			if (maxHeat < heatmap.maxHeat && zoom == lastZoom) {
+				// round to next whole number to avoid frequent calls
+				val newHeat = ceil(heatmap.maxHeat)
+				heatChange += newHeat - maxHeat
+				maxHeat = newHeat
+
+				if (!heatUpdateScheduled.get()) {
+					heatUpdateScheduled.set(true)
+					tileRequestCount.addWaiter({ it == 0 }) {
+						if (heatChange > 0) {
+							onHeatChange?.invoke(maxHeat, heatChange)
+							heatUpdateScheduled.set(false)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
+		tileRequestCount.incrementAndGet()
+		// Ensure that everything is up to date. It's fine to lock every time,
+		// since it is called only handful of times at once.
+
+		clearHeatmapIfZoomChanged(zoom)
 
 		val leftX = MapFunctions.toLon(x.toDouble(), zoom)
 		val topY = MapFunctions.toLat(y.toDouble(), zoom)
@@ -116,39 +143,22 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 			val range = range
 			try {
 				val config = tileCreator.createHeatmapConfig(heatmapSize, maxHeat)
-				val data = HeatmapData(config, heatmapSize, x, y, zoom, area)
+				val stamp = tileCreator.generateStamp(heatmapSize)
+				val data = HeatmapData(config, stamp, heatmapSize, x, y, zoom, area)
 
 				heatmap = if (range == LongRange.EMPTY) {
 					tileCreator.getHeatmap(data)
 				} else {
 					tileCreator.getHeatmap(data, range.first, range.last)
 				}
-			} catch (e: Exception) {
-				e.printStackTrace()
-				throw e
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				Reporter.report(e)
+				return Tile(0, 0, byteArrayOf())
 			}
 			heatmapCache[key] = heatmap
 		}
 
-		heatLock.withLock {
-			if (maxHeat < heatmap.maxHeat && zoom == lastZoom) {
-				//round to next whole number to avoid frequent calls
-				val newHeat = ceil(heatmap.maxHeat)
-				heatChange += newHeat - maxHeat
-				maxHeat = newHeat
-
-				if (!heatUpdateScheduled.get()) {
-					heatUpdateScheduled.set(true)
-					tileRequestCount.addWaiter({ it == 0 }) {
-						if (heatChange > 0) {
-							onHeatChange?.invoke(maxHeat, heatChange)
-							heatUpdateScheduled.set(false)
-						}
-					}
-				}
-				return@withLock
-			}
-		}
+		updateHeat(heatmap.heatmap, zoom)
 
 		val tile = Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
 		tileRequestCount.decrementAndGet()

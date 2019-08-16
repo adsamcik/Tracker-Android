@@ -7,10 +7,22 @@ import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
 
-internal interface HeatmapTileCreator {
-	val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+typealias InsideAndBetween = (from: Long,
+                              to: Long,
+                              topLatitude: Double,
+                              rightLongitude: Double,
+                              bottomLatitude: Double,
+                              leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
 
-	val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+typealias Inside = (topLatitude: Double,
+                    rightLongitude: Double,
+                    bottomLatitude: Double,
+                    leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+
+internal interface HeatmapTileCreator {
+	val getAllInsideAndBetween: InsideAndBetween
+
+	val getAllInside: Inside
 
 	val availableRange: LongRange
 
@@ -34,17 +46,15 @@ internal interface HeatmapTileCreator {
 		}
 	}
 
-	private fun createHeatmap(data: HeatmapData,
-	                          getLocations: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+	private inline fun createHeatmap(data: HeatmapData,
+	                          getLocations: Inside
 	): HeatmapTile {
-		val config = data.config
-
 		assert(data.heatmapSize.isPowerOfTwo())
 		assert(data.area.left < data.area.right)
 		assert(data.area.bottom < data.area.top)
 
-		val extendLatitude = data.area.height * (config.stamp.height.toDouble() / data.heatmapSize.toDouble())
-		val extendLongitude = data.area.width * (config.stamp.width.toDouble() / data.heatmapSize.toDouble())
+		val extendLatitude = data.area.height * (data.stamp.height.toDouble() / data.heatmapSize.toDouble())
+		val extendLongitude = data.area.width * (data.stamp.width.toDouble() / data.heatmapSize.toDouble())
 
 		assert(extendLatitude > 0)
 		assert(extendLongitude > 0)
@@ -70,18 +80,20 @@ internal interface HeatmapTileCreator {
 	}
 }
 
-internal data class HeatmapConfig(val stamp: HeatmapStamp,
-                                  val colorScheme: HeatmapColorScheme,
-                                  val maxHeat: Float,
-                                  val dynamicHeat: Boolean = false,
-                                  val mergeFunction: (current: Float, input: Float, weight: Float) -> Float
+internal data class HeatmapConfig(
+		val colorScheme: HeatmapColorScheme,
+		val maxHeat: Float,
+		val dynamicHeat: Boolean = false,
+		val mergeFunction: (current: Float, input: Float, weight: Float) -> Float
 )
 
-internal data class HeatmapData(val config: HeatmapConfig,
-                                val heatmapSize: Int,
-                                val x: Int,
-                                val y: Int,
-                                val zoom: Int,
-                                val area: CoordinateBounds
+internal data class HeatmapData(
+		val config: HeatmapConfig,
+		val stamp: HeatmapStamp,
+		val heatmapSize: Int,
+		val x: Int,
+		val y: Int,
+		val zoom: Int,
+		val area: CoordinateBounds
 )
 

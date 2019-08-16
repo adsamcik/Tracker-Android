@@ -10,14 +10,20 @@ import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.pow
 
+@Suppress("MagicNumber")
 internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
-		return HeatmapConfig(generateStamp(heatmapSize),
+		return HeatmapConfig(
 				HeatmapColorScheme.fromArray(
-						listOf(Pair(0.1, Color.TRANSPARENT), Pair(0.3, Color.BLUE), Pair(0.7, Color.YELLOW),
-								Pair(1.0, Color.RED)), 100),
+						listOf(
+								Pair(0.1, Color.TRANSPARENT),
+								Pair(0.3, Color.BLUE),
+								Pair(0.7, Color.YELLOW),
+								Pair(1.0, Color.RED)),
+						100),
 				maxHeat,
-				false) { current, input, weight ->
+				false)
+		{ current, input, weight ->
 			current + input * weight
 		}
 	}
@@ -41,8 +47,8 @@ internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator
 					R.integer.settings_tracking_required_accuracy_default)
 			.toDouble()
 
-	override val getAllInsideAndBetween: (from: Long, to: Long, topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal> = dao::getAllInsideAndBetween
+	override val getAllInsideAndBetween = dao::getAllInsideAndBetween
 
-	override val getAllInside: (topLatitude: Double, rightLongitude: Double, bottomLatitude: Double, leftLongitude: Double) -> List<Database2DLocationWeightedMinimal> = dao::getAllInside
+	override val getAllInside = dao::getAllInside
 }
 
