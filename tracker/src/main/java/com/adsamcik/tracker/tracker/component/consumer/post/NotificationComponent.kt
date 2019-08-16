@@ -126,9 +126,8 @@ internal class NotificationComponent : PostTrackerComponent {
 
 	private fun prepareNotificationBase(context: Context): NotificationCompat.Builder {
 		val resources = context.resources
-		val intent = Intent(Intent.ACTION_MAIN).apply {
-			addCategory(Intent.CATEGORY_HOME)
-		}
+		val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+				?: throw NullPointerException("Launch intent for package is null.")
 
 		return NotificationCompat.Builder(context,
 				resources.getString(com.adsamcik.tracker.common.R.string.channel_track_id))
