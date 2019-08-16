@@ -9,6 +9,7 @@ import android.location.Location
 import android.os.Looper
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.content.ContextCompat
+import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.common.Assist
@@ -32,6 +33,7 @@ import com.google.android.gms.maps.model.MarkerOptions
 import java.lang.Math.toDegrees
 
 //todo add activity icon instead of generic location icon when possible
+@Suppress("TooManyFunctions")
 internal class UpdateLocationListener(context: Context,
                                       private val map: GoogleMap,
                                       private val eventListener: MapEventListener) : SensorEventListener {
@@ -89,7 +91,8 @@ internal class UpdateLocationListener(context: Context,
 		subscribeToLocationUpdates(context, true)
 
 		ActivityRequestManager.requestActivity(context,
-				ActivityRequestData(UpdateLocationListener::class, 10, listOf(), this::onActivityUpdate))
+				ActivityRequestData(UpdateLocationListener::class, 10,
+						ActivityChangeRequestData(this::onActivityUpdate)))
 	}
 
 	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {
