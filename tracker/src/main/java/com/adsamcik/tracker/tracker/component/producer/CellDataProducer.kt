@@ -114,7 +114,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		@SuppressLint("MissingPermission")
 		val cellInfo = telephonyManager.allCellInfo ?: return null
 
-		val phoneCount = if (Build.VERSION.SDK_INT >= 23) telephonyManager.phoneCount else 1
+		val phoneCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) telephonyManager.phoneCount else 1
 		val registeredCells = ArrayList<CellInfo>(phoneCount)
 
 		cellInfo.forEach {
@@ -165,7 +165,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		this.context = context
 		telephonyManager = context.telephonyManager
 
-		if (Build.VERSION.SDK_INT >= 22) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
 			subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
 		}
 	}
