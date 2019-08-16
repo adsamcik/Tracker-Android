@@ -3,9 +3,11 @@ package com.adsamcik.tracker.tracker.api
 import android.content.Context
 import androidx.annotation.MainThread
 import androidx.lifecycle.Observer
-import com.adsamcik.tracker.activity.ActivityRequestCallback
+import com.adsamcik.tracker.activity.ActivityChangeRequestCallback
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
+import com.adsamcik.tracker.activity.ActivityTransitionRequestCallback
+import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.common.Assist
@@ -24,7 +26,8 @@ object BackgroundTrackingApi {
 	private const val REQUIRED_CONFIDENCE = 75
 	private var appContext: Context? = null
 
-	private val callback: ActivityRequestCallback = { context, activity, _ ->
+	//todo add this as option
+	private val callback: ActivityChangeRequestCallback = { context, activity, _ ->
 		if (activity.confidence >= REQUIRED_CONFIDENCE) {
 			if (TrackerServiceApi.isActive) {
 				if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
@@ -36,6 +39,20 @@ object BackgroundTrackingApi {
 						canTrackerServiceBeStarted(context)) {
 					TrackerServiceApi.startService(context, isUserInitiated = false)
 				}
+			}
+		}
+	}
+
+	private val transitionCallback: ActivityTransitionRequestCallback = { context, activity, _ ->
+		if (TrackerServiceApi.isActive) {
+			if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
+					!canContinueBackgroundTracking(context, activity.activity.groupedActivity)) {
+				TrackerServiceApi.stopService(context)
+			}
+		} else {
+			if (canBackgroundTrack(context, activity.activity.groupedActivity) &&
+					canTrackerServiceBeStarted(context)) {
+				TrackerServiceApi.startService(context, isUserInitiated = false)
 			}
 		}
 	}
@@ -73,7 +90,8 @@ object BackgroundTrackingApi {
 		val preference = Preferences.getPref(context)
 				.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
 		val prefActivity = GroupedActivity.values()[preference]
-		return prefActivity != GroupedActivity.STILL && (prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
+		return prefActivity != GroupedActivity.STILL &&
+				(prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
 	}
 
 	/**
@@ -120,7 +138,10 @@ object BackgroundTrackingApi {
 		val interval = Preferences.getPref(context)
 				.getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
 		val transitions = buildTransitions(context)
-		val requestData = ActivityRequestData(this::class, interval, transitions, callback)
+
+		val transitionData = ActivityTransitionRequestData(transitions, transitionCallback)
+
+		val requestData = ActivityRequestData(this::class, interval, transitionData = transitionData)
 		ActivityRequestManager.requestActivity(context, requestData)
 		ActivityWatcherService.poke(context)
 

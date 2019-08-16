@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.producer
 
 import android.content.Context
+import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.common.Time
@@ -41,14 +42,17 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 	}
 
 	override fun onEnable(context: Context) {
+		super.onEnable(context)
 		val preferences = Preferences.getPref(context)
 		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
 				R.integer.settings_tracking_min_time_default)
 		ActivityRequestManager.requestActivity(context,
-				ActivityRequestData(this::class, minUpdateDelayInSeconds, listOf(), this::onActivityChanged))
+				ActivityRequestData(this::class, minUpdateDelayInSeconds,
+						ActivityChangeRequestData(this::onActivityChanged)))
 	}
 
 	override fun onDisable(context: Context) {
+		super.onDisable(context)
 		ActivityRequestManager.removeActivityRequest(context, this::class)
 	}
 

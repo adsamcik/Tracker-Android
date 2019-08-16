@@ -7,9 +7,12 @@ import androidx.core.util.isEmpty
 import androidx.core.util.isNotEmpty
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
+import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.service.ActivityService
 import com.adsamcik.tracker.common.Reporter
 import com.adsamcik.tracker.common.data.ActivityInfo
+import com.google.android.gms.location.ActivityTransitionEvent
+import com.google.android.gms.location.ActivityTransitionResult
 import kotlin.reflect.KClass
 
 
@@ -25,12 +28,14 @@ object ActivityRequestManager {
 	 * Request activity updates
 	 *
 	 * @param context    context
-	 * @param requestDataData Request data
+	 * @param requestData Request data
 	 * @return true if success
 	 */
-	fun requestActivity(context: Context, requestDataData: ActivityRequestData): Boolean {
-		val hash = requestDataData.key.hashCode()
-		activeRequestArray.put(hash, requestDataData)
+	fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
+		require(requestData.transitionData != null || requestData.changeData != null)
+
+		val hash = requestData.key.hashCode()
+		activeRequestArray.put(hash, requestData)
 		onRequestChange(context)
 		return true
 	}
@@ -53,14 +58,16 @@ object ActivityRequestManager {
 		}
 
 		if (activeRequestArray.isEmpty()) {
-
+			ActivityService.stopActivityRecognition(context)
 		}
 	}
 
 	private fun getTransitions(): Collection<ActivityTransitionData> {
 		val list = mutableSetOf<ActivityTransitionData>()
 		activeRequestArray.forEach { _, value ->
-			list.addAll(value.transitionList)
+			value.transitionData?.let { transitionData ->
+				list.addAll(transitionData.transitionList)
+			}
 		}
 		return list
 	}
@@ -69,8 +76,9 @@ object ActivityRequestManager {
 		val minInterval = getMinInterval()
 		val transitions = getTransitions()
 
-		if (minInterval != ActivityRequestManager.minInterval || transitions.size != ActivityRequestManager.transitions.size || !transitions.containsAll(
-						ActivityRequestManager.transitions)) {
+		if (minInterval != ActivityRequestManager.minInterval ||
+				transitions.size != ActivityRequestManager.transitions.size ||
+				!transitions.containsAll(ActivityRequestManager.transitions)) {
 			updateActivityService(context, minInterval, transitions)
 		}
 	}
@@ -89,6 +97,34 @@ object ActivityRequestManager {
 			if (value.detectionIntervalS < min) min = value.detectionIntervalS
 		}
 		return min
+	}
+
+	internal fun onActivityUpdate(context: Context, result: ActivityInfo, elapsedMillis: Long) {
+		activeRequestArray.forEach { _, value ->
+			value.changeData?.callback?.invoke(context, result, elapsedMillis)
+		}
+	}
+
+	private fun onActivityTransition(context: Context,
+	                                 requestData: ActivityTransitionRequestData,
+	                                 descendingEvents: List<ActivityTransitionEvent>) {
+		requestData.transitionList.forEach {
+			for (transition in descendingEvents) {
+				if (transition.transitionType == it.activity.value &&
+						transition.activityType == it.activity.value) {
+					requestData.callback.invoke(context, it, transition.elapsedRealTimeNanos)
+					return
+				}
+			}
+		}
+	}
+
+	internal fun onActivityTransition(context: Context, result: ActivityTransitionResult) {
+		val reversedEvents = result.transitionEvents.reversed()
+		activeRequestArray.forEach { _, value ->
+			val transitionData = value.transitionData
+			transitionData?.let { onActivityTransition(context, it, reversedEvents) }
+		}
 	}
 }
 

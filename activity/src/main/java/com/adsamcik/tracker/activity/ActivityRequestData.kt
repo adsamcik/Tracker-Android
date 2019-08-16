@@ -6,12 +6,24 @@ import com.adsamcik.tracker.common.data.DetectedActivity
 import com.google.android.gms.location.ActivityTransition
 import kotlin.reflect.KClass
 
-typealias ActivityRequestCallback = (context: Context, activity: ActivityInfo, elapsedTime: Long) -> Unit
+typealias ActivityChangeRequestCallback = (context: Context, activity: ActivityInfo, elapsedTime: Long) -> Unit
+typealias ActivityTransitionRequestCallback =
+		(context: Context, activity: ActivityTransitionData, elapsedTime: Long) -> Unit
 
-data class ActivityRequestData(val key: KClass<*>,
-                               val detectionIntervalS: Int,
-                               val transitionList: Collection<ActivityTransitionData>,
-                               val callback: ActivityRequestCallback
+data class ActivityRequestData(
+		val key: KClass<*>,
+		val detectionIntervalS: Int,
+		val changeData: ActivityChangeRequestData? = null,
+		val transitionData: ActivityTransitionRequestData? = null
+)
+
+data class ActivityChangeRequestData(
+		val callback: ActivityChangeRequestCallback
+)
+
+data class ActivityTransitionRequestData(
+		val transitionList: Collection<ActivityTransitionData>,
+		val callback: ActivityTransitionRequestCallback
 )
 
 data class ActivityTransitionData(val activity: DetectedActivity, val type: ActivityTransitionType)

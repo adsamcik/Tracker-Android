@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
+import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Reporter
 import com.adsamcik.tracker.common.Time
@@ -38,13 +39,16 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 
 	private fun onActivityResult(result: ActivityRecognitionResult) {
 		val detectedActivity = ActivityInfo(result.mostProbableActivity)
+		val elapsedTimeMillis = Time.elapsedRealtimeMillis
 
 		lastActivity = detectedActivity
-		lastActivityElapsedTimeMillis = Time.elapsedRealtimeMillis
+		lastActivityElapsedTimeMillis = elapsedTimeMillis
+
+		ActivityRequestManager.onActivityUpdate(this, detectedActivity, elapsedTimeMillis)
 	}
 
 	private fun onActivityTransitionResult(result: ActivityTransitionResult) {
-
+		ActivityRequestManager.onActivityTransition(this, result)
 	}
 
 
@@ -69,16 +73,20 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			private set
 
 
+		@Synchronized
 		fun startActivityRecognition(context: Context,
 		                             delayInS: Int,
 		                             requestedTransitions: Collection<ActivityTransitionData>): Boolean {
 			return if (Assist.checkPlayServices(context)) {
 				val client = ActivityRecognition.getClient(context)
+
 				val intent = getActivityDetectionPendingIntent(context)
 				requestActivityRecognition(client, intent, delayInS)
 
 				if (requestedTransitions.isNotEmpty()) {
 					requestActivityTransition(client, intent, requestedTransitions)
+				} else {
+					client.removeActivityTransitionUpdates(intent)
 				}
 
 				//todo add handling of task failure
