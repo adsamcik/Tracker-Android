@@ -87,8 +87,8 @@ complexity:
   TooManyFunctions:
     active: true
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
-    thresholdInFiles: 11
-    thresholdInClasses: 11
+    thresholdInFiles: 20
+    thresholdInClasses: 15
     thresholdInInterfaces: 11
     thresholdInObjects: 11
     thresholdInEnums: 11
@@ -180,7 +180,7 @@ exceptions:
      - RuntimeException
 
 formatting:
-  active: true
+  active: false
   android: true
   autoCorrect: true
   AnnotationOnSeparateLine:
@@ -249,11 +249,6 @@ formatting:
   PackageName:
     active: true
     autoCorrect: true
-  ParameterListWrapping:
-  # Cannot use because tab indentation is not supported
-    active: true
-    autoCorrect: true
-    indentSize: 2
   SpacingAroundColon:
     active: true
     autoCorrect: true
@@ -453,7 +448,7 @@ style:
   MagicNumber:
     active: true
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
-    ignoreNumbers: '-1,0,1,2'
+    ignoreNumbers: '-1,0,1,2,0.5'
     ignoreHashCodeFunction: true
     ignorePropertyDeclaration: true
     ignoreConstantDeclaration: true
@@ -470,6 +465,7 @@ style:
     excludePackageStatements: true
     excludeImportStatements: true
     excludeCommentStatements: false
+    excludes: "**/test/**,**/androidTest/**,**/AppDatabaseMigrations.kt"
   MayBeConst:
     active: true
   ModifierOrder:

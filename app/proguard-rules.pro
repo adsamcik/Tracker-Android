@@ -42,9 +42,6 @@
     public static *** d(...);
 }
 
--keep public class com.adsamcik.signalcollector.network.JwtData { *; }
-
-
 
 # JSR 305 annotations are for embedding nullability information.
 -dontwarn javax.annotation.**
@@ -70,6 +67,3 @@
     <init>(...);
     <fields>;
 }
-
-
-#-keep class com.adsamcik.signalcollector.signin.UserData { *; }

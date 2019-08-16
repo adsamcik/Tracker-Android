@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.adsamcik.signalcollector">
+    package="com.adsamcik.tracker">
 
     <uses-feature
         android:name="android.hardware.location.gps"
@@ -25,11 +25,11 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
-    <permission android:name="com.adsamcik.signalcollector.permission.TRACKER" />
+    <permission android:name="com.adsamcik.tracker.permission.TRACKER" />
 
     <!-- TODO REMOVE requestLegacyExternalStorage ONCE FILE LIBRARY SUPPORTS SCOPED STORAGE -->
     <application
-        android:name=".app.Application"
+        android:name="com.adsamcik.tracker.app.Application"
         android:allowBackup="true"
         android:fullBackupContent="true"
         android:icon="@mipmap/ic_launcher"
@@ -39,7 +39,7 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
         tools:targetApi="q">
-        <activity android:name=".module.activity.ModuleActivity" />
+        <activity android:name="com.adsamcik.tracker.module.activity.ModuleActivity" />
 
         <meta-data
             android:name="android.max_aspect"
@@ -47,7 +47,7 @@
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.adsamcik.signalcollector.fileprovider"
+            android:authorities="com.adsamcik.tracker.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
@@ -56,7 +56,7 @@
         </provider>
 
         <activity
-            android:name=".app.activity.MainActivity"
+            android:name="com.adsamcik.tracker.app.activity.MainActivity"
             android:exported="true"
             android:launchMode="singleInstance"
             android:resizeableActivity="true"
@@ -69,7 +69,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".export.activity.ExportActivity"
+            android:name="com.adsamcik.tracker.export.activity.ExportActivity"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.PICK" />
@@ -81,29 +81,29 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".license.LicenseActivity"
+            android:name="com.adsamcik.tracker.license.LicenseActivity"
             android:screenOrientation="portrait" />
         <activity
-            android:name=".preference.activity.SettingsActivity"
-            android:parentActivityName=".app.activity.MainActivity" />
+            android:name="com.adsamcik.tracker.preference.activity.SettingsActivity"
+            android:parentActivityName="com.adsamcik.tracker.app.activity.MainActivity" />
 
         <activity
-            android:name=".debug.activity.StatusActivity"
+            android:name="com.adsamcik.tracker.debug.activity.StatusActivity"
             android:exported="true" />
 
-        <receiver android:name=".app.receiver.BootReceiver">
+        <receiver android:name="com.adsamcik.tracker.app.receiver.BootReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".app.receiver.OnAppUpdateReceiver">
+        <receiver android:name="com.adsamcik.tracker.app.receiver.OnAppUpdateReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 
         <service
-            android:name=".import.service.ImportService"
+            android:name="com.adsamcik.tracker.import.service.ImportService"
             android:exported="false" />
 
         <meta-data
