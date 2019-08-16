@@ -46,7 +46,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 			val telephonyManager = telephonyManager
 			checkNotNull(telephonyManager)
 
-			val scanData = if (Build.VERSION.SDK_INT >= 22 && context.hasReadPhonePermission) {
+			val scanData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && context.hasReadPhonePermission) {
 				val subscriptionManager = subscriptionManager
 				checkNotNull(subscriptionManager)
 
@@ -62,6 +62,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		}
 	}
 
+	@Suppress("MagicNumber")
 	private fun getScanData(telephonyManager: TelephonyManager): CellScanData? {
 		val networkOperator = telephonyManager.networkOperator
 		return if (networkOperator.isNotEmpty()) {
@@ -76,7 +77,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		}
 	}
 
-	@RequiresApi(22)
+	@RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1)
 	@RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
 	private fun getScanData(telephonyManager: TelephonyManager,
 	                        subscriptionManager: SubscriptionManager): CellScanData? {
@@ -129,13 +130,14 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		return CellScanData(registeredOperators, cellInfo, registeredCells)
 	}
 
+	@Suppress("ComplexMethod")
 	private fun convertToCellInfo(cellInfo: android.telephony.CellInfo,
 	                              registeredOperator: List<NetworkOperator>): CellInfo? {
 		return if (cellInfo is CellInfoLte) {
 			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
 				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 			}
-		} else if (Build.VERSION.SDK_INT >= 29 && cellInfo is CellInfoNr) {
+		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr) {
 			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
 				CellInfo(cellInfo.cellIdentity as CellIdentityNr, cellInfo.cellSignalStrength as CellSignalStrengthNr,
 						it)
