@@ -128,7 +128,7 @@ data class CellInfo
 	            networkOperator: NetworkOperator)
 			: this(networkOperator,
 			identity.cid.toLong(),
-			CellType.CDMA,
+			CellType.WCDMA,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
 			signalStrength.level)
@@ -146,7 +146,7 @@ data class CellInfo
 	            networkOperator: NetworkOperator)
 			: this(networkOperator,
 			identity.ci.toLong(),
-			CellType.CDMA,
+			CellType.LTE,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
 			signalStrength.level)
@@ -166,7 +166,7 @@ data class CellInfo
 	            networkOperator: NetworkOperator)
 			: this(networkOperator,
 			identity.nci,
-			CellType.CDMA,
+			CellType.NR,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
 			signalStrength.level)
