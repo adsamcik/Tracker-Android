@@ -1,6 +1,7 @@
 import org.gradle.api.artifacts.dsl.DependencyHandler
 import org.gradle.kotlin.dsl.kotlin
 
+@Suppress("TooManyFunctions", "MatchingDeclarationName")
 object Libraries {
 	object Versions {
 		internal const val constraintLayout = "2.0.0-beta2"
@@ -11,7 +12,7 @@ object Libraries {
 		public const val kotlin: String = "1.3.41"
 		public const val dokka: String = "0.9.18"
 		internal const val moshi = "1.8.0"
-		internal const val work = "2.2.0-rc01"
+		internal const val work = "2.2.0"
 		internal const val lifecycle = "2.2.0-alpha03"
 		internal const val preference = "1.1.0-rc01"
 		internal const val material = "1.1.0-alpha09"
@@ -19,7 +20,7 @@ object Libraries {
 
 		internal const val maps = "17.0.0"
 		internal const val firebaseCore = "17.0.1"
-		internal const val recyclerView = "1.1.0-beta02"
+		internal const val recyclerView = "1.1.0-beta03"
 		internal const val paging = "2.1.0"
 
 		internal const val crashlytics = "2.10.1"
