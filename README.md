@@ -29,7 +29,35 @@ Signals is an free open-source offline location, fitness, Wi-Fi, cell tracker wi
 - More games
 - More challenges
 - More statistics (pace)
+- And more (roadmaps are in issues)
+
+## Versioning
+
+For readability it's separeted by spaces and underscores however these are not present it the actual versioning, see example.
+YEAR.VERSION RELEASE BUILD_NUMBER
+
+Eg. 2020.1β1
+
+### Releases
+
+New releases will be developed in seperate branches and always have up to date version codes so it is easier to know in what state the release is.
+
+#### Iota ι
+
+Early internal builds after significant changes. Not recommended for use by anyone else but developers. In the future these should be built under different id. These builds might not even have migrations in place.
+
+#### Alpha α
+
+Early test builds usually bringing new features. These builds are not yet feature complete but should have migrations for database and be stable in a way that some basic actions do not crash them every time.
+
+#### Beta β
+
+Late test builds that are feature complete (no new features should be added in these builds, only bugfixes). These builds are meant for general testers that want to test the app but also use it regularly. While there will probably be some issues and crashes, these should be rather sparse and mostly contain edge cases and issues that were not found in the Alpha or Iota builds.
+
+#### Release
+
+Most stable releases meant for general public
 
 ## Contributions
 
-Signals is open to contributions, if you want to improve some part of the app or add some features feel free to do so. If it is up to standards it will be added.
+Signals is open to contributions, if you want to improve some part of the app or add some features feel free to do so. Each contribution should not create any issues. If an issue is not valid, it should be explicitly stated as suppressed. However every pull request is manually verified so overly using Suppress annotation will be seen as issue in itself.
