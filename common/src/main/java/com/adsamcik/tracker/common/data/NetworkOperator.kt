@@ -12,8 +12,10 @@ import android.telephony.CellInfoWcdma
 import androidx.annotation.RequiresApi
 import androidx.room.Entity
 import com.adsamcik.tracker.common.extension.requireString
+import kotlinx.android.parcel.Parcelize
 
 @Entity(tableName = "network_operator", primaryKeys = ["mcc", "mnc"])
+@Parcelize
 data class NetworkOperator(
 		val mcc: String,
 		/**
@@ -27,11 +29,6 @@ data class NetworkOperator(
 		 */
 		val name: String?
 ) : Parcelable {
-
-	constructor(parcel: Parcel) : this(
-			parcel.requireString(),
-			parcel.requireString(),
-			parcel.readString())
 
 	fun sameNetwork(info: CellInfoLte): Boolean {
 		val identity = info.cellIdentity
@@ -72,26 +69,6 @@ data class NetworkOperator(
 	fun sameNetwork(info: CellInfoNr): Boolean {
 		val identity = info.cellIdentity as CellIdentityNr
 		return identity.mncString == mnc && identity.mccString == mcc
-	}
-
-	override fun writeToParcel(parcel: Parcel, flags: Int) {
-		parcel.writeString(mcc)
-		parcel.writeString(mnc)
-		parcel.writeString(name)
-	}
-
-	override fun describeContents(): Int {
-		return 0
-	}
-
-	companion object CREATOR : Parcelable.Creator<NetworkOperator> {
-		override fun createFromParcel(parcel: Parcel): NetworkOperator {
-			return NetworkOperator(parcel)
-		}
-
-		override fun newArray(size: Int): Array<NetworkOperator?> {
-			return arrayOfNulls(size)
-		}
 	}
 }
 

@@ -6,6 +6,7 @@ import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.adsamcik.tracker.common.R
+import kotlinx.android.parcel.Parcelize
 
 /**
  * Class containing information about activity.
@@ -13,7 +14,8 @@ import com.adsamcik.tracker.common.R
  *
  * Using [getGroupedActivityName]
  */
-class ActivityInfo(
+@Parcelize
+data class ActivityInfo(
 		@ColumnInfo(name = "activity")
 		val activityType: Int,
 		val confidence: Int
@@ -39,24 +41,7 @@ class ActivityInfo(
 	 */
 	fun getGroupedActivityName(context: Context): String = getGroupedActivityName(context, groupedActivity)
 
-	override fun writeToParcel(parcel: Parcel, flags: Int) {
-		parcel.writeInt(activityType)
-		parcel.writeInt(confidence)
-	}
-
-	override fun describeContents(): Int {
-		return 0
-	}
-
-	companion object CREATOR : Parcelable.Creator<ActivityInfo> {
-		override fun createFromParcel(parcel: Parcel): ActivityInfo {
-			return ActivityInfo(parcel)
-		}
-
-		override fun newArray(size: Int): Array<ActivityInfo?> {
-			return arrayOfNulls(size)
-		}
-
+	companion object {
 		val UNKNOWN get() = ActivityInfo(DetectedActivity.UNKNOWN, 0)
 		/**
 		 * Returns resolved activity string. String is localized.
@@ -69,8 +54,6 @@ class ActivityInfo(
 					GroupedActivity.UNKNOWN -> context.getString(R.string.activity_unknown)
 				}
 	}
-
-
 }
 
 enum class DetectedActivity(val value: Int) {

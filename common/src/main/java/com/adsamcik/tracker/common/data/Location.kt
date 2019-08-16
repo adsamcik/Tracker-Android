@@ -10,9 +10,11 @@ import com.adsamcik.tracker.common.extension.deg2rad
 import com.adsamcik.tracker.common.extension.round
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import kotlinx.android.parcel.Parcelize
 import kotlin.math.sqrt
 
 @JsonClass(generateAdapter = true)
+@Parcelize
 data class Location(
 		val time: Long,
 		@Json(name = "lat")
@@ -34,16 +36,6 @@ data class Location(
 		@ColumnInfo(name = "s_acc")
 		val speedAccuracy: Float?
 ) : Parcelable {
-
-	constructor(parcel: Parcel) : this(
-			parcel.readLong(),
-			parcel.readDouble(),
-			parcel.readDouble(),
-			parcel.readValue(Double::class.java.classLoader) as? Double,
-			parcel.readValue(Float::class.java.classLoader) as? Float,
-			parcel.readValue(Float::class.java.classLoader) as? Float,
-			parcel.readValue(Float::class.java.classLoader) as? Float,
-			parcel.readValue(Float::class.java.classLoader) as? Float)
 
 	constructor(location: android.location.Location) : this(location.time,
 			location.latitude,
@@ -115,23 +107,7 @@ data class Location(
 				speedAccuracy)
 	}
 
-
-	override fun writeToParcel(parcel: Parcel, flags: Int) {
-		parcel.writeLong(time)
-		parcel.writeDouble(latitude)
-		parcel.writeDouble(longitude)
-		parcel.writeValue(altitude)
-		parcel.writeValue(horizontalAccuracy)
-		parcel.writeValue(verticalAccuracy)
-		parcel.writeValue(speed)
-		parcel.writeValue(speedAccuracy)
-	}
-
-	override fun describeContents(): Int {
-		return 0
-	}
-
-	companion object CREATOR : Parcelable.Creator<Location> {
+	companion object {
 		fun distance(firstLatitude: Double,
 		             firstLongitude: Double,
 		             secondLatitude: Double,
@@ -187,14 +163,6 @@ data class Location(
 
 		fun latitudeAccuracy(precisionInMeters: Double): Double =
 				(METER_DEGREE_LATITUDE * precisionInMeters).round(6)
-
-		override fun createFromParcel(parcel: Parcel): Location {
-			return Location(parcel)
-		}
-
-		override fun newArray(size: Int): Array<Location?> {
-			return arrayOfNulls(size)
-		}
 	}
 }
 

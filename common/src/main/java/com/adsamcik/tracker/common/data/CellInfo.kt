@@ -17,6 +17,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.adsamcik.tracker.common.extension.requireParcelable
 import com.squareup.moshi.JsonClass
+import kotlinx.android.parcel.Parcelize
 
 /**
  * Data class that contains all the information about Cell.
@@ -25,6 +26,7 @@ import com.squareup.moshi.JsonClass
  */
 @Suppress("DEPRECATION")
 @JsonClass(generateAdapter = true)
+@Parcelize
 data class CellInfo
 /**
  * CellInfo constructor
@@ -68,14 +70,6 @@ data class CellInfo
 		@Ignore
 		var level: Int = 0
 ) : Parcelable {
-
-	constructor(parcel: Parcel) : this(
-			parcel.requireParcelable(NetworkOperator::class.java.classLoader),
-			parcel.readLong(),
-			CellType.values()[parcel.readInt()],
-			parcel.readInt(),
-			parcel.readInt(),
-			parcel.readInt())
 
 	constructor(networkOperator: NetworkOperator, type: CellType, cellId: Long, asu: Int)
 			: this(networkOperator, cellId, type, asu, 0, 0)
@@ -170,29 +164,6 @@ data class CellInfo
 			signalStrength.asuLevel,
 			signalStrength.dbm,
 			signalStrength.level)
-
-	override fun writeToParcel(parcel: Parcel, flags: Int) {
-		parcel.writeParcelable(networkOperator, flags)
-		parcel.writeLong(cellId)
-		parcel.writeInt(type.ordinal)
-		parcel.writeInt(asu)
-		parcel.writeInt(dbm)
-		parcel.writeInt(level)
-	}
-
-	override fun describeContents(): Int {
-		return 0
-	}
-
-	companion object CREATOR : Parcelable.Creator<CellInfo> {
-		override fun createFromParcel(parcel: Parcel): CellInfo {
-			return CellInfo(parcel)
-		}
-
-		override fun newArray(size: Int): Array<CellInfo?> {
-			return arrayOfNulls(size)
-		}
-	}
 }
 
 enum class CellType {
