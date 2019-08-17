@@ -1,32 +1,12 @@
 package com.adsamcik.tracker.common.style
 
-import android.content.res.ColorStateList
-import android.graphics.BlendMode
-import android.graphics.BlendModeColorFilter
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
-import android.graphics.drawable.Drawable
-import android.graphics.drawable.RippleDrawable
-import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
-import android.widget.CheckBox
-import android.widget.ImageView
-import android.widget.SeekBar
-import android.widget.TextView
 import androidx.annotation.AnyThread
-import androidx.annotation.ColorInt
 import androidx.annotation.IdRes
-import androidx.annotation.MainThread
-import androidx.core.graphics.ColorUtils
-import androidx.core.graphics.alpha
-import androidx.core.view.children
-import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.style.StyleManager.styleData
-import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,6 +23,7 @@ typealias OnStyleChangeListener = (styleData: StyleData) -> Unit
 @AnyThread
 //todo add support for local custom Views
 //todo refactor so the class is smaller
+@Suppress("Unused", "WeakerAccess")
 class StyleController : CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -53,6 +34,8 @@ class StyleController : CoroutineScope {
 
 	private val viewList = mutableListOf<StyleView>()
 	private val recyclerList = mutableListOf<RecyclerStyleView>()
+
+	private val styleUpdater = StyleUpdater()
 
 	/**
 	 * Colors listener array. Holds all listeners.
@@ -101,11 +84,12 @@ class StyleController : CoroutineScope {
 		synchronized(viewList) {
 			viewList.add(styleView)
 		}
-		updateInternal(styleView, styleData)
+		styleUpdater.updateSingle(styleView, styleData)
 	}
 
 	/**
-	 * Add given [StyleView] that must derive from [AdapterView] to the list of watched view. Provides additional support for recycling so recycled views are styled properly.
+	 * Add given [StyleView] that must derive from [AdapterView] to the list of watched view.
+	 * Provides additional support for recycling so recycled views are styled properly.
 	 *
 	 * Adapter needs to implement [IViewChange] interface for the best and most reliable color updating.
 	 * However it will somehow work even without it, but it might not be reliable.
@@ -124,7 +108,8 @@ class StyleController : CoroutineScope {
 					val backgroundColor = styleData.backgroundColorFor(styleView)
 					val foregroundColor = styleData.foregroundColorFor(styleView)
 					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					updateStyle(backgroundColor,
+					styleUpdater.updateSingle(
+							backgroundColor,
 							foregroundColor,
 							perceivedLuminance,
 							it,
@@ -133,11 +118,12 @@ class StyleController : CoroutineScope {
 				}
 			} else {
 				styleView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
-					override fun onChildViewRemoved(parent: View, child: View) {}
+					override fun onChildViewRemoved(parent: View, child: View) = Unit
 
 					override fun onChildViewAdded(parent: View, child: View) {
 						val styleData = styleData
-						updateStyle(styleData.backgroundColorFor(styleView),
+						styleUpdater.updateSingle(
+								styleData.backgroundColorFor(styleView),
 								styleData.foregroundColorFor(styleView),
 								styleData.perceivedLuminanceFor(styleView),
 								child,
@@ -147,7 +133,7 @@ class StyleController : CoroutineScope {
 				})
 			}
 
-			updateInternal(styleView, styleData)
+			styleUpdater.updateSingle(styleView, styleData)
 		}
 	}
 
@@ -198,7 +184,8 @@ class StyleController : CoroutineScope {
 
 	/**
 	 * Request to stop watching adapter view.
-	 * This is required to call if AdapterView was added with [watchRecyclerView] function, otherwise it will not be unsubscribed properly.
+	 * This is required to call if AdapterView was added with [watchRecyclerView] function,
+	 * otherwise it will not be unsubscribed properly.
 	 *
 	 * @param view AdapterView to unsubscribe
 	 */
@@ -216,7 +203,8 @@ class StyleController : CoroutineScope {
 
 	/**
 	 * Request to stop watching adapter view.
-	 * This is required to call if AdapterView was added with [watchRecyclerView] function, otherwise it will not be unsubscribed properly.
+	 * This is required to call if AdapterView was added with [watchRecyclerView] function,
+	 * otherwise it will not be unsubscribed properly.
 	 *
 	 * @param id Id of the AdapterView to unsubscribe
 	 */
@@ -270,6 +258,7 @@ class StyleController : CoroutineScope {
 		}
 	}
 
+
 	/**
 	 * Internal update function which should be called only by StyleManager
 	 */
@@ -279,175 +268,21 @@ class StyleController : CoroutineScope {
 			return
 		}
 
-		launch(Dispatchers.Main) {
-			synchronized(viewList) {
-				viewList.forEach { styleView ->
-					updateInternal(styleView, styleData)
-				}
-			}
-
-			synchronized(recyclerList) {
-				recyclerList.forEach { styleView ->
-					updateInternal(styleView, styleData)
-				}
+		synchronized(viewList) {
+			viewList.forEach { styleView ->
+				styleUpdater.updateSingle(styleView, styleData)
 			}
 		}
+
+		synchronized(recyclerList) {
+			recyclerList.forEach { styleView ->
+				styleUpdater.updateSingle(styleView, styleData)
+			}
+		}
+
 		synchronized(styleChangeListeners) {
 			styleChangeListeners.forEach { it.invoke(styleData) }
 		}
-	}
-
-	private fun updateInternal(styleView: RecyclerStyleView, styleData: StyleData) {
-		val backgroundColor = styleData.backgroundColorFor(styleView)
-		val foregroundColor = styleData.foregroundColorFor(styleView)
-		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-
-		launch(Dispatchers.Main) {
-			updateStyle(styleView, backgroundColor, foregroundColor, perceivedLuminance)
-		}
-	}
-
-	private fun updateInternal(styleView: StyleView, styleData: StyleData) {
-		val backgroundColor = styleData.backgroundColorFor(styleView)
-		val foregroundColor = styleData.foregroundColorFor(styleView)
-		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-
-		launch(Dispatchers.Main) {
-			updateStyle(backgroundColor, foregroundColor, perceivedLuminance, styleView.view, styleView.layer,
-					styleView.maxDepth)
-		}
-	}
-
-	@MainThread
-	private fun updateStyle(styleData: RecyclerStyleView,
-	                        @ColorInt backgroundColor: Int,
-	                        @ColorInt foregroundColor: Int,
-	                        backgroundLuminance: Int
-	) {
-		if (!styleData.onlyChildren) {
-			updateStyleForeground(styleData.view, foregroundColor)
-			updateStyle(backgroundColor, foregroundColor, backgroundLuminance, styleData.view, styleData.layer, 0)
-		}
-
-		val iterator = styleData.view.children.iterator()
-
-		for (item in iterator) {
-			updateStyle(backgroundColor, foregroundColor, backgroundLuminance, item, styleData.childrenLayer,
-					Int.MAX_VALUE)
-		}
-	}
-
-	@MainThread
-	private fun updateStyle(@ColorInt backgroundColor: Int,
-	                        @ColorInt foregroundColor: Int,
-	                        backgroundLuminance: Int,
-	                        view: View,
-	                        layer: Int,
-	                        depthLeft: Int
-	) {
-		var newLayer = layer
-
-		val backgroundLayerColor = ColorFunctions.getBackgroundLayerColor(backgroundColor, backgroundLuminance, layer)
-		val wasBackgroundUpdated = updateBackgroundDrawable(view, backgroundLayerColor, backgroundLuminance)
-		if (wasBackgroundUpdated) newLayer++
-
-		if (view is ViewGroup) {
-			if (depthLeft <= 0 || view is RecyclerView) return
-
-			val newDepthLeft = depthLeft - 1
-
-			for (i in 0 until view.childCount) {
-				updateStyle(backgroundColor, foregroundColor, backgroundLuminance, view.getChildAt(i), newLayer,
-						newDepthLeft)
-			}
-		} else {
-			updateStyleForeground(view, foregroundColor)
-		}
-	}
-
-	@MainThread
-	private fun updateStyleForeground(drawable: Drawable, @ColorInt foregroundColor: Int) {
-		drawable.setTint(foregroundColor)
-	}
-
-	@MainThread
-	private fun updateStyleForeground(view: TextView, @ColorInt foregroundColor: Int) {
-		if (view is CheckBox) {
-			view.buttonTintList = ColorStateList.valueOf(foregroundColor)
-		}
-
-		val alpha = view.currentTextColor.alpha
-		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
-		view.setTextColor(newTextColor)
-		view.setHintTextColor(brightenColor(newTextColor, ColorFunctions.LIGHTNESS_PER_LEVEL))
-		view.compoundDrawables.forEach { if (it != null) updateStyleForeground(it, foregroundColor) }
-	}
-
-	@MainThread
-	private fun updateStyleForeground(view: SeekBar, @ColorInt foregroundColor: Int) {
-		view.thumbTintList = ColorStateList(
-				arrayOf(
-						intArrayOf(-android.R.attr.state_enabled),
-						intArrayOf(android.R.attr.state_enabled),
-						intArrayOf(android.R.attr.state_pressed)
-				),
-				intArrayOf(
-						ColorUtils.setAlphaComponent(foregroundColor, 128),
-						foregroundColor,
-						ColorUtils.setAlphaComponent(foregroundColor, 255)))
-	}
-
-	@MainThread
-	private fun updateStyleForeground(view: RecyclerView, @ColorInt foregroundColor: Int) {
-		for (i in 0 until view.itemDecorationCount) {
-			when (val decoration = view.getItemDecorationAt(i)) {
-				is DividerItemDecoration -> {
-					val drawable = decoration.drawable
-					if (drawable != null) updateStyleForeground(drawable, foregroundColor)
-				}
-			}
-		}
-	}
-
-	@MainThread
-	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
-		when (view) {
-			is StyleableView -> view.onStyleChanged(styleData)
-			is ImageView -> view.setColorFilter(foregroundColor)
-			is TextView -> updateStyleForeground(view, foregroundColor)
-			is SeekBar -> updateStyleForeground(view, foregroundColor)
-		}
-	}
-
-	@MainThread
-	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int, luminance: Int): Boolean {
-		val background = view.background
-		when {
-			view is MaterialButton -> {
-				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
-				view.rippleColor = ColorStateList.valueOf(nextLevel)
-				view.setBackgroundColor(bgColor)
-			}
-			background?.isVisible == true -> {
-				if (background is RippleDrawable) {
-					val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
-					background.setColor(Assist.getPressedState(nextLevel))
-					background.setTint(bgColor)
-				} else {
-					if (background.alpha < 255) return false
-
-					background.setTint(bgColor)
-					background.colorFilter = if (Build.VERSION.SDK_INT >= 29) {
-						BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
-					} else {
-						@Suppress("DEPRECATION")
-						PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN)
-					}
-				}
-				return true
-			}
-		}
-		return false
 	}
 }
 
