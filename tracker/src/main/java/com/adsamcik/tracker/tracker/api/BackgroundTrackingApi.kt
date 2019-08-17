@@ -129,6 +129,10 @@ object BackgroundTrackingApi {
 			transitions.add(ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER))
 		}
 
+		if (transitions.isNotEmpty()) {
+			transitions.add(ActivityTransitionData(DetectedActivity.STILL, ActivityTransitionType.ENTER))
+		}
+
 		return transitions
 	}
 
