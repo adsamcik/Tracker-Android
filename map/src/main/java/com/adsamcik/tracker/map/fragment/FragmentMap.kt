@@ -141,6 +141,12 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		mapFragment = null
 
 		styleController.let { StyleManager.recycleController(it) }
+		mapController?.onDestroy()
+		mapSheetController?.onDestroy()
+
+		mapController = null
+		mapEventListener = null
+		mapSheetController = null
 	}
 
 	override fun onMapReady(map: GoogleMap) {

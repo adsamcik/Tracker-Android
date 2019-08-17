@@ -20,11 +20,11 @@ import com.adsamcik.tracker.common.extension.coerceIn
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.marginBottom
 import com.adsamcik.tracker.common.extension.requireParent
+import com.adsamcik.tracker.common.keyboard.KeyboardListener
+import com.adsamcik.tracker.common.keyboard.KeyboardManager
+import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.misc.keyboard.KeyboardListener
-import com.adsamcik.tracker.common.misc.keyboard.KeyboardManager
-import com.adsamcik.tracker.common.misc.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
@@ -126,20 +126,13 @@ internal class MapSheetController(
 		rootLayout.animate().alpha(1f).start()
 	}
 
-	@BottomSheetBehavior.State
-	private var targetState: Int = BottomSheetBehavior.STATE_COLLAPSED
-		set(value) {
-			field = value
-			sheetBehavior.state = value
-		}
-
 	init {
 		rootLayout.findViewById<View>(R.id.map_sheet_drag_area).setOnClickListener {
-			targetState = when (sheetBehavior.state) {
+			sheetBehavior.state = when (sheetBehavior.state) {
 				BottomSheetBehavior.STATE_COLLAPSED -> BottomSheetBehavior.STATE_HALF_EXPANDED
 				BottomSheetBehavior.STATE_HALF_EXPANDED -> BottomSheetBehavior.STATE_EXPANDED
 				BottomSheetBehavior.STATE_EXPANDED -> BottomSheetBehavior.STATE_COLLAPSED
-				else -> throw IllegalStateException()
+				else -> BottomSheetBehavior.STATE_COLLAPSED
 			}
 		}
 	}
@@ -157,11 +150,17 @@ internal class MapSheetController(
 		updateIconList(isOpen)
 		when (isOpen) {
 			true -> {
-				stateBeforeKeyboard = targetState
-				targetState = BottomSheetBehavior.STATE_EXPANDED
+				stateBeforeKeyboard = when (val state = sheetBehavior.state) {
+					BottomSheetBehavior.STATE_COLLAPSED,
+					BottomSheetBehavior.STATE_HALF_EXPANDED,
+					BottomSheetBehavior.STATE_EXPANDED -> state
+					else -> BottomSheetBehavior.STATE_COLLAPSED
+				}
+
+				sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
 			}
 			false -> {
-				targetState = stateBeforeKeyboard
+				sheetBehavior.state = stateBeforeKeyboard
 			}
 		}
 	}
@@ -263,8 +262,8 @@ internal class MapSheetController(
 	private fun onItemClicked(@Suppress("UNUSED") position: Int, item: MapLayerLogic) {
 		mapController.setLayer(rootLayout.context, item)
 
-		if (targetState == BottomSheetBehavior.STATE_HALF_EXPANDED) {
-			targetState = BottomSheetBehavior.STATE_COLLAPSED
+		if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
+			sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 		}
 	}
 
@@ -300,7 +299,7 @@ internal class MapSheetController(
 	}
 
 
-	private fun onLeave() {
+	fun onDestroy() {
 		keyboardManager.run {
 			hideKeyboard()
 			removeKeyboardListener(keyboardListener)

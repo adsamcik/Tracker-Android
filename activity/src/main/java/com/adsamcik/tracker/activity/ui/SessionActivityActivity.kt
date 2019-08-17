@@ -16,7 +16,7 @@ import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.misc.keyboard.KeyboardManager
+import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.google.android.material.floatingactionbutton.FloatingActionButton

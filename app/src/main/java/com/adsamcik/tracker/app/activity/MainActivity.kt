@@ -24,7 +24,7 @@ import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.guidelineEnd
 import com.adsamcik.tracker.common.extension.transaction
 import com.adsamcik.tracker.common.introduction.IntroductionManager
-import com.adsamcik.tracker.common.misc.keyboard.NavBarPosition
+import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment

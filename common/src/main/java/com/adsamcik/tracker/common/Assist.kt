@@ -18,7 +18,7 @@ import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.locationManager
 import com.adsamcik.tracker.common.extension.windowManager
 import com.adsamcik.tracker.common.misc.Int2
-import com.adsamcik.tracker.common.misc.keyboard.NavBarPosition
+import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.preference.Preferences
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability

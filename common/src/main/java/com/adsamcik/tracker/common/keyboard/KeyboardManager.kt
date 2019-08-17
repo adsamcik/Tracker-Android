@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.misc.keyboard
+package com.adsamcik.tracker.common.keyboard
 
 import android.graphics.Rect
 import android.view.View
