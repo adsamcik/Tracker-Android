@@ -35,6 +35,8 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 				activity.activityType == DetectedActivity.STILL
 	}
 
+	@Suppress("MagicNumber")
+	//todo add confidence calculation
 	private fun determineActivityBySpeed(speed: Float, activity: ActivityInfo): ActivityInfo {
 		return if (speed > MAX_RUN_SPEED_METERS_PER_SECOND && isOnFoot(activity)) {
 			ActivityInfo(DetectedActivity.IN_VEHICLE, 90)
@@ -50,7 +52,7 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-
+	@Suppress("ReturnCount", "MagicNumber")
 	private fun determineActivity(speed: Float?, tempData: CollectionTempData): ActivityInfo {
 		val activity = tempData.getActivity(this)
 
@@ -58,11 +60,16 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		if (activity.activityType == DetectedActivity.ON_BICYCLE) return activity
 
 		val stepCount = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
+
+		@Suppress("ComplexCondition")
 		if (stepCount != null &&
 				stepCount >= tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
 				(speed == null || speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND)) {
-			if (isOnFoot(activity)) return activity
-			else if (isUnknown(activity)) return ActivityInfo(DetectedActivity.ON_FOOT, 90)
+			if (isOnFoot(activity)) {
+				return activity
+			} else if (isUnknown(activity)) {
+				return ActivityInfo(DetectedActivity.ON_FOOT, 90)
+			}
 		}
 
 		return if (speed != null) {
@@ -96,9 +103,9 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		collectionData.activity = determineActivity(speed, tempData)
 	}
 
-	override suspend fun onDisable(context: Context) {}
+	override suspend fun onDisable(context: Context) = Unit
 
-	override suspend fun onEnable(context: Context) {}
+	override suspend fun onEnable(context: Context) = Unit
 
 	companion object {
 		const val CONFIDENT_CONFIDENCE = 70

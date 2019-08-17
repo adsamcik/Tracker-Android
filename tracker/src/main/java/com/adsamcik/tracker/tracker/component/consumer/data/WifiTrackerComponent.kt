@@ -51,7 +51,8 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 	                    secondLocation: Location,
 	                    distanceBetweenFirstAndSecond: Float
 	) {
-		val timeDelta = (scanData.relativeTimeNanos - firstLocation.elapsedRealtimeNanos).toDouble() / (secondLocation.elapsedRealtimeNanos - firstLocation.elapsedRealtimeNanos).toDouble()
+		val timeDelta = (scanData.relativeTimeNanos - firstLocation.elapsedRealtimeNanos).toDouble() /
+				(secondLocation.elapsedRealtimeNanos - firstLocation.elapsedRealtimeNanos).toDouble()
 		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
 		if (wifiDistance <= MAX_DISTANCE_TO_WIFI) {
 			val interpolatedLocation = LocationExtensions.interpolateLocation(firstLocation, secondLocation, timeDelta)
@@ -59,9 +60,9 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-	override suspend fun onEnable(context: Context) {}
+	override suspend fun onEnable(context: Context) = Unit
 
-	override suspend fun onDisable(context: Context) {}
+	override suspend fun onDisable(context: Context) = Unit
 
 
 	companion object {

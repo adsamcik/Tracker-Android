@@ -10,8 +10,8 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
 			TrackerComponentRequirement.LOCATION)
 
-	override suspend fun onDisable(context: Context) {}
-	override suspend fun onEnable(context: Context) {}
+	override suspend fun onDisable(context: Context) = Unit
+	override suspend fun onEnable(context: Context) = Unit
 
 	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
 		val locationResult = tempData.getLocationResult(this)
