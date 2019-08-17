@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Resources
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.constant.LengthConstants
 import com.adsamcik.tracker.common.misc.LengthSystem
 import com.adsamcik.tracker.common.misc.SpeedFormat
 import com.adsamcik.tracker.common.preference.Preferences
@@ -40,6 +41,7 @@ fun Int.formatReadable(): String {
 	return df.format(this)
 }
 
+@Suppress("ComplexMethod")
 fun Long.formatAsDuration(context: Context): String {
 	val resources = context.resources
 	if (this == 0L) return resources.getString(R.string.second_short, 0)
@@ -64,6 +66,7 @@ fun Long.formatAsDuration(context: Context): String {
 		}
 	}
 
+	@Suppress("MagicNumber")
 	val builder = StringBuilder(50)
 
 	if (days > 0) {
@@ -148,19 +151,19 @@ fun Resources.formatDistance(meters: Double, digits: Int, unit: LengthSystem): S
 	return when (unit) {
 		LengthSystem.Metric -> formatMetric(meters, digits)
 		LengthSystem.Imperial -> {
-			val feet = 3.280839895 * meters
+			val feet = meters * LengthConstants.FEET_IN_METERS
 			formatImperial(feet, digits)
 		}
 		LengthSystem.AncientRoman -> {
-			val passus = meters / 1.48
+			val passus = meters / LengthConstants.METERS_IN_PASSUS
 			formatAncientRome(passus, digits)
 		}
 	}
 }
 
 private fun Resources.formatMetric(meters: Double, digits: Int): String {
-	return if (meters >= 1000.0) {
-		val kilometers = meters / 1000.0
+	return if (meters >= LengthConstants.METERS_IN_KILOMETER) {
+		val kilometers = meters / LengthConstants.METERS_IN_KILOMETER
 		getString(R.string.kilometer_abbr, kilometers.formatReadable(digits))
 	} else {
 		getString(R.string.meter_abbr, meters.formatReadable(digits))
@@ -168,8 +171,8 @@ private fun Resources.formatMetric(meters: Double, digits: Int): String {
 }
 
 private fun Resources.formatImperial(feet: Double, digits: Int): String {
-	return if (feet >= 5280.0) {
-		val miles = feet / 5280.0
+	return if (feet >= LengthConstants.FEET_IN_MILE) {
+		val miles = feet / LengthConstants.FEET_IN_MILE
 		getString(R.string.mile_abbr, miles.formatReadable(digits))
 	} else {
 		getString(R.string.feet_abbr, feet.formatReadable(digits))
@@ -177,8 +180,8 @@ private fun Resources.formatImperial(feet: Double, digits: Int): String {
 }
 
 private fun Resources.formatAncientRome(passus: Double, digits: Int): String {
-	return if (passus >= 1000.0) {
-		val millepassus = passus / 1000.0
+	return if (passus >= LengthConstants.PASSUS_IN_MILE_PASSUS) {
+		val millepassus = passus / LengthConstants.PASSUS_IN_MILE_PASSUS
 		getString(R.string.millepassus, millepassus.formatReadable(digits))
 	} else {
 		getString(R.string.passus, passus.formatReadable(digits))

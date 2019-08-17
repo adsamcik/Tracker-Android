@@ -3,6 +3,7 @@ package com.adsamcik.tracker.common.data
 import android.os.Build
 import android.os.Parcelable
 import androidx.room.ColumnInfo
+import com.adsamcik.tracker.common.constant.LengthConstants
 import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
 import com.adsamcik.tracker.common.extension.LocationExtensions.METER_DEGREE_LATITUDE
 import com.adsamcik.tracker.common.extension.deg2rad
@@ -110,10 +111,6 @@ data class Location(
 	companion object {
 		private const val ROUND_TO_DECIMALS = 6
 
-		private const val METERS_IN_KILOMETER = 1000
-		private const val METERS_IN_MILE = 1609.344
-		private const val METERS_IN_NAUTICAL_MILE = 1852
-
 		fun distance(firstLatitude: Double,
 		             firstLongitude: Double,
 		             secondLatitude: Double,
@@ -136,9 +133,9 @@ data class Location(
 			val distance = EARTH_CIRCUMFERENCE * c
 			return when (unit) {
 				LengthUnit.Meter -> distance
-				LengthUnit.Kilometer -> distance / METERS_IN_KILOMETER
-				LengthUnit.Mile -> distance / METERS_IN_MILE
-				LengthUnit.NauticalMile -> distance / METERS_IN_NAUTICAL_MILE
+				LengthUnit.Kilometer -> distance / LengthConstants.METERS_IN_KILOMETER
+				LengthUnit.Mile -> distance / LengthConstants.METERS_IN_MILE
+				LengthUnit.NauticalMile -> distance / LengthConstants.METERS_IN_NAUTICAL_MILE
 			}
 		}
 
