@@ -87,8 +87,8 @@ complexity:
   TooManyFunctions:
     active: true
     excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
-    thresholdInFiles: 20
-    thresholdInClasses: 15
+    thresholdInFiles: 21
+    thresholdInClasses: 16
     thresholdInInterfaces: 11
     thresholdInObjects: 11
     thresholdInEnums: 11
