@@ -186,7 +186,7 @@ internal class MapSheetController(
 	}
 
 	init {
-		val isSearchDisabled = geocoder == null || true
+		val isSearchDisabled = geocoder == null
 		if (isSearchDisabled) {
 			rootLayout.findViewById<EditText>(R.id.edittext_map_search).apply {
 				isEnabled = false
