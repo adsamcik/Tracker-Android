@@ -50,4 +50,14 @@
     <string name="activity_icon">Ikonka aktivity</string>
     <string name="activity_name">Název aktivity</string>
     <string name="undo">vrátit</string>
+
+    <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat</string>
+    <string name="channel_activity_watcher_name">Sledovač aktivity</string>
+    <string name="channel_challenges_description">Kanál, který obsahuje notfikace související s herními výzvami</string>
+    <string name="channel_challenges_name">Herní výzvy</string>
+    <string name="channel_other_description">Kanál obsahující notifikace, které nepatří do žádného jiného kanálu</string>
+    <string name="channel_other_name">Ostatní</string>
+    <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat</string>
+    <string name="channel_track_name">Sběr dat</string>
+    <string name="map_date_range_all">Vše</string>
 </resources>
