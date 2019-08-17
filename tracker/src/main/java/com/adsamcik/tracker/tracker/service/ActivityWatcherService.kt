@@ -63,9 +63,9 @@ class ActivityWatcherService : CoreService() {
 	}
 
 	private fun updateNotification(): Notification {
-		val intent = Intent(Intent.ACTION_MAIN).apply {
-			addCategory(Intent.CATEGORY_HOME)
-		}
+		val intent = packageManager.getLaunchIntentForPackage(packageName)
+				?: throw NullPointerException("Launch intent for package is null.")
+
 		val builder = NotificationCompat.Builder(this, getString(R.string.channel_activity_watcher_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 				.setTicker(getString(R.string.notification_activity_watcher_ticker))  // the done text
@@ -125,6 +125,7 @@ class ActivityWatcherService : CoreService() {
 		 * @param context context
 		 */
 		@Synchronized
+		@Suppress("LongParameterList")
 		fun poke(context: Context,
 		         watcherPreference: Boolean = getWatcherPreference(context),
 		         updateInterval: Int = getActivityIntervalPreference(context),
