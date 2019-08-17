@@ -6,6 +6,7 @@ import com.adsamcik.tracker.common.extension.lowerCaseExtension
 import com.adsamcik.tracker.common.extension.startForegroundService
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
 import com.adsamcik.tracker.import.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.import.file.DatabaseImport
 import com.adsamcik.tracker.import.file.FileImport
 import com.adsamcik.tracker.import.file.GpxImport
 import com.adsamcik.tracker.import.service.ImportService
@@ -27,9 +28,10 @@ class DataImport {
 
 	init {
 		val importList = mutableListOf<FileImport>()
-		if (Build.VERSION.SDK_INT >= 26) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 			importList.add(GpxImport())
 		}
+		importList.add(DatabaseImport())
 
 		this.activeImporterList = importList
 
