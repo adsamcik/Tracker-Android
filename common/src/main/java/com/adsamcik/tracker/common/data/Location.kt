@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.common.data
 
 import android.os.Build
-import android.os.Parcel
 import android.os.Parcelable
 import androidx.room.ColumnInfo
 import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
@@ -37,6 +36,7 @@ data class Location(
 		val speedAccuracy: Float?
 ) : Parcelable {
 
+	@Suppress("MagicNumber")
 	constructor(location: android.location.Location) : this(location.time,
 			location.latitude,
 			location.longitude,
@@ -93,10 +93,10 @@ data class Location(
 	fun roundTo(precisionLatitudeInMeters: Double,
 	            precisionLongitudeInMeters: Double = precisionLatitudeInMeters): Location {
 		val accLatitude = latitudeAccuracy(precisionLatitudeInMeters)
-		val roundedLatitude = (latitude - latitude % accLatitude).round(6)
+		val roundedLatitude = (latitude - latitude % accLatitude).round(ROUND_TO_DECIMALS)
 
 		val accLongitude = longitudeAccuracy(precisionLongitudeInMeters, roundedLatitude)
-		val roundedLongitude = (longitude - longitude % accLongitude).round(6)
+		val roundedLongitude = (longitude - longitude % accLongitude).round(ROUND_TO_DECIMALS)
 		return Location(time,
 				roundedLatitude,
 				roundedLongitude,
@@ -108,6 +108,12 @@ data class Location(
 	}
 
 	companion object {
+		private const val ROUND_TO_DECIMALS = 6
+
+		private const val METERS_IN_KILOMETER = 1000
+		private const val METERS_IN_MILE = 1609.344
+		private const val METERS_IN_NAUTICAL_MILE = 1852
+
 		fun distance(firstLatitude: Double,
 		             firstLongitude: Double,
 		             secondLatitude: Double,
@@ -130,9 +136,9 @@ data class Location(
 			val distance = EARTH_CIRCUMFERENCE * c
 			return when (unit) {
 				LengthUnit.Meter -> distance
-				LengthUnit.Kilometer -> distance / 1000
-				LengthUnit.Mile -> distance / 1.609
-				LengthUnit.NauticalMile -> distance / 1.852
+				LengthUnit.Kilometer -> distance / METERS_IN_KILOMETER
+				LengthUnit.Mile -> distance / METERS_IN_MILE
+				LengthUnit.NauticalMile -> distance / METERS_IN_NAUTICAL_MILE
 			}
 		}
 
@@ -159,10 +165,10 @@ data class Location(
 				kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
 
 		fun longitudeAccuracy(precisionInMeters: Double, latitude: Double): Double =
-				precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(6)
+				precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(ROUND_TO_DECIMALS)
 
 		fun latitudeAccuracy(precisionInMeters: Double): Double =
-				(METER_DEGREE_LATITUDE * precisionInMeters).round(6)
+				(METER_DEGREE_LATITUDE * precisionInMeters).round(ROUND_TO_DECIMALS)
 	}
 }
 
