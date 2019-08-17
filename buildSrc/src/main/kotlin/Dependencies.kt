@@ -18,6 +18,8 @@ object Dependencies {
 		internal const val material = "1.1.0-alpha09"
 		internal const val coroutines = "1.3.0-RC2"
 
+		internal const val requery = "3.29.0"
+
 		internal const val maps = "17.0.0"
 		internal const val firebaseCore = "17.0.1"
 		internal const val recyclerView = "1.1.0-beta03"
@@ -57,6 +59,7 @@ object Dependencies {
 			api("$roomBaseString-runtime:${Versions.room}")
 			kapt("$roomBaseString-compiler:${Versions.room}")
 			implementation("$roomBaseString-ktx:${Versions.room}")
+			implementation("io.requery:sqlite-android:${Versions.requery}")
 			androidTestImplementation("androidx.room:room-testing:${Versions.room}")
 		}
 	}
