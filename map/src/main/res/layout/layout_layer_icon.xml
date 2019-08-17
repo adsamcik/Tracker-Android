@@ -5,8 +5,10 @@
     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
     android:layout_width="100dp"
     android:layout_height="100dp"
-    android:textSize="12sp"
     android:drawableTop="@drawable/ic_map_legend"
     android:ellipsize="end"
     android:gravity="center"
-    tools:text="Location heatmap" />
+    android:breakStrategy="simple"
+    android:hyphenationFrequency="none"
+    android:textSize="12sp"
+    tools:text="Lorem ipsum dolor sit amet layer" />

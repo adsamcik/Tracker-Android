@@ -8,7 +8,7 @@ import com.adsamcik.tracker.map.layer.MapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.google.android.gms.maps.GoogleMap
 
-internal class MapController(context: Context, val map: GoogleMap) {
+internal class MapController(val context: Context, val map: GoogleMap, mapOwner: MapOwner) {
 	private var activeLayer: MapLayerLogic = NoMapLayerLogic()
 	private var quality: Float = 1f
 
@@ -36,15 +36,9 @@ internal class MapController(context: Context, val map: GoogleMap) {
 		//activeLayer.update()
 	}
 
-	fun onEnable(context: Context) {
-		val pref = Preferences.getPref(context)
-		val resources = context.resources
-
-		val quality = pref.getFloat(resources.getString(R.string.settings_map_quality_key),
-				resources.getString(R.string.settings_map_quality_default).toFloat())
-
-		this.quality = quality
-		activeLayer.quality = quality
+	init {
+		mapOwner.addOnEnableListener { onEnable() }
+		mapOwner.addOnDisableListener { onDisable() }
 	}
 
 
@@ -57,16 +51,22 @@ internal class MapController(context: Context, val map: GoogleMap) {
 		uiSettings.isMyLocationButtonEnabled = false
 
 		map.setMaxZoomPreference(MAX_ZOOM)
+	}
 
+	fun onEnable() {
 		ColorMap.addListener(context, map)
+
+		val pref = Preferences.getPref(context)
+		val resources = context.resources
+
+		val quality = pref.getFloat(resources.getString(R.string.settings_map_quality_key),
+				resources.getString(R.string.settings_map_quality_default).toFloat())
+
+		this.quality = quality
+		activeLayer.quality = quality
 	}
 
-	//initialize layerType
-	init {
-		onEnable(context)
-	}
-
-	fun onDestroy() {
+	fun onDisable() {
 		ColorMap.removeListener(map)
 	}
 

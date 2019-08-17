@@ -15,7 +15,6 @@ import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.extension.hasLocationPermission
-import com.adsamcik.tracker.common.extension.transaction
 import com.adsamcik.tracker.common.extension.transactionStateLoss
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.introduction.IntroductionManager
@@ -23,6 +22,7 @@ import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
+import com.adsamcik.tracker.map.MapOwner
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.UpdateLocationListener
@@ -33,13 +33,14 @@ import com.google.android.gms.maps.SupportMapFragment
 import kotlinx.android.synthetic.main.fragment_map.*
 
 @Suppress("unused")
-class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
+class FragmentMap : CoreUIFragment(), IOnDemandView {
 	private var locationListener: UpdateLocationListener? = null
 	private var mapController: MapController? = null
 	private var mapSheetController: MapSheetController? = null
 
 	private var mapFragment: SupportMapFragment? = null
 	private var mapEventListener: MapEventListener? = null
+	private var mapOwner = MapOwner()
 
 	private var fActivity: FragmentActivity? = null
 
@@ -67,7 +68,7 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 	private fun checkLocationPermission(context: Context): Boolean {
 		if (context.hasLocationPermission) {
 			return true
-		} else if (Build.VERSION.SDK_INT >= 23) {
+		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			activity?.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_LOCATION_CODE)
 		}
 		return false
@@ -77,6 +78,8 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		if (hasPermissions) {
 			locationListener?.unsubscribeFromLocationUpdates(activity)
 		}
+
+		mapOwner.onDisable()
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
@@ -85,28 +88,24 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 
 		this.fActivity = activity
 
-		if (this.mapFragment == null) {
-			val mapFragment = SupportMapFragment.newInstance()
-			mapFragment.getMapAsync(this)
+		val fragmentManager = fragmentManager
+				?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
 
-			val fragmentManager = fragmentManager
-					?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
-
-			fragmentManager.transaction {
-				replace(R.id.container_map, mapFragment)
-			}
-			this.mapFragment = mapFragment
-		}
+		mapOwner.createMap(fragmentManager)
 
 		mapController?.onEnable(activity)
 
 		locationListener?.subscribeToLocationUpdates(activity)
+
+		mapOwner.onEnable()
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		MapsInitializer.initialize(context)
 		retainInstance = false
+
+		mapOwner.addOnCreateListener(this::onMapReady)
 	}
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -141,21 +140,19 @@ class FragmentMap : CoreUIFragment(), OnMapReadyCallback, IOnDemandView {
 		mapFragment = null
 
 		styleController.let { StyleManager.recycleController(it) }
-		mapController?.onDestroy()
-		mapSheetController?.onDestroy()
 
 		mapController = null
 		mapEventListener = null
 		mapSheetController = null
 	}
 
-	override fun onMapReady(map: GoogleMap) {
+	fun onMapReady(map: GoogleMap) {
 		val context = context ?: return
 
 		val mapEventListener = MapEventListener(map)
 		this.mapEventListener = mapEventListener
 
-		val mapController = MapController(context, map)
+		val mapController = MapController(map)
 		val locationListener = UpdateLocationListener(context, map, mapEventListener)
 
 		this.mapController = mapController

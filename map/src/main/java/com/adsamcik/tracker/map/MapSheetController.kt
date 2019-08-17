@@ -314,14 +314,18 @@ internal class MapSheetController(
 		}
 	}
 
+	fun onEnable() {
 
-	fun onDestroy() {
+	}
+
+
+	fun onDisable() {
 		keyboardManager.run {
 			hideKeyboard()
 			removeKeyboardListener(keyboardListener)
 		}
 
-		StyleManager.recycleController(styleController)
+		styleController.isSuspended = true
 	}
 
 	private fun updateIconList(isKeyboardOpen: Boolean) {
