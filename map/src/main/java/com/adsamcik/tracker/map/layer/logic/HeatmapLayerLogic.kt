@@ -78,7 +78,7 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 	}
 
 	override fun update(context: Context) {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+		overlay.clearTileCache()
 	}
 
 	companion object {
