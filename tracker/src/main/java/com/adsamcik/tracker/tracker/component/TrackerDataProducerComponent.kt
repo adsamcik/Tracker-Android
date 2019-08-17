@@ -24,6 +24,7 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 
 	fun onDetach(context: Context) {
 		PreferenceObserver.removeObserver(context, keyRes, observer)
+		if (isEnabled) onDisable(context)
 	}
 
 	@CallSuper
