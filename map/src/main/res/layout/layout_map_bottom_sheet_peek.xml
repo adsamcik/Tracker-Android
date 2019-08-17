@@ -24,6 +24,7 @@
             android:layout_width="0dp"
             android:layout_height="@dimen/map_button_size"
             android:layout_weight="1"
+            android:orientation="horizontal"
             android:id="@+id/map_search_parent"
             android:background="@drawable/background_map_search">
 
@@ -38,13 +39,13 @@
                 android:imeOptions="actionSearch"
                 android:importantForAutofill="no"
                 android:inputType="text|textNoSuggestions"
-                android:paddingStart="@dimen/content_padding"
+                android:paddingLeft="@dimen/content_padding"
                 android:paddingTop="8dp"
                 android:paddingBottom="8dp"
                 android:textColor="?android:textColorPrimary"
                 android:textColorHint="?android:textColorSecondary"
                 android:textSize="16sp"
-                tools:ignore="RtlSymmetry"
+                tools:ignore="RtlHardcoded,RtlSymmetry"
                 tools:targetApi="28" />
 
             <androidx.appcompat.widget.AppCompatImageButton

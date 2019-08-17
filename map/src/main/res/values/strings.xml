@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="map_search">Search…</string>
+    <string name="map_search_no_geocoder">Search disabled, no geocoder found.</string>
+
     <string name="map_search_no_text">Searching for nothing is not very useful</string>
-    <string name="map_search_no_geocoder">Sorry, your device is missing geocoder service</string>
 
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
 

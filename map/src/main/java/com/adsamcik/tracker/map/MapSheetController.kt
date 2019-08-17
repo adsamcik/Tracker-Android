@@ -3,12 +3,16 @@ package com.adsamcik.tracker.map
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Geocoder
+import android.text.method.ScrollingMovementMethod
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.Scroller
 import android.widget.Space
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.GridLayoutManager
@@ -161,6 +165,7 @@ internal class MapSheetController(
 			}
 			false -> {
 				sheetBehavior.state = stateBeforeKeyboard
+				rootLayout.edittext_map_search.clearFocus()
 			}
 		}
 	}
@@ -180,19 +185,30 @@ internal class MapSheetController(
 		// fragmentMapMenu.get()?.filter(mapLayerFilterRule)
 	}
 
+	init {
+		val isSearchDisabled = geocoder == null || true
+		if (isSearchDisabled) {
+			rootLayout.findViewById<EditText>(R.id.edittext_map_search).apply {
+				isEnabled = false
+				setHint(R.string.map_search_no_geocoder)
+			}
+			rootLayout.findViewById<View>(R.id.button_map_search).isGone = true
+		} else {
+			rootLayout.edittext_map_search.setOnEditorActionListener { textView, _, _ ->
+				search(textView.text.toString())
+				true
+			}
+
+			rootLayout.findViewById<View>(R.id.button_map_search).setOnClickListener {
+				search(rootLayout.edittext_map_search.text.toString())
+			}
+		}
+	}
+
 	/**
 	 * Initializes UI elements and colors
 	 */
 	init {
-		rootLayout.edittext_map_search.setOnEditorActionListener { textView, _, _ ->
-			search(textView.text.toString())
-			true
-		}
-
-		rootLayout.findViewById<View>(R.id.button_map_search).setOnClickListener {
-			search(rootLayout.edittext_map_search.text.toString())
-		}
-
 		rootLayout.findViewById<View>(R.id.button_map_date_range).setOnClickListener {
 			launch(Dispatchers.Default) {
 				val availableRange = mapController.availableDateRange
