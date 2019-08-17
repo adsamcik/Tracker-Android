@@ -37,6 +37,7 @@ import kotlinx.android.synthetic.main.activity_ui.*
  * MainActivity containing the core of the App
  * Users should spend most time in here.
  */
+@Suppress("TooManyFunctions")
 class MainActivity : CoreUIActivity() {
 	private var navigationOffset = Int.MIN_VALUE
 
@@ -68,6 +69,7 @@ class MainActivity : CoreUIActivity() {
 		initializeButtonsPosition()
 	}
 
+	@Suppress("MagicNumber")
 	private fun initializeStatsButton(size: Point) {
 		val fragmentStatsClass = Module.STATISTICS.loadClass<PayloadFragment>("fragment.FragmentStats")
 
@@ -94,6 +96,7 @@ class MainActivity : CoreUIActivity() {
 		button_stats.addPayload(statsPayload)
 	}
 
+	@Suppress("MagicNumber")
 	private fun initializeMapButton(realSize: Point) {
 		button_map.visibility = View.VISIBLE
 		button_map.extendTouchAreaBy(32.dp)
@@ -105,7 +108,8 @@ class MainActivity : CoreUIActivity() {
 		}
 		button_map.onLeaveStateListener = { _, state ->
 			if (state == DraggableImageButton.State.TARGET) {
-				if (button_game.state != DraggableImageButton.State.TARGET && button_stats.state != DraggableImageButton.State.TARGET) {
+				if (button_game.state != DraggableImageButton.State.TARGET &&
+						button_stats.state != DraggableImageButton.State.TARGET) {
 					showBottomLayer()
 				}
 
@@ -126,6 +130,7 @@ class MainActivity : CoreUIActivity() {
 		button_map.addPayload(mapPayload)
 	}
 
+	@Suppress("MagicNumber")
 	private fun initializeGameButton(size: Point) {
 		button_game.visibility = View.VISIBLE
 		button_game.dragAxis = DragAxis.X
@@ -163,8 +168,6 @@ class MainActivity : CoreUIActivity() {
 		val splitInstallManager = SplitInstallManagerFactory.create(this)
 		val installedModules = splitInstallManager.installedModules
 
-		val exclusions = mutableListOf<Rect>()
-
 		if (installedModules.contains(Module.STATISTICS.moduleName)) {
 			initializeStatsButton(size)
 		} else {
@@ -183,12 +186,17 @@ class MainActivity : CoreUIActivity() {
 			button_map.visibility = View.GONE
 		}
 
+		initializeExclusionZones()
+
 		//todo fix behavior for snackbar, currently it does not work properly with guideline for some reason
 		/*val params = root.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
 		params.behavior = NavigationGuidelinesOffsetBehavior(navigation_guideline)
 		root.layoutParams = params
 		root.requestLayout()*/
-		if (Build.VERSION.SDK_INT >= 29) {
+	}
+
+	private fun initializeExclusionZones() {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			root.doOnNextLayout {
 				fun addExclusion(view: View, exclusions: MutableList<Rect>) {
 					if (view.isVisible) {
@@ -198,6 +206,7 @@ class MainActivity : CoreUIActivity() {
 					}
 				}
 
+				val exclusions = mutableListOf<Rect>()
 				addExclusion(button_stats, exclusions)
 				addExclusion(button_game, exclusions)
 
