@@ -54,7 +54,8 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 	private fun requestScan() {
 		val now = SystemClock.elapsedRealtime()
 		if (Build.VERSION.SDK_INT >= 28) {
-			if (now - lastScanRequest > Time.SECOND_IN_MILLISECONDS * 15 && (scanTime == -1L || now - scanTimeRelative > Time.SECOND_IN_MILLISECONDS * 10)) {
+			if (now - lastScanRequest > Time.SECOND_IN_MILLISECONDS * 15 &&
+					(scanTime == -1L || now - scanTimeRelative > Time.SECOND_IN_MILLISECONDS * 10)) {
 				@Suppress("deprecation")
 				isScanRequested = wifiManager.startScan()
 				lastScanRequest = now
