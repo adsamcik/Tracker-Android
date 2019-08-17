@@ -23,6 +23,9 @@ import com.adsamcik.tracker.common.database.dao.WifiDataDao
 import com.adsamcik.tracker.common.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.common.database.data.DatabaseLocation
 import com.adsamcik.tracker.common.database.data.DatabaseWifiData
+import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
+import io.requery.android.database.sqlite.SQLiteDatabase
+import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -54,10 +57,16 @@ abstract class AppDatabase : RoomDatabase() {
 	companion object {
 		private var instance_: AppDatabase? = null
 
+		private const val DATABASE_NAME = "main_database"
+
 		private fun createInstance(context: Context): AppDatabase {
-			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "main_database")
+			val configuration = SQLiteDatabaseConfiguration(context.getDatabasePath(DATABASE_NAME).path,
+					SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE)
+			val options = RequerySQLiteOpenHelperFactory.ConfigurationOptions { configuration }
+			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DATABASE_NAME)
 					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
 							MIGRATION_7_8, MIGRATION_8_9)
+					.openHelperFactory(RequerySQLiteOpenHelperFactory(listOf(options)))
 					.build()
 			initialize(context, instance)
 
