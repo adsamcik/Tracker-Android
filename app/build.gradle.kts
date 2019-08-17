@@ -7,7 +7,7 @@ plugins {
 	id("org.jetbrains.dokka-android")
 	id("com.google.gms.oss.licenses.plugin")
 	id("io.fabric")
-	Libraries.corePlugins(this)
+	Dependencies.corePlugins(this)
 }
 
 
@@ -83,20 +83,20 @@ dependencies {
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
 
-	Libraries.core(this)
+	Dependencies.core(this)
 	//1st party dependencies
 	implementation("com.adsamcik.android-components:slider:0.8.0")
-	Libraries.draggable(this)
+	Dependencies.draggable(this)
 
-	Libraries.introduction(this)
+	Dependencies.introduction(this)
 
 	//3rd party dependencies
-	Libraries.moshi(this)
+	Dependencies.moshi(this)
 
 	implementation("com.jaredrummler:colorpicker:1.1.0")
 
 	implementation("de.psdev.licensesdialog:licensesdialog:2.1.0")
-	Libraries.fileChooser(this)
+	Dependencies.fileChooser(this)
 
 	//GPX
 	implementation("stax:stax-api:1.0.1")
@@ -108,20 +108,20 @@ dependencies {
 
 	//AndroidX
 	implementation("androidx.cardview:cardview:1.0.0")
-	Libraries.preference(this)
+	Dependencies.preference(this)
 
 	//PlayServices
-	Libraries.location(this)
-	Libraries.crashlytics(this)
+	Dependencies.location(this)
+	Dependencies.crashlytics(this)
 
 	//Room
-	Libraries.database(this)
+	Dependencies.database(this)
 
 
-	Libraries.test(this)
+	Dependencies.test(this)
 	//workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":commonmap"))
-	Libraries.map(this)
+	Dependencies.map(this)
 }
 apply {
 	plugin("com.google.gms.google-services")

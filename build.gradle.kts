@@ -10,8 +10,8 @@ buildscript {
 		classpath("com.google.gms:oss-licenses:0.9.2")
 		classpath("io.fabric.tools:gradle:1.31.0")
 
-		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Libraries.Versions.dokka}")
-		classpath(kotlin("gradle-plugin", Libraries.Versions.kotlin))
+		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
+		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
 	}
 }
 

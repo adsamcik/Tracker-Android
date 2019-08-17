@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
 	id("com.android.library")
-	Libraries.corePlugins(this)
+	Dependencies.corePlugins(this)
 }
 
 android {
@@ -56,9 +56,9 @@ dependencies {
 	implementation(project(":common"))
 	implementation(project(":activity"))
 
-	Libraries.core(this)
-	Libraries.database(this)
-	Libraries.crashlytics(this)
-	Libraries.location(this)
-	Libraries.test(this)
+	Dependencies.core(this)
+	Dependencies.database(this)
+	Dependencies.crashlytics(this)
+	Dependencies.location(this)
+	Dependencies.test(this)
 }

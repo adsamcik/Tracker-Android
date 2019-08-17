@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
 	id("com.android.dynamic-feature")
-	Libraries.corePlugins(this)
+	Dependencies.corePlugins(this)
 }
 
 
@@ -36,11 +36,11 @@ android {
 
 dependencies {
 	implementation(project(":commonmap"))
-	Libraries.core(this)
-	Libraries.draggable(this)
-	Libraries.map(this)
-	Libraries.test(this)
-	Libraries.sectionedRecyclerAdapter(this)
+	Dependencies.core(this)
+	Dependencies.draggable(this)
+	Dependencies.map(this)
+	Dependencies.test(this)
+	Dependencies.sectionedRecyclerAdapter(this)
 
 	implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
 

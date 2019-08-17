@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
 	id("com.android.library")
-	Libraries.corePlugins(this)
+	Dependencies.corePlugins(this)
 }
 
 android {
@@ -53,18 +53,18 @@ android {
 }
 
 dependencies {
-	Libraries.core(this)
-	Libraries.moshi(this)
-	Libraries.database(this)
-	Libraries.crashlytics(this)
-	Libraries.location(this)
-	Libraries.preference(this)
-	Libraries.introduction(this)
-	Libraries.dateTimePicker(this)
+	Dependencies.core(this)
+	Dependencies.moshi(this)
+	Dependencies.database(this)
+	Dependencies.crashlytics(this)
+	Dependencies.location(this)
+	Dependencies.preference(this)
+	Dependencies.introduction(this)
+	Dependencies.dateTimePicker(this)
 
 	implementation("com.savvi.datepicker:rangepicker:1.3.0")
 
 	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
 
-	Libraries.test(this)
+	Dependencies.test(this)
 }

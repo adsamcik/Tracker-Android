@@ -1,16 +1,16 @@
 import org.gradle.api.artifacts.dsl.DependencyHandler
 import org.gradle.kotlin.dsl.kotlin
 
-@Suppress("TooManyFunctions", "MatchingDeclarationName")
-object Libraries {
+@Suppress("TooManyFunctions")
+object Dependencies {
 	object Versions {
 		internal const val constraintLayout = "2.0.0-beta2"
 		internal const val coreKtx = "1.2.0-alpha03"
 		internal const val appcompat = "1.1.0-rc01"
 		internal const val room = "2.1.0"
 		internal const val fragment = "1.2.0-alpha02"
-		public const val kotlin: String = "1.3.41"
-		public const val dokka: String = "0.9.18"
+		const val kotlin: String = "1.3.41"
+		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.8.0"
 		internal const val work = "2.2.0"
 		internal const val lifecycle = "2.2.0-alpha03"
@@ -34,8 +34,8 @@ object Libraries {
 		internal const val dialogs = "3.1.0"
 
 		object Test {
-			const val androidxTest = "1.2.0"
-			const val espresso = "3.2.0"
+			const val androidxTest: String = "1.2.0"
+			const val espresso: String = "3.2.0"
 		}
 	}
 

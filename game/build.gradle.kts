@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
 	id("com.android.dynamic-feature")
-	Libraries.corePlugins(this)
+	Dependencies.corePlugins(this)
 }
 
 android {
@@ -35,11 +35,11 @@ android {
 }
 
 dependencies {
-	Libraries.core(this)
-	Libraries.draggable(this)
-	Libraries.database(this)
-	Libraries.preference(this)
-	Libraries.test(this)
+	Dependencies.core(this)
+	Dependencies.draggable(this)
+	Dependencies.database(this)
+	Dependencies.preference(this)
+	Dependencies.test(this)
 
 	implementation(project(":app"))
 	implementation(project(":common"))
