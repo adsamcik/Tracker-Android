@@ -126,9 +126,16 @@ internal class MapSheetController(
 		rootLayout.animate().alpha(1f).start()
 	}
 
+	@BottomSheetBehavior.State
+	private var targetState: Int = BottomSheetBehavior.STATE_COLLAPSED
+		set(value) {
+			field = value
+			sheetBehavior.state = value
+		}
+
 	init {
 		rootLayout.findViewById<View>(R.id.map_sheet_drag_area).setOnClickListener {
-			sheetBehavior.state = when (sheetBehavior.state) {
+			targetState = when (sheetBehavior.state) {
 				BottomSheetBehavior.STATE_COLLAPSED -> BottomSheetBehavior.STATE_HALF_EXPANDED
 				BottomSheetBehavior.STATE_HALF_EXPANDED -> BottomSheetBehavior.STATE_EXPANDED
 				BottomSheetBehavior.STATE_EXPANDED -> BottomSheetBehavior.STATE_COLLAPSED
@@ -150,11 +157,11 @@ internal class MapSheetController(
 		updateIconList(isOpen)
 		when (isOpen) {
 			true -> {
-				stateBeforeKeyboard = sheetBehavior.state
-				sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+				stateBeforeKeyboard = targetState
+				targetState = BottomSheetBehavior.STATE_EXPANDED
 			}
 			false -> {
-				sheetBehavior.state = stateBeforeKeyboard
+				targetState = stateBeforeKeyboard
 			}
 		}
 	}
@@ -256,8 +263,8 @@ internal class MapSheetController(
 	private fun onItemClicked(@Suppress("UNUSED") position: Int, item: MapLayerLogic) {
 		mapController.setLayer(rootLayout.context, item)
 
-		if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
-			sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+		if (targetState == BottomSheetBehavior.STATE_HALF_EXPANDED) {
+			targetState = BottomSheetBehavior.STATE_COLLAPSED
 		}
 	}
 
