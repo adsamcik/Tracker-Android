@@ -101,6 +101,9 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 		                                       intent: PendingIntent,
 		                                       delayInS: Int) {
 			recognitionClientTask = client.requestActivityUpdates(delayInS * Time.SECOND_IN_MILLISECONDS, intent)
+					.apply {
+						addOnFailureListener { Reporter.report(it) }
+					}
 		}
 
 		private fun requestActivityTransition(client: ActivityRecognitionClient,
@@ -108,7 +111,9 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 		                                      requestedTransitions: Collection<ActivityTransitionData>) {
 			val transitions = buildTransitions(requestedTransitions)
 			val request = ActivityTransitionRequest(transitions)
-			transitionClientTask = client.requestActivityTransitionUpdates(request, intent)
+			transitionClientTask = client.requestActivityTransitionUpdates(request, intent).apply {
+				addOnFailureListener { Reporter.report(it) }
+			}
 		}
 
 		private fun buildTransitions(requestedTransitions: Collection<ActivityTransitionData>): List<ActivityTransition> {
@@ -136,7 +141,7 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 		 */
 		private fun getActivityDetectionPendingIntent(context: Context): PendingIntent {
 			val intent = Intent(context.applicationContext, ActivityService::class.java)
-			// We use FLAG_UPDATE_CURRENT so that we getPref the same pending intent back when calling
+			// We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
 			// requestActivityUpdates() and removeActivityUpdates().
 			return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent,
 					PendingIntent.FLAG_UPDATE_CURRENT)
