@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.common.extension
 
+import com.adsamcik.tracker.common.graph.Vertex
 import kotlin.math.roundToInt
 
 /**
@@ -111,3 +112,18 @@ fun DoubleArray.roundToIntArray(): IntArray {
 	return intArray
 }
 
+fun <T> List<T>.sortByIndexes(indexList: Collection<Int>): List<T> {
+	assert(indexList.size == size)
+
+	val sortedList = ArrayList<T>(size)
+	indexList.forEach { sortedList.add(get(it)) }
+	return sortedList
+}
+
+fun <T> List<T>.sortByVertexes(vertexList: Collection<Vertex>): List<T> {
+	assert(vertexList.size == size)
+
+	val sortedList = ArrayList<T>(size)
+	vertexList.forEach { sortedList.add(get(it.value)) }
+	return sortedList
+}

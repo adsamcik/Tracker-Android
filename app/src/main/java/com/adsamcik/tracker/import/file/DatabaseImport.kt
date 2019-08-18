@@ -3,6 +3,12 @@ package com.adsamcik.tracker.import.file
 import android.database.Cursor
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.common.exception.NotFoundException
+import com.adsamcik.tracker.common.extension.sortByVertexes
+import com.adsamcik.tracker.common.graph.Edge
+import com.adsamcik.tracker.common.graph.Graph
+import com.adsamcik.tracker.common.graph.Vertex
+import com.adsamcik.tracker.common.graph.topSort
 import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 
@@ -15,33 +21,53 @@ class DatabaseImport : FileImport {
 		importDatabase(fromDatabase, database.openHelper.writableDatabase)
 	}
 
-	private fun SupportSQLiteDatabase.getColumns(tableName: String): Array<String> {
-		query("SELECT * FROM $tableName").use {
-			return it.columnNames
-		}
+	private fun addColumn(columnDefinition: String, requiredColumns: MutableList<ImportColumn>) {
+		val isNotNull = columnDefinition.contains("NOT NULL")
+		val columnName = columnDefinition.substringAfter('`').substringBefore('`')
+		val isUnique = columnDefinition.contains("PRIMARY KEY") ||
+				columnDefinition.contains("UNIQUE")
+		val column = ImportColumn(columnName, isNotNull, isUnique, null)
+		requiredColumns.add(column)
 	}
 
-	private fun addIfColumnIsRequired(sql: String, requiredColumns: MutableList<String>) {
-		sql.substringAfter('(').split(',').forEach { columnDefinition ->
-			if (columnDefinition.startsWith('`') && columnDefinition.contains("NOT NULL")) {
-				val columnName = columnDefinition.substringAfter('`').substringBefore('`')
-				requiredColumns.add(columnName)
+	private fun addForeignKey(columnDefinition: String, requiredColumns: MutableList<ImportColumn>) {
+		val thisTableColumn = columnDefinition
+				.substringAfter("FOREIGN KEY(`")
+				.substringBefore("`")
+
+		val targetTableName = columnDefinition
+				.substringAfter("REFERENCES `")
+				.substringBefore("`")
+
+		val column = requiredColumns.find { it.columnName == thisTableColumn } ?: throw NotFoundException(
+				"Expected column with name $thisTableColumn but had only ${requiredColumns.joinToString()}")
+
+		column.foreignKeyTable = ImportTable(targetTableName, isImported = false, columns = emptyList())
+	}
+
+	private fun addIfColumnIsRequired(sql: String, requiredColumns: MutableList<ImportColumn>) {
+		sql.substringAfter('(').split(',').forEach { split ->
+			val columnDefinition = split.trim()
+			if (columnDefinition.startsWith('`')) {
+				addColumn(columnDefinition, requiredColumns)
+			} else if (columnDefinition.startsWith("FOREIGN KEY")) {
+				addForeignKey(columnDefinition, requiredColumns)
 			}
 		}
 	}
 
-	private fun SupportSQLiteDatabase.getRequiredColumns(tableName: String): List<String> {
+	private fun SupportSQLiteDatabase.getColumns(tableName: String): List<ImportColumn> {
 		query("SELECT name, sql FROM sqlite_master WHERE type='table' and name == ? ORDER BY name",
 				arrayOf(tableName)).use {
 			return if (it.moveToNext()) {
-				val requiredColumns = mutableListOf<String>()
+				val requiredColumns = mutableListOf<ImportColumn>()
 				val sql = it.getString(1)
 
 				addIfColumnIsRequired(sql, requiredColumns)
 
 				requiredColumns
 			} else {
-				emptyList()
+				throw NotFoundException("Could not find table with name $tableName")
 			}
 		}
 	}
@@ -59,7 +85,7 @@ class DatabaseImport : FileImport {
 
 	private fun getMatchingColumns(fromDatabase: SupportSQLiteDatabase,
 	                               toDatabase: SupportSQLiteDatabase,
-	                               table: String): List<String> {
+	                               table: String): List<ImportColumn> {
 		val fromColumns = fromDatabase.getColumns(table)
 		val toColumns = toDatabase.getColumns(table)
 		return fromColumns.toList().filter { toColumns.contains(it) }
@@ -95,14 +121,88 @@ class DatabaseImport : FileImport {
 
 	}
 
-	private fun importDatabase(from: SupportSQLiteDatabase, to: SupportSQLiteDatabase) {
-		getMatchingTables(from, to).forEach { tableName ->
-			val requiredColumns = from.getRequiredColumns(tableName)
-			val columns = to.getColumns(tableName)
-
-			if (columns.toList().containsAll(requiredColumns)) {
-				importTable(from, to, tableName)
-			}
+	private fun List<Pair<ImportTable, ImportTable>>.sortByTopology(): List<Pair<ImportTable, ImportTable>> {
+		val vertexList = MutableList(size) { Vertex(it) }
+		val edgeList = map { pair ->
+			pair.first.columns
+					.mapNotNull { column -> column.foreignKeyTable }
+					.map { table -> indexOfFirst { it.first == table } }
 		}
+				.withIndex()
+				.flatMap { indexedList ->
+					indexedList.value.map { Edge(Vertex(indexedList.index), Vertex(it)) }
+				}
+
+		val topSorted = Graph(vertexList, edgeList).topSort()
+
+		return sortByVertexes(topSorted)
+	}
+
+	private fun importDatabase(from: SupportSQLiteDatabase, to: SupportSQLiteDatabase) {
+		getMatchingTables(from, to)
+				.map { tableName ->
+					val fromColumns = from.getColumns(tableName)
+					val toColumns = to.getColumns(tableName)
+
+					ImportTable(tableName, false, fromColumns) to ImportTable(tableName, false, toColumns)
+				}
+				.sortByTopology()
+				.forEach { pair ->
+					val hasRequiredColumns =
+							pair.first.columns.all {
+								if (it.isNotNull) {
+									pair.second.columns.contains(it)
+								} else {
+									true
+								}
+							}
+
+					if (hasRequiredColumns) {
+						importTable(from, to, pair.first.tableName)
+					}
+				}
+	}
+}
+
+internal data class ImportTable(
+		val tableName: String,
+		var isImported: Boolean,
+		val columns: List<ImportColumn>
+) {
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
+
+		other as ImportTable
+
+		if (tableName != other.tableName) return false
+
+		return true
+	}
+
+	override fun hashCode(): Int {
+		return tableName.hashCode()
+	}
+}
+
+internal data class ImportColumn(
+		val columnName: String,
+		val isNotNull: Boolean,
+		val isUnique: Boolean,
+		var foreignKeyTable: ImportTable? = null
+) {
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
+
+		other as ImportColumn
+
+		if (columnName != other.columnName) return false
+
+		return true
+	}
+
+	override fun hashCode(): Int {
+		return columnName.hashCode()
 	}
 }
