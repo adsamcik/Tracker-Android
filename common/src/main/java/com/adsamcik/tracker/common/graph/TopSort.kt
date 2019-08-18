@@ -10,7 +10,7 @@ import com.adsamcik.tracker.common.exception.CircularDependencyException
  */
 @Suppress("NestedBlockDepth")
 fun Graph.topSort(): List<Vertex> {
-	val vertexList = vertexList.map { TopSortVertex(it) }.sortedBy { it.vertex.value }.toMutableList()
+	val vertexList = vertexList.map { TopSortVertex(it) }.toMutableList()
 	val edgeList = this.edgeList.toMutableList()
 
 	edgeList.forEach { edge ->

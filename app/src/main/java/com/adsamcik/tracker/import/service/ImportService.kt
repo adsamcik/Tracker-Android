@@ -114,13 +114,14 @@ class ImportService : CoreService() {
 	}
 
 	@WorkerThread
-	private fun import(file: File, import: FileImport): Int {
+	private fun import(file: File,
+	                   import: FileImport): Int {
 		showNotification(
 				getString(R.string.import_notification_importing, file.name),
 				true)
 
 		return try {
-			import.import(database, file)
+			import.import(this, database, file)
 			1
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			Reporter.report(e)

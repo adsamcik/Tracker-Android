@@ -1,7 +1,11 @@
 package com.adsamcik.tracker.import.file
 
+import android.content.Context
 import android.database.Cursor
+import android.database.sqlite.SQLiteConstraintException
+import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.adsamcik.tracker.common.Reporter
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.exception.NotFoundException
 import com.adsamcik.tracker.common.extension.sortByVertexes
@@ -18,9 +22,19 @@ import java.io.File
 class DatabaseImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
 
-	override fun import(database: AppDatabase, file: File) {
-		val fromDatabase = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE)
-		importDatabase(fromDatabase, database.openHelper.writableDatabase)
+	override fun import(context: Context,
+	                    database: AppDatabase,
+	                    file: File) {
+		val databaseTmpFile = File.createTempFile(file.name, null)
+		file.copyTo(databaseTmpFile, overwrite = true)
+		try {
+			val fromDatabase = SQLiteDatabase.openDatabase(databaseTmpFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+			database.runInTransaction {
+				importDatabase(fromDatabase, database.openHelper.writableDatabase)
+			}
+		} finally {
+			databaseTmpFile.delete()
+		}
 	}
 
 	private fun addColumn(columnDefinition: String, requiredColumns: MutableList<ImportColumn>) {
@@ -42,7 +56,8 @@ class DatabaseImport : FileImport {
 				.substringBefore("`")
 
 		val column = requiredColumns.find { it.columnName == thisTableColumn } ?: throw NotFoundException(
-				"Expected column with name $thisTableColumn but had only ${requiredColumns.joinToString()}")
+				"Expected column with name $thisTableColumn but had only ${requiredColumns.joinToString(
+						transform = { it.columnName })}")
 
 		column.foreignKeyTable = ImportTable(targetTableName, isImported = false, columns = emptyList())
 	}
@@ -93,28 +108,39 @@ class DatabaseImport : FileImport {
 		return fromColumns.toList().filter { toColumns.contains(it) }
 	}
 
+	private val systemTables = arrayOf("sqlite_sequence", "room_master_table", "android_metadata")
+
+	private fun isSystemTable(tableName: String): Boolean {
+		return systemTables.contains(tableName)
+	}
+
 	private fun getMatchingTables(fromDatabase: SupportSQLiteDatabase,
 	                              toDatabase: SupportSQLiteDatabase): List<String> {
 		val fromTables = fromDatabase.getAllTables()
 		val toTables = toDatabase.getAllTables()
-		return fromTables.toList().filter { toTables.contains(it) }
+		return fromTables.toList().filter { !isSystemTable(it) && toTables.contains(it) }
 	}
 
 	private fun importRow(to: SupportSQLiteDatabase, row: Cursor, columnsJoined: String, tableName: String) {
-		val values = mutableListOf<String>()
+		val values = mutableListOf<String?>()
 
 		for (i in 0 until row.columnCount) {
-			values.add(row.getString(i))
+			values.add(row.getStringOrNull(i))
 		}
 
-		val valuesQuery = values.joinToString(separator = ",", transform = { "'$it'" })
-		to.execSQL("INSERT INTO $tableName ($columnsJoined) VALUES ($valuesQuery)")
+		val valuesString = values.joinToString(separator = ", ", transform = { "?" })
+		try {
+			to.execSQL("INSERT INTO $tableName ($columnsJoined) VALUES ($valuesString)", values.toTypedArray())
+		} catch (e: SQLiteConstraintException) {
+			Reporter.report(Exception("Foreign key issue on table $tableName with values ${values.joinToString()}", e))
+		}
 	}
 
 	private fun importTable(from: SupportSQLiteDatabase, to: SupportSQLiteDatabase, tableName: String) {
 		val matchingColumns = getMatchingColumns(from, to, tableName)
 
-		from.query("SELECT ${matchingColumns.joinToString(separator = ",")} FROM $tableName").use {
+		from.query("SELECT ${matchingColumns.joinToString(separator = ",",
+				transform = { it.columnName })} FROM $tableName").use {
 			val columnsJoined = it.columnNames.joinToString(separator = ",")
 			while (it.moveToNext()) {
 				importRow(to, it, columnsJoined, tableName)
@@ -127,12 +153,17 @@ class DatabaseImport : FileImport {
 		val vertexList = MutableList(size) { Vertex(it) }
 		val edgeList = map { pair ->
 			pair.first.columns
+					//get foreign keys and ignore nulls
 					.mapNotNull { column -> column.foreignKeyTable }
+					//find index of the table in our array
 					.map { table -> indexOfFirst { it.first == table } }
 		}
+				//get indexes
 				.withIndex()
+				//map dependencies to edges
 				.flatMap { indexedList ->
-					indexedList.value.map { Edge(Vertex(indexedList.index), Vertex(it)) }
+					//If A depends on B the edge leads from B to A, because B needs to come before A
+					indexedList.value.map { Edge(Vertex(it), Vertex(indexedList.index)) }
 				}
 
 		val topSorted = Graph(vertexList, edgeList).topSort()
@@ -141,7 +172,7 @@ class DatabaseImport : FileImport {
 	}
 
 	private fun importDatabase(from: SupportSQLiteDatabase, to: SupportSQLiteDatabase) {
-		getMatchingTables(from, to)
+		val sortedTables = getMatchingTables(from, to)
 				.map { tableName ->
 					val fromColumns = from.getColumns(tableName)
 					val toColumns = to.getColumns(tableName)
@@ -149,20 +180,21 @@ class DatabaseImport : FileImport {
 					ImportTable(tableName, false, fromColumns) to ImportTable(tableName, false, toColumns)
 				}
 				.sortByTopology()
-				.forEach { pair ->
-					val hasRequiredColumns =
-							pair.first.columns.all {
-								if (it.isNotNull) {
-									pair.second.columns.contains(it)
-								} else {
-									true
-								}
-							}
 
-					if (hasRequiredColumns) {
-						importTable(from, to, pair.first.tableName)
+		sortedTables.forEach { pair ->
+			val hasRequiredColumns =
+					pair.first.columns.all {
+						if (it.isNotNull) {
+							pair.second.columns.contains(it)
+						} else {
+							true
+						}
 					}
-				}
+
+			if (hasRequiredColumns) {
+				importTable(from, to, pair.first.tableName)
+			}
+		}
 	}
 }
 

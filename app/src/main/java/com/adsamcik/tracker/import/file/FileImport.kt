@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.import.file
 
+import android.content.Context
 import com.adsamcik.tracker.common.database.AppDatabase
 import java.io.File
 
@@ -13,5 +14,7 @@ interface FileImport {
 	 * @param file File to import
 	 */
 	//todo add some way to handle errors
-	fun import(database: AppDatabase, file: File)
+	fun import(context: Context,
+	           database: AppDatabase,
+	           file: File)
 }

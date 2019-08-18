@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.import.file
 
+import android.content.Context
 import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
@@ -22,7 +23,9 @@ import java.time.ZonedDateTime
 class GpxImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("gpx")
 
-	override fun import(database: AppDatabase, file: File) {
+	override fun import(context: Context,
+	                    database: AppDatabase,
+	                    file: File) {
 		val gpx = GPX.read(file.path)
 		gpx.tracks().forEach { track ->
 			val type: String? = if (track.type.isPresent) track.type.get() else null
