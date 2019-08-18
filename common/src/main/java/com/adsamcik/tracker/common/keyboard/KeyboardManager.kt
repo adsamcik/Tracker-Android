@@ -4,6 +4,7 @@ import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
 import com.adsamcik.tracker.common.Assist.getNavigationBarSize
+import com.adsamcik.tracker.common.Reporter
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.inputMethodManager
 
@@ -18,6 +19,7 @@ class KeyboardManager(private val rootView: View) {
 	private var wasOpen = false
 	private var keyboardHeight = 0
 	private var defaultDiff = 0
+	private var isEnabled = false
 
 	private val threshold = KEYBOARD_VISIBLE_THRESHOLD_DP.dp
 
@@ -41,7 +43,37 @@ class KeyboardManager(private val rootView: View) {
 
 	init {
 		calculateDefaultDiff()
-		rootView.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+	}
+
+	fun onEnable() {
+		isEnabled = true
+		if (listeners.isNotEmpty()) {
+			addLayoutListener()
+		}
+	}
+
+	fun onDisable() {
+		if (listeners.isNotEmpty()) {
+			removeLayoutListener()
+		}
+		isEnabled = false
+	}
+
+	private fun addLayoutListener() {
+		if (isEnabled) {
+			onDisplaySizeChanged()
+			rootView.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+		} else {
+			Reporter.report("Called when not enabled")
+		}
+	}
+
+	private fun removeLayoutListener() {
+		if (isEnabled) {
+			rootView.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+		} else {
+			Reporter.report("Called when not enabled")
+		}
 	}
 
 	private fun calculateHeightDiff(): Int {
@@ -66,6 +98,10 @@ class KeyboardManager(private val rootView: View) {
 	 * Adds keyboard listener to active listeners
 	 */
 	fun addKeyboardListener(listener: KeyboardListener) {
+		if (isEnabled && listeners.isEmpty()) {
+			addLayoutListener()
+		}
+
 		listeners.add(listener)
 		listener.invoke(wasOpen, keyboardHeight)
 	}
@@ -73,12 +109,25 @@ class KeyboardManager(private val rootView: View) {
 	/**
 	 * Removes keyboard listener from active listeners
 	 */
-	fun removeKeyboardListener(listener: KeyboardListener): Boolean = listeners.remove(listener)
+	fun removeKeyboardListener(listener: KeyboardListener): Boolean {
+		val removed = listeners.remove(listener)
+
+		if (removed && listeners.isEmpty()) {
+			removeLayoutListener()
+		}
+
+		return removed
+	}
 
 	/**
 	 * Removes all active listeners
 	 */
-	fun removeAllListeners(): Unit = listeners.clear()
+	fun removeAllListeners() {
+		if (listeners.isNotEmpty()) {
+			removeLayoutListener()
+			listeners.clear()
+		}
+	}
 
 	/**
 	 * Hides software keyboard

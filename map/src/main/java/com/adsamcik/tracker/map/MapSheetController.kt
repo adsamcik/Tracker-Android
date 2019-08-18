@@ -3,11 +3,9 @@ package com.adsamcik.tracker.map
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Geocoder
-import android.text.method.ScrollingMovementMethod
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.Scroller
 import android.widget.Space
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
@@ -57,6 +55,7 @@ import kotlin.math.roundToInt
 internal class MapSheetController(
 		context: Context,
 		private val map: GoogleMap,
+		mapOwner: MapOwner,
 		private val rootLayout: ViewGroup,
 		private val mapController: MapController,
 		private val locationListener: UpdateLocationListener,
@@ -80,6 +79,11 @@ internal class MapSheetController(
 	}
 
 	private val navbarSpace = rootLayout.findViewById<Space>(R.id.navbar_space)
+
+	init {
+		mapOwner.addOnEnableListener { onEnable() }
+		mapOwner.addOnDisableListener { onDisable() }
+	}
 
 	init {
 		val (position, navbarHeight) = Assist.getNavigationBarSize(context)
@@ -171,8 +175,6 @@ internal class MapSheetController(
 	}
 
 	private val keyboardManager = KeyboardManager(rootLayout).apply {
-		// searchOriginalMargin = (map_ui_parent.layoutParams as CoordinatorLayout.LayoutParams).bottomMargin
-		onDisplaySizeChanged()
 		addKeyboardListener(keyboardListener)
 	}
 
@@ -275,7 +277,7 @@ internal class MapSheetController(
 		}
 	}
 
-	private fun onItemClicked(@Suppress("UNUSED") position: Int, item: MapLayerLogic) {
+	private fun onItemClicked(@Suppress("Unused") position: Int, item: MapLayerLogic) {
 		mapController.setLayer(rootLayout.context, item)
 
 		if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
@@ -314,15 +316,16 @@ internal class MapSheetController(
 		}
 	}
 
-	fun onEnable() {
-
+	private fun onEnable() {
+		styleController.isSuspended = false
+		keyboardManager.onEnable()
 	}
 
 
-	fun onDisable() {
+	private fun onDisable() {
 		keyboardManager.run {
 			hideKeyboard()
-			removeKeyboardListener(keyboardListener)
+			onDisable()
 		}
 
 		styleController.isSuspended = true

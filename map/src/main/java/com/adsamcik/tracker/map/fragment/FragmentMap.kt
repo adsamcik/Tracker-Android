@@ -28,7 +28,6 @@ import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.UpdateLocationListener
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
-import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import kotlinx.android.synthetic.main.fragment_map.*
 
@@ -82,6 +81,16 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		mapOwner.onDisable()
 	}
 
+	override fun onPause() {
+		super.onPause()
+		mapOwner.onDisable()
+	}
+
+	override fun onResume() {
+		super.onResume()
+		mapOwner.onEnable()
+	}
+
 	override fun onEnter(activity: FragmentActivity) {
 		//This will prevent a crash, but can cause side effects, investigation needed
 		if (isStateSaved) return
@@ -93,8 +102,6 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		mapOwner.createMap(fragmentManager)
 
-		locationListener?.subscribeToLocationUpdates(activity)
-
 		mapOwner.onEnable()
 	}
 
@@ -104,6 +111,12 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		retainInstance = false
 
 		mapOwner.addOnCreateListener(this::onMapReady)
+		mapOwner.addOnEnableListener {
+			requireNotNull(locationListener).subscribeToLocationUpdates(requireContext())
+		}
+		mapOwner.addOnDisableListener {
+			requireNotNull(locationListener).unsubscribeFromLocationUpdates(requireContext())
+		}
 	}
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -144,7 +157,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		mapSheetController = null
 	}
 
-	fun onMapReady(map: GoogleMap) {
+	private fun onMapReady(map: GoogleMap) {
 		val context = context ?: return
 
 		val mapEventListener = MapEventListener(map)
@@ -156,7 +169,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		this.mapController = mapController
 		this.locationListener = locationListener
 
-		mapSheetController = MapSheetController(context, map, map_ui_parent, mapController, locationListener,
+		mapSheetController = MapSheetController(context, map, mapOwner, map_ui_parent, mapController, locationListener,
 				mapEventListener)
 
 		ColorMap.addListener(context, map)

@@ -53,7 +53,7 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 		map.setMaxZoomPreference(MAX_ZOOM)
 	}
 
-	fun onEnable() {
+	private fun onEnable() {
 		ColorMap.addListener(context, map)
 
 		val pref = Preferences.getPref(context)
@@ -66,7 +66,7 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 		activeLayer.quality = quality
 	}
 
-	fun onDisable() {
+	private fun onDisable() {
 		ColorMap.removeListener(map)
 	}
 
