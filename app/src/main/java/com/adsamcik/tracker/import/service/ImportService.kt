@@ -67,7 +67,7 @@ class ImportService : CoreService() {
 		try {
 			val notification = createNotification(text, inProgress)
 			notificationManager.notify(NOTIFICATION_ID, notification)
-		} catch (e: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			Reporter.report(e)
 		}
 	}
@@ -122,7 +122,7 @@ class ImportService : CoreService() {
 		return try {
 			import.import(database, file)
 			1
-		} catch (e: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			Reporter.report(e)
 			0
 		}
@@ -141,8 +141,8 @@ class ImportService : CoreService() {
 	}
 
 	companion object {
-		const val NOTIFICATION_ID = 98784
-		const val ARG_FILE_PATH = "filePath"
+		const val NOTIFICATION_ID: Int = 98784
+		const val ARG_FILE_PATH: String = "filePath"
 	}
 }
 
