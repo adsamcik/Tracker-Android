@@ -1,6 +1,9 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.adsamcik.tracker.common.graph
 
 import com.adsamcik.tracker.common.exception.CircularDependencyException
+
 
 /**
  * Topological search using Kahn's algorithm
@@ -45,7 +48,7 @@ fun Graph.topSort(): List<Vertex> {
 		}
 	}
 
-	if(vertexList.isNotEmpty()){
+	if (vertexList.isNotEmpty()) {
 		throw CircularDependencyException("Graph has circular dependency.\n" +
 				"Vertexes ${this.vertexList.joinToString()}\n" +
 				"Edges ${this.edgeList.joinToString()}")
