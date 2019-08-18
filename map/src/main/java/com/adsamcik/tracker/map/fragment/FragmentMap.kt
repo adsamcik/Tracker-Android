@@ -93,8 +93,6 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		mapOwner.createMap(fragmentManager)
 
-		mapController?.onEnable(activity)
-
 		locationListener?.subscribeToLocationUpdates(activity)
 
 		mapOwner.onEnable()
@@ -152,7 +150,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		val mapEventListener = MapEventListener(map)
 		this.mapEventListener = mapEventListener
 
-		val mapController = MapController(map)
+		val mapController = MapController(context, map, mapOwner)
 		val locationListener = UpdateLocationListener(context, map, mapEventListener)
 
 		this.mapController = mapController
