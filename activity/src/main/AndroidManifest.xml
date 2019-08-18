@@ -11,8 +11,5 @@
         <service
             android:name="com.adsamcik.tracker.activity.service.ActivityService"
             android:exported="false" />
-        <service
-            android:name="com.adsamcik.tracker.tracker.service.ActivityWatcherService"
-            android:exported="false" />
     </application>
 </manifest>

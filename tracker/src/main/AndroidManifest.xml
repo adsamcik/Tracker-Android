@@ -31,6 +31,10 @@
             android:foregroundServiceType="location"
             tools:targetApi="q" />
 
+        <service
+            android:name="com.adsamcik.tracker.tracker.service.ActivityWatcherService"
+            android:exported="false" />
+
         <activity
             android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"
             android:screenOrientation="portrait" />
