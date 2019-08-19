@@ -21,7 +21,7 @@ object Dependencies {
 		internal const val requery = "3.29.0"
 
 		internal const val maps = "17.0.0"
-		internal const val firebaseCore = "17.0.1"
+		internal const val firebaseCore = "17.1.0"
 		internal const val recyclerView = "1.1.0-beta03"
 		internal const val paging = "2.1.0"
 
