@@ -7,6 +7,7 @@ import com.adsamcik.tracker.common.style.ColorGenerator
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.max
+import kotlin.math.pow
 
 @Suppress("MagicNumber")
 internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
@@ -31,16 +32,20 @@ internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 				HeatmapColorScheme.fromArray(colorMap, 0),
 				(cellTypeCount - 1).toFloat(),
 				false,
-				{ original, _, weight ->
-					max(original, weight)
+				{ original, alphaValue, stampValue, weight ->
+					if (alphaValue > stampValue) {
+						max(original, weight)
+					} else {
+						original
+					}
 				}) { original, stampValue, _ ->
 			val newAlpha = (stampValue * UByte.MAX_VALUE.toFloat()).toInt()
-			max(original.toInt(), newAlpha).toUByte()
+			max(original, newAlpha).toUByte()
 		}
 	}
 
-	override fun generateStamp(heatmapSize: Int): HeatmapStamp {
+	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
 		val radius = heatmapSize / 12 + 1
-		return HeatmapStamp.generateNonlinear(radius) { (1f - 1f / (1f + it)) * 2f }
+		return HeatmapStamp.generateNonlinear(radius) { it.pow(10) }
 	}
 }

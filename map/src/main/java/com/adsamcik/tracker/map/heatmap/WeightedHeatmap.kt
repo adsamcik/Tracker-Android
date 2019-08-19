@@ -31,10 +31,10 @@ import kotlin.math.roundToInt
  * https://github.com/lucasb-eyer/heatmap/
  */
 
-typealias AlphaMergeFunction = (current: UByte, stampValue: Float, weight: Float) -> UByte
+typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) -> UByte
 
 //todo add current alpha
-typealias WeightMergeFunction = (current: Float, stampValue: Float, value: Float) -> Float
+typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
 
 internal class WeightedHeatmap(val width: Int,
                                val height: Int = width,
@@ -45,13 +45,13 @@ internal class WeightedHeatmap(val width: Int,
 
 	private var pointCount = 0
 
-	private fun mergeWeightDefault(current: Float, stampValue: Float, value: Float): Float {
+	private fun mergeWeightDefault(current: Float, currentAlpha: Int, stampValue: Float, value: Float): Float {
 		return current + stampValue * value
 	}
 
 	@Suppress("Unused")
-	private fun mergeAlphaDefault(value: UByte, stampValue: Float, weight: Float): UByte {
-		return max(value.toInt(), (stampValue * UByte.MAX_VALUE.toFloat()).toInt()).toUByte()
+	private fun mergeAlphaDefault(value: Int, stampValue: Float, weight: Float): UByte {
+		return max(value, (stampValue * UByte.MAX_VALUE.toFloat()).toInt()).toUByte()
 	}
 
 	@Suppress("ComplexMethod", "LongParameterList")
@@ -87,11 +87,12 @@ internal class WeightedHeatmap(val width: Int,
 
 			for (itX in x0 until x1) {
 				val stampValue = stamp.stampData[stampIndex]
+				val alphaValue = alphaArray[heatIndex].toInt()
 
-				val newWeightValue = weightMergeFunction(weightArray[heatIndex], stampValue, weight)
+				val newWeightValue = weightMergeFunction(weightArray[heatIndex], alphaValue, stampValue, weight)
 				weightArray[heatIndex] = newWeightValue
 
-				val newAlphaValue = alphaMergeFunction(alphaArray[heatIndex], stampValue, newWeightValue)
+				val newAlphaValue = alphaMergeFunction(alphaValue, stampValue, newWeightValue)
 				alphaArray[heatIndex] = newAlphaValue
 
 				if (dynamicHeat && newWeightValue > maxHeat) {

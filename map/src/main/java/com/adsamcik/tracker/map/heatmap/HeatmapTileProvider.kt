@@ -1,14 +1,14 @@
 package com.adsamcik.tracker.map.heatmap
 
-import android.graphics.Color
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.extension.LocationExtensions
 import com.adsamcik.tracker.common.misc.ConditionVariableInt
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.commonmap.CoordinateBounds
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapFunctions
-import com.adsamcik.tracker.map.heatmap.creators.HeatmapData
+import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
+import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,7 +22,8 @@ import kotlin.math.roundToInt
 
 //todo refactor
 internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
-                                   private var initMaxHeat: Float
+                                   private var initMaxHeat: Float,
+                                   quality: Float
 ) : TileProvider {
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
@@ -37,13 +38,15 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 
 	private var lastZoom = Int.MIN_VALUE
 
-	var quality: Float = 0f
+	var quality: Float = Float.MIN_VALUE
 		private set
 
 	private var heatmapSize: Int = 0
-	private lateinit var stamp: HeatmapStamp
 
 	private var maxHeat: Float = initMaxHeat
+
+	private var config: HeatmapConfig? = null
+	private var stamp: HeatmapStamp? = null
 
 	var range: LongRange = LongRange.EMPTY
 		set(value) {
@@ -52,11 +55,8 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 			resetMaxHeat()
 		}
 
-	private val colorScheme = HeatmapColorScheme.fromArray(
-			listOf(Pair(0.1, Color.TRANSPARENT), Pair(0.3, Color.BLUE), Pair(0.7, Color.YELLOW), Pair(1.0, Color.RED)),
-			100)
-
 	init {
+		updateQuality(quality)
 		resetMaxHeat()
 	}
 
@@ -65,8 +65,13 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 
 		this.quality = quality
 		heatmapSize = (quality * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
-		val stampRadius = HeatmapStamp.calculateOptimalRadius(heatmapSize)
-		stamp = HeatmapStamp.generateNonlinear(stampRadius) { it.pow(2f) }
+
+		config = tileCreator.createHeatmapConfig(heatmapSize, maxHeat)
+
+		if (lastZoom > 0) {
+			reinitializeHeatmapData(lastZoom)
+		}
+
 		heatmapCache.clear()
 	}
 
@@ -88,13 +93,23 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 		}
 	}
 
-	private fun clearHeatmapIfZoomChanged(zoom: Int) {
+	private fun reinitializeHeatmapData(zoom: Int) {
+		val pixelSize = LocationExtensions.EARTH_CIRCUMFERENCE.toDouble() /
+				MapFunctions.getTileCount(zoom).toDouble() /
+				heatmapSize.toDouble()
+
+		stamp = tileCreator.generateStamp(heatmapSize, zoom, pixelSize.toFloat())
+	}
+
+	private fun onZoomChanged(zoom: Int) {
 		heatLock.withLock {
 			if (lastZoom != zoom) {
 				heatmapCache.clear()
-				lastZoom = zoom
 
+				reinitializeHeatmapData(zoom)
 				resetMaxHeat()
+
+				lastZoom = zoom
 			}
 		}
 	}
@@ -125,45 +140,48 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 		// Ensure that everything is up to date. It's fine to lock every time,
 		// since it is called only handful of times at once.
 
-		clearHeatmapIfZoomChanged(zoom)
+		try {
+			if (lastZoom != zoom) {
+				onZoomChanged(zoom)
+			}
 
-		val leftX = MapFunctions.toLon(x.toDouble(), zoom)
-		val topY = MapFunctions.toLat(y.toDouble(), zoom)
+			val leftX = MapFunctions.toLon(x.toDouble(), zoom)
+			val topY = MapFunctions.toLat(y.toDouble(), zoom)
 
-		val rightX = MapFunctions.toLon((x + 1).toDouble(), zoom)
-		val bottomY = MapFunctions.toLat((y + 1).toDouble(), zoom)
+			val rightX = MapFunctions.toLon((x + 1).toDouble(), zoom)
+			val bottomY = MapFunctions.toLat((y + 1).toDouble(), zoom)
 
-		val area = CoordinateBounds(topY, rightX, bottomY, leftX)
+			val area = CoordinateBounds(topY, rightX, bottomY, leftX)
 
-		val key = Int2(x, y)
-		val heatmap: HeatmapTile
-		if (heatmapCache.containsKey(key)) {
-			heatmap = requireNotNull(heatmapCache[key])
-		} else {
-			val range = range
-			try {
-				val config = tileCreator.createHeatmapConfig(heatmapSize, maxHeat)
-				val stamp = tileCreator.generateStamp(heatmapSize)
-				val data = HeatmapData(config, stamp, heatmapSize, x, y, zoom, area)
+			val key = Int2(x, y)
+			val heatmap: HeatmapTile
+			if (heatmapCache.containsKey(key)) {
+				heatmap = requireNotNull(heatmapCache[key])
+			} else {
+				val range = range
+				val config = requireNotNull(config)
+				val stamp = requireNotNull(stamp)
+				val tileData = HeatmapTileData(config, stamp, heatmapSize, x, y, zoom, area)
 
 				heatmap = if (range == LongRange.EMPTY) {
-					tileCreator.getHeatmap(data)
+					tileCreator.getHeatmap(tileData)
 				} else {
-					tileCreator.getHeatmap(data, range.first, range.last)
+					tileCreator.getHeatmap(tileData, range.first, range.last)
 				}
-			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-				Reporter.report(e)
-				return Tile(0, 0, byteArrayOf())
+				heatmapCache[key] = heatmap
 			}
-			heatmapCache[key] = heatmap
+
+			updateHeat(heatmap, zoom)
+
+			val tile = Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
+			tileRequestCount.decrementAndGet()
+
+			return tile
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+			e.printStackTrace()
+			//Reporter.report(e)
+			return Tile(0, 0, byteArrayOf())
 		}
-
-		updateHeat(heatmap, zoom)
-
-		val tile = Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
-		tileRequestCount.decrementAndGet()
-
-		return tile
 	}
 
 	companion object {

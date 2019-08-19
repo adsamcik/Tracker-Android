@@ -26,8 +26,7 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 			this.activeLayer.onDisable(map)
 
 			this.activeLayer = logic.also {
-				it.onEnable(context, map)
-				it.quality = quality
+				it.onEnable(context, map, quality)
 			}
 		}
 	}

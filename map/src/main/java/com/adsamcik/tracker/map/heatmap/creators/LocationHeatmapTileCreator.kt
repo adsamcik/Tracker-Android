@@ -5,8 +5,10 @@ import android.graphics.Color
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import kotlin.math.ceil
 import kotlin.math.pow
 
 @Suppress("MagicNumber")
@@ -22,17 +24,19 @@ internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator
 						100),
 				maxHeat,
 				false,
-				{ current, stampValue, weight ->
+				{ current, _, stampValue, weight ->
 					current + stampValue * weight
 				}) { current, stampValue, weight ->
 			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
 		}
 	}
 
-	override fun generateStamp(heatmapSize: Int): HeatmapStamp {
-		val radius = heatmapSize / 16 + 1
-		return HeatmapStamp.generateNonlinear(radius) { it.pow(2f) }
+	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
+		val baseMeterSize = BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow(MapController.MAX_ZOOM - zoom)
+		return HeatmapStamp.generateNonlinear(ceil(baseMeterSize / pixelInMeters).toInt()) { it.pow(2f) }
 	}
+
+	//todo update heat on per zoom basis
 
 	private val dao = AppDatabase.getDatabase(context).locationDao()
 
@@ -51,5 +55,10 @@ internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator
 	override val getAllInsideAndBetween = dao::getAllInsideAndBetween
 
 	override val getAllInside = dao::getAllInside
+
+	companion object {
+		private const val BASE_HEAT_SIZE_IN_METERS = 20f
+		private const val HEATMAP_ZOOM_SCALE = 1.4f
+	}
 }
 

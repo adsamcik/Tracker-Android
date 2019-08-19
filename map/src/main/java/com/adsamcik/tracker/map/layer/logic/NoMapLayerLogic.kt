@@ -25,6 +25,8 @@ internal class NoMapLayerLogic : MapLayerLogic {
 		get() = LongRange.EMPTY
 
 	override fun update(context: Context) {}
-	override fun onEnable(context: Context, map: GoogleMap) {}
+	override fun onEnable(context: Context,
+	                      map: GoogleMap,
+	                      quality: Float) {}
 	override fun onDisable(map: GoogleMap) {}
 }

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.map
 
 import android.renderscript.Double2
+import com.adsamcik.tracker.common.extension.LocationExtensions
+import com.adsamcik.tracker.common.extension.deg2rad
 import kotlin.math.PI
 import kotlin.math.atan
 import kotlin.math.cos
@@ -30,6 +32,10 @@ internal object MapFunctions {
 	fun toTileY(lat: Double, tileCount: Int): Double {
 		val latRadians = PI / 180 * lat
 		return tileCount.toDouble() * (1.0 - ln(tan(latRadians) + 1 / cos(latRadians)) / PI) / 2
+	}
+
+	fun countPixelSize(latitude: Double, zoom: Int): Double {
+		return LocationExtensions.EARTH_CIRCUMFERENCE * cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
 	}
 
 	fun getTileSize(zoom: Int): Double2 {

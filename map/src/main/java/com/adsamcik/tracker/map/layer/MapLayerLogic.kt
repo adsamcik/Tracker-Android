@@ -10,7 +10,7 @@ internal interface MapLayerLogic {
 	var quality: Float
 	val availableRange: LongRange
 
-	fun onEnable(context: Context, map: GoogleMap)
+	fun onEnable(context: Context, map: GoogleMap, quality: Float)
 
 	fun onDisable(map: GoogleMap)
 

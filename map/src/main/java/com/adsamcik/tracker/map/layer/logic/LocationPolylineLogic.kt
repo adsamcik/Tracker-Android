@@ -59,7 +59,9 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	private var sessionDao: SessionDataDao? = null
 	private var activePolylines: MutableList<Polyline> = mutableListOf()
 
-	override fun onEnable(context: Context, map: GoogleMap) {
+	override fun onEnable(context: Context,
+	                      map: GoogleMap,
+	                      quality: Float) {
 		this.map = map
 		AppDatabase.getDatabase(context).let { db ->
 			this.locationDao = db.locationDao()

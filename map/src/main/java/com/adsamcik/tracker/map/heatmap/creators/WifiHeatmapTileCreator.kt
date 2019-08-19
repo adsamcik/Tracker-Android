@@ -5,7 +5,9 @@ import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.style.ColorConstants
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import kotlin.math.pow
+import kotlin.math.ceil
+import kotlin.math.log10
+import kotlin.math.max
 
 @Suppress("MagicNumber")
 internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
@@ -18,16 +20,18 @@ internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 						Pair(1.0, ColorConstants.RED)), 100),
 				20f,
 				false,
-				{ current, stampValue, weight ->
+				{ current, _, stampValue, weight ->
 					current + stampValue * weight
 				}) { current, stampValue, weight ->
 			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
 		}
 	}
 
-	override fun generateStamp(heatmapSize: Int): HeatmapStamp {
-		val radius = heatmapSize / 16 + 1
-		return HeatmapStamp.generateNonlinear(radius) { it.pow(2f) }
+	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
+		return HeatmapStamp.generateNonlinear(ceil(APPROXIMATE_DISTANCE_IN_METERS / pixelInMeters).toInt()) {
+			// very very simplified formula for signal loss
+			(10 * LOSS_EXPONENT * log10(max(it * APPROXIMATE_DISTANCE_IN_METERS, 1f))) / 58.6273f
+		}
 	}
 
 	private val dao = AppDatabase.getDatabase(context).wifiDao()
@@ -42,4 +46,13 @@ internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 
 	override val getAllInsideAndBetween get() = dao::getAllInsideAndBetween
 	override val getAllInside get() = dao::getAllInside
+
+	companion object {
+		// , path loss can be represented by the path loss exponent, whose value is normally in the range of 2 to 4
+		// (where 2 is for propagation in free space, 4 is for relatively lossy environments and for the case of
+		// full specular reflection from the earth surface—the so-called flat earth model).
+		private const val LOSS_EXPONENT = 3f
+
+		private const val APPROXIMATE_DISTANCE_IN_METERS = 90f
+	}
 }

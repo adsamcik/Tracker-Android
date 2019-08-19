@@ -61,20 +61,6 @@ object LocationExtensions {
 
 		return estimate
 	}
-
-	fun toGoogleLon(lon: Double, tileCount: Int): Double {
-		return tileCount * ((lon + 180.0) / 360.0)
-	}
-
-	fun toGoogleLat(lat: Double, tileCount: Int): Double {
-		val latRad = lat.deg2rad()
-		return tileCount * (1.0 - kotlin.math.ln(
-				kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0
-	}
-
-	fun countPixelSize(latitude: Double, zoom: Int): Double {
-		return EARTH_CIRCUMFERENCE * kotlin.math.cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
-	}
 }
 
 

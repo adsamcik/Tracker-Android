@@ -32,24 +32,24 @@ internal interface HeatmapTileCreator {
 
 	fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig
 
-	fun generateStamp(heatmapSize: Int): HeatmapStamp
+	fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp
 
 	fun scaleStampSize(baseSize: Float, quality: Float): Float = baseSize * quality
 
-	fun getHeatmap(data: HeatmapData, from: Long, to: Long): HeatmapTile {
+	fun getHeatmap(data: HeatmapTileData, from: Long, to: Long): HeatmapTile {
 		return createHeatmap(data) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
 			getAllInsideAndBetween(from, to, topLatitude, rightLongitude, bottomLatitude, leftLongitude)
 		}
 	}
 
-	fun getHeatmap(data: HeatmapData): HeatmapTile {
+	fun getHeatmap(data: HeatmapTileData): HeatmapTile {
 		return createHeatmap(data) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
 			getAllInside(topLatitude, rightLongitude, bottomLatitude, leftLongitude)
 		}
 	}
 
-	private inline fun createHeatmap(data: HeatmapData,
-	                          getLocations: Inside
+	private inline fun createHeatmap(data: HeatmapTileData,
+	                                 getLocations: Inside
 	): HeatmapTile {
 		assert(data.heatmapSize.isPowerOfTwo())
 		assert(data.area.left < data.area.right)
@@ -90,7 +90,7 @@ internal data class HeatmapConfig(
 		val alphaMergeFunction: AlphaMergeFunction
 )
 
-internal data class HeatmapData(
+internal data class HeatmapTileData(
 		val config: HeatmapConfig,
 		val stamp: HeatmapStamp,
 		val heatmapSize: Int,

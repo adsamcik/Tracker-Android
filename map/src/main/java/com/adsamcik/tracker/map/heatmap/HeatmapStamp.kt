@@ -4,7 +4,6 @@ import kotlin.math.sqrt
 
 internal data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
 	companion object {
-
 		fun generateNonlinear(radius: Int, distFunction: (Float) -> Float): HeatmapStamp {
 			assert(radius > 0)
 

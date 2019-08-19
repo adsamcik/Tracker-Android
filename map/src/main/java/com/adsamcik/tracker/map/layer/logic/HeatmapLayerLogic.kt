@@ -48,7 +48,9 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 	@WorkerThread
 	protected abstract fun getTileCreator(context: Context): HeatmapTileCreator
 
-	override fun onEnable(context: Context, map: GoogleMap) {
+	override fun onEnable(context: Context,
+	                      map: GoogleMap,
+	                      quality: Float) {
 		val tileCreator = getTileCreator(context)
 
 		launch {
@@ -58,7 +60,7 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 		val maxHeat = Preferences.getPref(context).getIntResString(
 				R.string.settings_map_max_heat_key,
 				R.string.settings_map_max_heat_default).toFloat()
-		val tileProvider = HeatmapTileProvider(tileCreator, maxHeat)
+		val tileProvider = HeatmapTileProvider(tileCreator, maxHeat, quality)
 		provider = tileProvider
 
 		val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
