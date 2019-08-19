@@ -17,9 +17,11 @@ internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 						Pair(0.8, ColorConstants.ORANGE),
 						Pair(1.0, ColorConstants.RED)), 100),
 				20f,
-				false)
-		{ current, input, weight ->
-			current + input * weight
+				false,
+				{ current, stampValue, weight ->
+					current + stampValue * weight
+				}) { current, stampValue, weight ->
+			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
 		}
 	}
 

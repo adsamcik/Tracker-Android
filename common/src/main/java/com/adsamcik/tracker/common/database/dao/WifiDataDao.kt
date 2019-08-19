@@ -12,10 +12,17 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	@Query("DELETE FROM tracker_session")
 	fun deleteAll()
 
-	@Query("UPDATE wifi_data SET longitude = :longitude, latitude = :latitude, altitude = :altitude, level = :level WHERE bssid = :bssid AND level < :level")
+	@Query("""
+		UPDATE wifi_data
+		SET longitude = :longitude, latitude = :latitude, altitude = :altitude, level = :level
+		WHERE bssid = :bssid AND level < :level""")
 	fun updateSignalStrength(bssid: String, longitude: Double, latitude: Double, altitude: Double?, level: Int)
 
-	@Query("UPDATE wifi_data SET last_seen = :lastSeen, ssid = :ssid, capabilities = :capabilities, frequency = :frequency WHERE bssid = :bssid")
+	@Query("""
+		UPDATE wifi_data
+		SET last_seen = :lastSeen, ssid = :ssid, capabilities = :capabilities, frequency = :frequency
+		WHERE bssid = :bssid
+		""")
 	fun updateData(bssid: String, ssid: String, capabilities: String, frequency: Int, lastSeen: Long)
 
 	@Transaction
@@ -35,8 +42,9 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	fun getAll(): List<DatabaseWifiData>
 
 	@Query("""
-		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data 
-		WHERE latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude
+		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
+		WHERE latitude >= :bottomLatitude and latitude <= :topLatitude
+			and longitude >= :leftLongitude  and longitude <= :rightLongitude
 		GROUP BY lat, lon
 		""")
 	fun getAllInside(topLatitude: Double,
@@ -44,9 +52,12 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	                 bottomLatitude: Double,
 	                 leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
+	@Suppress("LongParameterList")
 	@Query("""
-		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data 
-		WHERE last_seen >= :from and last_seen <= :to and latitude >= :bottomLatitude and longitude >= :leftLongitude and latitude <= :topLatitude and longitude <= :rightLongitude
+		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
+		WHERE last_seen >= :from and last_seen <= :to
+			and latitude >= :bottomLatitude and longitude >= :leftLongitude
+			and latitude <= :topLatitude and longitude <= :rightLongitude
 		GROUP BY lat, lon
 	""")
 	fun getAllInsideAndBetween(from: Long,

@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Color
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
@@ -22,9 +21,11 @@ internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator
 								Pair(1.0, Color.RED)),
 						100),
 				maxHeat,
-				false)
-		{ current, input, weight ->
-			current + input * weight
+				false,
+				{ current, stampValue, weight ->
+					current + stampValue * weight
+				}) { current, stampValue, weight ->
+			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
 		}
 	}
 

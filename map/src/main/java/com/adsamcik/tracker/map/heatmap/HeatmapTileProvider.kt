@@ -73,7 +73,7 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 	fun synchronizeMaxHeat() {
 		heatLock.withLock {
 			heatmapCache.forEach {
-				it.value.heatmap.maxHeat = maxHeat
+				it.value.maxHeat = maxHeat
 			}
 			heatChange = 0f
 		}
@@ -99,7 +99,7 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 		}
 	}
 
-	private fun updateHeat(heatmap: Heatmap, zoom: Int) {
+	private fun updateHeat(heatmap: HeatmapTile, zoom: Int) {
 		heatLock.withLock {
 			if (maxHeat < heatmap.maxHeat && zoom == lastZoom) {
 				// round to next whole number to avoid frequent calls
@@ -158,7 +158,7 @@ internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
 			heatmapCache[key] = heatmap
 		}
 
-		updateHeat(heatmap.heatmap, zoom)
+		updateHeat(heatmap, zoom)
 
 		val tile = Tile(heatmapSize, heatmapSize, heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
 		tileRequestCount.decrementAndGet()

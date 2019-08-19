@@ -3,9 +3,11 @@ package com.adsamcik.tracker.map.heatmap.creators
 import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.tracker.common.extension.isPowerOfTwo
 import com.adsamcik.tracker.commonmap.CoordinateBounds
+import com.adsamcik.tracker.map.heatmap.AlphaMergeFunction
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
+import com.adsamcik.tracker.map.heatmap.WeightMergeFunction
 
 typealias InsideAndBetween = (from: Long,
                               to: Long,
@@ -84,7 +86,8 @@ internal data class HeatmapConfig(
 		val colorScheme: HeatmapColorScheme,
 		val maxHeat: Float,
 		val dynamicHeat: Boolean = false,
-		val mergeFunction: (current: Float, input: Float, weight: Float) -> Float
+		val weightMergeFunction: WeightMergeFunction,
+		val alphaMergeFunction: AlphaMergeFunction
 )
 
 internal data class HeatmapData(

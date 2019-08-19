@@ -8,14 +8,19 @@ import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapData
 import kotlin.math.roundToInt
 
+@ExperimentalUnsignedTypes
 internal class HeatmapTile(
 		val data: HeatmapData
 ) {
-	val heatmap: Heatmap = Heatmap(data.heatmapSize, data.heatmapSize, data.config.maxHeat, data.config.dynamicHeat)
+	private val heatmap = WeightedHeatmap(data.heatmapSize, data.heatmapSize, data.config.maxHeat, data.config.dynamicHeat)
 
 	private val tileCount: Int = MapFunctions.getTileCount(data.zoom)
 
-	val maxHeat: Float get() = heatmap.maxHeat
+	var maxHeat: Float
+		get() = heatmap.maxHeat
+	set(value) {
+		heatmap.maxHeat = value
+	}
 
 	fun addAll(list: List<Database2DLocationWeightedMinimal>) {
 		list.forEach { add(it) }
@@ -26,8 +31,8 @@ internal class HeatmapTile(
 		val ty = MapFunctions.toTileY(location.latitude, tileCount)
 		val x = ((tx - data.x) * data.heatmapSize).roundToInt()
 		val y = ((ty - data.y) * data.heatmapSize).roundToInt()
-		heatmap.addWeightedPointWithStamp(x, y, data.stamp, location.normalizedWeight.toFloat(),
-				data.config.mergeFunction)
+		heatmap.addPoint(x, y, data.stamp, location.normalizedWeight.toFloat(),
+				data.config.weightMergeFunction)
 	}
 
 
