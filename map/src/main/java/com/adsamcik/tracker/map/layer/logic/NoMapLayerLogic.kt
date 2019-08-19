@@ -2,8 +2,9 @@ package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.layer.MapLayerData
-import com.adsamcik.tracker.map.layer.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLayerData
+import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLegend
 import com.google.android.gms.maps.GoogleMap
 import kotlin.reflect.KClass
 
@@ -16,7 +17,8 @@ internal class NoMapLayerLogic : MapLayerLogic {
 
 	@Suppress("unchecked_cast")
 	override val data: MapLayerData
-		get() = MapLayerData(this::class as KClass<MapLayerLogic>, R.string.map_layer_none)
+		get() = MapLayerData(this::class.java as Class<MapLayerLogic>,
+				legend = MapLegend(R.string.map_layer_none))
 
 	override val supportsAutoUpdate: Boolean
 		get() = false

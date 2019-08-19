@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
+import com.adsamcik.tracker.commonmap.MapLayerData
+import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLegend
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.tracker.map.heatmap.creators.WifiHeatmapTileCreator
-import com.adsamcik.tracker.map.layer.MapLayerData
-import com.adsamcik.tracker.map.layer.MapLayerLogic
-import kotlin.reflect.KClass
 
 internal class WifiHeatmapLogic : HeatmapLayerLogic() {
 	override fun getTileCreator(context: Context): HeatmapTileCreator {
@@ -14,7 +14,8 @@ internal class WifiHeatmapLogic : HeatmapLayerLogic() {
 	}
 
 	@Suppress("Unchecked_cast")
-	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
-			R.string.map_layer_wifi_heatmap)
+	override val data: MapLayerData = MapLayerData(
+			this::class.java as Class<MapLayerLogic>,
+			legend = MapLegend(R.string.map_layer_wifi_heatmap))
 }
 

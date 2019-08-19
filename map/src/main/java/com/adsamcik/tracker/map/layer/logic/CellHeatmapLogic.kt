@@ -4,8 +4,9 @@ import android.content.Context
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.creators.CellHeatmapTileCreator
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
-import com.adsamcik.tracker.map.layer.MapLayerData
-import com.adsamcik.tracker.map.layer.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLayerData
+import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLegend
 import kotlin.reflect.KClass
 
 internal class CellHeatmapLogic : HeatmapLayerLogic() {
@@ -14,7 +15,8 @@ internal class CellHeatmapLogic : HeatmapLayerLogic() {
 	}
 
 	@Suppress("Unchecked_cast")
-	override val data: MapLayerData = MapLayerData(this::class as KClass<MapLayerLogic>,
-			R.string.map_layer_cell_heatmap)
+	override val data: MapLayerData = MapLayerData(
+			this::class.java as Class<MapLayerLogic>,
+			legend = MapLegend(R.string.map_layer_cell_heatmap))
 }
 

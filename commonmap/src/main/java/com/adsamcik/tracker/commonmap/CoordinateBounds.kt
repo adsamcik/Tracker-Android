@@ -1,15 +1,18 @@
 package com.adsamcik.tracker.commonmap
 
+import android.os.Parcelable
 import com.adsamcik.tracker.common.data.Location
+import kotlinx.android.parcel.Parcelize
 
 /**
  * CoordinateBounds class allows passing of boundary information in GPS coordinates
  */
+@Parcelize
 data class CoordinateBounds(private var topBound: Double = MIN_LATITUDE,
                             private var rightBound: Double = MIN_LONGITUDE,
                             private var bottomBound: Double = MAX_LATITUDE,
                             private var leftBound: Double = MAX_LONGITUDE
-) {
+): Parcelable {
 
 	val top: Double get() = this.topBound
 	val right: Double get() = this.rightBound

@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.commonmap.ColorMap
-import com.adsamcik.tracker.map.layer.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.google.android.gms.maps.GoogleMap
 

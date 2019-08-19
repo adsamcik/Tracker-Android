@@ -6,8 +6,9 @@ import com.adsamcik.tracker.common.database.dao.LocationDataDao
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
 import com.adsamcik.tracker.common.style.ColorGenerator
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.layer.MapLayerData
-import com.adsamcik.tracker.map.layer.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLayerData
+import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLegend
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Polyline
@@ -27,7 +28,9 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 
 	@Suppress("UNCHECKED_CAST")
 	override val data: MapLayerData
-		get() = MapLayerData(this::class as KClass<MapLayerLogic>, R.string.map_layer_location_polyline)
+		get() = MapLayerData(
+				this::class.java as Class<MapLayerLogic>,
+				legend = MapLegend(R.string.map_layer_location_polyline))
 	override val supportsAutoUpdate: Boolean
 		get() = false
 

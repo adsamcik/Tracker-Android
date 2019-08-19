@@ -32,7 +32,7 @@ import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.commonmap.CoordinateBounds
 import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
-import com.adsamcik.tracker.map.layer.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
@@ -269,7 +269,7 @@ internal class MapSheetController(
 			layoutManager = GridLayoutManager(context, 2, GridLayoutManager.HORIZONTAL, false)
 			addItemDecoration(SimpleMarginDecoration(0, 4.dp, 0, 0))
 			adapter = MapFilterableAdapter(context, R.layout.layout_layer_icon) {
-				context.getString(it.data.nameRes)
+				context.getString(it.data.legend.nameRes)
 			}.apply {
 				addAll(mapLayerList)
 				onItemClickListener = this@MapSheetController::onItemClicked

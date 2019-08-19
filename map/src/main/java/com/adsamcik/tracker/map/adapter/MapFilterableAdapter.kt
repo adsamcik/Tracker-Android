@@ -8,7 +8,7 @@ import com.adsamcik.tracker.common.adapter.BaseFilterableAdapter
 import com.adsamcik.tracker.common.adapter.SimpleFilterableAdapter
 import com.adsamcik.tracker.commonmap.CoordinateBounds
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.layer.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLayerLogic
 
 /**
  * Implementation of the [BaseFilterableAdapter] using a MapLayer and CoordinateBounds

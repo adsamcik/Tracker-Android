@@ -1,9 +1,9 @@
-package com.adsamcik.tracker.map.layer
+package com.adsamcik.tracker.commonmap
 
 import android.content.Context
 import com.google.android.gms.maps.GoogleMap
 
-internal interface MapLayerLogic {
+interface MapLayerLogic {
 	val data: MapLayerData
 	val supportsAutoUpdate: Boolean
 	var dateRange: LongRange

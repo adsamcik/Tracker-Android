@@ -6,7 +6,7 @@ import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.HeatmapTileProvider
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
-import com.adsamcik.tracker.map.layer.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.TileOverlay
 import com.google.android.gms.maps.model.TileOverlayOptions
