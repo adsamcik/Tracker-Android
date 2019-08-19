@@ -132,7 +132,13 @@ class DatabaseImport : FileImport {
 		try {
 			to.execSQL("INSERT INTO $tableName ($columnsJoined) VALUES ($valuesString)", values.toTypedArray())
 		} catch (e: SQLiteConstraintException) {
-			Reporter.report(Exception("Foreign key issue on table $tableName with values ${values.joinToString()}", e))
+			//todo handle this case better
+			if (tableName == "activity") {
+				return
+			} else {
+				Reporter.report(
+						Exception("Foreign key issue on table $tableName with values ${values.joinToString()}", e))
+			}
 		}
 	}
 
