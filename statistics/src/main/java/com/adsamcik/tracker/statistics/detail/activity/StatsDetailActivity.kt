@@ -50,7 +50,7 @@ import com.adsamcik.tracker.statistics.detail.recycler.data.InformationStatistic
 import com.adsamcik.tracker.statistics.detail.recycler.data.LineChartStatisticsData
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
 import com.github.mikephil.charting.data.Entry
-import com.google.android.gms.maps.MapsInitializer
+import com.google.android.libraries.maps.MapsInitializer
 import com.google.android.play.core.splitcompat.SplitCompat
 import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +83,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
 
-		if (sessionId <= 0L) throw IllegalArgumentException("Argument $ARG_SESSION_ID must be set with valid value!")
+		require(sessionId <= 0L)
 
 		viewModel = ViewModelProvider(this)[ViewModel::class.java].also {
 			launch(Dispatchers.Default) {

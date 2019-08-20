@@ -39,8 +39,8 @@ import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
 import com.afollestad.materialdialogs.MaterialDialog
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.LatLng
+import com.google.android.libraries.maps.GoogleMap
+import com.google.android.libraries.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.android.synthetic.main.layout_map_bottom_sheet_peek.view.*
 import kotlinx.coroutines.CoroutineScope

@@ -4,14 +4,14 @@ import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.tracker.common.style.StyleController
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.MapView
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.libraries.maps.CameraUpdateFactory
+import com.google.android.libraries.maps.GoogleMap
+import com.google.android.libraries.maps.MapView
+import com.google.android.libraries.maps.model.LatLng
+import com.google.android.libraries.maps.model.LatLngBounds
+import com.google.android.libraries.maps.model.PolylineOptions
 
-class MapViewHolder(val map: MapView) : MultiTypeViewHolder<MapStatisticsData>(map) {
+class MapViewHolder(private val map: MapView) : MultiTypeViewHolder<MapStatisticsData>(map) {
 	private var googleMap: GoogleMap? = null
 
 	override fun bind(value: MapStatisticsData, styleController: StyleController) {

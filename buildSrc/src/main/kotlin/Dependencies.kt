@@ -1,4 +1,7 @@
+import org.gradle.api.Action
+import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.dsl.DependencyHandler
+import org.gradle.kotlin.dsl.accessors.runtime.addExternalModuleDependencyTo
 import org.gradle.kotlin.dsl.kotlin
 
 @Suppress("TooManyFunctions")
@@ -45,6 +48,33 @@ object Dependencies {
 	private fun DependencyHandler.implementation(name: String) = add("implementation", name)
 	private fun DependencyHandler.kapt(name: String) = add("kapt", name)
 	private fun DependencyHandler.androidTestImplementation(name: String) = add("androidTestImplementation", name)
+
+	/**
+	 * Adds a dependency to the 'implementation' configuration.
+	 *
+	 * @param group the group of the module to be added as a dependency.
+	 * @param name the name of the module to be added as a dependency.
+	 * @param version the optional version of the module to be added as a dependency.
+	 * @param configuration the optional configuration of the module to be added as a dependency.
+	 * @param classifier the optional classifier of the module artifact to be added as a dependency.
+	 * @param ext the optional extension of the module artifact to be added as a dependency.
+	 * @param dependencyConfiguration expression to use to configure the dependency.
+	 * @return The dependency.
+	 *
+	 * @see [DependencyHandler.create]
+	 * @see [DependencyHandler.add]
+	 */
+	fun DependencyHandler.implementation(
+			group: String,
+			name: String,
+			version: String? = null,
+			configuration: String? = null,
+			classifier: String? = null,
+			ext: String? = null,
+			dependencyConfiguration: Action<ExternalModuleDependency>? = null
+	): ExternalModuleDependency = addExternalModuleDependencyTo(
+			this, "implementation", group, name, version, configuration, classifier, ext, dependencyConfiguration
+	)
 
 	fun moshi(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
@@ -110,7 +140,8 @@ object Dependencies {
 
 	fun map(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.google.android.gms:play-services-maps:${Versions.maps}")
+			//implementation("com.google.android.gms:play-services-maps:${Versions.maps}")
+			implementation(group = "", name = "maps-sdk-3.0.0-beta", ext = "aar")
 		}
 	}
 

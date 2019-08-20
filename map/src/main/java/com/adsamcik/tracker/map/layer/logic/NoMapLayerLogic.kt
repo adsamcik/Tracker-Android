@@ -5,8 +5,7 @@ import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.commonmap.MapLegend
-import com.google.android.gms.maps.GoogleMap
-import kotlin.reflect.KClass
+import com.google.android.libraries.maps.GoogleMap
 
 internal class NoMapLayerLogic : MapLayerLogic {
 	override var quality: Float
@@ -26,9 +25,9 @@ internal class NoMapLayerLogic : MapLayerLogic {
 	override val availableRange: LongRange
 		get() = LongRange.EMPTY
 
-	override fun update(context: Context) {}
+	override fun update(context: Context) = Unit
 	override fun onEnable(context: Context,
 	                      map: GoogleMap,
-	                      quality: Float) {}
-	override fun onDisable(map: GoogleMap) {}
+	                      quality: Float) = Unit
+	override fun onDisable(map: GoogleMap) = Unit
 }

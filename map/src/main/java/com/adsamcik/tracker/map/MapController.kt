@@ -6,7 +6,7 @@ import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
-import com.google.android.gms.maps.GoogleMap
+import com.google.android.libraries.maps.GoogleMap
 
 internal class MapController(val context: Context, val map: GoogleMap, mapOwner: MapOwner) {
 	private var activeLayer: MapLayerLogic = NoMapLayerLogic()

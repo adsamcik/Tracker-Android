@@ -6,6 +6,7 @@ import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.adsamcik.tracker.common.R
+import kotlinx.android.parcel.IgnoredOnParcel
 import kotlinx.android.parcel.Parcelize
 
 /**
@@ -28,6 +29,7 @@ data class ActivityInfo(
 	val activity: DetectedActivity get() = DetectedActivity.fromDetectedType(activityType)
 
 	@Ignore
+	@IgnoredOnParcel
 	val groupedActivity: GroupedActivity = activity.groupedActivity
 
 	constructor(parcel: Parcel) : this(

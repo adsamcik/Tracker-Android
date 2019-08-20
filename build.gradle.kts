@@ -27,6 +27,10 @@ allprojects {
 		maven("https://jitpack.io")
 		maven("https://dl.bintray.com/adsamcik/android-forks")
 		maven("https://kotlin.bintray.com/kotlinx/")
+		flatDir {
+			dirs("libs")
+		}
+
 	}
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {

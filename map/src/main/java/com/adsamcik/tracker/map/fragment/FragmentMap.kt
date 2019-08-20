@@ -26,9 +26,9 @@ import com.adsamcik.tracker.map.MapOwner
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.UpdateLocationListener
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.MapsInitializer
-import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.libraries.maps.GoogleMap
+import com.google.android.libraries.maps.MapsInitializer
+import com.google.android.libraries.maps.SupportMapFragment
 import kotlinx.android.synthetic.main.fragment_map.*
 
 @Suppress("unused")

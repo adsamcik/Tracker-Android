@@ -7,9 +7,9 @@ import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.HeatmapTileProvider
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.tracker.commonmap.MapLayerLogic
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.TileOverlay
-import com.google.android.gms.maps.model.TileOverlayOptions
+import com.google.android.libraries.maps.GoogleMap
+import com.google.android.libraries.maps.model.TileOverlay
+import com.google.android.libraries.maps.model.TileOverlayOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
