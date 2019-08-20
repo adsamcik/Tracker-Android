@@ -7,8 +7,8 @@ import com.adsamcik.tracker.common.extension.remove
 import com.adsamcik.tracker.common.style.StyleController
 import com.adsamcik.tracker.common.style.StyleData
 import com.adsamcik.tracker.common.style.StyleManager
-import com.google.android.libraries.maps.GoogleMap
-import com.google.android.libraries.maps.model.MapStyleOptions
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch

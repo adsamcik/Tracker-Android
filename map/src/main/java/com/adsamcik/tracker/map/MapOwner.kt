@@ -3,9 +3,9 @@ package com.adsamcik.tracker.map
 import androidx.annotation.AnyThread
 import androidx.fragment.app.FragmentManager
 import com.adsamcik.tracker.common.extension.transaction
-import com.google.android.libraries.maps.GoogleMap
-import com.google.android.libraries.maps.OnMapReadyCallback
-import com.google.android.libraries.maps.SupportMapFragment
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.OnMapReadyCallback
+import com.google.android.gms.maps.SupportMapFragment
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 

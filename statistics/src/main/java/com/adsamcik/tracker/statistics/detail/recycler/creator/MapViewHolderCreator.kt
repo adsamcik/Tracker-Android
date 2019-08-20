@@ -6,9 +6,9 @@ import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolderCreator
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.viewholder.MapViewHolder
-import com.google.android.libraries.maps.GoogleMap
-import com.google.android.libraries.maps.GoogleMapOptions
-import com.google.android.libraries.maps.MapView
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.GoogleMapOptions
+import com.google.android.gms.maps.MapView
 
 class MapViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailData> {
 	override fun createViewHolder(parent: ViewGroup): MultiTypeViewHolder<StatisticDetailData> {

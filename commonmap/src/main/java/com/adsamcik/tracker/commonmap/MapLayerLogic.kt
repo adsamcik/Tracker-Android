@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.commonmap
 
 import android.content.Context
-import com.google.android.libraries.maps.GoogleMap
+import com.google.android.gms.maps.GoogleMap
 
 interface MapLayerLogic {
 	val data: MapLayerData

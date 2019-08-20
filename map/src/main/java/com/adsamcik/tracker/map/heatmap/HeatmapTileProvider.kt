@@ -9,8 +9,8 @@ import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
-import com.google.android.libraries.maps.model.Tile
-import com.google.android.libraries.maps.model.TileProvider
+import com.google.android.gms.maps.model.Tile
+import com.google.android.gms.maps.model.TileProvider
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -21,10 +21,9 @@ import kotlin.math.roundToInt
 
 
 //todo refactor
-internal class HeatmapTileProvider(
-		private val tileCreator: HeatmapTileCreator,
-		private var initMaxHeat: Float,
-		quality: Float
+internal class HeatmapTileProvider(private val tileCreator: HeatmapTileCreator,
+                                   private var initMaxHeat: Float,
+                                   quality: Float
 ) : TileProvider {
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 

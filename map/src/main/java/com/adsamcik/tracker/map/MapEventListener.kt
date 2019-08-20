@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.map
 
-import com.google.android.libraries.maps.GoogleMap
+import com.google.android.gms.maps.GoogleMap
 
 /**
  * New class that handles all camera listener events.

@@ -5,19 +5,20 @@ import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.LocationDataDao
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
 import com.adsamcik.tracker.common.style.ColorGenerator
+import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.commonmap.MapLegend
-import com.adsamcik.tracker.map.R
-import com.google.android.libraries.maps.GoogleMap
-import com.google.android.libraries.maps.model.LatLng
-import com.google.android.libraries.maps.model.Polyline
-import com.google.android.libraries.maps.model.PolylineOptions
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.PolylineOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
+import kotlin.reflect.KClass
 
 internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	private val job = SupervisorJob()
