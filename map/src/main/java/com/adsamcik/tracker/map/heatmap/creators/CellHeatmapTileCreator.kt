@@ -6,6 +6,7 @@ import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.style.ColorGenerator
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.pow
 
@@ -24,7 +25,6 @@ internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	override val getAllInsideAndBetween get() = dao::getAllInsideAndBetween
 	override val getAllInside get() = dao::getAllInside
 
-	//todo this should not be created anew on each tile
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
 		val cellTypeCount = CellType.values().size
 		val colorMap = ColorGenerator.generateWithGolden(1.0, cellTypeCount)
@@ -32,12 +32,8 @@ internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 				HeatmapColorScheme.fromArray(colorMap, 0),
 				(cellTypeCount - 1).toFloat(),
 				false,
-				{ original, alphaValue, stampValue, weight ->
-					if (alphaValue > stampValue) {
-						max(original, weight)
-					} else {
-						original
-					}
+				{ original, _, _, weight ->
+					max(weight, original)
 				}) { original, stampValue, _ ->
 			val newAlpha = (stampValue * UByte.MAX_VALUE.toFloat()).toInt()
 			max(original, newAlpha).toUByte()
@@ -45,7 +41,11 @@ internal class CellHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	}
 
 	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
-		val radius = heatmapSize / 12 + 1
-		return HeatmapStamp.generateNonlinear(radius) { it.pow(10) }
+		val radius = ceil(APPROXIMATE_DISTANCE_IN_METERS / pixelInMeters).toInt()
+		return HeatmapStamp.generateNonlinear(radius) { it.pow(6) }
+	}
+
+	companion object {
+		private const val APPROXIMATE_DISTANCE_IN_METERS = 90f
 	}
 }
