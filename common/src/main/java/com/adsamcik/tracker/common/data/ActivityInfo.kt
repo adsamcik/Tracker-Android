@@ -6,6 +6,7 @@ import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.adsamcik.tracker.common.R
+import kotlinx.android.parcel.IgnoredOnParcel
 import kotlinx.android.parcel.Parcelize
 
 /**
@@ -27,6 +28,7 @@ data class ActivityInfo(
 
 	val activity: DetectedActivity get() = DetectedActivity.fromDetectedType(activityType)
 
+	@IgnoredOnParcel
 	@Ignore
 	val groupedActivity: GroupedActivity = activity.groupedActivity
 
@@ -42,7 +44,7 @@ data class ActivityInfo(
 	fun getGroupedActivityName(context: Context): String = getGroupedActivityName(context, groupedActivity)
 
 	companion object {
-		val UNKNOWN get() = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+		val UNKNOWN: ActivityInfo get() = ActivityInfo(DetectedActivity.UNKNOWN, 0)
 		/**
 		 * Returns resolved activity string. String is localized.
 		 */
