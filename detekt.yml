@@ -70,7 +70,7 @@ complexity:
     active: true
     threshold: 6
     ignoreDefaultParameters: false
-    excludes: "**/*.Dao.kt"
+    excludes: "**/*Dao.kt"
   MethodOverloading:
     active: false
     threshold: 6
@@ -86,7 +86,7 @@ complexity:
     ignoreStringsRegex: '$^'
   TooManyFunctions:
     active: true
-    excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*.Spec.kt,**/*.Spek.kt"
+    excludes: "**/test/**,**/androidTest/**,**/*.Test.kt,**/*Dao.kt"
     thresholdInFiles: 21
     thresholdInClasses: 16
     thresholdInInterfaces: 11

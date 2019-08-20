@@ -52,7 +52,6 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	                 bottomLatitude: Double,
 	                 leftLongitude: Double): List<Database2DLocationWeightedMinimal>
 
-	@Suppress("LongParameterList")
 	@Query("""
 		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
 		WHERE last_seen >= :from and last_seen <= :to
