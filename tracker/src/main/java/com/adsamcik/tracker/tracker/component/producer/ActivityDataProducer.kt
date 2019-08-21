@@ -12,8 +12,9 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
-internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver) : TrackerDataProducerComponent(
-		changeReceiver) {
+internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver) :
+		TrackerDataProducerComponent(
+				changeReceiver) {
 	override val keyRes: Int
 		get() = R.string.settings_activity_enabled_key
 	override val defaultRes: Int
@@ -58,7 +59,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 
 	companion object {
 		private const val ACTIVITY_CONFIDENCE_THRESHOLD = 50
-		private const val MAX_ACTIVITY_AGE_IN_MILLIS = Time.MINUTE_IN_MILLISECONDS
+		private const val MAX_ACTIVITY_AGE_IN_MILLIS = 2 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
 
