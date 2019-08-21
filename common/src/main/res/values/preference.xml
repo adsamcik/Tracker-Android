@@ -10,6 +10,8 @@
     <string name="settings_color_night_key" translatable="false">colorNight</string>
     <string name="settings_activity_enabled_default" translatable="false">true</string>
     <string name="settings_activity_enabled_key" translatable="false">trackingActivityEnabled</string>
+    <string name="settings_auto_tracking_transition_key" translatable="false">transitionApiEnabled</string>
+    <string name="settings_auto_tracking_transition_default" translatable="false">true</string>
     <string name="settings_cell_enabled_default" translatable="false">false</string>
     <string name="settings_cell_enabled_key" translatable="false">trackingCellEnabled</string>
     <string name="settings_location_enabled_default" translatable="false">true</string>

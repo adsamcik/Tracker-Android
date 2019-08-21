@@ -13,9 +13,11 @@ import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.GroupedActivity
 import com.adsamcik.tracker.common.extension.notificationManager
+import com.adsamcik.tracker.common.extension.startForegroundService
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.service.CoreService
 import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import java.util.*
 import kotlin.concurrent.scheduleAtFixedRate
@@ -36,11 +38,14 @@ class ActivityWatcherService : CoreService() {
 		instance = this
 
 		val updatePreferenceInSeconds = Preferences.getPref(this)
-				.getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
+				.getIntResString(R.string.settings_activity_freq_key,
+						R.string.settings_activity_freq_default)
 
 		startForeground(NOTIFICATION_ID, updateNotification())
 
 		notificationManager = (this as Context).notificationManager
+
+		BackgroundTrackingApi.initialize(this)
 
 		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS) {
 			val newActivityInfo = ActivityRequestManager.lastActivity
@@ -66,23 +71,29 @@ class ActivityWatcherService : CoreService() {
 		val intent = packageManager.getLaunchIntentForPackage(packageName)
 				?: throw NullPointerException("Launch intent for package is null.")
 
-		val builder = NotificationCompat.Builder(this, getString(R.string.channel_activity_watcher_id))
+		val builder = NotificationCompat.Builder(this,
+				getString(R.string.channel_activity_watcher_id))
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setTicker(getString(R.string.notification_activity_watcher_ticker))  // the done text
+				.setTicker(
+						getString(R.string.notification_activity_watcher_ticker))  // the done text
 				.setWhen(Time.nowMillis)  // the time stamp
 				.setVibrate(null)
 				.setOngoing(true)
 				.setContentIntent(
-						PendingIntent.getActivity(this, 0, intent, 0)) // The intent to send when the entry is clicked
+						PendingIntent.getActivity(this, 0, intent,
+								0)) // The intent to send when the entry is clicked
 				.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
 
 		builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
 		builder.setContentText(
-				getString(R.string.notification_activity_watcher_info, activityInfo.getGroupedActivityName(this),
+				getString(R.string.notification_activity_watcher_info,
+						activityInfo.getGroupedActivityName(this),
 						activityInfo.confidence))
 		when (activityInfo.groupedActivity) {
-			GroupedActivity.IN_VEHICLE -> builder.setSmallIcon(R.drawable.ic_directions_car_white_24dp)
-			GroupedActivity.ON_FOOT -> builder.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
+			GroupedActivity.IN_VEHICLE -> builder.setSmallIcon(
+					R.drawable.ic_directions_car_white_24dp)
+			GroupedActivity.ON_FOOT -> builder.setSmallIcon(
+					R.drawable.ic_directions_walk_white_24dp)
 			GroupedActivity.STILL -> builder.setSmallIcon(R.drawable.ic_accessibility_white)
 			GroupedActivity.UNKNOWN -> builder.setSmallIcon(R.drawable.ic_help_white_24dp)
 		}
@@ -95,13 +106,17 @@ class ActivityWatcherService : CoreService() {
 
 		private var instance: ActivityWatcherService? = null
 
-		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(context).getBooleanRes(
+		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(
+				context).getBooleanRes(
 				R.string.settings_activity_watcher_key, R.string.settings_activity_watcher_default)
 
-		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(context).getIntResString(
-				R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
+		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(
+				context).getIntResString(
+				R.string.settings_tracking_activity_key,
+				R.string.settings_tracking_activity_default)
 
-		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(context).getIntResString(
+		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(
+				context).getIntResString(
 				R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
 
 		fun onWatcherPreferenceChange(context: Context, value: Boolean) {
@@ -137,8 +152,7 @@ class ActivityWatcherService : CoreService() {
 			if (updateInterval > 0 && autoTracking > 0) {
 				if (watcherPreference && !trackerLocked && !trackerRunning) {
 					if (instance == null) {
-						ContextCompat.startForegroundService(context,
-								Intent(context, ActivityWatcherService::class.java))
+						context.startForegroundService<ActivityWatcherService> {  }
 					}
 					return
 				}

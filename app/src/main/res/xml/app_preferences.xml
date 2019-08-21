@@ -14,6 +14,12 @@
                 app:drawables="@array/tracking_options_drawables"
                 app:titles="@array/tracking_options_titles" />
 
+            <androidx.preference.SwitchPreferenceCompat
+                android:defaultValue="@string/settings_auto_tracking_transition_default"
+                android:dependency="@string/settings_auto_tracking_transition_key"
+                android:key="@string/settings_auto_tracking_transition_key"
+                android:title="@string/settings_auto_tracking_transition_title" />
+
             <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_activity_watcher_default"
                 android:key="@string/settings_activity_watcher_key"

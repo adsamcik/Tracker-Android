@@ -12,12 +12,12 @@ typealias ActivityTransitionRequestCallback =
 
 data class ActivityRequestData(
 		val key: KClass<*>,
-		val detectionIntervalS: Int,
 		val changeData: ActivityChangeRequestData? = null,
 		val transitionData: ActivityTransitionRequestData? = null
 )
 
 data class ActivityChangeRequestData(
+		val detectionIntervalS: Int,
 		val callback: ActivityChangeRequestCallback
 )
 

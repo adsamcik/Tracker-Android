@@ -19,6 +19,9 @@
     <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
     <string name="settings_cell_enabled_title">Cell tracking</string>
 
+    <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
+    <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
+
     <string-array name="tracking_options_titles">
         <item>Disabled</item>
         <item>On foot</item>

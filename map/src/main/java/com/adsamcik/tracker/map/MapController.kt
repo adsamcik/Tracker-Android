@@ -15,7 +15,8 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 	val availableDateRange: LongRange
 		get() = activeLayer.availableRange
 
-	var dateRange: LongRange = LongRange(Time.nowMillis - 30 * Time.DAY_IN_MILLISECONDS, Time.nowMillis)
+	var dateRange: LongRange = LongRange(Time.nowMillis - 30 * Time.DAY_IN_MILLISECONDS,
+			Time.nowMillis)
 		set(value) {
 			field = value
 			activeLayer.dateRange = value
@@ -25,9 +26,9 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 		if (this.activeLayer::class != logic::class) {
 			this.activeLayer.onDisable(map)
 
-			this.activeLayer = logic.also {
-				it.onEnable(context, map, quality)
-			}
+			logic.onEnable(context, map, quality)
+			logic.dateRange = dateRange
+			this.activeLayer = logic
 		}
 	}
 

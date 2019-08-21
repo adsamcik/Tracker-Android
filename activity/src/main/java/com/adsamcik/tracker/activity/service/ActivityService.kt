@@ -81,7 +81,10 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 				val client = ActivityRecognition.getClient(context)
 
 				val intent = getActivityDetectionPendingIntent(context)
-				requestActivityRecognition(client, intent, delayInS)
+
+				if (delayInS > 0) {
+					requestActivityRecognition(client, intent, delayInS)
+				}
 
 				if (requestedTransitions.isNotEmpty()) {
 					requestActivityTransition(client, intent, requestedTransitions)
@@ -100,7 +103,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 		private fun requestActivityRecognition(client: ActivityRecognitionClient,
 		                                       intent: PendingIntent,
 		                                       delayInS: Int) {
-			recognitionClientTask = client.requestActivityUpdates(delayInS * Time.SECOND_IN_MILLISECONDS, intent)
+			recognitionClientTask = client.requestActivityUpdates(
+					delayInS * Time.SECOND_IN_MILLISECONDS, intent)
 					.apply {
 						addOnFailureListener { Reporter.report(it) }
 					}

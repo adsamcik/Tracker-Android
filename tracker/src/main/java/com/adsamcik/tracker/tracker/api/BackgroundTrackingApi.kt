@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.MainThread
 import androidx.lifecycle.Observer
 import com.adsamcik.tracker.activity.ActivityChangeRequestCallback
+import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestCallback
@@ -21,6 +22,7 @@ import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.service.TrackerService
 
+@Suppress("TooManyFunctions")
 object BackgroundTrackingApi {
 	//todo add option for this in settings
 	private const val REQUIRED_CONFIDENCE = 75
@@ -66,6 +68,11 @@ object BackgroundTrackingApi {
 		}
 	}
 
+	private val transitionObserver: Observer<Boolean> = Observer {
+		val context = requireNotNull(appContext)
+		reinitializeRequest(context, it)
+	}
+
 	private var isActive = false
 
 	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
@@ -88,7 +95,8 @@ object BackgroundTrackingApi {
 		}
 
 		val preference = Preferences.getPref(context)
-				.getIntResString(R.string.settings_tracking_activity_key, R.string.settings_tracking_activity_default)
+				.getIntResString(R.string.settings_tracking_activity_key,
+						R.string.settings_tracking_activity_default)
 		val prefActivity = GroupedActivity.values()[preference]
 		return prefActivity != GroupedActivity.STILL &&
 				(prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
@@ -100,7 +108,8 @@ object BackgroundTrackingApi {
 	 * @param groupedActivity evaluated activity
 	 * @return true if background tracking can continue running
 	 */
-	private fun canContinueBackgroundTracking(context: Context, groupedActivity: GroupedActivity): Boolean {
+	private fun canContinueBackgroundTracking(context: Context,
+	                                          groupedActivity: GroupedActivity): Boolean {
 		if (groupedActivity == GroupedActivity.STILL) return false
 
 		val preference = getBackgroundTrackingActivityRequirement(context)
@@ -119,37 +128,62 @@ object BackgroundTrackingApi {
 		val requiredActivityId = getBackgroundTrackingActivityRequirement(context)
 
 		if (requiredActivityId >= GroupedActivity.IN_VEHICLE.ordinal) {
-			transitions.add(ActivityTransitionData(DetectedActivity.IN_VEHICLE, ActivityTransitionType.ENTER))
-			transitions.add(ActivityTransitionData(DetectedActivity.ON_BICYCLE, ActivityTransitionType.ENTER))
+			transitions.add(ActivityTransitionData(DetectedActivity.IN_VEHICLE,
+					ActivityTransitionType.ENTER))
+			transitions.add(ActivityTransitionData(DetectedActivity.ON_BICYCLE,
+					ActivityTransitionType.ENTER))
 		}
 
 		if (requiredActivityId >= GroupedActivity.ON_FOOT.ordinal) {
-			transitions.add(ActivityTransitionData(DetectedActivity.ON_FOOT, ActivityTransitionType.ENTER))
-			transitions.add(ActivityTransitionData(DetectedActivity.RUNNING, ActivityTransitionType.ENTER))
-			transitions.add(ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER))
+			transitions.add(
+					ActivityTransitionData(DetectedActivity.ON_FOOT, ActivityTransitionType.ENTER))
+			transitions.add(
+					ActivityTransitionData(DetectedActivity.RUNNING, ActivityTransitionType.ENTER))
+			transitions.add(
+					ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER))
 		}
 
 		if (transitions.isNotEmpty()) {
-			transitions.add(ActivityTransitionData(DetectedActivity.STILL, ActivityTransitionType.ENTER))
+			transitions.add(
+					ActivityTransitionData(DetectedActivity.STILL, ActivityTransitionType.ENTER))
 		}
 
 		return transitions
 	}
 
-	private fun enable(context: Context) {
-		if (isActive) return
-
-		val interval = Preferences.getPref(context)
-				.getIntResString(R.string.settings_activity_freq_key, R.string.settings_activity_freq_default)
+	private fun getTransitions(context: Context): ActivityTransitionRequestData {
 		val transitions = buildTransitions(context)
+		return ActivityTransitionRequestData(transitions, transitionCallback)
+	}
 
-		val transitionData = ActivityTransitionRequestData(transitions, transitionCallback)
+	private fun getActivityRequest(context: Context): ActivityChangeRequestData {
+		val interval = Preferences.getPref(context)
+				.getIntResString(R.string.settings_activity_freq_key,
+						R.string.settings_activity_freq_default)
+		return ActivityChangeRequestData(interval, callback)
+	}
 
-		val requestData = ActivityRequestData(this::class, interval, transitionData = transitionData)
+	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
+		if (!isActive) return
+
+		val requestData = if (useTransitionApi) {
+			ActivityRequestData(this::class, transitionData = getTransitions(context))
+		} else {
+			ActivityRequestData(this::class, changeData = getActivityRequest(context))
+		}
+
 		ActivityRequestManager.requestActivity(context, requestData)
 		ActivityWatcherService.poke(context)
+	}
 
+	private fun enable(context: Context) {
+		if (isActive) return
 		isActive = true
+
+		val useTransitionApi = Preferences.getPref(context)
+				.getBooleanRes(R.string.settings_auto_tracking_transition_key,
+						R.string.settings_auto_tracking_transition_default)
+		reinitializeRequest(context, useTransitionApi)
 	}
 
 	private fun disable(context: Context) {
@@ -166,6 +200,9 @@ object BackgroundTrackingApi {
 		if (appContext != null) return
 
 		appContext = context.applicationContext
+
+		PreferenceObserver.observe(context, R.string.settings_auto_tracking_transition_key,
+				R.string.settings_auto_tracking_transition_default, transitionObserver)
 
 		PreferenceObserver.observe(context, R.string.settings_tracking_activity_key,
 				R.string.settings_tracking_activity_default, observer)

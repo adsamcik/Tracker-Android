@@ -91,8 +91,8 @@ internal class UpdateLocationListener(context: Context,
 		subscribeToLocationUpdates(context, true)
 
 		ActivityRequestManager.requestActivity(context,
-				ActivityRequestData(UpdateLocationListener::class, 10,
-						ActivityChangeRequestData(this::onActivityUpdate)))
+				ActivityRequestData(UpdateLocationListener::class,
+						ActivityChangeRequestData(10, this::onActivityUpdate)))
 	}
 
 	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {

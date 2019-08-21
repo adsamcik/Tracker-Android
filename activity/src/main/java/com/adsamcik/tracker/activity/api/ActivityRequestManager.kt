@@ -46,11 +46,9 @@ object ActivityRequestManager {
 	fun removeActivityRequest(context: Context, tClass: KClass<*>) {
 		val index = activeRequestArray.indexOfKey(tClass.hashCode())
 		if (index >= 0) {
-			val request = activeRequestArray.valueAt(index)
-
 			activeRequestArray.removeAt(index)
 
-			if (minInterval <= request.detectionIntervalS && activeRequestArray.isNotEmpty()) {
+			if (activeRequestArray.isNotEmpty()) {
 				onRequestChange(context)
 			}
 		} else {
@@ -92,9 +90,10 @@ object ActivityRequestManager {
 	}
 
 	private fun getMinInterval(): Int {
-		var min = Integer.MAX_VALUE
+		var min = Integer.MIN_VALUE
 		activeRequestArray.forEach { _, value ->
-			if (value.detectionIntervalS < min) min = value.detectionIntervalS
+			val detectionInterval = value.changeData?.detectionIntervalS ?: return@forEach
+			if (detectionInterval < min) min = detectionInterval
 		}
 		return min
 	}

@@ -49,9 +49,16 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		val preferences = Preferences.getPref(context)
 		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
 				R.integer.settings_tracking_min_time_default)
-		ActivityRequestManager.requestActivity(context,
-				ActivityRequestData(this::class, minUpdateDelayInSeconds,
-						ActivityChangeRequestData(this::onActivityChanged)))
+		ActivityRequestManager.requestActivity(
+				context,
+				ActivityRequestData(
+						this::class,
+						ActivityChangeRequestData(
+								minUpdateDelayInSeconds,
+								this::onActivityChanged
+						)
+				)
+		)
 	}
 
 	override fun onDisable(context: Context) {

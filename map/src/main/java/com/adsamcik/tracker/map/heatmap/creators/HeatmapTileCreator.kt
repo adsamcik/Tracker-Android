@@ -34,11 +34,10 @@ internal interface HeatmapTileCreator {
 
 	fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp
 
-	fun scaleStampSize(baseSize: Float, quality: Float): Float = baseSize * quality
-
 	fun getHeatmap(data: HeatmapTileData, from: Long, to: Long): HeatmapTile {
 		return createHeatmap(data) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
-			getAllInsideAndBetween(from, to, topLatitude, rightLongitude, bottomLatitude, leftLongitude)
+			getAllInsideAndBetween(from, to, topLatitude, rightLongitude, bottomLatitude,
+					leftLongitude)
 		}
 	}
 
@@ -48,8 +47,9 @@ internal interface HeatmapTileCreator {
 		}
 	}
 
-	private inline fun createHeatmap(data: HeatmapTileData,
-	                                 getLocations: Inside
+	private inline fun createHeatmap(
+			data: HeatmapTileData,
+			getLocations: Inside
 	): HeatmapTile {
 		assert(data.heatmapSize.isPowerOfTwo())
 		assert(data.area.left < data.area.right)
