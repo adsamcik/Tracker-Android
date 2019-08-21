@@ -6,9 +6,10 @@ import android.util.AttributeSet
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.common.style.StyleData
-import com.adsamcik.tracker.common.style.StyleableView
+import com.adsamcik.tracker.common.style.marker.StyleableView
 
-class ImageSwitchImageView : AppCompatImageView, StyleableView {
+class ImageSwitchImageView : AppCompatImageView,
+		StyleableView {
 	private var lastColor: Int = 0
 
 	override fun onStyleChanged(styleData: StyleData) {

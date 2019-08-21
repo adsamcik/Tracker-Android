@@ -11,7 +11,7 @@ import com.adsamcik.recycler.SortableAdapter
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.style.IViewChange
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

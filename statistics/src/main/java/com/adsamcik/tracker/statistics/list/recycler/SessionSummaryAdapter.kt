@@ -5,11 +5,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.style.IViewChange
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.StatData
 
-class SessionSummaryAdapter : RecyclerView.Adapter<SessionSummaryAdapter.ViewHolder>(), IViewChange {
+class SessionSummaryAdapter : RecyclerView.Adapter<SessionSummaryAdapter.ViewHolder>(),
+		IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val list = mutableListOf<StatData>()

@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.LocationDataDao
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
-import com.adsamcik.tracker.common.style.ColorGenerator
+import com.adsamcik.tracker.common.style.utility.ColorGenerator
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerInfo
 import com.adsamcik.tracker.commonmap.MapLayerLogic
@@ -99,7 +99,6 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 		this.context = null
 	}
 
-	//todo color based on activity
 	override fun update(context: Context) {
 		clearActivePolylines()
 
@@ -124,7 +123,7 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 				}
 
 				launch(Dispatchers.Main) {
-					requireNotNull(map).let { map ->
+					map?.let { map ->
 						val polyline = map.addPolyline(polylineOptions)
 						activePolylines.add(polyline)
 					}

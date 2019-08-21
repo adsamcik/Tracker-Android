@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.style
+package com.adsamcik.tracker.common.style.marker
 
 import android.view.View
 

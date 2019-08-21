@@ -3,17 +3,18 @@ package com.adsamcik.tracker.common.recycler.multitype
 import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.tracker.common.style.IViewChange
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.common.style.StyleController
 
-open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleController: StyleController) :
-		SortableAdapter<Data, MultiTypeViewHolder<Data>>(),
+open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(
+		private val styleController: StyleController
+) : SortableAdapter<Data, MultiTypeViewHolder<Data>>(),
 		IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val typeMap = mutableMapOf<Int, MultiTypeViewHolderCreator<Data>>()
 
-	override fun getItemViewType(position: Int) = getItem(position).typeValue
+	override fun getItemViewType(position: Int): Int = getItem(position).typeValue
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MultiTypeViewHolder<Data> {
 		val type = typeMap[viewType]
@@ -28,7 +29,10 @@ open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(private val styleContr
 
 	@Throws(AlreadyRegisteredException::class)
 	fun registerType(typeValue: Int, creator: MultiTypeViewHolderCreator<Data>) {
-		if (typeMap.containsKey(typeValue)) throw AlreadyRegisteredException("Type $typeValue already registered")
+		if (typeMap.containsKey(typeValue)) {
+			throw AlreadyRegisteredException("Type $typeValue already registered")
+		}
+
 		typeMap[typeValue] = creator
 	}
 

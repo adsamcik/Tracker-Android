@@ -7,6 +7,7 @@ import androidx.annotation.AnyThread
 import androidx.annotation.IdRes
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.style.StyleManager.styleData
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

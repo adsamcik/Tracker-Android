@@ -1,15 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     tools:orientation="vertical"
     tools:parentTag="LinearLayout">
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_layers"
+        android:id="@+id/map_layers_recycler"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        tools:itemCount="5"
         tools:listitem="@layout/layout_layer_icon" />
 
-    <include layout="@layout/layout_map_sheet_legend" />
+    <Space
+        android:layout_width="1dp"
+        android:layout_height="@dimen/content_padding" />
+
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#000"
+        app:cardCornerRadius="@dimen/corner_radius">
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/content_padding">
+
+            <include layout="@layout/layout_map_sheet_legend" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+    </androidx.cardview.widget.CardView>
 </merge>

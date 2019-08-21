@@ -12,6 +12,7 @@ import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.toTimeSinceMidnight
 import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
@@ -154,7 +155,8 @@ object StyleManager {
 	 * Update function is called with new color and handles updating of all the colorManagers.
 	 */
 	private fun update(@ColorInt backgroundColor: Int) {
-		val perceivedLuminance = perceivedRelLuminance(backgroundColor)
+		val perceivedLuminance = perceivedRelLuminance(
+				backgroundColor)
 		val foregroundColor: Int = if (perceivedLuminance > 0) darkTextColor else lightTextColor
 
 		val styleData = StyleData(backgroundColor, foregroundColor)

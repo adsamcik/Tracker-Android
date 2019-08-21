@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <include layout="@layout/layout_map_bottom_sheet_peek" />
+
+    <Space
+        android:id="@+id/peek_navbar_space"
+        android:layout_width="1dp"
+        android:layout_height="0dp" />
+
+    <include layout="@layout/layout_map_bottom_sheet_content" />
+
+    <Space
+        android:id="@+id/content_navbar_space"
+        android:layout_width="1dp"
+        android:layout_height="0dp" />
+</merge>

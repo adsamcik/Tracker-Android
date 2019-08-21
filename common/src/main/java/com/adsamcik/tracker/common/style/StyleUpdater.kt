@@ -24,6 +24,10 @@ import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.style.marker.StyleableForegroundDrawable
+import com.adsamcik.tracker.common.style.marker.StyleableView
+import com.adsamcik.tracker.common.style.utility.ColorFunctions
+import com.adsamcik.tracker.common.style.utility.brightenColor
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +58,8 @@ internal class StyleUpdater : CoroutineScope {
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
 		launch(Dispatchers.Main) {
-			updateSingle(backgroundColor, foregroundColor, perceivedLuminance, styleView.view, styleView.layer,
+			updateSingle(backgroundColor, foregroundColor, perceivedLuminance, styleView.view,
+					styleView.layer,
 					styleView.maxDepth)
 		}
 	}
@@ -104,8 +109,10 @@ internal class StyleUpdater : CoroutineScope {
 	) {
 		var newLayer = layer
 
-		val backgroundLayerColor = ColorFunctions.getBackgroundLayerColor(backgroundColor, backgroundLuminance, layer)
-		val wasBackgroundUpdated = updateBackgroundDrawable(view, backgroundLayerColor, backgroundLuminance)
+		val backgroundLayerColor = ColorFunctions.getBackgroundLayerColor(backgroundColor,
+				backgroundLuminance, layer)
+		val wasBackgroundUpdated = updateBackgroundDrawable(view, backgroundLayerColor,
+				backgroundLuminance)
 		if (wasBackgroundUpdated) newLayer++
 
 		if (view is ViewGroup) {
@@ -114,7 +121,8 @@ internal class StyleUpdater : CoroutineScope {
 			val newDepthLeft = depthLeft - 1
 
 			for (i in 0 until view.childCount) {
-				updateSingle(backgroundColor, foregroundColor, backgroundLuminance, view.getChildAt(i), newLayer,
+				updateSingle(backgroundColor, foregroundColor, backgroundLuminance,
+						view.getChildAt(i), newLayer,
 						newDepthLeft)
 			}
 		} else {
@@ -124,7 +132,10 @@ internal class StyleUpdater : CoroutineScope {
 
 	@MainThread
 	private fun updateStyleForeground(drawable: Drawable, @ColorInt foregroundColor: Int) {
-		drawable.setTint(foregroundColor)
+		when (drawable) {
+			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(foregroundColor)
+			else -> drawable.setTint(foregroundColor)
+		}
 	}
 
 	@MainThread
@@ -136,8 +147,11 @@ internal class StyleUpdater : CoroutineScope {
 		val alpha = view.currentTextColor.alpha
 		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
 		view.setTextColor(newTextColor)
-		view.setHintTextColor(brightenColor(newTextColor, ColorFunctions.LIGHTNESS_PER_LEVEL))
-		view.compoundDrawables.forEach { if (it != null) updateStyleForeground(it, foregroundColor) }
+		view.setHintTextColor(brightenColor(newTextColor,
+				ColorFunctions.LIGHTNESS_PER_LEVEL))
+		view.compoundDrawables.forEach {
+			if (it != null) updateStyleForeground(it, foregroundColor)
+		}
 	}
 
 	@MainThread
@@ -176,9 +190,14 @@ internal class StyleUpdater : CoroutineScope {
 		}
 	}
 
+	//todo refactor
 	@MainThread
 	@Suppress("ReturnCount")
-	private fun updateBackgroundDrawable(view: View, @ColorInt bgColor: Int, luminance: Int): Boolean {
+	private fun updateBackgroundDrawable(
+			view: View,
+			@ColorInt bgColor: Int,
+			luminance: Int
+	): Boolean {
 		val background = view.background
 		when {
 			view is MaterialButton -> {

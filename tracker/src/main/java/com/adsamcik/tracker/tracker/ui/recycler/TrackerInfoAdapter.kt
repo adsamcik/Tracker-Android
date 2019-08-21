@@ -8,7 +8,7 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.data.CollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.style.IViewChange
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.ui.recycler.data.ActivityTrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.CellTrackerInfo
@@ -17,7 +17,8 @@ import com.adsamcik.tracker.tracker.ui.recycler.data.SessionTrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.TrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.WifiTrackerInfo
 
-class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>(), IViewChange {
+class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>(),
+		IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 	private val data = mutableListOf<TrackerInfo>()
 

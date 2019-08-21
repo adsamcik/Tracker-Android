@@ -28,12 +28,12 @@ import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
+import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.commonmap.CoordinateBounds
-import com.adsamcik.tracker.commonmap.MapLayerData
-import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
 import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
 import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
@@ -73,17 +73,29 @@ internal class MapSheetController(
 
 	private val mapLayerFilterRule = CoordinateBounds()
 
-	private val geocoder: Geocoder? = if (Geocoder.isPresent()) Geocoder(context, Locale.getDefault()) else null
+	private val geocoder: Geocoder? = if (Geocoder.isPresent()) Geocoder(context,
+			Locale.getDefault()) else null
 
 	private val styleController = StyleManager.createController().also { styleController ->
 		styleController.watchView(StyleView(rootLayout, layer = 0))
+		styleController.watchRecyclerView(
+				RecyclerStyleView(rootLayout.findViewById(R.id.map_legend_recycler), layer = 1)
+		)
+		styleController.watchRecyclerView(
+				RecyclerStyleView(rootLayout.findViewById(R.id.map_layers_recycler), layer = 0)
+		)
 	}
 
-	private val navbarSpace = rootLayout.findViewById<Space>(R.id.navbar_space)
+	private val peekNavbarSpace = rootLayout.findViewById<Space>(R.id.peek_navbar_space)
+	private val contentNavbarSpace = rootLayout.findViewById<Space>(R.id.content_navbar_space)
+
+	private val legendController = MapLegendController(rootLayout)
 
 	init {
 		mapOwner.addOnEnableListener { onEnable() }
 		mapOwner.addOnDisableListener { onDisable() }
+
+		//mapController.setLayer(context, )
 	}
 
 	init {
@@ -96,14 +108,20 @@ internal class MapSheetController(
 
 	init {
 		if (navbarPosition == NavBarPosition.BOTTOM) {
-			navbarSpace.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+			peekNavbarSpace.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+				height = navbarDim.y
+			}
+			contentNavbarSpace.updateLayoutParams {
 				height = navbarDim.y
 			}
 		}
 	}
 
 	private val sheetBehavior = BottomSheetBehavior.from(rootLayout).apply {
-		peekHeight = PEEK_CONTENT_HEIGHT_DP.dp + navbarSpace.layoutParams.height + rootLayout.layout_map_controls.marginBottom
+		peekHeight = PEEK_CONTENT_HEIGHT_DP.dp +
+				peekNavbarSpace.layoutParams.height +
+				rootLayout.layout_map_controls.marginBottom
+
 		isFitToContents = false
 		val expandedOffset = EXPANDED_TOP_OFFSET_DP.dp
 		setExpandedOffset(expandedOffset)
@@ -113,10 +131,11 @@ internal class MapSheetController(
 				if (slideOffset in 0f..halfExpandedRatio) {
 					val parentHeight = (bottomSheet.parent as View).height
 					val maxHeightDifference = parentHeight - expandedOffset - peekHeight
-					map.setPadding(0, 0, 0, (peekHeight + slideOffset * maxHeightDifference).roundToInt())
+					map.setPadding(0, 0, 0,
+							(peekHeight + slideOffset * maxHeightDifference).roundToInt())
 
 					val progress = slideOffset / halfExpandedRatio
-					navbarSpace.updateLayoutParams {
+					peekNavbarSpace.updateLayoutParams {
 						height = ((1 - progress) * navbarDim.y).roundToInt()
 					}
 				}
@@ -227,9 +246,11 @@ internal class MapSheetController(
 
 				launch(Dispatchers.Main) {
 					if (availableRange.last <= availableRange.first) {
-						SnackMaker(it.requireParent<CoordinatorLayout>()).addMessage(R.string.map_layer_no_data)
+						SnackMaker(it.requireParent<CoordinatorLayout>()).addMessage(
+								R.string.map_layer_no_data)
 					} else {
-						MaterialDialog(it.context).dateTimeRangePicker(availableRange, selectedRange) {
+						MaterialDialog(it.context).dateTimeRangePicker(availableRange,
+								selectedRange) {
 							mapController.dateRange = it.first..it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
 						}.show()
 
@@ -266,7 +287,7 @@ internal class MapSheetController(
 				WifiHeatmapLogic(),
 				LocationPolylineLogic())
 
-		rootLayout.findViewById<RecyclerView>(R.id.recycler_layers).apply {
+		rootLayout.findViewById<RecyclerView>(R.id.map_layers_recycler).apply {
 			layoutManager = GridLayoutManager(context, 2, GridLayoutManager.HORIZONTAL, false)
 			addItemDecoration(SimpleMarginDecoration(0, 4.dp, 0, 0))
 			adapter = MapFilterableAdapter(context, R.layout.layout_layer_icon) {
@@ -278,8 +299,13 @@ internal class MapSheetController(
 		}
 	}
 
-	private fun onItemClicked(@Suppress("Unused") position: Int, item: MapLayerLogic) {
-		mapController.setLayer(rootLayout.context, item)
+	private fun setLayer(layer: MapLayerLogic) {
+		mapController.setLayer(rootLayout.context, layer)
+		legendController.setLayer(layer.layerData())
+	}
+
+	private fun onItemClicked(position: Int, item: MapLayerLogic) {
+		setLayer(item)
 
 		if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
 			sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
@@ -310,7 +336,8 @@ internal class MapSheetController(
 			if (addresses?.isNotEmpty() == true) {
 				val address = addresses.first()
 				locationListener.stopUsingUserPosition(rootLayout.button_map_my_location, true)
-				locationListener.animateToPositionZoom(LatLng(address.latitude, address.longitude), ANIMATE_TO_ZOOM)
+				locationListener.animateToPositionZoom(LatLng(address.latitude, address.longitude),
+						ANIMATE_TO_ZOOM)
 			}
 		} catch (e: IOException) {
 			SnackMaker(view).addMessage(R.string.map_search_no_geocoder)

@@ -9,7 +9,7 @@ import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.style.ColorFunctions
+import com.adsamcik.tracker.common.style.utility.ColorFunctions
 import com.adsamcik.tracker.common.style.StyleData
 import com.adsamcik.tracker.common.style.StyleManager
 

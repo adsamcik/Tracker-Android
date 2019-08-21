@@ -13,7 +13,7 @@ import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
-import com.adsamcik.tracker.common.style.IViewChange
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.module.Module
@@ -155,7 +155,8 @@ class ModuleActivity : DetailActivity() {
 		manager.unregisterListener(listener)
 	}
 
-	class ModuleAdapter : RecyclerView.Adapter<ModuleAdapter.ViewHolder>(), IViewChange {
+	class ModuleAdapter : RecyclerView.Adapter<ModuleAdapter.ViewHolder>(),
+			IViewChange {
 		override var onViewChangedListener: ((View) -> Unit)? = null
 
 		private val modules = mutableListOf<ModuleInfo>()

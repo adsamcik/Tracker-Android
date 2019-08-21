@@ -1,25 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:parentTag="LinearLayout"
-    tools:orientation="vertical">
+    tools:orientation="vertical"
+    tools:parentTag="LinearLayout">
 
     <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/map_legend_title"
+        style="@style/TextAppearance.MaterialComponents.Headline5"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@style/TextAppearance.MaterialComponents.Headline5"
         tools:text="Layer name legend" />
 
     <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/map_legend_description"
+        style="@style/TextAppearance.MaterialComponents.Body1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@style/TextAppearance.MaterialComponents.Body1"
         tools:text="greatest layer of them all that even lorem ipsum would be ashamed" />
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_legend"
+        android:id="@+id/map_legend_recycler"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        tools:listitem="@layout/layout_layer_icon" />
+        tools:listitem="@layout/map_sheet_legend_item" />
 </merge>

@@ -6,6 +6,8 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
+import com.adsamcik.tracker.common.style.utility.ColorFunctions
+import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
 
 data class StyleData(@ColorInt private val backgroundColor: Int,
                      @ColorInt private val foregroundColor: Int
@@ -22,7 +24,8 @@ data class StyleData(@ColorInt private val backgroundColor: Int,
 
 	init {
 		ColorUtils.RGBToHSL(backgroundColor.red, backgroundColor.green, backgroundColor.blue, baseColorHSL)
-		perceivedLuminance = perceivedRelLuminance(backgroundColor)
+		perceivedLuminance = perceivedRelLuminance(
+				backgroundColor)
 	}
 
 	/**

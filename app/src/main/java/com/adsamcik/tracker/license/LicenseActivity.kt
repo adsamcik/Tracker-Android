@@ -16,7 +16,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.Reporter
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.style.IViewChange
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import de.psdev.licensesdialog.LicensesDialog
@@ -103,7 +103,8 @@ class LicenseActivity : DetailActivity() {
 		styleController.watchView(StyleView(frameLayout, 0, 0))
 	}
 
-	private class Adapter : RecyclerView.Adapter<Adapter.ViewHolder>(), IViewChange {
+	private class Adapter : RecyclerView.Adapter<Adapter.ViewHolder>(),
+			IViewChange {
 		private val licenses = mutableListOf<LicenseObject>()
 
 		override var onViewChangedListener: ((View) -> Unit)? = null

@@ -2,7 +2,6 @@ package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.style.ColorConstants
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
