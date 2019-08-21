@@ -27,8 +27,8 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 	override fun onDataRequest(tempData: MutableCollectionTempData) {
 		val lastActivity = lastActivity
 		val lastActivityElapsedTimeMillis = lastActivityElapsedTimeMillis
-		val isActivityConfidentEnough = (lastActivity.confidence >= ACTIVITY_CONFIDENCE_THRESHOLD)
-				.and(Time.elapsedRealtimeMillis - lastActivityElapsedTimeMillis <= MAX_ACTIVITY_AGE_IN_MILLIS)
+		val isActivityConfidentEnough =
+				Time.elapsedRealtimeMillis - lastActivityElapsedTimeMillis <= MAX_ACTIVITY_AGE_IN_MILLIS
 
 		if (isActivityConfidentEnough) {
 			tempData.setActivity(lastActivity)
@@ -38,6 +38,8 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 	}
 
 	private fun onActivityChanged(context: Context, activity: ActivityInfo, elapsedTime: Long) {
+		if (activity.confidence < ACTIVITY_CONFIDENCE_THRESHOLD) return
+
 		lastActivity = activity
 		lastActivityElapsedTimeMillis = elapsedTime
 	}
@@ -59,7 +61,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 
 	companion object {
 		private const val ACTIVITY_CONFIDENCE_THRESHOLD = 50
-		private const val MAX_ACTIVITY_AGE_IN_MILLIS = 2 * Time.MINUTE_IN_MILLISECONDS
+		private const val MAX_ACTIVITY_AGE_IN_MILLIS = Time.MINUTE_IN_MILLISECONDS
 	}
 }
 

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map.heatmap.creators
 import android.content.Context
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.style.ColorConstants
+import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.ceil
@@ -10,14 +11,19 @@ import kotlin.math.log10
 import kotlin.math.max
 
 @Suppress("MagicNumber")
-internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
+internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerData) :
+		HeatmapTileCreator {
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
+		val colorList = layerData.colorList
+		val colorListSize = colorList.size.toDouble()
+		val heatmapColors = layerData.colorList.mapIndexed { index, color ->
+			index / colorListSize to color
+		}
+
 		return HeatmapConfig(
-				HeatmapColorScheme.fromArray(listOf(
-						Pair(0.0, ColorConstants.TRANSPARENT),
-						Pair(0.2, ColorConstants.GREEN),
-						Pair(0.8, ColorConstants.ORANGE),
-						Pair(1.0, ColorConstants.RED)), 100),
+
+
+				HeatmapColorScheme.fromArray(heatmapColors, 100),
 				20f,
 				false,
 				{ current, _, stampValue, weight ->
@@ -28,7 +34,8 @@ internal class WifiHeatmapTileCreator(context: Context) : HeatmapTileCreator {
 	}
 
 	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
-		return HeatmapStamp.generateNonlinear(ceil(APPROXIMATE_DISTANCE_IN_METERS / pixelInMeters).toInt()) {
+		return HeatmapStamp.generateNonlinear(
+				ceil(APPROXIMATE_DISTANCE_IN_METERS / pixelInMeters).toInt()) {
 			// very very simplified formula for signal loss
 			(10 * LOSS_EXPONENT * log10(max(it * APPROXIMATE_DISTANCE_IN_METERS, 1f))) / 58.6273f
 		}
