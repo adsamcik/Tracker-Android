@@ -1,9 +1,7 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.CellType
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.style.ColorGenerator
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
@@ -40,12 +38,12 @@ internal class CellHeatmapTileCreator(context: Context, val data: MapLayerData) 
 	}
 
 	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
-		val radius = ceil(APPROXIMATE_DISTANCE_IN_METERS / pixelInMeters).toInt()
+		val radius = ceil(APPROXIMATE_SIZE_IN_METERS / pixelInMeters).toInt()
 		return HeatmapStamp.generateNonlinear(radius) { it.pow(FALLOFF_EXPONENT) }
 	}
 
 	companion object {
-		private const val APPROXIMATE_DISTANCE_IN_METERS = 90f
+		private const val APPROXIMATE_SIZE_IN_METERS = 50f
 		private const val FALLOFF_EXPONENT = 6
 	}
 }
