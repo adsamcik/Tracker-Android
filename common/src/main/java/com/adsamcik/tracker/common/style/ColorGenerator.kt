@@ -25,6 +25,7 @@ object ColorGenerator {
 	 */
 	fun generateWithGolden(startHue: Double, count: Int): List<Int> {
 		var hue = startHue.rem(CIRCLE_DEGREES)
+		@Suppress("MagicNumber")
 		val hsv = floatArrayOf(0.0f, 0.5f, 0.95f)
 		val colorList = ArrayList<Int>(count)
 		for (i in 0 until count) {
