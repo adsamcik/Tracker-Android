@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.common.data
 
-import android.os.Parcel
 import android.os.Parcelable
 import android.telephony.CellIdentityCdma
 import android.telephony.CellIdentityGsm
@@ -13,9 +12,10 @@ import android.telephony.CellSignalStrengthLte
 import android.telephony.CellSignalStrengthNr
 import android.telephony.CellSignalStrengthWcdma
 import androidx.annotation.RequiresApi
+import androidx.annotation.StringRes
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
-import com.adsamcik.tracker.common.extension.requireParcelable
+import com.adsamcik.tracker.common.R
 import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize
 
@@ -167,11 +167,25 @@ data class CellInfo
 }
 
 enum class CellType {
-	Unknown,
-	GSM,
-	CDMA,
-	WCDMA,
-	LTE,
-	NR
+	Unknown {
+		override val nameRes: Int = R.string.cell_unknown
+	},
+	GSM {
+		override val nameRes: Int = R.string.cell_gsm
+	},
+	CDMA {
+		override val nameRes: Int = R.string.cell_cdma
+	},
+	WCDMA {
+		override val nameRes: Int = R.string.cell_wcdma
+	},
+	LTE {
+		override val nameRes: Int = R.string.cell_lte
+	},
+	NR {
+		override val nameRes: Int = R.string.cell_nr
+	};
+
+	abstract val nameRes: Int
 }
 

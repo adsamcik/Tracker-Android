@@ -4,11 +4,15 @@ import android.content.Context
 import com.google.android.gms.maps.GoogleMap
 
 interface MapLayerLogic {
-	val data: MapLayerData
 	val supportsAutoUpdate: Boolean
 	var dateRange: LongRange
 	var quality: Float
 	val availableRange: LongRange
+
+	val layerInfo: MapLayerInfo
+	fun colorList(): List<Int>
+
+	fun layerData(): MapLayerData
 
 	fun onEnable(context: Context, map: GoogleMap, quality: Float)
 

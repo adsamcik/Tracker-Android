@@ -1,10 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="map_layer_none">Disable overlay</string>
-    <string name="map_layer_location_heatmap">Location heatmap</string>
+
+    <string name="map_layer_location_heatmap_title">Location heatmap</string>
+    <string name="map_layer_location_heatmap_description">Heatmap based on the count of locations in a given area.</string>
+    <string name="map_layer_location_heatmap_low">Low density</string>
+    <string name="map_layer_location_heatmap_medium">Medium density</string>
+    <string name="map_layer_location_heatmap_high">High density</string>
+
     <string name="map_layer_location_polyline">Location polyline</string>
-    <string name="map_layer_cell_heatmap">Cell heatmap</string>
-    <string name="map_layer_wifi_heatmap">Wi-Fi heatmap</string>
+
+    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
+    <string name="map_layer_cell_heatmap_description">Heatmap based on the generation of the network available in an area.</string>
+    <string name="map_layer_cell_heatmap_2g">2G (GSM, CDMA)</string>
+    <string name="map_layer_cell_heatmap_3g">3G (HSDPA)</string>
+    <string name="map_layer_cell_heatmap_4g">4G (LTE)</string>
+    <string name="map_layer_cell_heatmap_5g">5G (NR)</string>
+
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
+    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
+    <string name="map_layer_wifi_heatmap_low">low density</string>
+    <string name="map_layer_wifi_heatmap_medium">medium density</string>
+    <string name="map_layer_wifi_heatmap_high">high density</string>
 
     <string name="map_layer_no_data">Current layer has no available data</string>
 </resources>

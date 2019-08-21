@@ -5,10 +5,11 @@ import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.LocationDataDao
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
 import com.adsamcik.tracker.common.style.ColorGenerator
-import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.commonmap.MapLayerData
+import com.adsamcik.tracker.commonmap.MapLayerInfo
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.commonmap.MapLegend
+import com.adsamcik.tracker.map.R
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Polyline
@@ -18,7 +19,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
-import kotlin.reflect.KClass
 
 internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	private val job = SupervisorJob()
@@ -26,11 +26,6 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
-	@Suppress("UNCHECKED_CAST")
-	override val data: MapLayerData
-		get() = MapLayerData(
-				this::class.java as Class<MapLayerLogic>,
-				legend = MapLegend(R.string.map_layer_location_polyline))
 	override val supportsAutoUpdate: Boolean
 		get() = false
 
@@ -61,6 +56,22 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	private var locationDao: LocationDataDao? = null
 	private var sessionDao: SessionDataDao? = null
 	private var activePolylines: MutableList<Polyline> = mutableListOf()
+
+	override val layerInfo: MapLayerInfo = MapLayerInfo(
+			this::class.java,
+			R.string.map_layer_location_polyline
+	)
+
+	override fun colorList(): List<Int> = emptyList()
+
+	override fun layerData(): MapLayerData {
+		return MapLayerData(
+				info = layerInfo,
+				colorList = colorList(),
+				legend = MapLegend(R.string.map_layer_location_heatmap_description)
+		)
+	}
+
 
 	override fun onEnable(context: Context,
 	                      map: GoogleMap,

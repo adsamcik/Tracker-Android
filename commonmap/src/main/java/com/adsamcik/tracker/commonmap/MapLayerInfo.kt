@@ -2,11 +2,9 @@ package com.adsamcik.tracker.commonmap
 
 import android.os.Parcelable
 import kotlinx.android.parcel.Parcelize
-import kotlin.reflect.KClass
 
 @Parcelize
-data class MapLayerData(
-		val info: MapLayerInfo,
-		val colorList: List<Int>,
-		val legend: MapLegend
+data class MapLayerInfo(
+		val type: Class<out MapLayerLogic>,
+		val nameRes: Int
 ) : Parcelable

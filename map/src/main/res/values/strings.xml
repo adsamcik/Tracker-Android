@@ -18,4 +18,6 @@
 
     <string name="tips_map_date_range_title">Date range</string>
     <string name="tips_map_date_range_description">Selecting date range can show you only data for the range you desire.</string>
+
+    <string name="map_legend_title">%s legend</string>
 </resources>

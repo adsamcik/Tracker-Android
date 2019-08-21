@@ -3,10 +3,10 @@ package com.adsamcik.tracker.map.layer.logic
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.HeatmapTileProvider
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
-import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.TileOverlay
 import com.google.android.gms.maps.model.TileOverlayOptions
@@ -48,9 +48,11 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 	@WorkerThread
 	protected abstract fun getTileCreator(context: Context): HeatmapTileCreator
 
-	override fun onEnable(context: Context,
-	                      map: GoogleMap,
-	                      quality: Float) {
+	override fun onEnable(
+			context: Context,
+			map: GoogleMap,
+			quality: Float
+	) {
 		val tileCreator = getTileCreator(context)
 
 		launch {

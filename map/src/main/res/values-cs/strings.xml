@@ -16,12 +16,12 @@
     <string name="tips_map_sheet_description">Kliknutím nebo tažením tohoto panelu vzhůru otevře nabídku vrstev pro mapu</string>
     <string name="settings_map_max_heat_summary">Teplotní mapa dosáhne maximální hodnoty po daném počtu výskytů</string>
     <string name="settings_map_max_heat_title">Maximální teplota po výskytech</string>
-    <string name="map_layer_cell_heatmap">Teplotní mapa mobilní sítě</string>
-    <string name="map_layer_location_heatmap">Teplotní mapa poloh</string>
+    <string name="map_layer_cell_heatmap_title">Teplotní mapa mobilní sítě</string>
+    <string name="map_layer_location_heatmap_title">Teplotní mapa poloh</string>
     <string name="map_layer_location_polyline">Křivka poloh</string>
     <string name="map_layer_no_data">Aktuální vrstva nemá žádná data</string>
     <string name="map_layer_none">Vypnout překrytí</string>
-    <string name="map_layer_wifi_heatmap">Teplotní mapa Wi-Fi</string>
+    <string name="map_layer_wifi_heatmap_title">Teplotní mapa Wi-Fi</string>
     <string name="tips_map_date_range_description">Vybráním časového období vám zobrazí pouze data z tohoto období</string>
     <string name="tips_map_date_range_title">Časové období</string>
 </resources>

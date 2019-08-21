@@ -53,7 +53,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 	@Synchronized
 	private fun requestScan() {
 		val now = SystemClock.elapsedRealtime()
-		if (Build.VERSION.SDK_INT >= 28) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
 			if (now - lastScanRequest > Time.SECOND_IN_MILLISECONDS * 15 &&
 					(scanTime == -1L || now - scanTimeRelative > Time.SECOND_IN_MILLISECONDS * 10)) {
 				@Suppress("deprecation")
@@ -79,7 +79,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) : T
 		wifiManager = context.getSystemServiceTyped(Context.WIFI_SERVICE)
 
 		//Let's not waste precious scan requests onDataUpdated Pie and newer
-		if (Build.VERSION.SDK_INT < 28) {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
 			@Suppress("deprecation")
 			isScanRequested = wifiManager.startScan()
 			lastScanRequest = SystemClock.elapsedRealtime()

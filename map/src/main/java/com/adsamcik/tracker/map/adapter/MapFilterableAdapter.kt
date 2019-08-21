@@ -7,8 +7,11 @@ import androidx.annotation.LayoutRes
 import com.adsamcik.tracker.common.adapter.BaseFilterableAdapter
 import com.adsamcik.tracker.common.adapter.SimpleFilterableAdapter
 import com.adsamcik.tracker.commonmap.CoordinateBounds
+import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.commonmap.MapLegend
+import com.adsamcik.tracker.commonmap.MapLegendValue
 
 /**
  * Implementation of the [BaseFilterableAdapter] using a MapLayer and CoordinateBounds
@@ -21,15 +24,7 @@ internal class MapFilterableAdapter(
 	override fun getTitleView(root: View): TextView = root.findViewById(R.id.title)
 
 	override fun filter(item: MapLayerLogic, filterObject: CoordinateBounds?): Boolean {
-		val bounds = item.data.bounds
-		return if (filterObject != null) {
-			bounds.top > filterObject.bottom &&
-					bounds.right > filterObject.left &&
-					bounds.bottom < filterObject.top &&
-					bounds.left < filterObject.right
-		} else {
-			true
-		}
+		return true
 	}
 }
 

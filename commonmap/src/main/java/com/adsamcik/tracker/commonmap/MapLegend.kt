@@ -7,7 +7,6 @@ import kotlinx.android.parcel.Parcelize
 
 @Parcelize
 data class MapLegend(
-		@StringRes val nameRes: Int,
 		@StringRes val description: Int? = null,
 		val valueList: List<MapLegendValue> = emptyList()
 ) : Parcelable
