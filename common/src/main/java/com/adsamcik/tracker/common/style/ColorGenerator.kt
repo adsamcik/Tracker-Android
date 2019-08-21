@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.common.style
 
 import android.graphics.Color
+import androidx.annotation.FloatRange
 import kotlin.random.Random
 
 
@@ -23,10 +24,16 @@ object ColorGenerator {
 	 * Generates distinct colors
 	 * Based on https://martin.ankerl.com/2009/12/09/how-to-create-random-colors-programmatically/
 	 */
-	fun generateWithGolden(startHue: Double, count: Int): List<Int> {
-		var hue = startHue.rem(CIRCLE_DEGREES)
+	fun generateWithGolden(
+			@FloatRange(from = 0.0, to = 1.0) startHue: Double,
+			count: Int
+	): List<Int> {
+		// FloatRange cannot check dynamic variable values
+		require((startHue < 1.0) and (startHue > 0.0))
+
+		var hue = startHue * CIRCLE_DEGREES
 		@Suppress("MagicNumber")
-		val hsv = floatArrayOf(0.0f, 0.5f, 0.95f)
+		val hsv = floatArrayOf(0.0f, 0.984f, 0.769f)
 		val colorList = ArrayList<Int>(count)
 		for (i in 0 until count) {
 			hsv[0] = hue.toFloat()
