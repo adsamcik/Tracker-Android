@@ -4,11 +4,11 @@
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <dist:module
-        dist:instant="false"
-        dist:onDemand="true"
-        dist:title="@string/module_map_title">
-        <dist:fusing dist:include="true" />
+    <dist:module dist:title="@string/module_map_title">
+        <dist:delivery>
+            <dist:install-time />
+        </dist:delivery>
+        <dist:fusing dist:include="false" />
     </dist:module>
 </manifest>
 

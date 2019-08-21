@@ -1,11 +1,11 @@
 <manifest xmlns:dist="http://schemas.android.com/apk/distribution"
     package="com.adsamcik.tracker.game">
 
-    <dist:module
-        dist:instant="false"
-        dist:onDemand="true"
-        dist:title="@string/module_game_title">
-        <dist:fusing dist:include="true" />
+    <dist:module dist:title="@string/module_game_title">
+        <dist:delivery>
+            <dist:install-time />
+        </dist:delivery>
+        <dist:fusing dist:include="false" />
     </dist:module>
 
 </manifest>

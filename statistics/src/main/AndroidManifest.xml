@@ -4,11 +4,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.adsamcik.tracker.statistics">
 
-    <dist:module
-        dist:instant="false"
-        dist:onDemand="true"
-        dist:title="@string/module_statistics_title">
-        <dist:fusing dist:include="true" />
+    <dist:module dist:title="@string/module_statistics_title">
+        <dist:delivery>
+            <dist:install-time />
+        </dist:delivery>
+        <dist:fusing dist:include="false" />
     </dist:module>
 
     <application tools:ignore="AllowBackup,GoogleAppIndexingWarning,MissingApplicationIcon">
