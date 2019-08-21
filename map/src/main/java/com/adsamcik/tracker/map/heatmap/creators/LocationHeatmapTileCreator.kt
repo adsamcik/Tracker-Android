@@ -5,6 +5,7 @@ import android.graphics.Color
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
@@ -12,16 +13,15 @@ import kotlin.math.ceil
 import kotlin.math.pow
 
 @Suppress("MagicNumber")
-internal class LocationHeatmapTileCreator(context: Context) : HeatmapTileCreator {
+internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLayerData) : HeatmapTileCreator {
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
+		val colorList = layerData.colorList
+		val colorListSize = colorList.size.toDouble()
+		val heatmapColors = layerData.colorList.mapIndexed { index, color ->
+			index / colorListSize to color
+		}
 		return HeatmapConfig(
-				HeatmapColorScheme.fromArray(
-						listOf(
-								Pair(0.1, Color.TRANSPARENT),
-								Pair(0.3, Color.BLUE),
-								Pair(0.7, Color.YELLOW),
-								Pair(1.0, Color.RED)),
-						100),
+				HeatmapColorScheme.fromArray(heatmapColors, 100),
 				maxHeat,
 				false,
 				{ current, _, stampValue, weight ->

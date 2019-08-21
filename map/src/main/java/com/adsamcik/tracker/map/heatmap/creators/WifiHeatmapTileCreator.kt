@@ -21,8 +21,6 @@ internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerD
 		}
 
 		return HeatmapConfig(
-
-
 				HeatmapColorScheme.fromArray(heatmapColors, 100),
 				20f,
 				false,
