@@ -80,11 +80,12 @@ data class WifiInfo(
 ) : Parcelable {
 	constructor() : this("", "", "")
 
+	@Suppress("MagicNumber")
 	constructor(sr: ScanResult) : this() {
 		this.bssid = sr.BSSID
 		this.ssid = sr.SSID
 		this.capabilities = sr.capabilities
-		if (Build.VERSION.SDK_INT > 22) {
+		if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
 			this.centerFreq0 = sr.centerFreq0
 			when (sr.channelWidth) {
 				CHANNEL_WIDTH_20MHZ -> channelWidth = 20

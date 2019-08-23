@@ -25,7 +25,17 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	@Query("SELECT * from location_data where time >= :from")
 	fun getAllSince(from: Long): List<DatabaseLocation>
 
-	@Query("SELECT lon, lat, hor_acc as weight FROM location_data where lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude")
+	@Query(
+			"""
+		SELECT lon, lat, hor_acc as weight
+		FROM location_data
+		where
+			lat >= :bottomLatitude and
+			lon >= :leftLongitude and
+			lat <= :topLatitude and
+			lon <= :rightLongitude
+		"""
+	)
 	fun getAllInside(
 			topLatitude: Double,
 			rightLongitude: Double,
@@ -33,7 +43,19 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 			leftLongitude: Double
 	): List<Database2DLocationWeightedMinimal>
 
-	@Query("SELECT COUNT(*) FROM location_data where time >= :from and time <= :to and lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude")
+	@Query(
+			"""
+		SELECT COUNT(*)
+		FROM location_data
+		where
+			time >= :from and
+			time <= :to and
+			lat >= :bottomLatitude and
+			lon >= :leftLongitude and
+			lat <= :topLatitude and
+			lon <= :rightLongitude
+		"""
+	)
 	fun countInsideAndBetween(
 			from: Long,
 			to: Long,
@@ -43,7 +65,19 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 			leftLongitude: Double
 	): Int
 
-	@Query("SELECT lon, lat, hor_acc as weight FROM location_data where time >= :from and time <= :to and lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude")
+	@Query(
+			"""
+		SELECT lon, lat, hor_acc as weight
+		FROM location_data
+		where
+			time >= :from and
+			time <= :to and
+			lat >= :bottomLatitude and
+			lon >= :leftLongitude and
+			lat <= :topLatitude and
+			lon <= :rightLongitude
+		"""
+	)
 	fun getAllInsideAndBetween(
 			from: Long,
 			to: Long,
