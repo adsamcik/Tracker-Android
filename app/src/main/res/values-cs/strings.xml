@@ -122,8 +122,6 @@
     <string name="module_map_title">mapa</string>
     <string name="module_statistics_title">statistiky</string>
     <string name="module_success">Instalace byla úspěšně dokončena</string>
-    <string name="sessioncategory_add">Přidat kategorii</string>
-    <string name="sessioncategory_add_contentdescription">Přidat kategorii</string>
     <string name="settings_error_reporting_title">Automatické hlášení chyb</string>
     <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
     <string name="settings_export_sqlite_summary">Exportovat databázový soubor ve formátu SQLite3</string>

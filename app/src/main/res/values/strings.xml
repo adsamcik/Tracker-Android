@@ -43,8 +43,4 @@
     <string name="title_map">Map</string>
 
     <string name="date_long_press_range_selection">Long press and pull activates date range selection</string>
-
-
-    <string name="sessioncategory_add">Add category</string>
-    <string name="sessioncategory_add_contentdescription">Add category</string>
 </resources>

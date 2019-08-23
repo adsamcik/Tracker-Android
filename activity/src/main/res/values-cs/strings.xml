@@ -7,4 +7,7 @@
     <string name="notification_activity_watcher_ticker">Služba sledování aktivity je aktivní</string>
     <string name="settings_activity_snackbar_message">%s odstraněno</string>
     <string name="settings_activity_title">Aktivity</string>
+
+    <string name="sessioncategory_add">Přidat kategorii</string>
+    <string name="sessioncategory_add_contentdescription">Přidat kategorii</string>
 </resources>

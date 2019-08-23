@@ -2,7 +2,7 @@
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/background_component_info"
+    android:background="@drawable/background_layer_floating"
     android:orientation="vertical"
     android:padding="@dimen/content_padding">
 
