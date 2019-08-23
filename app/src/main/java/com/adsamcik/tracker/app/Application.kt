@@ -2,6 +2,8 @@ package com.adsamcik.tracker.app
 
 import android.os.Build
 import androidx.annotation.AnyThread
+import androidx.annotation.MainThread
+import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.activity.ActivityModuleInitializer
 import com.adsamcik.tracker.common.module.ModuleInitializer
 import com.adsamcik.tracker.module.Module
@@ -15,7 +17,7 @@ import kotlinx.coroutines.launch
 
 @Suppress("unused")
 class Application : SplitCompatApplication() {
-	@AnyThread
+	@WorkerThread
 	private fun initializeModules() {
 		ActivityModuleInitializer().initialize(this)
 		TrackerModuleInitializer().initialize(this)
@@ -33,7 +35,7 @@ class Application : SplitCompatApplication() {
 		}
 	}
 
-	@AnyThread
+	@WorkerThread
 	private fun initializeClasses() {
 		if (Build.VERSION.SDK_INT >= 25) Shortcuts.initializeShortcuts(this)
 		if (Build.VERSION.SDK_INT >= 26) NotificationChannels.prepareChannels(this)
