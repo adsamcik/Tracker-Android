@@ -56,19 +56,19 @@ before_install:
   - echo yes | sdkmanager "platforms;android-$ANDROID_API" > /dev/null
   - echo yes | sdkmanager "system-images;android-$EMULATOR_API;default;$ANDROID_ABI" > /dev/null
   # Create and start emulator for the script. Meant to race the install task.
-  - echo no | avdmanager create avd --force -n emulatorname -k "system-images;android-$EMULATOR_API;default;$ANDROID_ABI"
-  - $ANDROID_HOME/emulator/emulator -memory 1024 -avd emulatorname -skin 768x1280 -no-boot-anim -no-audio -no-window -no-snapshot -no-snapstorage -no-cache &
+  # - echo no | avdmanager create avd --force -n emulatorname -k "system-images;android-$EMULATOR_API;default;$ANDROID_ABI"
+  # - $ANDROID_HOME/emulator/emulator -memory 1024 -avd emulatorname -skin 768x1280 -no-boot-anim -no-audio -no-window -no-snapshot -no-snapstorage -no-cache &
 
 
 before_script:
   - yes | cp -rf keys.xml.example app/src/main/res/values/keys.xml
   - yes | cp -rf google-services.json.example app/google-services.json
   - echo 'org.gradle.jvmargs=-Xms4g -Xmx4g -XX:+HeapDumpOnOutOfMemoryError' >> gradle.properties
-  - android-wait-for-emulator
-  - adb shell settings put global window_animation_scale 0 &
-  - adb shell settings put global transition_animation_scale 0 &
-  - adb shell settings put global animator_duration_scale 0 &
-  - adb shell input keyevent 82 &
+  # - android-wait-for-emulator
+  # - adb shell settings put global window_animation_scale 0 &
+  # - adb shell settings put global transition_animation_scale 0 &
+  # - adb shell settings put global animator_duration_scale 0 &
+  # - adb shell input keyevent 82 &
 
 script:
   - ./gradlew build connectedCheck
