@@ -9,7 +9,7 @@ import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.MutableCollectionData
 import com.adsamcik.tracker.common.data.TrackerSession

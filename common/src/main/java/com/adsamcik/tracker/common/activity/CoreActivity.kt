@@ -3,7 +3,7 @@ package com.adsamcik.tracker.common.activity
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import androidx.appcompat.app.AppCompatActivity
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

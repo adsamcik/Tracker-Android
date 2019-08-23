@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.common.extension
 
 import androidx.work.Data
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 
 fun Data.getLong(key: String): Long? {
 	return if (keyValueMap.contains(key)) getLong(key, 0) else null

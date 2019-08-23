@@ -5,7 +5,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.transaction

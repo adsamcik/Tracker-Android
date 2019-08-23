@@ -13,7 +13,7 @@ import androidx.appcompat.widget.AppCompatButton
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.style.RecyclerStyleView

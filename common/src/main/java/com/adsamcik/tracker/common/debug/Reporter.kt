@@ -1,7 +1,10 @@
-package com.adsamcik.tracker.common
+package com.adsamcik.tracker.common.debug
 
 import android.content.Context
 import androidx.lifecycle.Observer
+import com.adsamcik.tracker.common.BuildConfig
+import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.common.isEmulator
 import com.adsamcik.tracker.common.preference.observer.PreferenceObserver
 import com.crashlytics.android.Crashlytics
 import io.fabric.sdk.android.Fabric
@@ -29,13 +32,15 @@ object Reporter {
 
 		if (isEmulator) return
 
-		if (this.context?.get() == null) {
-			this.context = WeakReference(context.applicationContext)
+		if (Reporter.context?.get() == null) {
+			Reporter.context = WeakReference(context.applicationContext)
 		}
 
 		PreferenceObserver.observe(
-				context, R.string.settings_error_reporting_key,
-				R.string.settings_error_reporting_default, loggingObserver
+				context,
+				R.string.settings_error_reporting_key,
+				R.string.settings_error_reporting_default,
+				loggingObserver
 		)
 	}
 

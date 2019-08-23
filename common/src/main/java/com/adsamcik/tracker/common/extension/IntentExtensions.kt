@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.common.extension
 
 import android.content.Intent
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 
 fun Intent.getLongExtra(key: String): Long? {
 	return if (hasExtra(key)) getLongExtra(key, 0) else null

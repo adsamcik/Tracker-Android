@@ -15,7 +15,7 @@ import android.telephony.TelephonyManager
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import com.adsamcik.tracker.common.Assist
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.data.CellInfo
 import com.adsamcik.tracker.common.data.NetworkOperator
 import com.adsamcik.tracker.common.extension.getSystemServiceTyped

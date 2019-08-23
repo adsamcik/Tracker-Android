@@ -4,7 +4,7 @@ import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
 import com.adsamcik.tracker.common.Assist.getNavigationBarSize
-import com.adsamcik.tracker.common.Reporter
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.inputMethodManager
 
