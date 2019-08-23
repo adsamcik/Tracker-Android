@@ -9,7 +9,7 @@ object Dependencies {
 		internal const val appcompat = "1.1.0-rc01"
 		internal const val room = "2.1.0"
 		internal const val fragment = "1.2.0-alpha02"
-		const val kotlin: String = "1.3.41"
+		const val kotlin: String = "1.3.50"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.8.0"
 		internal const val work = "2.2.0"
