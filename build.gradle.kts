@@ -6,7 +6,7 @@ buildscript {
 	}
 	dependencies {
 		classpath("com.android.tools.build:gradle:3.5.0")
-		classpath("com.google.gms:google-services:4.3.0")
+		classpath("com.google.gms:google-services:4.3.1")
 		classpath("com.google.gms:oss-licenses:0.9.2")
 		classpath("io.fabric.tools:gradle:1.31.0")
 
