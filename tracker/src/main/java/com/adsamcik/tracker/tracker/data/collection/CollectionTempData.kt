@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.data.collection
 
 import android.location.Location
 import com.adsamcik.tracker.common.data.ActivityInfo
+import com.adsamcik.tracker.common.data.LocationData
 import com.adsamcik.tracker.tracker.BuildConfig
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataConsumerComponent
@@ -27,13 +28,8 @@ internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos:
 		set(TrackerComponentRequirement.ACTIVITY, value)
 	}
 
-	fun setLocationResult(locationResult: LocationResult) {
-		set(TrackerComponentRequirement.LOCATION, locationResult)
-	}
-
-	fun setPreviousLocation(location: Location, distance: Float) {
-		set(PREVIOUS_LOCATION, location)
-		set(DISTANCE, distance)
+	fun setLocationData(locationData: LocationData) {
+		set(TrackerComponentRequirement.LOCATION, locationData)
 	}
 
 	fun setCellData(cellData: CellScanData) {
@@ -41,6 +37,7 @@ internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos:
 	}
 }
 
+@Suppress("TooManyFunctions")
 internal abstract class CollectionTempData(val timeMillis: Long, val elapsedRealtimeNanos: Long) {
 	protected abstract val map: Map<String, InternalData>
 
@@ -80,15 +77,6 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 		return tryGet(TrackerComponentRequirement.ACTIVITY)
 	}
 
-	fun getDistance(component: TrackerDataConsumerComponent): Float {
-		validatePermissions(component, TrackerComponentRequirement.LOCATION)
-		return get(DISTANCE)
-	}
-
-	fun tryGetDistance(): Float? {
-		return tryGet(DISTANCE)
-	}
-
 	fun getLocationResult(component: TrackerDataConsumerComponent): LocationResult {
 		validatePermissions(component, TrackerComponentRequirement.LOCATION)
 		return get(TrackerComponentRequirement.LOCATION)
@@ -106,15 +94,6 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 		return tryGet<LocationResult>(TrackerComponentRequirement.LOCATION)?.lastLocation
 	}
 
-	fun getPreviousLocation(component: TrackerDataConsumerComponent): Location {
-		validatePermissions(component, TrackerComponentRequirement.LOCATION)
-		return get(PREVIOUS_LOCATION)
-	}
-
-	fun tryGetPreviousLocation(): Location? {
-		return tryGet(PREVIOUS_LOCATION)
-	}
-
 	fun getWifiData(component: TrackerDataConsumerComponent): WifiScanData {
 		validatePermissions(component, TrackerComponentRequirement.WIFI)
 		return get(TrackerComponentRequirement.WIFI)
@@ -126,10 +105,5 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 	}
 
 	protected data class InternalData(val value: Any)
-
-	companion object {
-		internal const val DISTANCE = "distance"
-		internal const val PREVIOUS_LOCATION = "previousLocation"
-	}
 }
 

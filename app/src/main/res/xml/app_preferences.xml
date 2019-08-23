@@ -196,7 +196,8 @@
     <androidx.preference.Preference
         android:key="@string/settings_module_enable_key"
         android:title="@string/settings_module_enable_title"
-        app:icon="@drawable/ic_modules" />
+        app:icon="@drawable/ic_modules"
+        app:isPreferenceVisible="false" />
 
     <androidx.preference.PreferenceCategory
         android:key="@string/settings_module_group_key"

@@ -1,101 +1,75 @@
 package com.adsamcik.tracker.tracker.component.timer
 
-import android.Manifest
 import android.content.Context
 import android.location.Location
-import android.os.Looper
-import com.adsamcik.tracker.common.Reporter
+import androidx.annotation.CallSuper
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.common.data.LocationData
 import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
-import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
-import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
-import com.google.android.gms.location.LocationAvailability
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
 
-internal class LocationTrackerTimer : TrackerTimerComponent {
-	override val requiredPermissions: Collection<String> get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+internal abstract class LocationTrackerTimer : TrackerTimerComponent {
+	protected var receiver: TrackerTimerReceiver? = null
+		private set
 
-	private var receiver: TrackerTimerReceiver? = null
+	protected var previousLocation: Location? = null
+		private set
 
-	private var previousLocation: Location? = null
-	private var elapsedRealtimeStartNanos: Long = 0
+	private var startedAtElapsedRealtimeNanos: Long = Long.MIN_VALUE
 
-	private val locationCallback: LocationCallback = object : LocationCallback() {
-		override fun onLocationResult(result: LocationResult) {
-			if (receiver == null) {
-				Reporter.report("Received location update with null callback")
-				return
-			}
+	private fun isLocationYoungEnough(location: Location, previousLocation: Location): Boolean {
+		val locationAge = location.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos
+		val maxAge = PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS
+		return locationAge < maxAge
+	}
 
-			if (result.lastLocation.elapsedRealtimeNanos + MAX_LOCATION_AGE_IN_NANOS > elapsedRealtimeStartNanos) {
-				val tempData = createCollectionTempData(result)
-				receiver?.onUpdate(tempData)
+	protected fun onNewData(locations: List<Location>) {
+		require(locations.isNotEmpty())
+		val receiver = receiver
+		require(receiver != null)
 
-				previousLocation = result.lastLocation
-			}
-		}
+		val lastLocation = locations.last()
+		if (lastLocation.elapsedRealtimeNanos + MAX_LOCATION_AGE_IN_NANOS > startedAtElapsedRealtimeNanos) {
+			val tempData = createCollectionTempData(locations)
+			receiver.onUpdate(tempData)
 
-		override fun onLocationAvailability(availability: LocationAvailability) {
-			if (!availability.isLocationAvailable) {
-				val errorData = TrackerTimerErrorData(TrackerTimerErrorSeverity.NOTIFY_USER,
-						R.string.notification_looking_for_gps)
-				receiver?.onError(errorData)
-			}
+			previousLocation = lastLocation
 		}
 	}
 
-	private fun createCollectionTempData(locationResult: LocationResult): MutableCollectionTempData {
-		val location = locationResult.lastLocation
+	private fun createCollectionTempData(locations: List<Location>): MutableCollectionTempData {
+		require(locations.isNotEmpty())
+		val location = locations.last()
 		return MutableCollectionTempData(location.time, location.elapsedRealtimeNanos).apply {
-			setLocationResult(locationResult)
+			val builder = LocationData.Builder()
+			builder.setLocations(locations)
 
 			val previousLocation = previousLocation
 			if (previousLocation != null &&
-					(locationResult.lastLocation.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos) < PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS) {
+					isLocationYoungEnough(location, previousLocation)) {
 				val distance = location.distanceTo(previousLocation)
-				setPreviousLocation(previousLocation, distance)
+				builder.setPreviousLocation(previousLocation, distance)
 			}
+
+			setLocationData(builder.build())
 		}
 	}
 
+	@CallSuper
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		this.receiver = receiver
-
-		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default)
-		val minDistanceInMeters = preferences.getIntRes(R.string.settings_tracking_min_distance_key,
-				R.integer.settings_tracking_min_distance_default)
-
-		val client = LocationServices.getFusedLocationProviderClient(context)
-		val request = LocationRequest.create().apply {
-			interval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
-			fastestInterval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
-			smallestDisplacement = minDistanceInMeters.toFloat()
-			priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-		}
-
-		elapsedRealtimeStartNanos = Time.elapsedRealtimeNanos
-
-		client.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+		startedAtElapsedRealtimeNanos = Time.elapsedRealtimeNanos
 	}
 
+	@CallSuper
 	override fun onDisable(context: Context) {
-		LocationServices.getFusedLocationProviderClient(context)
-				.removeLocationUpdates(locationCallback)
 		this.receiver = null
 	}
 
 	companion object {
-		const val PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS = 30
-		const val MAX_LOCATION_AGE_IN_NANOS = 10 * Time.SECOND_IN_NANOSECONDS
+		private const val PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS = 30
+		private const val MAX_LOCATION_AGE_IN_NANOS = 10 * Time.SECOND_IN_NANOSECONDS
 	}
-}
 
+}

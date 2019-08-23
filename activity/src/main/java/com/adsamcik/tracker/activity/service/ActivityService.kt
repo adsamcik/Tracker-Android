@@ -84,6 +84,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 
 				if (delayInS > 0) {
 					requestActivityRecognition(client, intent, delayInS)
+				} else {
+					client.removeActivityUpdates(intent)
 				}
 
 				if (requestedTransitions.isNotEmpty()) {

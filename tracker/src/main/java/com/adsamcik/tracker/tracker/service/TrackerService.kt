@@ -43,7 +43,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.StepPreTrackerComponent
-import com.adsamcik.tracker.tracker.component.timer.LocationTrackerTimer
+import com.adsamcik.tracker.tracker.component.timer.FusedLocationTrackerTimer
 import com.adsamcik.tracker.tracker.component.timer.TimeTrackerTimer
 import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
@@ -229,7 +229,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				R.string.settings_location_enabled_default)
 
 		timerComponent = if (useLocation) {
-			LocationTrackerTimer()
+			FusedLocationTrackerTimer()
 		} else {
 			TimeTrackerTimer()
 		}
