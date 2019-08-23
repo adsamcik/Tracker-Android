@@ -23,14 +23,16 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
-internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent, CoroutineScope {
+internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent,
+		CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
 
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
-	private var mutableSession: MutableTrackerSession = MutableTrackerSession(Time.nowMillis, isUserInitiated)
+	private var mutableSession: MutableTrackerSession = MutableTrackerSession(Time.nowMillis,
+			isUserInitiated)
 
 	val session: TrackerSession
 		get() = mutableSession
@@ -43,35 +45,49 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	private lateinit var sessionDao: SessionDataDao
 
-	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
+	override suspend fun onDataUpdated(
+			tempData: CollectionTempData,
+			collectionData: MutableCollectionData
+	) {
 		mutableSession.run {
-			val distance = tempData.tryGetDistance()
-			distance?.let { distanceInM += it }
+			val locationData = tempData.tryGetLocationData()
+			val distance = locationData?.distance
+			distance?.let {
+				distanceInM += it
+
+				tempData.tryGetActivity()?.let { activity ->
+					validateActivity(distance, tempData.elapsedRealtimeNanos,
+							activity.groupedActivity)
+				}
+			}
 
 			collections++
 			end = Time.nowMillis
 
-			val newSteps = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
-			if (newSteps != null) steps += newSteps
-
-			val previousLocation = tempData.tryGetPreviousLocation()
-
-			if (distance != null &&
-					previousLocation != null &&
-					(tempData.elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20,
-							minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
-							distance <= minDistanceInMeters * 2f)) {
-
-				when (tempData.tryGetActivity()?.groupedActivity) {
-					GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
-					GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
-					else -> {
-					}
-				}
+			tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)?.let { newSteps ->
+				steps += newSteps
 			}
 
 			withContext(coroutineContext) {
 				sessionDao.update(this@run)
+			}
+		}
+	}
+
+	private fun MutableTrackerSession.validateActivity(
+			distance: Float,
+			elapsedRealtimeNanos: Long,
+			groupedActivity: GroupedActivity
+	) {
+		if (elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20,
+						minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
+				distance <= minDistanceInMeters * 2f) {
+
+			when (groupedActivity) {
+				GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
+				GroupedActivity.IN_VEHICLE -> distanceInVehicleInM += distance
+				else -> {
+				}
 			}
 		}
 	}

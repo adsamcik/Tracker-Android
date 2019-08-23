@@ -4,13 +4,13 @@ import android.content.Context
 import android.location.Location
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
+import com.adsamcik.tracker.common.data.LocationData
 import com.adsamcik.tracker.common.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.consumer.pre.StepPreTrackerComponent
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import com.google.android.gms.location.DetectedActivity
-import com.google.android.gms.location.LocationResult
 
 internal class ActivityTrackerComponent : DataTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement>
@@ -79,7 +79,11 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-	private fun getSpeed(locationResult: LocationResult, previousLocation: Location?, distance: Float): Float? {
+	private fun getSpeed(
+			locationResult: LocationData,
+			previousLocation: Location?,
+			distance: Float
+	): Float? {
 		val location = locationResult.lastLocation
 		return when {
 			location.hasSpeed() -> location.speed
@@ -88,17 +92,19 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		}
 	}
 
-	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
-		val locationResult = tempData.tryGetLocationResult()
-		val previousLocation = tempData.tryGetPreviousLocation()
-		val distance = tempData.tryGetDistance()
-		val speed = if (locationResult != null &&
-				previousLocation != null &&
-				distance != null) {
-			getSpeed(locationResult, previousLocation, distance)
-		} else {
-			null
-		}
+	private fun determineSpeed(tempData: CollectionTempData): Float? {
+		val locationData = tempData.tryGetLocationData() ?: return null
+		val previousLocation = locationData.previousLocation ?: return null
+		val distance = requireNotNull(locationData.distance)
+
+		return getSpeed(locationData, previousLocation, distance)
+	}
+
+	override suspend fun onDataUpdated(
+			tempData: CollectionTempData,
+			collectionData: MutableCollectionData
+	) {
+		val speed = determineSpeed(tempData)
 
 		collectionData.activity = determineActivity(speed, tempData)
 	}

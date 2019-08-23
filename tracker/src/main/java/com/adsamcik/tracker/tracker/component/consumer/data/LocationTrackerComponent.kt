@@ -14,7 +14,7 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 	override suspend fun onEnable(context: Context) = Unit
 
 	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
-		val locationResult = tempData.getLocationResult(this)
+		val locationResult = tempData.getLocationData(this)
 		collectionData.setLocation(locationResult.lastLocation)
 	}
 }

@@ -8,8 +8,9 @@ import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataConsumerComponent
 import com.google.android.gms.location.LocationResult
 
-internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos: Long) : CollectionTempData(timeMillis,
-		elapsedRealtimeNanos) {
+internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos: Long) :
+		CollectionTempData(timeMillis,
+				elapsedRealtimeNanos) {
 	override val map: MutableMap<String, InternalData> = mutableMapOf()
 
 	fun <T : Any> set(key: String, value: T) {
@@ -43,9 +44,13 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 
 	fun containsKey(key: String): Boolean = map.containsKey(key)
 
+	private fun tryGetRaw(key: String): Any? {
+		return map[key]?.value
+	}
+
 	fun <T> tryGet(key: String): T? {
 		@Suppress("UNCHECKED_CAST")
-		return map[key]?.value as? T
+		return tryGetRaw(key) as? T
 	}
 
 	private fun <T> tryGet(key: TrackerComponentRequirement): T? {
@@ -55,14 +60,15 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 
 	fun <T : Any> get(key: String): T {
 		@Suppress("UNCHECKED_CAST")
-		return map[key]?.value as T
+		return tryGetRaw(key) as T
 	}
 
 	private fun <T : Any> get(key: TrackerComponentRequirement): T {
 		return get(key.name)
 	}
 
-	private fun validatePermissions(component: TrackerDataConsumerComponent, required: TrackerComponentRequirement) {
+	private fun validatePermissions(component: TrackerDataConsumerComponent,
+	                                required: TrackerComponentRequirement) {
 		if (BuildConfig.DEBUG) {
 			assert(component.requiredData.contains(required))
 		}
@@ -77,17 +83,17 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 		return tryGet(TrackerComponentRequirement.ACTIVITY)
 	}
 
-	fun getLocationResult(component: TrackerDataConsumerComponent): LocationResult {
+	fun getLocationData(component: TrackerDataConsumerComponent): LocationData {
 		validatePermissions(component, TrackerComponentRequirement.LOCATION)
 		return get(TrackerComponentRequirement.LOCATION)
 	}
 
-	fun tryGetLocationResult(): LocationResult? {
+	fun tryGetLocationData(): LocationData? {
 		return tryGet(TrackerComponentRequirement.LOCATION)
 	}
 
 	fun getLocation(component: TrackerDataConsumerComponent): Location {
-		return getLocationResult(component).lastLocation
+		return getLocationData(component).lastLocation
 	}
 
 	fun tryGetLocation(): Location? {

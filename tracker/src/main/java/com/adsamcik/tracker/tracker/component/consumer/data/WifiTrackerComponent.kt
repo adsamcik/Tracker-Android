@@ -12,17 +12,23 @@ import kotlin.math.abs
 
 internal class WifiTrackerComponent : DataTrackerComponent {
 
-	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(TrackerComponentRequirement.WIFI)
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
+			TrackerComponentRequirement.WIFI)
 
 
-	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
+	override suspend fun onDataUpdated(
+			tempData: CollectionTempData,
+			collectionData: MutableCollectionData
+	) {
 		val scanData = tempData.getWifiData(this)
-		val locationResult = tempData.tryGetLocationResult()
-		if (locationResult != null) {
-			val location = locationResult.lastLocation
-			val locations = locationResult.locations
+		val locationData = tempData.tryGetLocationData()
+		if (locationData != null) {
+			val location = locationData.lastLocation
+			val locations = locationData.locations
 			if (locations.size >= 2) {
-				val nearestLocation = locations.sortedBy { abs(scanData.relativeTimeNanos - it.elapsedRealtimeNanos) }
+				val nearestLocation = locations.sortedBy {
+					abs(scanData.relativeTimeNanos - it.elapsedRealtimeNanos)
+				}
 						.take(2)
 				val firstIndex = if (nearestLocation[0].time < nearestLocation[1].time) 0 else 1
 
@@ -30,8 +36,8 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 				val second = nearestLocation[(firstIndex + 1).rem(2)]
 				setWifi(scanData, collectionData, first, second, first.distanceTo(second))
 			} else {
-				val previousLocation = tempData.tryGetPreviousLocation()
-				val distance = tempData.tryGetDistance()
+				val previousLocation = locationData.previousLocation
+				val distance = locationData.distance
 				if (previousLocation != null && distance != null) {
 					setWifi(scanData, collectionData, previousLocation, location, distance)
 				}
@@ -45,17 +51,19 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 		collectionData.setWifi(null, scanData.timeMillis, scanData.data)
 	}
 
-	private fun setWifi(scanData: WifiScanData,
-	                    collectionData: MutableCollectionData,
-	                    firstLocation: Location,
-	                    secondLocation: Location,
-	                    distanceBetweenFirstAndSecond: Float
+	private fun setWifi(
+			scanData: WifiScanData,
+			collectionData: MutableCollectionData,
+			firstLocation: Location,
+			secondLocation: Location,
+			distanceBetweenFirstAndSecond: Float
 	) {
 		val timeDelta = (scanData.relativeTimeNanos - firstLocation.elapsedRealtimeNanos).toDouble() /
 				(secondLocation.elapsedRealtimeNanos - firstLocation.elapsedRealtimeNanos).toDouble()
 		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
 		if (wifiDistance <= MAX_DISTANCE_TO_WIFI) {
-			val interpolatedLocation = LocationExtensions.interpolateLocation(firstLocation, secondLocation, timeDelta)
+			val interpolatedLocation = LocationExtensions.interpolateLocation(firstLocation,
+					secondLocation, timeDelta)
 			collectionData.setWifi(interpolatedLocation, scanData.timeMillis, scanData.data)
 		}
 	}
