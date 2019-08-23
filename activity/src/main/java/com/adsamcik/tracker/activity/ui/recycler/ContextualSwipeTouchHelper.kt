@@ -9,16 +9,20 @@ import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.style.utility.ColorFunctions
 import com.adsamcik.tracker.common.style.StyleData
 import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.common.style.utility.ColorFunctions
 
-class ContextualSwipeTouchHelper(context: Context,
-                                 val adapter: ActivityRecyclerAdapter,
-                                 private val canSwipeCallback: (SessionActivity) -> Boolean) : ItemTouchHelper.SimpleCallback(
-		0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+class ContextualSwipeTouchHelper(
+		context: Context,
+		val adapter: ActivityRecyclerAdapter,
+		private val canSwipeCallback: (SessionActivity) -> Boolean
+) : ItemTouchHelper.SimpleCallback(
+		0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+) {
 	private val icon: Drawable = requireNotNull(
-			context.getDrawable(com.adsamcik.tracker.common.R.drawable.ic_baseline_remove_circle_outline))
+			context.getDrawable(com.adsamcik.tracker.common.R.drawable.ic_baseline_remove_circle_outline)
+	)
 
 	private val colorController = StyleManager.createController()
 
@@ -39,7 +43,11 @@ class ContextualSwipeTouchHelper(context: Context,
 		val foregroundColor = styleData.foregroundColor(false)
 		val luminance = styleData.perceivedLuminance(false)
 
-		backgroundPaint.color = ColorFunctions.getBackgroundLayerColor(backgroundColor, luminance, 1)
+		backgroundPaint.color = ColorFunctions.getBackgroundLayerColor(
+				backgroundColor,
+				luminance,
+				1
+		)
 		foregroundPaint.color = foregroundColor
 
 		icon.setTint(foregroundColor)
@@ -49,13 +57,18 @@ class ContextualSwipeTouchHelper(context: Context,
 		StyleManager.recycleController(colorController)
 	}
 
-	override fun onMove(recyclerView: RecyclerView,
-	                    viewHolder: RecyclerView.ViewHolder,
-	                    target: RecyclerView.ViewHolder): Boolean {
+	override fun onMove(
+			recyclerView: RecyclerView,
+			viewHolder: RecyclerView.ViewHolder,
+			target: RecyclerView.ViewHolder
+	): Boolean {
 		return false
 	}
 
-	override fun getSwipeDirs(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+	override fun getSwipeDirs(
+			recyclerView: RecyclerView,
+			viewHolder: RecyclerView.ViewHolder
+	): Int {
 		return if (canSwipeCallback.invoke(adapter.getItem(viewHolder.adapterPosition))) {
 			super.getSwipeDirs(recyclerView, viewHolder)
 		} else {
@@ -91,9 +104,11 @@ class ContextualSwipeTouchHelper(context: Context,
 				val iconRight = itemViewLeft + iconMargin + icon.intrinsicWidth
 				icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
 
-				bounds = Rect(itemViewLeft, itemView.top,
+				bounds = Rect(
+						itemViewLeft, itemView.top,
 						itemViewLeft + visibleSize,
-						itemView.bottom)
+						itemView.bottom
+				)
 			}
 			else -> { // Swiping to the left
 				val visibleSize = -(dX.toInt() - backgroundCornerOffset)
@@ -101,8 +116,10 @@ class ContextualSwipeTouchHelper(context: Context,
 				val iconRight = itemViewRight - iconMargin
 				icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
 
-				bounds = Rect(itemViewRight - visibleSize,
-						itemView.top, itemViewRight, itemView.bottom)
+				bounds = Rect(
+						itemViewRight - visibleSize,
+						itemView.top, itemViewRight, itemView.bottom
+				)
 			}
 		}
 
@@ -114,13 +131,15 @@ class ContextualSwipeTouchHelper(context: Context,
 		icon.draw(canvas)
 	}
 
-	override fun onChildDraw(c: Canvas,
-	                         recyclerView: RecyclerView,
-	                         viewHolder: RecyclerView.ViewHolder,
-	                         dX: Float,
-	                         dY: Float,
-	                         actionState: Int,
-	                         isCurrentlyActive: Boolean) {
+	override fun onChildDraw(
+			c: Canvas,
+			recyclerView: RecyclerView,
+			viewHolder: RecyclerView.ViewHolder,
+			dX: Float,
+			dY: Float,
+			actionState: Int,
+			isCurrentlyActive: Boolean
+	) {
 		drawBackground(c, viewHolder.itemView, dX)
 
 		super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)

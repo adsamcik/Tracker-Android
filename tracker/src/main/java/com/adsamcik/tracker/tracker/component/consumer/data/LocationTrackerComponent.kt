@@ -8,12 +8,16 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
 internal class LocationTrackerComponent : DataTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
-			TrackerComponentRequirement.LOCATION)
+			TrackerComponentRequirement.LOCATION
+	)
 
 	override suspend fun onDisable(context: Context) = Unit
 	override suspend fun onEnable(context: Context) = Unit
 
-	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
+	override suspend fun onDataUpdated(
+			tempData: CollectionTempData,
+			collectionData: MutableCollectionData
+	) {
 		val locationResult = tempData.getLocationData(this)
 		collectionData.setLocation(locationResult.lastLocation)
 	}

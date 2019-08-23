@@ -74,9 +74,11 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 
 
 		@Synchronized
-		fun startActivityRecognition(context: Context,
-		                             delayInS: Int,
-		                             requestedTransitions: Collection<ActivityTransitionData>): Boolean {
+		fun startActivityRecognition(
+				context: Context,
+				delayInS: Int,
+				requestedTransitions: Collection<ActivityTransitionData>
+		): Boolean {
 			return if (Assist.checkPlayServices(context)) {
 				val client = ActivityRecognition.getClient(context)
 
@@ -102,19 +104,24 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			}
 		}
 
-		private fun requestActivityRecognition(client: ActivityRecognitionClient,
-		                                       intent: PendingIntent,
-		                                       delayInS: Int) {
+		private fun requestActivityRecognition(
+				client: ActivityRecognitionClient,
+				intent: PendingIntent,
+				delayInS: Int
+		) {
 			recognitionClientTask = client.requestActivityUpdates(
-					delayInS * Time.SECOND_IN_MILLISECONDS, intent)
+					delayInS * Time.SECOND_IN_MILLISECONDS, intent
+			)
 					.apply {
 						addOnFailureListener { Reporter.report(it) }
 					}
 		}
 
-		private fun requestActivityTransition(client: ActivityRecognitionClient,
-		                                      intent: PendingIntent,
-		                                      requestedTransitions: Collection<ActivityTransitionData>) {
+		private fun requestActivityTransition(
+				client: ActivityRecognitionClient,
+				intent: PendingIntent,
+				requestedTransitions: Collection<ActivityTransitionData>
+		) {
 			val transitions = buildTransitions(requestedTransitions)
 			val request = ActivityTransitionRequest(transitions)
 			transitionClientTask = client.requestActivityTransitionUpdates(request, intent).apply {
@@ -149,8 +156,10 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			val intent = Intent(context.applicationContext, ActivityService::class.java)
 			// We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
 			// requestActivityUpdates() and removeActivityUpdates().
-			return PendingIntent.getService(context, REQUEST_CODE_PENDING_INTENT, intent,
-					PendingIntent.FLAG_UPDATE_CURRENT)
+			return PendingIntent.getService(
+					context, REQUEST_CODE_PENDING_INTENT, intent,
+					PendingIntent.FLAG_UPDATE_CURRENT
+			)
 		}
 	}
 }

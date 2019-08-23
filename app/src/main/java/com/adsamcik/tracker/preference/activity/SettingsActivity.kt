@@ -25,7 +25,8 @@ import com.adsamcik.tracker.preference.pages.TrackerPreferencePage
  * Settings Activity contains local settings and hosts debugging features
  * It is based upon Android's [Preference].
  */
-class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
+class SettingsActivity : DetailActivity(),
+		PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
 	val fragment: FragmentSettings = FragmentSettings()
 
 	private val backstack = mutableListOf<PreferenceScreen>()
@@ -63,7 +64,8 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		modules.forEach {
 			try {
 				val tClass = it.module.loadClass<ModuleSettings>(
-						"preference.${it.module.moduleName.capitalize()}Settings")
+						"preference.${it.module.moduleName.capitalize()}Settings"
+				)
 				val instance = tClass.newInstance()
 				moduleSettingsList[it.module] = instance
 			} catch (e: ClassNotFoundException) {
@@ -123,7 +125,10 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 	}
 
 
-	override fun onPreferenceStartScreen(caller: PreferenceFragmentCompat, pref: PreferenceScreen): Boolean {
+	override fun onPreferenceStartScreen(
+			caller: PreferenceFragmentCompat,
+			pref: PreferenceScreen
+	): Boolean {
 		caller.preferenceScreen = pref
 		val index = backstack.indexOf(pref)
 		if (index >= 0) {
@@ -140,7 +145,11 @@ class SettingsActivity : DetailActivity(), PreferenceFragmentCompat.OnPreference
 		return true
 	}
 
-	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+	override fun onRequestPermissionsResult(
+			requestCode: Int,
+			permissions: Array<out String>,
+			grantResults: IntArray
+	) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
 		val page = activePage

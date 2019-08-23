@@ -15,9 +15,11 @@ class TrackerPreferencePage : PreferencePage {
 
 	private lateinit var snackMaker: SnackMaker
 
-	private fun validateEnablePreference(locationEnabled: Boolean,
-	                                     wifiEnabled: Boolean,
-	                                     cellEnabled: Boolean) = locationEnabled.or(wifiEnabled).or(cellEnabled)
+	private fun validateEnablePreference(
+			locationEnabled: Boolean,
+			wifiEnabled: Boolean,
+			cellEnabled: Boolean
+	) = locationEnabled.or(wifiEnabled).or(cellEnabled)
 
 	override fun onExit(caller: PreferenceFragmentCompat) {}
 
@@ -38,9 +40,15 @@ class TrackerPreferencePage : PreferencePage {
 		}
 
 		locationPreference.setOnPreferenceChangeListener { _, newValue ->
-			if (!validateEnablePreference(locationEnabled = newValue as Boolean, wifiEnabled = wifiPreference.isChecked,
-							cellEnabled = cellPreference.isChecked)) {
-				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+			if (!validateEnablePreference(
+							locationEnabled = newValue as Boolean,
+							wifiEnabled = wifiPreference.isChecked,
+							cellEnabled = cellPreference.isChecked
+					)) {
+				snackMaker.addMessage(
+						R.string.error_nothing_to_track,
+						priority = SnackMaker.SnackbarPriority.IMPORTANT
+				)
 				false
 			} else {
 				true
@@ -48,18 +56,30 @@ class TrackerPreferencePage : PreferencePage {
 		}
 
 		wifiPreference.setOnPreferenceChangeListener { _, newValue ->
-			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked,
-							wifiEnabled = newValue as Boolean, cellEnabled = cellPreference.isChecked)) {
-				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+			if (!validateEnablePreference(
+							locationEnabled = locationPreference.isChecked,
+							wifiEnabled = newValue as Boolean,
+							cellEnabled = cellPreference.isChecked
+					)) {
+				snackMaker.addMessage(
+						R.string.error_nothing_to_track,
+						priority = SnackMaker.SnackbarPriority.IMPORTANT
+				)
 				false
 			} else
 				true
 		}
 
 		cellPreference.setOnPreferenceChangeListener { _, newValue ->
-			if (!validateEnablePreference(locationEnabled = locationPreference.isChecked,
-							wifiEnabled = wifiPreference.isChecked, cellEnabled = newValue as Boolean)) {
-				snackMaker.addMessage(R.string.error_nothing_to_track, priority = SnackMaker.SnackbarPriority.IMPORTANT)
+			if (!validateEnablePreference(
+							locationEnabled = locationPreference.isChecked,
+							wifiEnabled = wifiPreference.isChecked,
+							cellEnabled = newValue as Boolean
+					)) {
+				snackMaker.addMessage(
+						R.string.error_nothing_to_track,
+						priority = SnackMaker.SnackbarPriority.IMPORTANT
+				)
 				false
 			} else {
 				true
@@ -70,19 +90,28 @@ class TrackerPreferencePage : PreferencePage {
 	private fun initializeAutoTrackingPreferences(caller: PreferenceFragmentCompat) {
 		caller.findPreference(R.string.settings_tracking_activity_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
-			ActivityWatcherService.onAutoTrackingPreferenceChange(preference.context, newValue as Int)
+			ActivityWatcherService.onAutoTrackingPreferenceChange(
+					preference.context,
+					newValue as Int
+			)
 			return@OnPreferenceChangeListener true
 		}
 
 		caller.findPreference(R.string.settings_activity_watcher_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
-			ActivityWatcherService.onWatcherPreferenceChange(preference.context, newValue as Boolean)
+			ActivityWatcherService.onWatcherPreferenceChange(
+					preference.context,
+					newValue as Boolean
+			)
 			return@OnPreferenceChangeListener true
 		}
 
 		caller.findPreference(R.string.settings_activity_freq_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
-			ActivityWatcherService.onActivityIntervalPreferenceChange(preference.context, newValue as Int)
+			ActivityWatcherService.onActivityIntervalPreferenceChange(
+					preference.context,
+					newValue as Int
+			)
 			return@OnPreferenceChangeListener true
 		}
 

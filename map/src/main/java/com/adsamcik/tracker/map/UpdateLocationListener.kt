@@ -34,9 +34,11 @@ import java.lang.Math.toDegrees
 
 //todo add activity icon instead of generic location icon when possible
 @Suppress("TooManyFunctions")
-internal class UpdateLocationListener(context: Context,
-                                      private val map: GoogleMap,
-                                      private val eventListener: MapEventListener) : SensorEventListener {
+internal class UpdateLocationListener(
+		context: Context,
+		private val map: GoogleMap,
+		private val eventListener: MapEventListener
+) : SensorEventListener {
 	private var followMyPosition: Boolean = false
 	private var useGyroscope = false
 
@@ -49,18 +51,21 @@ internal class UpdateLocationListener(context: Context,
 	private var targetBearing: Float = 0f
 	private var targetZoom: Float = 0f
 
-	private var userRadius: Circle = map.addCircle(CircleOptions()
-			.fillColor(ContextCompat.getColor(context, R.color.color_user_accuracy))
-			.center(LatLng(0.0, 0.0))
-			.radius(0.0)
-			.zIndex(100f)
-			.strokeWidth(0f))
+	private var userRadius: Circle = map.addCircle(
+			CircleOptions()
+					.fillColor(ContextCompat.getColor(context, R.color.color_user_accuracy))
+					.center(LatLng(0.0, 0.0))
+					.radius(0.0)
+					.zIndex(100f)
+					.strokeWidth(0f)
+	)
 
-	private var userCenter: Marker = map.addMarker(MarkerOptions()
-			.flat(true)
-			.position(LatLng(0.0, 0.0))
-			.icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_user_location))
-			.anchor(0.5f, 0.5f)
+	private var userCenter: Marker = map.addMarker(
+			MarkerOptions()
+					.flat(true)
+					.position(LatLng(0.0, 0.0))
+					.icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_user_location))
+					.anchor(0.5f, 0.5f)
 	)
 
 	//Orientation
@@ -90,9 +95,13 @@ internal class UpdateLocationListener(context: Context,
 		initializePositions()
 		subscribeToLocationUpdates(context, true)
 
-		ActivityRequestManager.requestActivity(context,
-				ActivityRequestData(UpdateLocationListener::class,
-						ActivityChangeRequestData(10, this::onActivityUpdate)))
+		ActivityRequestManager.requestActivity(
+				context,
+				ActivityRequestData(
+						UpdateLocationListener::class,
+						ActivityChangeRequestData(10, this::onActivityUpdate)
+				)
+		)
 	}
 
 	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {
@@ -120,7 +129,11 @@ internal class UpdateLocationListener(context: Context,
 
 			Assist.ensureLooper()
 
-			locationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper())
+			locationClient.requestLocationUpdates(
+					locationRequest,
+					locationCallback,
+					Looper.myLooper()
+			)
 			if (moveToCurrentLocation) {
 				locationClient.lastLocation.addOnCompleteListener {
 					if (it.isSuccessful) {
@@ -228,7 +241,13 @@ internal class UpdateLocationListener(context: Context,
 		animateTo(targetPosition, targetZoom, tilt, targetBearing, DURATION_SHORT)
 	}
 
-	private fun animateTo(position: LatLng?, zoom: Float, tilt: Float, bearing: Float, duration: Int) {
+	private fun animateTo(
+			position: LatLng?,
+			zoom: Float,
+			tilt: Float,
+			bearing: Float,
+			duration: Int
+	) {
 		val builder = CameraPosition.Builder(map.cameraPosition).target(position).zoom(zoom)
 				.tilt(tilt).bearing(bearing)
 		map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), duration, null)
@@ -244,8 +263,10 @@ internal class UpdateLocationListener(context: Context,
 				else -> {
 					useGyroscope = true
 					if (rotationVector != null) {
-						sensorManager.registerListener(this, rotationVector,
-								SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI)
+						sensorManager.registerListener(
+								this, rotationVector,
+								SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI
+						)
 					}
 					animateToTilt(45f)
 					button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_compass)
@@ -288,7 +309,10 @@ internal class UpdateLocationListener(context: Context,
 			// calculate th rotation matrix
 			SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
 			// getPref the azimuth value (orientation[0]) in degree
-			val orientation = SensorManager.getOrientation(rotationMatrix, orientation)[0].toDouble()
+			val orientation = SensorManager.getOrientation(
+					rotationMatrix,
+					orientation
+			)[0].toDouble()
 			updateRotation(((toDegrees(orientation) + 360.0) % 360.0).toFloat())
 		}
 	}

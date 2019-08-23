@@ -7,11 +7,8 @@ import androidx.annotation.LayoutRes
 import com.adsamcik.tracker.common.adapter.BaseFilterableAdapter
 import com.adsamcik.tracker.common.adapter.SimpleFilterableAdapter
 import com.adsamcik.tracker.commonmap.CoordinateBounds
-import com.adsamcik.tracker.commonmap.MapLayerData
-import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.commonmap.MapLayerLogic
-import com.adsamcik.tracker.commonmap.MapLegend
-import com.adsamcik.tracker.commonmap.MapLegendValue
+import com.adsamcik.tracker.map.R
 
 /**
  * Implementation of the [BaseFilterableAdapter] using a MapLayer and CoordinateBounds

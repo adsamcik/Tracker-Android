@@ -11,7 +11,8 @@ class WalkDistanceChallengePersistence : ChallengePersistence<WalkDistanceChalle
 		val entry = database.entryDao.get(entryId)
 		val entity = database.walkDistanceDao.getByEntry(entryId)
 		val definition = WalkDistanceChallengeDefinition()
-		return WalkDistanceChallengeInstance(entry,
+		return WalkDistanceChallengeInstance(
+				entry,
 				definition,
 				entity
 		)

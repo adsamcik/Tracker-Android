@@ -36,16 +36,23 @@ typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) 
 //todo add current alpha
 typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
 
-internal class WeightedHeatmap(val width: Int,
-                               val height: Int = width,
-                               var maxHeat: Float = 0f,
-                               var dynamicHeat: Boolean = true) {
+internal class WeightedHeatmap(
+		val width: Int,
+		val height: Int = width,
+		var maxHeat: Float = 0f,
+		var dynamicHeat: Boolean = true
+) {
 	private val alphaArray: UByteArray = UByteArray(width * height)
 	private val weightArray: FloatArray = FloatArray(width * height)
 
 	private var pointCount = 0
 
-	private fun mergeWeightDefault(current: Float, currentAlpha: Int, stampValue: Float, value: Float): Float {
+	private fun mergeWeightDefault(
+			current: Float,
+			currentAlpha: Int,
+			stampValue: Float,
+			value: Float
+	): Float {
 		return current + stampValue * value
 	}
 
@@ -55,12 +62,14 @@ internal class WeightedHeatmap(val width: Int,
 	}
 
 	@Suppress("ComplexMethod", "LongParameterList")
-	fun addPoint(x: Int,
-	             y: Int,
-	             stamp: HeatmapStamp = HeatmapStamp.default9x9,
-	             weight: Float = 1f,
-	             weightMergeFunction: WeightMergeFunction = this::mergeWeightDefault,
-	             alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault) {
+	fun addPoint(
+			x: Int,
+			y: Int,
+			stamp: HeatmapStamp = HeatmapStamp.default9x9,
+			weight: Float = 1f,
+			weightMergeFunction: WeightMergeFunction = this::mergeWeightDefault,
+			alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
+	) {
 		//todo validate that odd numbers don't cause some weird artifacts
 		val halfStampHeight = stamp.height / 2
 		val halfStampWidth = stamp.width / 2
@@ -89,7 +98,12 @@ internal class WeightedHeatmap(val width: Int,
 				val stampValue = stamp.stampData[stampIndex]
 				val alphaValue = alphaArray[heatIndex].toInt()
 
-				val newWeightValue = weightMergeFunction(weightArray[heatIndex], alphaValue, stampValue, weight)
+				val newWeightValue = weightMergeFunction(
+						weightArray[heatIndex],
+						alphaValue,
+						stampValue,
+						weight
+				)
 				weightArray[heatIndex] = newWeightValue
 
 				val newAlphaValue = alphaMergeFunction(alphaValue, stampValue, newWeightValue)
@@ -121,12 +135,19 @@ internal class WeightedHeatmap(val width: Int,
 		return renderSaturatedTo(colorScheme, saturation)
 	}
 
-	fun renderSaturatedTo(colorScheme: HeatmapColorScheme, saturation: Float): IntArray = renderSaturatedTo(colorScheme,
-			saturation) { it }
+	fun renderSaturatedTo(
+			colorScheme: HeatmapColorScheme,
+			saturation: Float
+	): IntArray = renderSaturatedTo(
+			colorScheme,
+			saturation
+	) { it }
 
-	inline fun renderSaturatedTo(colorScheme: HeatmapColorScheme,
-	                             saturation: Float,
-	                             normalizedValueModifierFunction: (Float) -> Float): IntArray {
+	inline fun renderSaturatedTo(
+			colorScheme: HeatmapColorScheme,
+			saturation: Float,
+			normalizedValueModifierFunction: (Float) -> Float
+	): IntArray {
 		assert(saturation > 0f)
 
 		val buffer = IntArray(width * height)
@@ -138,14 +159,22 @@ internal class WeightedHeatmap(val width: Int,
 
 			for (itX in 0 until width) {
 				val value = weightArray[index]
-				val normalizedValue = normalizedValueModifierFunction(min(value, saturation) / saturation)
+				val normalizedValue = normalizedValueModifierFunction(
+						min(
+								value,
+								saturation
+						) / saturation
+				)
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
 
 				assert(normalizedValue >= 0)
 				assert(colorId < colorScheme.colors.size)
 
-				buffer[index] = ColorUtils.setAlphaComponent(colorScheme.colors[colorId], alphaArray[index].toInt())
+				buffer[index] = ColorUtils.setAlphaComponent(
+						colorScheme.colors[colorId],
+						alphaArray[index].toInt()
+				)
 				index++
 			}
 		}

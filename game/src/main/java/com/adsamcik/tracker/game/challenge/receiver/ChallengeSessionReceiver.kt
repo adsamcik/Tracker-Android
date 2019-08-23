@@ -38,18 +38,25 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 					.setInitialDelay(DELAY_IN_MINUTES, TimeUnit.MINUTES)
 					.addTag("ChallengeQueue")
 					.setInputData(data)
-					.setConstraints(Constraints.Builder()
-							.setRequiresBatteryNotLow(true)
-							.build()
+					.setConstraints(
+							Constraints.Builder()
+									.setRequiresBatteryNotLow(true)
+									.build()
 					).build()
-			workManager.enqueueUniqueWork(ChallengeWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, workRequest)
+			workManager.enqueueUniqueWork(
+					ChallengeWorker.UNIQUE_WORK_NAME,
+					ExistingWorkPolicy.REPLACE,
+					workRequest
+			)
 		}
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {
 		//The receiver might be subscribed even though the challenges are disabled. Subscribing on demand could be really complicated.
-		if (Preferences.getPref(context).getBooleanRes(R.string.settings_game_challenge_enable_key,
-						R.string.settings_game_challenge_enable_default)) {
+		if (Preferences.getPref(context).getBooleanRes(
+						R.string.settings_game_challenge_enable_key,
+						R.string.settings_game_challenge_enable_default
+				)) {
 			when (intent.action) {
 				TrackerSession.RECEIVER_SESSION_STARTED -> onSessionStarted(context)
 				TrackerSession.RECEIVER_SESSION_ENDED -> onSessionEnded(context, intent)

@@ -12,7 +12,12 @@ import kotlin.math.roundToInt
 internal class HeatmapTile(
 		val data: HeatmapTileData
 ) {
-	private val heatmap = WeightedHeatmap(data.heatmapSize, data.heatmapSize, data.config.maxHeat, data.config.dynamicHeat)
+	private val heatmap = WeightedHeatmap(
+			data.heatmapSize,
+			data.heatmapSize,
+			data.config.maxHeat,
+			data.config.dynamicHeat
+	)
 
 	private val tileCount: Int = MapFunctions.getTileCount(data.zoom)
 
@@ -31,14 +36,21 @@ internal class HeatmapTile(
 		val ty = MapFunctions.toTileY(location.latitude, tileCount)
 		val x = ((tx - data.x) * data.heatmapSize).roundToInt()
 		val y = ((ty - data.y) * data.heatmapSize).roundToInt()
-		heatmap.addPoint(x, y, data.stamp, location.normalizedWeight.toFloat(),
-				data.config.weightMergeFunction)
+		heatmap.addPoint(
+				x, y, data.stamp, location.normalizedWeight.toFloat(),
+				data.config.weightMergeFunction
+		)
 	}
 
 
 	fun toByteArray(bitmapSize: Int): ByteArray {
 		val array = heatmap.renderSaturatedTo(data.config.colorScheme, heatmap.maxHeat) { it }
-		val bitmap = Bitmap.createBitmap(array, data.heatmapSize, data.heatmapSize, Bitmap.Config.ARGB_8888)
+		val bitmap = Bitmap.createBitmap(
+				array,
+				data.heatmapSize,
+				data.heatmapSize,
+				Bitmap.Config.ARGB_8888
+		)
 
 		return if (data.heatmapSize != bitmapSize) {
 			bitmap.scale(bitmapSize, bitmapSize, false).toByteArray()

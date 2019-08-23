@@ -56,11 +56,29 @@ class StylePage : PreferencePage {
 			val context = it.context
 
 			morning.saveValue(
-					sp.getInt(morningKey, ContextCompat.getColor(context, R.color.settings_color_morning_default)))
-			day.saveValue(sp.getInt(dayKey, ContextCompat.getColor(context, R.color.settings_color_day_default)))
+					sp.getInt(
+							morningKey,
+							ContextCompat.getColor(context, R.color.settings_color_morning_default)
+					)
+			)
+			day.saveValue(
+					sp.getInt(
+							dayKey,
+							ContextCompat.getColor(context, R.color.settings_color_day_default)
+					)
+			)
 			evening.saveValue(
-					sp.getInt(eveningKey, ContextCompat.getColor(context, R.color.settings_color_evening_default)))
-			night.saveValue(sp.getInt(nightKey, ContextCompat.getColor(context, R.color.settings_color_night_default)))
+					sp.getInt(
+							eveningKey,
+							ContextCompat.getColor(context, R.color.settings_color_evening_default)
+					)
+			)
+			night.saveValue(
+					sp.getInt(
+							nightKey,
+							ContextCompat.getColor(context, R.color.settings_color_night_default)
+					)
+			)
 
 			true
 		}
@@ -102,7 +120,9 @@ class StylePage : PreferencePage {
 			}
 		}
 
-		stylePreference.sharedPreferences.registerOnSharedPreferenceChangeListener(styleChangeListener)
+		stylePreference.sharedPreferences.registerOnSharedPreferenceChangeListener(
+				styleChangeListener
+		)
 	}
 
 	override fun onExit(caller: PreferenceFragmentCompat) {
@@ -110,7 +130,9 @@ class StylePage : PreferencePage {
 		val styleKey = resources.getString(R.string.settings_style_mode_key)
 		val stylePreference = caller.findPreferenceTyped<ListPreference>(styleKey)
 		//Even though listener is stored as weak reference, this is safer and there is no reason not to do it
-		stylePreference.sharedPreferences.unregisterOnSharedPreferenceChangeListener(styleChangeListener)
+		stylePreference.sharedPreferences.unregisterOnSharedPreferenceChangeListener(
+				styleChangeListener
+		)
 	}
 
 }

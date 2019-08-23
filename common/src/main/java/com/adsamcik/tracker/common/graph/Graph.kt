@@ -25,7 +25,8 @@ data class Graph(val vertexList: List<Vertex>, val edgeList: List<Edge>) {
 			throw IllegalArgumentException(
 					"Graph received invalid edges.\n" +
 							"Vertexes ${vertexList.joinToString()}\n" +
-							"Edges ${edgeList.joinToString()}")
+							"Edges ${edgeList.joinToString()}"
+			)
 		}
 	}
 }

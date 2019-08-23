@@ -36,31 +36,40 @@ object Shortcuts {
 		val shortcutManager = context.getSystemService(ShortcutManager::class.java)
 		val shortcuts = ArrayList<ShortcutInfo>(1)
 		if (!TrackerService.isServiceRunning.value) {
-			shortcuts.add(createShortcut(context,
-					TRACKING_ID,
-					R.string.shortcut_start_tracking,
-					R.string.shortcut_start_tracking_long,
-					R.drawable.ic_play_circle_filled_black_24dp,
-					Shortcuts.ShortcutAction.START_COLLECTION))
+			shortcuts.add(
+					createShortcut(
+							context,
+							TRACKING_ID,
+							R.string.shortcut_start_tracking,
+							R.string.shortcut_start_tracking_long,
+							R.drawable.ic_play_circle_filled_black_24dp,
+							Shortcuts.ShortcutAction.START_COLLECTION
+					)
+			)
 		} else {
-			shortcuts.add(createShortcut(context,
-					TRACKING_ID,
-					R.string.shortcut_stop_tracking,
-					R.string.shortcut_stop_tracking_long,
-					R.drawable.ic_pause_circle_filled_black_24dp,
-					Shortcuts.ShortcutAction.STOP_COLLECTION))
+			shortcuts.add(
+					createShortcut(
+							context,
+							TRACKING_ID,
+							R.string.shortcut_stop_tracking,
+							R.string.shortcut_stop_tracking_long,
+							R.drawable.ic_pause_circle_filled_black_24dp,
+							Shortcuts.ShortcutAction.STOP_COLLECTION
+					)
+			)
 		}
 
 		shortcutManager.dynamicShortcuts = shortcuts
 	}
 
 
-	private fun createShortcut(context: Context,
-	                           id: String,
-	                           @StringRes shortLabelRes: Int,
-	                           @StringRes longLabelRes: Int,
-	                           @DrawableRes iconResource: Int,
-	                           action: ShortcutAction
+	private fun createShortcut(
+			context: Context,
+			id: String,
+			@StringRes shortLabelRes: Int,
+			@StringRes longLabelRes: Int,
+			@DrawableRes iconResource: Int,
+			action: ShortcutAction
 	): ShortcutInfo {
 		with(context) {
 			val shortLabel = getString(shortLabelRes)
@@ -69,8 +78,11 @@ object Shortcuts {
 			return ShortcutInfo.Builder(this, id)
 					.setShortLabel(shortLabel)
 					.setIcon(Icon.createWithResource(this, iconResource))
-					.setIntent(Intent(context, ShortcutActivity::class.java).setFlags(
-							Intent.FLAG_ACTIVITY_NEW_TASK).setAction(ACTION).putExtra(ACTION_STRING, action.ordinal))
+					.setIntent(
+							Intent(context, ShortcutActivity::class.java).setFlags(
+									Intent.FLAG_ACTIVITY_NEW_TASK
+							).setAction(ACTION).putExtra(ACTION_STRING, action.ordinal)
+					)
 					.setLongLabel(longLabel)
 					.build()
 		}
@@ -86,12 +98,13 @@ object Shortcuts {
 	 * @param iconResource Drawable resource id for the icon
 	 * @param shortcutAction Shortcut type defined in [ShortcutAction]. Action needs to be defined in [ShortcutActivity].
 	 */
-	fun updateShortcut(context: Context,
-	                   id: String,
-	                   @StringRes shortLabelRes: Int,
-	                   @StringRes longLabelRes: Int,
-	                   @DrawableRes iconResource: Int,
-	                   shortcutAction: ShortcutAction
+	fun updateShortcut(
+			context: Context,
+			id: String,
+			@StringRes shortLabelRes: Int,
+			@StringRes longLabelRes: Int,
+			@DrawableRes iconResource: Int,
+			shortcutAction: ShortcutAction
 	) {
 		initializeShortcuts(context)
 		val shortcutManager = context.shortcutManager
@@ -100,7 +113,14 @@ object Shortcuts {
 		val index = shortcuts.indexOfFirst { it.id == id }
 
 		if (index != -1)
-			shortcuts[index] = createShortcut(context, id, shortLabelRes, longLabelRes, iconResource, shortcutAction)
+			shortcuts[index] = createShortcut(
+					context,
+					id,
+					shortLabelRes,
+					longLabelRes,
+					iconResource,
+					shortcutAction
+			)
 
 		shortcutManager.updateShortcuts(shortcuts)
 	}

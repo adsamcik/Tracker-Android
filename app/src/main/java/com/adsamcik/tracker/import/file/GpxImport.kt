@@ -23,9 +23,11 @@ import java.time.ZonedDateTime
 class GpxImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("gpx")
 
-	override fun import(context: Context,
-	                    database: AppDatabase,
-	                    file: File) {
+	override fun import(
+			context: Context,
+			database: AppDatabase,
+			file: File
+	) {
 		val gpx = GPX.read(file.path)
 		gpx.tracks().forEach { track ->
 			val type: String? = if (track.type.isPresent) track.type.get() else null
@@ -57,7 +59,10 @@ class GpxImport : FileImport {
 		return toEpochSecond() * Time.SECOND_IN_MILLISECONDS
 	}
 
-	private fun prepareSession(segment: TrackSegment, activity: SessionActivity?): MutableTrackerSession? {
+	private fun prepareSession(
+			segment: TrackSegment,
+			activity: SessionActivity?
+	): MutableTrackerSession? {
 		val start: Long
 		val end: Long
 
@@ -78,9 +83,10 @@ class GpxImport : FileImport {
 		return session
 	}
 
-	private fun handleSegment(database: AppDatabase,
-	                          segment: TrackSegment,
-	                          session: MutableTrackerSession
+	private fun handleSegment(
+			database: AppDatabase,
+			segment: TrackSegment,
+			session: MutableTrackerSession
 	) {
 		var lastLocation: Location? = null
 
@@ -103,8 +109,9 @@ class GpxImport : FileImport {
 		saveSession(database, session)
 	}
 
-	private fun saveSession(database: AppDatabase,
-	                        session: TrackerSession
+	private fun saveSession(
+			database: AppDatabase,
+			session: TrackerSession
 	) {
 		val sessionDao = database.sessionDao()
 		sessionDao.insert(session)

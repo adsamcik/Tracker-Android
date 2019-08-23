@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.common.data
 
 import android.os.Build
-import android.os.Parcel
 import android.os.Parcelable
 import android.telephony.CellIdentityNr
 import android.telephony.CellInfoCdma
@@ -11,7 +10,6 @@ import android.telephony.CellInfoNr
 import android.telephony.CellInfoWcdma
 import androidx.annotation.RequiresApi
 import androidx.room.Entity
-import com.adsamcik.tracker.common.extension.requireString
 import kotlinx.android.parcel.Parcelize
 
 @Entity(tableName = "network_operator", primaryKeys = ["mcc", "mnc"])

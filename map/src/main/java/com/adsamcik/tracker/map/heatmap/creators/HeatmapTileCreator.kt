@@ -9,17 +9,21 @@ import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
 import com.adsamcik.tracker.map.heatmap.WeightMergeFunction
 
-typealias InsideAndBetween = (from: Long,
-                              to: Long,
-                              topLatitude: Double,
-                              rightLongitude: Double,
-                              bottomLatitude: Double,
-                              leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+typealias InsideAndBetween = (
+		from: Long,
+		to: Long,
+		topLatitude: Double,
+		rightLongitude: Double,
+		bottomLatitude: Double,
+		leftLongitude: Double
+) -> List<Database2DLocationWeightedMinimal>
 
-typealias Inside = (topLatitude: Double,
-                    rightLongitude: Double,
-                    bottomLatitude: Double,
-                    leftLongitude: Double) -> List<Database2DLocationWeightedMinimal>
+typealias Inside = (
+		topLatitude: Double,
+		rightLongitude: Double,
+		bottomLatitude: Double,
+		leftLongitude: Double
+) -> List<Database2DLocationWeightedMinimal>
 
 internal interface HeatmapTileCreator {
 	val getAllInsideAndBetween: InsideAndBetween
@@ -36,8 +40,10 @@ internal interface HeatmapTileCreator {
 
 	fun getHeatmap(data: HeatmapTileData, from: Long, to: Long): HeatmapTile {
 		return createHeatmap(data) { topLatitude, rightLongitude, bottomLatitude, leftLongitude ->
-			getAllInsideAndBetween(from, to, topLatitude, rightLongitude, bottomLatitude,
-					leftLongitude)
+			getAllInsideAndBetween(
+					from, to, topLatitude, rightLongitude, bottomLatitude,
+					leftLongitude
+			)
 		}
 	}
 
@@ -65,7 +71,8 @@ internal interface HeatmapTileCreator {
 				data.area.top + extendLatitude,
 				data.area.right + extendLongitude,
 				data.area.bottom - extendLatitude,
-				data.area.left - extendLongitude)
+				data.area.left - extendLongitude
+		)
 		//val allInside = dao.getAllInside(area.top, area.right, area.bottom, area.left)
 
 		if (weightNormalizationValue != 0.0) {

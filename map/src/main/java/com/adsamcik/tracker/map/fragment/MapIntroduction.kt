@@ -15,7 +15,8 @@ class MapIntroduction : Introduction() {
 	override fun getTargets(activity: FragmentActivity): Collection<com.takusemba.spotlight.Target> {
 		activity.run {
 			val buttonData = SimpleTarget.ButtonData(
-					getString(com.adsamcik.tracker.common.R.string.next_part)) { _, spotlight ->
+					getString(com.adsamcik.tracker.common.R.string.next_part)
+			) { _, spotlight ->
 				spotlight.next()
 			}
 
@@ -25,8 +26,11 @@ class MapIntroduction : Introduction() {
 			val searchTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_search_title))
-					.addButtonData(SimpleTarget.ButtonData(resources.getString(
-							com.adsamcik.tracker.common.R.string.skip_tips)) { _, spotlight ->
+					.addButtonData(SimpleTarget.ButtonData(
+							resources.getString(
+									com.adsamcik.tracker.common.R.string.skip_tips
+							)
+					) { _, spotlight ->
 						spotlight.finishSpotlight()
 					})
 					.addButtonData(buttonData)
@@ -60,7 +64,12 @@ class MapIntroduction : Introduction() {
 					.setDescription(getString(R.string.tips_map_date_range_description))
 					.build()
 
-			return listOf(mapMenuButtonTarget, searchTarget, myLocationButtonTarget, dateRangeTarget)
+			return listOf(
+					mapMenuButtonTarget,
+					searchTarget,
+					myLocationButtonTarget,
+					dateRangeTarget
+			)
 		}
 	}
 

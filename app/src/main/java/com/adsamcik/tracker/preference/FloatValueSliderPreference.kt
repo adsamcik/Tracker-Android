@@ -8,20 +8,26 @@ import androidx.annotation.IntegerRes
 import androidx.core.content.res.getStringOrThrow
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import com.adsamcik.tracker.R
 import com.adsamcik.slider.implementations.FloatValueSlider
+import com.adsamcik.tracker.R
 
 /**
  * Custom Preference implementation of the FloatValueSlider from Slider library.
  * It allows Slider to be used as preference.
  */
 class FloatValueSliderPreference : Preference {
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs,
-			defStyleAttr, defStyleRes) {
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
+			context, attrs,
+			defStyleAttr, defStyleRes
+	) {
 		initAttributes(context, attrs)
 	}
 
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(
+			context,
+			attrs,
+			defStyleAttr
+	) {
 		initAttributes(context, attrs)
 	}
 
@@ -32,7 +38,10 @@ class FloatValueSliderPreference : Preference {
 	constructor(context: Context) : super(context)
 
 	private fun initAttributes(context: Context, attrs: AttributeSet) {
-		val attributes = context.obtainStyledAttributes(attrs, R.styleable.FloatValueSliderPreference)
+		val attributes = context.obtainStyledAttributes(
+				attrs,
+				R.styleable.FloatValueSliderPreference
+		)
 		mValuesResource = attributes.getResourceId(R.styleable.FloatValueSliderPreference_items, 0)
 		if (attributes.hasValue(R.styleable.FloatValueSliderPreference_stringFormat)) {
 			mTextViewString = attributes.getStringOrThrow(R.styleable.FloatValueSliderPreference_stringFormat)

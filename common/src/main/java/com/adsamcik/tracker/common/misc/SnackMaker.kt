@@ -52,8 +52,10 @@ class SnackMaker(view: View) : CoroutineScope {
 	 * @param message Message
 	 * @param duration Duration that has to be one of [SnackDuration] values
 	 */
-	fun addMessage(message: String, @SnackDuration duration: Int = LENGTH_LONG,
-	               priority: SnackbarPriority = SnackbarPriority.QUEUE) {
+	fun addMessage(
+			message: String, @SnackDuration duration: Int = LENGTH_LONG,
+			priority: SnackbarPriority = SnackbarPriority.QUEUE
+	) {
 		addSnackbar(SnackbarRecipe(message, duration, priority))
 	}
 
@@ -76,11 +78,12 @@ class SnackMaker(view: View) : CoroutineScope {
 	 * @param actionRes Action string resource
 	 * @param onActionClick On action click listener
 	 */
-	fun addMessage(@StringRes messageRes: Int,
-	               @SnackDuration duration: Int = LENGTH_LONG,
-	               priority: SnackbarPriority,
-	               @StringRes actionRes: Int,
-	               onActionClick: View.OnClickListener
+	fun addMessage(
+			@StringRes messageRes: Int,
+			@SnackDuration duration: Int = LENGTH_LONG,
+			priority: SnackbarPriority,
+			@StringRes actionRes: Int,
+			onActionClick: View.OnClickListener
 	) {
 		val action = resources.getString(actionRes)
 		val message = resources.getString(messageRes)
@@ -156,12 +159,13 @@ class SnackMaker(view: View) : CoroutineScope {
 	}
 
 
-	data class SnackbarRecipe(val message: String,
-	                          @SnackDuration val duration: Int,
-	                          val priority: SnackbarPriority,
-	                          val action: String? = null,
-	                          val onActionClick: View.OnClickListener? = null,
-	                          val onDismissed: (() -> Unit)? = null
+	data class SnackbarRecipe(
+			val message: String,
+			@SnackDuration val duration: Int,
+			val priority: SnackbarPriority,
+			val action: String? = null,
+			val onActionClick: View.OnClickListener? = null,
+			val onDismissed: (() -> Unit)? = null
 	)
 
 	enum class SnackbarPriority {

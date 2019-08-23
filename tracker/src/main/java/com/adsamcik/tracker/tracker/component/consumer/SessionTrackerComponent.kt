@@ -31,8 +31,10 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
-	private var mutableSession: MutableTrackerSession = MutableTrackerSession(Time.nowMillis,
-			isUserInitiated)
+	private var mutableSession: MutableTrackerSession = MutableTrackerSession(
+			Time.nowMillis,
+			isUserInitiated
+	)
 
 	val session: TrackerSession
 		get() = mutableSession
@@ -56,8 +58,10 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 				distanceInM += it
 
 				tempData.tryGetActivity()?.let { activity ->
-					validateActivity(distance, tempData.elapsedRealtimeNanos,
-							activity.groupedActivity)
+					validateActivity(
+							distance, tempData.elapsedRealtimeNanos,
+							activity.groupedActivity
+					)
 				}
 			}
 
@@ -79,8 +83,10 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 			elapsedRealtimeNanos: Long,
 			groupedActivity: GroupedActivity
 	) {
-		if (elapsedRealtimeNanos < max(Time.SECOND_IN_NANOSECONDS * 20,
-						minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS) ||
+		if (elapsedRealtimeNanos < max(
+						Time.SECOND_IN_NANOSECONDS * 20,
+						minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS
+				) ||
 				distance <= minDistanceInMeters * 2f) {
 
 			when (groupedActivity) {
@@ -93,10 +99,14 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onDisable(context: Context) {
-		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_distance_key,
-				minDistanceInMetersObserver)
-		PreferenceObserver.removeObserver(context, R.string.settings_tracking_min_time_key,
-				minUpdateDelayInSecondsObserver)
+		PreferenceObserver.removeObserver(
+				context, R.string.settings_tracking_min_distance_key,
+				minDistanceInMetersObserver
+		)
+		PreferenceObserver.removeObserver(
+				context, R.string.settings_tracking_min_time_key,
+				minUpdateDelayInSecondsObserver
+		)
 
 		mutableSession.apply {
 			end = Time.nowMillis
@@ -108,10 +118,14 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onEnable(context: Context) {
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_distance_key,
-				R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver)
-		PreferenceObserver.observeIntRes(context, R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver)
+		PreferenceObserver.observeIntRes(
+				context, R.string.settings_tracking_min_distance_key,
+				R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver
+		)
+		PreferenceObserver.observeIntRes(
+				context, R.string.settings_tracking_min_time_key,
+				R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver
+		)
 
 		withContext(coroutineContext) {
 			initializeSession(context)

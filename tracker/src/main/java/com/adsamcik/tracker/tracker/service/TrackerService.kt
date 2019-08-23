@@ -122,17 +122,22 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		//Get managers
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
-		wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "signals:TrackerWakeLock")
+		wakeLock = powerManager.newWakeLock(
+				PowerManager.PARTIAL_WAKE_LOCK,
+				"signals:TrackerWakeLock"
+		)
 
 
 		//Shortcut setup
 		if (android.os.Build.VERSION.SDK_INT >= 25) {
-			Shortcuts.updateShortcut(this,
+			Shortcuts.updateShortcut(
+					this,
 					Shortcuts.TRACKING_ID,
 					R.string.shortcut_stop_tracking,
 					R.string.shortcut_stop_tracking_long,
 					R.drawable.ic_pause_circle_filled_black_24dp,
-					Shortcuts.ShortcutAction.STOP_COLLECTION)
+					Shortcuts.ShortcutAction.STOP_COLLECTION
+			)
 		}
 
 		initializeTimer()
@@ -191,7 +196,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		sessionInfoMutable.value = this.sessionInfo
 
 
-		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(this)
+		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(
+				this
+		)
 		startForeground(notificationId, notification)
 
 		if (!isUserInitiated) {
@@ -225,8 +232,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private fun initializeTimer() {
 		val preferences = Preferences.getPref(this)
-		val useLocation = preferences.getBooleanRes(R.string.settings_location_enabled_key,
-				R.string.settings_location_enabled_default)
+		val useLocation = preferences.getBooleanRes(
+				R.string.settings_location_enabled_key,
+				R.string.settings_location_enabled_default
+		)
 
 		timerComponent = if (useLocation) {
 			FusedLocationTrackerTimer()
@@ -258,7 +267,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		when (errorData.severity) {
 			TrackerTimerErrorSeverity.STOP_SERVICE -> stopSelf()
 			TrackerTimerErrorSeverity.REPORT -> Reporter.report(errorData.internalMessage)
-			TrackerTimerErrorSeverity.NOTIFY_USER -> notificationComponent.onError(this, errorData.messageRes)
+			TrackerTimerErrorSeverity.NOTIFY_USER -> notificationComponent.onError(
+					this,
+					errorData.messageRes
+			)
 			TrackerTimerErrorSeverity.WARNING -> Reporter.log(errorData.internalMessage)
 		}
 	}
@@ -305,12 +317,14 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				ActivityWatcherService.poke(context, trackerRunning = false)
 
 				if (android.os.Build.VERSION.SDK_INT >= 25) {
-					Shortcuts.updateShortcut(context,
+					Shortcuts.updateShortcut(
+							context,
 							Shortcuts.TRACKING_ID,
 							R.string.shortcut_start_tracking,
 							R.string.shortcut_start_tracking_long,
 							R.drawable.ic_play_circle_filled_black_24dp,
-							Shortcuts.ShortcutAction.START_COLLECTION)
+							Shortcuts.ShortcutAction.START_COLLECTION
+					)
 				}
 
 				onDestroyComponents(context)
@@ -319,7 +333,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	companion object {
-		private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
+		private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(
+				false
+		)
 
 		/**
 		 * LiveData containing information about whether the service is currently running

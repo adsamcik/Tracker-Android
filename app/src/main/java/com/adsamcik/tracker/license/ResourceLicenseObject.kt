@@ -13,7 +13,12 @@ import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 import java.util.*
 
-class ResourceLicenseObject(override val name: String, val from: Int, val length: Int, val resources: Resources) :
+class ResourceLicenseObject(
+		override val name: String,
+		val from: Int,
+		val length: Int,
+		val resources: Resources
+) :
 		LicenseObject {
 	override val notice: Notice
 		get() = resolveNotice()
@@ -26,37 +31,51 @@ class ResourceLicenseObject(override val name: String, val from: Int, val length
 		val lowerName = name.toLowerCase(Locale.getDefault())
 		val resolvedLicense = getLicense()
 		if (lowerName.startsWith("stag")) {
-			return Notice(name,
+			return Notice(
+					name,
 					"https://github.com/vimeo/stag-java",
 					"Copyright (c) 2016 Vimeo",
-					resolvedLicense)
+					resolvedLicense
+			)
 		}
 
 		return when (lowerName) {
-			"slider" -> Notice("Slider",
+			"slider" -> Notice(
+					"Slider",
 					"https://github.com/adsamcik/Slider",
 					"Copyright 2018 Adsamcik",
-					resolvedLicense)
-			"draggable" -> Notice("Draggable",
+					resolvedLicense
+			)
+			"draggable" -> Notice(
+					"Draggable",
 					"https://github.com/adsamcik/Draggable",
 					"Copyright 2018 Adsamcik",
-					resolvedLicense)
-			"table" -> Notice("Table",
+					resolvedLicense
+			)
+			"table" -> Notice(
+					"Table",
 					"https://github.com/adsamcik/Table",
 					"Copyright 2017 Adsamcik",
-					resolvedLicense)
-			"touchdelegate" -> Notice("Touch delegate",
+					resolvedLicense
+			)
+			"touchdelegate" -> Notice(
+					"Touch delegate",
 					"https://github.com/adsamcik/TouchDelegate",
 					"Copyright 2017 Adsamcik",
-					resolvedLicense)
-			"spotlight" -> Notice("Spotlight",
+					resolvedLicense
+			)
+			"spotlight" -> Notice(
+					"Spotlight",
 					"https://github.com/TakuSemba/Spotlight",
 					"Copyright 2017 Taku Semba",
-					resolvedLicense)
-			"colorpicker" -> Notice("ColorPicker\n",
+					resolvedLicense
+			)
+			"colorpicker" -> Notice(
+					"ColorPicker\n",
 					"https://github.com/jaredrummler/ColorPicker",
 					null,
-					resolvedLicense)
+					resolvedLicense
+			)
 			else -> Notice(name, null, null, resolvedLicense)
 		}
 	}
@@ -65,7 +84,8 @@ class ResourceLicenseObject(override val name: String, val from: Int, val length
 	private fun getLicense(): License {
 		val licenseText = loadLicense()
 		return if (licenseText.startsWith("http://www.apache.org/licenses/LICENSE-2.0") || licenseText.startsWith(
-						"https://api.github.com/licenses/apache-2.0")) {
+						"https://api.github.com/licenses/apache-2.0"
+				)) {
 			ApacheSoftwareLicense20()
 		} else if (licenseText.startsWith("http://www.opensource.org/licenses/mit-license")) {
 			MITLicense()

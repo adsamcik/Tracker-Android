@@ -18,10 +18,12 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 	private var wifiDao: WifiDataDao? = null
 
 
-	override fun onNewData(context: Context,
-	                       session: TrackerSession,
-	                       collectionData: CollectionData,
-	                       tempData: CollectionTempData) {
+	override fun onNewData(
+			context: Context,
+			session: TrackerSession,
+			collectionData: CollectionData,
+			tempData: CollectionTempData
+	) {
 		val wifiData = collectionData.wifi
 		if (wifiData != null) {
 			val tmpWifiLocation = wifiData.location

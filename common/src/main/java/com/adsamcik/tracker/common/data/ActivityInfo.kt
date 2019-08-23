@@ -21,10 +21,15 @@ data class ActivityInfo(
 		val activityType: Int,
 		val confidence: Int
 ) : Parcelable {
-	constructor(detectedActivity: com.google.android.gms.location.DetectedActivity) : this(detectedActivity.type,
-			detectedActivity.confidence)
+	constructor(detectedActivity: com.google.android.gms.location.DetectedActivity) : this(
+			detectedActivity.type,
+			detectedActivity.confidence
+	)
 
-	constructor(detectedActivity: DetectedActivity, confidence: Int) : this(detectedActivity.value, confidence)
+	constructor(detectedActivity: DetectedActivity, confidence: Int) : this(
+			detectedActivity.value,
+			confidence
+	)
 
 	val activity: DetectedActivity get() = DetectedActivity.fromDetectedType(activityType)
 
@@ -34,14 +39,18 @@ data class ActivityInfo(
 
 	constructor(parcel: Parcel) : this(
 			parcel.readInt(),
-			parcel.readInt())
+			parcel.readInt()
+	)
 
 	/**
 	 * Shortcut function for static version of this function
 	 *
 	 * @return Localized name of the resolved activity
 	 */
-	fun getGroupedActivityName(context: Context): String = getGroupedActivityName(context, groupedActivity)
+	fun getGroupedActivityName(context: Context): String = getGroupedActivityName(
+			context,
+			groupedActivity
+	)
 
 	companion object {
 		val UNKNOWN: ActivityInfo get() = ActivityInfo(DetectedActivity.UNKNOWN, 0)

@@ -17,9 +17,11 @@ data class SessionActivity(
 ) {
 
 	constructor(context: Context, nativeSessionActivity: NativeSessionActivity) :
-			this(nativeSessionActivity.id,
+			this(
+					nativeSessionActivity.id,
 					context.getString(nativeSessionActivity.nameRes),
-					nativeSessionActivity.iconName)
+					nativeSessionActivity.iconName
+			)
 
 	fun getIcon(context: Context): Drawable {
 		val resources = context.resources

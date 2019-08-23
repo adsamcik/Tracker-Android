@@ -30,7 +30,11 @@ typealias GameAdapter = MultiTypeAdapter<GameRecyclerType, GameRecyclerData>
 
 @Suppress("unused")
 class FragmentGame : CoreUIFragment(), IOnDemandView {
-	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+	override fun onCreateView(
+			inflater: LayoutInflater,
+			container: ViewGroup?,
+			savedInstanceState: Bundle?
+	): View? {
 		val rootView = inflater.inflate(R.layout.fragment_game, container, false)
 
 		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler)
@@ -50,15 +54,27 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		val navBarSize = Assist.getNavigationBarSize(context)
 		val navBarHeight = navBarSize.second.y
 
-		recycler.addItemDecoration(SimpleMarginDecoration(
-				firstLineMargin = statusBarHeight + contentPadding,
-				lastLineMargin = navBarHeight + contentPadding))
+		recycler.addItemDecoration(
+				SimpleMarginDecoration(
+						firstLineMargin = statusBarHeight + contentPadding,
+						lastLineMargin = navBarHeight + contentPadding
+				)
+		)
 
 		styleController.watchView(StyleView(rootView, layer = 1, maxDepth = 0))
-		styleController.watchRecyclerView(RecyclerStyleView(recycler, onlyChildren = true, childrenLayer = 2))
+		styleController.watchRecyclerView(
+				RecyclerStyleView(
+						recycler,
+						onlyChildren = true,
+						childrenLayer = 2
+				)
+		)
 
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
-		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter), AppendPriority.Any)
+		adapter.add(
+				ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter),
+				AppendPriority.Any
+		)
 
 		ChallengeManager.activeChallenges.observe(this) { updateChallenges(challengeAdapter, it) }
 
@@ -67,7 +83,10 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		return rootView
 	}
 
-	private fun updateChallenges(challengeAdapter: ChallengeAdapter, challengeList: List<ChallengeInstance<*, *>>) {
+	private fun updateChallenges(
+			challengeAdapter: ChallengeAdapter,
+			challengeList: List<ChallengeInstance<*, *>>
+	) {
 		val challengeArray = challengeList.toTypedArray()
 
 		launch(Dispatchers.Main) {

@@ -38,7 +38,11 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : Cha
 	 */
 	protected abstract fun processSession(context: Context, session: TrackerSession)
 
-	fun process(context: Context, session: TrackerSession, onChallengeCompletedListener: (Instance) -> Unit) {
+	fun process(
+			context: Context,
+			session: TrackerSession,
+			onChallengeCompletedListener: (Instance) -> Unit
+	) {
 		if (extra.isCompleted) return
 
 		processSession(context, session)

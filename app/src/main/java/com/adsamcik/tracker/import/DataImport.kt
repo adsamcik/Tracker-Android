@@ -51,7 +51,11 @@ class DataImport {
 				file.isDirectory || supportedExtensions.contains(extension)
 			}
 
-			fileChooser(filter = filter, waitForPositiveButton = true, allowFolderCreation = false) { _, file ->
+			fileChooser(
+					filter = filter,
+					waitForPositiveButton = true,
+					allowFolderCreation = false
+			) { _, file ->
 				context.startForegroundService<ImportService> {
 					putExtra(ImportService.ARG_FILE_PATH, file.path)
 				}

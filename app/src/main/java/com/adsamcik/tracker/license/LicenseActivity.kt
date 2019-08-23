@@ -16,9 +16,9 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.Reporter
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
 import de.psdev.licensesdialog.licenses.License
@@ -51,33 +51,45 @@ class LicenseActivity : DetailActivity() {
 				.apply {
 					layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
 					layoutManager = LinearLayoutManager(
-							this@LicenseActivity).also { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+							this@LicenseActivity
+					).also { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
 					this.adapter = adapter
 				}
 
 
 		val licenseDialogString = "LicensesDialog"
 
-		CustomLicense(licenseDialogString, Notice(licenseDialogString, "https://github.com/PSDev/LicensesDialog",
-				"Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20()))
+		CustomLicense(
+				licenseDialogString, Notice(
+				licenseDialogString, "https://github.com/PSDev/LicensesDialog",
+				"Copyright 2013-2017 Philip Schiffer", ApacheSoftwareLicense20()
+		)
+		)
 				.also { adapter.addLicense(it) }
 
 		val materialCommunityIconTitle = "Material Design Community Icons"
 
-		CustomLicense(materialCommunityIconTitle, Notice(materialCommunityIconTitle, "http://materialdesignicons.com/",
-				"Copyright (c) 2014, Austin Andrews", object : License() {
-			override fun getUrl(): String = "https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web"
+		CustomLicense(
+				materialCommunityIconTitle,
+				Notice(materialCommunityIconTitle, "http://materialdesignicons.com/",
+						"Copyright (c) 2014, Austin Andrews", object : License() {
+					override fun getUrl(): String = "https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web"
 
-			override fun getName(): String = "SIL OPEN FONT LICENSE Version 1.1"
+					override fun getName(): String = "SIL OPEN FONT LICENSE Version 1.1"
 
-			override fun readSummaryTextFromResources(context: Context?): String = getContent(context,
-					R.raw.material_community_icon_license)
+					override fun readSummaryTextFromResources(context: Context?): String = getContent(
+							context,
+							R.raw.material_community_icon_license
+					)
 
-			override fun getVersion(): String = "1.1"
-			override fun readFullTextFromResources(context: Context?): String = getContent(context,
-					R.raw.material_community_icon_license)
+					override fun getVersion(): String = "1.1"
+					override fun readFullTextFromResources(context: Context?): String = getContent(
+							context,
+							R.raw.material_community_icon_license
+					)
 
-		})).also { adapter.addLicense(it) }
+				})
+		).also { adapter.addLicense(it) }
 
 		val resources = resources
 		val isMeta = resources.openRawResource(R.raw.third_party_license_metadata)
@@ -88,7 +100,12 @@ class LicenseActivity : DetailActivity() {
 			rMeta.forEachLine { line ->
 				val split = line.split(' ')
 				val fromTo = split[0].split(':')
-				val license = ResourceLicenseObject(split[1], fromTo[0].toInt(), fromTo[1].toInt(), resources)
+				val license = ResourceLicenseObject(
+						split[1],
+						fromTo[0].toInt(),
+						fromTo[1].toInt(),
+						resources
+				)
 				adapter.addLicense(license)
 			}
 		} catch (e: IOException) {
@@ -141,7 +158,9 @@ class LicenseActivity : DetailActivity() {
 			licenses.add(license)
 		}
 
-		private class ViewHolder(val button: AppCompatButton, root: View) : RecyclerView.ViewHolder(root)
+		private class ViewHolder(val button: AppCompatButton, root: View) : RecyclerView.ViewHolder(
+				root
+		)
 	}
 }
 

@@ -38,25 +38,29 @@ data class Location(
 ) : Parcelable {
 
 	@Suppress("MagicNumber")
-	constructor(location: android.location.Location) : this(location.time,
+	constructor(location: android.location.Location) : this(
+			location.time,
 			location.latitude,
 			location.longitude,
 			if (location.hasAltitude()) location.altitude else null,
 			if (location.hasAccuracy()) location.accuracy else null,
 			if (Build.VERSION.SDK_INT >= 26 && location.hasVerticalAccuracy()) location.verticalAccuracyMeters else null,
 			if (location.hasSpeed()) location.speed else null,
-			if (Build.VERSION.SDK_INT >= 26 && location.hasSpeedAccuracy()) location.speedAccuracyMetersPerSecond else null)
+			if (Build.VERSION.SDK_INT >= 26 && location.hasSpeedAccuracy()) location.speedAccuracyMetersPerSecond else null
+	)
 
 
 	constructor(location: Location)
-			: this(location.time,
+			: this(
+			location.time,
 			location.latitude,
 			location.longitude,
 			location.altitude,
 			location.horizontalAccuracy,
 			location.verticalAccuracy,
 			location.speed,
-			location.speedAccuracy)
+			location.speedAccuracy
+	)
 
 
 	/// <summary>
@@ -79,7 +83,15 @@ data class Location(
 		return if (location.altitude == null || altitude == null) {
 			distanceFlat(location, unit)
 		} else {
-			distance(latitude, longitude, altitude, location.latitude, location.longitude, location.altitude, unit)
+			distance(
+					latitude,
+					longitude,
+					altitude,
+					location.latitude,
+					location.longitude,
+					location.altitude,
+					unit
+			)
 		}
 	}
 
@@ -91,31 +103,36 @@ data class Location(
 	 * @param precisionLongitudeInMeters Round longitude coordinate to meters
 	 * @return New location containing rounded latitude and longitude and the rest of the original location data
 	 */
-	fun roundTo(precisionLatitudeInMeters: Double,
-	            precisionLongitudeInMeters: Double = precisionLatitudeInMeters): Location {
+	fun roundTo(
+			precisionLatitudeInMeters: Double,
+			precisionLongitudeInMeters: Double = precisionLatitudeInMeters
+	): Location {
 		val accLatitude = latitudeAccuracy(precisionLatitudeInMeters)
 		val roundedLatitude = (latitude - latitude % accLatitude).round(ROUND_TO_DECIMALS)
 
 		val accLongitude = longitudeAccuracy(precisionLongitudeInMeters, roundedLatitude)
 		val roundedLongitude = (longitude - longitude % accLongitude).round(ROUND_TO_DECIMALS)
-		return Location(time,
+		return Location(
+				time,
 				roundedLatitude,
 				roundedLongitude,
 				altitude,
 				horizontalAccuracy,
 				verticalAccuracy,
 				speed,
-				speedAccuracy)
+				speedAccuracy
+		)
 	}
 
 	companion object {
 		private const val ROUND_TO_DECIMALS = 6
 
-		fun distance(firstLatitude: Double,
-		             firstLongitude: Double,
-		             secondLatitude: Double,
-		             secondLongitude: Double,
-		             unit: LengthUnit
+		fun distance(
+				firstLatitude: Double,
+				firstLongitude: Double,
+				secondLatitude: Double,
+				secondLongitude: Double,
+				unit: LengthUnit
 		): Double {
 			val lat1Rad = firstLatitude.deg2rad()
 			val lat2Rad = secondLatitude.deg2rad()
@@ -153,7 +170,13 @@ data class Location(
 				secondAltitude: Double,
 				unit: LengthUnit
 		): Double {
-			val latLonDistance = distance(firstLatitude, firstLongitude, secondLatitude, secondLongitude, unit)
+			val latLonDistance = distance(
+					firstLatitude,
+					firstLongitude,
+					secondLatitude,
+					secondLongitude,
+					unit
+			)
 			val altitudeDifference = (secondAltitude - firstAltitude)
 			return sqrt(altitudeDifference * altitudeDifference + latLonDistance * latLonDistance)
 		}
@@ -162,7 +185,9 @@ data class Location(
 				kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
 
 		fun longitudeAccuracy(precisionInMeters: Double, latitude: Double): Double =
-				precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(ROUND_TO_DECIMALS)
+				precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(
+						ROUND_TO_DECIMALS
+				)
 
 		fun latitudeAccuracy(precisionInMeters: Double): Double =
 				(METER_DEGREE_LATITUDE * precisionInMeters).round(ROUND_TO_DECIMALS)

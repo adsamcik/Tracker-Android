@@ -10,10 +10,15 @@ import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEnti
 import com.adsamcik.tracker.game.challenge.data.persistence.WalkDistanceChallengePersistence
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 
-class WalkDistanceChallengeInstance(data: ChallengeEntry,
-                                    definition: ChallengeDefinition<WalkDistanceChallengeInstance>,
-                                    extra: WalkDistanceChallengeEntity
-) : ChallengeInstance<WalkDistanceChallengeEntity, WalkDistanceChallengeInstance>(data, definition, extra) {
+class WalkDistanceChallengeInstance(
+		data: ChallengeEntry,
+		definition: ChallengeDefinition<WalkDistanceChallengeInstance>,
+		extra: WalkDistanceChallengeEntity
+) : ChallengeInstance<WalkDistanceChallengeEntity, WalkDistanceChallengeInstance>(
+		data,
+		definition,
+		extra
+) {
 
 	override val persistence
 		get() = WalkDistanceChallengePersistence()
@@ -21,8 +26,10 @@ class WalkDistanceChallengeInstance(data: ChallengeEntry,
 	override fun getDescription(context: Context): String {
 		val lengthSystem = Preferences.getLengthSystem(context)
 		val resources = context.resources
-		return resources.getString(definition.descriptionRes,
-				resources.formatDistance(extra.requiredDistanceInM, 1, lengthSystem))
+		return resources.getString(
+				definition.descriptionRes,
+				resources.formatDistance(extra.requiredDistanceInM, 1, lengthSystem)
+		)
 	}
 
 	override val progress: Double

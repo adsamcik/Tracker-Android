@@ -5,8 +5,6 @@ import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.Assist
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.layer.legend.MapLegendAdapter
 

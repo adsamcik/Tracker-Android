@@ -36,9 +36,11 @@ internal class NoMapLayerLogic : MapLayerLogic {
 		get() = MapLayerInfo(this::class.java, R.string.map_layer_none)
 
 	override fun update(context: Context) = Unit
-	override fun onEnable(context: Context,
-	                      map: GoogleMap,
-	                      quality: Float) = Unit
+	override fun onEnable(
+			context: Context,
+			map: GoogleMap,
+			quality: Float
+	) = Unit
 
 	override fun onDisable(map: GoogleMap) = Unit
 }

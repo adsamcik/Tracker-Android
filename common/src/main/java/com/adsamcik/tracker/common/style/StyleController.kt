@@ -115,7 +115,8 @@ class StyleController : CoroutineScope {
 							perceivedLuminance,
 							it,
 							styleView.childrenLayer,
-							styleView.maxDepth)
+							styleView.maxDepth
+					)
 				}
 			} else {
 				styleView.view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
@@ -129,7 +130,8 @@ class StyleController : CoroutineScope {
 								styleData.perceivedLuminanceFor(styleView),
 								child,
 								styleView.childrenLayer,
-								styleView.maxDepth)
+								styleView.maxDepth
+						)
 					}
 				})
 			}

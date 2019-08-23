@@ -31,8 +31,12 @@ class DataPage : PreferencePage {
 			val context = preference.context
 			MaterialDialog(context).show {
 				title(text = context.getString(R.string.alert_confirm_generic))
-				message(text = context.getString(R.string.alert_confirm,
-						context.getString(R.string.settings_remove_all_collected_data_title)))
+				message(
+						text = context.getString(
+								R.string.alert_confirm,
+								context.getString(R.string.settings_remove_all_collected_data_title)
+						)
+				)
 
 				positiveButton {
 					GlobalScope.launch(Dispatchers.Default) {
@@ -60,9 +64,11 @@ class DataPage : PreferencePage {
 
 				val fileExtensions = supportedExtensions.joinToString(separator = SEPARATOR)
 
-				summary = importPreference.context.getString(R.string.settings_import_summary,
+				summary = importPreference.context.getString(
+						R.string.settings_import_summary,
 						fileExtensions,
-						archiveExtensions)
+						archiveExtensions
+				)
 
 				setOnPreferenceClickListener {
 					if (requireImportPermissions(activity)) {
@@ -78,8 +84,10 @@ class DataPage : PreferencePage {
 		return when {
 			validateImportPermissions(activity) -> true
 			Build.VERSION.SDK_INT >= 23 -> {
-				activity.requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
-						PERMISSION_READ_EXTERNAL_REQUEST)
+				activity.requestPermissions(
+						arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
+						PERMISSION_READ_EXTERNAL_REQUEST
+				)
 				false
 			}
 			else -> throw PermissionException("Permission to read external storage is missing")
@@ -98,7 +106,11 @@ class DataPage : PreferencePage {
 
 	}
 
-	override fun onRequestPermissionsResult(context: Context, code: Int, result: Collection<Pair<String, Int>>) {
+	override fun onRequestPermissionsResult(
+			context: Context,
+			code: Int,
+			result: Collection<Pair<String, Int>>
+	) {
 		when (code) {
 			PERMISSION_READ_EXTERNAL_REQUEST -> {
 				val isSuccessful = result.all { it.second == PackageManager.PERMISSION_GRANTED }

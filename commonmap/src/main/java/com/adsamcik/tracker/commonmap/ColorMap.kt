@@ -94,7 +94,8 @@ object ColorMap {
 	}
 
 	private fun loadMapStyleRes(@RawRes mapStyleRes: Int): MapStyleOptions {
-		resources!!.openRawResource(mapStyleRes).bufferedReader().use { return MapStyleOptions(it.readText()) }
+		resources!!.openRawResource(mapStyleRes).bufferedReader()
+				.use { return MapStyleOptions(it.readText()) }
 	}
 
 	@RawRes

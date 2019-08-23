@@ -29,8 +29,10 @@ internal class AndroidLocationTrackerTimer : LocationTrackerTimer() {
 		override fun onProviderEnabled(p0: String?) = Unit
 
 		override fun onProviderDisabled(p0: String?) {
-			val errorData = TrackerTimerErrorData(TrackerTimerErrorSeverity.NOTIFY_USER,
-					R.string.notification_looking_for_gps)
+			val errorData = TrackerTimerErrorData(
+					TrackerTimerErrorSeverity.NOTIFY_USER,
+					R.string.notification_looking_for_gps
+			)
 			receiver?.onError(errorData)
 		}
 	}
@@ -39,10 +41,14 @@ internal class AndroidLocationTrackerTimer : LocationTrackerTimer() {
 		super.onEnable(context, receiver)
 
 		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default)
-		val minDistanceInMeters = preferences.getIntRes(R.string.settings_tracking_min_distance_key,
-				R.integer.settings_tracking_min_distance_default)
+		val minUpdateDelayInSeconds = preferences.getIntRes(
+				R.string.settings_tracking_min_time_key,
+				R.integer.settings_tracking_min_time_default
+		)
+		val minDistanceInMeters = preferences.getIntRes(
+				R.string.settings_tracking_min_distance_key,
+				R.integer.settings_tracking_min_distance_default
+		)
 
 		val locationManager = context.locationManager
 		//It is checked by the component system
@@ -52,7 +58,8 @@ internal class AndroidLocationTrackerTimer : LocationTrackerTimer() {
 				minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS,
 				minDistanceInMeters.toFloat(),
 				locationListener,
-				Looper.getMainLooper())
+				Looper.getMainLooper()
+		)
 	}
 
 	override fun onDisable(context: Context) {

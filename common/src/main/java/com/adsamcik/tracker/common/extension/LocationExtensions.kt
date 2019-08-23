@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.common.extension
 
 import android.location.Location
-import kotlin.math.pow
 
 @Suppress("Unused")
 object LocationExtensions {
@@ -20,7 +19,11 @@ object LocationExtensions {
 /// <param name="timeTo">Second location time</param>
 /// <param name="timeCurrent">Time of the location we want to interpolate</param>
 /// <returns>Interpolated location</returns>
-	fun approximateLocation(locationFrom: Location, locationTo: Location, estimateTime: Long): Location {
+	fun approximateLocation(
+			locationFrom: Location,
+			locationTo: Location,
+			estimateTime: Long
+	): Location {
 		val timeTo = locationTo.time
 		val timeFrom = locationFrom.time
 

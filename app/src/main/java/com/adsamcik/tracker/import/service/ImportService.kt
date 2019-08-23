@@ -34,9 +34,12 @@ class ImportService : CoreService() {
 
 		val file = File(path)
 
-		startForeground(NOTIFICATION_ID, createNotification(
+		startForeground(
+				NOTIFICATION_ID, createNotification(
 				getString(R.string.import_notification_progress),
-				true))
+				true
+		)
+		)
 
 		launch {
 			database = AppDatabase.getDatabase(this@ImportService)
@@ -44,8 +47,13 @@ class ImportService : CoreService() {
 				val count = handleFile(file)
 
 				showNotification(
-						resources.getQuantityString(R.plurals.import_notification_finished, count, count),
-						false)
+						resources.getQuantityString(
+								R.plurals.import_notification_finished,
+								count,
+								count
+						),
+						false
+				)
 			}
 
 			stopForeground(false)
@@ -76,7 +84,8 @@ class ImportService : CoreService() {
 	private fun extract(file: File, extractor: ArchiveExtractor): Int {
 		showNotification(
 				getString(R.string.import_notification_extracting, file.name),
-				true)
+				true
+		)
 
 		val extractedFile = extractor.extract(this, file) ?: return 0
 
@@ -114,11 +123,14 @@ class ImportService : CoreService() {
 	}
 
 	@WorkerThread
-	private fun import(file: File,
-	                   import: FileImport): Int {
+	private fun import(
+			file: File,
+			import: FileImport
+	): Int {
 		showNotification(
 				getString(R.string.import_notification_importing, file.name),
-				true)
+				true
+		)
 
 		return try {
 			import.import(this, database, file)

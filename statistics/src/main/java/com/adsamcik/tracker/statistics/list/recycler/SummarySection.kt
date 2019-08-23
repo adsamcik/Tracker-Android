@@ -17,9 +17,11 @@ import io.github.luizgrp.sectionedrecyclerviewadapter.SectionParameters
 import io.github.luizgrp.sectionedrecyclerviewadapter.StatelessSection
 import kotlin.math.roundToInt
 
-class SummarySection : StatelessSection(SectionParameters.builder()
-		.itemViewWillBeProvided()
-		.build()) {
+class SummarySection : StatelessSection(
+		SectionParameters.builder()
+				.itemViewWillBeProvided()
+				.build()
+) {
 	private val itemList = mutableListOf<ButtonData>()
 
 	override fun getContentItemsTotal(): Int = 1
@@ -59,7 +61,8 @@ class SummarySection : StatelessSection(SectionParameters.builder()
 			orientation = LinearLayoutCompat.HORIZONTAL
 			layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
 			val contentPadding = parent.resources.getDimension(
-					com.adsamcik.tracker.common.R.dimen.content_padding)
+					com.adsamcik.tracker.common.R.dimen.content_padding
+			)
 					.roundToInt()
 			setPadding(contentPadding, 0, contentPadding, 0)
 		}

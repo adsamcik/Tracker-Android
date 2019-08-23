@@ -7,7 +7,8 @@ class DatabaseMaintenance {
 	fun run(context: Context) {
 		val database = AppDatabase.getDatabase(context)
 		val clearInvalidSessions = database.compileStatement(
-				"DELETE FROM tracker_session WHERE start >= `end` OR collections <= 1")
+				"DELETE FROM tracker_session WHERE start >= `end` OR collections <= 1"
+		)
 		clearInvalidSessions.executeUpdateDelete()
 	}
 }

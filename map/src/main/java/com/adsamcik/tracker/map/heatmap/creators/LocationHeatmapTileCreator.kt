@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
-import android.graphics.Color
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.preference.Preferences
@@ -13,7 +12,8 @@ import kotlin.math.ceil
 import kotlin.math.pow
 
 @Suppress("MagicNumber")
-internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLayerData) : HeatmapTileCreator {
+internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLayerData) :
+		HeatmapTileCreator {
 	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
 		val colorList = layerData.colorList
 		val colorListSize = colorList.size.toDouble()
@@ -33,7 +33,11 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 
 	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
 		val baseMeterSize = BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow(MapController.MAX_ZOOM - zoom)
-		return HeatmapStamp.generateNonlinear(ceil(baseMeterSize / pixelInMeters).toInt()) { it.pow(2f) }
+		return HeatmapStamp.generateNonlinear(ceil(baseMeterSize / pixelInMeters).toInt()) {
+			it.pow(
+					2f
+			)
+		}
 	}
 
 	//todo update heat on per zoom basis
@@ -48,8 +52,10 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 
 	override val weightNormalizationValue: Double = Preferences
 			.getPref(context)
-			.getIntRes(R.string.settings_tracking_required_accuracy_key,
-					R.integer.settings_tracking_required_accuracy_default)
+			.getIntRes(
+					R.string.settings_tracking_required_accuracy_key,
+					R.integer.settings_tracking_required_accuracy_default
+			)
 			.toDouble()
 
 	override val getAllInsideAndBetween = dao::getAllInsideAndBetween

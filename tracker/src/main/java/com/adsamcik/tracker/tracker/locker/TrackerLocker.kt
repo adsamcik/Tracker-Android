@@ -63,10 +63,18 @@ object TrackerLocker {
 	fun initializeFromPersistence(context: Context) {
 		val preferences = Preferences.getPref(context)
 
-		setTimeLock(context, preferences.getLongResString(R.string.settings_disabled_time_key,
-				R.string.settings_disabled_time_default))
-		setRechargeLock(context, preferences.getBooleanRes(R.string.settings_disabled_recharge_key,
-				R.string.settings_disabled_recharge_default))
+		setTimeLock(
+				context, preferences.getLongResString(
+				R.string.settings_disabled_time_key,
+				R.string.settings_disabled_time_default
+		)
+		)
+		setRechargeLock(
+				context, preferences.getBooleanRes(
+				R.string.settings_disabled_recharge_key,
+				R.string.settings_disabled_recharge_default
+		)
+		)
 	}
 
 	private fun setRechargeLock(context: Context, lock: Boolean) {
@@ -124,7 +132,9 @@ object TrackerLocker {
 			val workManager = WorkManager.getInstance(context)
 			val constraints = Constraints.Builder().setRequiresCharging(true)
 					.setRequiresBatteryNotLow(true).build()
-			val work = OneTimeWorkRequestBuilder<DisableTillRechargeWorker>().setConstraints(constraints)
+			val work = OneTimeWorkRequestBuilder<DisableTillRechargeWorker>().setConstraints(
+					constraints
+			)
 					.addTag(WORK_DISABLE_TILL_RECHARGE_TAG).build()
 			workManager.enqueue(work)
 			setRechargeLock(context, true)
@@ -153,8 +163,10 @@ object TrackerLocker {
 			}
 
 			setTimeLock(context, lockUntilTime)
-			context.alarmManager.set(AlarmManager.RTC_WAKEUP,
-					lockUntilTime, getTimeUnlockBroadcastIntent(context))
+			context.alarmManager.set(
+					AlarmManager.RTC_WAKEUP,
+					lockUntilTime, getTimeUnlockBroadcastIntent(context)
+			)
 		}
 	}
 

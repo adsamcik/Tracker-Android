@@ -49,9 +49,11 @@ fun Graph.topSort(): List<Vertex> {
 	}
 
 	if (vertexList.isNotEmpty()) {
-		throw CircularDependencyException("Graph has circular dependency.\n" +
-				"Vertexes ${this.vertexList.joinToString()}\n" +
-				"Edges ${this.edgeList.joinToString()}")
+		throw CircularDependencyException(
+				"Graph has circular dependency.\n" +
+						"Vertexes ${this.vertexList.joinToString()}\n" +
+						"Edges ${this.edgeList.joinToString()}"
+		)
 	} else {
 		assert(sortedList.size == this.vertexList.size)
 		return sortedList

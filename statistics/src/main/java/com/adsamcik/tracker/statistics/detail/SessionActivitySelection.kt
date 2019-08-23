@@ -15,9 +15,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-class SessionActivitySelection(private val context: Context,
-                               private val activityList: List<SessionActivity>,
-                               private val session: TrackerSession
+class SessionActivitySelection(
+		private val context: Context,
+		private val activityList: List<SessionActivity>,
+		private val session: TrackerSession
 ) : CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -28,9 +29,11 @@ class SessionActivitySelection(private val context: Context,
 	@MainThread
 	private fun createActivitySelectionDialog(): MaterialDialog {
 		return MaterialDialog(context).apply {
-			listItems(items = activityList.map { it.name },
+			listItems(
+					items = activityList.map { it.name },
 					//initialSelection = selectedIndex,
-					selection = this@SessionActivitySelection::onSelected)
+					selection = this@SessionActivitySelection::onSelected
+			)
 		}
 	}
 

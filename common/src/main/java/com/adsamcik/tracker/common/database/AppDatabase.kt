@@ -31,13 +31,15 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 
-@Database(entities = [DatabaseLocation::class,
-	TrackerSession::class,
-	DatabaseWifiData::class,
-	SessionActivity::class,
-	NetworkOperator::class,
-	DatabaseCellLocation::class],
-		version = 9)
+@Database(
+		entities = [DatabaseLocation::class,
+			TrackerSession::class,
+			DatabaseWifiData::class,
+			SessionActivity::class,
+			NetworkOperator::class,
+			DatabaseCellLocation::class],
+		version = 9
+)
 @TypeConverters(CellTypeConverter::class, DetectedActivityTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -60,12 +62,25 @@ abstract class AppDatabase : RoomDatabase() {
 		private const val DATABASE_NAME = "main_database"
 
 		private fun createInstance(context: Context): AppDatabase {
-			val configuration = SQLiteDatabaseConfiguration(context.getDatabasePath(DATABASE_NAME).path,
-					SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE)
+			val configuration = SQLiteDatabaseConfiguration(
+					context.getDatabasePath(DATABASE_NAME).path,
+					SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE
+			)
 			val options = RequerySQLiteOpenHelperFactory.ConfigurationOptions { configuration }
-			val instance = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DATABASE_NAME)
-					.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
-							MIGRATION_7_8, MIGRATION_8_9)
+			val instance = Room.databaseBuilder(
+					context.applicationContext,
+					AppDatabase::class.java,
+					DATABASE_NAME
+			)
+					.addMigrations(
+							MIGRATION_2_3,
+							MIGRATION_3_4,
+							MIGRATION_4_5,
+							MIGRATION_5_6,
+							MIGRATION_6_7,
+							MIGRATION_7_8,
+							MIGRATION_8_9
+					)
 					.openHelperFactory(RequerySQLiteOpenHelperFactory(listOf(options)))
 					.build()
 			initialize(context, instance)

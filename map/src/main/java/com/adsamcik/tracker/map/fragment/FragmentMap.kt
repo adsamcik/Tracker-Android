@@ -68,7 +68,10 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		if (context.hasLocationPermission) {
 			return true
 		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			activity?.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_LOCATION_CODE)
+			activity?.requestPermissions(
+					arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+					PERMISSION_LOCATION_CODE
+			)
 		}
 		return false
 	}
@@ -119,14 +122,22 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		}
 	}
 
-	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+	override fun onCreateView(
+			inflater: LayoutInflater,
+			container: ViewGroup?,
+			savedInstanceState: Bundle?
+	): View? {
 		val activity = requireActivity()
 		hasPermissions = checkLocationPermission(activity)
 		val fragmentView: View
 		if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
 		} else {
-			fragmentView = inflater.inflate(com.adsamcik.tracker.common.R.layout.layout_error, container, false)
+			fragmentView = inflater.inflate(
+					com.adsamcik.tracker.common.R.layout.layout_error,
+					container,
+					false
+			)
 
 			val textRes = if (hasPermissions) {
 				com.adsamcik.tracker.common.R.string.error_play_services_not_available
@@ -169,8 +180,10 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		this.mapController = mapController
 		this.locationListener = locationListener
 
-		mapSheetController = MapSheetController(context, map, mapOwner, map_ui_parent, mapController, locationListener,
-				mapEventListener)
+		mapSheetController = MapSheetController(
+				context, map, mapOwner, map_ui_parent, mapController, locationListener,
+				mapEventListener
+		)
 
 		ColorMap.addListener(context, map)
 

@@ -174,8 +174,10 @@ internal class HeatmapTileProvider(
 
 			updateHeat(heatmap, zoom)
 
-			val tile = Tile(heatmapSize, heatmapSize,
-					heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize)))
+			val tile = Tile(
+					heatmapSize, heatmapSize,
+					heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize))
+			)
 			tileRequestCount.decrementAndGet()
 
 			return tile

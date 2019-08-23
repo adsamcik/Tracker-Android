@@ -32,8 +32,10 @@ internal class FusedLocationTrackerTimer : LocationTrackerTimer() {
 
 		override fun onLocationAvailability(availability: LocationAvailability) {
 			if (!availability.isLocationAvailable) {
-				val errorData = TrackerTimerErrorData(TrackerTimerErrorSeverity.NOTIFY_USER,
-						R.string.notification_looking_for_gps)
+				val errorData = TrackerTimerErrorData(
+						TrackerTimerErrorSeverity.NOTIFY_USER,
+						R.string.notification_looking_for_gps
+				)
 				receiver?.onError(errorData)
 			}
 		}
@@ -43,10 +45,14 @@ internal class FusedLocationTrackerTimer : LocationTrackerTimer() {
 		super.onEnable(context, receiver)
 
 		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default)
-		val minDistanceInMeters = preferences.getIntRes(R.string.settings_tracking_min_distance_key,
-				R.integer.settings_tracking_min_distance_default)
+		val minUpdateDelayInSeconds = preferences.getIntRes(
+				R.string.settings_tracking_min_time_key,
+				R.integer.settings_tracking_min_time_default
+		)
+		val minDistanceInMeters = preferences.getIntRes(
+				R.string.settings_tracking_min_distance_key,
+				R.integer.settings_tracking_min_distance_default
+		)
 
 		val client = LocationServices.getFusedLocationProviderClient(context)
 		val request = LocationRequest.create().apply {

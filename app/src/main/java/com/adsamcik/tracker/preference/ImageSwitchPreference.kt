@@ -35,13 +35,19 @@ class ImageSwitchPreference : Preference {
 	private var mSelected: Int = -1
 
 	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs,
-			defStyleAttr, defStyleRes) {
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
+			context, attrs,
+			defStyleAttr, defStyleRes
+	) {
 		initAttributes(context, attrs)
 	}
 
 	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(
+			context,
+			attrs,
+			defStyleAttr
+	) {
 		initAttributes(context, attrs)
 	}
 
@@ -57,7 +63,10 @@ class ImageSwitchPreference : Preference {
 		val resources = context.resources
 		val attributes = context.obtainStyledAttributes(attrs, R.styleable.ImageSwitchPreference)
 		val titlesResource = attributes.getResourceId(R.styleable.ImageSwitchPreference_titles, 0)
-		val drawablesResource = attributes.getResourceId(R.styleable.ImageSwitchPreference_drawables, 0)
+		val drawablesResource = attributes.getResourceId(
+				R.styleable.ImageSwitchPreference_drawables,
+				0
+		)
 
 		attributes.recycle()
 
@@ -166,7 +175,10 @@ class ImageSwitchPreference : Preference {
 		mInitialized = true
 	}
 
-	data class SwitchItem(val title: String, @DrawableRes val drawable: Int, var imageView: ImageView? = null) {
+	data class SwitchItem(
+			val title: String, @DrawableRes val drawable: Int,
+			var imageView: ImageView? = null
+	) {
 		val requireImageView: ImageView
 			get() = imageView ?: throw NullPointerException("ImageView was null")
 	}

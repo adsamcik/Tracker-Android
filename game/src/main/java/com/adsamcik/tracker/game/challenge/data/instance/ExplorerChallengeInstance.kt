@@ -12,9 +12,10 @@ import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.persistence.ExplorerChallengePersistence
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 
-class ExplorerChallengeInstance(entry: ChallengeEntry,
-                                definition: ChallengeDefinition<ExplorerChallengeInstance>,
-                                data: ExplorerChallengeEntity
+class ExplorerChallengeInstance(
+		entry: ChallengeEntry,
+		definition: ChallengeDefinition<ExplorerChallengeInstance>,
+		data: ExplorerChallengeEntity
 ) : ChallengeInstance<ExplorerChallengeEntity, ExplorerChallengeInstance>(entry, definition, data) {
 
 	override val persistence = ExplorerChallengePersistence()
@@ -31,7 +32,11 @@ class ExplorerChallengeInstance(entry: ChallengeEntry,
 
 	override fun checkCompletionConditions() = extra.locationCount >= extra.requiredLocationCount
 
-	private fun countUnique(dao: LocationDataDao, locations: List<DatabaseLocation>, time: Long): Int {
+	private fun countUnique(
+			dao: LocationDataDao,
+			locations: List<DatabaseLocation>,
+			time: Long
+	): Int {
 		val newList = locations.map {
 			val rounded = it.location.roundTo(ACCURACY_IN_METERS)
 			rounded.latitude to rounded.longitude

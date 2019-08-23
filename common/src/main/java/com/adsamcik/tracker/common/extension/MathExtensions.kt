@@ -33,8 +33,10 @@ fun Double.normalize(range: ClosedFloatingPointRange<Double>): Double {
 /**
  * Rescales value in [originalRange] to a proportionally same value in [newRange]
  */
-fun Double.rescale(originalRange: ClosedFloatingPointRange<Double>,
-                   newRange: ClosedFloatingPointRange<Double>): Double {
+fun Double.rescale(
+		originalRange: ClosedFloatingPointRange<Double>,
+		newRange: ClosedFloatingPointRange<Double>
+): Double {
 	return this.normalize(originalRange).rescale(newRange)
 }
 

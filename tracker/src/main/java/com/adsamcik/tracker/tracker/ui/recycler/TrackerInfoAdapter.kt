@@ -68,7 +68,12 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 				{ trackerInfo, value -> trackerInfo.cellData = value })
 	}
 
-	private inline fun <T, Z> update(value: Z?, nameRes: Int, factory: (Z) -> T, setter: (T, Z) -> Unit) {
+	private inline fun <T, Z> update(
+			value: Z?,
+			nameRes: Int,
+			factory: (Z) -> T,
+			setter: (T, Z) -> Unit
+	) {
 		val index = data.indexOfFirst { it.nameRes == nameRes }
 		if (value != null) {
 			if (index >= 0) {
@@ -86,10 +91,12 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 		}
 	}
 
-	class ViewHolder(root: View,
-	                 val content: ViewGroup,
-	                 val title: TextView,
-	                 val fields: MutableList<InfoField> = mutableListOf()) : RecyclerView.ViewHolder(root)
+	class ViewHolder(
+			root: View,
+			val content: ViewGroup,
+			val title: TextView,
+			val fields: MutableList<InfoField> = mutableListOf()
+	) : RecyclerView.ViewHolder(root)
 
 	data class InfoField(val title: TextView, val value: TextView)
 }

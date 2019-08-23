@@ -6,8 +6,9 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
 internal interface DataTrackerComponent : TrackerComponent, TrackerDataConsumerComponent {
 	@WorkerThread
-	suspend fun onDataUpdated(tempData: CollectionTempData,
-	                          collectionData: MutableCollectionData
+	suspend fun onDataUpdated(
+			tempData: CollectionTempData,
+			collectionData: MutableCollectionData
 	)
 }
 

@@ -15,8 +15,8 @@ import com.adsamcik.tracker.activity.ui.recycler.ContextualSwipeTouchHelper
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.keyboard.KeyboardManager
+import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -48,7 +48,10 @@ class SessionActivityActivity : DetailActivity() {
 			val layoutManager = LinearLayoutManager(this@SessionActivityActivity)
 			this.layoutManager = layoutManager
 
-			val dividerItemDecoration = DividerItemDecoration(this@SessionActivityActivity, layoutManager.orientation)
+			val dividerItemDecoration = DividerItemDecoration(
+					this@SessionActivityActivity,
+					layoutManager.orientation
+			)
 			addItemDecoration(dividerItemDecoration)
 		}
 
@@ -77,8 +80,10 @@ class SessionActivityActivity : DetailActivity() {
 
 		launch(Dispatchers.Default) {
 			val itemCollection = SessionActivity.getAll(this@SessionActivityActivity).map {
-				SortableAdapter.SortableData(it,
-						if (it.id >= 0) AppendPriority.Start else AppendPriority.Any)
+				SortableAdapter.SortableData(
+						it,
+						if (it.id >= 0) AppendPriority.Start else AppendPriority.Any
+				)
 			}
 
 			launch(Dispatchers.Main) {
@@ -93,19 +98,21 @@ class SessionActivityActivity : DetailActivity() {
 		val context = this
 		val item = adapter.getItem(index)
 		adapter.removeAt(index)
-		snackMaker.addMessage(SnackMaker.SnackbarRecipe(
-				message = getString(R.string.settings_activity_snackbar_message, item.name),
-				priority = SnackMaker.SnackbarPriority.IMPORTANT,
-				action = getString(com.adsamcik.tracker.common.R.string.undo),
-				duration = LENGTH_LONG,
-				onDismissed = {
-					launch(Dispatchers.Default) {
-						AppDatabase.getDatabase(context).activityDao().delete(item.id)
-					}
-				},
-				onActionClick = View.OnClickListener {
-					adapter.add(item, AppendPriority.Any)
-				}))
+		snackMaker.addMessage(
+				SnackMaker.SnackbarRecipe(
+						message = getString(R.string.settings_activity_snackbar_message, item.name),
+						priority = SnackMaker.SnackbarPriority.IMPORTANT,
+						action = getString(com.adsamcik.tracker.common.R.string.undo),
+						duration = LENGTH_LONG,
+						onDismissed = {
+							launch(Dispatchers.Default) {
+								AppDatabase.getDatabase(context).activityDao().delete(item.id)
+							}
+						},
+						onActionClick = View.OnClickListener {
+							adapter.add(item, AppendPriority.Any)
+						})
+		)
 	}
 
 	private fun initializeColorController() {

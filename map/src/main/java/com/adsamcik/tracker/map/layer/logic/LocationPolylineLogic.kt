@@ -73,9 +73,11 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 	}
 
 
-	override fun onEnable(context: Context,
-	                      map: GoogleMap,
-	                      quality: Float) {
+	override fun onEnable(
+			context: Context,
+			map: GoogleMap,
+			quality: Float
+	) {
 		this.map = map
 		AppDatabase.getDatabase(context).let { db ->
 			this.locationDao = db.locationDao()

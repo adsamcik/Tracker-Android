@@ -3,8 +3,8 @@ package com.adsamcik.tracker.common.recycler.multitype
 import android.view.View
 import android.view.ViewGroup
 import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.common.style.StyleController
+import com.adsamcik.tracker.common.style.marker.IViewChange
 
 open class BaseMultiTypeAdapter<Data : BaseMultiTypeData>(
 		private val styleController: StyleController

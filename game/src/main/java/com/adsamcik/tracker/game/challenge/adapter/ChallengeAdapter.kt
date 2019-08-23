@@ -16,18 +16,20 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*
 import java.util.*
 
-class ChallengeAdapter(mContext: Context,
-                       private var mDataSource: Array<ChallengeInstance<*, *>>
+class ChallengeAdapter(
+		mContext: Context,
+		private var mDataSource: Array<ChallengeInstance<*, *>>
 ) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(),
 		IViewChange {
 
-	class ViewHolder(itemView: View,
-	                 val titleTextView: TextView,
-	                 val descriptionTextView: TextView,
-	                 val difficultyTextView: TextView,
-	                 val timeTextView: TextView,
-	                 val progressBar: ProgressBar,
-	                 val progressText: TextView
+	class ViewHolder(
+			itemView: View,
+			val titleTextView: TextView,
+			val descriptionTextView: TextView,
+			val difficultyTextView: TextView,
+			val timeTextView: TextView,
+			val progressBar: ProgressBar,
+			val progressText: TextView
 	) : RecyclerView.ViewHolder(itemView)
 
 
@@ -42,13 +44,15 @@ class ChallengeAdapter(mContext: Context,
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 		val view = mInflater.inflate(R.layout.layout_challenge_list_item, parent, false)
-		return ViewHolder(view,
+		return ViewHolder(
+				view,
 				view.challenge_title,
 				view.challenge_description,
 				view.challenge_difficulty,
 				view.challenge_time_left,
 				view.challenge_progress,
-				view.challenge_progress_text)
+				view.challenge_progress_text
+		)
 	}
 
 	override fun getItemCount(): Int = mDataSource.size

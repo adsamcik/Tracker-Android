@@ -13,9 +13,10 @@ import com.google.android.material.chip.ChipGroup
 import com.savvi.rangedatepicker.CalendarPickerView
 import java.util.*
 
-fun MaterialDialog.dateTimeRangePicker(allowedRange: LongRange,
-                                       selectedRange: LongRange,
-                                       successCallback: (range: LongRange) -> Unit
+fun MaterialDialog.dateTimeRangePicker(
+		allowedRange: LongRange,
+		selectedRange: LongRange,
+		successCallback: (range: LongRange) -> Unit
 ): MaterialDialog {
 	if (allowedRange.last <= allowedRange.first) {
 		throw IllegalArgumentException()
@@ -33,10 +34,12 @@ fun MaterialDialog.dateTimeRangePicker(allowedRange: LongRange,
 	val calendarPicker = CalendarPickerView(context, null).apply {
 		init(minDate, maxDate)
 				.inMode(CalendarPickerView.SelectionMode.RANGE)
-				.withSelectedDates(listOf(
-						Date(selectedRange.first.coerceIn(limits)),
-						Date(selectedRange.last.coerceIn(limits))
-				))
+				.withSelectedDates(
+						listOf(
+								Date(selectedRange.first.coerceIn(limits)),
+								Date(selectedRange.last.coerceIn(limits))
+						)
+				)
 
 		tag = TAG_DATE_TIME_RANGE
 	}
@@ -65,7 +68,11 @@ fun MaterialDialog.dateTimeRangePicker(allowedRange: LongRange,
 	}
 
 	list.forEach {
-		addChip(chipGroup, it, resources.getQuantityString(R.plurals.map_date_range_last_days, it, it))
+		addChip(
+				chipGroup,
+				it,
+				resources.getQuantityString(R.plurals.map_date_range_last_days, it, it)
+		)
 	}
 
 	addChip(chipGroup, maxAgeInDays, resources.getString(R.string.map_date_range_all))

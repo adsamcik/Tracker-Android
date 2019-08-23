@@ -44,7 +44,10 @@ object Dependencies {
 	private fun DependencyHandler.api(name: String) = add("api", name)
 	private fun DependencyHandler.implementation(name: String) = add("implementation", name)
 	private fun DependencyHandler.kapt(name: String) = add("kapt", name)
-	private fun DependencyHandler.androidTestImplementation(name: String) = add("androidTestImplementation", name)
+	private fun DependencyHandler.androidTestImplementation(name: String) = add(
+			"androidTestImplementation",
+			name
+	)
 
 	fun moshi(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {

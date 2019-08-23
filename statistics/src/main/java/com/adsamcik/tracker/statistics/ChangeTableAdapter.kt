@@ -11,7 +11,8 @@ import com.adsamcik.tracker.common.style.marker.IViewChange
  * ChangeTableAdapter was created to extend TableAdapter with IViewChange interface for proper color updating
  */
 internal class ChangeTableAdapter(@StyleRes themeInt: Int) : CardListAdapter<TableCard.ViewHolder, TableCard>(
-		TableCardCreator(themeInt)), IViewChange {
+		TableCardCreator(themeInt)
+), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	override fun onBindViewHolder(holder: TableCard.ViewHolder, position: Int) {

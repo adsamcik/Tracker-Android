@@ -19,9 +19,10 @@ class ActivitySessionReceiver : BroadcastReceiver() {
 		val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
 				.addTag(ActivityRecognitionWorker.WORK_TAG)
 				.setInputData(data)
-				.setConstraints(Constraints.Builder()
-						.setRequiresBatteryNotLow(true)
-						.build()
+				.setConstraints(
+						Constraints.Builder()
+								.setRequiresBatteryNotLow(true)
+								.build()
 				).build()
 
 		WorkManager.getInstance(context).enqueue(workRequest)

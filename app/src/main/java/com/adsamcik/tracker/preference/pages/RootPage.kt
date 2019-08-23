@@ -62,7 +62,11 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		}
 
 		val version = caller.findPreference(R.string.settings_app_version_key)
-		version.title = String.format("%1\$s - %2\$s", BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)
+		version.title = String.format(
+				"%1\$s - %2\$s",
+				BuildConfig.VERSION_CODE,
+				BuildConfig.VERSION_NAME
+		)
 
 		version.setOnPreferenceClickListener {
 			val context = it.context
@@ -84,9 +88,13 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 						.isChecked = true
 			} else if (clickCount >= 4) {
 				val remainingClickCount = 7 - clickCount
-				showToast(context,
-						resources.getQuantityString(R.plurals.settings_debug_available_in, remainingClickCount,
-								remainingClickCount))
+				showToast(
+						context,
+						resources.getQuantityString(
+								R.plurals.settings_debug_available_in, remainingClickCount,
+								remainingClickCount
+						)
+				)
 			}
 			true
 		}
@@ -98,7 +106,11 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 
 	}
 
-	private fun showToast(context: Context, string: String) = Toast.makeText(context, string, Toast.LENGTH_SHORT).show()
+	private fun showToast(context: Context, string: String) = Toast.makeText(
+			context,
+			string,
+			Toast.LENGTH_SHORT
+	).show()
 
 
 	private fun createModuleScreens(caller: PreferenceFragmentCompat) {

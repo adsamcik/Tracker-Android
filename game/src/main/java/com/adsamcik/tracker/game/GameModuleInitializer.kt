@@ -17,7 +17,10 @@ class GameModuleInitializer : ModuleInitializer {
 
 		}
 
-		applicationContext.registerReceiver(ChallengeSessionReceiver(), trackerSessionBroadcastFilter)
+		applicationContext.registerReceiver(
+				ChallengeSessionReceiver(),
+				trackerSessionBroadcastFilter
+		)
 	}
 
 	override fun initialize(context: Context) {

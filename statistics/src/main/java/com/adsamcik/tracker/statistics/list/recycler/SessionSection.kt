@@ -31,7 +31,8 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		SectionParameters.builder()
 				.headerResourceId(R.layout.layout_section_header_session)
 				.itemResourceId(R.layout.layout_section_preview_session)
-				.build()), CoroutineScope {
+				.build()
+), CoroutineScope {
 
 	private val job = SupervisorJob()
 
@@ -54,7 +55,11 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		val time = (session.end - session.start).formatAsDuration(context)
 		builder.append(time)
 
-		val distance = resources.formatDistance(session.distanceInM, 1, Preferences.getLengthSystem(context))
+		val distance = resources.formatDistance(
+				session.distanceInM,
+				1,
+				Preferences.getLengthSystem(context)
+		)
 		builder.append(" | ").append(distance)
 
 		return builder.toString()
@@ -66,8 +71,16 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		val resources = holder.itemView.resources
 		val context = holder.itemView.context
 
-		holder.time.text = DateUtils.getRelativeTimeSpanString(time, Time.todayMillis, DateUtils.DAY_IN_MILLIS)
-		holder.distance.text = resources.formatDistance(distance, 1, Preferences.getLengthSystem(context))
+		holder.time.text = DateUtils.getRelativeTimeSpanString(
+				time,
+				Time.todayMillis,
+				DateUtils.DAY_IN_MILLIS
+		)
+		holder.distance.text = resources.formatDistance(
+				distance,
+				1,
+				Preferences.getLengthSystem(context)
+		)
 	}
 
 	override fun onBindItemViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
@@ -75,7 +88,10 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		val session = sessionList[position]
 		val sessionId = session.id
 
-		val timeFormat = SimpleDateFormat.getTimeInstance(SimpleDateFormat.MEDIUM, Locale.getDefault())
+		val timeFormat = SimpleDateFormat.getTimeInstance(
+				SimpleDateFormat.MEDIUM,
+				Locale.getDefault()
+		)
 
 		val context = holder.itemView.context
 
@@ -87,7 +103,11 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 
 		val activityId = session.sessionActivityId
 		if (activityId == null) {
-			holder.title.text = StatsFormat.createTitle(context, startCalendar, SessionActivity.UNKNOWN)
+			holder.title.text = StatsFormat.createTitle(
+					context,
+					startCalendar,
+					SessionActivity.UNKNOWN
+			)
 		} else {
 			launch {
 				val activity = AppDatabase.getDatabase(context).activityDao().get(activityId)
@@ -100,32 +120,43 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		}
 
 		holder.itemView.setOnClickListener {
-			context.startActivity<StatsDetailActivity> { putExtra(StatsDetailActivity.ARG_SESSION_ID, sessionId) }
+			context.startActivity<StatsDetailActivity> {
+				putExtra(
+						StatsDetailActivity.ARG_SESSION_ID,
+						sessionId
+				)
+			}
 		}
 	}
 
 	override fun getItemViewHolder(view: View): RecyclerView.ViewHolder {
-		return ItemViewHolder(view,
+		return ItemViewHolder(
+				view,
 				view.findViewById(R.id.text_title),
 				view.findViewById(R.id.text_time),
-				view.findViewById(R.id.text_info))
+				view.findViewById(R.id.text_info)
+		)
 	}
 
 	override fun getHeaderViewHolder(view: View): RecyclerView.ViewHolder {
-		return HeaderViewHolder(view,
+		return HeaderViewHolder(
+				view,
 				view.findViewById(R.id.text_time),
-				view.findViewById(R.id.text_distance))
+				view.findViewById(R.id.text_distance)
+		)
 	}
 
-	private class HeaderViewHolder(rootView: View,
-	                               val time: TextView,
-	                               val distance: TextView
+	private class HeaderViewHolder(
+			rootView: View,
+			val time: TextView,
+			val distance: TextView
 	) : RecyclerView.ViewHolder(rootView)
 
-	private class ItemViewHolder(rootView: View,
-	                             val title: TextView,
-	                             val time: TextView,
-	                             val info: TextView
+	private class ItemViewHolder(
+			rootView: View,
+			val title: TextView,
+			val time: TextView,
+			val info: TextView
 	) : RecyclerView.ViewHolder(rootView)
 }
 

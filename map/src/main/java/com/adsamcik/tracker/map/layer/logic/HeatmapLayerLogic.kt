@@ -61,7 +61,8 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 
 		val maxHeat = Preferences.getPref(context).getIntResString(
 				R.string.settings_map_max_heat_key,
-				R.string.settings_map_max_heat_default).toFloat()
+				R.string.settings_map_max_heat_default
+		).toFloat()
 		val tileProvider = HeatmapTileProvider(tileCreator, maxHeat, quality)
 		provider = tileProvider
 

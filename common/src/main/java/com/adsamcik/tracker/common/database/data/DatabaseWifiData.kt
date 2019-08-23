@@ -7,7 +7,10 @@ import androidx.room.PrimaryKey
 import com.adsamcik.tracker.common.data.Location
 import com.adsamcik.tracker.common.data.WifiInfo
 
-@Entity(tableName = "wifi_data", indices = [Index("longitude"), Index("latitude"), Index("last_seen")])
+@Entity(
+		tableName = "wifi_data",
+		indices = [Index("longitude"), Index("latitude"), Index("last_seen")]
+)
 data class DatabaseWifiData(
 		@PrimaryKey @ColumnInfo(name = "bssid") var BSSID: String,
 		val longitude: Double?,
@@ -21,11 +24,22 @@ data class DatabaseWifiData(
 		var level: Int = 0
 ) {
 
-	constructor(time: Long, wifiData: WifiInfo, location: Location) : this(wifiData.bssid, location.longitude,
-			location.latitude, location.altitude, time, time, wifiData.ssid, wifiData.capabilities, wifiData.frequency,
-			wifiData.level)
+	constructor(time: Long, wifiData: WifiInfo, location: Location) : this(
+			wifiData.bssid,
+			location.longitude,
+			location.latitude,
+			location.altitude,
+			time,
+			time,
+			wifiData.ssid,
+			wifiData.capabilities,
+			wifiData.frequency,
+			wifiData.level
+	)
 
-	constructor(time: Long, wifiData: WifiInfo) : this(wifiData.bssid, null, null, null, time, time, wifiData.ssid,
-			wifiData.capabilities, wifiData.frequency, wifiData.level)
+	constructor(time: Long, wifiData: WifiInfo) : this(
+			wifiData.bssid, null, null, null, time, time, wifiData.ssid,
+			wifiData.capabilities, wifiData.frequency, wifiData.level
+	)
 }
 

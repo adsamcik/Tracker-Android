@@ -13,9 +13,11 @@ import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapt
 import kotlin.math.roundToInt
 
 //Needs to inherit DividerItemDecoration for StyleController
-class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapter,
-                                 context: Context,
-                                 orientation: Int) : DividerItemDecoration(context, orientation) {
+class SectionedDividerDecoration(
+		private val adapter: SectionedRecyclerViewAdapter,
+		context: Context,
+		orientation: Int
+) : DividerItemDecoration(context, orientation) {
 
 	companion object {
 		const val HORIZONTAL = LinearLayout.HORIZONTAL
@@ -41,8 +43,10 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 		val a = context.obtainStyledAttributes(ATTRS)
 		mDivider = a.getDrawable(0)
 		if (mDivider == null) {
-			Log.w(TAG,
-					"@android:attr/listDivider was not set in the theme used for this " + "DividerItemDecoration. Please set that attribute all call setDrawable()")
+			Log.w(
+					TAG,
+					"@android:attr/listDivider was not set in the theme used for this " + "DividerItemDecoration. Please set that attribute all call setDrawable()"
+			)
 		}
 		a.recycle()
 		setOrientation(orientation)
@@ -57,7 +61,8 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 	override fun setOrientation(orientation: Int) {
 		if (orientation != HORIZONTAL && orientation != VERTICAL) {
 			throw IllegalArgumentException(
-					"Invalid orientation. It should be either HORIZONTAL or VERTICAL")
+					"Invalid orientation. It should be either HORIZONTAL or VERTICAL"
+			)
 		}
 		mOrientation = orientation
 	}
@@ -105,8 +110,10 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 		if (parent.clipToPadding) {
 			left = parent.paddingLeft
 			right = parent.width - parent.paddingRight
-			canvas.clipRect(left, parent.paddingTop, right,
-					parent.height - parent.paddingBottom)
+			canvas.clipRect(
+					left, parent.paddingTop, right,
+					parent.height - parent.paddingBottom
+			)
 		} else {
 			left = 0
 			right = parent.width
@@ -137,8 +144,10 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 		if (parent.clipToPadding) {
 			top = parent.paddingTop
 			bottom = parent.height - parent.paddingBottom
-			canvas.clipRect(parent.paddingLeft, top,
-					parent.width - parent.paddingRight, bottom)
+			canvas.clipRect(
+					parent.paddingLeft, top,
+					parent.width - parent.paddingRight, bottom
+			)
 		} else {
 			top = 0
 			bottom = parent.height
@@ -159,8 +168,9 @@ class SectionedDividerDecoration(private val adapter: SectionedRecyclerViewAdapt
 		canvas.restore()
 	}
 
-	override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView,
-	                            state: RecyclerView.State
+	override fun getItemOffsets(
+			outRect: Rect, view: View, parent: RecyclerView,
+			state: RecyclerView.State
 	) {
 		val divider = mDivider
 		if (divider == null) {

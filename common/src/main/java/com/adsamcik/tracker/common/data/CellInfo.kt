@@ -12,7 +12,6 @@ import android.telephony.CellSignalStrengthLte
 import android.telephony.CellSignalStrengthNr
 import android.telephony.CellSignalStrengthWcdma
 import androidx.annotation.RequiresApi
-import androidx.annotation.StringRes
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.adsamcik.tracker.common.R
@@ -82,15 +81,19 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityGsm,
-	            signalStrength: CellSignalStrengthGsm,
-	            networkOperator: NetworkOperator)
-			: this(networkOperator,
+	constructor(
+			identity: CellIdentityGsm,
+			signalStrength: CellSignalStrengthGsm,
+			networkOperator: NetworkOperator
+	)
+			: this(
+			networkOperator,
 			identity.cid.toLong(),
 			CellType.GSM,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level)
+			signalStrength.level
+	)
 
 
 	/**
@@ -100,15 +103,19 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityCdma,
-	            signalStrength: CellSignalStrengthCdma,
-	            networkOperator: NetworkOperator)
-			: this(networkOperator,
+	constructor(
+			identity: CellIdentityCdma,
+			signalStrength: CellSignalStrengthCdma,
+			networkOperator: NetworkOperator
+	)
+			: this(
+			networkOperator,
 			identity.basestationId.toLong(),
 			CellType.CDMA,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level)
+			signalStrength.level
+	)
 
 	/**
 	 * Creates new instance of CellInfo from WCDMA cell info
@@ -117,15 +124,19 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityWcdma,
-	            signalStrength: CellSignalStrengthWcdma,
-	            networkOperator: NetworkOperator)
-			: this(networkOperator,
+	constructor(
+			identity: CellIdentityWcdma,
+			signalStrength: CellSignalStrengthWcdma,
+			networkOperator: NetworkOperator
+	)
+			: this(
+			networkOperator,
 			identity.cid.toLong(),
 			CellType.WCDMA,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level)
+			signalStrength.level
+	)
 
 
 	/**
@@ -135,15 +146,19 @@ data class CellInfo
 	 * @param signalStrength Signal strength of the cell
 	 * @return new CellInfo if successful, null otherwise
 	 */
-	constructor(identity: CellIdentityLte,
-	            signalStrength: CellSignalStrengthLte,
-	            networkOperator: NetworkOperator)
-			: this(networkOperator,
+	constructor(
+			identity: CellIdentityLte,
+			signalStrength: CellSignalStrengthLte,
+			networkOperator: NetworkOperator
+	)
+			: this(
+			networkOperator,
 			identity.ci.toLong(),
 			CellType.LTE,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level)
+			signalStrength.level
+	)
 
 
 	/**
@@ -155,15 +170,19 @@ data class CellInfo
 	 */
 
 	@RequiresApi(29)
-	constructor(identity: CellIdentityNr,
-	            signalStrength: CellSignalStrengthNr,
-	            networkOperator: NetworkOperator)
-			: this(networkOperator,
+	constructor(
+			identity: CellIdentityNr,
+			signalStrength: CellSignalStrengthNr,
+			networkOperator: NetworkOperator
+	)
+			: this(
+			networkOperator,
 			identity.nci,
 			CellType.NR,
 			signalStrength.asuLevel,
 			signalStrength.dbm,
-			signalStrength.level)
+			signalStrength.level
+	)
 }
 
 enum class CellType {

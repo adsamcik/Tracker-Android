@@ -8,8 +8,10 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.game.challenge.data.builder.StepChallengeBuilder
 import com.adsamcik.tracker.game.challenge.data.instance.StepChallengeInstance
 
-class StepChallengeDefinition : ChallengeDefinition<StepChallengeInstance>(R.string.challenge_step_title,
-		R.string.challenge_step_description, BASE_DAY_COUNT * Time.DAY_IN_MILLISECONDS) {
+class StepChallengeDefinition : ChallengeDefinition<StepChallengeInstance>(
+		R.string.challenge_step_title,
+		R.string.challenge_step_description, BASE_DAY_COUNT * Time.DAY_IN_MILLISECONDS
+) {
 	override val type: ChallengeType = ChallengeType.Step
 
 	val defaultRequiredStepCount = BASE_STEPS_PER_DAY * BASE_DAY_COUNT

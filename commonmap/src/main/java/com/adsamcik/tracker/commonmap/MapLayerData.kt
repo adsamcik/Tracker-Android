@@ -2,7 +2,6 @@ package com.adsamcik.tracker.commonmap
 
 import android.os.Parcelable
 import kotlinx.android.parcel.Parcelize
-import kotlin.reflect.KClass
 
 @Parcelize
 data class MapLayerData(

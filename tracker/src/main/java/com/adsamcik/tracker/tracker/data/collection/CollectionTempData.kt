@@ -9,8 +9,10 @@ import com.adsamcik.tracker.tracker.component.TrackerDataConsumerComponent
 import com.google.android.gms.location.LocationResult
 
 internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos: Long) :
-		CollectionTempData(timeMillis,
-				elapsedRealtimeNanos) {
+		CollectionTempData(
+				timeMillis,
+				elapsedRealtimeNanos
+		) {
 	override val map: MutableMap<String, InternalData> = mutableMapOf()
 
 	fun <T : Any> set(key: String, value: T) {
@@ -67,8 +69,10 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 		return get(key.name)
 	}
 
-	private fun validatePermissions(component: TrackerDataConsumerComponent,
-	                                required: TrackerComponentRequirement) {
+	private fun validatePermissions(
+			component: TrackerDataConsumerComponent,
+			required: TrackerComponentRequirement
+	) {
 		if (BuildConfig.DEBUG) {
 			assert(component.requiredData.contains(required))
 		}

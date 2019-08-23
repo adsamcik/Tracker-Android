@@ -17,8 +17,8 @@ import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.locationManager
 import com.adsamcik.tracker.common.extension.windowManager
-import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
+import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.preference.Preferences
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -45,7 +45,12 @@ object Assist {
 		if (bytes < unit) return "$bytes B"
 		val exp = (ln(bytes.toDouble()) / ln(unit.toDouble())).toInt()
 		val pre = (if (si) "kMGTPE" else "KMGTPE")[exp - 1] + if (si) "" else "i"
-		return String.format(Locale.getDefault(), "%.1f %sB", bytes / unit.toDouble().pow(exp.toDouble()), pre)
+		return String.format(
+				Locale.getDefault(),
+				"%.1f %sB",
+				bytes / unit.toDouble().pow(exp.toDouble()),
+				pre
+		)
 	}
 
 	/**
@@ -146,8 +151,10 @@ object Assist {
 	 * @return true if airplane mode is turned on
 	 */
 	fun isAirplaneModeEnabled(context: Context): Boolean {
-		return Settings.Global.getInt(context.contentResolver,
-				Settings.Global.AIRPLANE_MODE_ON, 0) != 0
+		return Settings.Global.getInt(
+				context.contentResolver,
+				Settings.Global.AIRPLANE_MODE_ON, 0
+		) != 0
 	}
 
 	/**
@@ -169,10 +176,18 @@ object Assist {
 	fun canTrack(context: Context): Boolean {
 		val preferences = Preferences.getPref(context)
 
-		return preferences.getBooleanRes(R.string.settings_location_enabled_key,
-				R.string.settings_location_enabled_default) ||
-				preferences.getBooleanRes(R.string.settings_cell_enabled_key, R.string.settings_cell_enabled_default) ||
-				preferences.getBooleanRes(R.string.settings_wifi_enabled_key, R.string.settings_wifi_enabled_default)
+		return preferences.getBooleanRes(
+				R.string.settings_location_enabled_key,
+				R.string.settings_location_enabled_default
+		) ||
+				preferences.getBooleanRes(
+						R.string.settings_cell_enabled_key,
+						R.string.settings_cell_enabled_default
+				) ||
+				preferences.getBooleanRes(
+						R.string.settings_wifi_enabled_key,
+						R.string.settings_wifi_enabled_default
+				)
 	}
 
 	private const val PLAY_SERVICES_REQUEST_ID = 9000
@@ -240,9 +255,11 @@ object Assist {
 		return Looper.myLooper() == Looper.getMainLooper()
 	}
 
-	fun getBackgroundDrawable(pressedColor: Int,
-	                          backgroundDrawable: Drawable? = null,
-	                          mask: Drawable? = null): RippleDrawable {
+	fun getBackgroundDrawable(
+			pressedColor: Int,
+			backgroundDrawable: Drawable? = null,
+			mask: Drawable? = null
+	): RippleDrawable {
 		return RippleDrawable(getPressedState(pressedColor), backgroundDrawable, mask)
 	}
 

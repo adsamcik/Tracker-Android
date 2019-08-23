@@ -22,10 +22,12 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	private var cellOperatorDao: CellOperatorDao? = null
 
 
-	override fun onNewData(context: Context,
-	                       session: TrackerSession,
-	                       collectionData: CollectionData,
-	                       tempData: CollectionTempData) {
+	override fun onNewData(
+			context: Context,
+			session: TrackerSession,
+			collectionData: CollectionData,
+			tempData: CollectionTempData
+	) {
 		val cellData = collectionData.cell
 		if (cellData != null) {
 			val location = collectionData.location
@@ -46,13 +48,15 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	}
 
 	private fun saveLocation(time: Long, cell: CellInfo, location: Location) {
-		val cellLocation = DatabaseCellLocation(time,
+		val cellLocation = DatabaseCellLocation(
+				time,
 				cell.networkOperator.mcc,
 				cell.networkOperator.mnc,
 				cell.cellId,
 				cell.type,
 				cell.asu,
-				BaseLocation(location))
+				BaseLocation(location)
+		)
 
 		requireNotNull(cellLocationDao).insert(cellLocation)
 	}

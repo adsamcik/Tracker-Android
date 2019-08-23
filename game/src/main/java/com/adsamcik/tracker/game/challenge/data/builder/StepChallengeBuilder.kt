@@ -12,7 +12,8 @@ import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import kotlin.math.roundToInt
 
 class StepChallengeBuilder(private val definition: StepChallengeDefinition) : ChallengeBuilder<StepChallengeInstance>(
-		definition) {
+		definition
+) {
 
 	private var stepsRequired: Int = 0
 
@@ -30,7 +31,11 @@ class StepChallengeBuilder(private val definition: StepChallengeDefinition) : Ch
 	}
 
 	override fun buildChallenge(context: Context, entry: ChallengeEntry): StepChallengeInstance {
-		return StepChallengeInstance(entry, definition, StepChallengeEntity(entry.id, false, stepsRequired, 0))
+		return StepChallengeInstance(
+				entry,
+				definition,
+				StepChallengeEntity(entry.id, false, stepsRequired, 0)
+		)
 	}
 
 	override fun persistExtra(database: ChallengeDatabase, challenge: StepChallengeInstance) {

@@ -22,7 +22,8 @@ class MapViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailData> {
 		val mapView = MapView(parent.context, options).apply {
 			layoutParams = ViewGroup.LayoutParams(
 					ViewGroup.LayoutParams.MATCH_PARENT,
-					200.dp)
+					200.dp
+			)
 
 			isClickable = false
 		}

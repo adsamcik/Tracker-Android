@@ -10,8 +10,10 @@ import com.adsamcik.tracker.game.challenge.data.instance.ExplorerChallengeInstan
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 
-class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefinition) : ChallengeBuilder<ExplorerChallengeInstance>(
-		definition) {
+class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefinition) :
+		ChallengeBuilder<ExplorerChallengeInstance>(
+				definition
+		) {
 	private var requiredLocationCount: Int = 0
 
 	private fun selectLocationCount() {
@@ -27,9 +29,14 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 		selectLocationCount()
 	}
 
-	override fun buildChallenge(context: Context, entry: ChallengeEntry): ExplorerChallengeInstance {
-		return ExplorerChallengeInstance(entry, definition,
-				ExplorerChallengeEntity(entry.id, false, requiredLocationCount, 0))
+	override fun buildChallenge(
+			context: Context,
+			entry: ChallengeEntry
+	): ExplorerChallengeInstance {
+		return ExplorerChallengeInstance(
+				entry, definition,
+				ExplorerChallengeEntity(entry.id, false, requiredLocationCount, 0)
+		)
 	}
 
 	override fun persistExtra(database: ChallengeDatabase, challenge: ExplorerChallengeInstance) {

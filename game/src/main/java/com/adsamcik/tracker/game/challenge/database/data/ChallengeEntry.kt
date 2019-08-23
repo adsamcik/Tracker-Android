@@ -7,12 +7,13 @@ import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
 
 @Entity(tableName = "entry")
-data class ChallengeEntry(val type: ChallengeType,
-                          @ColumnInfo(name = "start_time")
-                          val startTime: Long,
-                          @ColumnInfo(name = "end_time")
-                          val endTime: Long,
-                          val difficulty: ChallengeDifficulty
+data class ChallengeEntry(
+		val type: ChallengeType,
+		@ColumnInfo(name = "start_time")
+		val startTime: Long,
+		@ColumnInfo(name = "end_time")
+		val endTime: Long,
+		val difficulty: ChallengeDifficulty
 ) {
 
 	@PrimaryKey(autoGenerate = true)

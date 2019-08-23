@@ -23,8 +23,10 @@ import kotlin.random.Random
  * Singleton class that manages saving and loading of challenges from cache storage or network
  */
 object ChallengeManager {
-	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(ExplorerChallengeDefinition(),
-			WalkDistanceChallengeDefinition(), StepChallengeDefinition())
+	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(
+			ExplorerChallengeDefinition(),
+			WalkDistanceChallengeDefinition(), StepChallengeDefinition()
+	)
 
 	//todo do not hold this indefinitely
 	private val mutableActiveChallengeList_: MutableList<ChallengeInstance<*, *>> = mutableListOf()
@@ -32,7 +34,8 @@ object ChallengeManager {
 	private const val MAX_CHALLENGE_COUNT = 3
 
 	private val mutableActiveChallenges: NonNullLiveMutableData<List<ChallengeInstance<*, *>>> = NonNullLiveMutableData(
-			mutableActiveChallengeList_)
+			mutableActiveChallengeList_
+	)
 
 	/**
 	 * Returns immutable list of active challenges
@@ -71,9 +74,11 @@ object ChallengeManager {
 		}
 	}
 
-	fun processSession(context: Context,
-	                   session: TrackerSession,
-	                   onChallengeCompletedListener: (ChallengeInstance<*, *>) -> Unit) {
+	fun processSession(
+			context: Context,
+			session: TrackerSession,
+			onChallengeCompletedListener: (ChallengeInstance<*, *>) -> Unit
+	) {
 		if (mutableActiveChallengeList_.isEmpty()) {
 			initialize(context) {
 				if (mutableActiveChallengeList_.isEmpty()) return@initialize
@@ -81,7 +86,13 @@ object ChallengeManager {
 				processSession(context, session, onChallengeCompletedListener)
 			}
 		} else {
-			mutableActiveChallengeList_.forEach { it.process(context, session, onChallengeCompletedListener) }
+			mutableActiveChallengeList_.forEach {
+				it.process(
+						context,
+						session,
+						onChallengeCompletedListener
+				)
+			}
 		}
 	}
 

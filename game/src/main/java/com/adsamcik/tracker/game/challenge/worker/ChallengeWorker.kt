@@ -11,7 +11,10 @@ import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 
-class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
+class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
+		context,
+		workerParams
+) {
 
 	override fun doWork(): Result {
 		val applicationContext = applicationContext
@@ -32,11 +35,16 @@ class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker
 		val resources = applicationContext.resources
 
 		ChallengeManager.processSession(applicationContext, trackerSession) {
-			notificationManager.notify(0,
-					NotificationCompat.Builder(applicationContext, resources.getString(R.string.channel_challenges_id))
+			notificationManager.notify(
+					0,
+					NotificationCompat.Builder(
+							applicationContext,
+							resources.getString(R.string.channel_challenges_id)
+					)
 							.setContentTitle("Completed challenge ${it.data.type.name}")
 							.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
-							.build())
+							.build()
+			)
 		}
 
 		challengeSession.isChallengeProcessed = true

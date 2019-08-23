@@ -58,9 +58,11 @@ internal class StyleUpdater : CoroutineScope {
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
 		launch(Dispatchers.Main) {
-			updateSingle(backgroundColor, foregroundColor, perceivedLuminance, styleView.view,
+			updateSingle(
+					backgroundColor, foregroundColor, perceivedLuminance, styleView.view,
 					styleView.layer,
-					styleView.maxDepth)
+					styleView.maxDepth
+			)
 		}
 	}
 
@@ -109,10 +111,14 @@ internal class StyleUpdater : CoroutineScope {
 	) {
 		var newLayer = layer
 
-		val backgroundLayerColor = ColorFunctions.getBackgroundLayerColor(backgroundColor,
-				backgroundLuminance, layer)
-		val wasBackgroundUpdated = updateBackgroundDrawable(view, backgroundLayerColor,
-				backgroundLuminance)
+		val backgroundLayerColor = ColorFunctions.getBackgroundLayerColor(
+				backgroundColor,
+				backgroundLuminance, layer
+		)
+		val wasBackgroundUpdated = updateBackgroundDrawable(
+				view, backgroundLayerColor,
+				backgroundLuminance
+		)
 		if (wasBackgroundUpdated) newLayer++
 
 		if (view is ViewGroup) {
@@ -121,9 +127,11 @@ internal class StyleUpdater : CoroutineScope {
 			val newDepthLeft = depthLeft - 1
 
 			for (i in 0 until view.childCount) {
-				updateSingle(backgroundColor, foregroundColor, backgroundLuminance,
+				updateSingle(
+						backgroundColor, foregroundColor, backgroundLuminance,
 						view.getChildAt(i), newLayer,
-						newDepthLeft)
+						newDepthLeft
+				)
 			}
 		} else {
 			updateStyleForeground(view, foregroundColor)
@@ -147,8 +155,12 @@ internal class StyleUpdater : CoroutineScope {
 		val alpha = view.currentTextColor.alpha
 		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
 		view.setTextColor(newTextColor)
-		view.setHintTextColor(brightenColor(newTextColor,
-				ColorFunctions.LIGHTNESS_PER_LEVEL))
+		view.setHintTextColor(
+				brightenColor(
+						newTextColor,
+						ColorFunctions.LIGHTNESS_PER_LEVEL
+				)
+		)
 		view.compoundDrawables.forEach {
 			if (it != null) updateStyleForeground(it, foregroundColor)
 		}
@@ -165,7 +177,9 @@ internal class StyleUpdater : CoroutineScope {
 				intArrayOf(
 						ColorUtils.setAlphaComponent(foregroundColor, SEEKBAR_DISABLED_ALPHA),
 						foregroundColor,
-						ColorUtils.setAlphaComponent(foregroundColor, SEEKBAR_PRESSED_ALPHA)))
+						ColorUtils.setAlphaComponent(foregroundColor, SEEKBAR_PRESSED_ALPHA)
+				)
+		)
 	}
 
 	@MainThread

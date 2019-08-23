@@ -12,9 +12,14 @@ internal class CellTrackerComponent : DataTrackerComponent {
 
 	override suspend fun onEnable(context: Context) = Unit
 
-	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(TrackerComponentRequirement.CELL)
+	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
+			TrackerComponentRequirement.CELL
+	)
 
-	override suspend fun onDataUpdated(tempData: CollectionTempData, collectionData: MutableCollectionData) {
+	override suspend fun onDataUpdated(
+			tempData: CollectionTempData,
+			collectionData: MutableCollectionData
+	) {
 		val cellData = tempData.getCellData(this)
 		collectionData.cell = CellData(cellData.registeredCells, cellData.cellScanData.size)
 	}

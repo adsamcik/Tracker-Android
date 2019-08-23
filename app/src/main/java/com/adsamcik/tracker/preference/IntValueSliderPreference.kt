@@ -7,20 +7,26 @@ import android.widget.TextView
 import androidx.annotation.ArrayRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import com.adsamcik.tracker.R
 import com.adsamcik.slider.implementations.IntValueSlider
+import com.adsamcik.tracker.R
 
 /**
  * Custom Preference implementation of the IntValueSlider from Slider library.
  * It allows Slider to be used as preference.
  */
 class IntValueSliderPreference : Preference {
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs,
-			defStyleAttr, defStyleRes) {
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
+			context, attrs,
+			defStyleAttr, defStyleRes
+	) {
 		initAttributes(context, attrs)
 	}
 
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(
+			context,
+			attrs,
+			defStyleAttr
+	) {
 		initAttributes(context, attrs)
 	}
 

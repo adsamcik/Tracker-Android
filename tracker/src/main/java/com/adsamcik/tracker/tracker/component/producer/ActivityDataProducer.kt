@@ -14,7 +14,8 @@ import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
 internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		TrackerDataProducerComponent(
-				changeReceiver) {
+				changeReceiver
+		) {
 	override val keyRes: Int
 		get() = R.string.settings_activity_enabled_key
 	override val defaultRes: Int
@@ -47,8 +48,10 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
 		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default)
+		val minUpdateDelayInSeconds = preferences.getIntRes(
+				R.string.settings_tracking_min_time_key,
+				R.integer.settings_tracking_min_time_default
+		)
 		ActivityRequestManager.requestActivity(
 				context,
 				ActivityRequestData(

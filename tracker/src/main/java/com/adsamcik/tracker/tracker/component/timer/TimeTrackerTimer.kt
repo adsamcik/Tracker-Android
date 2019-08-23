@@ -27,13 +27,17 @@ internal class TimeTrackerTimer : TrackerTimerComponent {
 		}
 	}
 
-	private fun createCollectionData(): MutableCollectionTempData = MutableCollectionTempData(Time.nowMillis,
-			Time.elapsedRealtimeNanos)
+	private fun createCollectionData(): MutableCollectionTempData = MutableCollectionTempData(
+			Time.nowMillis,
+			Time.elapsedRealtimeNanos
+	)
 
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default)
+		val minUpdateDelayInSeconds = preferences.getIntRes(
+				R.string.settings_tracking_min_time_key,
+				R.integer.settings_tracking_min_time_default
+		)
 
 		repeatEveryMs = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
 		handler.postDelayed(handlerCallback, repeatEveryMs)

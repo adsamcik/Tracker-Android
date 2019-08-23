@@ -21,12 +21,12 @@
         android:orientation="horizontal">
 
         <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/map_search_parent"
             android:layout_width="0dp"
             android:layout_height="@dimen/map_button_size"
             android:layout_weight="1"
-            android:orientation="horizontal"
-            android:id="@+id/map_search_parent"
-            android:background="@drawable/background_map_search">
+            android:background="@drawable/background_map_search"
+            android:orientation="horizontal">
 
             <androidx.appcompat.widget.AppCompatEditText
                 android:id="@+id/edittext_map_search"

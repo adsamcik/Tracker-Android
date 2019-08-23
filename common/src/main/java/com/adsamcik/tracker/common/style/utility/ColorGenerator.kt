@@ -17,8 +17,10 @@ object ColorGenerator {
 	 */
 	fun generateWithGolden(count: Int): List<Int> {
 		val hue = Random.nextDouble()
-		return generateWithGolden(hue,
-				count)
+		return generateWithGolden(
+				hue,
+				count
+		)
 	}
 
 	/**
@@ -40,7 +42,8 @@ object ColorGenerator {
 			hsv[0] = hue.toFloat()
 			colorList.add(Color.HSVToColor(hsv))
 			hue = (hue + GOLDEN_RATIO_DEGREES).rem(
-					CIRCLE_DEGREES)
+					CIRCLE_DEGREES
+			)
 		}
 
 		return colorList

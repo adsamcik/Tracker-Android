@@ -14,7 +14,9 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope {
-	override val requiredData: Collection<TrackerComponentRequirement> = listOf(TrackerComponentRequirement.LOCATION)
+	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
+			TrackerComponentRequirement.LOCATION
+	)
 
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
@@ -26,16 +28,22 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 
 	override suspend fun onEnable(context: Context) {
 		withContext(coroutineContext) {
-			PreferenceObserver.observeIntRes(context,
+			PreferenceObserver.observeIntRes(
+					context,
 					keyRes = R.string.settings_tracking_required_accuracy_key,
 					defaultRes = R.integer.settings_tracking_required_accuracy_default,
-					observer = observer)
+					observer = observer
+			)
 		}
 	}
 
 	override suspend fun onDisable(context: Context) {
 		withContext(coroutineContext) {
-			PreferenceObserver.removeObserver(context, R.string.settings_tracking_required_accuracy_key, observer)
+			PreferenceObserver.removeObserver(
+					context,
+					R.string.settings_tracking_required_accuracy_key,
+					observer
+			)
 		}
 	}
 

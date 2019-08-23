@@ -105,11 +105,18 @@ class ExportActivity : DetailActivity() {
 						return@launch
 					}
 
-					val selectedRange = LongRange(range.start.timeInMillis, range.endInclusive.timeInMillis)
+					val selectedRange = LongRange(
+							range.start.timeInMillis,
+							range.endInclusive.timeInMillis
+					)
 					launch(Dispatchers.Main) {
-						MaterialDialog(view.context).dateTimeRangePicker(availableRange, selectedRange) {
+						MaterialDialog(view.context).dateTimeRangePicker(
+								availableRange,
+								selectedRange
+						) {
 							range = createCalendarWithTime(it.first)..createCalendarWithTime(
-									it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS)
+									it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
+							)
 						}.show()
 					}
 				}
@@ -148,13 +155,17 @@ class ExportActivity : DetailActivity() {
 				val fileUri = FileProvider.getUriForFile(
 						this@ExportActivity,
 						"com.adsamcik.tracker.fileprovider",
-						it.file)
+						it.file
+				)
 				val shareIntent = Intent()
 				shareIntent.action = Intent.ACTION_SEND
 				shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
 				shareIntent.type = it.mime
 
-				val intent = Intent.createChooser(shareIntent, resources.getText(R.string.share_button))
+				val intent = Intent.createChooser(
+						shareIntent,
+						resources.getText(R.string.share_button)
+				)
 				startActivityForResult(intent, SHARE_RESULT)
 			}
 		}
@@ -181,7 +192,10 @@ class ExportActivity : DetailActivity() {
 			}
 
 			if (requiredPermissions.isNotEmpty()) {
-				requestPermissions(requiredPermissions.toTypedArray(), PERMISSION_REQUEST_EXTERNAL_STORAGE)
+				requestPermissions(
+						requiredPermissions.toTypedArray(),
+						PERMISSION_REQUEST_EXTERNAL_STORAGE
+				)
 			}
 
 			return requiredPermissions.isEmpty()
@@ -205,7 +219,10 @@ class ExportActivity : DetailActivity() {
 				val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 				if (locations.isEmpty()) {
-					SnackMaker(root).addMessage(R.string.error_no_locations_in_interval, Snackbar.LENGTH_LONG)
+					SnackMaker(root).addMessage(
+							R.string.error_no_locations_in_interval,
+							Snackbar.LENGTH_LONG
+					)
 					return@launch
 				}
 				//todo do not pass location, make it somewhat smarter so there are no useless queries
@@ -235,7 +252,11 @@ class ExportActivity : DetailActivity() {
 		finish()
 	}
 
-	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+	override fun onRequestPermissionsResult(
+			requestCode: Int,
+			permissions: Array<out String>,
+			grantResults: IntArray
+	) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
 		if (requestCode == PERMISSION_REQUEST_EXTERNAL_STORAGE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {

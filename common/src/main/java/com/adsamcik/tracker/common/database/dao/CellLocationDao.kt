@@ -11,22 +11,30 @@ interface CellLocationDao : BaseDao<DatabaseCellLocation> {
 	@Query("DELETE FROM cell_location")
 	fun deleteAll()
 
-	@Query("""
+	@Query(
+			"""
 		SELECT lat, lon, type as weight FROM cell_location
-		WHERE lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude""")
-	fun getAllInside(topLatitude: Double,
-	                 rightLongitude: Double,
-	                 bottomLatitude: Double,
-	                 leftLongitude: Double): List<Database2DLocationWeightedMinimal>
+		WHERE lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude"""
+	)
+	fun getAllInside(
+			topLatitude: Double,
+			rightLongitude: Double,
+			bottomLatitude: Double,
+			leftLongitude: Double
+	): List<Database2DLocationWeightedMinimal>
 
-	@Query("""SELECT lat, lon, type as weight FROM cell_location
-			WHERE time >= :from and time <= :to and lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude""")
-	fun getAllInsideAndBetween(from: Long,
-	                           to: Long,
-	                           topLatitude: Double,
-	                           rightLongitude: Double,
-	                           bottomLatitude: Double,
-	                           leftLongitude: Double): List<Database2DLocationWeightedMinimal>
+	@Query(
+			"""SELECT lat, lon, type as weight FROM cell_location
+			WHERE time >= :from and time <= :to and lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude"""
+	)
+	fun getAllInsideAndBetween(
+			from: Long,
+			to: Long,
+			topLatitude: Double,
+			rightLongitude: Double,
+			bottomLatitude: Double,
+			leftLongitude: Double
+	): List<Database2DLocationWeightedMinimal>
 
 	@Query("SELECT COUNT(*) from cell_location")
 	fun count(): Long

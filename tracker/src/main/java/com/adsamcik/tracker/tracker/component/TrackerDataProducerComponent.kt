@@ -16,10 +16,12 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 		private set
 
 	fun onAttach(context: Context) {
-		PreferenceObserver.observe(context,
+		PreferenceObserver.observe(
+				context,
 				keyRes = keyRes,
 				defaultRes = defaultRes,
-				observer = observer)
+				observer = observer
+		)
 	}
 
 	fun onDetach(context: Context) {

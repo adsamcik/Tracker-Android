@@ -303,11 +303,14 @@ class MainActivity : CoreUIActivity() {
 	override fun onBackPressed() {
 		when {
 			button_map.state == DraggableImageButton.State.TARGET -> button_map.moveToState(
-					DraggableImageButton.State.INITIAL, true)
+					DraggableImageButton.State.INITIAL, true
+			)
 			button_stats.state == DraggableImageButton.State.TARGET -> button_stats.moveToState(
-					DraggableImageButton.State.INITIAL, true)
+					DraggableImageButton.State.INITIAL, true
+			)
 			button_game.state == DraggableImageButton.State.TARGET -> button_game.moveToState(
-					DraggableImageButton.State.INITIAL, true)
+					DraggableImageButton.State.INITIAL, true
+			)
 			else -> super.onBackPressed()
 		}
 	}

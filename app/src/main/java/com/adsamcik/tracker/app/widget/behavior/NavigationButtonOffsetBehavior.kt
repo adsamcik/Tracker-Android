@@ -23,11 +23,19 @@ class NavigationButtonOffsetBehavior(private val targetView: View) : Coordinator
 	private var layoutChange = 0f
 	private var ignore = false
 
-	override fun layoutDependsOn(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View): Boolean {
+	override fun layoutDependsOn(
+			parent: CoordinatorLayout,
+			child: ConstraintLayout,
+			dependency: View
+	): Boolean {
 		return dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout
 	}
 
-	override fun onDependentViewChanged(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View): Boolean {
+	override fun onDependentViewChanged(
+			parent: CoordinatorLayout,
+			child: ConstraintLayout,
+			dependency: View
+	): Boolean {
 		var changed = false
 		if (dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout) {
 			if (last == Float.MIN_VALUE) {
@@ -63,7 +71,11 @@ class NavigationButtonOffsetBehavior(private val targetView: View) : Coordinator
 		return changed
 	}
 
-	override fun onDependentViewRemoved(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View) {
+	override fun onDependentViewRemoved(
+			parent: CoordinatorLayout,
+			child: ConstraintLayout,
+			dependency: View
+	) {
 		//Ensures that the view does not get stuck in out of the way position
 		targetView.translationY += layoutChange
 		last = Float.MIN_VALUE
@@ -85,7 +97,11 @@ class NavigationGuidelinesOffsetBehavior(private val guideline: Guideline) : Coo
 
 	private var layoutChange = 0f
 
-	override fun layoutDependsOn(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View): Boolean {
+	override fun layoutDependsOn(
+			parent: CoordinatorLayout,
+			child: ConstraintLayout,
+			dependency: View
+	): Boolean {
 		return dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout
 	}
 
@@ -100,7 +116,11 @@ class NavigationGuidelinesOffsetBehavior(private val guideline: Guideline) : Coo
 		offset = current.toFloat()
 	}
 
-	override fun onDependentViewChanged(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View): Boolean {
+	override fun onDependentViewChanged(
+			parent: CoordinatorLayout,
+			child: ConstraintLayout,
+			dependency: View
+	): Boolean {
 		var changed = false
 		if (dependency is com.google.android.material.snackbar.Snackbar.SnackbarLayout) {
 			val current = guideline.guidelineEnd
@@ -136,7 +156,11 @@ class NavigationGuidelinesOffsetBehavior(private val guideline: Guideline) : Coo
 		return changed
 	}
 
-	override fun onDependentViewRemoved(parent: CoordinatorLayout, child: ConstraintLayout, dependency: View) {
+	override fun onDependentViewRemoved(
+			parent: CoordinatorLayout,
+			child: ConstraintLayout,
+			dependency: View
+	) {
 		//Ensures that the view does not get stuck in out of the way position
 		guideline.translationY += layoutChange
 		last = Int.MIN_VALUE

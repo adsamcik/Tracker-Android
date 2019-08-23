@@ -10,8 +10,10 @@ import com.adsamcik.tracker.game.challenge.data.instance.WalkDistanceChallengeIn
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 
-class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) : ChallengeBuilder<WalkDistanceChallengeInstance>(
-		definition) {
+class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) :
+		ChallengeBuilder<WalkDistanceChallengeInstance>(
+				definition
+		) {
 
 	private var distanceRequired: Float = 0f
 
@@ -28,12 +30,20 @@ class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallenge
 		selectRequiredDistance()
 	}
 
-	override fun buildChallenge(context: Context, entry: ChallengeEntry): WalkDistanceChallengeInstance {
-		return WalkDistanceChallengeInstance(entry, definition,
-				WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f))
+	override fun buildChallenge(
+			context: Context,
+			entry: ChallengeEntry
+	): WalkDistanceChallengeInstance {
+		return WalkDistanceChallengeInstance(
+				entry, definition,
+				WalkDistanceChallengeEntity(entry.id, false, distanceRequired, 0f)
+		)
 	}
 
-	override fun persistExtra(database: ChallengeDatabase, challenge: WalkDistanceChallengeInstance) {
+	override fun persistExtra(
+			database: ChallengeDatabase,
+			challenge: WalkDistanceChallengeInstance
+	) {
 		database.walkDistanceDao.insert(challenge.extra)
 	}
 }

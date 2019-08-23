@@ -9,8 +9,10 @@ import kotlin.math.roundToInt
 internal class OnFootActivityRecognizer : ActivityRecognizer() {
 	override val precisionConfidence: Int = 75
 
-	override fun resolve(session: TrackerSession,
-	                     locationCollection: Collection<DatabaseLocation>): ActivityRecognitionResult {
+	override fun resolve(
+			session: TrackerSession,
+			locationCollection: Collection<DatabaseLocation>
+	): ActivityRecognitionResult {
 		val run = ActivitySum()
 		val walk = ActivitySum()
 		val onFoot = ActivitySum()

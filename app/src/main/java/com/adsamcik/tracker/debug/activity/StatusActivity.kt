@@ -18,21 +18,47 @@ class StatusActivity : DetailActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		val layout = createScrollableContentParent(true, androidx.constraintlayout.widget.ConstraintLayout::class.java)
+		val layout = createScrollableContentParent(
+				true,
+				androidx.constraintlayout.widget.ConstraintLayout::class.java
+		)
 		val workManager = WorkManager.getInstance(this)
 		val waitForRechargeStates = workManager.getWorkInfosByTag(TrackerLocker.WORK_DISABLE_TILL_RECHARGE_TAG)
 				.get()
 
 		val isWaitingForRecharge = waitForRechargeStates != null && waitForRechargeStates.size > 0
 
-		var lastId = createPair("Is time locked", TrackerLocker.isTimeLocked.toString(), layout, null)
-		lastId = createPair("Is locked until recharge", TrackerLocker.isChargeLocked.toString(), layout, lastId)
-		createPair("Has active wait for recharge job", isWaitingForRecharge.toString(), layout, lastId)
+		var lastId = createPair(
+				"Is time locked",
+				TrackerLocker.isTimeLocked.toString(),
+				layout,
+				null
+		)
+		lastId = createPair(
+				"Is locked until recharge",
+				TrackerLocker.isChargeLocked.toString(),
+				layout,
+				lastId
+		)
+		createPair(
+				"Has active wait for recharge job",
+				isWaitingForRecharge.toString(),
+				layout,
+				lastId
+		)
 	}
 
-	fun createPair(titleString: String, valueString: String, parent: ViewGroup, aboveId: Int?): Int {
+	fun createPair(
+			titleString: String,
+			valueString: String,
+			parent: ViewGroup,
+			aboveId: Int?
+	): Int {
 		val title = TextView(this)
-		val titleParams = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+		val titleParams = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+				WRAP_CONTENT,
+				WRAP_CONTENT
+		)
 
 		if (aboveId != null)
 			titleParams.topToBottom = aboveId
@@ -45,7 +71,10 @@ class StatusActivity : DetailActivity() {
 		parent.addView(title)
 
 		val value = TextView(this)
-		val valueParams = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+		val valueParams = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+				WRAP_CONTENT,
+				WRAP_CONTENT
+		)
 
 		valueParams.leftToRight = title.id
 		valueParams.topToTop = title.id

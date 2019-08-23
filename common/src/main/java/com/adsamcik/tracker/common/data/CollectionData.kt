@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.common.data
 
 import android.net.wifi.ScanResult
-import android.os.Parcel
 import android.os.Parcelable
 import com.adsamcik.tracker.common.Time
 import kotlinx.android.parcel.Parcelize

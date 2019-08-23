@@ -73,8 +73,10 @@ internal class MapSheetController(
 
 	private val mapLayerFilterRule = CoordinateBounds()
 
-	private val geocoder: Geocoder? = if (Geocoder.isPresent()) Geocoder(context,
-			Locale.getDefault()) else null
+	private val geocoder: Geocoder? = if (Geocoder.isPresent()) Geocoder(
+			context,
+			Locale.getDefault()
+	) else null
 
 	private val styleController = StyleManager.createController().also { styleController ->
 		styleController.watchView(StyleView(rootLayout, layer = 0))
@@ -131,8 +133,10 @@ internal class MapSheetController(
 				if (slideOffset in 0f..halfExpandedRatio) {
 					val parentHeight = (bottomSheet.parent as View).height
 					val maxHeightDifference = parentHeight - expandedOffset - peekHeight
-					map.setPadding(0, 0, 0,
-							(peekHeight + slideOffset * maxHeightDifference).roundToInt())
+					map.setPadding(
+							0, 0, 0,
+							(peekHeight + slideOffset * maxHeightDifference).roundToInt()
+					)
 
 					val progress = slideOffset / halfExpandedRatio
 					peekNavbarSpace.updateLayoutParams {
@@ -200,10 +204,12 @@ internal class MapSheetController(
 
 	override fun onCameraIdle() {
 		val bounds = map.projection.visibleRegion.latLngBounds
-		mapLayerFilterRule.updateBounds(bounds.northeast.latitude,
+		mapLayerFilterRule.updateBounds(
+				bounds.northeast.latitude,
 				bounds.northeast.longitude,
 				bounds.southwest.latitude,
-				bounds.southwest.longitude)
+				bounds.southwest.longitude
+		)
 		// fragmentMapMenu.get()?.filter(mapLayerFilterRule)
 	}
 
@@ -247,10 +253,13 @@ internal class MapSheetController(
 				launch(Dispatchers.Main) {
 					if (availableRange.last <= availableRange.first) {
 						SnackMaker(it.requireParent<CoordinatorLayout>()).addMessage(
-								R.string.map_layer_no_data)
+								R.string.map_layer_no_data
+						)
 					} else {
-						MaterialDialog(it.context).dateTimeRangePicker(availableRange,
-								selectedRange) {
+						MaterialDialog(it.context).dateTimeRangePicker(
+								availableRange,
+								selectedRange
+						) {
 							mapController.dateRange = it.first..it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
 						}.show()
 
@@ -285,7 +294,8 @@ internal class MapSheetController(
 				LocationHeatmapLogic(),
 				CellHeatmapLogic(),
 				WifiHeatmapLogic(),
-				LocationPolylineLogic())
+				LocationPolylineLogic()
+		)
 
 		rootLayout.findViewById<RecyclerView>(R.id.map_layers_recycler).apply {
 			layoutManager = GridLayoutManager(context, 2, GridLayoutManager.HORIZONTAL, false)
@@ -336,8 +346,10 @@ internal class MapSheetController(
 			if (addresses?.isNotEmpty() == true) {
 				val address = addresses.first()
 				locationListener.stopUsingUserPosition(rootLayout.button_map_my_location, true)
-				locationListener.animateToPositionZoom(LatLng(address.latitude, address.longitude),
-						ANIMATE_TO_ZOOM)
+				locationListener.animateToPositionZoom(
+						LatLng(address.latitude, address.longitude),
+						ANIMATE_TO_ZOOM
+				)
 			}
 		} catch (e: IOException) {
 			SnackMaker(view).addMessage(R.string.map_search_no_geocoder)

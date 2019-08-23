@@ -113,10 +113,12 @@ fun Long.formatAsShortDateTime(): String {
 			.format(date)
 }
 
-fun Resources.formatSpeed(metersPerSecond: Float,
-                          digits: Int,
-                          lengthSystem: LengthSystem,
-                          speedFormat: SpeedFormat): String {
+fun Resources.formatSpeed(
+		metersPerSecond: Float,
+		digits: Int,
+		lengthSystem: LengthSystem,
+		speedFormat: SpeedFormat
+): String {
 	return formatSpeed(metersPerSecond.toDouble(), digits, lengthSystem, speedFormat)
 }
 
@@ -126,16 +128,25 @@ fun Resources.formatSpeed(context: Context, metersPerSecond: Double, digits: Int
 	return formatSpeed(metersPerSecond, digits, lengthSystem, speedFormat)
 }
 
-fun Resources.formatSpeed(metersPerSecond: Double,
-                          digits: Int,
-                          lengthSystem: LengthSystem,
-                          speedFormat: SpeedFormat): String {
+fun Resources.formatSpeed(
+		metersPerSecond: Double,
+		digits: Int,
+		lengthSystem: LengthSystem,
+		speedFormat: SpeedFormat
+): String {
 	return when (speedFormat) {
-		SpeedFormat.Second -> getString(R.string.per_second_abbr, formatDistance(metersPerSecond, digits, lengthSystem))
-		SpeedFormat.Minute -> getString(R.string.per_minute_abbr,
-				formatDistance(metersPerSecond * Time.SECONDS_IN_A_MINUTE, digits, lengthSystem))
-		SpeedFormat.Hour -> getString(R.string.per_hour_abbr,
-				formatDistance(metersPerSecond * Time.SECONDS_IN_AN_HOUR, digits, lengthSystem))
+		SpeedFormat.Second -> getString(
+				R.string.per_second_abbr,
+				formatDistance(metersPerSecond, digits, lengthSystem)
+		)
+		SpeedFormat.Minute -> getString(
+				R.string.per_minute_abbr,
+				formatDistance(metersPerSecond * Time.SECONDS_IN_A_MINUTE, digits, lengthSystem)
+		)
+		SpeedFormat.Hour -> getString(
+				R.string.per_hour_abbr,
+				formatDistance(metersPerSecond * Time.SECONDS_IN_AN_HOUR, digits, lengthSystem)
+		)
 	}
 }
 

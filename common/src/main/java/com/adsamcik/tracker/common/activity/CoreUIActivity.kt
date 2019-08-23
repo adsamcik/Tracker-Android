@@ -45,7 +45,11 @@ abstract class CoreUIActivity : CoreActivity() {
 	}
 
 	@CallSuper
-	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+	override fun onRequestPermissionsResult(
+			requestCode: Int,
+			permissions: Array<out String>,
+			grantResults: IntArray
+	) {
 		if (requestCode == themeLocationRequestCode) {
 			if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
 				initializeSunriseSunset()
@@ -64,7 +68,10 @@ abstract class CoreUIActivity : CoreActivity() {
 				}
 			}
 		} else if (Build.VERSION.SDK_INT >= 23) {
-			requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), themeLocationRequestCode)
+			requestPermissions(
+					arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+					themeLocationRequestCode
+			)
 		}
 	}
 }

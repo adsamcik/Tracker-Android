@@ -9,10 +9,13 @@ import com.adsamcik.tracker.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.persistence.StepChallengePersistence
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 
-class StepChallengeInstance(data: ChallengeEntry,
-                            definition: ChallengeDefinition<StepChallengeInstance>,
-                            extra: StepChallengeEntity) : ChallengeInstance<StepChallengeEntity, StepChallengeInstance>(
-		data, definition, extra) {
+class StepChallengeInstance(
+		data: ChallengeEntry,
+		definition: ChallengeDefinition<StepChallengeInstance>,
+		extra: StepChallengeEntity
+) : ChallengeInstance<StepChallengeEntity, StepChallengeInstance>(
+		data, definition, extra
+) {
 
 	@Suppress("unchecked_cast")
 	override val persistence: ChallengePersistence<StepChallengeInstance>

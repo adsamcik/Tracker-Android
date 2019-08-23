@@ -81,7 +81,11 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		viewModel.adapter.notifyDataSetChanged()
 	}
 
-	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+	override fun onCreateView(
+			inflater: LayoutInflater,
+			container: ViewGroup?,
+			savedInstanceState: Bundle?
+	): View? {
 		val activity = requireActivity()
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
@@ -89,7 +93,8 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 		//todo unify this in some way so it can be easily reused for any recycler currently also in FragmentGame
 		val contentPadding = activity.resources.getDimension(
-				com.adsamcik.tracker.common.R.dimen.content_padding)
+				com.adsamcik.tracker.common.R.dimen.content_padding
+		)
 				.toInt()
 		val statusBarHeight = Assist.getStatusBarHeight(activity)
 		val navBarSize = Assist.getNavigationBarSize(activity)
@@ -100,14 +105,30 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val layoutManager = LinearLayoutManager(activity)
 			this.layoutManager = layoutManager
 
-			addItemDecoration(SectionedDividerDecoration(viewModel.adapter, context, layoutManager.orientation))
-			addItemDecoration(SimpleMarginDecoration(verticalMargin = 0,
-					horizontalMargin = 0,
-					firstLineMargin = statusBarHeight + contentPadding,
-					lastLineMargin = navBarHeight + contentPadding))
+			addItemDecoration(
+					SectionedDividerDecoration(
+							viewModel.adapter,
+							context,
+							layoutManager.orientation
+					)
+			)
+			addItemDecoration(
+					SimpleMarginDecoration(
+							verticalMargin = 0,
+							horizontalMargin = 0,
+							firstLineMargin = statusBarHeight + contentPadding,
+							lastLineMargin = navBarHeight + contentPadding
+					)
+			)
 		}
 
-		styleController.watchRecyclerView(RecyclerStyleView(recyclerView, onlyChildren = true, childrenLayer = 2))
+		styleController.watchRecyclerView(
+				RecyclerStyleView(
+						recyclerView,
+						onlyChildren = true,
+						childrenLayer = 2
+				)
+		)
 		styleController.watchView(StyleView(fragmentView, layer = 1, maxDepth = 0))
 
 		return fragmentView
@@ -146,18 +167,41 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val sumSessionData = sessionDao.getSummary()
 
 			val statList = listOf(
-					StatData(resources.getString(R.string.stats_time),
-							sumSessionData.duration.formatAsDuration(activity)),
-					StatData(resources.getString(R.string.stats_collections),
-							sumSessionData.collections.formatReadable()),
-					StatData(resources.getString(R.string.stats_distance_total),
-							resources.formatDistance(sumSessionData.distanceInM, 1,
-									Preferences.getLengthSystem(activity))),
-					StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
-					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
-					StatData(resources.getString(R.string.stats_cell_count), cellDao.uniqueCount().formatReadable()),
-					StatData(resources.getString(R.string.stats_session_count), sessionDao.count().formatReadable()),
-					StatData(resources.getString(R.string.stats_steps), sumSessionData.steps.formatReadable())
+					StatData(
+							resources.getString(R.string.stats_time),
+							sumSessionData.duration.formatAsDuration(activity)
+					),
+					StatData(
+							resources.getString(R.string.stats_collections),
+							sumSessionData.collections.formatReadable()
+					),
+					StatData(
+							resources.getString(R.string.stats_distance_total),
+							resources.formatDistance(
+									sumSessionData.distanceInM, 1,
+									Preferences.getLengthSystem(activity)
+							)
+					),
+					StatData(
+							resources.getString(R.string.stats_location_count),
+							locationDao.count().formatReadable()
+					),
+					StatData(
+							resources.getString(R.string.stats_wifi_count),
+							wifiDao.count().formatReadable()
+					),
+					StatData(
+							resources.getString(R.string.stats_cell_count),
+							cellDao.uniqueCount().formatReadable()
+					),
+					StatData(
+							resources.getString(R.string.stats_session_count),
+							sessionDao.count().formatReadable()
+					),
+					StatData(
+							resources.getString(R.string.stats_steps),
+							sumSessionData.steps.formatReadable()
+					)
 			)
 
 			showSummaryDialog(statList, R.string.stats_sum_title)
@@ -177,14 +221,25 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val sessionDao = database.sessionDao()
 			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
 			val statDataList = listOf(
-					StatData(resources.getString(R.string.stats_time),
-							lastWeekSummary.duration.formatAsDuration(activity)),
-					StatData(resources.getString(R.string.stats_distance_total),
-							resources.formatDistance(lastWeekSummary.distanceInM, 1,
-									Preferences.getLengthSystem(activity))),
-					StatData(resources.getString(R.string.stats_collections),
-							lastWeekSummary.collections.formatReadable()),
-					StatData(resources.getString(R.string.stats_steps), lastWeekSummary.steps.formatReadable())
+					StatData(
+							resources.getString(R.string.stats_time),
+							lastWeekSummary.duration.formatAsDuration(activity)
+					),
+					StatData(
+							resources.getString(R.string.stats_distance_total),
+							resources.formatDistance(
+									lastWeekSummary.distanceInM, 1,
+									Preferences.getLengthSystem(activity)
+							)
+					),
+					StatData(
+							resources.getString(R.string.stats_collections),
+							lastWeekSummary.collections.formatReadable()
+					),
+					StatData(
+							resources.getString(R.string.stats_steps),
+							lastWeekSummary.steps.formatReadable()
+					)
 					/*StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable())*/
@@ -204,14 +259,23 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val resources = resources
 			val lengthSystem = Preferences.getLengthSystem(requireContext())
 
-			table.addData(resources.getString(R.string.stats_distance_total),
-					resources.formatDistance(session.distanceInM, 1, lengthSystem))
-			table.addData(resources.getString(R.string.stats_collections), session.collections.formatReadable())
+			table.addData(
+					resources.getString(R.string.stats_distance_total),
+					resources.formatDistance(session.distanceInM, 1, lengthSystem)
+			)
+			table.addData(
+					resources.getString(R.string.stats_collections),
+					session.collections.formatReadable()
+			)
 			table.addData(resources.getString(R.string.stats_steps), session.steps.formatReadable())
-			table.addData(resources.getString(R.string.stats_distance_on_foot),
-					resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem))
-			table.addData(resources.getString(R.string.stats_distance_in_vehicle),
-					resources.formatDistance(session.distanceInVehicleInM, 1, lengthSystem))
+			table.addData(
+					resources.getString(R.string.stats_distance_on_foot),
+					resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)
+			)
+			table.addData(
+					resources.getString(R.string.stats_distance_in_vehicle),
+					resources.formatDistance(session.distanceInVehicleInM, 1, lengthSystem)
+			)
 
 			table.addButton(resources.getString(R.string.stats_details), View.OnClickListener {
 				startActivity<StatsDetailActivity> {

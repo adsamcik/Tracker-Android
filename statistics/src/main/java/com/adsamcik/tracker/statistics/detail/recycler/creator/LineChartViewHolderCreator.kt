@@ -29,8 +29,10 @@ class LineChartViewHolderCreator : MultiTypeViewHolderCreator<StatisticDetailDat
 			axisLeft.isEnabled = false
 		}
 		@Suppress("unchecked_cast")
-		return LineChartViewHolder(view, view.findViewById(R.id.title),
-				chart) as MultiTypeViewHolder<StatisticDetailData>
+		return LineChartViewHolder(
+				view, view.findViewById(R.id.title),
+				chart
+		) as MultiTypeViewHolder<StatisticDetailData>
 	}
 
 }

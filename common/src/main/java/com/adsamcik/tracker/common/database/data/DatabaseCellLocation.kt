@@ -8,7 +8,10 @@ import androidx.room.PrimaryKey
 import com.adsamcik.tracker.common.data.BaseLocation
 import com.adsamcik.tracker.common.data.CellType
 
-@Entity(tableName = "cell_location", indices = [Index(value = ["mcc", "mnc", "cell_id"]), Index("time")])
+@Entity(
+		tableName = "cell_location",
+		indices = [Index(value = ["mcc", "mnc", "cell_id"]), Index("time")]
+)
 data class DatabaseCellLocation(
 		val time: Long,
 		val mcc: String,

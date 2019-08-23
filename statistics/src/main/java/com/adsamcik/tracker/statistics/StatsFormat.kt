@@ -18,7 +18,10 @@ object StatsFormat {
 
 		val locale = Locale.getDefault()
 
-		var dateFormat = SimpleDateFormat.getDateInstance(SimpleDateFormat.MEDIUM, locale) as SimpleDateFormat
+		var dateFormat = SimpleDateFormat.getDateInstance(
+				SimpleDateFormat.MEDIUM,
+				locale
+		) as SimpleDateFormat
 
 		if (start.year == today.year) {
 			dateFormat = dateFormat.noYear()
@@ -26,11 +29,18 @@ object StatsFormat {
 
 		return if (start.dayOfYear == end.dayOfYear && start.year == end.year) {
 			val timeFormat = SimpleDateFormat.getTimeInstance(SimpleDateFormat.SHORT, locale)
-			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(endDate)}"
+			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(
+					endDate
+			)}"
 		} else {
-			val timeFormat = SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT,
-					locale) as SimpleDateFormat
-			val format = SimpleDateFormat("${dateFormat.toPattern()} ${timeFormat.toPattern()}", locale)
+			val timeFormat = SimpleDateFormat.getDateTimeInstance(
+					SimpleDateFormat.SHORT, SimpleDateFormat.SHORT,
+					locale
+			) as SimpleDateFormat
+			val format = SimpleDateFormat(
+					"${dateFormat.toPattern()} ${timeFormat.toPattern()}",
+					locale
+			)
 			"${format.format(startDate)} - ${format.format(endDate)}"
 		}
 	}

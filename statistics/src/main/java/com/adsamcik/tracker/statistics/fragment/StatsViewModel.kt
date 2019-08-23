@@ -36,7 +36,12 @@ class StatsViewModel(application: Application) : AndroidViewModel(application), 
 				add(Calendar.DAY_OF_MONTH, 1)
 			}
 			val start = end.cloneCalendar().apply { add(Calendar.MONTH, -1) }
-			mutableSessionData.postValue(sessionDao.getBetween(start.timeInMillis, end.timeInMillis))
+			mutableSessionData.postValue(
+					sessionDao.getBetween(
+							start.timeInMillis,
+							end.timeInMillis
+					)
+			)
 		}
 	}
 }

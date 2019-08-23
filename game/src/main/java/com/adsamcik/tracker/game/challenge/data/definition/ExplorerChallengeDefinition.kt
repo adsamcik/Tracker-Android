@@ -11,7 +11,8 @@ import com.adsamcik.tracker.game.challenge.data.instance.ExplorerChallengeInstan
 class ExplorerChallengeDefinition : ChallengeDefinition<ExplorerChallengeInstance>(
 		R.string.challenge_explorer_title,
 		R.string.challenge_explorer_description,
-		Time.DAY_IN_MILLISECONDS * BASE_DAY_COUNT) {
+		Time.DAY_IN_MILLISECONDS * BASE_DAY_COUNT
+) {
 	val defaultLocationCount: Int = BASE_NEW_LOCATIONS_PER_DAY * BASE_DAY_COUNT
 
 	override val type: ChallengeType = ChallengeType.Explorer

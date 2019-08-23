@@ -13,7 +13,8 @@ import kotlin.math.abs
 internal class WifiTrackerComponent : DataTrackerComponent {
 
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
-			TrackerComponentRequirement.WIFI)
+			TrackerComponentRequirement.WIFI
+	)
 
 
 	override suspend fun onDataUpdated(
@@ -62,8 +63,10 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 				(secondLocation.elapsedRealtimeNanos - firstLocation.elapsedRealtimeNanos).toDouble()
 		val wifiDistance = distanceBetweenFirstAndSecond * timeDelta
 		if (wifiDistance <= MAX_DISTANCE_TO_WIFI) {
-			val interpolatedLocation = LocationExtensions.interpolateLocation(firstLocation,
-					secondLocation, timeDelta)
+			val interpolatedLocation = LocationExtensions.interpolateLocation(
+					firstLocation,
+					secondLocation, timeDelta
+			)
 			collectionData.setWifi(interpolatedLocation, scanData.timeMillis, scanData.data)
 		}
 	}

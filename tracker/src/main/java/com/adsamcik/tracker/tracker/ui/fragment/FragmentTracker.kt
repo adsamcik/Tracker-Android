@@ -56,7 +56,11 @@ import kotlinx.android.synthetic.main.fragment_tracker.view.*
 class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	private lateinit var adapter: TrackerInfoAdapter
 
-	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+	override fun onCreateView(
+			inflater: LayoutInflater,
+			container: ViewGroup?,
+			savedInstanceState: Bundle?
+	): View? {
 		if (container == null) return null
 
 		val view = inflater.inflate(R.layout.fragment_tracker, container, false)
@@ -106,10 +110,16 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		button_tracking.setOnClickListener {
 			val activity = requireActivity()
 			if (TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
-				TrackerLocker.lockTimeLock(activity, Time.MINUTE_IN_MILLISECONDS * LOCK_WHEN_CANCELLED)
+				TrackerLocker.lockTimeLock(
+						activity,
+						Time.MINUTE_IN_MILLISECONDS * LOCK_WHEN_CANCELLED
+				)
 				SnackMaker(rootCoordinatorLayout).addMessage(
-						activity.resources.getQuantityString(R.plurals.notification_auto_tracking_lock,
-								LOCK_WHEN_CANCELLED, LOCK_WHEN_CANCELLED))
+						activity.resources.getQuantityString(
+								R.plurals.notification_auto_tracking_lock,
+								LOCK_WHEN_CANCELLED, LOCK_WHEN_CANCELLED
+						)
+				)
 			} else {
 				toggleCollecting(activity, !TrackerService.isServiceRunning.value)
 			}
@@ -150,7 +160,12 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 		val orientation = Assist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
-			tracker_recycler.setPadding(RECYCLER_HORIZONTAL_PADDING.dp, 0, RECYCLER_HORIZONTAL_PADDING.dp, 0)
+			tracker_recycler.setPadding(
+					RECYCLER_HORIZONTAL_PADDING.dp,
+					0,
+					RECYCLER_HORIZONTAL_PADDING.dp,
+					0
+			)
 		}
 
 		if (useMock) mock()
@@ -211,12 +226,28 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		val location = Location(collectionData.time, 15.0, 15.0, 123.0, 6f, 3f, 10f, 15f)
 		collectionData.location = location
 		collectionData.activity = ActivityInfo(DetectedActivity.RUNNING, 75)
-		collectionData.wifi = WifiData(location, Time.nowMillis, listOf(WifiInfo(), WifiInfo(), WifiInfo()))
+		collectionData.wifi = WifiData(
+				location,
+				Time.nowMillis,
+				listOf(WifiInfo(), WifiInfo(), WifiInfo())
+		)
 		collectionData.cell = CellData(
-				listOf(CellInfo(NetworkOperator("123", "321", "MOCK"), 123456, CellType.LTE, 90, -30, 0)), 8)
+				listOf(
+						CellInfo(
+								NetworkOperator("123", "321", "MOCK"),
+								123456,
+								CellType.LTE,
+								90,
+								-30,
+								0
+						)
+				), 8
+		)
 
-		val session = TrackerSession(0, Time.nowMillis - 5 * Time.MINUTE_IN_MILLISECONDS, Time.nowMillis, true, 56,
-				5410f, 15f, 5000f, 154)
+		val session = TrackerSession(
+				0, Time.nowMillis - 5 * Time.MINUTE_IN_MILLISECONDS, Time.nowMillis, true, 56,
+				5410f, 15f, 5000f, 154
+		)
 
 		updateData(CollectionDataEcho(collectionData, session))
 	}

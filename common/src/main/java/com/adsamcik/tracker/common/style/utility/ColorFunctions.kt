@@ -15,17 +15,24 @@ import kotlin.math.roundToInt
  */
 fun brightenComponent(
 		component: Int,
-		@IntRange(from = MIN_COLOR_COMPONENT_VALUE.toLong(), to = MAX_COLOR_COMPONENT_VALUE.toLong()) value: Int
+		@IntRange(
+				from = MIN_COLOR_COMPONENT_VALUE.toLong(),
+				to = MAX_COLOR_COMPONENT_VALUE.toLong()
+		) value: Int
 ): Int = (component + value).coerceIn(
 		COMPONENT_MIN_COERCE,
-		COMPONENT_MAX_COERCE)
+		COMPONENT_MAX_COERCE
+)
 
 /**
  * Brightens color by components with given value.
  */
 fun brightenColor(
 		@ColorInt color: Int,
-		@IntRange(from = MIN_COLOR_COMPONENT_VALUE.toLong(), to = MAX_COLOR_COMPONENT_VALUE.toLong()) value: Int
+		@IntRange(
+				from = MIN_COLOR_COMPONENT_VALUE.toLong(),
+				to = MAX_COLOR_COMPONENT_VALUE.toLong()
+		) value: Int
 ): Int {
 	val r = brightenComponent(Color.red(color), value)
 	val g = brightenComponent(Color.green(color), value)
@@ -64,8 +71,10 @@ private const val COMPONENT_MIN_COERCE = MIN_COLOR_COMPONENT_VALUE.toInt()
  */
 @Suppress("MagicNumber")
 fun perceivedLuminance(@ColorInt color: Int): Double = 0.299 * relRed(
-		color) + 0.587 * relGreen(
-		color) + 0.114 * relBlue(color)
+		color
+) + 0.587 * relGreen(
+		color
+) + 0.114 * relBlue(color)
 
 /**
  * Returns perceived relative luminance using an algorithm taken from formula for converting
@@ -77,8 +86,11 @@ fun perceivedLuminance(@ColorInt color: Int): Double = 0.299 * relRed(
  */
 @Suppress("MagicNumber")
 fun perceivedRelLuminance(@ColorInt color: Int): Int =
-		floor((perceivedLuminance(
-				color) - 0.5) * MAX_COLOR_COMPONENT_VALUE).toInt()
+		floor(
+				(perceivedLuminance(
+						color
+				) - 0.5) * MAX_COLOR_COMPONENT_VALUE
+		).toInt()
 
 object ColorFunctions {
 	const val LIGHTNESS_PER_LEVEL: Int = 17
@@ -99,8 +111,10 @@ object ColorFunctions {
 	}
 
 	@ColorInt
-	fun getBackgroundLayerColor(@ColorInt backgroundColor: Int, @IntRange(from = -127, to = 127) luminance: Int,
-	                            layerDelta: Int): Int {
+	fun getBackgroundLayerColor(
+			@ColorInt backgroundColor: Int, @IntRange(from = -127, to = 127) luminance: Int,
+			layerDelta: Int
+	): Int {
 		return if (layerDelta == 0) {
 			backgroundColor
 		} else {
@@ -110,8 +124,10 @@ object ColorFunctions {
 				-LIGHTNESS_PER_LEVEL
 			}
 
-			brightenColor(backgroundColor,
-					brightenMultiplier * layerDelta)
+			brightenColor(
+					backgroundColor,
+					brightenMultiplier * layerDelta
+			)
 		}
 	}
 
@@ -123,13 +139,16 @@ object ColorFunctions {
 
 		red += ((to.red - red) * fraction).roundToInt().coerceIn(
 				COMPONENT_MIN_COERCE,
-				COMPONENT_MAX_COERCE)
+				COMPONENT_MAX_COERCE
+		)
 		green += ((to.green - green) * fraction).roundToInt().coerceIn(
 				COMPONENT_MIN_COERCE,
-				COMPONENT_MAX_COERCE)
+				COMPONENT_MAX_COERCE
+		)
 		blue += ((to.blue - blue) * fraction).roundToInt().coerceIn(
 				COMPONENT_MIN_COERCE,
-				COMPONENT_MAX_COERCE)
+				COMPONENT_MAX_COERCE
+		)
 		return Color.rgb(red, green, blue)
 	}
 
@@ -142,16 +161,20 @@ object ColorFunctions {
 
 		red += ((to.red - red) * fraction).roundToInt().coerceIn(
 				COMPONENT_MIN_COERCE,
-				COMPONENT_MAX_COERCE)
+				COMPONENT_MAX_COERCE
+		)
 		green += ((to.green - green) * fraction).roundToInt().coerceIn(
 				COMPONENT_MIN_COERCE,
-				COMPONENT_MAX_COERCE)
+				COMPONENT_MAX_COERCE
+		)
 		blue += ((to.blue - blue) * fraction).roundToInt().coerceIn(
 				COMPONENT_MIN_COERCE,
-				COMPONENT_MAX_COERCE)
+				COMPONENT_MAX_COERCE
+		)
 		alpha += ((to.alpha - alpha) * fraction).roundToInt().coerceIn(
 				COMPONENT_MIN_COERCE,
-				COMPONENT_MAX_COERCE)
+				COMPONENT_MAX_COERCE
+		)
 		return Color.rgb(red, green, blue)
 	}
 }

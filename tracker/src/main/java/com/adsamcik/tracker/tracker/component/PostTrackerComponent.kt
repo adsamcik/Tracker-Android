@@ -8,9 +8,11 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
 internal interface PostTrackerComponent : TrackerComponent, TrackerDataConsumerComponent {
 	@MainThread
-	fun onNewData(context: Context,
-	              session: TrackerSession,
-	              collectionData: CollectionData,
-	              tempData: CollectionTempData)
+	fun onNewData(
+			context: Context,
+			session: TrackerSession,
+			collectionData: CollectionData,
+			tempData: CollectionTempData
+	)
 }
 

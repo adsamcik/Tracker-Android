@@ -25,7 +25,11 @@ class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURC
 		val lengthSystem = Preferences.getLengthSystem(context)
 
 		holder.getBoldText().apply {
-			value.text = DateUtils.getRelativeTimeSpanString(session.start, Time.nowMillis, MINUTE_IN_MILLIS)
+			value.text = DateUtils.getRelativeTimeSpanString(
+					session.start,
+					Time.nowMillis,
+					MINUTE_IN_MILLIS
+			)
 			title.setText(R.string.tracker_session_age)
 		}
 

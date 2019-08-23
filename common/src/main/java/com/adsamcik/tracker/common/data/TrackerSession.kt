@@ -6,11 +6,15 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tracker_session", foreignKeys = [ForeignKey(entity = SessionActivity::class,
+@Entity(
+		tableName = "tracker_session", foreignKeys = [ForeignKey(
+		entity = SessionActivity::class,
 		parentColumns = ["id"],
 		childColumns = ["session_activity_id"],
 		onDelete = ForeignKey.SET_NULL,
-		onUpdate = ForeignKey.NO_ACTION)], indices = [Index("session_activity_id")])
+		onUpdate = ForeignKey.NO_ACTION
+)], indices = [Index("session_activity_id")]
+)
 open class TrackerSession(
 		id: Long = 0,
 		start: Long = 0,
@@ -79,7 +83,8 @@ class MutableTrackerSession(
 		steps: Int,
 		sessionActivityId: Long? = null
 ) :
-		TrackerSession(id,
+		TrackerSession(
+				id,
 				start,
 				end,
 				isUserInitiated,
@@ -88,7 +93,8 @@ class MutableTrackerSession(
 				distanceOnFootInM,
 				distanceInVehicleInM,
 				steps,
-				sessionActivityId) {
+				sessionActivityId
+		) {
 
 	override var id: Long
 		get() = super.id
@@ -150,9 +156,20 @@ class MutableTrackerSession(
 			super.sessionActivityId = value
 		}
 
-	constructor(start: Long, isUserInitiated: Boolean) : this(0, start, start, isUserInitiated, 0, 0f, 0f, 0f, 0)
+	constructor(start: Long, isUserInitiated: Boolean) : this(
+			0,
+			start,
+			start,
+			isUserInitiated,
+			0,
+			0f,
+			0f,
+			0f,
+			0
+	)
 
-	constructor(session: TrackerSession) : this(session.id,
+	constructor(session: TrackerSession) : this(
+			session.id,
 			session.start,
 			session.end,
 			session.isUserInitiated,
@@ -160,6 +177,7 @@ class MutableTrackerSession(
 			session.distanceInM,
 			session.distanceOnFootInM,
 			session.distanceInVehicleInM,
-			session.steps)
+			session.steps
+	)
 }
 

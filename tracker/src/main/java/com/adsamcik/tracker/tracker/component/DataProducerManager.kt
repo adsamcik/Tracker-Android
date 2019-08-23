@@ -25,9 +25,11 @@ internal class DataProducerManager(context: Context) : TrackerDataProducerObserv
 	 * Keeps all producers from being recycled. Producers should take only very little memory so this is fine.
 	 */
 	@Suppress("unused")
-	private val producerList = listOf(WifiDataProducer(this),
+	private val producerList = listOf(
+			WifiDataProducer(this),
 			CellDataProducer(this),
-			ActivityDataProducer(this))
+			ActivityDataProducer(this)
+	)
 
 	private val activeProducerList = mutableListOf<TrackerDataProducerComponent>()
 

@@ -13,9 +13,9 @@ import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
-import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.ModuleInfo
 import com.google.android.play.core.splitinstall.SplitInstallManager
@@ -37,9 +37,13 @@ class ModuleActivity : DetailActivity() {
 		when (state.status()) {
 			SplitInstallSessionStatus.DOWNLOADING -> {
 				//  In order to see this, the application has to be uploaded to the Play Store.
-				displayLoadingState(state, getString(R.string.module_download_progress,
+				displayLoadingState(
+						state, getString(
+						R.string.module_download_progress,
 						Assist.humanReadableByteCount(state.bytesDownloaded(), true),
-						Assist.humanReadableByteCount(state.totalBytesToDownload(), true)))
+						Assist.humanReadableByteCount(state.totalBytesToDownload(), true)
+				)
+				)
 			}
 			SplitInstallSessionStatus.REQUIRES_USER_CONFIRMATION -> {
 				/*
@@ -185,7 +189,10 @@ class ModuleActivity : DetailActivity() {
 			this.modules.addAll(modules)
 		}
 
-		class ViewHolder(view: View, val checkbox: AppCompatCheckBox) : RecyclerView.ViewHolder(view)
+		class ViewHolder(
+				view: View,
+				val checkbox: AppCompatCheckBox
+		) : RecyclerView.ViewHolder(view)
 	}
 
 	companion object {

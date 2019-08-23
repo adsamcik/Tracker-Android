@@ -25,7 +25,8 @@ import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDiffi
 			WalkDistanceChallengeEntity::class,
 			StepChallengeEntity::class
 		],
-		version = 1)
+		version = 1
+)
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
 
@@ -43,8 +44,10 @@ abstract class ChallengeDatabase : RoomDatabase() {
 		private var instance_: ChallengeDatabase? = null
 
 		private fun createInstance(context: Context): ChallengeDatabase {
-			val instance = Room.databaseBuilder(context.applicationContext, ChallengeDatabase::class.java,
-					"challenge_database")
+			val instance = Room.databaseBuilder(
+					context.applicationContext, ChallengeDatabase::class.java,
+					"challenge_database"
+			)
 					.build()
 
 			instance_ = instance
@@ -56,7 +59,10 @@ abstract class ChallengeDatabase : RoomDatabase() {
 		}
 
 		fun getTestDatabase(context: Context): ChallengeDatabase {
-			return Room.inMemoryDatabaseBuilder(context.applicationContext, ChallengeDatabase::class.java)
+			return Room.inMemoryDatabaseBuilder(
+					context.applicationContext,
+					ChallengeDatabase::class.java
+			)
 					.build()
 		}
 	}

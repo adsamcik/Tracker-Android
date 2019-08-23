@@ -17,7 +17,8 @@ class ExplorerChallengePersistence : ChallengePersistence<ExplorerChallengeInsta
 		val entry = database.entryDao.get(entryId)
 		val entity = database.explorerDao.getByEntry(entryId)
 		val definition = ExplorerChallengeDefinition()
-		return ExplorerChallengeInstance(entry,
+		return ExplorerChallengeInstance(
+				entry,
 				definition,
 				entity
 		)

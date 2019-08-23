@@ -81,9 +81,11 @@ object ActivityRequestManager {
 		}
 	}
 
-	private fun updateActivityService(context: Context,
-	                                  interval: Int,
-	                                  transitions: Collection<ActivityTransitionData>) {
+	private fun updateActivityService(
+			context: Context,
+			interval: Int,
+			transitions: Collection<ActivityTransitionData>
+	) {
 		minInterval = interval
 		ActivityRequestManager.transitions = transitions
 		ActivityService.startActivityRecognition(context, minInterval, transitions)
@@ -104,9 +106,11 @@ object ActivityRequestManager {
 		}
 	}
 
-	private fun onActivityTransition(context: Context,
-	                                 requestData: ActivityTransitionRequestData,
-	                                 descendingEvents: List<ActivityTransitionEvent>) {
+	private fun onActivityTransition(
+			context: Context,
+			requestData: ActivityTransitionRequestData,
+			descendingEvents: List<ActivityTransitionEvent>
+	) {
 		requestData.transitionList.forEach {
 			for (transition in descendingEvents) {
 				if (transition.transitionType == it.activity.value &&

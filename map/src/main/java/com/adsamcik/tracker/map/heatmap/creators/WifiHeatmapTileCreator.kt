@@ -32,7 +32,8 @@ internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerD
 
 	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
 		return HeatmapStamp.generateNonlinear(
-				ceil(APPROXIMATE_DISTANCE_IN_METERS / pixelInMeters).toInt()) {
+				ceil(APPROXIMATE_DISTANCE_IN_METERS / pixelInMeters).toInt()
+		) {
 			// very very simplified formula for signal loss
 			(10 * LOSS_EXPONENT * log10(max(it * APPROXIMATE_DISTANCE_IN_METERS, 1f))) / 58.6273f
 		}

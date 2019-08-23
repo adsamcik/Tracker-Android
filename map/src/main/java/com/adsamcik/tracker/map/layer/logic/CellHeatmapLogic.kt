@@ -40,7 +40,8 @@ internal class CellHeatmapLogic : HeatmapLayerLogic() {
 				colorList = colorList,
 				legend = MapLegend(
 						R.string.map_layer_cell_heatmap_description,
-						legendColorMap)
+						legendColorMap
+				)
 		)
 	}
 

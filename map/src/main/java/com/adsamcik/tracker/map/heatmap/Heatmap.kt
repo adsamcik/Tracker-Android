@@ -29,18 +29,22 @@ import kotlin.math.roundToInt
  * https://github.com/lucasb-eyer/heatmap/
  */
 
-internal class Heatmap(val width: Int,
-                       val height: Int = width,
-                       var maxHeat: Float = 0f,
-                       var dynamicHeat: Boolean = true) {
+internal class Heatmap(
+		val width: Int,
+		val height: Int = width,
+		var maxHeat: Float = 0f,
+		var dynamicHeat: Boolean = true
+) {
 	var pointCount: Int = 0
 
 	val data: FloatArray = FloatArray(width * height)
 
 	fun addPoint(x: Int, y: Int) = addPointWithStamp(x, y, HeatmapStamp.default9x9)
 
-	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(x, y, weight,
-			HeatmapStamp.default9x9)
+	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(
+			x, y, weight,
+			HeatmapStamp.default9x9
+	)
 
 	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) =
 			addWeightedPointWithStamp(x, y, stamp, 1f) { original, input, _ ->
@@ -52,11 +56,13 @@ internal class Heatmap(val width: Int,
 				original + input * weight
 			}
 
-	fun addWeightedPointWithStamp(x: Int,
-	                              y: Int,
-	                              stamp: HeatmapStamp,
-	                              weight: Float,
-	                              mergeFunction: (current: Float, input: Float, weight: Float) -> Float) {
+	fun addWeightedPointWithStamp(
+			x: Int,
+			y: Int,
+			stamp: HeatmapStamp,
+			weight: Float,
+			mergeFunction: (current: Float, input: Float, weight: Float) -> Float
+	) {
 		//todo validate that odd numbers don't cause some weird artifacts
 		val halfStampHeight = stamp.height / 2
 		val halfStampWidth = stamp.width / 2
@@ -111,12 +117,19 @@ internal class Heatmap(val width: Int,
 		return renderSaturatedTo(colorScheme, saturation)
 	}
 
-	fun renderSaturatedTo(colorScheme: HeatmapColorScheme, saturation: Float): IntArray = renderSaturatedTo(colorScheme,
-			saturation) { it }
+	fun renderSaturatedTo(
+			colorScheme: HeatmapColorScheme,
+			saturation: Float
+	): IntArray = renderSaturatedTo(
+			colorScheme,
+			saturation
+	) { it }
 
-	inline fun renderSaturatedTo(colorScheme: HeatmapColorScheme,
-	                             saturation: Float,
-	                             normalizedValueModifierFunction: (Float) -> Float): IntArray {
+	inline fun renderSaturatedTo(
+			colorScheme: HeatmapColorScheme,
+			saturation: Float,
+			normalizedValueModifierFunction: (Float) -> Float
+	): IntArray {
 		assert(saturation > 0f)
 
 		val buffer = IntArray(width * height)
@@ -128,7 +141,12 @@ internal class Heatmap(val width: Int,
 
 			for (itX in 0 until width) {
 				val value = data[index]
-				val normalizedValue = normalizedValueModifierFunction(min(value, saturation) / saturation)
+				val normalizedValue = normalizedValueModifierFunction(
+						min(
+								value,
+								saturation
+						) / saturation
+				)
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
 

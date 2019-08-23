@@ -10,7 +10,8 @@ import com.adsamcik.tracker.game.challenge.data.instance.WalkDistanceChallengeIn
 
 class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChallengeInstance>(
 		R.string.challenge_walk_in_the_park_title, R.string.challenge_walk_in_the_park_description,
-		BASE_DAY_COUNT * Time.DAY_IN_MILLISECONDS) {
+		BASE_DAY_COUNT * Time.DAY_IN_MILLISECONDS
+) {
 
 	val defaultDistanceInM: Int = BASE_DAY_COUNT * BASE_DISTANCE_PER_DAY
 

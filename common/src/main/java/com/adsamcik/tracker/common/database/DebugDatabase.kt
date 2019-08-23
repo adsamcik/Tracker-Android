@@ -16,8 +16,10 @@ abstract class DebugDatabase : RoomDatabase() {
 
 		fun getAppDatabase(context: Context): DebugDatabase {
 			if (instance_ == null) {
-				instance_ = Room.databaseBuilder(context.applicationContext, DebugDatabase::class.java,
-						"debug_database")
+				instance_ = Room.databaseBuilder(
+						context.applicationContext, DebugDatabase::class.java,
+						"debug_database"
+				)
 						.fallbackToDestructiveMigration()
 						.build()
 			}

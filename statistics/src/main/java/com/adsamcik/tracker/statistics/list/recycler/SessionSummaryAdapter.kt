@@ -22,9 +22,11 @@ class SessionSummaryAdapter : RecyclerView.Adapter<SessionSummaryAdapter.ViewHol
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 		val inflater = LayoutInflater.from(parent.context)
 		val rootView = inflater.inflate(R.layout.layout_recycler_title_value_item, parent, false)
-		return ViewHolder(rootView,
+		return ViewHolder(
+				rootView,
 				rootView.findViewById(R.id.text_title),
-				rootView.findViewById(R.id.text_value))
+				rootView.findViewById(R.id.text_value)
+		)
 	}
 
 	override fun getItemCount(): Int = list.size
@@ -37,5 +39,9 @@ class SessionSummaryAdapter : RecyclerView.Adapter<SessionSummaryAdapter.ViewHol
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 
-	class ViewHolder(root: View, val title: TextView, val value: TextView) : RecyclerView.ViewHolder(root)
+	class ViewHolder(
+			root: View,
+			val title: TextView,
+			val value: TextView
+	) : RecyclerView.ViewHolder(root)
 }
