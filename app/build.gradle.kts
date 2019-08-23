@@ -53,7 +53,11 @@ android {
 		}
 	}
 
-	lintOptions.isCheckReleaseBuilds = false
+	lintOptions {
+		isCheckReleaseBuilds = true
+		isAbortOnError = false
+	}
+
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
 	packagingOptions {
