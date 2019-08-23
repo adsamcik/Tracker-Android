@@ -24,6 +24,9 @@ import kotlin.math.abs
  * Class that handles globally calculation of current color.
  * It needs to be updated with proper location to have accurate color transitions.
  */
+// TODO: move updates into objects so custom changes can be implemented in the future
+//  for example someone could choose between x colors and the system would divide the day by them
+//  and updates as needed while reusing existing transition functions
 @AnyThread
 object StyleManager {
 	//Lock order colorList, colorManagerLock, timer

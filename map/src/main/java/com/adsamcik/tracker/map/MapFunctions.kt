@@ -1,7 +1,13 @@
 package com.adsamcik.tracker.map
 
 import android.renderscript.Double2
+import com.adsamcik.tracker.common.constant.GeometryConstants
+import com.adsamcik.tracker.common.constant.GeometryConstants.CIRCLE_IN_DEGREES
+import com.adsamcik.tracker.common.constant.GeometryConstants.CIRCLE_IN_RADIANS
+import com.adsamcik.tracker.common.constant.GeometryConstants.HALF_CIRCLE_IN_DEGREES
+import com.adsamcik.tracker.common.constant.GeometryConstants.HALF_CIRCLE_IN_RADIANS
 import com.adsamcik.tracker.common.extension.LocationExtensions
+import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
 import com.adsamcik.tracker.common.extension.deg2rad
 import kotlin.math.PI
 import kotlin.math.atan
@@ -12,36 +18,37 @@ import kotlin.math.pow
 import kotlin.math.tan
 
 internal object MapFunctions {
+
 	fun getTileCount(zoom: Int): Int {
 		return 2.0.pow(zoom).toInt()
 	}
 
 	fun toLon(x: Double, zoom: Int): Double {
-		return x / getTileCount(zoom) * 360.0 - 180.0
+		return x / getTileCount(zoom) * CIRCLE_IN_DEGREES - HALF_CIRCLE_IN_DEGREES
 	}
 
 	fun toLat(y: Double, zoom: Int): Double {
-		val n = PI - 2.0 * PI * y / getTileCount(zoom)
-		return 180.0 / PI * atan(0.5 * (exp(n) - exp(-n)))
+		val n = HALF_CIRCLE_IN_RADIANS - CIRCLE_IN_RADIANS * y / getTileCount(zoom)
+		return HALF_CIRCLE_IN_DEGREES / PI * atan(0.5 * (exp(n) - exp(-n)))
 	}
 
 	fun toTileX(lon: Double, tileCount: Int): Double {
-		return tileCount.toDouble() * ((lon + 180.0) / 360.0)
+		return tileCount.toDouble() * ((lon + HALF_CIRCLE_IN_DEGREES) / CIRCLE_IN_DEGREES)
 	}
 
 	fun toTileY(lat: Double, tileCount: Int): Double {
-		val latRadians = PI / 180 * lat
+		val latRadians = PI / HALF_CIRCLE_IN_DEGREES * lat
 		return tileCount.toDouble() * (1.0 - ln(tan(latRadians) + 1 / cos(latRadians)) / PI) / 2
 	}
 
 	fun countPixelSize(latitude: Double, zoom: Int): Double {
-		return LocationExtensions.EARTH_CIRCUMFERENCE * cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
+		return EARTH_CIRCUMFERENCE * cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
 	}
 
 	fun getTileSize(zoom: Int): Double2 {
 		val tileCount = getTileCount(zoom)
 		val oneTile = 1.0 / tileCount.toDouble()
-		return Double2(oneTile * 360.0, oneTile * 180.0)
+		return Double2(oneTile * CIRCLE_IN_DEGREES, oneTile * HALF_CIRCLE_IN_DEGREES)
 	}
 }
 
