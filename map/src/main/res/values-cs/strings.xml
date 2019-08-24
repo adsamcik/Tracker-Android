@@ -24,4 +24,14 @@
     <string name="map_layer_wifi_heatmap_title">Teplotní mapa Wi-Fi</string>
     <string name="tips_map_date_range_description">Vybráním časového období vám zobrazí pouze data z tohoto období</string>
     <string name="tips_map_date_range_title">Časové období</string>
+    <string name="map_layer_cell_heatmap_description">Teplotní mapa mobilního signálu. Teplota se mění dle dostupné technologie.</string>
+    <string name="map_layer_location_heatmap_description">Teplotní mapa počtu navštívení daného místa.</string>
+    <string name="map_layer_location_heatmap_high">Vysoká hustota</string>
+    <string name="map_layer_location_heatmap_low">Nízká hustota</string>
+    <string name="map_layer_location_heatmap_medium">Střední hustota</string>
+    <string name="map_layer_wifi_heatmap_high">Vysoká hustota</string>
+    <string name="map_layer_wifi_heatmap_low">Nízká hustota</string>
+    <string name="map_layer_wifi_heatmap_medium">Střední hustota</string>
+    <string name="map_layer_wifi_heatmap_description">Teplotní mapa odhadovaného počtu Wi-Fi sítí pro dané místo.</string>
+    <string name="map_legend_title">legenda %s</string>
 </resources>
