@@ -10,7 +10,7 @@
     <string name="alert_confirm_generic">Jste si jistí?</string>
     <string name="back">zpět</string>
     <string name="cancel">Zrušit</string>
-    <string name="cell">Rádiová síť</string>
+    <string name="cell">Mobilní síť</string>
     <string name="clear">Vyčistit</string>
     <string name="day_short">%d d</string>
     <string name="deselect_all">Odznačit vše</string>
@@ -60,4 +60,10 @@
     <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat</string>
     <string name="channel_track_name">Sběr dat</string>
     <string name="map_date_range_all">Vše</string>
+    <string name="cell_unknown">Neznámé</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
 </resources>
