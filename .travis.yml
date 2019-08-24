@@ -30,7 +30,7 @@ android:
     #android
     - build-tools-$ANDROID_BUILD_TOOLS
     - android-$ANDROID_API
-    - android-$EMULATOR_API
+    #- android-$EMULATOR_API
 
     #extras
     - extra-google-google_play_services
@@ -38,7 +38,7 @@ android:
     - extra-android-m2repository
 
     #system images
-    - sys-img-$ANDROID_ABI-android-$EMULATOR_API
+    #- sys-img-$ANDROID_ABI-android-$EMULATOR_API
 
 
 before_install:
@@ -71,7 +71,7 @@ before_script:
   # - adb shell input keyevent 82 &
 
 script:
-  - ./gradlew build connectedCheck
+  - ./gradlew build
 
 #after_success:
 #  - bash <(curl -s https://codecov.io/bash)
