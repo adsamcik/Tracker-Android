@@ -35,6 +35,10 @@ android {
 		create("release_nominify")
 	}
 
+	lintOptions {
+		isCheckReleaseBuilds = true
+		isAbortOnError = false
+	}
 }
 
 dependencies {

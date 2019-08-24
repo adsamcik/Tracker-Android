@@ -40,6 +40,11 @@ android {
 			isMinifyEnabled = true
 		}
 	}
+
+	lintOptions {
+		isCheckReleaseBuilds = true
+		isAbortOnError = false
+	}
 }
 
 dependencies {
