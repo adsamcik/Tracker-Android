@@ -16,6 +16,7 @@ object Reporter {
 
 	private var context: WeakReference<Context>? = null
 
+	//todo remove this and just call initialize in settings so context can be removed too
 	private val loggingObserver = Observer<Boolean> {
 		isEnabled = it
 		val context = context?.get()
@@ -45,7 +46,9 @@ object Reporter {
 	}
 
 	private fun checkInitialized() {
-		if (!isInitialized) throw UninitializedPropertyAccessException("Reporter needs to be initialized")
+		if (!isInitialized) {
+			throw UninitializedPropertyAccessException("Reporter needs to be initialized")
+		}
 	}
 
 	fun report(exception: Throwable) {
@@ -55,6 +58,7 @@ object Reporter {
 		if (isEnabled) Crashlytics.logException(exception)
 	}
 
+	@Suppress("TooGenericExceptionThrown")
 	fun report(message: String) {
 		if (BuildConfig.DEBUG) throw Exception(message)
 
@@ -62,6 +66,7 @@ object Reporter {
 		if (isEnabled) Crashlytics.logException(Throwable(message))
 	}
 
+	@Suppress("TooGenericExceptionThrown")
 	fun log(message: String) {
 		if (BuildConfig.DEBUG) throw Exception(message)
 

@@ -118,7 +118,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	override fun onCreate() {
 		super.onCreate()
-		Reporter.initialize(this)
 
 		//Get managers
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)

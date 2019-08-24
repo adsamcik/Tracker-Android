@@ -15,7 +15,6 @@ class ShortcutActivity : AppCompatActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		Reporter.initialize(this)
 		intent.let {
 			if (it.action == Shortcuts.ACTION) {
 				val value = it.getIntExtra(Shortcuts.ACTION_STRING, -1)

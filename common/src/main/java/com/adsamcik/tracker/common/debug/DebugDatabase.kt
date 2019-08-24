@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.common.debug
 
 import android.content.Context
+import androidx.annotation.AnyThread
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -13,11 +14,13 @@ import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 		version = 1
 )
 abstract class DebugDatabase : RoomDatabase() {
+	abstract fun genericLogDao(): GenericLogDao
+
 	companion object {
 		private var instance_: DebugDatabase? = null
 		private const val DATABASE_NAME = "DebugDatabase"
 
-		fun createInstance(context: Context): DebugDatabase {
+		private fun createInstance(context: Context): DebugDatabase {
 			val configuration = SQLiteDatabaseConfiguration(
 					context.getDatabasePath(DATABASE_NAME).path,
 					SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE
@@ -32,6 +35,12 @@ abstract class DebugDatabase : RoomDatabase() {
 					.build()
 			instance_ = instance
 			return instance
+		}
+
+		@AnyThread
+		@Synchronized
+		fun getInstance(context: Context): DebugDatabase {
+			return instance_ ?: createInstance(context)
 		}
 	}
 }

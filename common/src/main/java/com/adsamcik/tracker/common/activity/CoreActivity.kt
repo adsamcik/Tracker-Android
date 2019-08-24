@@ -16,12 +16,6 @@ abstract class CoreActivity : AppCompatActivity(), CoroutineScope {
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
 
-	@CallSuper
-	override fun onCreate(savedInstanceState: Bundle?) {
-		Reporter.initialize(this)
-		super.onCreate(savedInstanceState)
-	}
-
 	override fun onDestroy() {
 		super.onDestroy()
 		coroutineContext.cancelChildren()
