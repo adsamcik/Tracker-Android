@@ -168,7 +168,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(WifiTrackerComponent())
 		}
 
-		//todo add only components that can actually be used
+		// todo add only components that can actually be used
 		postComponentList.apply {
 			add(notificationComponent)
 			add(DatabaseCellComponent())
@@ -258,7 +258,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
 		try {
 			updateData(tempData)
-		} catch (e: Exception) {
+		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			Reporter.report(e)
 		} finally {
 			wakeLock.release()
