@@ -7,10 +7,6 @@
 
     <string name="collections_title">Záznamů</string>
 
-    <string name="description_map_search">Tlačítko pro vyhledávání</string>
-    <string name="description_my_location">Tlačítko pro aktuální polohu</string>
-    <string name="description_settings">Tlačítko pro nastavení</string>
-    <string name="description_storage">Ikonka uložiště</string>
 
     <string name="dev_activity_recognition_hide">Filtrovat</string>
     <string name="dev_activity_recognition_show">Zobrazit vše</string>
@@ -151,7 +147,5 @@
         <item quantity="few">Import dokončen. Úspěšně naimportovány %d soubory.</item>
         <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
     </plurals>
-    <string name="description_date_range">Časové období pro mapová data</string>
-    <string name="description_legend">Legenda pro mapu</string>
     <string name="settings_export_no_data">Není co exportovat</string>
 </resources>

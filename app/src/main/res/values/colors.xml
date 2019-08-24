@@ -4,13 +4,6 @@
     <color name="color_primary_dark">#004d2d</color>
     <color name="color_accent">#008055</color>
 
-
-    <color name="text_primary">#dd000000</color>
-    <color name="text_secondary">#B2000000</color>
-    <color name="text_primary_dark">#ddffffff</color>
-    <color name="text_secondary_dark">#b2ffffff</color>
-
-
     <color name="error">#d32f2f</color>
 
     <color name="background_success">#AA009966</color>

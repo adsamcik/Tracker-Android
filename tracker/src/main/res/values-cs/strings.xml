@@ -71,4 +71,5 @@
     <string name="vertical_accuracy">Vertikální přesnost</string>
     <string name="horizontal_accuracy">horizontální přesnost</string>
     <string name="notification_altitude">%s nadmořská výška</string>
+    <string name="description_settings">Tlačítko pro nastavení</string>
 </resources>

@@ -27,12 +27,13 @@ object LocationExtensions {
 		val timeTo = locationTo.time
 		val timeFrom = locationFrom.time
 
-		if (timeFrom > timeTo) {
-			throw IllegalArgumentException("Time from cannot be larger than time to")
-		}
+		require(timeFrom <= timeTo) { "Time from cannot be larger than time to" }
 
-		if (estimateTime <= timeFrom) return locationFrom
-		else if (estimateTime >= timeTo) return locationTo
+		if (estimateTime <= timeFrom) {
+			return locationFrom
+		} else if (estimateTime >= timeTo) {
+			return locationTo
+		}
 
 		val diff = (estimateTime - timeFrom).toDouble() / (timeTo - timeFrom).toDouble()
 		return interpolateLocation(locationFrom, locationTo, diff)

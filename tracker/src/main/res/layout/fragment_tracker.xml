@@ -28,7 +28,7 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_lock"
-            android:tint="@color/text_primary"
+            android:tint="#DD000000"
             app:srcCompat="@drawable/ic_lock_black_24dp" />
 
         <ImageButton
@@ -37,7 +37,7 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_tracking_start"
-            android:tint="@color/text_primary"
+            android:tint="#DD000000"
             app:srcCompat="@drawable/ic_play_circle_filled_black_24dp" />
 
         <ImageButton
@@ -47,7 +47,7 @@
             android:layout_marginEnd="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/description_settings"
-            android:tint="@color/text_primary"
+            android:tint="#DD000000"
             app:srcCompat="@drawable/ic_settings_black_24dp" />
     </androidx.appcompat.widget.LinearLayoutCompat>
 

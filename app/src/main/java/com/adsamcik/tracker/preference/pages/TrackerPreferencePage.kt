@@ -21,7 +21,7 @@ class TrackerPreferencePage : PreferencePage {
 			cellEnabled: Boolean
 	) = locationEnabled.or(wifiEnabled).or(cellEnabled)
 
-	override fun onExit(caller: PreferenceFragmentCompat) {}
+	override fun onExit(caller: PreferenceFragmentCompat) = Unit
 
 
 	private fun initializeEnableTrackingPreferences(caller: PreferenceFragmentCompat) {
@@ -66,8 +66,9 @@ class TrackerPreferencePage : PreferencePage {
 						priority = SnackMaker.SnackbarPriority.IMPORTANT
 				)
 				false
-			} else
+			} else {
 				true
+			}
 		}
 
 		cellPreference.setOnPreferenceChangeListener { _, newValue ->

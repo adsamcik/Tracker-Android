@@ -17,4 +17,6 @@
     <string name="speed_value">%s/s</string>
     <string name="horizontal_accuracy">horizontal accuracy</string>
     <string name="vertical_accuracy">vertical accuracy</string>
+
+    <string name="description_settings">Settings button</string>
 </resources>

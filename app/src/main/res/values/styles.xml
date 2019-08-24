@@ -13,7 +13,6 @@
         <item name="colorAccent">@color/color_accent</item>
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:windowTranslucentStatus">true</item>
-        <item name="titleColor">@color/text_primary</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
         <item name="md_corner_radius">@dimen/dialog_corner_radius</item>
     </style>

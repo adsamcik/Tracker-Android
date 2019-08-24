@@ -34,4 +34,8 @@
     <string name="map_layer_wifi_heatmap_medium">Střední hustota</string>
     <string name="map_layer_wifi_heatmap_description">Teplotní mapa odhadovaného počtu Wi-Fi sítí pro dané místo.</string>
     <string name="map_legend_title">legenda %s</string>
+    <string name="description_map_search">Tlačítko pro vyhledávání</string>
+    <string name="description_my_location">Tlačítko pro aktuální polohu</string>
+    <string name="description_date_range">Časové období pro mapová data</string>
+    <string name="description_legend">Legenda pro mapu</string>
 </resources>

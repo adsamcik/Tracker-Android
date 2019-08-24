@@ -27,8 +27,9 @@ class SunSetRise {
 			if (sunset < calendar) {
 				calendar.add(Calendar.DAY_OF_WEEK, 1)
 				getSunset(location, calendar)
-			} else
+			} else {
 				sunset
+			}
 		} else {
 			calendar.roundToDate()
 			calendar.set(Calendar.HOUR_OF_DAY, 21)
@@ -50,8 +51,9 @@ class SunSetRise {
 			if (sunrise < calendar) {
 				calendar.add(Calendar.DAY_OF_WEEK, 1)
 				getSunrise(location, calendar)
-			} else
+			} else {
 				sunrise
+			}
 		} else {
 			calendar.roundToDate()
 			calendar.set(Calendar.HOUR_OF_DAY, 7)

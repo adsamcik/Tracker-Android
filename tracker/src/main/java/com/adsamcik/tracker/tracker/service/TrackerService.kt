@@ -3,16 +3,17 @@ package com.adsamcik.tracker.tracker.service
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.PowerManager
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.MutableCollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.exception.PermissionException
 import com.adsamcik.tracker.common.extension.forEachIf
 import com.adsamcik.tracker.common.extension.getSystemServiceTyped
@@ -49,6 +50,7 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
+import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -128,14 +130,16 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 
 		//Shortcut setup
-		if (android.os.Build.VERSION.SDK_INT >= 25) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
 			Shortcuts.updateShortcut(
 					this,
-					Shortcuts.TRACKING_ID,
-					R.string.shortcut_stop_tracking,
-					R.string.shortcut_stop_tracking_long,
-					R.drawable.ic_pause_circle_filled_black_24dp,
-					Shortcuts.ShortcutAction.STOP_COLLECTION
+					ShortcutData(
+							Shortcuts.TRACKING_ID,
+							R.string.shortcut_stop_tracking,
+							R.string.shortcut_stop_tracking_long,
+							R.drawable.ic_pause_circle_filled_black_24dp,
+							Shortcuts.ShortcutAction.STOP_COLLECTION
+					)
 			)
 		}
 
@@ -315,14 +319,16 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 				ActivityWatcherService.poke(context, trackerRunning = false)
 
-				if (android.os.Build.VERSION.SDK_INT >= 25) {
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
 					Shortcuts.updateShortcut(
 							context,
-							Shortcuts.TRACKING_ID,
-							R.string.shortcut_start_tracking,
-							R.string.shortcut_start_tracking_long,
-							R.drawable.ic_play_circle_filled_black_24dp,
-							Shortcuts.ShortcutAction.START_COLLECTION
+							ShortcutData(
+									Shortcuts.TRACKING_ID,
+									R.string.shortcut_start_tracking,
+									R.string.shortcut_start_tracking_long,
+									R.drawable.ic_play_circle_filled_black_24dp,
+									Shortcuts.ShortcutAction.START_COLLECTION
+							)
 					)
 				}
 

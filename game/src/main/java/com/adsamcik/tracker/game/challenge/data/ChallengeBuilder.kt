@@ -8,7 +8,9 @@ import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 
-abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(private val definition: ChallengeDefinition<ChallengeType>) {
+abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
+		private val definition: ChallengeDefinition<ChallengeType>
+) {
 	protected var difficultyMultiplier: Double = 1.0
 
 	protected var duration: Long = 0L
@@ -30,10 +32,8 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(private
 		}
 
 	//todo improve this. It is not quite normal distribution due to clamping of values to 0 and 1. It is kinda ok, because the probability is around 2% iirc but still.
-	protected fun normalRandom(range: ClosedFloatingPointRange<Double>) = Probability.normal().first().coerceIn(
-			0.0,
-			1.0
-	).rescale(range)
+	protected fun normalRandom(range: ClosedFloatingPointRange<Double>) =
+			Probability.normal().first().coerceIn(0.0, 1.0).rescale(range)
 
 	open fun selectDuration() {
 		val range = definition.minDurationMultiplier..definition.maxDurationMultiplier
@@ -50,8 +50,7 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(private
 		val entry = ChallengeEntry(definition.type, startAt, startAt + duration, difficulty)
 		entryDao.insertSetId(entry)
 
-		if (entry.id == 0L)
-			throw Error("Id was 0 after insertion. Something is wrong.")
+		require(entry.id == 0L) { "Id was 0 after insertion. Something is wrong." }
 
 		return entry
 	}

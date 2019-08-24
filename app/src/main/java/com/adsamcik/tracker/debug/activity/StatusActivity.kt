@@ -48,6 +48,7 @@ class StatusActivity : DetailActivity() {
 		)
 	}
 
+	@Suppress("MagicNumber")
 	fun createPair(
 			titleString: String,
 			valueString: String,
@@ -60,8 +61,7 @@ class StatusActivity : DetailActivity() {
 				WRAP_CONTENT
 		)
 
-		if (aboveId != null)
-			titleParams.topToBottom = aboveId
+		if (aboveId != null) titleParams.topToBottom = aboveId
 
 		title.textSize = 16f
 		title.layoutParams = titleParams
