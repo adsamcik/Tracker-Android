@@ -2,15 +2,21 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "4ab4b596fd74a2d70cca3a8422add5ab",
+    "identityHash": "5d250ddf17eb9b3ba7465db3f8bf620a",
     "entities": [
       {
         "tableName": "log_data",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `message` TEXT NOT NULL, `data` TEXT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timeStamp` INTEGER NOT NULL, `message` TEXT NOT NULL, `data` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
             "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeStamp",
+            "columnName": "timeStamp",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -40,7 +46,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4ab4b596fd74a2d70cca3a8422add5ab')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5d250ddf17eb9b3ba7465db3f8bf620a')"
     ]
   }
 }

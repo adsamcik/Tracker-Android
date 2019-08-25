@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 
 object ActivityRecognitionApi {
 	fun rerunRecognitionForAll(context: Context) {
-		logActivity(LogData("requesting recognition rerun", ""))
+		logActivity(LogData(message = "requesting recognition rerun"))
 		GlobalScope.launch(Dispatchers.Default) {
 			val sessionDao = AppDatabase.getDatabase(context).sessionDao()
 			val workManager = WorkManager.getInstance(context)

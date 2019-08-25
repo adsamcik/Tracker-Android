@@ -46,14 +46,14 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 		lastActivity = detectedActivity
 		lastActivityElapsedTimeMillis = elapsedTimeMillis
 
-		logActivity(LogData("new activity", detectedActivity.toString()))
+		logActivity(LogData(message = "new activity", data = detectedActivity))
 
 		ActivityRequestManager.onActivityUpdate(this, detectedActivity, elapsedTimeMillis)
 	}
 
 	private fun onActivityTransitionResult(result: ActivityTransitionResult) {
 		result.transitionEvents.forEach {
-			logActivity(LogData("new transition", it.toString()))
+			logActivity(LogData(message = "new transition", data = it))
 		}
 
 		ActivityRequestManager.onActivityTransition(this, result)
@@ -94,8 +94,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 
 				logActivity(
 						LogData(
-								"requested activity",
-								"delay $delayInS s and transitions $requestedTransitions"
+								message = "requested activity",
+								data = "delay $delayInS s and transitions $requestedTransitions"
 						)
 				)
 
@@ -131,8 +131,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 						addOnSuccessListener {
 							logActivity(
 									LogData(
-											"started activity updates",
-											"delay $delayInS s"
+											message = "started activity updates",
+											data = "delay $delayInS s"
 									)
 							)
 						}
@@ -151,8 +151,8 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 				addOnSuccessListener {
 					logActivity(
 							LogData(
-									"started transition updates",
-									requestedTransitions.toString()
+									message = "started transition updates",
+									data = requestedTransitions.toString()
 							)
 					)
 				}

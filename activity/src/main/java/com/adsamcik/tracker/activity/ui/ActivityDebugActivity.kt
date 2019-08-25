@@ -11,6 +11,7 @@ import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.debug.DebugDatabase
 import com.adsamcik.tracker.common.debug.LogData
+import com.adsamcik.tracker.common.extension.formatAsDateTime
 import com.adsamcik.tracker.common.recycler.BaseRecyclerAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,7 +52,8 @@ class ActivityDebugActivity : DetailActivity() {
 
 		override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 			val logData = get(position)
-			holder.summaryText.text = logData.message
+			@Suppress()
+			holder.summaryText.text = "${logData.timeStamp.formatAsDateTime()} - ${logData.message}"
 			holder.descriptionText.text = logData.data
 		}
 

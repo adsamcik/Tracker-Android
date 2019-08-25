@@ -8,8 +8,10 @@ import androidx.core.util.isNotEmpty
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
+import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.activity.service.ActivityService
 import com.adsamcik.tracker.common.data.ActivityInfo
+import com.adsamcik.tracker.common.debug.LogData
 import com.adsamcik.tracker.common.debug.Reporter
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
@@ -34,6 +36,8 @@ object ActivityRequestManager {
 	fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
 		require(requestData.transitionData != null || requestData.changeData != null)
 
+		logActivity(LogData(message = "new activity request", data = requestData))
+
 		val hash = requestData.key.hashCode()
 		activeRequestArray.put(hash, requestData)
 		onRequestChange(context)
@@ -47,6 +51,8 @@ object ActivityRequestManager {
 		val index = activeRequestArray.indexOfKey(tClass.hashCode())
 		if (index >= 0) {
 			activeRequestArray.removeAt(index)
+
+			logActivity(LogData(message = "removed request for ${tClass.java.name}"))
 
 			if (activeRequestArray.isNotEmpty()) {
 				onRequestChange(context)
