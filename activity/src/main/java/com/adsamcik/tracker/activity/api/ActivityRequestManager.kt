@@ -9,8 +9,8 @@ import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.service.ActivityService
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.data.ActivityInfo
+import com.adsamcik.tracker.common.debug.Reporter
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
 import kotlin.reflect.KClass
@@ -92,12 +92,12 @@ object ActivityRequestManager {
 	}
 
 	private fun getMinInterval(): Int {
-		var min = Integer.MIN_VALUE
+		var min = Integer.MAX_VALUE
 		activeRequestArray.forEach { _, value ->
 			val detectionInterval = value.changeData?.detectionIntervalS ?: return@forEach
 			if (detectionInterval < min) min = detectionInterval
 		}
-		return min
+		return if (min == Integer.MAX_VALUE) Integer.MIN_VALUE else min
 	}
 
 	internal fun onActivityUpdate(context: Context, result: ActivityInfo, elapsedMillis: Long) {
