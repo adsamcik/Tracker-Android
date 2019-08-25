@@ -6,11 +6,13 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.common.Assist
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.DetectedActivity
+import com.adsamcik.tracker.common.debug.LogData
+import com.adsamcik.tracker.common.debug.Reporter
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -44,10 +46,16 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 		lastActivity = detectedActivity
 		lastActivityElapsedTimeMillis = elapsedTimeMillis
 
+		logActivity(LogData("new activity", detectedActivity.toString()))
+
 		ActivityRequestManager.onActivityUpdate(this, detectedActivity, elapsedTimeMillis)
 	}
 
 	private fun onActivityTransitionResult(result: ActivityTransitionResult) {
+		result.transitionEvents.forEach {
+			logActivity(LogData("new transition", it.toString()))
+		}
+
 		ActivityRequestManager.onActivityTransition(this, result)
 	}
 
@@ -84,6 +92,13 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 
 				val intent = getActivityDetectionPendingIntent(context)
 
+				logActivity(
+						LogData(
+								"requested activity",
+								"delay $delayInS s and transitions $requestedTransitions"
+						)
+				)
+
 				if (delayInS > 0) {
 					requestActivityRecognition(client, intent, delayInS)
 				} else {
@@ -96,7 +111,6 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 					client.removeActivityTransitionUpdates(intent)
 				}
 
-				//todo add handling of task failure
 				true
 			} else {
 				Reporter.report(Throwable("Unavailable play services"))
@@ -114,6 +128,14 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			)
 					.apply {
 						addOnFailureListener { Reporter.report(it) }
+						addOnSuccessListener {
+							logActivity(
+									LogData(
+											"started activity updates",
+											"delay $delayInS s"
+									)
+							)
+						}
 					}
 		}
 
@@ -126,6 +148,14 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 			val request = ActivityTransitionRequest(transitions)
 			transitionClientTask = client.requestActivityTransitionUpdates(request, intent).apply {
 				addOnFailureListener { Reporter.report(it) }
+				addOnSuccessListener {
+					logActivity(
+							LogData(
+									"started transition updates",
+									requestedTransitions.toString()
+							)
+					)
+				}
 			}
 		}
 

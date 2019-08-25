@@ -101,7 +101,7 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 	}
 
 	fun tryGetLocation(): Location? {
-		return tryGet<LocationResult>(TrackerComponentRequirement.LOCATION)?.lastLocation
+		return tryGet<LocationData>(TrackerComponentRequirement.LOCATION)?.lastLocation
 	}
 
 	fun getWifiData(component: TrackerDataConsumerComponent): WifiScanData {

@@ -6,6 +6,6 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "log_data")
 data class LogData(val message: String, val data: String) {
-	@PrimaryKey
+	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0L
 }

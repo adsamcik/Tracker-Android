@@ -6,7 +6,9 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
+import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.common.debug.LogData
 import com.adsamcik.tracker.common.extension.forEachIf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -14,6 +16,7 @@ import kotlinx.coroutines.launch
 
 object ActivityRecognitionApi {
 	fun rerunRecognitionForAll(context: Context) {
+		logActivity(LogData("requesting recognition rerun", ""))
 		GlobalScope.launch(Dispatchers.Default) {
 			val sessionDao = AppDatabase.getDatabase(context).sessionDao()
 			val workManager = WorkManager.getInstance(context)

@@ -6,6 +6,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.activity.ui.ActivityDebugActivity
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.dialog.ConfirmDialog
 import com.adsamcik.tracker.common.extension.startActivity
@@ -61,6 +62,12 @@ class DebugPage : PreferencePage {
 							}
 						}
 
+						false
+					}
+
+			caller.findPreference(R.string.settings_log_list_activity_key)
+					.setOnPreferenceClickListener {
+						startActivity<ActivityDebugActivity> { }
 						false
 					}
 		}

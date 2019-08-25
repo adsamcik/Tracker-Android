@@ -69,7 +69,7 @@ class SettingsActivity : DetailActivity(),
 				val instance = tClass.newInstance()
 				moduleSettingsList[it.module] = instance
 			} catch (e: ClassNotFoundException) {
-				e.printStackTrace()
+				//e.printStackTrace()
 				//this exception is ok, just don't add anything
 			} catch (e: InstantiationException) {
 				Reporter.report(e)

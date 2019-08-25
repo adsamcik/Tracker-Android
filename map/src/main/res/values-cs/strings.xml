@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_map_default_layer_title">Výchozí vrstva</string>
     <string name="map_no_play_services">Mapa vyžaduje aktuální Play Services</string>
     <string name="map_search">Vyhledávání</string>
     <string name="map_search_no_geocoder">Vyhledávání není dostupné, nebyl nalezen geocoder.</string>

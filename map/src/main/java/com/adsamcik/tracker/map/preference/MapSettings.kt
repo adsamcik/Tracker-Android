@@ -27,17 +27,6 @@ class MapSettings : ModuleSettings {
 			setStringFormat("%.2fx")
 		}.also { preferenceScreen.addPreference(it) }
 
-		ListPreference(context).apply {
-			key = resources.getString(R.string.settings_map_default_layer_key)
-			setTitle(R.string.settings_map_default_layer_title)
-			setEntries(R.array.settings_map_default_layer_names)
-			setEntryValues(R.array.settings_map_default_layer_values)
-			summary = "%s"
-
-			setDefaultValue(resources.getString(R.string.settings_map_default_layer_default))
-			setIcon(com.adsamcik.tracker.common.R.drawable.ic_outline_layers_24dp)
-		}.also { preferenceScreen.addPreference(it) }
-
 		IntValueSliderPreference(context).apply {
 			key = resources.getString(R.string.settings_map_max_heat_key)
 			setTitle(R.string.settings_map_max_heat_title)

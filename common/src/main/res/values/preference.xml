@@ -40,4 +40,7 @@
 
     <string name="show_tips_key" translatable="false">tipsEnabled</string>
     <string name="show_tips_default" translatable="false">true</string>
+
+    <string name="settings_log_activity_key" translatable="false">log_activity</string>
+    <string name="settings_log_activity_default" translatable="false">false</string>
 </resources>

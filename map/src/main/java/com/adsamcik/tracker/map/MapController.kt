@@ -31,6 +31,10 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 			logic.onEnable(context, map, quality)
 			logic.dateRange = dateRange
 			this.activeLayer = logic
+
+			Preferences.getPref(context).edit {
+				setString(R.string.settings_map_last_layer_key, logic.layerInfo.type.name)
+			}
 		}
 	}
 

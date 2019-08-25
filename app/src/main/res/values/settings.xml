@@ -93,13 +93,10 @@
         <item quantity="other">%d taps left to enable developer options</item>
     </plurals>
 
-    <string name="settings_debug_activity_title">Activity recognition logger</string>
-    <string name="settings_debug_activity_key" translatable="false">activityLogger</string>
+    <string name="settings_log_activity_title">Log activity changes</string>
 
-    <string name="settings_activity_debug_tracking_key" translatable="false">activityDebugTracking</string>
-    <string name="settings_activity_debug_tracking_default" translatable="false">false</string>
-
-    <string name="settings_activity_debug_tracking_start_time_key" translatable="false">activityDebugTrackingStartTime</string>
+    <string name="settings_log_list_activity_title">Activity log</string>
+    <string name="settings_log_list_activity_key" translatable="false">logListActivity</string>
 
     <string name="settings_activity_status_title">Status information</string>
     <string name="settings_activity_status_key" translatable="false">activityStatus</string>
@@ -149,5 +146,4 @@
     <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
 
     <string name="settings_app_version_key" translatable="false">appVersion</string>
-
 </resources>
