@@ -49,11 +49,7 @@
     <string name="settings_clear_cache_title">Smazat dočasné soubory</string>
     <string name="settings_clear_data_title">Smazat nasbíraná data</string>
     <string name="settings_clear_preferences_title">Smazat preference</string>
-    <string name="settings_color_day_title">Barva ve dne</string>
     <string name="settings_color_default_title">Výchozí barvy</string>
-    <string name="settings_color_evening_title">Barva večer</string>
-    <string name="settings_color_morning_title">Barva ráno</string>
-    <string name="settings_color_night_title">Barva v noci</string>
     <string name="settings_data_title">Data</string>
     <string name="settings_debug_already_available">Již máte přístup k vývojářským nástrojům</string>
     <string name="settings_debug_available">Nyní máte přístup k vývojářským nástrojům</string>

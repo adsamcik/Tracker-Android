@@ -13,6 +13,8 @@
     <!-- STYLE -->
     <string name="settings_style_mode_title">Style mode</string>
 
+    <string name="settings_style_category_key" translatable="false">styleCategory</string>
+
     <string-array name="settings_style_mode_values" translatable="false">
         <item>0</item>
         <item>1</item>
@@ -24,12 +26,6 @@
         <item>day/night</item>
         <item>morning/day/evening/night</item>
     </string-array>
-
-
-    <string name="settings_color_morning_title">Morning color</string>
-    <string name="settings_color_day_title">Day color</string>
-    <string name="settings_color_evening_title">Evening color</string>
-    <string name="settings_color_night_title">Night color</string>
 
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>

@@ -2,21 +2,18 @@ package com.adsamcik.tracker.common.style
 
 import android.content.Context
 import android.graphics.Color
-import android.location.Location
-import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.common.BuildConfig
 import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.toTimeSinceMidnight
 import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.style.update.MorningDayEveningNightTransitionUpdate
+import com.adsamcik.tracker.common.style.update.StyleUpdate
 import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
-import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.ConcurrentModificationException
+import kotlin.collections.ArrayList
 import kotlin.concurrent.withLock
 import kotlin.math.abs
 
@@ -28,10 +25,11 @@ import kotlin.math.abs
 //  for example someone could choose between x colors and the system would divide the day by them
 //  and updates as needed while reusing existing transition functions
 @AnyThread
+@Suppress("TooManyFunctions")
 object StyleManager {
 	//Lock order colorList, colorManagerLock, timer
 
-	private val colorList = mutableListOf<@ColorInt Int>()
+	private val colorList = ArrayList<@ColorInt Int>(0)
 	private var timer: Timer? = null
 	private var timerActive = false
 
@@ -56,6 +54,13 @@ object StyleManager {
 
 	private val controllerLock = ReentrantLock()
 	private val colorListLock = ReentrantLock()
+	private val timerLock = ReentrantLock()
+
+	private val enabledUpdateList = listOf(MorningDayEveningNightTransitionUpdate())
+	private var update: StyleUpdate = enabledUpdateList.first()
+
+	val requiredColors = update.requiredColorData.colorList
+	val activeColorList: List<Int> = colorList
 
 	private const val TEXT_ALPHA = 222
 
@@ -118,22 +123,6 @@ object StyleManager {
 	}
 
 	/**
-	 * Add all given colors to colorList. This is usually not the way you want to initialize the colors. Consider using load from preferences.
-	 *
-	 * @param colors colors to add
-	 */
-	fun addColors(@ColorInt colors: Collection<Int>) {
-		colorListLock.withLock {
-			if (colors.isEmpty()) {
-				throw IllegalArgumentException("You can't just add no colors.")
-			}
-
-			colorList.addAll(colors)
-			ensureUpdate()
-		}
-	}
-
-	/**
 	 * Delta update which is called internally by update functions
 	 *
 	 * @param delta value from 0 to 1
@@ -158,9 +147,7 @@ object StyleManager {
 	 * Update function is called with new color and handles updating of all the colorManagers.
 	 */
 	private fun update(@ColorInt backgroundColor: Int) {
-		val perceivedLuminance = perceivedRelLuminance(
-				backgroundColor
-		)
+		val perceivedLuminance = perceivedRelLuminance(backgroundColor)
 		val foregroundColor: Int = if (perceivedLuminance > 0) darkTextColor else lightTextColor
 
 		val styleData = StyleData(backgroundColor, foregroundColor)
@@ -195,14 +182,16 @@ object StyleManager {
 	private fun startUpdate() {
 		colorListLock.withLock {
 			if (colorList.size >= 2) {
-				synchronized(timerActive) {
+				val data = update.getUpdateData(colorList, sunsetRise)
+				timerLock.withLock {
 					timerActive = true
 					val timer = Timer("ColorUpdate", true)
-					when (colorList.size) {
-						2 -> startUpdate2(timer)
-						4 -> startUpdate4(timer)
-						else -> throw IllegalStateException()
-					}
+					val deltaTime = calculateDeltaUpdate(data.duration)
+					timer.schedule(
+							ColorUpdateTask(data.duration, data.progress, deltaTime),
+							0L,
+							deltaTime
+					)
 
 					StyleManager.timer = timer
 				}
@@ -210,142 +199,11 @@ object StyleManager {
 		}
 	}
 
-	/**
-	 * Starts update function for 2 colors
-	 */
-	private fun startUpdate2(timer: Timer) {
-		timer.schedule(object : TimerTask() {
-			override fun run() {
-				deltaUpdate(0f)
-			}
-		}, calculateTimeOfDay2().time)
-		deltaUpdate(0f)
-	}
-
-	/**
-	 * Starts update function for 4 colors
-	 */
-	private fun startUpdate4(timer: Timer) {
-		val (changeLength, progress, period) = calculateTimeOfDay4()
-		timer.scheduleAtFixedRate(ColorUpdateTask(changeLength, progress, period), 0L, period)
-
-		deltaUpdate(progress / changeLength.toFloat())
-
-		if (BuildConfig.DEBUG) {
-			val sunset = sunsetRise.nextSunset()
-			val sunrise = sunsetRise.nextSunrise()
-			val format = SimpleDateFormat("HH:mm:ss dd-MM-yyyy", Locale.getDefault())
-			Log.d(
-					"StyleManager",
-					"Now is ${getTimeOfDay(currentIndex)} with length of $changeLength and progress $progress. " +
-							"Sunrise is at ${format.format(sunrise.time)} " +
-							"and sun sets at ${format.format(sunset.time)}"
-			)
-
-			Log.d("StyleManager", "Update rate is $period")
-		}
-	}
-
-	private fun getTimeOfDay(value: Int) = when (value) {
-		0 -> "Morning"
-		1 -> "Noon"
-		2 -> "Evening"
-		3 -> "Night"
-		else -> "Bug"
-	}
-
-	private fun calculateTimeOfDay2(): Calendar {
-		val time = Calendar.getInstance().toTimeSinceMidnight()
-		val sunset = sunsetRise.nextSunset()
-		val sunrise = sunsetRise.nextSunrise()
-
-		return when {
-			(time > sunset.toTimeSinceMidnight()) or (time < sunrise.toTimeSinceMidnight()) -> {
-				currentIndex = 1
-				sunrise
-			}
-			else -> {
-				currentIndex = 0
-				sunset
-			}
-		}
-	}
-
-	private fun calculateTimeOfDay4(): Triple<Long, Long, Long> {
-		val time = Calendar.getInstance().toTimeSinceMidnight()
-		val changeLength: Long
-		val progress: Long
-
-		val sunsetTime = sunsetRise.nextSunset().toTimeSinceMidnight()
-		val sunriseTime = sunsetRise.nextSunrise().toTimeSinceMidnight()
-
-		val dayTime = (sunsetTime - sunriseTime) / 2 + sunriseTime
-		val nightTime = ((Time.DAY_IN_MILLISECONDS - sunsetTime + sunriseTime) / 2 + sunsetTime).rem(
-				Time.DAY_IN_MILLISECONDS
-		)
-
-		if (time > sunsetTime) {
-			if (nightTime > sunsetTime) {
-				if (time < nightTime) {
-					//Between sunset and night when night is before midnight and time is before midnight
-					changeLength = nightTime - sunsetTime
-					progress = time - sunsetTime
-					currentIndex = 2
-				} else {
-					//Between night and sunrise when night is before midnight and time is before midnight
-					changeLength = Time.DAY_IN_MILLISECONDS - nightTime + sunriseTime
-					progress = time - nightTime
-					currentIndex = 3
-				}
-			} else {
-				//Between sunset and night when night is after midnight and time is before midnight
-				changeLength = Time.DAY_IN_MILLISECONDS - sunsetTime + nightTime
-				progress = time - sunsetTime
-				currentIndex = 2
-			}
-		} else if (time > dayTime) {
-			//Between day and sunset
-			changeLength = sunsetTime - dayTime
-			progress = time - dayTime
-			currentIndex = 1
-		} else if (time > sunriseTime) {
-			//Between sunrise and day
-			changeLength = dayTime - sunriseTime
-			progress = time - sunriseTime
-			currentIndex = 0
-		} else {
-			if (nightTime > sunsetTime) {
-				//Between night and sunrise when night is before midnight and time is after midnight
-				val beforeMidnight = Time.DAY_IN_MILLISECONDS - nightTime
-				changeLength = beforeMidnight + sunriseTime
-				progress = time + beforeMidnight
-				currentIndex = 3
-			} else {
-				if (time < nightTime) {
-					//Between sunset and night when night is after midnight and time is after midnight
-					val beforeMidnight = Time.DAY_IN_MILLISECONDS - sunsetTime
-					changeLength = beforeMidnight + nightTime
-					progress = time + beforeMidnight
-					currentIndex = 2
-				} else {
-					//Between night and sunrise when night is after midnight and time is after midnight
-					changeLength = sunriseTime - nightTime
-					progress = time - nightTime
-					currentIndex = 3
-				}
-			}
-		}
-
-		return Triple(changeLength, progress, calculateUpdatePeriod(changeLength))
-	}
-
-	private fun calculateUpdatePeriod(changeLength: Long) = changeLength / calculateUpdateCount()
+	private fun calculateDeltaUpdate(changeLength: Long) = changeLength / calculateUpdateCount()
 
 	private fun calculateUpdateCount(): Int {
 		colorListLock.withLock {
-			if (colorList.size < 2) throw IllegalStateException(
-					"Update rate cannot be calculated for less than 2 colors"
-			)
+			check(colorList.size >= 2) { "Update rate cannot be calculated for less than 2 colors" }
 
 			val currentColor = colorList[currentIndex]
 			val targetColor = colorList[nextIndex]
@@ -358,7 +216,7 @@ object StyleManager {
 	}
 
 	private fun stopUpdate() {
-		synchronized(timerActive) {
+		timerLock.withLock {
 			if (timerActive) {
 				timerActive = false
 				requireNotNull(timer).cancel()
@@ -370,44 +228,38 @@ object StyleManager {
 	 * Initializes colors from preference. This completely replaces all current colors with those saved in preferences.
 	 */
 	fun initializeFromPreferences(context: Context) {
+		sunsetRise.addListener(this::onLocationChange)
+		sunsetRise.initialize(context)
+
 		val preferences = Preferences.getPref(context)
-		val mode = preferences.getStringAsIntResString(
-				R.string.settings_style_mode_key,
-				R.string.settings_style_mode_default
-		)
+		val mode = preferences.getStringRes(R.string.settings_style_mode_key)
+				?: MorningDayEveningNightTransitionUpdate::class.java.name
+
+		if (mode == update::class.java.name) return
 
 		stopUpdate()
 
+		update = enabledUpdateList.firstOrNull { it::class.java.name == mode }
+				?: enabledUpdateList.first()
+
+		val requiredColorList = update.requiredColorData.colorList
+		val format = context.getString(R.string.settings_color_key)
+
 		colorListLock.withLock {
 			colorList.clear()
+			colorList.ensureCapacity(requiredColorList.size)
 
-			val day = preferences.getColorRes(
-					R.string.settings_color_day_key,
-					R.color.settings_color_day_default
-			)
-
-			if (mode == 0) {
-				addColors(listOf(day))
-			} else {
-				val night = preferences.getColorRes(
-						R.string.settings_color_night_key,
-						R.color.settings_color_night_default
-				)
-				if (mode == 1) {
-					addColors(listOf(day, night))
-				} else {
-					val morning = preferences.getColorRes(
-							R.string.settings_color_morning_key,
-							R.color.settings_color_morning_default
-					)
-					val evening = preferences.getColorRes(
-							R.string.settings_color_evening_key,
-							R.color.settings_color_evening_default
-					)
-					addColors(listOf(morning, day, evening, night))
-				}
+			for (i in requiredColorList.indices) {
+				val default = requiredColorList[i].defaultColor
+				val key = format.format(i)
+				val color = preferences.getInt(key, default)
+				colorList.add(color)
 			}
+
+			colorList.trimToSize()
 		}
+
+		startUpdate()
 	}
 
 	/**
@@ -417,22 +269,14 @@ object StyleManager {
 	 */
 	fun updateColorAt(index: Int, @ColorInt color: Int) {
 		colorListLock.withLock {
-			if (index < 0 || index >= colorList.size) {
-				throw IllegalArgumentException("Index $index is out of bounds. Size is ${colorList.size}.")
-			} else {
-				colorList[index] = color
-				updateUpdate()
-			}
+			require(index >= 0 && index < colorList.size) { "Index $index is out of bounds. Size is ${colorList.size}." }
+			colorList[index] = color
+			updateUpdate()
 		}
 	}
 
-	/**
-	 * Sets location for the sunrise and sunset calculator
-	 * This should be called every time when location significantly changes
-	 */
-	fun setLocation(location: Location) {
-		sunsetRise.updateLocation(location)
-		synchronized(timerActive) {
+	private fun onLocationChange(@Suppress("unused_parameter") sunSetRise: SunSetRise) {
+		timerLock.withLock {
 			stopUpdate()
 			startUpdate()
 		}

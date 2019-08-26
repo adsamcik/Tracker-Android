@@ -74,9 +74,7 @@ class ImageSwitchPreference : Preference {
 		val drawables = resources.obtainTypedArray(drawablesResource)
 
 
-		if (titles.size != drawables.length()) {
-			throw IllegalArgumentException("Drawable and title arrays are not equal in size")
-		}
+		require(titles.size == drawables.length()) { "Drawable and title arrays are not equal in size" }
 
 
 		for (i in 0..titles.lastIndex) {

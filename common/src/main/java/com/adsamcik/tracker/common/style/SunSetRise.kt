@@ -1,64 +1,106 @@
 package com.adsamcik.tracker.common.style
 
+import android.content.Context
+import android.os.Looper
+import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.data.LengthUnit
 import com.adsamcik.tracker.common.extension.roundToDate
+import com.adsamcik.tracker.common.preference.Preferences
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
 import com.luckycatlabs.sunrisesunset.dto.Location
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+
+typealias SunSetRiseChangeListener = (SunSetRise) -> Unit
 
 /**
  * Class used for calculation of next sunset and sunrise.
  */
-//todo remember last location
+//todo add central location API to better manage passive location updates in the future
 class SunSetRise {
+	private val locationLock = ReentrantLock()
 	private var location: Location? = null
-	private var lastUpdate: Calendar? = null
 
-	/**
-	 * Calculates when will next sunset be
-	 *
-	 * @return Calendar instance containing time and date of the next sunset
-	 */
-	fun nextSunset(): Calendar {
-		val calendar = Calendar.getInstance()
+	private var appContext: Context? = null
+
+	private var listeners = mutableSetOf<SunSetRiseChangeListener>()
+
+	private val locationCallback = object : LocationCallback() {
+		override fun onLocationResult(locationResult: LocationResult) {
+			val context = appContext
+			requireNotNull(context)
+			updateLocation(context, locationResult.lastLocation)
+		}
+
+	}
+
+	fun sunriseForToday(): Calendar = sunriseFor(Time.now)
+
+	fun sunriseFor(calendar: Calendar): Calendar {
 		val location = location
 		return if (location != null) {
-			val calculator = getCalculator(location, calendar)
-			val sunset = getSunset(calculator, calendar)
-			if (sunset < calendar) {
-				calendar.add(Calendar.DAY_OF_WEEK, 1)
-				getSunset(location, calendar)
-			} else {
-				sunset
-			}
+			return getSunrise(location, calendar)
 		} else {
 			calendar.roundToDate()
-			calendar.set(Calendar.HOUR_OF_DAY, 21)
+			calendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNRISE)
 			calendar
 		}
 	}
 
-	/**
-	 * Calculates when will next sunrise be
-	 *
-	 * @return Calendar instance containing time and date of the next sunrise
-	 */
-	fun nextSunrise(): Calendar {
-		val calendar = Calendar.getInstance()
+	fun sunsetForToday(): Calendar = sunsetFor(Time.now)
+
+	fun sunsetFor(calendar: Calendar): Calendar {
 		val location = location
 		return if (location != null) {
-			val calculator = getCalculator(location, calendar)
-			val sunrise = getSunrise(calculator, calendar)
-			if (sunrise < calendar) {
-				calendar.add(Calendar.DAY_OF_WEEK, 1)
-				getSunrise(location, calendar)
-			} else {
-				sunrise
-			}
+			return getSunset(location, calendar)
 		} else {
 			calendar.roundToDate()
-			calendar.set(Calendar.HOUR_OF_DAY, 7)
+			calendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNSET)
 			calendar
 		}
+	}
+
+	private fun requestLocationUpdates(context: Context) {
+		val locationProvider = LocationServices.getFusedLocationProviderClient(context)
+		val request = LocationRequest.create().apply {
+			priority = LocationRequest.PRIORITY_NO_POWER
+			interval = Time.MINUTE_IN_MILLISECONDS
+		}
+
+		locationProvider.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+	}
+
+	fun initialize(context: Context) {
+		val appContext = context.applicationContext
+		this.appContext = appContext
+
+		requestLocationUpdates(appContext)
+
+		val preferences = Preferences.getPref(appContext)
+		val lastLatitude = preferences.getDouble(LAST_LATITUDE_KEY, Double.NaN)
+		val lastLongitude = preferences.getDouble(LAST_LONGITUDE_KEY, Double.NaN)
+
+		val location = if (!lastLatitude.isNaN() && !lastLongitude.isNaN()) {
+			Location(lastLatitude, lastLongitude)
+		} else {
+			return
+		}
+
+		locationLock.withLock {
+			if (this.location == null) {
+				this.location = location
+			}
+		}
+	}
+
+	fun addListener(listener: SunSetRiseChangeListener) {
+		listeners.add(listener)
 	}
 
 
@@ -66,10 +108,31 @@ class SunSetRise {
 	 * This method should be called to update location used for calculating next sunrise/sunset.
 	 * Proper location is required to make the calculations accurate.
 	 */
-	@Synchronized
-	fun updateLocation(loc: android.location.Location) {
-		this.location = Location(loc.latitude, loc.longitude)
-		lastUpdate = Calendar.getInstance()
+	private fun updateLocation(context: Context, loc: android.location.Location) {
+		locationLock.withLock {
+			val currentLocation = this.location
+			val distance = if (currentLocation != null) {
+				com.adsamcik.tracker.common.data.Location.distance(
+						currentLocation.latitude.toDouble(),
+						currentLocation.longitude.toDouble(),
+						loc.latitude,
+						loc.longitude,
+						LengthUnit.Kilometer
+				)
+			} else {
+				Double.POSITIVE_INFINITY
+			}
+			this.location = Location(loc.latitude, loc.longitude)
+
+			if (distance > MIN_DIFFERENCE_IN_KILOMETERS) {
+				Preferences.getPref(context).edit {
+					setDouble(LAST_LATITUDE_KEY, loc.latitude)
+					setDouble(LAST_LONGITUDE_KEY, loc.longitude)
+				}
+
+				listeners.forEach { it.invoke(this) }
+			}
+		}
 	}
 
 	private fun getCalculator(location: Location, calendar: Calendar): SunriseSunsetCalculator {
@@ -92,10 +155,13 @@ class SunSetRise {
 		return getSunrise(getCalculator(location, calendar), calendar)
 	}
 
-	private fun getSunriseSunset(location: Location, calendar: Calendar): Pair<Calendar, Calendar> {
-		val calculator = getCalculator(location, calendar)
-		val sunrise = getSunrise(calculator, calendar)
-		val sunset = getSunset(calculator, calendar)
-		return Pair(sunrise, sunset)
+	companion object {
+		private const val LAST_LATITUDE_KEY = "SunSetLatitude"
+		private const val LAST_LONGITUDE_KEY = "SunSetLongitude"
+
+		private const val MIN_DIFFERENCE_IN_KILOMETERS = 50.0
+
+		private const val DEFAULT_SUNSET = 21
+		private const val DEFAULT_SUNRISE = 7
 	}
 }

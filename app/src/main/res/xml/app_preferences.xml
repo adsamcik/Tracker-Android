@@ -112,29 +112,10 @@
             android:title="@string/settings_style_mode_title"
             app:icon="@drawable/ic_palette_outline" />
 
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_morning_default"
-            android:key="@string/settings_color_morning_key"
-            android:title="@string/settings_color_morning_title"
-            app:icon="@drawable/ic_weather_sunset_up" />
+        <PreferenceCategory
+            android:key="">
 
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_day_default"
-            android:key="@string/settings_color_day_key"
-            android:title="@string/settings_color_day_title"
-            app:icon="@drawable/ic_weather_sunny" />
-
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_evening_default"
-            android:key="@string/settings_color_evening_key"
-            android:title="@string/settings_color_evening_title"
-            app:icon="@drawable/ic_weather_sunset_down" />
-
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
-            android:defaultValue="@color/settings_color_night_default"
-            android:key="@string/settings_color_night_key"
-            android:title="@string/settings_color_night_title"
-            app:icon="@drawable/ic_weather_night" />
+        </PreferenceCategory>
 
         <androidx.preference.Preference
             android:key="@string/settings_color_default_key"

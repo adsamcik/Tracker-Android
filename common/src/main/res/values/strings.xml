@@ -68,4 +68,11 @@
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="cell_lte">4G (LTE)</string>
     <string name="cell_nr">5G (NR)</string>
+
+
+    <!-- Colors -->
+    <string name="settings_color_morning_title">Morning color</string>
+    <string name="settings_color_day_title">Day color</string>
+    <string name="settings_color_evening_title">Evening color</string>
+    <string name="settings_color_night_title">Night color</string>
 </resources>

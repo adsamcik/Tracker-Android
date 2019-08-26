@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
-    <color name="settings_color_day_default" translatable="false">#559676</color>
-    <string name="settings_color_day_key" translatable="false">colorDay</string>
-    <color name="settings_color_evening_default" translatable="false">#6a4e39</color>
-    <string name="settings_color_evening_key" translatable="false">colorEvening</string>
-    <color name="settings_color_morning_default" translatable="false">#bf9615</color>
-    <string name="settings_color_morning_key" translatable="false">colorMorning</string>
-    <color name="settings_color_night_default" translatable="false">#002733</color>
-    <string name="settings_color_night_key" translatable="false">colorNight</string>
+    <string name="settings_color_key" translatable="false">styleColor%d</string>
     <string name="settings_activity_enabled_default" translatable="false">true</string>
     <string name="settings_activity_enabled_key" translatable="false">trackingActivityEnabled</string>
     <string name="settings_auto_tracking_transition_key" translatable="false">transitionApiEnabled</string>

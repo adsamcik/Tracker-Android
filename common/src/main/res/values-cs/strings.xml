@@ -66,4 +66,9 @@
     <string name="cell_lte">4G (LTE)</string>
     <string name="cell_nr">5G (NR)</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
+
+    <string name="settings_color_day_title">Barva ve dne</string>
+    <string name="settings_color_evening_title">Barva večer</string>
+    <string name="settings_color_morning_title">Barva ráno</string>
+    <string name="settings_color_night_title">Barva v noci</string>
 </resources>

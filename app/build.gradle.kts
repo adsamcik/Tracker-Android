@@ -97,7 +97,7 @@ dependencies {
 	//3rd party dependencies
 	Dependencies.moshi(this)
 
-	implementation("com.jaredrummler:colorpicker:1.1.0")
+	implementation("com.afollestad.material-dialogs:color:${Dependencies.Versions.dialogs}")
 
 	implementation("de.psdev.licensesdialog:licensesdialog:2.1.0")
 	Dependencies.fileChooser(this)

@@ -9,12 +9,16 @@ import androidx.core.graphics.red
 import com.adsamcik.tracker.common.style.utility.ColorFunctions
 import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
 
+/**
+ * Style data object containing all the information about the current style
+ */
 data class StyleData(
 		@ColorInt private val backgroundColor: Int,
 		@ColorInt private val foregroundColor: Int
 ) {
 
 	private val baseColorHSL: FloatArray = FloatArray(3)
+
 	@IntRange(from = 0, to = 255)
 	private val perceivedLuminance: Int
 
@@ -77,10 +81,24 @@ data class StyleData(
 		return ColorFunctions.getBackgroundLayerColor(color, luminance, layer)
 	}
 
-	fun perceivedLuminance(isInverted: Boolean): Int {
+	/**
+	 * Returns perceived luminance.
+	 *
+	 * @param isInverted Is background and foreground of the target inverted?
+	 *
+	 * @return Appropriate perceived luminance for the target
+	 */
+	fun perceivedLuminance(isInverted: Boolean = false): Int {
 		return if (isInverted) 255 - perceivedLuminance else perceivedLuminance
 	}
 
+	/**
+	 * Returns perceived luminance for the given [styleView]
+	 *
+	 * @param styleView Style view for which perceived luminance is returned
+	 *
+	 * @return Perceived luminance adjusted for the [styleView]
+	 */
 	fun perceivedLuminanceFor(styleView: BaseStyleView): Int =
 			perceivedLuminance(styleView.isInverted)
 

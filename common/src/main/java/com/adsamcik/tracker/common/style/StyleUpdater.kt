@@ -183,6 +183,11 @@ internal class StyleUpdater : CoroutineScope {
 	}
 
 	@MainThread
+	private fun updateStyleForeground(view: ImageView, @ColorInt foregroundColor: Int) {
+		view.drawable?.let { drawable -> updateStyleForeground(drawable, foregroundColor) }
+	}
+
+	@MainThread
 	private fun updateStyleForeground(view: RecyclerView, @ColorInt foregroundColor: Int) {
 		for (i in 0 until view.itemDecorationCount) {
 			when (val decoration = view.getItemDecorationAt(i)) {
@@ -198,7 +203,7 @@ internal class StyleUpdater : CoroutineScope {
 	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
-			is ImageView -> view.setColorFilter(foregroundColor)
+			is ImageView -> updateStyleForeground(view, foregroundColor)
 			is TextView -> updateStyleForeground(view, foregroundColor)
 			is SeekBar -> updateStyleForeground(view, foregroundColor)
 		}

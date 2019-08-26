@@ -33,7 +33,7 @@ object Dependencies {
 
 		internal const val sublimePicker = "2.1.2"
 		internal const val spotlight = "2.1.0"
-		internal const val dialogs = "3.1.0"
+		const val dialogs = "3.1.0"
 
 		object Test {
 			const val androidxTest: String = "1.2.0"

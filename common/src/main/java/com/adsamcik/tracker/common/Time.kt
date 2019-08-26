@@ -12,11 +12,20 @@ import java.util.*
 object Time {
 	val nowMillis: Long get() = System.currentTimeMillis()
 
+	val now: Calendar get() = Calendar.getInstance()
+
 	val elapsedRealtimeMillis: Long get() = SystemClock.elapsedRealtime()
 
 	val elapsedRealtimeNanos: Long get() = SystemClock.elapsedRealtimeNanos()
 
 	val todayMillis: Long get() = roundToDate(nowMillis)
+
+	val today: Calendar
+		get() {
+			val now = now
+			now.roundToDate()
+			return now
+		}
 
 	fun roundToDate(time: Long): Long {
 		return Date(time).toCalendar().apply {
