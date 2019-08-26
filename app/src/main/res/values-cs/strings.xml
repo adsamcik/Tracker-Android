@@ -55,7 +55,6 @@
     <string name="settings_color_morning_title">Barva ráno</string>
     <string name="settings_color_night_title">Barva v noci</string>
     <string name="settings_data_title">Data</string>
-    <string name="settings_debug_activity_title">Nástroje pro ladění aktivity</string>
     <string name="settings_debug_already_available">Již máte přístup k vývojářským nástrojům</string>
     <string name="settings_debug_available">Nyní máte přístup k vývojářským nástrojům</string>
     <plurals name="settings_debug_available_in" tools:ignore="MissingQuantity">
@@ -148,4 +147,6 @@
         <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
     </plurals>
     <string name="settings_export_no_data">Není co exportovat</string>
+    <string name="settings_log_activity_title">Zaznamenávat změny aktivity</string>
+    <string name="settings_log_list_activity_title">Záznamy změn aktivity</string>
 </resources>
