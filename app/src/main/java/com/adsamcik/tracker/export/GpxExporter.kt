@@ -10,7 +10,7 @@ import io.jenetics.jpx.WayPoint
 import java.io.File
 import java.io.FileOutputStream
 
-class GpxExportFile : ExportFile {
+class GpxExporter : Exporter {
 	override val canSelectDateRange: Boolean = true
 
 	override fun export(

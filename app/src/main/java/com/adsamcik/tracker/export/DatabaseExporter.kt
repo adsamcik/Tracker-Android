@@ -6,7 +6,7 @@ import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.data.DatabaseLocation
 import java.io.File
 
-class DatabaseExportFile : ExportFile {
+class DatabaseExporter : Exporter {
 	override val canSelectDateRange: Boolean = false
 
 	override fun export(

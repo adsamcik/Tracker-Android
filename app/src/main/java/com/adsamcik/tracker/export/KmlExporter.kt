@@ -10,7 +10,7 @@ import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
-class KmlExportFile : ExportFile {
+class KmlExporter : Exporter {
 	override val canSelectDateRange: Boolean = true
 
 	override fun export(

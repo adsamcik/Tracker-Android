@@ -19,7 +19,7 @@ import com.adsamcik.tracker.common.extension.createCalendarWithTime
 import com.adsamcik.tracker.common.extension.hasExternalStorageReadPermission
 import com.adsamcik.tracker.common.extension.hasExternalStorageWritePermission
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.export.ExportFile
+import com.adsamcik.tracker.export.Exporter
 import com.adsamcik.tracker.export.ExportResult
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.folderChooser
@@ -39,7 +39,7 @@ class ExportActivity : DetailActivity() {
 	private lateinit var sharableDir: File
 	private lateinit var root: ViewGroup
 
-	private lateinit var exporter: ExportFile
+	private lateinit var exporter: Exporter
 
 	private var range: ClosedRange<Calendar> = createDefaultRange()
 		set(value) {
@@ -68,7 +68,7 @@ class ExportActivity : DetailActivity() {
 		sharableDir = File(filesDir, SHARABLE_DIR_NAME)
 
 		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
-		exporter = exporterType.newInstance() as ExportFile
+		exporter = exporterType.newInstance() as Exporter
 
 		root = createLinearContentParent(false)
 		layoutInflater.inflate(R.layout.layout_data_export, root)

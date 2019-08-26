@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.common.database.data.DatabaseLocation
 import java.io.File
 
-interface ExportFile {
+interface Exporter {
 	val canSelectDateRange: Boolean
 
 	fun export(
