@@ -118,8 +118,8 @@ object ActivityRequestManager {
 			descendingEvents: List<ActivityTransitionEvent>
 	) {
 		requestData.transitionList.forEach {
-			for (transition in descendingEvents) {
-				if (transition.transitionType == it.activity.value &&
+			descendingEvents.forEach { transition ->
+				if (transition.transitionType == it.type.value &&
 						transition.activityType == it.activity.value) {
 					requestData.callback.invoke(context, it, transition.elapsedRealTimeNanos)
 					return
@@ -131,8 +131,7 @@ object ActivityRequestManager {
 	internal fun onActivityTransition(context: Context, result: ActivityTransitionResult) {
 		val reversedEvents = result.transitionEvents.reversed()
 		activeRequestArray.forEach { _, value ->
-			val transitionData = value.transitionData
-			transitionData?.let { onActivityTransition(context, it, reversedEvents) }
+			value.transitionData?.let { onActivityTransition(context, it, reversedEvents) }
 		}
 	}
 }
