@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.map.preference
 
-import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.common.preference.ModuleSettings
 import com.adsamcik.tracker.map.R

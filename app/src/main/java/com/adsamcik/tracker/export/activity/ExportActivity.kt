@@ -19,8 +19,8 @@ import com.adsamcik.tracker.common.extension.createCalendarWithTime
 import com.adsamcik.tracker.common.extension.hasExternalStorageReadPermission
 import com.adsamcik.tracker.common.extension.hasExternalStorageWritePermission
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.export.Exporter
 import com.adsamcik.tracker.export.ExportResult
+import com.adsamcik.tracker.export.Exporter
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.folderChooser
 import com.google.android.material.snackbar.Snackbar

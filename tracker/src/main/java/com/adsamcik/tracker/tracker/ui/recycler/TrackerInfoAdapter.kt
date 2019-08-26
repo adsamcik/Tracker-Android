@@ -39,33 +39,33 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 
 	fun update(collectionData: CollectionData, sessionData: TrackerSession) {
 		update(sessionData,
-				SessionTrackerInfo.NAME_RESOURCE,
-				{ SessionTrackerInfo(it) },
-				{ trackerInfo, value -> trackerInfo.session = value })
+		       SessionTrackerInfo.NAME_RESOURCE,
+		       { SessionTrackerInfo(it) },
+		       { trackerInfo, value -> trackerInfo.session = value })
 
 		val location = collectionData.location
 		update(location,
-				LocationTrackerInfo.NAME_RESOURCE,
-				{ LocationTrackerInfo(it) },
-				{ trackerInfo, value -> trackerInfo.location = value })
+		       LocationTrackerInfo.NAME_RESOURCE,
+		       { LocationTrackerInfo(it) },
+		       { trackerInfo, value -> trackerInfo.location = value })
 
 		val activity = collectionData.activity
 		update(activity,
-				ActivityTrackerInfo.NAME_RESOURCE,
-				{ ActivityTrackerInfo(it) },
-				{ trackerInfo, value -> trackerInfo.activity = value })
+		       ActivityTrackerInfo.NAME_RESOURCE,
+		       { ActivityTrackerInfo(it) },
+		       { trackerInfo, value -> trackerInfo.activity = value })
 
 		val wifi = collectionData.wifi
 		update(wifi,
-				WifiTrackerInfo.NAME_RESOURCE,
-				{ WifiTrackerInfo(it) },
-				{ trackerInfo, value -> trackerInfo.wifiData = value })
+		       WifiTrackerInfo.NAME_RESOURCE,
+		       { WifiTrackerInfo(it) },
+		       { trackerInfo, value -> trackerInfo.wifiData = value })
 
 		val cell = collectionData.cell
 		update(cell,
-				CellTrackerInfo.NAME_RESOURCE,
-				{ CellTrackerInfo(it) },
-				{ trackerInfo, value -> trackerInfo.cellData = value })
+		       CellTrackerInfo.NAME_RESOURCE,
+		       { CellTrackerInfo(it) },
+		       { trackerInfo, value -> trackerInfo.cellData = value })
 	}
 
 	private inline fun <T, Z> update(

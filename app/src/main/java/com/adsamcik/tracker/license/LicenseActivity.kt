@@ -13,8 +13,8 @@ import androidx.appcompat.widget.AppCompatButton
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.activity.DetailActivity
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
@@ -72,15 +72,17 @@ class LicenseActivity : DetailActivity() {
 		CustomLicense(
 				materialCommunityIconTitle,
 				Notice(materialCommunityIconTitle, "http://materialdesignicons.com/",
-						"Copyright (c) 2014, Austin Andrews", object : License() {
-					override fun getUrl(): String = "https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web"
+				       "Copyright (c) 2014, Austin Andrews", object : License() {
+					override fun getUrl(): String =
+							"https://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web"
 
 					override fun getName(): String = "SIL OPEN FONT LICENSE Version 1.1"
 
-					override fun readSummaryTextFromResources(context: Context?): String = getContent(
-							context,
-							R.raw.material_community_icon_license
-					)
+					override fun readSummaryTextFromResources(context: Context?): String =
+							getContent(
+									context,
+									R.raw.material_community_icon_license
+							)
 
 					override fun getVersion(): String = "1.1"
 					override fun readFullTextFromResources(context: Context?): String = getContent(

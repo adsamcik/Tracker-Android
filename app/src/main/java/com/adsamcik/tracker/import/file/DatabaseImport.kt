@@ -5,8 +5,8 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteConstraintException
 import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.exception.NotFoundException
 import com.adsamcik.tracker.common.extension.sortByVertexes
 import com.adsamcik.tracker.common.graph.Edge
@@ -182,8 +182,9 @@ class DatabaseImport : FileImport {
 	) {
 		val matchingColumns = getMatchingColumns(from, to, tableName)
 
-		from.query("SELECT ${matchingColumns.joinToString(separator = ",",
-				transform = { it.columnName })} FROM $tableName"
+		from.query(
+				"SELECT ${matchingColumns.joinToString(separator = ",",
+				                                       transform = { it.columnName })} FROM $tableName"
 		).use {
 			val columnsJoined = it.columnNames.joinToString(separator = ",")
 			while (it.moveToNext()) {

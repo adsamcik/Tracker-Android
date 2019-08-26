@@ -31,15 +31,20 @@ class MigrationTest {
 		// You cannot use DAO classes because they expect the latest schema.
 
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (1, '1552026583', '27.30459', '68.39764', -36.2, 26.6, 3, 38)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (1, '1552026583', '27.30459', '68.39764', -36.2, 26.6, 3, 38)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (2, '1522659716', 52.5094874, 16.7474972, -97.4, 67.7, 3, 69)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (2, '1522659716', 52.5094874, 16.7474972, -97.4, 67.7, 3, 69)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (3, '1528243933', 19.1780491, -96.1288426, -34.0, 31.3, 3, 6)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (3, '1528243933', 19.1780491, -96.1288426, -34.0, 31.3, 3, 6)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (4, '1544682291', 50.7036309, 18.995304, 0.0, 0.0, 3, 64)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (4, '1544682291', 50.7036309, 18.995304, 0.0, 0.0, 3, 64)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (5, '1529254903', 53.5830905, 9.7537598, 45.7, 73.3, 3, 86)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (5, '1529254903', 53.5830905, 9.7537598, 45.7, 73.3, 3, 86)"
+		)
 		// Prepare for the next version.
 		db.close()
 
@@ -92,13 +97,17 @@ class MigrationTest {
 		val db = helper.createDatabase(TEST_DB, 4)
 
 		db.execSQL(
-				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (1, 200, 300, 10, 1000, 50)")
+				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (1, 200, 300, 10, 1000, 50)"
+		)
 		db.execSQL(
-				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (2, 400, 600, 20, 2000, 100)")
+				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (2, 400, 600, 20, 2000, 100)"
+		)
 		db.execSQL(
-				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (3, 600, 400, 20, 2000, 100)")
+				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (3, 600, 400, 20, 2000, 100)"
+		)
 		db.execSQL(
-				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (4, 400, 600, 0, 2000, 100)")
+				"INSERT INTO tracking_session (id, start, `end`, collections, distance, steps) VALUES (4, 400, 600, 0, 2000, 100)"
+		)
 
 		db.close()
 
@@ -133,15 +142,20 @@ class MigrationTest {
 		val db = helper.createDatabase(TEST_DB, 5)
 
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (1, '1552026583', 27.30459, 68.39764, -36.2, 26.6, 3, 38)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (1, '1552026583', 27.30459, 68.39764, -36.2, 26.6, 3, 38)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (2, '1522659716', 52.5094874, 16.7474972, -97.4, 67.7, 3, 69)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (2, '1522659716', 52.5094874, 16.7474972, -97.4, 67.7, 3, 69)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (3, '1528243933', 19.1780491, -96.1288426, -34.0, 31.3, 3, 6)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (3, '1528243933', 19.1780491, -96.1288426, -34.0, 31.3, 3, 6)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (4, '1544682291', 50.7036309, 18.995304, 0.0, 0.0, 3, 64)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (4, '1544682291', 50.7036309, 18.995304, 0.0, 0.0, 3, 64)"
+		)
 		db.execSQL(
-				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (5, '1529254903', 53.5830905, 9.7537598, 45.7, 73.3, 3, 86)")
+				"insert into location_data (id, time, lat, lon, alt, hor_acc, activity, confidence) values (5, '1529254903', 53.5830905, 9.7537598, 45.7, 73.3, 3, 86)"
+		)
 
 		db.close()
 
@@ -167,13 +181,17 @@ class MigrationTest {
 		val db = helper.createDatabase(TEST_DB, 6)
 
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (1, 200, 300, 10, 1000, 50, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (1, 200, 300, 10, 1000, 50, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (2, 400, 600, 20, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (2, 400, 600, 20, 2000, 100, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (3, 600, 400, 20, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (3, 600, 400, 20, 2000, 100, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (4, 400, 600, 0, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (4, 400, 600, 0, 2000, 100, 0, 0)"
+		)
 
 		db.close()
 
@@ -203,13 +221,17 @@ class MigrationTest {
 		val db = helper.createDatabase(TEST_DB, 7)
 
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (1, 200, 300, 1, 10, 1000, 50, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (1, 200, 300, 1, 10, 1000, 50, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (2, 400, 600, 1, 20, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (2, 400, 600, 1, 20, 2000, 100, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (3, 600, 400, 0, 20, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (3, 600, 400, 0, 20, 2000, 100, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (4, 400, 600, 0, 0, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (4, 400, 600, 0, 0, 2000, 100, 0, 0)"
+		)
 
 		db.close()
 
@@ -223,13 +245,17 @@ class MigrationTest {
 		val db = helper.createDatabase(TEST_DB, 8)
 
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (1, 200, 300, 1, 10, 1000, 50, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (1, 200, 300, 1, 10, 1000, 50, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (2, 400, 600, 1, 20, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (2, 400, 600, 1, 20, 2000, 100, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (3, 600, 400, 0, 20, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (3, 600, 400, 0, 20, 2000, 100, 0, 0)"
+		)
 		db.execSQL(
-				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (4, 400, 600, 0, 0, 2000, 100, 0, 0)")
+				"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle) VALUES (4, 400, 600, 0, 0, 2000, 100, 0, 0)"
+		)
 
 		db.close()
 

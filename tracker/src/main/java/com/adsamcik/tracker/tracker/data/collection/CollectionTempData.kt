@@ -6,7 +6,6 @@ import com.adsamcik.tracker.common.data.LocationData
 import com.adsamcik.tracker.tracker.BuildConfig
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataConsumerComponent
-import com.google.android.gms.location.LocationResult
 
 internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos: Long) :
 		CollectionTempData(

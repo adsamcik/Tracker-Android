@@ -47,7 +47,8 @@ data class StyleData(
 	 * @param isInverted True if background and foreground should be inverted
 	 */
 	@ColorInt
-	fun foregroundColor(isInverted: Boolean = false): Int = if (isInverted) backgroundColor else foregroundColor
+	fun foregroundColor(isInverted: Boolean = false): Int =
+			if (isInverted) backgroundColor else foregroundColor
 
 	/**
 	 * Returns proper base background color for given StyleView
@@ -80,7 +81,8 @@ data class StyleData(
 		return if (isInverted) 255 - perceivedLuminance else perceivedLuminance
 	}
 
-	fun perceivedLuminanceFor(styleView: BaseStyleView): Int = perceivedLuminance(styleView.isInverted)
+	fun perceivedLuminanceFor(styleView: BaseStyleView): Int =
+			perceivedLuminance(styleView.isInverted)
 
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true

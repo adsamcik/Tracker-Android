@@ -110,19 +110,19 @@ class StatsDetailActivity : DetailActivity() {
 
 
 		addAction(com.adsamcik.tracker.common.R.drawable.ic_baseline_edit, R.string.edit_session,
-				View.OnClickListener {
-					if (add_item_layout.isVisible) {
-						add_item_layout.visibility = View.GONE
-						header_root.updatePadding(top = 0)
-					} else {
-						add_item_layout.visibility = View.VISIBLE
-						header_root.updatePadding(top = 16.dp)
-						findViewById<View>(
-								R.id.button_change_activity
-						).setOnClickListener { showActivitySelectionDialog() }
-						findViewById<View>(R.id.button_remove_session).setOnClickListener { removeSession() }
-					}
-				})
+		          View.OnClickListener {
+			          if (add_item_layout.isVisible) {
+				          add_item_layout.visibility = View.GONE
+				          header_root.updatePadding(top = 0)
+			          } else {
+				          add_item_layout.visibility = View.VISIBLE
+				          header_root.updatePadding(top = 16.dp)
+				          findViewById<View>(
+						          R.id.button_change_activity
+				          ).setOnClickListener { showActivitySelectionDialog() }
+				          findViewById<View>(R.id.button_remove_session).setOnClickListener { removeSession() }
+			          }
+		          })
 	}
 
 	private fun removeSession() {

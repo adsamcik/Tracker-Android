@@ -20,7 +20,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.tracker.common.Assist
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.CellData
@@ -32,6 +31,7 @@ import com.adsamcik.tracker.common.data.NetworkOperator
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.data.WifiData
 import com.adsamcik.tracker.common.data.WifiInfo
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.observe
 import com.adsamcik.tracker.common.extension.requireParent
@@ -180,12 +180,14 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	private fun startTracking(activity: FragmentActivity) {
 		if (!Assist.isGNSSEnabled(activity)) {
 			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_gnss_not_enabled,
-					priority = SnackMaker.SnackbarPriority.IMPORTANT,
-					actionRes = R.string.enable,
-					onActionClick = View.OnClickListener {
-						val locationOptionsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-						startActivity(locationOptionsIntent)
-					})
+			                                             priority = SnackMaker.SnackbarPriority.IMPORTANT,
+			                                             actionRes = R.string.enable,
+			                                             onActionClick = View.OnClickListener {
+				                                             val locationOptionsIntent = Intent(
+						                                             Settings.ACTION_LOCATION_SOURCE_SETTINGS
+				                                             )
+				                                             startActivity(locationOptionsIntent)
+			                                             })
 		} else if (!Assist.canTrack(activity)) {
 			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
 		} else {

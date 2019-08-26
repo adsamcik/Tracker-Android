@@ -30,7 +30,8 @@ enum class Module {
 
 	@Throws(ClassNotFoundException::class)
 	@Suppress("unchecked_cast")
-	fun <T> loadClass(className: String): Class<T> = Class.forName("$modulePath.$className") as Class<T>
+	fun <T> loadClass(className: String): Class<T> =
+			Class.forName("$modulePath.$className") as Class<T>
 
 
 	companion object {

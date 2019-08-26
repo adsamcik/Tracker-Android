@@ -189,9 +189,10 @@ inline val Context.hasReadPhonePermission: Boolean
  * Uses getSystemService(name) system method.
  * Typed method in Android does name lookup (so it might be tiny bit slower) and is available from API 23.
  */
-inline fun <reified T : Any> Context.getSystemServiceTyped(serviceName: String): T = getSystemService(
-		serviceName
-) as T
+inline fun <reified T : Any> Context.getSystemServiceTyped(serviceName: String): T =
+		getSystemService(
+				serviceName
+		) as T
 
 /**
  * Shortcut to get [TelephonyManager]. This property does not cache the service.

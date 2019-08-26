@@ -7,8 +7,8 @@ import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.lowerCaseExtension
 import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.common.service.CoreService

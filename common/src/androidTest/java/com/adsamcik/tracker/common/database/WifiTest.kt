@@ -21,10 +21,14 @@ class WifiTest {
 
 	@Test
 	fun testInsert() {
-		val data1 = DatabaseWifiData("00:19:3b:99:e2:80", 50.123, 10.321, null, Time.nowMillis, Time.nowMillis,
-				"Example", "[WPA2]", 2400, -80)
-		val data2 = DatabaseWifiData("00:19:3b:99:e2:81", 51.234, 15.432, 300.0, Time.nowMillis, Time.nowMillis,
-				"Example2", "[WPA2, WPA]", 5000, -90)
+		val data1 = DatabaseWifiData(
+				"00:19:3b:99:e2:80", 50.123, 10.321, null, Time.nowMillis, Time.nowMillis,
+				"Example", "[WPA2]", 2400, -80
+		)
+		val data2 = DatabaseWifiData(
+				"00:19:3b:99:e2:81", 51.234, 15.432, 300.0, Time.nowMillis, Time.nowMillis,
+				"Example2", "[WPA2, WPA]", 5000, -90
+		)
 
 		val array = listOf(data1, data2)
 		wifiDao.upsert(array)

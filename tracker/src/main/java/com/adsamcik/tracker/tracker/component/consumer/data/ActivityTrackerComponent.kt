@@ -21,9 +21,14 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 				activity.confidence < CONFIDENT_CONFIDENCE
 	}
 
-	private fun isUnknownOnFootActivity(activity: ActivityInfo) = activity.activityType == DetectedActivity.ON_FOOT
-	private fun isRunning(activity: ActivityInfo) = activity.activityType == DetectedActivity.RUNNING
-	private fun isWalking(activity: ActivityInfo) = activity.activityType == DetectedActivity.WALKING
+	private fun isUnknownOnFootActivity(activity: ActivityInfo) =
+			activity.activityType == DetectedActivity.ON_FOOT
+
+	private fun isRunning(activity: ActivityInfo) =
+			activity.activityType == DetectedActivity.RUNNING
+
+	private fun isWalking(activity: ActivityInfo) =
+			activity.activityType == DetectedActivity.WALKING
 
 	private fun isOnFoot(activity: ActivityInfo): Boolean {
 		return isUnknownOnFootActivity(activity) || isWalking(activity) || isRunning(activity)

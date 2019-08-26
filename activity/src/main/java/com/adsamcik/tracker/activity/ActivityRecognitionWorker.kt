@@ -6,9 +6,9 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.activity.recognizer.ActivityRecognitionResult
 import com.adsamcik.tracker.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.data.MutableTrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.common.debug.Reporter
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
