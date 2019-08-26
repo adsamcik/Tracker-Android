@@ -124,8 +124,12 @@ open class Preferences {
 		return getFloat(key, default)
 	}
 
-	fun getFloat(key: String, default: Float = 0f): Float {
+	fun getFloat(key: String, default: Float = Float.NaN): Float {
 		return sharedPreferences.getFloat(key, default)
+	}
+
+	fun getDouble(key: String, default: Double = Double.NaN): Double {
+		return Double.fromBits(getLong(key, default.toRawBits()))
 	}
 
 

@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.StringRes
 
-@Suppress("UNUSED", "PRIVATE")
+@Suppress("UNUSED", "PRIVATE", "TooManyFunctions")
 class MutablePreferences : Preferences {
 	private val editor: SharedPreferences.Editor = sharedPreferences.edit()
 
@@ -45,6 +45,14 @@ class MutablePreferences : Preferences {
 
 	fun setLong(key: String, value: Long) {
 		editor.putLong(key, value)
+	}
+
+	fun setFloat(key: String, value: Float) {
+		editor.putFloat(key, value)
+	}
+
+	fun setDouble(key: String, value: Double) {
+		setLong(key, value.toRawBits())
 	}
 
 	fun remove(@StringRes keyRes: Int) {
