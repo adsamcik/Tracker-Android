@@ -16,7 +16,7 @@ object Dependencies {
 		internal const val lifecycle = "2.2.0-alpha03"
 		internal const val preference = "1.1.0-rc01"
 		internal const val material = "1.1.0-alpha09"
-		internal const val coroutines = "1.3.0-RC2"
+		internal const val coroutines = "1.3.0"
 
 		internal const val requery = "3.29.0"
 
