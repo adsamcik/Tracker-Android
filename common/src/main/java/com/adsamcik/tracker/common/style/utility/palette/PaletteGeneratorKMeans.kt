@@ -41,9 +41,6 @@ class PaletteGeneratorKMeans {
 			kMeans.add(lab)
 		}
 
-		val colorSamples = mutableListOf<DoubleArray>()
-		val samplesClosest = mutableListOf<Int?>()
-
 		val stepL: Int
 		val stepA: Int
 		val stepB: Int
@@ -59,6 +56,8 @@ class PaletteGeneratorKMeans {
 		}
 
 
+		val colorSamples = mutableListOf<DoubleArray>()
+		val samplesClosest = mutableListOf<Int?>()
 		val tmpLabArray = DoubleArray(3)
 		for (l in 0..100 step stepL) {
 			for (a in -100..100 step stepA) {
