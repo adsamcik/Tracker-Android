@@ -10,19 +10,19 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 		get() = RequiredColors(
 				listOf(
 						RequiredColorData(
-								defaultColor = 0xff8100,
+								defaultColor = -32512,
 								nameRes = R.string.settings_color_morning_title
 						),
 						RequiredColorData(
-								defaultColor = 0xE0FEF0,
+								defaultColor = -2031888,
 								nameRes = R.string.settings_color_day_title
 						),
 						RequiredColorData(
-								defaultColor = 0xB34D25,
+								defaultColor = -5026523,
 								nameRes = R.string.settings_color_evening_title
 						),
 						RequiredColorData(
-								defaultColor = 0x070b34,
+								defaultColor = -16315596,
 								nameRes = R.string.settings_color_night_title
 						)
 				)
