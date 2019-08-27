@@ -7,7 +7,10 @@ import androidx.core.graphics.alpha
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
+import com.adsamcik.tracker.common.style.utility.palette.LabConstants
 import kotlin.math.floor
+import kotlin.math.pow
+import kotlin.math.round
 import kotlin.math.roundToInt
 
 /**
@@ -176,6 +179,45 @@ object ColorFunctions {
 				COMPONENT_MAX_COERCE
 		)
 		return Color.rgb(red, green, blue)
+	}
+
+	@Suppress("MagicNumber")
+	fun validateLab(lab: DoubleArray): Boolean {
+		// Code from Chroma.js 2016
+
+		val l = lab[0]
+		val a = lab[1]
+		val b = lab[2]
+
+		var y = (l + 16) / 116
+		var x = if (a.isNaN()) y else (y + a / 500.0)
+		var z = if (b.isNaN()) y else (y - b / 200.0)
+
+		y = LabConstants.Yn * labToXyz(y)
+		x = LabConstants.Xn * labToXyz(x)
+		z = LabConstants.Zn * labToXyz(z)
+
+		val red = xyzToRgb(3.2404542 * x - 1.5371385 * y - 0.4985314 * z)  // D65 -> sRGB
+		val green = xyzToRgb(-0.9692660 * x + 1.8760108 * y + 0.0415560 * z)
+		val blue = xyzToRgb(0.0556434 * x - 0.2040259 * y + 1.0572252 * z)
+
+		val range = 0.0..255.0
+		return range.contains(red) && range.contains(green) && range.contains(blue)
+	}
+
+	@Suppress("MagicNumber")
+	private fun xyzToRgb(r: Double): Double {
+		val value = if (r <= 0.00304) {
+			12.92 * r
+		} else {
+			1.055 * r.pow(1.0 / 2.4) - 0.055
+		}
+		return round(255.0 * value)
+	}
+
+	@Suppress("MagicNumber")
+	private fun labToXyz(t: Double): Double {
+		return if (t > LabConstants.t1) t.pow(3) else (LabConstants.t2 * (t - LabConstants.t0))
 	}
 }
 
