@@ -27,6 +27,7 @@ object ColorGenerator {
 	fun generatePalette(count: Int): List<Int> {
 		return PaletteGenerator().generate(
 				colorsCount = count,
+				quality = 100,
 				mode = PaletteGenerator.Mode.KMeans,
 				distanceType = ColorDistanceCalculator.DistanceType.CMC
 		).map { it.toRgb() }
