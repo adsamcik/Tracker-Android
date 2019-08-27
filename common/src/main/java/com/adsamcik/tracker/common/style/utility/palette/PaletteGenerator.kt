@@ -31,6 +31,7 @@ class PaletteGenerator {
 		Force
 	}
 
+	@Suppress("LongParameterList")
 	fun generate(
 			colorsCount: Int = 8,
 			checkColor: (DoubleArray) -> Boolean = { true },

@@ -7,7 +7,7 @@ import kotlin.random.Random
 
 class PaletteGeneratorKMeans {
 
-	@Suppress("ComplexMethod", "LongMethod", "NestedBlockDepth")
+	@Suppress("MagicNumber")
 	fun generate(
 			colorsCount: Int,
 			checkColor: (DoubleArray) -> Boolean,

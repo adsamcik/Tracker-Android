@@ -7,6 +7,7 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.random.Random
 
+@Suppress("MagicNumber")
 class PaletteGeneratorForce {
 	private val distanceCalculator = ColorDistanceCalculator()
 
