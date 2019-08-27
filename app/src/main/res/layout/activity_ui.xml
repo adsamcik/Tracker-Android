@@ -11,8 +11,8 @@
         android:id="@+id/root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#166f72"
         android:clipChildren="false"
+        tools:background="#166f72"
         tools:context="com.adsamcik.tracker.app.activity.MainActivity">
 
         <com.adsamcik.draggable.DraggableImageButton

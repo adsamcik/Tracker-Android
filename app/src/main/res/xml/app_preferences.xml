@@ -104,10 +104,6 @@
         android:title="@string/settings_style_title"
         app:icon="@drawable/ic_outline_style_24px">
         <androidx.preference.ListPreference
-            android:defaultValue="@string/settings_style_mode_default"
-            android:entries="@array/settings_style_mode_names"
-            android:entryValues="@array/settings_style_mode_values"
-            android:key="@string/settings_style_mode_key"
             android:summary="%s"
             android:title="@string/settings_style_mode_title"
             app:icon="@drawable/ic_palette_outline" />

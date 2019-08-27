@@ -149,11 +149,6 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 	}
 
-	override fun onStop() {
-		StyleManager.recycleController(styleController)
-		super.onStop()
-	}
-
 	override fun onResume() {
 		super.onResume()
 		val context = requireContext()
