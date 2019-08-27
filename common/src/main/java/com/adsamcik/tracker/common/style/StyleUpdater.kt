@@ -5,8 +5,10 @@ import android.R.attr.state_pressed
 import android.content.res.ColorStateList
 import android.graphics.BlendMode
 import android.graphics.BlendModeColorFilter
+import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.RippleDrawable
 import android.os.Build
@@ -225,19 +227,30 @@ internal class StyleUpdater : CoroutineScope {
 				view.setBackgroundColor(bgColor)
 			}
 			background?.isVisible == true -> {
-				if (background is RippleDrawable) {
-					val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
-					background.setColor(Assist.getPressedState(nextLevel))
-					background.setTint(bgColor)
-				} else {
-					if (background.alpha < 255) return false
+				background.mutate()
+				when (background) {
+					is ColorDrawable -> {
+						view.setBackgroundColor(bgColor)
+					}
+					is RippleDrawable -> {
+						val nextLevel = ColorFunctions.getBackgroundLayerColor(
+								bgColor,
+								luminance,
+								1
+						)
+						background.setColor(Assist.getPressedState(nextLevel))
+						background.setTint(bgColor)
+					}
+					else -> {
+						if (background.alpha < 255) return false
 
-					background.setTint(bgColor)
-					background.colorFilter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-						BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
-					} else {
-						@Suppress("DEPRECATION")
-						(PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN))
+						background.setTint(bgColor)
+						background.colorFilter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+							BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
+						} else {
+							@Suppress("DEPRECATION")
+							(PorterDuffColorFilter(bgColor, PorterDuff.Mode.SRC_IN))
+						}
 					}
 				}
 				return true
