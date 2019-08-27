@@ -5,6 +5,7 @@ import android.graphics.Color
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.alpha
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.style.update.DayNightChangeUpdate
@@ -258,6 +259,11 @@ object StyleManager {
 				val default = requiredColorList[i].defaultColor
 				val key = format.format(i)
 				val color = preferences.getInt(key, default)
+				require(color.alpha == 255) {
+					"Color #${color.toString(16)} with key $key and default " +
+							"#${default.toString(16)} from " +
+							"${update::class.java.name} was not opaque"
+				}
 				colorList.add(color)
 			}
 
