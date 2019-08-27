@@ -37,7 +37,7 @@ section 4, provided you include this license notice and a URL
 through which recipients can access the Corresponding Source.
  */
 @Suppress("ComplexMethod", "LongMethod", "MagicNumber", "NestedBlockDepth", "LongParameterList")
-class PalleteGenerator {
+class PaletteGenerator {
 	data class LabColor(var l: Double, var a: Double, var b: Double) {
 		fun toRgb(): Int = ColorUtils.LABToColor(l, a, b)
 	}
@@ -47,9 +47,9 @@ class PalleteGenerator {
 		Euclidean,
 		CMC,
 		Compromise,
-		CB_Protanope,
-		CB_Deuteranope,
-		CB_Tritanope
+		CBProtanope,
+		CBDeuteranope,
+		CBTritanope
 	}
 
 	fun generate(
@@ -388,9 +388,9 @@ class PalleteGenerator {
 			distances.add(cmcDistance(lab1, lab2, 2.0, 1.0))
 			coefficients.add(1000)
 			val types = arrayOf(
-					DistanceType.CB_Protanope,
-					DistanceType.CB_Deuteranope,
-					DistanceType.CB_Tritanope
+					DistanceType.CBProtanope,
+					DistanceType.CBDeuteranope,
+					DistanceType.CBTritanope
 			)
 			types.forEach { type ->
 				val lab1Cb = simulate(lab1, type)
@@ -398,9 +398,9 @@ class PalleteGenerator {
 				if (!(lab1Cb.any { isNaN(it) } || lab2Cb.any { isNaN(it) })) {
 
 					val c = when (type) {
-						DistanceType.CB_Protanope -> 100
-						DistanceType.CB_Deuteranope -> 500
-						DistanceType.CB_Tritanope -> 1
+						DistanceType.CBProtanope -> 100
+						DistanceType.CBDeuteranope -> 500
+						DistanceType.CBTritanope -> 1
 						else -> throw IllegalArgumentException(type.toString())
 					}
 					distances.add(cmcDistance(lab1Cb, lab2Cb, 2.0, 1.0))
@@ -436,19 +436,19 @@ class PalleteGenerator {
 	data class ConfusionData(val x: Double, val y: Double, val m: Double, val yint: Double)
 
 	private val confusionLines = mapOf(
-			DistanceType.CB_Protanope to ConfusionData(
+			DistanceType.CBProtanope to ConfusionData(
 					x = 0.7465,
 					y = 0.2535,
 					m = 1.273463,
 					yint = -0.073894
 			),
-			DistanceType.CB_Deuteranope to ConfusionData(
+			DistanceType.CBDeuteranope to ConfusionData(
 					x = 1.4,
 					y = -0.4,
 					m = 0.968437,
 					yint = 0.003331
 			),
-			DistanceType.CB_Tritanope to ConfusionData(
+			DistanceType.CBTritanope to ConfusionData(
 					x = 0.1748,
 					y = 0.0,
 					m = 0.062921,
