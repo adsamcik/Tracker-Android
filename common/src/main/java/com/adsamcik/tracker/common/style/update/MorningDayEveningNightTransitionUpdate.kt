@@ -2,7 +2,6 @@ package com.adsamcik.tracker.common.style.update
 
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.cloneCalendar
 import com.adsamcik.tracker.common.style.SunSetRise
 import java.util.*
 
@@ -29,8 +28,6 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 				)
 		)
 
-	private val timer: Timer = Timer("ColorUpdate", true)
-
 	override fun getUpdateData(
 			styleList: List<Int>,
 			sunSetRise: SunSetRise
@@ -50,6 +47,11 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 				localUpdateData.duration,
 				localUpdateData.progress
 		)
+	}
+
+	private fun calculateMidTime(first: Long, second: Long): Long {
+		require(first < second)
+		return (second - first) / 2L + first
 	}
 
 	private fun betweenMidnightAndSunrise(
@@ -75,23 +77,23 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 	)
 
 	private fun afterSunset(
-			now: Calendar,
-			sunrise: Calendar,
-			sunset: Calendar
+			now: Long,
+			sunrise: Long,
+			sunset: Long
 	): UpdateData {
 //the max difference between days is approximately under 5 minutes, so it should be fine
-		val tomorrowSunrise = sunrise.cloneCalendar().apply { add(Calendar.DAY_OF_YEAR, 1) }
-		val midnight = tomorrowSunrise.timeInMillis - sunrise.timeInMillis
+		val tomorrowSunrise = sunrise + Time.DAY_IN_MILLISECONDS
+		val midnight = calculateMidTime(sunset, tomorrowSunrise)
 		return when {
-			now.before(midnight) -> betweenSunsetAndMidnight(
-					now.timeInMillis,
-					sunset.timeInMillis,
+			now < midnight -> betweenSunsetAndMidnight(
+					now,
+					sunset,
 					midnight
 			)
-			now.before(tomorrowSunrise) -> betweenMidnightAndSunrise(
-					now.timeInMillis,
+			now < tomorrowSunrise -> betweenMidnightAndSunrise(
+					now,
 					midnight,
-					tomorrowSunrise.timeInMillis
+					tomorrowSunrise
 			)
 			else -> throw IllegalStateException()
 		}
@@ -120,40 +122,44 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 	)
 
 	private fun betweenSunriseAndSunset(
-			now: Calendar,
-			sunrise: Calendar,
-			sunset: Calendar
+			now: Long,
+			sunrise: Long,
+			sunset: Long
 	): UpdateData {
-		val noon = (sunset.timeInMillis - sunrise.timeInMillis) / 2L + sunrise.timeInMillis
+		val noonInMillis = calculateMidTime(sunrise, sunset)
 		return when {
-			now.after(noon) -> betweenNoonAndSunset(now.timeInMillis, noon, sunset.timeInMillis)
-			now.after(sunrise) -> betweenSunriseAndNoon(
-					now.timeInMillis,
-					sunrise.timeInMillis,
-					noon
+			now > noonInMillis -> betweenNoonAndSunset(
+					now,
+					noonInMillis,
+					sunset
+			)
+			now > sunrise -> betweenSunriseAndNoon(
+					now,
+					sunrise,
+					noonInMillis
 			)
 			else -> throw IllegalStateException()
 		}
 	}
 
 	private fun beforeSunrise(
-			now: Calendar,
-			sunrise: Calendar,
-			sunset: Calendar
+			now: Long,
+			sunrise: Long,
+			sunset: Long
 	): UpdateData {
 		//the max difference between days is approximately under 5 minutes, so it should be fine
-		val yesterdayApproxSunset = sunset.cloneCalendar().apply { add(Calendar.DAY_OF_YEAR, -1) }
-		val midnight = (sunrise.timeInMillis - yesterdayApproxSunset.timeInMillis) / 2L + yesterdayApproxSunset.timeInMillis
+		val yesterdayApproxSunset = sunset - Time.DAY_IN_MILLISECONDS
+		val midnight = calculateMidTime(yesterdayApproxSunset, sunrise)
 
 		return when {
-			now.after(midnight) -> betweenMidnightAndSunrise(
-					now.timeInMillis,
+			now > midnight -> betweenMidnightAndSunrise(
+					now,
 					midnight,
-					sunrise.timeInMillis
+					sunrise
 			)
-			now.after(yesterdayApproxSunset) -> betweenSunsetAndMidnight(
-					now.timeInMillis,
-					sunset.timeInMillis,
+			now > yesterdayApproxSunset -> betweenSunsetAndMidnight(
+					now,
+					sunset,
 					midnight
 			)
 			else -> throw IllegalStateException()
@@ -165,10 +171,21 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 			sunrise: Calendar,
 			sunset: Calendar
 	): UpdateData {
+		val nowInMillis = now.timeInMillis
+		val sunriseInMillis = sunrise.timeInMillis
+		val sunsetInMillis = sunset.timeInMillis
 		return when {
-			now.after(sunset) -> afterSunset(now, sunrise, sunset)
-			now.after(sunrise) -> betweenSunriseAndSunset(now, sunrise, sunset)
-			else -> beforeSunrise(now, sunrise, sunset)
+			nowInMillis > sunsetInMillis -> afterSunset(
+					nowInMillis,
+					sunriseInMillis,
+					sunsetInMillis
+			)
+			nowInMillis > sunriseInMillis -> betweenSunriseAndSunset(
+					nowInMillis,
+					sunriseInMillis,
+					sunsetInMillis
+			)
+			else -> beforeSunrise(nowInMillis, sunriseInMillis, sunsetInMillis)
 		}
 	}
 
