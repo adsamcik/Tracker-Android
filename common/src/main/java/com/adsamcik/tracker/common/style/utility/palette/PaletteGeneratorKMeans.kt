@@ -1,10 +1,13 @@
 package com.adsamcik.tracker.common.style.utility.palette
 
 import androidx.core.graphics.ColorUtils
+import com.adsamcik.tracker.common.extension.remove
 import com.adsamcik.tracker.common.style.utility.ColorFunctions.validateLab
 import kotlin.random.Random
 
 class PaletteGeneratorKMeans {
+
+	@Suppress("ComplexMethod", "LongMethod", "NestedBlockDepth")
 	fun generate(
 			colorsCount: Int,
 			checkColor: (DoubleArray) -> Boolean,
@@ -20,7 +23,8 @@ class PaletteGeneratorKMeans {
 		}
 
 		val kMeans = mutableListOf<DoubleArray>()
-		for (i in 0 until colorsCount) {
+
+		repeat(colorsCount) {
 			var lab = doubleArrayOf(
 					100 * random.nextDouble(),
 					100 * (2 * random.nextDouble() - 1),
@@ -36,7 +40,6 @@ class PaletteGeneratorKMeans {
 			}
 			kMeans.add(lab)
 		}
-
 
 		val colorSamples = mutableListOf<DoubleArray>()
 		val samplesClosest = mutableListOf<Int?>()
@@ -55,6 +58,7 @@ class PaletteGeneratorKMeans {
 			stepB = 10
 		}
 
+
 		val tmpLabArray = DoubleArray(3)
 		for (l in 0..100 step stepL) {
 			for (a in -100..100 step stepA) {
@@ -71,8 +75,7 @@ class PaletteGeneratorKMeans {
 		}
 
 		// Steps
-		var steps = quality
-		while (steps-- > 0) {
+		repeat(quality) {
 			// kMeans -> Samples Closest
 			for (i in 0 until colorSamples.size) {
 				val lab = colorSamples[i]
@@ -89,7 +92,8 @@ class PaletteGeneratorKMeans {
 			}
 
 			// Samples -> kMeans
-			var freeColorSamples = colorSamples.toList()
+			val freeColorSamples = colorSamples.toMutableList()
+
 			for (j in 0 until kMeans.size) {
 				var count = 0
 				val candidateKMean = doubleArrayOf(0.0, 0.0, 0.0)
@@ -112,7 +116,7 @@ class PaletteGeneratorKMeans {
 				if (count != 0) {
 					kMeans[j] = candidateKMean
 				} else {
-					// The candidate kMean is out of the boundaries of the color space, or unfound.
+					// The candidate kMean is out of the boundaries of the color space, or not found.
 					if (freeColorSamples.isNotEmpty()) {
 						// We just search for the closest FREE color of the candidate kMean
 						var minDistance = Double.POSITIVE_INFINITY
@@ -153,9 +157,10 @@ class PaletteGeneratorKMeans {
 						}
 					}
 				}
-				freeColorSamples = freeColorSamples.filter { color ->
-					color[0] != kMeans[j][0] || color[1] != kMeans[j][1] || color[2] != kMeans[j][2]
-				}
+
+				val lab = kMeans[j]
+
+				freeColorSamples.remove { it.contentEquals(lab) }
 			}
 		}
 		return kMeans

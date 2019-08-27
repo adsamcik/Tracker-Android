@@ -2,6 +2,7 @@ package com.adsamcik.tracker.common.style.utility
 
 import android.graphics.Color
 import androidx.annotation.FloatRange
+import com.adsamcik.tracker.common.style.utility.palette.PaletteGenerator
 import kotlin.random.Random
 
 
@@ -21,6 +22,14 @@ object ColorGenerator {
 				hue,
 				count
 		)
+	}
+
+	fun generatePalette(count: Int): List<Int> {
+		return PaletteGenerator().generate(
+				colorsCount = count,
+				mode = PaletteGenerator.Mode.KMeans,
+				distanceType = ColorDistanceCalculator.DistanceType.CMC
+		).map { it.toRgb() }
 	}
 
 	/**

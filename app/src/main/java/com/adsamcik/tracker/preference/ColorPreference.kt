@@ -13,8 +13,6 @@ import androidx.preference.PreferenceViewHolder
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.style.StyleManager
-import com.adsamcik.tracker.common.style.utility.ColorConstants
-import com.adsamcik.tracker.common.style.utility.ColorFunctions
 import com.adsamcik.tracker.common.style.utility.ColorGenerator
 import com.adsamcik.tracker.preference.pages.StylePage
 import com.afollestad.materialdialogs.MaterialDialog
@@ -77,7 +75,7 @@ class ColorPreference : Preference {
 		updateColor(colorView, colorData.color)
 
 		holder.itemView.setOnClickListener {
-			val colors = ColorGenerator.generateWithGolden(16).toIntArray()
+			val colors = ColorGenerator.generatePalette(16).toIntArray()
 
 			val indices = (1..ALPHA_LEVELS).map { it / ALPHA_LEVELS }
 
