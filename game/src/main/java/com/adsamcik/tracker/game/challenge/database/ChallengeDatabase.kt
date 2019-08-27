@@ -16,6 +16,9 @@ import com.adsamcik.tracker.game.challenge.database.dao.WalkDistanceChallengeDao
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
+import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
+import io.requery.android.database.sqlite.SQLiteDatabase
+import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 
 @Database(
 		entities = [
@@ -43,11 +46,19 @@ abstract class ChallengeDatabase : RoomDatabase() {
 	companion object {
 		private var instance_: ChallengeDatabase? = null
 
+		private const val DATABASE_NAME = "challenge_database"
+
 		private fun createInstance(context: Context): ChallengeDatabase {
+			val configuration = SQLiteDatabaseConfiguration(
+					context.getDatabasePath(DATABASE_NAME).path,
+					SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE
+			)
+			val options = RequerySQLiteOpenHelperFactory.ConfigurationOptions { configuration }
 			val instance = Room.databaseBuilder(
 					context.applicationContext, ChallengeDatabase::class.java,
-					"challenge_database"
+					DATABASE_NAME
 			)
+					.openHelperFactory(RequerySQLiteOpenHelperFactory(listOf(options)))
 					.build()
 
 			instance_ = instance
