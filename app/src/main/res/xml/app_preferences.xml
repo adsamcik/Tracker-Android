@@ -104,12 +104,12 @@
         android:title="@string/settings_style_title"
         app:icon="@drawable/ic_outline_style_24px">
         <androidx.preference.ListPreference
+            android:key="@string/settings_style_mode_key"
             android:summary="%s"
             android:title="@string/settings_style_mode_title"
             app:icon="@drawable/ic_palette_outline" />
 
-        <PreferenceCategory
-            android:key="">
+        <PreferenceCategory android:key="">
 
         </PreferenceCategory>
 
