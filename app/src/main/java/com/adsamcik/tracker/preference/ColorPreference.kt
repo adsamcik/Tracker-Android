@@ -65,9 +65,10 @@ class ColorPreference : Preference, CoroutineScope {
 			color: Int
 	) {
 		colorView.apply {
-			setImageDrawable((drawable.mutate() as StyleColorDrawable).apply {
+			(drawable as StyleColorDrawable).apply {
 				drawable.setColor(color)
-			})
+				invalidateDrawable(this)
+			}
 		}
 	}
 
