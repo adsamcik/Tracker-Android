@@ -7,7 +7,9 @@ import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.style.update.DayNightChangeUpdate
 import com.adsamcik.tracker.common.style.update.MorningDayEveningNightTransitionUpdate
+import com.adsamcik.tracker.common.style.update.NoChangeUpdate
 import com.adsamcik.tracker.common.style.update.StyleUpdate
 import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
 import java.util.*
@@ -56,8 +58,11 @@ object StyleManager {
 	private val colorListLock = ReentrantLock()
 	private val timerLock = ReentrantLock()
 
-	private val enabledUpdateList = listOf(MorningDayEveningNightTransitionUpdate())
-	private var update: StyleUpdate = enabledUpdateList.first()
+	private val enabledUpdateList = listOf(
+			MorningDayEveningNightTransitionUpdate(),
+			DayNightChangeUpdate()
+	)
+	private var update: StyleUpdate = NoChangeUpdate()
 
 	val requiredColors = update.requiredColorData.colorList
 	val activeColorList: List<Int> = colorList
