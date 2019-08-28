@@ -42,25 +42,6 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 	private var fActivity: FragmentActivity? = null
 
-	/**
-	 * Check if permission to access fine location is granted
-	 * If not and is android 6 or newer, than it prompts you to enable it
-	 *
-	 * @return i
-	 * s permission available atm
-	 */
-	private fun checkLocationPermission(context: Context): Boolean {
-		if (context.hasLocationPermission) {
-			return true
-		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			activity?.requestPermissions(
-					arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-					PERMISSION_LOCATION_CODE
-			)
-		}
-		return false
-	}
-
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
 
 	override fun onLeave(activity: FragmentActivity) {
@@ -115,7 +96,6 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 			savedInstanceState: Bundle?
 	): View? {
 		val activity = requireActivity()
-		val hasPermissions = checkLocationPermission(activity)
 		val fragmentView: View
 		if (Assist.checkPlayServices(activity) && container != null) {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
