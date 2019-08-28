@@ -98,6 +98,8 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 		val startDate = Date(session.start)
 		val startCalendar = startDate.toCalendar()
 
+		val endCalendar = Date(session.end).toCalendar()
+
 		holder.time.text = timeFormat.format(startDate)
 		holder.info.text = serializeInfo(context, session)
 
@@ -106,6 +108,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 			holder.title.text = StatsFormat.createTitle(
 					context,
 					startCalendar,
+					endCalendar,
 					SessionActivity.UNKNOWN
 			)
 		} else {
@@ -114,7 +117,12 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 						?: SessionActivity.UNKNOWN
 
 				launch(Dispatchers.Main) {
-					holder.title.text = StatsFormat.createTitle(context, startCalendar, activity)
+					holder.title.text = StatsFormat.createTitle(
+							context,
+							startCalendar,
+							endCalendar,
+							activity
+					)
 				}
 			}
 		}

@@ -45,18 +45,40 @@ object StatsFormat {
 		}
 	}
 
-	fun createTitle(context: Context, date: Calendar, activity: SessionActivity): String {
+	@Suppress("ComplexMethod", "MagicNumber")
+	fun createTitle(
+			context: Context,
+			start: Calendar,
+			end: Calendar,
+			activity: SessionActivity
+	): String {
 		val activityName = activity.name
-		val hour = date[Calendar.HOUR_OF_DAY]
-		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(date.time).capitalize()
-		return if (hour < 6 || hour > 22) {
-			context.getString(R.string.stats_night, day, activityName)
-		} else if (hour < 12) {
-			context.getString(R.string.stats_morning, day, activityName)
-		} else if (hour < 17) {
-			context.getString(R.string.stats_afternoon, day, activityName)
+
+		val startHour = start[Calendar.HOUR_OF_DAY]
+		val endHour = end[Calendar.HOUR_OF_DAY]
+
+		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start.time).capitalize()
+		val stringRes = if (startHour >= 22 && endHour <= 2) {
+			R.string.stats_midnight
+		} else if ((startHour in 22..24 || startHour in 0..6) && (endHour in 22..24 || endHour in 0..6)) {
+			R.string.stats_night
+		} else if (startHour >= 6 && endHour <= 12) {
+			R.string.stats_morning
+		} else if (startHour >= 11 && endHour <= 14) {
+			R.string.stats_lunch
+		} else if (startHour >= 12 && endHour <= 17) {
+			R.string.stats_afternoon
+		} else if (startHour >= 17 && endHour <= 23) {
+			R.string.stats_evening
 		} else {
-			context.getString(R.string.stats_evening, day, activityName)
+			0
+		}
+
+		return if (stringRes == 0) {
+			context.getString(R.string.stats_generic_title_text, day, activityName)
+		} else {
+			val dayPart = context.getString(stringRes)
+			context.getString(R.string.stats_title_text, dayPart, day, activityName)
 		}
 	}
 
