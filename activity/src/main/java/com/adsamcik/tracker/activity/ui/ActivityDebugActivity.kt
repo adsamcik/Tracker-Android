@@ -30,7 +30,7 @@ class ActivityDebugActivity : DetailActivity() {
 					val data = DebugDatabase
 							.getInstance(this@ActivityDebugActivity)
 							.genericLogDao()
-							.getAll()
+							.getLastOrderedDesc(1000)
 
 					adapter.addAll(data)
 				}
