@@ -229,6 +229,8 @@ internal class StyleUpdater : CoroutineScope {
 				view.setBackgroundColor(bgColor)
 			}
 			background?.isVisible == true -> {
+				if (background.alpha == 0) return false
+
 				background.mutate()
 				when (background) {
 					is ColorDrawable -> {
@@ -244,8 +246,6 @@ internal class StyleUpdater : CoroutineScope {
 						background.setTint(bgColor)
 					}
 					else -> {
-						if (background.alpha < 255) return false
-
 						background.setTint(bgColor)
 						background.colorFilter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 							BlendModeColorFilter(bgColor, BlendMode.SRC_IN)
