@@ -6,6 +6,8 @@ import com.adsamcik.tracker.common.style.SunSetRise
 import java.util.*
 
 class MorningDayEveningNightTransitionUpdate : StyleUpdate {
+	override val nameRes: Int = R.string.settings_color_update_mden_trans_title
+
 	override val requiredColorData: RequiredColors
 		get() = RequiredColors(
 				listOf(
@@ -90,7 +92,7 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 					sunset,
 					midnight
 			)
-			now < tomorrowSunrise -> betweenMidnightAndSunrise(
+			now <= tomorrowSunrise -> betweenMidnightAndSunrise(
 					now,
 					midnight,
 					tomorrowSunrise
@@ -128,12 +130,12 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 	): UpdateData {
 		val noonInMillis = calculateMidTime(sunrise, sunset)
 		return when {
-			now > noonInMillis -> betweenNoonAndSunset(
+			now >= noonInMillis -> betweenNoonAndSunset(
 					now,
 					noonInMillis,
 					sunset
 			)
-			now > sunrise -> betweenSunriseAndNoon(
+			now >= sunrise -> betweenSunriseAndNoon(
 					now,
 					sunrise,
 					noonInMillis
@@ -152,12 +154,12 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 		val midnight = calculateMidTime(yesterdayApproxSunset, sunrise)
 
 		return when {
-			now > midnight -> betweenMidnightAndSunrise(
+			now >= midnight -> betweenMidnightAndSunrise(
 					now,
 					midnight,
 					sunrise
 			)
-			now > yesterdayApproxSunset -> betweenSunsetAndMidnight(
+			now >= yesterdayApproxSunset -> betweenSunsetAndMidnight(
 					now,
 					sunset,
 					midnight
@@ -175,12 +177,12 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 		val sunriseInMillis = sunrise.timeInMillis
 		val sunsetInMillis = sunset.timeInMillis
 		return when {
-			nowInMillis > sunsetInMillis -> afterSunset(
+			nowInMillis >= sunsetInMillis -> afterSunset(
 					nowInMillis,
 					sunriseInMillis,
 					sunsetInMillis
 			)
-			nowInMillis > sunriseInMillis -> betweenSunriseAndSunset(
+			nowInMillis >= sunriseInMillis -> betweenSunriseAndSunset(
 					nowInMillis,
 					sunriseInMillis,
 					sunsetInMillis

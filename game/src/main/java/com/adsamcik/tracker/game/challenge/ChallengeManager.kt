@@ -98,7 +98,10 @@ object ChallengeManager {
 
 
 	private fun activateRandomChallenge(context: Context): ChallengeInstance<*, *>? {
-		val possibleChallenges = enabledChallengeList.filterNot { definition -> mutableActiveChallengeList_.any { definition.type == it.data.type } }
+		val possibleChallenges =
+				enabledChallengeList.filterNot { definition ->
+					mutableActiveChallengeList_.any { definition.type == it.data.type }
+				}
 
 		if (possibleChallenges.isEmpty()) return null
 

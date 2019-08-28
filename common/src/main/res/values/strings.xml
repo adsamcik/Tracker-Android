@@ -71,8 +71,14 @@
 
 
     <!-- Colors -->
-    <string name="settings_color_morning_title">Morning color</string>
-    <string name="settings_color_day_title">Day color</string>
-    <string name="settings_color_evening_title">Evening color</string>
-    <string name="settings_color_night_title">Night color</string>
+
+    <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
+    <string name="settings_color_update_dn_switch_title">Day/night switch</string>
+
+    <string name="settings_color_in_template">%s color</string>
+
+    <string name="settings_color_morning_title">Morning</string>
+    <string name="settings_color_day_title">Day</string>
+    <string name="settings_color_evening_title">Evening</string>
+    <string name="settings_color_night_title">Night</string>
 </resources>

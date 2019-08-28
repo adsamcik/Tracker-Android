@@ -6,6 +6,8 @@ import com.adsamcik.tracker.common.style.SunSetRise
 import java.util.*
 
 class DayNightChangeUpdate : StyleUpdate {
+	override val nameRes: Int = R.string.settings_color_update_dn_switch_title
+
 	override val requiredColorData: RequiredColors
 		get() = RequiredColors(
 				listOf(
@@ -31,18 +33,18 @@ class DayNightChangeUpdate : StyleUpdate {
 		val dayDuration = sunsetTime - sunriseTime
 
 		return when {
-			time.after(sunrise) and time.before(sunset) -> {
+			(nowTime >= sunriseTime) and (nowTime < sunsetTime) -> {
 				val progress = (nowTime - sunriseTime) / dayDuration
 
 				UpdateData(styleList[NIGHT], styleList[DAY], dayDuration, progress)
 			}
-			time.after(sunset) -> {
+			nowTime >= sunsetTime -> {
 				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
 				val progress = (nowTime - sunsetTime) / nightDuration
 
 				UpdateData(styleList[DAY], styleList[NIGHT], nightDuration, progress)
 			}
-			time.before(sunrise) -> {
+			nowTime < sunriseTime -> {
 				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
 				val previousSunset = sunsetTime - Time.DAY_IN_MILLISECONDS
 				val progress = (nowTime - previousSunset) / nightDuration
