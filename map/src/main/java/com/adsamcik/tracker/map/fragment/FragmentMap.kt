@@ -15,7 +15,6 @@ import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.extension.hasLocationPermission
-import com.adsamcik.tracker.common.extension.transactionStateLoss
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.style.StyleManager
@@ -43,20 +42,6 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 	private var fActivity: FragmentActivity? = null
 
-	private var hasPermissions = false
-	private var initialized = false
-
-	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
-		val activity = fActivity
-		if (requestCode == PERMISSION_LOCATION_CODE && success && activity != null) {
-			val newFrag = FragmentMap()
-			activity.supportFragmentManager.transactionStateLoss {
-				replace(R.id.container_map, newFrag)
-			}
-			newFrag.onEnter(activity)
-		}
-	}
-
 	/**
 	 * Check if permission to access fine location is granted
 	 * If not and is android 6 or newer, than it prompts you to enable it
@@ -76,10 +61,10 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		return false
 	}
 
+	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
+
 	override fun onLeave(activity: FragmentActivity) {
-		if (hasPermissions) {
-			locationListener?.unsubscribeFromLocationUpdates(activity)
-		}
+		locationListener?.unsubscribeFromLocationUpdates(activity)
 
 		mapOwner.onDisable()
 	}
@@ -103,7 +88,9 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		val fragmentManager = fragmentManager
 				?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
 
-		mapOwner.createMap(fragmentManager)
+		if (Assist.checkPlayServices(activity)) {
+			mapOwner.createMap(fragmentManager)
+		}
 
 		mapOwner.onEnable()
 	}
@@ -115,10 +102,10 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		mapOwner.addOnCreateListener(this::onMapReady)
 		mapOwner.addOnEnableListener {
-			requireNotNull(locationListener).subscribeToLocationUpdates(requireContext())
+			locationListener?.subscribeToLocationUpdates(requireContext())
 		}
 		mapOwner.addOnDisableListener {
-			requireNotNull(locationListener).unsubscribeFromLocationUpdates(requireContext())
+			locationListener?.unsubscribeFromLocationUpdates(requireContext())
 		}
 	}
 
@@ -128,9 +115,9 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 			savedInstanceState: Bundle?
 	): View? {
 		val activity = requireActivity()
-		hasPermissions = checkLocationPermission(activity)
+		val hasPermissions = checkLocationPermission(activity)
 		val fragmentView: View
-		if (Assist.checkPlayServices(activity) && container != null && hasPermissions) {
+		if (Assist.checkPlayServices(activity) && container != null) {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
 		} else {
 			fragmentView = inflater.inflate(
@@ -139,11 +126,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 					false
 			)
 
-			val textRes = if (hasPermissions) {
-				com.adsamcik.tracker.common.R.string.error_play_services_not_available
-			} else {
-				com.adsamcik.tracker.common.R.string.error_missing_permission
-			}
+			val textRes = com.adsamcik.tracker.common.R.string.error_play_services_not_available
 
 			fragmentView.findViewById<AppCompatTextView>(com.adsamcik.tracker.common.R.id.activity_error_text)
 					.setText(textRes)
@@ -181,7 +164,12 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		this.locationListener = locationListener
 
 		mapSheetController = MapSheetController(
-				context, map, mapOwner, map_ui_parent, mapController, locationListener,
+				context,
+				map,
+				mapOwner,
+				map_ui_parent,
+				mapController,
+				locationListener,
 				mapEventListener
 		)
 
