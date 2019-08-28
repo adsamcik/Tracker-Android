@@ -53,7 +53,7 @@
     <string name="tracker_activity_confidence">Jistota</string>
     <string name="tracker_activity_title">Aktivita</string>
     <string name="tracker_collections_title">Záznamů</string>
-    <string name="tracker_distance_title">Vzdáelnost</string>
+    <string name="tracker_distance_title">Vzdálenost</string>
     <string name="tracker_session_age">Začátek relace</string>
     <string name="tracker_session_card_title">Relace</string>
     <string name="tracker_steps">Kroky</string>
