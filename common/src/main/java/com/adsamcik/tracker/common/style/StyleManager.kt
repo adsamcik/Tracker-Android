@@ -13,6 +13,7 @@ import com.adsamcik.tracker.common.style.update.DayNightChangeUpdate
 import com.adsamcik.tracker.common.style.update.MorningDayEveningNightTransitionUpdate
 import com.adsamcik.tracker.common.style.update.NoChangeUpdate
 import com.adsamcik.tracker.common.style.update.StyleUpdate
+import com.adsamcik.tracker.common.style.update.UpdateData
 import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
@@ -157,19 +158,14 @@ object StyleManager {
 	 *
 	 * @param delta value from 0 to 1
 	 */
-	private fun deltaUpdate(delta: Float) {
-		if (delta > 1) {
-			currentIndex = nextIndex
+	private fun deltaUpdate(delta: Float, data: UpdateData) {
+		if (delta >= 1) {
 			updateUpdate()
+			return
 		}
 
 		colorListLock.withLock {
-			if (colorList.size < 2) {
-				stopUpdate()
-				return
-			}
-
-			update(ColorUtils.blendARGB(colorList[currentIndex], colorList[nextIndex], delta))
+			update(ColorUtils.blendARGB(data.fromColor, data.toColor, delta))
 		}
 	}
 
@@ -218,7 +214,7 @@ object StyleManager {
 					val timer = Timer("ColorUpdate", true)
 					val deltaTime = calculateDeltaUpdate(data.duration)
 					timer.schedule(
-							ColorUpdateTask(data.duration, data.progress, deltaTime),
+							ColorUpdateTask(data, deltaTime),
 							0L,
 							deltaTime
 					)
@@ -341,14 +337,15 @@ object StyleManager {
 	 * Color update task that calculates delta update based on parameters. It is used for color transitions.
 	 */
 	internal class ColorUpdateTask(
-			private val periodLength: Long,
-			private var currentTime: Long = 0,
+			private val data: UpdateData,
 			private val deltaTime: Long
 	) : TimerTask() {
+		private var currentTime: Long = data.progress
+
 		override fun run() {
-			currentTime = (currentTime + deltaTime).rem(periodLength)
-			val delta = currentTime.toFloat() / periodLength
-			deltaUpdate(delta)
+			currentTime = (currentTime + deltaTime).coerceAtMost(data.duration)
+			val delta = currentTime.toFloat() / data.duration
+			deltaUpdate(delta, data)
 		}
 	}
 }
