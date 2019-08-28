@@ -28,4 +28,9 @@
     <string name="stats_run">běh</string>
     <string name="stats_walk">chůze</string>
     <string name="edit_session">Upravit relaci</string>
+    <string name="change_activity">Změnit aktivitu</string>
+    <string name="remove_session">Odstranit relaci</string>
+    <string name="stats_format_unknown_activity">relace</string>
+    <string name="stats_lunch">oběd</string>
+    <string name="stats_midnight">půlnoc</string>
 </resources>

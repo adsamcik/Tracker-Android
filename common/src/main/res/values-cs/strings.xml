@@ -72,4 +72,6 @@
     <string name="settings_color_morning_title">Ranní</string>
     <string name="settings_color_night_title">Noční</string>
     <string name="settings_color_in_template">%s barva</string>
+    <string name="settings_color_update_dn_switch_title">Den/noc přepínač</string>
+    <string name="settings_color_update_mden_trans_title">Ráno/den/večer/noc přechod</string>
 </resources>
