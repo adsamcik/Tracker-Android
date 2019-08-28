@@ -50,7 +50,9 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 		val entry = ChallengeEntry(definition.type, startAt, startAt + duration, difficulty)
 		entryDao.insertSetId(entry)
 
-		require(entry.id == 0L) { "Id was 0 after insertion. Something is wrong." }
+		require(entry.id > 0L) {
+			"Id was ${entry.id} for $entry after insertion. Something is wrong."
+		}
 
 		return entry
 	}
