@@ -3,6 +3,8 @@ package com.adsamcik.tracker.common.style.update
 import com.adsamcik.tracker.common.style.SunSetRise
 
 class NoChangeUpdate : StyleUpdate {
+	override val nameRes: Int = 0
+
 	override val requiredColorData: RequiredColors
 		get() = RequiredColors(emptyList())
 
