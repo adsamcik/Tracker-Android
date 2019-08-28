@@ -288,6 +288,7 @@ internal class MapSheetController(
 		// styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
 	}
 
+
 	init {
 		val mapLayerList = listOf(
 				NoMapLayerLogic(),
@@ -350,6 +351,7 @@ internal class MapSheetController(
 						LatLng(address.latitude, address.longitude),
 						ANIMATE_TO_ZOOM
 				)
+				sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 			}
 		} catch (e: IOException) {
 			SnackMaker(view).addMessage(R.string.map_search_no_geocoder)
