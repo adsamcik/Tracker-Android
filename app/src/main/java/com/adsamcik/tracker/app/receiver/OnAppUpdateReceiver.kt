@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.activity.api.ActivityRecognitionApi
 import com.adsamcik.tracker.common.extension.appVersion
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
@@ -21,8 +20,9 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 				val keyLastVersion = context.getString(R.string.key_last_app_version)
 				val lastVersion = getLong(keyLastVersion)
 
-				if (lastVersion < 311) {
-					ActivityRecognitionApi.rerunRecognitionForAll(context)
+				if (lastVersion < 317) {
+					//ActivityRecognitionApi.rerunRecognitionForAll(context)
+					context.getDatabasePath("challenge_database").delete()
 				}
 
 				val version = context.appVersion()
