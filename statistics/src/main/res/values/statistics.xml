@@ -8,6 +8,8 @@
     <string name="stats_evening">evening</string>
     <string name="stats_night">night</string>
 
+    <string name="stats_format_unknown_activity">session</string>
+
     <!-- "Day TimeOfDay Activity" -->
     <string name="stats_title_text" translatable="false">%1$s %2$s %3$s</string>
     <!-- "Day Activity" -->

@@ -52,13 +52,17 @@ object StatsFormat {
 			end: Calendar,
 			activity: SessionActivity
 	): String {
-		val activityName = activity.name
+		val activityName = if (activity.name.isBlank()) {
+			context.getString(R.string.stats_format_unknown_activity)
+		} else {
+			activity.name
+		}
 
 		val startHour = start[Calendar.HOUR_OF_DAY]
 		val endHour = end[Calendar.HOUR_OF_DAY]
 
 		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start.time).capitalize()
-		val stringRes = if (startHour >= 22 && endHour <= 2) {
+		val timeOfDayStringRes = if (startHour >= 22 && endHour <= 2) {
 			R.string.stats_midnight
 		} else if ((startHour in 22..24 || startHour in 0..6) && (endHour in 22..24 || endHour in 0..6)) {
 			R.string.stats_night
@@ -74,11 +78,11 @@ object StatsFormat {
 			0
 		}
 
-		return if (stringRes == 0) {
+		return if (timeOfDayStringRes == 0) {
 			context.getString(R.string.stats_generic_title_text, day, activityName)
 		} else {
-			val dayPart = context.getString(stringRes)
-			context.getString(R.string.stats_title_text, dayPart, day, activityName)
+			val dayPart = context.getString(timeOfDayStringRes)
+			context.getString(R.string.stats_title_text, day, dayPart, activityName)
 		}
 	}
 
