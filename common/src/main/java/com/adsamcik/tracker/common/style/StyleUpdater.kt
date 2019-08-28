@@ -5,7 +5,6 @@ import android.R.attr.state_pressed
 import android.content.res.ColorStateList
 import android.graphics.BlendMode
 import android.graphics.BlendModeColorFilter
-import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.ColorDrawable
@@ -186,7 +185,10 @@ internal class StyleUpdater : CoroutineScope {
 
 	@MainThread
 	private fun updateStyleForeground(view: ImageView, @ColorInt foregroundColor: Int) {
-		view.drawable?.let { drawable -> updateStyleForeground(drawable, foregroundColor) }
+		view.drawable?.let { drawable ->
+			updateStyleForeground(drawable, foregroundColor)
+			view.invalidateDrawable(drawable)
+		}
 	}
 
 	@MainThread

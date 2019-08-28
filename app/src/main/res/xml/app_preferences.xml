@@ -109,14 +109,14 @@
             android:title="@string/settings_style_mode_title"
             app:icon="@drawable/ic_palette_outline" />
 
-        <PreferenceCategory android:key="">
+        <PreferenceCategory android:key="@string/settings_style_color_category_key" />
 
+        <PreferenceCategory>
+            <androidx.preference.Preference
+                android:key="@string/settings_color_default_key"
+                android:title="@string/settings_color_default_title"
+                app:icon="@drawable/ic_circle_outline" />
         </PreferenceCategory>
-
-        <androidx.preference.Preference
-            android:key="@string/settings_color_default_key"
-            android:title="@string/settings_color_default_title"
-            app:icon="@drawable/ic_circle_outline" />
 
     </androidx.preference.PreferenceScreen>
 

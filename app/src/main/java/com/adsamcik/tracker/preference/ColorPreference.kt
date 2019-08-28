@@ -11,6 +11,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.style.ActiveColorData
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.utility.ColorConstants
 import com.adsamcik.tracker.common.style.utility.ColorGenerator
@@ -55,9 +56,25 @@ class ColorPreference : Preference, CoroutineScope {
 
 	private var colorImageView: AppCompatImageView? = null
 
-	fun setColor(position: Int, recyclerColorData: StylePage.RecyclerColorData) {
-		this.recyclerColorData = recyclerColorData
+	fun setColor(position: Int, activeColorData: ActiveColorData) {
+		this.recyclerColorData = StylePage.RecyclerColorData(activeColorData)
 		this.position = position
+		notifyChanged()
+	}
+
+	fun setDefault() {
+		val colorData = requireNotNull(recyclerColorData) { "First set color data by calling ${this::setColor.name}" }
+		val defaultColor = colorData.required.defaultColor
+
+		Preferences.getPref(context).edit {
+			val key = context.getString(
+					R.string.settings_color_key,
+					position
+			)
+			remove(key)
+		}
+
+		onColorChange(defaultColor)
 	}
 
 	private fun updateColor(
@@ -73,7 +90,7 @@ class ColorPreference : Preference, CoroutineScope {
 	}
 
 	@MainThread
-	private fun showDialog(context: Context) {
+	private fun showDialog() {
 		val dialog = MaterialDialog(context)
 		dialog.show()
 		launch(Dispatchers.Default) {
@@ -121,21 +138,35 @@ class ColorPreference : Preference, CoroutineScope {
 					initialSelection = initialColor,
 					allowCustomArgb = true,
 					showAlphaSelector = false
-			) { dialog, color ->
-				// Use color integer
-				Preferences.getPref(dialog.context).edit {
-					val key = dialog.context.getString(
-							R.string.settings_color_key,
-							position
-					)
-					setInt(key, color)
-				}
-
-				requireNotNull(recyclerColorData).color = color
-				updateColor(requireNotNull(colorImageView), color)
-
-				StyleManager.updateColorAt(position, color)
+			) { _, color ->
+				saveColor(color)
 			}
+		}
+	}
+
+	private fun saveColor(color: Int) {
+		val data = requireNotNull(recyclerColorData)
+
+		if (color == data.color) return
+
+		updatePreference(color)
+		onColorChange(color)
+	}
+
+	private fun onColorChange(color: Int) {
+		requireNotNull(recyclerColorData).color = color
+		StyleManager.updateColorAt(position, color)
+
+		notifyChanged()
+	}
+
+	private fun updatePreference(color: Int) {
+		Preferences.getPref(context).edit {
+			val key = context.getString(
+					R.string.settings_color_key,
+					position
+			)
+			setInt(key, color)
 		}
 	}
 
@@ -152,11 +183,15 @@ class ColorPreference : Preference, CoroutineScope {
 
 		colorImageView = colorView
 
-		colorView.setImageDrawable(StyleColorDrawable(colorView.drawable.mutate() as GradientDrawable))
+		colorView.drawable.let {
+			if (it !is StyleColorDrawable) {
+				colorView.setImageDrawable(StyleColorDrawable(it.mutate() as GradientDrawable))
+			}
+		}
 
 		updateColor(colorView, colorData.color)
 
-		holder.itemView.setOnClickListener { view -> showDialog(view.context) }
+		holder.itemView.setOnClickListener { showDialog() }
 	}
 
 	companion object {

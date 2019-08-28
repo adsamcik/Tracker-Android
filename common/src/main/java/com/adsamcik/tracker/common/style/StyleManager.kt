@@ -6,6 +6,7 @@ import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
+import com.adsamcik.tracker.common.BuildConfig
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.style.update.DayNightChangeUpdate
@@ -59,16 +60,39 @@ object StyleManager {
 	private val colorListLock = ReentrantLock()
 	private val timerLock = ReentrantLock()
 
+	private var update: StyleUpdate = NoChangeUpdate()
+
 	private val enabledUpdateList = listOf(
 			MorningDayEveningNightTransitionUpdate(),
 			DayNightChangeUpdate()
 	)
-	private var update: StyleUpdate = NoChangeUpdate()
 
-	val requiredColors = update.requiredColorData.colorList
-	val activeColorList: List<Int> = colorList
+	val enabledUpdateInfo: List<StyleUpdateInfo>
+		get() = enabledUpdateList.map { StyleUpdateInfo(it) }
+
+	val activeUpdateInfo: StyleUpdateInfo
+		get() = StyleUpdateInfo(update)
+
+	val activeColorList: List<ActiveColorData>
+		get() = colorList.zip(update.requiredColorData.list) { a, r ->
+			ActiveColorData(active = a, required = r)
+		}
 
 	private const val TEXT_ALPHA = 222
+
+	init {
+		if (BuildConfig.DEBUG) {
+			enabledUpdateList.forEach { styleUpdate ->
+				styleUpdate.requiredColorData.list.forEachIndexed { index, colorData ->
+					val default = colorData.defaultColor
+					require(default.alpha == 255) {
+						"Default color #${default.toString(16)} at index $index " +
+								"from ${styleUpdate::class.java.name} was not opaque"
+					}
+				}
+			}
+		}
+	}
 
 	/**
 	 * Creates color manager instance
@@ -230,6 +254,25 @@ object StyleManager {
 		}
 	}
 
+	fun setMode(context: Context, info: StyleUpdateInfo) {
+		val index = enabledUpdateInfo.indexOf(info)
+		require(index >= 0 && index < enabledUpdateList.size) { "Invalid update info $info" }
+
+		stopUpdate()
+		update = enabledUpdateList[index].also {
+			Preferences
+					.getPref(context)
+					.edit {
+						setString(R.string.settings_style_mode_key, it::class.java.name)
+					}
+		}
+
+		colorList.clear()
+		colorList.addAll(update.requiredColorData.list.map { it.defaultColor })
+
+		startUpdate()
+	}
+
 	/**
 	 * Initializes colors from preference. This completely replaces all current colors with those saved in preferences.
 	 */
@@ -248,7 +291,14 @@ object StyleManager {
 		update = enabledUpdateList.firstOrNull { it::class.java.name == mode }
 				?: enabledUpdateList.first()
 
-		val requiredColorList = update.requiredColorData.colorList
+		initializeColorListFromPreferences(context)
+
+		startUpdate()
+	}
+
+	private fun initializeColorListFromPreferences(context: Context) {
+		val preferences = Preferences.getPref(context)
+		val requiredColorList = update.requiredColorData.list
 		val format = context.getString(R.string.settings_color_key)
 
 		colorListLock.withLock {
@@ -259,19 +309,13 @@ object StyleManager {
 				val default = requiredColorList[i].defaultColor
 				val key = format.format(i)
 				val color = preferences.getInt(key, default)
-				require(color.alpha == 255) {
-					"Color #${color.toString(16)} with key $key and default " +
-							"#${default.toString(16)} from " +
-							"${update::class.java.name} was not opaque"
-				}
 				colorList.add(color)
 			}
 
 			colorList.trimToSize()
 		}
-
-		startUpdate()
 	}
+
 
 	/**
 	 * Updates specific color at given index. This function requires proper knowledge of the current colors.

@@ -13,7 +13,7 @@
     <!-- STYLE -->
     <string name="settings_style_mode_title">Style mode</string>
 
-    <string name="settings_style_category_key" translatable="false">styleCategory</string>
+    <string name="settings_style_color_category_key" translatable="false">styleColorCategory</string>
 
     <string-array name="settings_style_mode_values" translatable="false">
         <item>0</item>

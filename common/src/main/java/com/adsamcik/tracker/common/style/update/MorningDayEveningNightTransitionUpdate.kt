@@ -34,7 +34,9 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 			styleList: List<Int>,
 			sunSetRise: SunSetRise
 	): UpdateData {
-		require(styleList.size == requiredColorData.colorList.size)
+		require(styleList.size == requiredColorData.list.size) {
+			"Expected list of size ${requiredColorData.list.size} but got ${styleList.size}"
+		}
 
 		val time = Time.now
 
