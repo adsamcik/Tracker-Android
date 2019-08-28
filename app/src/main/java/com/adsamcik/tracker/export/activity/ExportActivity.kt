@@ -181,7 +181,7 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun checkExternalStoragePermissions(): Boolean {
-		if (Build.VERSION.SDK_INT > 22) {
+		if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1) {
 			val requiredPermissions = mutableListOf<String>()
 			if (!hasExternalStorageReadPermission) {
 				requiredPermissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -204,8 +204,14 @@ class ExportActivity : DetailActivity() {
 		return false
 	}
 
-	private fun getExportFileName() = edittext_filename.text?.toString()
-			?: getString(R.string.export_default_file_name)
+	private fun getExportFileName(): String {
+		val text = edittext_filename.text
+		return if (text.isNullOrBlank()) {
+			getString(R.string.export_default_file_name)
+		} else {
+			text.toString()
+		}
+	}
 
 	private fun export(directory: File, onPick: ((ExportResult) -> Unit)? = null) {
 		val from = this.range.start
@@ -259,7 +265,8 @@ class ExportActivity : DetailActivity() {
 	) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-		if (requestCode == PERMISSION_REQUEST_EXTERNAL_STORAGE && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+		if (requestCode == PERMISSION_REQUEST_EXTERNAL_STORAGE &&
+				grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
 			exportClick()
 		}
 	}
