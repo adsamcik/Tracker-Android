@@ -20,7 +20,7 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 								nameRes = R.string.settings_color_day_title
 						),
 						RequiredColorData(
-								defaultColor = -5026523,
+								defaultColor = -13033421,
 								nameRes = R.string.settings_color_evening_title
 						),
 						RequiredColorData(
