@@ -2,7 +2,6 @@ package com.adsamcik.tracker.license
 
 import android.content.Context
 import android.content.pm.ActivityInfo
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -36,25 +35,24 @@ class LicenseActivity : DetailActivity() {
 	override fun onConfigure(configuration: Configuration) {
 		configuration.elevation = 4.dp
 		configuration.titleBarLayer = 1
-		configuration.useColorControllerForContent = false
+		configuration.useColorControllerForContent = true
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
 		val frameLayout = createFrameContentLayout(false)
-		frameLayout.setBackgroundColor(Color.WHITE)
 
 		val adapter = Adapter()
 		val recycler = RecyclerView(this)
-				.also { frameLayout.addView(it) }
 				.apply {
 					layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
 					layoutManager = LinearLayoutManager(
 							this@LicenseActivity
-					).also { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+					).apply { requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
 					this.adapter = adapter
 				}
+				.also { frameLayout.addView(it) }
 
 
 		val licenseDialogString = "LicensesDialog"
