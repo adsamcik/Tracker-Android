@@ -94,6 +94,10 @@ class SessionActivityActivity : DetailActivity() {
 		initializeColorController()
 	}
 
+	override fun onConfigure(configuration: Configuration) {
+		configuration.useColorControllerForContent = true
+	}
+
 	private fun onItemSwipedCallback(index: Int) {
 		val context = this
 		val item = adapter.getItem(index)

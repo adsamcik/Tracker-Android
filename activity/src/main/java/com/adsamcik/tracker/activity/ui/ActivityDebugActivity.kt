@@ -13,18 +13,24 @@ import com.adsamcik.tracker.common.debug.DebugDatabase
 import com.adsamcik.tracker.common.debug.LogData
 import com.adsamcik.tracker.common.extension.formatAsDateTime
 import com.adsamcik.tracker.common.recycler.BaseRecyclerAdapter
+import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class ActivityDebugActivity : DetailActivity() {
 
+	override fun onConfigure(configuration: Configuration) {
+		configuration.useColorControllerForContent = true
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		val rootView = createFrameContentLayout(true)
+		val rootView = createFrameContentLayout(false)
 
 		val recyclerView = RecyclerView(this).apply {
 			layoutManager = LinearLayoutManager(this@ActivityDebugActivity)
+			addItemDecoration(SimpleMarginDecoration())
 			adapter = Adapter().also { adapter ->
 				launch(Dispatchers.Default) {
 					val data = DebugDatabase
