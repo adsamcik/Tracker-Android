@@ -7,7 +7,6 @@ import android.view.WindowManager
 import android.widget.AdapterView
 import androidx.annotation.AnyThread
 import androidx.annotation.IdRes
-import androidx.annotation.RequiresApi
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.style.StyleManager.styleData
 import com.adsamcik.tracker.common.style.marker.IViewChange
@@ -93,17 +92,37 @@ class StyleController : CoroutineScope {
 	}
 
 	fun watchNotificationBar(styleView: NotificationStyleView) {
-		notificationStyleView = styleView
-		styleView.window.apply {
-			if (!styleView.isTranslucent) {
-				clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-				addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-			} else {
-				addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-				clearFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+		val style = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+			when (styleView.style) {
+				NotificationStyle.LayerColor,
+				NotificationStyle.Default -> NotificationStyle.Default
+				NotificationStyle.Transparent,
+				NotificationStyle.Translucent -> NotificationStyle.Translucent
+			}
+		} else {
+			styleView.style
+		}
+
+		val newStyleView = NotificationStyleView(styleView.window, styleView.layer, style)
+
+		notificationStyleView = newStyleView
+		newStyleView.window.apply {
+			when (newStyleView.style) {
+				NotificationStyle.Default -> {
+					clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+					clearFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+				}
+				NotificationStyle.LayerColor, NotificationStyle.Transparent -> {
+					clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+					addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+				}
+				NotificationStyle.Translucent -> {
+					addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+					clearFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+				}
 			}
 		}
-		styleUpdater.updateNotificationBar(styleView, styleData)
+		styleUpdater.updateNotificationBar(newStyleView, styleData)
 	}
 
 	/**
@@ -305,10 +324,8 @@ class StyleController : CoroutineScope {
 			}
 		}
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			notificationStyleView?.let { styleView ->
-				styleUpdater.updateNotificationBar(styleView, styleData)
-			}
+		notificationStyleView?.let { styleView ->
+			styleUpdater.updateNotificationBar(styleView, styleData)
 		}
 
 		synchronized(styleChangeListeners) {

@@ -45,10 +45,17 @@ data class RecyclerStyleView(
 data class NotificationStyleView(
 		val window: Window,
 		override val layer: Int,
-		val isTranslucent: Boolean
+		val style: NotificationStyle
 ) : BaseStyleView {
 	override val maxDepth: Int = 0
 	override val view: View get() = window.decorView
 	override val isInverted: Boolean = false
+}
+
+enum class NotificationStyle {
+	Default,
+	LayerColor,
+	Transparent,
+	Translucent
 }
 

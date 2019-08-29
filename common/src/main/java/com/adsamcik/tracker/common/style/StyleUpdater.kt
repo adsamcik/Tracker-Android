@@ -2,9 +2,11 @@ package com.adsamcik.tracker.common.style
 
 import android.R.attr.state_enabled
 import android.R.attr.state_pressed
+import android.annotation.SuppressLint
 import android.content.res.ColorStateList
 import android.graphics.BlendMode
 import android.graphics.BlendModeColorFilter
+import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.ColorDrawable
@@ -21,6 +23,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
@@ -56,24 +59,37 @@ internal class StyleUpdater {
 		}
 	}
 
+	private fun updateUiVisibility(view: View, luminance: Int) {
+		assert(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+		@SuppressLint("InlinedApi")
+		view.systemUiVisibility = if (luminance > 0) {
+			view.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+		} else {
+			view.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+		}
+	}
+
 	internal fun updateNotificationBar(styleView: NotificationStyleView, styleData: StyleData) {
-		val backgroundColor = styleData.backgroundColorFor(styleView)
-		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-
 		styleView.view.post {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-				styleView.view.systemUiVisibility = if (perceivedLuminance > 0) {
-					styleView.view.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-				} else {
-					styleView.view.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
-				}
-			}
+			when (styleView.style) {
+				NotificationStyle.LayerColor -> {
+					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+					val backgroundColor = styleData.backgroundColorFor(styleView)
+					updateUiVisibility(styleView.view, perceivedLuminance)
 
-			styleView.window.statusBarColor = ColorFunctions.getBackgroundLayerColor(
-					backgroundColor,
-					perceivedLuminance,
-					styleView.layer
-			)
+					styleView.window.statusBarColor = ColorFunctions.getBackgroundLayerColor(
+							backgroundColor,
+							perceivedLuminance,
+							styleView.layer
+					)
+				}
+				NotificationStyle.Transparent -> {
+					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+					updateUiVisibility(styleView.view, perceivedLuminance)
+					styleView.window.statusBarColor = Color.TRANSPARENT
+				}
+				NotificationStyle.Translucent, NotificationStyle.Default -> Unit
+			}
 		}
 	}
 
@@ -151,9 +167,10 @@ internal class StyleUpdater {
 
 	@MainThread
 	private fun updateStyleForeground(drawable: Drawable, @ColorInt foregroundColor: Int) {
+		drawable.mutate()
 		when (drawable) {
 			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(foregroundColor)
-			else -> drawable.setTint(foregroundColor)
+			else -> DrawableCompat.setTint(drawable, foregroundColor)
 		}
 	}
 
