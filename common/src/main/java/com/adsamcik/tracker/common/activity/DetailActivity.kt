@@ -19,8 +19,11 @@ import androidx.core.view.updateLayoutParams
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.common.style.NotificationStyle
+import com.adsamcik.tracker.common.style.NotificationStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import kotlinx.android.synthetic.main.activity_content_detail.*
+
 
 /**
  * Special abstract helper activity which provides custom AppBar and some other assist functions.
@@ -43,7 +46,8 @@ abstract class DetailActivity : CoreUIActivity() {
 		val desiredElevation = configuration.elevation ?: 4.dp * configuration.titleBarLayer
 		top_panel_root.elevation = kotlin.math.max(0, desiredElevation).toFloat()
 
-		styleController.watchView(StyleView(top_panel_root, configuration.titleBarLayer))
+		val topBarStyleView = StyleView(top_panel_root, configuration.titleBarLayer)
+		styleController.watchView(topBarStyleView)
 
 		if (configuration.useColorControllerForContent) {
 			styleController.watchView(StyleView(content_detail_root, 0))
@@ -56,6 +60,18 @@ abstract class DetailActivity : CoreUIActivity() {
 				height += Assist.getStatusBarHeight(this@DetailActivity)
 			}
 		}
+
+		styleController.watchNotificationBar(
+				NotificationStyleView(
+						window,
+						layer = topBarStyleView.layer,
+						style = if (configuration.fitSystemWindows) {
+							NotificationStyle.LayerColor
+						} else {
+							NotificationStyle.Translucent
+						}
+				)
+		)
 	}
 
 	override fun onBackPressed() {
