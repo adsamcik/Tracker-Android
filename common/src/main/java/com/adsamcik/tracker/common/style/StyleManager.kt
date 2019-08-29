@@ -255,13 +255,7 @@ object StyleManager {
 		require(index >= 0 && index < enabledUpdateList.size) { "Invalid update info $info" }
 
 		stopUpdate()
-		update = enabledUpdateList[index].also {
-			Preferences
-					.getPref(context)
-					.edit {
-						setString(R.string.settings_style_mode_key, it::class.java.name)
-					}
-		}
+		update = enabledUpdateList[index]
 
 		colorList.clear()
 		colorList.addAll(update.requiredColorData.list.map { it.defaultColor })
@@ -278,13 +272,14 @@ object StyleManager {
 
 		val preferences = Preferences.getPref(context)
 		val mode = preferences.getStringRes(R.string.settings_style_mode_key)
-				?: MorningDayEveningNightTransitionUpdate::class.java.name
+				?: enabledUpdateList.first().id
 
-		if (mode == update::class.java.name) return
+		if (mode == update.id) return
 
 		stopUpdate()
 
-		update = enabledUpdateList.firstOrNull { it::class.java.name == mode }
+		//can be null if the mode was removed
+		update = enabledUpdateList.firstOrNull { it.id == mode }
 				?: enabledUpdateList.first()
 
 		initializeColorListFromPreferences(context)

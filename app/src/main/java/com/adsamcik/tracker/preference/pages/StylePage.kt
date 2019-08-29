@@ -26,22 +26,23 @@ class StylePage : PreferencePage {
 
 		caller.findPreferenceTyped<ListPreference>(R.string.settings_style_mode_key).apply {
 			entries = enabledUpdateInfoList.map { context.getText(it.nameRes) }.toTypedArray()
-			entryValues = enabledUpdateInfoList.indices.map { it.toString() }.toTypedArray()
-			setValueIndex(enabledUpdateInfoList.indexOf(StyleManager.activeUpdateInfo))
+			entryValues = enabledUpdateInfoList.map { it.id }.toTypedArray()
+			val selectedIndex = enabledUpdateInfoList.indexOf(StyleManager.activeUpdateInfo)
+			setValueIndex(selectedIndex)
 
 			setOnPreferenceChangeListener { preference, newValue ->
-				val index = newValue.toString().toInt()
-				val newMode = enabledUpdateInfoList[index]
+				val id = newValue.toString()
+				val newMode = enabledUpdateInfoList.first { it.id == id }
 				val currentMode = StyleManager.activeUpdateInfo
 
 				if (newMode != currentMode) {
 					clearColorPreferences()
 					StyleManager.setMode(preference.context, newMode)
 					updateColorPreferences(StyleManager.activeColorList)
-					true
-				} else {
-					false
 				}
+
+				//Always return true because current mode could have been default
+				true
 			}
 		}
 
