@@ -21,6 +21,7 @@ class ActivityDebugActivity : DetailActivity() {
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.useColorControllerForContent = true
+		configuration.titleBarLayer = 1
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {

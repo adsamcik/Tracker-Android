@@ -96,6 +96,7 @@ class SessionActivityActivity : DetailActivity() {
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.useColorControllerForContent = true
+		configuration.titleBarLayer = 1
 	}
 
 	private fun onItemSwipedCallback(index: Int) {
