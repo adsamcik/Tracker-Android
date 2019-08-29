@@ -3,9 +3,11 @@ package com.adsamcik.tracker.common.style
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.AdapterView
 import androidx.annotation.AnyThread
 import androidx.annotation.IdRes
+import androidx.annotation.RequiresApi
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.style.StyleManager.styleData
 import com.adsamcik.tracker.common.style.marker.IViewChange
@@ -92,6 +94,16 @@ class StyleController : CoroutineScope {
 
 	fun watchNotificationBar(styleView: NotificationStyleView) {
 		notificationStyleView = styleView
+		styleView.window.apply {
+			if (!styleView.isTranslucent) {
+				clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+				addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+			} else {
+				addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+				clearFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+			}
+		}
+		styleUpdater.updateNotificationBar(styleView, styleData)
 	}
 
 	/**

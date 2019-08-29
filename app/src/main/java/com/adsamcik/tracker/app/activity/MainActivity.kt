@@ -25,6 +25,7 @@ import com.adsamcik.tracker.common.extension.guidelineEnd
 import com.adsamcik.tracker.common.extension.transaction
 import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
+import com.adsamcik.tracker.common.style.NotificationStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
@@ -139,7 +140,9 @@ class MainActivity : CoreUIActivity() {
 		button_game.targetTranslationZ = 8.dp.toFloat()
 		button_game.extendTouchAreaBy(0, 0, 56.dp, 0)
 		button_game.onEnterStateListener = { _, state, _, _ ->
-			if (state == DraggableImageButton.State.TARGET) hideBottomLayer()
+			if (state == DraggableImageButton.State.TARGET) {
+				hideBottomLayer()
+			}
 		}
 		button_game.onLeaveStateListener = { _, state ->
 			if (state == DraggableImageButton.State.TARGET) showBottomLayer()
@@ -217,10 +220,12 @@ class MainActivity : CoreUIActivity() {
 
 	private fun hideBottomLayer() {
 		trackerFragment.view?.visibility = View.GONE
+		updateNotificationBar(isTranslucent = true)
 	}
 
 	private fun showBottomLayer() {
 		trackerFragment.view?.visibility = View.VISIBLE
+		updateNotificationBar(isTranslucent = false)
 	}
 
 	private fun hideMiddleLayer() {
@@ -274,6 +279,17 @@ class MainActivity : CoreUIActivity() {
 		styleController.watchView(StyleView(button_stats, 1, maxDepth = 0, isInverted = true))
 		styleController.watchView(StyleView(button_map, 1, maxDepth = 0, isInverted = true))
 		styleController.watchView(StyleView(button_game, 1, maxDepth = 0, isInverted = true))
+		updateNotificationBar(isTranslucent = false)
+	}
+
+	private fun updateNotificationBar(isTranslucent: Boolean) {
+		styleController.watchNotificationBar(
+				NotificationStyleView(
+						window,
+						layer = 1,
+						isTranslucent = isTranslucent
+				)
+		)
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {

@@ -19,7 +19,6 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
-import androidx.annotation.RequiresApi
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.core.view.children
@@ -57,17 +56,17 @@ internal class StyleUpdater {
 		}
 	}
 
-
-	@RequiresApi(Build.VERSION_CODES.M)
 	internal fun updateNotificationBar(styleView: NotificationStyleView, styleData: StyleData) {
 		val backgroundColor = styleData.backgroundColorFor(styleView)
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
 		styleView.view.post {
-			styleView.view.systemUiVisibility = if (perceivedLuminance > 0) {
-				styleView.view.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-			} else {
-				styleView.view.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				styleView.view.systemUiVisibility = if (perceivedLuminance > 0) {
+					styleView.view.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+				} else {
+					styleView.view.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+				}
 			}
 
 			styleView.window.statusBarColor = ColorFunctions.getBackgroundLayerColor(
