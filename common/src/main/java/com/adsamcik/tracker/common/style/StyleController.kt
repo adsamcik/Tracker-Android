@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.common.style
 
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -35,6 +36,7 @@ class StyleController : CoroutineScope {
 
 	private val viewList = mutableListOf<StyleView>()
 	private val recyclerList = mutableListOf<RecyclerStyleView>()
+	private var notificationStyleView: NotificationStyleView? = null
 
 	private val styleUpdater = StyleUpdater()
 
@@ -86,6 +88,10 @@ class StyleController : CoroutineScope {
 			viewList.add(styleView)
 		}
 		styleUpdater.updateSingle(styleView, styleData)
+	}
+
+	fun watchNotificationBar(styleView: NotificationStyleView) {
+		notificationStyleView = styleView
 	}
 
 	/**
@@ -157,6 +163,10 @@ class StyleController : CoroutineScope {
 	 */
 	fun stopWatchingView(predicate: (StyleView) -> Boolean) {
 		stopWatching(viewList, predicate)
+	}
+
+	fun stopWatchingNotificationBar() {
+		notificationStyleView = null
 	}
 
 	/**
@@ -280,6 +290,12 @@ class StyleController : CoroutineScope {
 		synchronized(recyclerList) {
 			recyclerList.forEach { styleView ->
 				styleUpdater.updateSingle(styleView, styleData)
+			}
+		}
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+			notificationStyleView?.let { styleView ->
+				styleUpdater.updateNotificationBar(styleView, styleData)
 			}
 		}
 

@@ -19,6 +19,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
+import androidx.annotation.RequiresApi
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.core.view.children
@@ -30,25 +31,14 @@ import com.adsamcik.tracker.common.style.marker.StyleableView
 import com.adsamcik.tracker.common.style.utility.ColorFunctions
 import com.adsamcik.tracker.common.style.utility.brightenColor
 import com.google.android.material.button.MaterialButton
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlin.coroutines.CoroutineContext
 
-internal class StyleUpdater : CoroutineScope {
-	private val job = SupervisorJob()
-
-	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
-
-
+internal class StyleUpdater {
 	internal fun updateSingle(styleView: RecyclerStyleView, styleData: StyleData) {
 		val backgroundColor = styleData.backgroundColorFor(styleView)
 		val foregroundColor = styleData.foregroundColorFor(styleView)
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
-		launch(Dispatchers.Main) {
+		styleView.view.post {
 			updateSingle(styleView, backgroundColor, foregroundColor, perceivedLuminance)
 		}
 	}
@@ -58,11 +48,32 @@ internal class StyleUpdater : CoroutineScope {
 		val foregroundColor = styleData.foregroundColorFor(styleView)
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
-		launch(Dispatchers.Main) {
+		styleView.view.post {
 			updateSingle(
 					backgroundColor, foregroundColor, perceivedLuminance, styleView.view,
 					styleView.layer,
 					styleView.maxDepth
+			)
+		}
+	}
+
+
+	@RequiresApi(Build.VERSION_CODES.M)
+	internal fun updateNotificationBar(styleView: NotificationStyleView, styleData: StyleData) {
+		val backgroundColor = styleData.backgroundColorFor(styleView)
+		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+
+		styleView.view.post {
+			styleView.view.systemUiVisibility = if (perceivedLuminance > 0) {
+				styleView.view.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+			} else {
+				styleView.view.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+			}
+
+			styleView.window.statusBarColor = ColorFunctions.getBackgroundLayerColor(
+					backgroundColor,
+					perceivedLuminance,
+					styleView.layer
 			)
 		}
 	}

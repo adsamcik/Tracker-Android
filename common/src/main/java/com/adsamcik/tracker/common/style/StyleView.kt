@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.common.style
 
 import android.view.View
+import android.view.Window
 import androidx.annotation.IntRange
 import androidx.recyclerview.widget.RecyclerView
 
@@ -39,5 +40,14 @@ data class RecyclerStyleView(
 ) : BaseStyleView {
 	override val maxDepth: Int
 		get() = Int.MAX_VALUE
+}
+
+data class NotificationStyleView(
+		val window: Window,
+		override val layer: Int
+) : BaseStyleView {
+	override val maxDepth: Int = 0
+	override val view: View get() = window.decorView
+	override val isInverted: Boolean = false
 }
 
