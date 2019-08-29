@@ -27,7 +27,7 @@ import kotlinx.android.synthetic.main.activity_content_detail.*
  * Custom AppBar was implemented to provide complete control over that piece of layout.
  */
 abstract class DetailActivity : CoreUIActivity() {
-	open fun onConfigure(configuration: Configuration) {}
+	open fun onConfigure(configuration: Configuration) = Unit
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,10 +36,6 @@ abstract class DetailActivity : CoreUIActivity() {
 
 		val configuration = Configuration()
 		onConfigure(configuration)
-
-		top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-			height += Assist.getStatusBarHeight(this@DetailActivity)
-		}
 
 		back_button.setOnClickListener { onBackPressed() }
 
@@ -51,6 +47,14 @@ abstract class DetailActivity : CoreUIActivity() {
 
 		if (configuration.useColorControllerForContent) {
 			styleController.watchView(StyleView(content_detail_root, 0))
+		}
+
+		if (configuration.fitSystemWindows) {
+			findViewById<ViewGroup>(R.id.detail_root).fitsSystemWindows = true
+		} else {
+			top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+				height += Assist.getStatusBarHeight(this@DetailActivity)
+			}
 		}
 	}
 
@@ -70,7 +74,11 @@ abstract class DetailActivity : CoreUIActivity() {
 	}
 
 	@MainThread
-	protected fun addAction(@DrawableRes iconRes: Int, @StringRes description: Int, onClickListener: View.OnClickListener) {
+	protected fun addAction(
+			@DrawableRes iconRes: Int,
+			@StringRes description: Int,
+			onClickListener: View.OnClickListener
+	) {
 		val button = AppCompatImageButton(this).apply {
 			layoutParams = ViewGroup.LayoutParams(48.dp, 48.dp)
 			contentDescription = getString(description)
@@ -124,18 +132,18 @@ abstract class DetailActivity : CoreUIActivity() {
 
 	@Suppress("UNCHECKED_CAST")
 	private fun <T : ViewGroup> createContentLayout(
-			scrollable: Boolean,
+			isScrollable: Boolean,
 			addContentPadding: Boolean,
 			tClass: Class<T>
 	): T {
 		//Casts are safe and due to limitations it was done this way. Can be revisited in the future for improvements.
 		return when (tClass) {
 			LinearLayout::class.java -> createLinearContentLayout(
-					scrollable,
+					isScrollable,
 					addContentPadding
 			) as T
 			androidx.constraintlayout.widget.ConstraintLayout::class.java -> createConstraintContentLayout(
-					scrollable,
+					isScrollable,
 					addContentPadding
 			) as T
 			FrameLayout::class.java -> createFrameContentLayout(addContentPadding) as T
@@ -221,7 +229,8 @@ abstract class DetailActivity : CoreUIActivity() {
 	data class Configuration(
 			var titleBarLayer: Int = 0,
 			var elevation: Int? = null,
-			var useColorControllerForContent: Boolean = false
+			var useColorControllerForContent: Boolean = false,
+			var fitSystemWindows: Boolean = true
 	)
 }
 
