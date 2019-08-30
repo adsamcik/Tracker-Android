@@ -12,18 +12,14 @@ internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos:
 				timeMillis,
 				elapsedRealtimeNanos
 		) {
-	override val map: MutableMap<String, InternalData> = mutableMapOf()
+	override val map: MutableMap<String, Any> = mutableMapOf()
 
-	fun <T : Any> set(key: String, value: T) {
-		set(key, InternalData(value as Any))
+	fun set(key: String, value: Any) {
+		map[key] = value
 	}
 
 	private fun <T : Any> set(key: TrackerComponentRequirement, value: T) {
-		set(key.name, InternalData(value as Any))
-	}
-
-	private fun set(key: String, value: InternalData) {
-		map[key] = value
+		set(key.name, value)
 	}
 
 	fun setActivity(value: ActivityInfo) {
@@ -41,12 +37,12 @@ internal class MutableCollectionTempData(timeMillis: Long, elapsedRealtimeNanos:
 
 @Suppress("TooManyFunctions")
 internal abstract class CollectionTempData(val timeMillis: Long, val elapsedRealtimeNanos: Long) {
-	protected abstract val map: Map<String, InternalData>
+	protected abstract val map: Map<String, Any>
 
 	fun containsKey(key: String): Boolean = map.containsKey(key)
 
 	private fun tryGetRaw(key: String): Any? {
-		return map[key]?.value
+		return map[key]
 	}
 
 	fun <T> tryGet(key: String): T? {
@@ -112,7 +108,5 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 		validatePermissions(component, TrackerComponentRequirement.CELL)
 		return get(TrackerComponentRequirement.CELL)
 	}
-
-	protected data class InternalData(val value: Any)
 }
 
