@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.common.data
 
 import android.net.wifi.ScanResult
+import android.os.Bundle
 import android.os.Parcelable
-import com.adsamcik.tracker.common.Time
 import kotlinx.android.parcel.Parcelize
 
 interface CollectionData : Parcelable {
@@ -38,13 +38,65 @@ interface CollectionData : Parcelable {
  * but they have not been modified in any way.
  */
 @Parcelize
-data class MutableCollectionData(
-		override val time: Long = Time.nowMillis,
-		override var location: Location? = null,
-		override var activity: ActivityInfo? = null,
-		override var cell: CellData? = null,
-		override var wifi: WifiData? = null
-) : CollectionData {
+class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
+
+	constructor(time: Long) : this() {
+		this.time = time
+	}
+
+	override var time: Long
+		get() = get(TIME)
+		set(value) = set(TIME, value)
+
+	override var location: Location?
+		get() = tryGet(LOCATION)
+		set(value) = set(LOCATION, value)
+
+	override var activity: ActivityInfo?
+		get() = tryGet(ACTIVITY)
+		set(value) = set(ACTIVITY, value)
+
+	override var cell: CellData?
+		get() = tryGet(CELL)
+		set(value) = set(CELL, value)
+
+	override var wifi: WifiData?
+		get() = tryGet(WIFI)
+		set(value) = set(WIFI, value)
+
+
+	fun get(key: String): Long {
+		return bundle.getLong(key)
+	}
+
+	fun <T : Parcelable> get(key: String): T {
+		return requireNotNull(bundle.getParcelable(key))
+	}
+
+	fun <T : Parcelable> tryGet(key: String): T? {
+		return bundle.getParcelable(key) as? T
+	}
+
+	fun set(key: String, value: Parcelable?) {
+		if (value == null) {
+			bundle.remove(key)
+		} else {
+			setNonNullable(key, value)
+		}
+	}
+
+	fun set(key: String, value: Long?) {
+		if (value == null) {
+			bundle.remove(key)
+		} else {
+			bundle.putLong(key, value)
+		}
+	}
+
+	private fun setNonNullable(key: String, value: Parcelable) {
+		bundle.putParcelable(key, value)
+	}
+
 	/**
 	 * Sets collection location.
 	 *
@@ -68,6 +120,14 @@ data class MutableCollectionData(
 			val wifiLocation = if (location != null) Location(location) else null
 			this.wifi = WifiData(wifiLocation, time, scannedWifi)
 		}
+	}
+
+	companion object {
+		private const val WIFI = "WiFi"
+		private const val CELL = "Cell"
+		private const val TIME = "Time"
+		private const val LOCATION = "Location"
+		private const val ACTIVITY = "Activity"
 	}
 }
 
