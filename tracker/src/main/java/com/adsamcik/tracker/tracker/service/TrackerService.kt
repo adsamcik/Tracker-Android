@@ -73,7 +73,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private var dataProducerManager: DataProducerManager? = null
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
-	//todo can crash if ended too quickly because uninitialized
 	private val postComponentList = mutableListOf<PostTrackerComponent>()
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
@@ -174,6 +173,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(DatabaseCellComponent())
 			add(DatabaseLocationComponent())
 			add(DatabaseWifiComponent())
+			add(DatabaseLocationComponent())
 		}.forEach { it.onEnable(this) }
 	}
 

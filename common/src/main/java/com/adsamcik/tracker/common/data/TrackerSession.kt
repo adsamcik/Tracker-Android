@@ -102,6 +102,18 @@ class MutableTrackerSession(
 			super.id = value
 		}
 
+	override var start: Long
+		get() = super.start
+		public set(value) {
+			super.start = value
+		}
+
+	override var end: Long
+		get() = super.end
+		public set(value) {
+			super.end = value
+		}
+
 	override var isUserInitiated: Boolean
 		get() = super.isUserInitiated
 		public set(value) {
@@ -132,18 +144,6 @@ class MutableTrackerSession(
 			super.distanceOnFootInM = value
 		}
 
-	override var start: Long
-		get() = super.start
-		public set(value) {
-			super.start = value
-		}
-
-	override var end: Long
-		get() = super.end
-		public set(value) {
-			super.end = value
-		}
-
 	override var steps: Int
 		get() = super.steps
 		public set(value) {
@@ -160,12 +160,12 @@ class MutableTrackerSession(
 			0,
 			start,
 			start,
-			isUserInitiated,
-			0,
-			0f,
-			0f,
-			0f,
-			0
+			isUserInitiated = isUserInitiated,
+			collections = 0,
+			distanceInM = 0f,
+			distanceInVehicleInM = 0f,
+			distanceOnFootInM = 0f,
+			steps = 0
 	)
 
 	constructor(session: TrackerSession) : this(

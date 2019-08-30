@@ -18,10 +18,12 @@ import com.adsamcik.tracker.common.database.dao.CellLocationDao
 import com.adsamcik.tracker.common.database.dao.CellOperatorDao
 import com.adsamcik.tracker.common.database.dao.GeneralDao
 import com.adsamcik.tracker.common.database.dao.LocationDataDao
+import com.adsamcik.tracker.common.database.dao.LocationWifiCountDao
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
 import com.adsamcik.tracker.common.database.dao.WifiDataDao
 import com.adsamcik.tracker.common.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.common.database.data.DatabaseLocation
+import com.adsamcik.tracker.common.database.data.DatabaseLocationWifiCount
 import com.adsamcik.tracker.common.database.data.DatabaseWifiData
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import io.requery.android.database.sqlite.SQLiteDatabase
@@ -37,8 +39,9 @@ import kotlinx.coroutines.launch
 			DatabaseWifiData::class,
 			SessionActivity::class,
 			NetworkOperator::class,
-			DatabaseCellLocation::class],
-		version = 9
+			DatabaseCellLocation::class,
+			DatabaseLocationWifiCount::class],
+		version = 10
 )
 @TypeConverters(CellTypeConverter::class, DetectedActivityTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -48,6 +51,7 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun sessionDao(): SessionDataDao
 
 	abstract fun wifiDao(): WifiDataDao
+	abstract fun wifiLocationCountDao(): LocationWifiCountDao
 
 	abstract fun cellOperatorDao(): CellOperatorDao
 	abstract fun cellLocationDao(): CellLocationDao
@@ -79,7 +83,8 @@ abstract class AppDatabase : RoomDatabase() {
 							MIGRATION_5_6,
 							MIGRATION_6_7,
 							MIGRATION_7_8,
-							MIGRATION_8_9
+							MIGRATION_8_9,
+							MIGRATION_9_10
 					)
 					.openHelperFactory(RequerySQLiteOpenHelperFactory(listOf(options)))
 					.build()

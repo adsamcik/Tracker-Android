@@ -8,4 +8,3 @@ internal data class CellScanData(
 		val cellScanData: List<CellInfo>,
 		val registeredCells: List<com.adsamcik.tracker.common.data.CellInfo>
 )
-

@@ -122,3 +122,15 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
 		}
 	}
 }
+
+val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+	override fun migrate(database: SupportSQLiteDatabase) {
+		with(database) {
+			execSQL("CREATE TABLE IF NOT EXISTS location_wifi_count (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `count` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL)")
+			execSQL("CREATE  INDEX `index_location_wifi_count_lon` ON location_wifi_count (`lon`)")
+			execSQL("CREATE  INDEX `index_location_wifi_count_lat` ON location_wifi_count (`lat`)")
+			execSQL("CREATE  INDEX `index_location_wifi_count_time` ON location_wifi_count (`time`)")
+		}
+	}
+}
+

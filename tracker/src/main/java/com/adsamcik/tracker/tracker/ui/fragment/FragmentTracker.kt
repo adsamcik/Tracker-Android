@@ -40,7 +40,6 @@ import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.useMock
 import com.adsamcik.tracker.tracker.R
@@ -242,8 +241,15 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		)
 
 		val session = TrackerSession(
-				0, Time.nowMillis - 5 * Time.MINUTE_IN_MILLISECONDS, Time.nowMillis, true, 56,
-				5410f, 15f, 5000f, 154
+				0,
+				Time.nowMillis - 5 * Time.MINUTE_IN_MILLISECONDS,
+				Time.nowMillis,
+				true,
+				56,
+				5410f,
+				15f,
+				5000f,
+				154
 		)
 
 		updateData(CollectionDataEcho(collectionData, session))

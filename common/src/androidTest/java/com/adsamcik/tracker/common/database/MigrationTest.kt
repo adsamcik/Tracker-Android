@@ -263,6 +263,16 @@ class MigrationTest {
 		}
 	}
 
+	@Test
+	@Throws(IOException::class)
+	fun migrate9To10() {
+		val db = helper.createDatabase(TEST_DB, 8)
+
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 10, true, MIGRATION_8_9, MIGRATION_9_10)
+	}
+
 	companion object {
 		private const val TEST_DB = "migration-test"
 	}
