@@ -48,9 +48,9 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 
 		updateList.forEach {
 			if (it.longitude != null && it.latitude != null) {
-				updateSignalStrength(it.BSSID, it.longitude, it.latitude, it.altitude, it.level)
+				updateSignalStrength(it.bssid, it.longitude, it.latitude, it.altitude, it.level)
 			}
-			updateData(it.BSSID, it.SSID, it.capabilities, it.frequency, it.lastSeen)
+			updateData(it.bssid, it.ssid, it.capabilities, it.frequency, it.lastSeen)
 		}
 	}
 

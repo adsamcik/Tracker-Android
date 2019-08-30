@@ -12,13 +12,13 @@ import com.adsamcik.tracker.common.data.WifiInfo
 		indices = [Index("longitude"), Index("latitude"), Index("last_seen")]
 )
 data class DatabaseWifiData(
-		@PrimaryKey @ColumnInfo(name = "bssid") var BSSID: String,
+		@PrimaryKey var bssid: String,
 		val longitude: Double?,
 		val latitude: Double?,
 		val altitude: Double?,
 		@ColumnInfo(name = "first_seen") var firstSeen: Long,
 		@ColumnInfo(name = "last_seen") var lastSeen: Long,
-		@ColumnInfo(name = "ssid") var SSID: String,
+		var ssid: String,
 		var capabilities: String,
 		var frequency: Int = 0,
 		var level: Int = 0

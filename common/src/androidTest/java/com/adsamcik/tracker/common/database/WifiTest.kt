@@ -36,17 +36,17 @@ class WifiTest {
 		val dbget = wifiDao.getAll()
 
 		Assert.assertTrue(dbget.isNotEmpty())
-		Assert.assertEquals(array.distinctBy { it.BSSID }.size, dbget.size)
+		Assert.assertEquals(array.distinctBy { it.bssid }.size, dbget.size)
 		array.forEach { dwd ->
-			val item = dbget.find { it.BSSID == dwd.BSSID }!!
-			Assert.assertEquals(dwd.BSSID, item.BSSID)
+			val item = dbget.find { it.bssid == dwd.bssid }!!
+			Assert.assertEquals(dwd.bssid, item.bssid)
 			Assert.assertEquals(dwd.firstSeen, item.firstSeen)
 			Assert.assertEquals(dwd.lastSeen, item.lastSeen)
 			Assert.assertEquals(dwd.longitude, item.longitude)
 			Assert.assertEquals(dwd.latitude, item.latitude)
 			Assert.assertEquals(dwd.altitude, item.altitude)
-			Assert.assertEquals(dwd.BSSID, item.BSSID)
-			Assert.assertEquals(dwd.SSID, item.SSID)
+			Assert.assertEquals(dwd.bssid, item.bssid)
+			Assert.assertEquals(dwd.ssid, item.ssid)
 			Assert.assertEquals(dwd.capabilities, item.capabilities)
 			Assert.assertEquals(dwd.frequency, item.frequency)
 			Assert.assertEquals(dwd.level, item.level)
