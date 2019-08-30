@@ -25,8 +25,8 @@ import com.adsamcik.tracker.common.extension.guidelineEnd
 import com.adsamcik.tracker.common.extension.transaction
 import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
-import com.adsamcik.tracker.common.style.NotificationStyle
-import com.adsamcik.tracker.common.style.NotificationStyleView
+import com.adsamcik.tracker.common.style.SystemBarStyle
+import com.adsamcik.tracker.common.style.SystemBarStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
@@ -46,7 +46,7 @@ class MainActivity : CoreUIActivity() {
 	private lateinit var trackerFragment: androidx.fragment.app.Fragment
 
 	override fun onCreate(savedInstanceState: Bundle?) {
-		setTheme(R.style.AppTheme_Transluscent)
+		setTheme(R.style.AppTheme_Translucent)
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_ui)
 
@@ -279,10 +279,18 @@ class MainActivity : CoreUIActivity() {
 		styleController.watchView(StyleView(button_map, 1, maxDepth = 0, isInverted = true))
 		styleController.watchView(StyleView(button_game, 1, maxDepth = 0, isInverted = true))
 		styleController.watchNotificationBar(
-				NotificationStyleView(
+				SystemBarStyleView(
 						window,
 						layer = 1,
-						style = NotificationStyle.Transparent
+						style = SystemBarStyle.Transparent
+				)
+		)
+
+		styleController.watchNavigationBar(
+				SystemBarStyleView(
+						window,
+						layer = 1,
+						style = SystemBarStyle.Transparent
 				)
 		)
 	}

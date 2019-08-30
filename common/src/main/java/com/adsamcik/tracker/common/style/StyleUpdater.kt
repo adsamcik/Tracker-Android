@@ -63,16 +63,46 @@ internal class StyleUpdater {
 		assert(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
 		@SuppressLint("InlinedApi")
 		view.systemUiVisibility = if (luminance > 0) {
-			view.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+			view.systemUiVisibility or
+					View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+					View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR or
+					View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 		} else {
-			view.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+			view.systemUiVisibility and
+					(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+							View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR).inv() or
+					View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 		}
 	}
 
-	internal fun updateNotificationBar(styleView: NotificationStyleView, styleData: StyleData) {
+	internal fun updateNavigationBar(styleView: SystemBarStyleView, styleData: StyleData) {
 		styleView.view.post {
 			when (styleView.style) {
-				NotificationStyle.LayerColor -> {
+				SystemBarStyle.LayerColor -> {
+					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+					val backgroundColor = styleData.backgroundColorFor(styleView)
+					updateUiVisibility(styleView.view, perceivedLuminance)
+
+					styleView.window.navigationBarColor = ColorFunctions.getBackgroundLayerColor(
+							backgroundColor,
+							perceivedLuminance,
+							styleView.layer
+					)
+				}
+				SystemBarStyle.Transparent -> {
+					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+					updateUiVisibility(styleView.view, perceivedLuminance)
+					styleView.window.navigationBarColor = Color.TRANSPARENT
+				}
+				SystemBarStyle.Translucent, SystemBarStyle.Default -> Unit
+			}
+		}
+	}
+
+	internal fun updateNotificationBar(styleView: SystemBarStyleView, styleData: StyleData) {
+		styleView.view.post {
+			when (styleView.style) {
+				SystemBarStyle.LayerColor -> {
 					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 					val backgroundColor = styleData.backgroundColorFor(styleView)
 					updateUiVisibility(styleView.view, perceivedLuminance)
@@ -83,12 +113,12 @@ internal class StyleUpdater {
 							styleView.layer
 					)
 				}
-				NotificationStyle.Transparent -> {
+				SystemBarStyle.Transparent -> {
 					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 					updateUiVisibility(styleView.view, perceivedLuminance)
 					styleView.window.statusBarColor = Color.TRANSPARENT
 				}
-				NotificationStyle.Translucent, NotificationStyle.Default -> Unit
+				SystemBarStyle.Translucent, SystemBarStyle.Default -> Unit
 			}
 		}
 	}

@@ -5,7 +5,7 @@
     android:id="@+id/coordinator"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:theme="@style/AppTheme.Transluscent">
+    android:theme="@style/AppTheme.Translucent">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/root"

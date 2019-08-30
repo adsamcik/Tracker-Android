@@ -19,8 +19,8 @@ import androidx.core.view.updateLayoutParams
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.style.NotificationStyle
-import com.adsamcik.tracker.common.style.NotificationStyleView
+import com.adsamcik.tracker.common.style.SystemBarStyle
+import com.adsamcik.tracker.common.style.SystemBarStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
@@ -34,11 +34,28 @@ abstract class DetailActivity : CoreUIActivity() {
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		setContentView(R.layout.activity_content_detail)
-
 		val configuration = Configuration()
 		onConfigure(configuration)
+
+		styleController.watchNotificationBar(
+				SystemBarStyleView(
+						window,
+						layer = configuration.titleBarLayer,
+						style = SystemBarStyle.Translucent
+				)
+		)
+
+		styleController.watchNavigationBar(
+				SystemBarStyleView(
+						window,
+						layer = 0,
+						style = SystemBarStyle.Translucent
+				)
+		)
+
+
+		super.onCreate(savedInstanceState)
+		setContentView(R.layout.activity_content_detail)
 
 		back_button.setOnClickListener { onBackPressed() }
 
@@ -60,18 +77,6 @@ abstract class DetailActivity : CoreUIActivity() {
 				height += Assist.getStatusBarHeight(this@DetailActivity)
 			}
 		}
-
-		styleController.watchNotificationBar(
-				NotificationStyleView(
-						window,
-						layer = topBarStyleView.layer,
-						style = if (configuration.fitSystemWindows) {
-							NotificationStyle.LayerColor
-						} else {
-							NotificationStyle.Translucent
-						}
-				)
-		)
 	}
 
 	override fun onBackPressed() {

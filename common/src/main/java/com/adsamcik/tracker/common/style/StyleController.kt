@@ -26,7 +26,7 @@ typealias OnStyleChangeListener = (styleData: StyleData) -> Unit
 @AnyThread
 //todo add support for local custom Views
 //todo refactor so the class is smaller
-@Suppress("Unused", "WeakerAccess")
+@Suppress("Unused", "WeakerAccess", "TooManyFunctions")
 class StyleController : CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -37,7 +37,8 @@ class StyleController : CoroutineScope {
 
 	private val viewList = mutableListOf<StyleView>()
 	private val recyclerList = mutableListOf<RecyclerStyleView>()
-	private var notificationStyleView: NotificationStyleView? = null
+	private var notificationStyleView: SystemBarStyleView? = null
+	private var navigationBarStyleView: SystemBarStyleView? = null
 
 	private val styleUpdater = StyleUpdater()
 
@@ -91,38 +92,105 @@ class StyleController : CoroutineScope {
 		styleUpdater.updateSingle(styleView, styleData)
 	}
 
-	fun watchNotificationBar(styleView: NotificationStyleView) {
-		val style = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-			when (styleView.style) {
-				NotificationStyle.LayerColor,
-				NotificationStyle.Default -> NotificationStyle.Default
-				NotificationStyle.Transparent,
-				NotificationStyle.Translucent -> NotificationStyle.Translucent
+	@Suppress("ComplexMethod", "ComplexCondition")
+	private fun updateFlags(
+			notificationStyleView: SystemBarStyleView?,
+			navigationStyleView: SystemBarStyleView?
+	) {
+		require(notificationStyleView != null || navigationStyleView != null)
+		val navigationStyle = navigationStyleView?.style ?: SystemBarStyle.Translucent
+		val notificationStyle = notificationStyleView?.style ?: SystemBarStyle.Translucent
+		var addFlags = 0
+		var clearFlags = 0
+
+		when (navigationStyle) {
+			SystemBarStyle.Translucent -> {
+				addFlags = addFlags or
+						WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
 			}
+			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
+				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
+			}
+			SystemBarStyle.Default -> Unit
+		}
+
+		when (notificationStyle) {
+			SystemBarStyle.Translucent -> {
+				addFlags = addFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+			}
+			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
+				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+			}
+			SystemBarStyle.Default -> {
+				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+			}
+		}
+
+		if (notificationStyle.isBackgroundHandledBySystem && navigationStyle.isBackgroundHandledBySystem) {
+			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+			addFlags = addFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 		} else {
-			styleView.style
+			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 		}
 
-		val newStyleView = NotificationStyleView(styleView.window, styleView.layer, style)
+		/*if ((notificationStyle == SystemBarStyle.Transparent && navigationStyle != SystemBarStyle.Translucent) ||
+				(navigationStyle == SystemBarStyle.Transparent && notificationStyle != SystemBarStyle.Translucent)) {
+			addFlags = addFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+		} else {
+			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+		}*/
 
-		notificationStyleView = newStyleView
-		newStyleView.window.apply {
-			when (newStyleView.style) {
-				NotificationStyle.Default -> {
-					clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-					clearFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-				}
-				NotificationStyle.LayerColor, NotificationStyle.Transparent -> {
-					clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-					addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-				}
-				NotificationStyle.Translucent -> {
-					addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-					clearFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-				}
+		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
+
+		window.addFlags(addFlags)
+		window.clearFlags(clearFlags)
+	}
+
+	private fun ensureValidNavigationStyle(styleView: SystemBarStyleView): SystemBarStyleView {
+		return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+			val style = when (styleView.style) {
+				SystemBarStyle.LayerColor,
+				SystemBarStyle.Default -> SystemBarStyle.Default
+				SystemBarStyle.Transparent,
+				SystemBarStyle.Translucent -> SystemBarStyle.Translucent
 			}
+			return SystemBarStyleView(styleView.window, styleView.layer, style)
+		} else {
+			styleView
 		}
-		styleUpdater.updateNotificationBar(newStyleView, styleData)
+	}
+
+	fun watchNavigationBar(styleView: SystemBarStyleView) {
+		val validatedStyleView = ensureValidNavigationStyle(styleView)
+
+		navigationBarStyleView = validatedStyleView
+		updateFlags(notificationStyleView, validatedStyleView)
+		styleUpdater.updateNavigationBar(validatedStyleView, styleData)
+	}
+
+	private fun ensureValidNotificationStyle(styleView: SystemBarStyleView): SystemBarStyleView {
+		return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+			val style = when (styleView.style) {
+				SystemBarStyle.LayerColor,
+				SystemBarStyle.Default -> SystemBarStyle.Default
+				SystemBarStyle.Transparent,
+				SystemBarStyle.Translucent -> SystemBarStyle.Translucent
+			}
+			return SystemBarStyleView(styleView.window, styleView.layer, style)
+		} else {
+			styleView
+		}
+	}
+
+	fun watchNotificationBar(styleView: SystemBarStyleView) {
+
+		val validatedStyleView = ensureValidNotificationStyle(styleView)
+
+		notificationStyleView = validatedStyleView
+		updateFlags(validatedStyleView, navigationBarStyleView)
+		styleUpdater.updateNotificationBar(validatedStyleView, styleData)
 	}
 
 	/**
@@ -142,7 +210,6 @@ class StyleController : CoroutineScope {
 			if (adapter is IViewChange) {
 				adapter.onViewChangedListener = {
 					val styleData = styleData
-					//todo consider wrapping this in an object
 					val backgroundColor = styleData.backgroundColorFor(styleView)
 					val foregroundColor = styleData.foregroundColorFor(styleView)
 					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
@@ -326,6 +393,10 @@ class StyleController : CoroutineScope {
 
 		notificationStyleView?.let { styleView ->
 			styleUpdater.updateNotificationBar(styleView, styleData)
+		}
+
+		navigationBarStyleView?.let { styleView ->
+			styleUpdater.updateNavigationBar(styleView, styleData)
 		}
 
 		synchronized(styleChangeListeners) {

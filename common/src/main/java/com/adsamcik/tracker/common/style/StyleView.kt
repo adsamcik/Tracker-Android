@@ -42,20 +42,30 @@ data class RecyclerStyleView(
 		get() = Int.MAX_VALUE
 }
 
-data class NotificationStyleView(
+data class SystemBarStyleView(
 		val window: Window,
 		override val layer: Int,
-		val style: NotificationStyle
+		val style: SystemBarStyle
 ) : BaseStyleView {
 	override val maxDepth: Int = 0
 	override val view: View get() = window.decorView
 	override val isInverted: Boolean = false
 }
 
-enum class NotificationStyle {
-	Default,
-	LayerColor,
-	Transparent,
-	Translucent
+enum class SystemBarStyle {
+	Default {
+		override val isBackgroundHandledBySystem: Boolean = true
+	},
+	LayerColor {
+		override val isBackgroundHandledBySystem: Boolean = false
+	},
+	Transparent {
+		override val isBackgroundHandledBySystem: Boolean = false
+	},
+	Translucent {
+		override val isBackgroundHandledBySystem: Boolean = true
+	};
+
+	abstract val isBackgroundHandledBySystem: Boolean
 }
 
