@@ -28,11 +28,13 @@ import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.extension.firstParent
 import com.adsamcik.tracker.common.style.marker.StyleableForegroundDrawable
 import com.adsamcik.tracker.common.style.marker.StyleableView
 import com.adsamcik.tracker.common.style.utility.ColorFunctions
-import com.adsamcik.tracker.common.style.utility.brightenColor
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 
 internal class StyleUpdater {
 	internal fun updateSingle(styleView: RecyclerStyleView, styleData: StyleData) {
@@ -211,14 +213,21 @@ internal class StyleUpdater {
 		val alpha = view.currentTextColor.alpha
 		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
 		view.setTextColor(newTextColor)
-		view.setHintTextColor(
-				brightenColor(
-						newTextColor,
-						ColorFunctions.LIGHTNESS_PER_LEVEL
-				)
-		)
 		view.compoundDrawables.forEach {
 			if (it != null) updateStyleForeground(it, foregroundColor)
+		}
+
+		val hintColor = ColorUtils.setAlphaComponent(newTextColor, newTextColor.alpha - 25)
+
+		if (view is TextInputEditText) {
+			val parent = view.firstParent<TextInputLayout>(1)
+			require(parent is TextInputLayout) {
+				"TextInputEditText ($view) should always have TextInputLayout as it's parent! Found $parent instead"
+			}
+
+			parent.defaultHintTextColor = ColorStateList.valueOf(hintColor)
+		} else {
+			view.setHintTextColor(hintColor)
 		}
 	}
 
