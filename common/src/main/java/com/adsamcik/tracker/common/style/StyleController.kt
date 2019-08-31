@@ -140,13 +140,13 @@ class StyleController : CoroutineScope {
 			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 		}
 
+		addFlags = addFlags or WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN
+		clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_FULLSCREEN
+
 		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
 
 		window.addFlags(addFlags)
 		window.clearFlags(clearFlags)
-		/*window.decorView.apply {
-			//systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-		}*/
 	}
 
 	private fun ensureValidNavigationStyle(styleView: SystemBarStyleView): SystemBarStyleView {

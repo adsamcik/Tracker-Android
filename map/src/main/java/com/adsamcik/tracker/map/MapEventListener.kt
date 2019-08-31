@@ -12,6 +12,7 @@ internal class MapEventListener(val map: GoogleMap) {
 	private val onCameraIdleListeners: MutableList<GoogleMap.OnCameraIdleListener> = mutableListOf()
 	private val onCameraMoveStartedListeners: MutableList<GoogleMap.OnCameraMoveStartedListener> = mutableListOf()
 	private val onCameraMoveCancelledListeners: MutableList<GoogleMap.OnCameraMoveCanceledListener> = mutableListOf()
+	private val onClickListeners = mutableListOf<GoogleMap.OnMapClickListener>()
 
 	operator fun plusAssign(listener: GoogleMap.OnCameraIdleListener) {
 		if (onCameraIdleListeners.isEmpty()) {
@@ -73,6 +74,20 @@ internal class MapEventListener(val map: GoogleMap) {
 		onCameraMoveCancelledListeners.remove(listener)
 		if (onCameraMoveCancelledListeners.isEmpty()) {
 			map.setOnCameraMoveStartedListener(null)
+		}
+	}
+
+	operator fun plusAssign(listener: GoogleMap.OnMapClickListener) {
+		if (onCameraMoveListeners.isEmpty()) {
+			map.setOnMapClickListener { latlng -> onClickListeners.forEach { it.onMapClick(latlng) } }
+		}
+		onClickListeners.add(listener)
+	}
+
+	operator fun minusAssign(listener: GoogleMap.OnMapClickListener) {
+		onClickListeners.remove(listener)
+		if (onCameraMoveListeners.isEmpty()) {
+			map.setOnCameraIdleListener(null)
 		}
 	}
 }

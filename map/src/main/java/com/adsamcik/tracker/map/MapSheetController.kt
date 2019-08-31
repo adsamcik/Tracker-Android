@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map
 
 import android.annotation.SuppressLint
-import android.content.Context
+import android.app.Activity
 import android.location.Geocoder
 import android.view.View
 import android.view.ViewGroup
@@ -31,7 +31,6 @@ import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
-import com.adsamcik.tracker.commonmap.CoordinateBounds
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
 import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
@@ -54,14 +53,14 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.math.roundToInt
 
 internal class MapSheetController(
-		context: Context,
+		activity: Activity,
 		private val map: GoogleMap,
 		mapOwner: MapOwner,
 		private val rootLayout: ViewGroup,
 		private val mapController: MapController,
 		private val locationListener: UpdateLocationListener,
 		private val mapEventListener: MapEventListener
-) : CoroutineScope, GoogleMap.OnCameraIdleListener {
+) : CoroutineScope, GoogleMap.OnMapClickListener {
 	private val job = SupervisorJob()
 
 	override val coroutineContext: CoroutineContext
@@ -71,10 +70,8 @@ internal class MapSheetController(
 	private val navbarDim: Int2
 	private val navbarPosition: NavBarPosition
 
-	private val mapLayerFilterRule = CoordinateBounds()
-
 	private val geocoder: Geocoder? = if (Geocoder.isPresent()) Geocoder(
-			context,
+			activity,
 			Locale.getDefault()
 	) else null
 
@@ -101,7 +98,7 @@ internal class MapSheetController(
 	}
 
 	init {
-		val (position, navbarHeight) = Assist.getNavigationBarSize(context)
+		val (position, navbarHeight) = Assist.getNavigationBarSize(activity)
 		this.navbarDim = navbarHeight
 		this.navbarPosition = position
 
@@ -124,31 +121,45 @@ internal class MapSheetController(
 				peekNavbarSpace.layoutParams.height +
 				rootLayout.layout_map_controls.marginBottom
 
+		val navbarHeightInverseRatio = -1f + navbarDim.y / peekHeight.toFloat()
+		isHideable = true
 		isFitToContents = false
 		val expandedOffset = EXPANDED_TOP_OFFSET_DP.dp
 		setExpandedOffset(expandedOffset)
 		state = BottomSheetBehavior.STATE_COLLAPSED
 		setBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
-			override fun onSlide(bottomSheet: View, slideOffset: Float) {
-				if (slideOffset in 0f..halfExpandedRatio) {
-					val parentHeight = (bottomSheet.parent as View).height
-					val maxHeightDifference = parentHeight - expandedOffset - peekHeight
-					map.setPadding(
-							0, 0, 0,
-							(peekHeight + slideOffset * maxHeightDifference).roundToInt()
-					)
+			private var lastOffset = Float.MIN_VALUE
 
-					val progress = slideOffset / halfExpandedRatio
-					peekNavbarSpace.updateLayoutParams {
-						height = ((1 - progress) * navbarDim.y).roundToInt()
+			override fun onSlide(bottomSheet: View, slideOffset: Float) {
+				val updatedOffset = slideOffset.coerceIn(navbarHeightInverseRatio, halfExpandedRatio)
+				if (updatedOffset != lastOffset) {
+					lastOffset = updatedOffset
+
+					if (lastOffset >= 0) {
+						val parentHeight = (bottomSheet.parent as View).height
+						val maxHeightDifference = parentHeight - expandedOffset - peekHeight
+						map.setPadding(
+								0,
+								0,
+								0,
+								(peekHeight + updatedOffset * maxHeightDifference).roundToInt()
+						)
+
+						val progress = updatedOffset / halfExpandedRatio
+						peekNavbarSpace.updateLayoutParams {
+							height = ((1 - progress) * navbarDim.y).roundToInt()
+						}
+					} else {
+						map.setPadding(0, 0, 0, ((1 + updatedOffset) * peekHeight).roundToInt())
 					}
 				}
 			}
 
 			@SuppressLint("SwitchIntDef")
 			override fun onStateChanged(bottomSheet: View, newState: Int) {
-				when (newState) {
-					BottomSheetBehavior.STATE_COLLAPSED, BottomSheetBehavior.STATE_HALF_EXPANDED -> keyboardManager.hideKeyboard()
+				if (newState != BottomSheetBehavior.STATE_EXPANDED && newState != BottomSheetBehavior.STATE_SETTLING) {
+					keyboardManager.hideKeyboard()
+					rootLayout.edittext_map_search.clearFocus()
 				}
 			}
 		})
@@ -199,18 +210,15 @@ internal class MapSheetController(
 	}
 
 	private val keyboardManager = KeyboardManager(rootLayout).apply {
-		addKeyboardListener(keyboardListener)
+		//addKeyboardListener(keyboardListener)
 	}
 
-	override fun onCameraIdle() {
-		val bounds = map.projection.visibleRegion.latLngBounds
-		mapLayerFilterRule.updateBounds(
-				bounds.northeast.latitude,
-				bounds.northeast.longitude,
-				bounds.southwest.latitude,
-				bounds.southwest.longitude
-		)
-		// fragmentMapMenu.get()?.filter(mapLayerFilterRule)
+	override fun onMapClick(p0: LatLng?) {
+		sheetBehavior.state = when (sheetBehavior.state) {
+			BottomSheetBehavior.STATE_COLLAPSED -> BottomSheetBehavior.STATE_HIDDEN
+			BottomSheetBehavior.STATE_HIDDEN -> BottomSheetBehavior.STATE_COLLAPSED
+			else -> BottomSheetBehavior.STATE_COLLAPSED
+		}
 	}
 
 	init {
@@ -225,6 +233,27 @@ internal class MapSheetController(
 			rootLayout.edittext_map_search.setOnEditorActionListener { textView, _, _ ->
 				search(textView.text.toString())
 				true
+			}
+
+			rootLayout.edittext_map_search.setOnFocusChangeListener { _, isFocused ->
+				when (isFocused) {
+					true -> {
+						stateBeforeKeyboard = when (val state = sheetBehavior.state) {
+							BottomSheetBehavior.STATE_COLLAPSED,
+							BottomSheetBehavior.STATE_HALF_EXPANDED,
+							BottomSheetBehavior.STATE_EXPANDED -> state
+							else -> BottomSheetBehavior.STATE_COLLAPSED
+						}
+
+						sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+					}
+					false -> {
+						if (sheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
+							sheetBehavior.state = stateBeforeKeyboard
+						}
+						rootLayout.edittext_map_search.clearFocus()
+					}
+				}
 			}
 
 			rootLayout.findViewById<View>(R.id.button_map_search).setOnClickListener {

@@ -39,6 +39,7 @@ class SessionActivityActivity : DetailActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
 		val rootView = inflateContent<ViewGroup>(R.layout.activity_session_activity)
 		keyboardManager = KeyboardManager(rootView)
 		snackMaker = SnackMaker(rootView.findViewById(R.id.coordinator))
@@ -71,8 +72,12 @@ class SessionActivityActivity : DetailActivity() {
 			fab.isExpanded = false
 			keyboardManager.hideKeyboard()
 
+			val inputText = input_name.text.toString()
+			input_name.clearFocus()
+			input_name.text = null
+
 			launch(Dispatchers.Default) {
-				val newActivity = SessionActivity(0, input_name.text.toString(), null)
+				val newActivity = SessionActivity(0, inputText, null)
 
 				adapter.addItemPersistent(context, newActivity, AppendPriority.Any)
 			}

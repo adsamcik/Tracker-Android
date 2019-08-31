@@ -1,9 +1,6 @@
 package com.adsamcik.tracker.map.fragment
 
 
-import android.Manifest
-import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -14,7 +11,6 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.tracker.common.Assist
-import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.style.StyleManager
@@ -132,19 +128,19 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 	}
 
 	private fun onMapReady(map: GoogleMap) {
-		val context = context ?: return
+		val activity = activity ?: return
 
 		val mapEventListener = MapEventListener(map)
 		this.mapEventListener = mapEventListener
 
-		val mapController = MapController(context, map, mapOwner)
-		val locationListener = UpdateLocationListener(context, map, mapEventListener)
+		val mapController = MapController(activity, map, mapOwner)
+		val locationListener = UpdateLocationListener(activity, map, mapEventListener)
 
 		this.mapController = mapController
 		this.locationListener = locationListener
 
 		mapSheetController = MapSheetController(
-				context,
+				activity,
 				map,
 				mapOwner,
 				map_ui_parent,
@@ -153,11 +149,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 				mapEventListener
 		)
 
-		ColorMap.addListener(context, map)
-
-		map.setOnMapClickListener {
-			map_ui_parent.visibility = if (map_ui_parent.visibility == VISIBLE) GONE else VISIBLE
-		}
+		ColorMap.addListener(activity, map)
 
 		map_ui_parent.post {
 			IntroductionManager.showIntroduction(requireActivity(), MapIntroduction())

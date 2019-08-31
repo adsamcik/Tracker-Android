@@ -133,11 +133,11 @@ class KeyboardManager(private val rootView: View) {
 	 * Hides software keyboard
 	 */
 	fun hideKeyboard() {
-		if (wasOpen) {
-			rootView.context.inputMethodManager.hideSoftInputFromWindow(rootView.windowToken, 0)
-			listeners.forEach { it.invoke(false, 0) }
-			wasOpen = false
-		}
+		//if (wasOpen) {
+		rootView.context.inputMethodManager.hideSoftInputFromWindow(rootView.windowToken, 0)
+		listeners.forEach { it.invoke(false, 0) }
+		wasOpen = false
+		//}
 	}
 
 	companion object {
