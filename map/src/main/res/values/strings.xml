@@ -25,4 +25,6 @@
     <string name="description_date_range">Date range for map data</string>
     <string name="description_my_location">Current location button</string>
     <string name="description_map_search">Search button</string>
+
+    <string name="generating_tile_count">generating %d tiles</string>
 </resources>

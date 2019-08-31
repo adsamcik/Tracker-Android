@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.commonmap
 
 import android.content.Context
+import androidx.lifecycle.LiveData
 import com.google.android.gms.maps.GoogleMap
 
 interface MapLayerLogic {
@@ -8,6 +9,8 @@ interface MapLayerLogic {
 	var dateRange: LongRange
 	var quality: Float
 	val availableRange: LongRange
+
+	val tileCountInGeneration: LiveData<Int>
 
 	val layerInfo: MapLayerInfo
 	fun colorList(): List<Int>

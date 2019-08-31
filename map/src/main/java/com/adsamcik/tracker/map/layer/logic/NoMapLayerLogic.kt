@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerInfo
 import com.adsamcik.tracker.commonmap.MapLayerLogic
@@ -15,6 +17,7 @@ internal class NoMapLayerLogic : MapLayerLogic {
 
 	override var dateRange: LongRange = LongRange.EMPTY
 
+	override val tileCountInGeneration: LiveData<Int> = MutableLiveData()
 
 	override val supportsAutoUpdate: Boolean
 		get() = false

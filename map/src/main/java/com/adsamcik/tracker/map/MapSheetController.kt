@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Space
+import android.widget.TextView
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -88,6 +89,9 @@ internal class MapSheetController(
 	private val peekNavbarSpace = rootLayout.findViewById<Space>(R.id.peek_navbar_space)
 	private val contentNavbarSpace = rootLayout.findViewById<Space>(R.id.content_navbar_space)
 
+	private val tileGenerationCountTextView =
+			(rootLayout.parent as ViewGroup).findViewById<TextView>(R.id.tile_generation_count_textview)
+
 	private val legendController = MapLegendController(rootLayout)
 
 	init {
@@ -131,26 +135,27 @@ internal class MapSheetController(
 			private var lastOffset = Float.MIN_VALUE
 
 			override fun onSlide(bottomSheet: View, slideOffset: Float) {
-				val updatedOffset = slideOffset.coerceIn(navbarHeightInverseRatio, halfExpandedRatio)
+				val updatedOffset = slideOffset.coerceIn(
+						navbarHeightInverseRatio,
+						halfExpandedRatio
+				)
 				if (updatedOffset != lastOffset) {
 					lastOffset = updatedOffset
 
 					if (lastOffset >= 0) {
 						val parentHeight = (bottomSheet.parent as View).height
 						val maxHeightDifference = parentHeight - expandedOffset - peekHeight
-						map.setPadding(
-								0,
-								0,
-								0,
-								(peekHeight + updatedOffset * maxHeightDifference).roundToInt()
-						)
+						val offset = (peekHeight + updatedOffset * maxHeightDifference).roundToInt()
+
+						setSheetOffset(offset)
 
 						val progress = updatedOffset / halfExpandedRatio
 						peekNavbarSpace.updateLayoutParams {
 							height = ((1 - progress) * navbarDim.y).roundToInt()
 						}
 					} else {
-						map.setPadding(0, 0, 0, ((1 + updatedOffset) * peekHeight).roundToInt())
+						val offset = ((1 + updatedOffset) * peekHeight).roundToInt()
+						setSheetOffset(offset)
 					}
 				}
 			}
@@ -167,6 +172,11 @@ internal class MapSheetController(
 		rootLayout.alpha = 0f
 		rootLayout.visibility = View.VISIBLE
 		rootLayout.animate().alpha(1f).start()
+	}
+
+	private fun setSheetOffset(offset: Int) {
+		map.setPadding(0, 0, 0, offset)
+		tileGenerationCountTextView.marginBottom = offset
 	}
 
 	init {
@@ -353,7 +363,7 @@ internal class MapSheetController(
 	}
 
 	init {
-		map.setPadding(0, 0, 0, sheetBehavior.peekHeight)
+		setSheetOffset(sheetBehavior.peekHeight)
 	}
 
 	/**

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.heatmap
 
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.LocationExtensions
 import com.adsamcik.tracker.common.misc.ConditionVariableInt
 import com.adsamcik.tracker.common.misc.Int2
@@ -32,6 +33,8 @@ internal class HeatmapTileProvider(
 	private val heatUpdateScheduled = AtomicBoolean(false)
 
 	private val tileRequestCount: ConditionVariableInt = ConditionVariableInt(0)
+
+	var tileRequestCountListener: ((Int) -> Unit)? = null
 
 	private var heatChange: Float = 0f
 
@@ -137,7 +140,8 @@ internal class HeatmapTileProvider(
 	}
 
 	override fun getTile(x: Int, y: Int, zoom: Int): Tile {
-		tileRequestCount.incrementAndGet()
+		val beforeCount = tileRequestCount.incrementAndGet()
+		tileRequestCountListener?.invoke(beforeCount)
 		// Ensure that everything is up to date. It's fine to lock every time,
 		// since it is called only handful of times at once.
 
@@ -174,17 +178,16 @@ internal class HeatmapTileProvider(
 
 			updateHeat(heatmap, zoom)
 
-			val tile = Tile(
+			return Tile(
 					heatmapSize, heatmapSize,
 					heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize))
 			)
-			tileRequestCount.decrementAndGet()
-
-			return tile
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			e.printStackTrace()
-			//Reporter.report(e)
+			Reporter.report(e)
 			return Tile(0, 0, byteArrayOf())
+		} finally {
+			val afterCount = tileRequestCount.decrementAndGet()
+			tileRequestCountListener?.invoke(afterCount)
 		}
 	}
 

@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.map
 
 import android.content.Context
+import android.widget.TextView
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.commonmap.ColorMap
@@ -8,7 +11,12 @@ import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.google.android.gms.maps.GoogleMap
 
-internal class MapController(val context: Context, val map: GoogleMap, mapOwner: MapOwner) {
+internal class MapController(
+		val context: Context,
+		val map: GoogleMap,
+		mapOwner: MapOwner,
+		val inProgressTileTextView: TextView
+) {
 	private var activeLayer: MapLayerLogic = NoMapLayerLogic()
 	private var quality: Float = 1f
 
@@ -27,6 +35,7 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 	fun setLayer(context: Context, logic: MapLayerLogic) {
 		if (this.activeLayer::class != logic::class) {
 			this.activeLayer.onDisable(map)
+			this.activeLayer.tileCountInGeneration.removeObserver(this::generatingTileCountObserver)
 
 			logic.onEnable(context, map, quality)
 			logic.dateRange = dateRange
@@ -35,6 +44,22 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 			Preferences.getPref(context).edit {
 				setString(R.string.settings_map_last_layer_key, logic.layerInfo.type.name)
 			}
+
+			logic.tileCountInGeneration.observeForever(this::generatingTileCountObserver)
+		}
+	}
+
+	private fun generatingTileCountObserver(count: Int) {
+		if (count > 0) {
+			inProgressTileTextView.apply {
+				text = context.getString(
+						R.string.generating_tile_count,
+						count
+				)
+				isGone = false
+			}
+		} else {
+			inProgressTileTextView.isGone = true
 		}
 	}
 
@@ -72,10 +97,12 @@ internal class MapController(val context: Context, val map: GoogleMap, mapOwner:
 
 		this.quality = quality
 		activeLayer.quality = quality
+		activeLayer.tileCountInGeneration.observeForever(this::generatingTileCountObserver)
 	}
 
 	private fun onDisable() {
 		ColorMap.removeListener(map)
+		activeLayer.tileCountInGeneration.removeObserver(this::generatingTileCountObserver)
 	}
 
 	companion object {

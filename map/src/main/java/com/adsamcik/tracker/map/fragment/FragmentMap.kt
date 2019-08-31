@@ -4,9 +4,8 @@ package com.adsamcik.tracker.map.fragment
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
-import android.view.View.GONE
-import android.view.View.VISIBLE
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
@@ -133,7 +132,8 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		val mapEventListener = MapEventListener(map)
 		this.mapEventListener = mapEventListener
 
-		val mapController = MapController(activity, map, mapOwner)
+		val inProgressTileTextView = activity.findViewById<TextView>(R.id.tile_generation_count_textview)
+		val mapController = MapController(activity, map, mapOwner, inProgressTileTextView)
 		val locationListener = UpdateLocationListener(activity, map, mapEventListener)
 
 		this.mapController = mapController

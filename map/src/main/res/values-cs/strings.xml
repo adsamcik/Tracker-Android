@@ -37,4 +37,5 @@
     <string name="description_my_location">Tlačítko pro aktuální polohu</string>
     <string name="description_date_range">Časové období pro mapová data</string>
     <string name="description_legend">Legenda pro mapu</string>
+    <string name="generating_tile_count">vytvářím %d dlaždic</string>
 </resources>

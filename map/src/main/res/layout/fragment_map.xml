@@ -10,6 +10,23 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/tile_generation_count_textview"
+        style="@style/TextAppearance.MaterialComponents.Body2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingStart="@dimen/content_padding"
+        android:paddingEnd="@dimen/content_padding"
+        android:paddingBottom="8dp"
+        android:shadowColor="@android:color/black"
+        android:shadowDx="0"
+        android:shadowDy="0"
+        android:shadowRadius="4"
+        android:textColor="@android:color/white"
+        android:visibility="gone"
+        app:layout_anchor="@id/container_map"
+        app:layout_anchorGravity="bottom|right" />
+
     <FrameLayout
         android:id="@+id/map_ui_parent"
         android:layout_width="match_parent"

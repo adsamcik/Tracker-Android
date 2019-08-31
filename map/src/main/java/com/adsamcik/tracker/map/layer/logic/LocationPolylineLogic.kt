@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.LocationDataDao
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
@@ -28,6 +30,8 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 
 	override val supportsAutoUpdate: Boolean
 		get() = false
+
+	override val tileCountInGeneration: LiveData<Int> = MutableLiveData()
 
 	override var dateRange: LongRange = LongRange.EMPTY
 		set(value) {

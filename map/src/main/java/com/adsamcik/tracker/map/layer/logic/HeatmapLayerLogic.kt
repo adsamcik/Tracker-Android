@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
 import androidx.annotation.WorkerThread
+import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.R
@@ -39,6 +40,8 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 			overlay.clearTileCache()
 		}
 
+	override val tileCountInGeneration: MutableLiveData<Int> = MutableLiveData()
+
 	protected lateinit var overlay: TileOverlay
 
 	protected lateinit var provider: HeatmapTileProvider
@@ -66,6 +69,9 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 				R.string.settings_map_max_heat_default
 		).toFloat()
 		val tileProvider = HeatmapTileProvider(tileCreator, maxHeat, quality)
+
+		tileProvider.tileRequestCountListener = { tileCountInGeneration.postValue(it) }
+
 		provider = tileProvider
 
 		val tileOverlayOptions = TileOverlayOptions().tileProvider(tileProvider)
