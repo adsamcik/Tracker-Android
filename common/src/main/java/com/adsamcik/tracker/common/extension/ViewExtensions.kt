@@ -153,24 +153,26 @@ fun View.detach() {
 	parent?.removeView(this)
 }
 
-inline fun <reified T> View.firstParent(): T? {
-	return firstParent(T::class.java)
+inline fun <reified T> View.firstParent(maxDistance: Int = Int.MAX_VALUE): T? {
+	return firstParent(T::class.java, maxDistance)
 }
 
-inline fun <reified T : Any> View.requireParent(): T {
-	return requireNotNull(firstParent(T::class.java))
+inline fun <reified T : Any> View.requireParent(maxDistance: Int = Int.MAX_VALUE): T {
+	return requireNotNull(firstParent(T::class.java, maxDistance))
 }
 
 
-fun <T> View.firstParent(iClass: Class<T>): T? {
+fun <T> View.firstParent(iClass: Class<T>, maxDistance: Int = Int.MAX_VALUE): T? {
 	var parent = parent
-	while (parent != null) {
+	var distance = 0
+	while (parent != null && maxDistance >= distance) {
 		if (iClass.isInstance(parent)) {
 			@Suppress("unchecked_cast")
 			return parent as T
 		}
 
 		parent = parent.parent
+		distance++
 	}
 	return null
 }
