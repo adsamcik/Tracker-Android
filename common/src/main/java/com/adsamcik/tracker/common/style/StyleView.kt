@@ -55,17 +55,22 @@ data class SystemBarStyleView(
 enum class SystemBarStyle {
 	Default {
 		override val isBackgroundHandledBySystem: Boolean = true
+		override val isSeeThrough: Boolean = false
 	},
 	LayerColor {
 		override val isBackgroundHandledBySystem: Boolean = false
+		override val isSeeThrough: Boolean = false
 	},
 	Transparent {
 		override val isBackgroundHandledBySystem: Boolean = false
+		override val isSeeThrough: Boolean = true
 	},
 	Translucent {
 		override val isBackgroundHandledBySystem: Boolean = true
+		override val isSeeThrough: Boolean = true
 	};
 
 	abstract val isBackgroundHandledBySystem: Boolean
+	abstract val isSeeThrough: Boolean
 }
 

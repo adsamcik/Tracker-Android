@@ -36,9 +36,11 @@ class SettingsActivity : DetailActivity(),
 	private var activePage: PreferencePage? = null
 
 	override fun onConfigure(configuration: Configuration) {
-		configuration.elevation = 4.dp
-		configuration.titleBarLayer = 1
-		configuration.useColorControllerForContent = true
+		configuration.apply {
+			elevation = 4.dp
+			titleBarLayer = 1
+			useColorControllerForContent = true
+		}
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -156,7 +158,7 @@ class SettingsActivity : DetailActivity(),
 		if (page != null) {
 			val collection = mutableListOf<Pair<String, Int>>()
 
-			for (i in 0 until permissions.size) {
+			for (i in permissions.indices) {
 				collection.add(permissions[i] to grantResults[i])
 			}
 

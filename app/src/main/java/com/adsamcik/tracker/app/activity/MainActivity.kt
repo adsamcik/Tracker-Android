@@ -47,6 +47,7 @@ class MainActivity : CoreUIActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		setTheme(R.style.AppTheme_Translucent)
+		initializeSystemBars()
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_ui)
 
@@ -274,10 +275,7 @@ class MainActivity : CoreUIActivity() {
 		}
 	}
 
-	private fun initializeColorElements() {
-		styleController.watchView(StyleView(button_stats, 1, maxDepth = 0, isInverted = true))
-		styleController.watchView(StyleView(button_map, 1, maxDepth = 0, isInverted = true))
-		styleController.watchView(StyleView(button_game, 1, maxDepth = 0, isInverted = true))
+	private fun initializeSystemBars() {
 		styleController.watchNotificationBar(
 				SystemBarStyleView(
 						window,
@@ -293,6 +291,12 @@ class MainActivity : CoreUIActivity() {
 						style = SystemBarStyle.Transparent
 				)
 		)
+	}
+
+	private fun initializeColorElements() {
+		styleController.watchView(StyleView(button_stats, 1, maxDepth = 0, isInverted = true))
+		styleController.watchView(StyleView(button_map, 1, maxDepth = 0, isInverted = true))
+		styleController.watchView(StyleView(button_game, 1, maxDepth = 0, isInverted = true))
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {

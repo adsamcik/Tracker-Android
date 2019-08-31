@@ -19,9 +19,9 @@ import androidx.core.view.updateLayoutParams
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.style.SystemBarStyle
 import com.adsamcik.tracker.common.style.SystemBarStyleView
-import com.adsamcik.tracker.common.style.StyleView
 import kotlinx.android.synthetic.main.activity_content_detail.*
 
 
@@ -41,17 +41,21 @@ abstract class DetailActivity : CoreUIActivity() {
 				SystemBarStyleView(
 						window,
 						layer = configuration.titleBarLayer,
-						style = SystemBarStyle.Translucent
+						style = SystemBarStyle.LayerColor
 				)
 		)
 
-		styleController.watchNavigationBar(
-				SystemBarStyleView(
-						window,
-						layer = 0,
-						style = SystemBarStyle.Translucent
-				)
+		val navigationBarStyleView = configuration.navigationBarStyleView ?: SystemBarStyleView(
+				window,
+				layer = configuration.titleBarLayer,
+				style = if (configuration.fitSystemWindows) {
+					SystemBarStyle.LayerColor
+				} else {
+					SystemBarStyle.Translucent
+				}
 		)
+
+		styleController.watchNavigationBar(navigationBarStyleView)
 
 
 		super.onCreate(savedInstanceState)
@@ -72,6 +76,7 @@ abstract class DetailActivity : CoreUIActivity() {
 
 		if (configuration.fitSystemWindows) {
 			findViewById<ViewGroup>(R.id.detail_root).fitsSystemWindows = true
+			styleController.watchView(StyleView(detail_root, 0, maxDepth = 0))
 		} else {
 			top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
 				height += Assist.getStatusBarHeight(this@DetailActivity)
@@ -251,7 +256,8 @@ abstract class DetailActivity : CoreUIActivity() {
 			var titleBarLayer: Int = 0,
 			var elevation: Int? = null,
 			var useColorControllerForContent: Boolean = false,
-			var fitSystemWindows: Boolean = true
+			var fitSystemWindows: Boolean = true,
+			var navigationBarStyleView: SystemBarStyleView? = null
 	)
 }
 
