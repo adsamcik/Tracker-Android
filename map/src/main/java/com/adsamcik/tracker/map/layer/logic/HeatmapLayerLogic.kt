@@ -29,12 +29,14 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 		get() = provider.range
 		set(value) {
 			provider.range = value
+			overlay.clearTileCache()
 		}
 
 	override var quality: Float
 		get() = provider.quality
 		set(value) {
 			provider.updateQuality(value)
+			overlay.clearTileCache()
 		}
 
 	protected lateinit var overlay: TileOverlay
