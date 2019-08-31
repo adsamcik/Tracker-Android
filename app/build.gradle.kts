@@ -25,6 +25,7 @@ android {
 		versionCode = 318
 		versionName = "2019.1ι5"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+		resConfigs("en", "cs")
 	}
 
 	with(compileOptions) {
