@@ -34,7 +34,7 @@ android {
 	}
 
 	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
+			with(kotlinOptions) {
 			jvmTarget = "1.8"
 			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes")
 		}
@@ -98,28 +98,24 @@ dependencies {
 	//3rd party dependencies
 	Dependencies.moshi(this)
 
-	implementation("com.afollestad.material-dialogs:color:${Dependencies.Versions.dialogs}")
-
-	implementation("de.psdev.licensesdialog:licensesdialog:2.1.0")
+	Dependencies.colorChooser(this)
 	Dependencies.fileChooser(this)
 
-	//GPX
-	implementation("stax:stax-api:1.0.1")
-	implementation("com.fasterxml:aalto-xml:1.2.1")
-	implementation("io.jenetics:jpx:1.5.2")
+	Dependencies.gpx(this)
 
 	//Google dependencies
 	implementation("com.google.android:flexbox:1.1.0")
-
-	//AndroidX
 	implementation("androidx.cardview:cardview:1.0.0")
+
+	//Preference
 	Dependencies.preference(this)
+	implementation("de.psdev.licensesdialog:licensesdialog:2.1.0")
 
 	//PlayServices
 	Dependencies.location(this)
 	Dependencies.crashlytics(this)
 
-	//Room
+	//Database
 	Dependencies.database(this)
 
 
