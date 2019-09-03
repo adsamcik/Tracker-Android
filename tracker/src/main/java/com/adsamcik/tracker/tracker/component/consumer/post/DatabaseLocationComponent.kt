@@ -40,7 +40,7 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onEnable(context: Context) {
-		locationDao = AppDatabase.getDatabase(context).locationDao()
+		locationDao = AppDatabase.database(context).locationDao()
 	}
 }
 

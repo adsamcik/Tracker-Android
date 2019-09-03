@@ -58,7 +58,7 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 	}
 
 	fun build(context: Context, startAt: Long): ChallengeType {
-		val database = ChallengeDatabase.getDatabase(context)
+		val database = ChallengeDatabase.database(context)
 
 		selectDuration()
 		selectChallengeSpecificParameters()

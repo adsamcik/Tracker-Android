@@ -71,7 +71,7 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onEnable(context: Context) {
-		val database = AppDatabase.getDatabase(context)
+		val database = AppDatabase.database(context)
 		cellLocationDao = database.cellLocationDao()
 		cellOperatorDao = database.cellOperatorDao()
 	}

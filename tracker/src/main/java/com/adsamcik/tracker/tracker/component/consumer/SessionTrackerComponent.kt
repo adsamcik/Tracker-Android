@@ -134,7 +134,7 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	@WorkerThread
 	private fun initializeSession(context: Context) {
-		sessionDao = AppDatabase.getDatabase(context).sessionDao()
+		sessionDao = AppDatabase.database(context).sessionDao()
 
 		val lastSession = sessionDao.getLast(1)
 		val now = Time.nowMillis

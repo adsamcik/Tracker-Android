@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="notification_starting">Starting Tracker service</string>
     <string name="notification_looking_for_gps">Looking for GPS</string>
     <string name="notification_tracking_active">Tracking</string>
     <string name="notification_stop_til_recharge">Stop till recharge</string>

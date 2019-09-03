@@ -39,7 +39,7 @@ internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerD
 		}
 	}
 
-	private val dao = AppDatabase.getDatabase(context).wifiDao()
+	private val dao = AppDatabase.database(context).wifiDao()
 
 	override val availableRange: LongRange
 		get() {

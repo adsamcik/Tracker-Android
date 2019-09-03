@@ -83,7 +83,7 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 			quality: Float
 	) {
 		this.map = map
-		AppDatabase.getDatabase(context).let { db ->
+		AppDatabase.database(context).let { db ->
 			this.locationDao = db.locationDao()
 			this.sessionDao = db.sessionDao()
 		}

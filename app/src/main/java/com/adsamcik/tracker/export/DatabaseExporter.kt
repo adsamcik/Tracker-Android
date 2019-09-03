@@ -15,7 +15,7 @@ class DatabaseExporter : Exporter {
 			destinationDirectory: File,
 			desiredName: String
 	): ExportResult {
-		val db = AppDatabase.getDatabase(context)
+		val db = AppDatabase.database(context)
 		val dbFile = context.getDatabasePath(db.openHelper.databaseName)
 		val targetFile = File(destinationDirectory, "$desiredName.db")
 		db.generalDao().checkpoint(SimpleSQLiteQuery("pragma wal_checkpoint(full)"))

@@ -116,7 +116,7 @@ class SessionActivityActivity : DetailActivity() {
 						duration = LENGTH_LONG,
 						onDismissed = {
 							launch(Dispatchers.Default) {
-								AppDatabase.getDatabase(context).activityDao().delete(item.id)
+								AppDatabase.database(context).activityDao().delete(item.id)
 							}
 						},
 						onActionClick = View.OnClickListener {

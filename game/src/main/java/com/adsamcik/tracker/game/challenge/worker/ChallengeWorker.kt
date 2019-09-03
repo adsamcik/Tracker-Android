@@ -21,14 +21,14 @@ class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker
 		val sessionId = inputData.getPositiveLongReportNull(ARG_SESSION_ID)
 				?: return Result.failure()
 
-		val database = ChallengeDatabase.getDatabase(applicationContext)
+		val database = ChallengeDatabase.database(applicationContext)
 		val sessionDao = database.sessionDao
 
 		val challengeSession = sessionDao.get(sessionId) ?: return Result.failure()
 
 		if (challengeSession.isChallengeProcessed) return Result.success()
 
-		val trackerSession = AppDatabase.getDatabase(applicationContext).sessionDao().get(sessionId)
+		val trackerSession = AppDatabase.database(applicationContext).sessionDao().get(sessionId)
 				?: return Result.failure()
 
 		val notificationManager = applicationContext.notificationManager

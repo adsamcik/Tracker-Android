@@ -42,7 +42,7 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 
 	//todo update heat on per zoom basis
 
-	private val dao = AppDatabase.getDatabase(context).locationDao()
+	private val dao = AppDatabase.database(context).locationDao()
 
 	override val availableRange: LongRange
 		get() {

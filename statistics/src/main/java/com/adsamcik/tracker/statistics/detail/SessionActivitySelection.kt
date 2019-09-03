@@ -48,7 +48,7 @@ class SessionActivitySelection(
 		val session = MutableTrackerSession(session)
 		session.sessionActivityId = activityList[index].id
 		launch(Dispatchers.Default) {
-			AppDatabase.getDatabase(context).sessionDao().update(session)
+			AppDatabase.database(context).sessionDao().update(session)
 		}
 	}
 }

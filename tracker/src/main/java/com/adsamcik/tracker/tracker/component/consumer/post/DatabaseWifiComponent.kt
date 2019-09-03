@@ -43,7 +43,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onEnable(context: Context) {
-		wifiDao = AppDatabase.getDatabase(context).wifiDao()
+		wifiDao = AppDatabase.database(context).wifiDao()
 	}
 }
 

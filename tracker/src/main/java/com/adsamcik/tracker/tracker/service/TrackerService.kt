@@ -24,6 +24,7 @@ import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.service.CoreService
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
@@ -198,11 +199,13 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
 		sessionInfoMutable.value = this.sessionInfo
 
+		val notificationBuilder = TrackerNotificationManager(this)
+				.createBuilder()
+				.apply {
+					setContentTitle(getString(R.string.notification_starting))
+				}
 
-		val (notificationId, notification) = notificationComponent.foregroundServiceNotification(
-				this
-		)
-		startForeground(notificationId, notification)
+		startForeground(TrackerNotificationManager.NOTIFICATION_ID, notificationBuilder.build())
 
 		if (!isUserInitiated) {
 			TrackerLocker.isLocked.observe(this) {

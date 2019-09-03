@@ -49,13 +49,13 @@ class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivit
 	fun removeAtPermanently(context: Context, index: Int): SessionActivity {
 		val item = getItem(index)
 		launch { removeAt(index) }
-		AppDatabase.getDatabase(context).activityDao().delete(item.id)
+		AppDatabase.database(context).activityDao().delete(item.id)
 		return item
 	}
 
 	@WorkerThread
 	fun addItemPersistent(context: Context, item: SessionActivity, priority: AppendPriority) {
-		val id = AppDatabase.getDatabase(context).activityDao().insert(item)
+		val id = AppDatabase.database(context).activityDao().insert(item)
 		item.id = id
 		launch { add(item, priority) }
 	}

@@ -18,7 +18,7 @@ object ActivityRecognitionApi {
 	fun rerunRecognitionForAll(context: Context) {
 		logActivity(LogData(message = "requesting recognition rerun"))
 		GlobalScope.launch(Dispatchers.Default) {
-			val sessionDao = AppDatabase.getDatabase(context).sessionDao()
+			val sessionDao = AppDatabase.database(context).sessionDao()
 			val workManager = WorkManager.getInstance(context)
 			sessionDao.getAll().forEachIf({ it.id < 0 }) {
 				val data = Data.Builder().putLong(ActivityRecognitionWorker.ARG_SESSION_ID, it.id)

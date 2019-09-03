@@ -90,7 +90,7 @@ class ExportActivity : DetailActivity() {
 
 			val clickListener: (View) -> Unit = { view: View ->
 				launch(Dispatchers.Default) {
-					val sessionDao = AppDatabase.getDatabase(view.context).sessionDao()
+					val sessionDao = AppDatabase.database(view.context).sessionDao()
 					val availableRange = sessionDao.range().let {
 						if (it.start == 0L && it.endInclusive == 0L) {
 							LongRange.EMPTY
@@ -135,7 +135,7 @@ class ExportActivity : DetailActivity() {
 					successCallback = { range ->
 						this@ExportActivity.range = range
 					}
-				}.show(supportFragmentManager, "Map date range dialog")*/
+				}.notify(supportFragmentManager, "Map date range dialog")*/
 			}
 
 			edittext_date_range_from.setOnClickListener(clickListener)
@@ -218,7 +218,7 @@ class ExportActivity : DetailActivity() {
 		val to = this.range.endInclusive
 
 		launch(Dispatchers.Default) {
-			val database = AppDatabase.getDatabase(applicationContext)
+			val database = AppDatabase.database(applicationContext)
 			val locationDao = database.locationDao()
 
 			val result = if (exporter.canSelectDateRange) {

@@ -13,7 +13,7 @@ internal class CellHeatmapTileCreator(
 		context: Context,
 		val data: MapLayerData
 ) : HeatmapTileCreator {
-	private val dao = AppDatabase.getDatabase(context).cellLocationDao()
+	private val dao = AppDatabase.database(context).cellLocationDao()
 
 	override val weightNormalizationValue: Double = 0.0
 

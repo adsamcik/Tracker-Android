@@ -1,23 +1,21 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.location.Location
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
-import androidx.core.app.TaskStackBuilder
-import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.CollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.extension.formatDistance
 import com.adsamcik.tracker.common.extension.formatSpeed
-import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.TrackerNotificationManager
+import com.adsamcik.tracker.tracker.TrackerNotificationManager.Companion.NOTIFICATION_ID
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
@@ -29,19 +27,16 @@ import java.text.DecimalFormat
 internal class NotificationComponent : PostTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
 
-	private var notificationManager: NotificationManager? = null
+	private var trackerNotificationManager: TrackerNotificationManager? = null
 
-	private val requireNotificationManager: NotificationManager
-		get() = notificationManager
-				?: throw NullPointerException("Notification manager must be initialized")
+	private val requireTNotificationManager get() = requireNotNull(trackerNotificationManager)
 
 	override suspend fun onDisable(context: Context) {
-		notificationManager = null
+		trackerNotificationManager = null
 	}
 
 	override suspend fun onEnable(context: Context) {
-		notificationManager?.cancel(NOTIFICATION_ID)
-		notificationManager = context.notificationManager
+		trackerNotificationManager = TrackerNotificationManager(context)
 	}
 
 	override fun onNewData(
@@ -54,39 +49,29 @@ internal class NotificationComponent : PostTrackerComponent {
 		notify(generateNotification(context, location, collectionData))
 	}
 
-	fun onLocationDataChange(context: Context, location: Location?) {
-		notify(generateNotification(context, location, null))
-	}
-
 	fun onError(context: Context, @StringRes textRes: Int) {
-		val builder = prepareNotificationBase(context)
+		val builder = requireTNotificationManager.createBuilder()
 		builder.setContentTitle(context.getString(textRes))
-		notify(builder.build())
+		notify(builder)
 	}
 
-	fun foregroundServiceNotification(context: Context): Pair<Int, Notification> {
-		return NOTIFICATION_ID to generateNotification(context)
+	private fun notify(builder: NotificationCompat.Builder) =
+			requireTNotificationManager.notify(builder)
+
+
+	private fun generateNoGpsTitle(resources: Resources, builder: NotificationCompat.Builder) {
+		builder.setContentTitle(resources.getString(R.string.notification_looking_for_gps))
 	}
 
-	private fun notify(notification: Notification) = requireNotificationManager.notify(
-			NOTIFICATION_ID,
-			notification
-	)
-
-	private fun generateNotification(
+	private fun buildContent(
 			context: Context,
+			resources: Resources,
+			builder: NotificationCompat.Builder,
 			location: Location? = null,
 			data: CollectionData? = null
-	): Notification {
-		val builder = prepareNotificationBase(context)
-
-		val resources = context.resources
-
+	) {
 		when {
-			location == null -> builder.setContentTitle(resources.getString(R.string.notification_looking_for_gps))
-			//todo add notification text
-			data == null -> {
-			}
+			location == null || data == null -> generateNoGpsTitle(resources, builder)
 			else -> {
 				//todo improve title
 				builder.setContentTitle(resources.getString(R.string.notification_tracking_active))
@@ -101,7 +86,18 @@ internal class NotificationComponent : PostTrackerComponent {
 				)
 			}
 		}
+	}
 
+	private fun generateNotification(
+			context: Context,
+			location: Location? = null,
+			data: CollectionData? = null
+	): NotificationCompat.Builder {
+		val builder = requireTNotificationManager.createBuilder()
+
+		val resources = context.resources
+
+		buildContent(context, resources, builder, location, data)
 
 		val trackingSessionInfo = TrackerService.sessionInfo.value
 
@@ -153,28 +149,7 @@ internal class NotificationComponent : PostTrackerComponent {
 			}
 		}
 
-		return builder.build()
-	}
-
-	private fun prepareNotificationBase(context: Context): NotificationCompat.Builder {
-		val resources = context.resources
-		val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-				?: throw NullPointerException("Launch intent for package is null.")
-
-		return NotificationCompat.Builder(
-				context,
-				resources.getString(com.adsamcik.tracker.common.R.string.channel_track_id)
-		)
-				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals)  // the done icon
-				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
-				.setWhen(Time.nowMillis)  // the time stamp
-				.setOngoing(true)
-				.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
-				.setContentIntent(TaskStackBuilder.create(context).run {
-					addNextIntentWithParentStack(intent)
-					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
-				})
+		return builder
 	}
 
 	private fun buildNotificationText(
@@ -185,7 +160,7 @@ internal class NotificationComponent : PostTrackerComponent {
 		val resources = context.resources
 		val sb = StringBuilder()
 		val df = DecimalFormat.getNumberInstance()
-		df.setRoundingMode(RoundingMode.HALF_UP)
+		df.roundingMode = RoundingMode.HALF_UP
 
 		val lengthSystem = Preferences.getLengthSystem(context)
 		//todo add localization support
@@ -247,9 +222,7 @@ internal class NotificationComponent : PostTrackerComponent {
 	}
 
 	companion object {
-		const val NOTIFICATION_ID = -7643
 		const val stopForMinutes = 30
 	}
-
 }
 

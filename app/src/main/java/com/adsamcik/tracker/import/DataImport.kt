@@ -14,7 +14,7 @@ import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.FileFilter
 import com.afollestad.materialdialogs.files.fileChooser
 
-//todo show progress
+//todo notify progress
 //todo import in service or a job, it can take quite awhile
 class DataImport {
 	val activeImporterList: Collection<FileImport>

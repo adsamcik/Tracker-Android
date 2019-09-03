@@ -44,7 +44,7 @@ object ChallengeManager {
 
 	@WorkerThread
 	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
-		val database = ChallengeDatabase.getDatabase(context)
+		val database = ChallengeDatabase.database(context)
 		val active = database.entryDao.getActiveEntry(Time.nowMillis)
 		return active.map { ChallengeLoader.loadChallenge(context, it) }
 	}

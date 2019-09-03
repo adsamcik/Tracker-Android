@@ -30,7 +30,7 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 		val id = intent.getPositiveLongExtraReportNull(ARG_ID) ?: return
 
 		GlobalScope.launch {
-			ChallengeDatabase.getDatabase(context)
+			ChallengeDatabase.database(context)
 					.sessionDao.insert(ChallengeSessionData(id, false))
 			val workManager = WorkManager.getInstance(context)
 			val data = Data.Builder().putLong(ChallengeWorker.ARG_SESSION_ID, id).build()

@@ -127,7 +127,7 @@ class StatsDetailActivity : DetailActivity() {
 
 	private fun removeSession() {
 		launch(Dispatchers.Default) {
-			val dao = AppDatabase.getDatabase(this@StatsDetailActivity).sessionDao()
+			val dao = AppDatabase.database(this@StatsDetailActivity).sessionDao()
 			dao.delete(viewModel.session.requireValue)
 			finish()
 		}
@@ -210,7 +210,7 @@ class StatsDetailActivity : DetailActivity() {
 				else -> if (activityId == 0L || activityId == -1L) {
 					null
 				} else {
-					val activityDao = AppDatabase.getDatabase(this@StatsDetailActivity)
+					val activityDao = AppDatabase.database(this@StatsDetailActivity)
 							.activityDao()
 					activityDao.get(activityId)
 				}
@@ -265,7 +265,7 @@ class StatsDetailActivity : DetailActivity() {
 
 	private fun addLocationStats(session: TrackerSession, adapter: StatsDetailAdapter) {
 		launch(Dispatchers.Default) {
-			val database = AppDatabase.getDatabase(this@StatsDetailActivity)
+			val database = AppDatabase.database(this@StatsDetailActivity)
 			val locations = database.locationDao().getAllBetween(session.start, session.end)
 			if (locations.isNotEmpty()) {
 				addLocationMap(locations, adapter)
@@ -441,7 +441,7 @@ class StatsDetailActivity : DetailActivity() {
 			if (initialized) return
 			initialized = true
 
-			val database = AppDatabase.getDatabase(context)
+			val database = AppDatabase.database(context)
 			sessionMutable.postValue(database.sessionDao().get(sessionId))
 		}
 	}

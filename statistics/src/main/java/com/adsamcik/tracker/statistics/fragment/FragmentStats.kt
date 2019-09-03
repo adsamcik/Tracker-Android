@@ -159,7 +159,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	private fun showSummary() {
 		launch(Dispatchers.Default) {
 			val activity = requireActivity()
-			val database = AppDatabase.getDatabase(activity)
+			val database = AppDatabase.database(activity)
 			val wifiDao = database.wifiDao()
 			val cellDao = database.cellLocationDao()
 			val locationDao = database.locationDao()
@@ -217,7 +217,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 				add(Calendar.WEEK_OF_MONTH, -1)
 			}.timeInMillis
 
-			val database = AppDatabase.getDatabase(activity)
+			val database = AppDatabase.database(activity)
 			val sessionDao = database.sessionDao()
 			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
 			val statDataList = listOf(

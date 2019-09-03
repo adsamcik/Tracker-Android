@@ -45,7 +45,7 @@ class ExplorerChallengeInstance(
 	}
 
 	override fun processSession(context: Context, session: TrackerSession) {
-		val dao = AppDatabase.getDatabase(context).locationDao()
+		val dao = AppDatabase.database(context).locationDao()
 		val locationList = dao.getAllBetween(session.start, session.end)
 		extra.locationCount += countUnique(dao, locationList, session.start)
 	}

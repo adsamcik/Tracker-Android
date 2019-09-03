@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.adsamcik.tracker.common.database.ObjectBaseDatabase
 import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
@@ -43,39 +44,12 @@ abstract class ChallengeDatabase : RoomDatabase() {
 
 	abstract val stepDao: StepChallengeDao
 
-	companion object {
-		private var instance_: ChallengeDatabase? = null
+	companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
+		override fun setupDatabase(database: Builder<ChallengeDatabase>) = Unit
+
+		override val databaseName: String get() = DATABASE_NAME
 
 		private const val DATABASE_NAME = "challenge_database"
-
-		private fun createInstance(context: Context): ChallengeDatabase {
-			val configuration = SQLiteDatabaseConfiguration(
-					context.getDatabasePath(DATABASE_NAME).path,
-					SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE
-			)
-			val options = RequerySQLiteOpenHelperFactory.ConfigurationOptions { configuration }
-			val instance = Room.databaseBuilder(
-					context.applicationContext, ChallengeDatabase::class.java,
-					DATABASE_NAME
-			)
-					.openHelperFactory(RequerySQLiteOpenHelperFactory(listOf(options)))
-					.build()
-
-			instance_ = instance
-			return instance
-		}
-
-		fun getDatabase(context: Context): ChallengeDatabase {
-			return instance_ ?: createInstance(context)
-		}
-
-		fun getTestDatabase(context: Context): ChallengeDatabase {
-			return Room.inMemoryDatabaseBuilder(
-					context.applicationContext,
-					ChallengeDatabase::class.java
-			)
-					.build()
-		}
 	}
 }
 

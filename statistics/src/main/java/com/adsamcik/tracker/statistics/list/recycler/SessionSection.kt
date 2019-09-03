@@ -113,7 +113,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sta
 			)
 		} else {
 			launch {
-				val activity = AppDatabase.getDatabase(context).activityDao().get(activityId)
+				val activity = AppDatabase.database(context).activityDao().get(activityId)
 						?: SessionActivity.UNKNOWN
 
 				launch(Dispatchers.Main) {

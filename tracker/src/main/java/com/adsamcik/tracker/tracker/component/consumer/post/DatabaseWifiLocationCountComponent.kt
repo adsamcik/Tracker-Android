@@ -39,6 +39,6 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onEnable(context: Context) {
-		wifiDao = AppDatabase.getDatabase(context).wifiLocationCountDao()
+		wifiDao = AppDatabase.database(context).wifiLocationCountDao()
 	}
 }

@@ -30,7 +30,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application), 
 
 	fun updateSessionData() {
 		launch {
-			val sessionDao = AppDatabase.getDatabase(getApplication()).sessionDao()
+			val sessionDao = AppDatabase.database(getApplication()).sessionDao()
 			val end = Calendar.getInstance().apply {
 				roundToDate()
 				add(Calendar.DAY_OF_MONTH, 1)

@@ -42,7 +42,7 @@ class ImportService : CoreService() {
 		)
 
 		launch {
-			database = AppDatabase.getDatabase(this@ImportService)
+			database = AppDatabase.database(this@ImportService)
 			database.runInTransaction {
 				val count = handleFile(file)
 

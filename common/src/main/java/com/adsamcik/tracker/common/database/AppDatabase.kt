@@ -60,38 +60,20 @@ abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun generalDao(): GeneralDao
 
-	companion object {
-		private var instance_: AppDatabase? = null
+	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
+		override val databaseName: String = "main_database"
 
-		private const val DATABASE_NAME = "main_database"
-
-		private fun createInstance(context: Context): AppDatabase {
-			val configuration = SQLiteDatabaseConfiguration(
-					context.getDatabasePath(DATABASE_NAME).path,
-					SQLiteDatabase.OPEN_CREATE or SQLiteDatabase.OPEN_READWRITE
+		override fun setupDatabase(database: Builder<AppDatabase>) {
+			database.addMigrations(
+					MIGRATION_2_3,
+					MIGRATION_3_4,
+					MIGRATION_4_5,
+					MIGRATION_5_6,
+					MIGRATION_6_7,
+					MIGRATION_7_8,
+					MIGRATION_8_9,
+					MIGRATION_9_10
 			)
-			val options = RequerySQLiteOpenHelperFactory.ConfigurationOptions { configuration }
-			val instance = Room.databaseBuilder(
-					context.applicationContext,
-					AppDatabase::class.java,
-					DATABASE_NAME
-			)
-					.addMigrations(
-							MIGRATION_2_3,
-							MIGRATION_3_4,
-							MIGRATION_4_5,
-							MIGRATION_5_6,
-							MIGRATION_6_7,
-							MIGRATION_7_8,
-							MIGRATION_8_9,
-							MIGRATION_9_10
-					)
-					.openHelperFactory(RequerySQLiteOpenHelperFactory(listOf(options)))
-					.build()
-			initialize(context, instance)
-
-			instance_ = instance
-			return instance
 		}
 
 		//todo move this away so it's not run every time database is initialized
@@ -107,15 +89,9 @@ abstract class AppDatabase : RoomDatabase() {
 			}
 		}
 
-		@AnyThread
-		@Synchronized
-		fun getDatabase(context: Context): AppDatabase {
-			return instance_ ?: createInstance(context)
-		}
-
 		@WorkerThread
 		fun deleteAllCollectedData(context: Context) {
-			val database = getDatabase(context)
+			val database = database(context)
 
 			database.runInTransaction {
 				database.sessionDao().deleteAll()
@@ -125,12 +101,6 @@ abstract class AppDatabase : RoomDatabase() {
 				database.wifiDao().deleteAll()
 			}
 		}
-
-		fun getTestDatabase(context: Context): AppDatabase {
-			return Room.inMemoryDatabaseBuilder(context.applicationContext, AppDatabase::class.java)
-					.build()
-		}
-
 	}
 }
 

@@ -39,7 +39,7 @@ data class SessionActivity(
 
 		@WorkerThread
 		fun getAll(context: Context): List<SessionActivity> {
-			val database = AppDatabase.getDatabase(context)
+			val database = AppDatabase.database(context)
 			val activityDao = database.activityDao()
 			val mutableList = mutableListOf<SessionActivity>()
 
