@@ -10,6 +10,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.children
+import java.util.*
 
 /**
  * Sets all margins. Does not work with null layout params.
@@ -177,3 +178,28 @@ fun <T> View.firstParent(iClass: Class<T>, maxDistance: Int = Int.MAX_VALUE): T?
 	return null
 }
 
+inline fun <reified T : View> ViewGroup.findChildrenOfType() =
+		findChildrenOfType(T::class.java)
+
+fun <T : View> ViewGroup.findChildrenOfType(
+		iClass: Class<T>
+): Collection<T> {
+	val found = mutableListOf<T>()
+	val queue = ArrayDeque<ViewGroup>()
+
+	queue.push(this)
+
+	while (true) {
+		val item = queue.poll() ?: break
+
+		item.children.forEach {
+			if (it is ViewGroup) queue.add(it)
+
+			@Suppress("unchecked_cast")
+			if (iClass.isInstance(it)) found.add(it as T)
+		}
+	}
+
+	assert(queue.isEmpty())
+	return found
+}
