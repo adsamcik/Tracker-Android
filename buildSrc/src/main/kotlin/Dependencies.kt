@@ -35,6 +35,8 @@ object Dependencies {
 		internal const val spotlight = "2.1.0"
 		internal const val dialogs = "3.1.0"
 
+		internal const val componentsRecycler = "0.5.2"
+
 		object Test {
 			const val androidxTest: String = "1.2.0"
 			const val espresso: String = "3.2.0"
@@ -75,7 +77,7 @@ object Dependencies {
 			implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
 
 			//Recycler
-			implementation("com.adsamcik.android-components:recycler:0.4.2")
+			implementation("com.adsamcik.android-components:recycler:${Versions.componentsRecycler}")
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
 			implementation("android.arch.paging:runtime:${Versions.paging}")
 
