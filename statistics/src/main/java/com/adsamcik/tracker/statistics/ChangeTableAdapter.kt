@@ -2,9 +2,9 @@ package com.adsamcik.tracker.statistics
 
 import android.view.View
 import androidx.annotation.StyleRes
-import com.adsamcik.recycler.card.CardListAdapter
-import com.adsamcik.recycler.card.table.TableCard
-import com.adsamcik.recycler.card.table.TableCardCreator
+import com.adsamcik.recycler.adapter.implementation.card.CardListAdapter
+import com.adsamcik.recycler.adapter.implementation.card.table.TableCard
+import com.adsamcik.recycler.adapter.implementation.card.table.TableCardCreator
 import com.adsamcik.tracker.common.style.marker.IViewChange
 
 /**

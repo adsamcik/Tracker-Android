@@ -7,13 +7,13 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.debug.DebugDatabase
 import com.adsamcik.tracker.common.debug.LogData
 import com.adsamcik.tracker.common.extension.formatAsDateTime
-import com.adsamcik.tracker.common.recycler.BaseRecyclerAdapter
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -31,7 +31,7 @@ class ActivityDebugActivity : DetailActivity() {
 
 		val recyclerView = RecyclerView(this).apply {
 			layoutManager = LinearLayoutManager(this@ActivityDebugActivity)
-			addItemDecoration(SimpleMarginDecoration())
+			addItemDecoration(MarginDecoration())
 			adapter = Adapter().also { adapter ->
 				launch(Dispatchers.Default) {
 					val data = DebugDatabase
@@ -58,7 +58,7 @@ class ActivityDebugActivity : DetailActivity() {
 		}
 
 		override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-			val logData = get(position)
+			val logData = getItem(position)
 			@Suppress()
 			holder.summaryText.text = "${logData.timeStamp.formatAsDateTime()} - ${logData.message}"
 			holder.descriptionText.text = logData.data

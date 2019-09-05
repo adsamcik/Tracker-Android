@@ -10,9 +10,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.recycler.AppendPriority
-import com.adsamcik.recycler.SortableAdapter
-import com.adsamcik.recycler.card.table.TableCard
+import com.adsamcik.recycler.adapter.implementation.card.table.TableCard
+import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
@@ -25,7 +26,6 @@ import com.adsamcik.tracker.common.extension.observe
 import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.statistics.R
@@ -113,7 +113,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					)
 			)
 			addItemDecoration(
-					SimpleMarginDecoration(
+					MarginDecoration(
 							verticalMargin = 0,
 							horizontalMargin = 0,
 							firstLineMargin = statusBarHeight + contentPadding,
@@ -143,7 +143,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			MaterialDialog(activity).show {
 				title(res = titleRes)
 				customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
-					addItemDecoration(SimpleMarginDecoration())
+					addItemDecoration(MarginDecoration())
 					styleController.watchRecyclerView(RecyclerStyleView(this, 2))
 				}
 

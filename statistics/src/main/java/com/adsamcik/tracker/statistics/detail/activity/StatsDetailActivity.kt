@@ -14,9 +14,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.AppendBehavior
-import com.adsamcik.recycler.AppendPriority
-import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.recycler.adapter.implementation.sortable.AppendBehavior
+import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.data.LengthUnit

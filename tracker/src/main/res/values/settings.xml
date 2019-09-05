@@ -22,6 +22,16 @@
     <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
     <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
 
+    <string name="settings_notification_category">Notifications</string>
+    <string name="settings_notification_customize_title">Customize notification</string>
+    <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
+    <string name="settings_notification_customize_key" translatable="false">customize_notification</string>
+
+    <string name="hint_customizenoti_show_in_title">Show in title</string>
+    <string name="hint_customizenoti_show_in_content">Show in content</string>
+
+    <string name="settings_notification_separator_title">Select separator</string>
+
     <string-array name="tracking_options_titles">
         <item>Disabled</item>
         <item>On foot</item>

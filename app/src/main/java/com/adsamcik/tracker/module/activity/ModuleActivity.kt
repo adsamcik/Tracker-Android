@@ -8,11 +8,11 @@ import android.widget.Toast
 import androidx.appcompat.widget.AppCompatCheckBox
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.style.marker.IViewChange
@@ -117,7 +117,7 @@ class ModuleActivity : DetailActivity() {
 		recycler.layoutManager = layoutManager
 
 		val edgeMargin = resources.getDimension(R.dimen.activity_horizontal_margin).toInt()
-		recycler.addItemDecoration(SimpleMarginDecoration(16.dp, edgeMargin))
+		recycler.addItemDecoration(MarginDecoration(16.dp, edgeMargin))
 
 		recycler.post {
 			val allVisible = layoutManager.findLastCompletelyVisibleItemPosition() == adapter.itemCount - 1

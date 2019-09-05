@@ -43,6 +43,15 @@
                 android:title="@string/settings_disabled_recharge_title" />
         </androidx.preference.PreferenceCategory>
 
+        <androidx.preference.PreferenceCategory android:title="@string/settings_notification_category">
+
+            <androidx.preference.Preference
+                android:key="@string/settings_notification_customize_key"
+                android:summary="@string/settings_notification_customize_summary"
+                android:title="@string/settings_notification_customize_title" />
+
+        </androidx.preference.PreferenceCategory>
+
         <androidx.preference.PreferenceCategory>
             <com.adsamcik.tracker.preference.IntValueSliderPreference
                 android:defaultValue="@integer/settings_tracking_min_distance_default"

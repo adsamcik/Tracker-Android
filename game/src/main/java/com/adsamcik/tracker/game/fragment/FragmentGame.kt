@@ -8,10 +8,10 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.recycler.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.recycler.multitype.MultiTypeAdapter
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
@@ -55,7 +55,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		val navBarHeight = navBarSize.second.y
 
 		recycler.addItemDecoration(
-				SimpleMarginDecoration(
+				MarginDecoration(
 						firstLineMargin = statusBarHeight + contentPadding,
 						lastLineMargin = navBarHeight + contentPadding
 				)

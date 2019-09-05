@@ -8,7 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.recycler.BaseRecyclerAdapter
+import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.commonmap.MapLegendValue
 import com.adsamcik.tracker.map.R
@@ -44,7 +44,7 @@ class MapLegendAdapter : BaseRecyclerAdapter<MapLegendValue, MapLegendAdapter.Vi
 	}
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-		val data = get(position)
+		val data = getItem(position)
 
 		holder.textView.apply {
 			setText(data.nameRes)

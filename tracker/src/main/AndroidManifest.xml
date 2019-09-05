@@ -38,6 +38,7 @@
         <activity
             android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"
             android:screenOrientation="portrait" />
+        <activity android:name=".notification.NotificationManagementActivity" />
 
         <receiver android:name="com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver">
             <intent-filter>

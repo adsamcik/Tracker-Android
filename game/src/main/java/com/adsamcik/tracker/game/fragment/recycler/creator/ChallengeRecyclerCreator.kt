@@ -4,7 +4,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolder
 import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolderCreator
 import com.adsamcik.tracker.game.R
@@ -19,7 +19,7 @@ class ChallengeRecyclerCreator : MultiTypeViewHolderCreator<GameRecyclerData> {
 
 		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler).apply {
 			layoutManager = LinearLayoutManager(context)
-			addItemDecoration(SimpleMarginDecoration())
+			addItemDecoration(MarginDecoration())
 		}
 
 		@Suppress("unchecked_cast")

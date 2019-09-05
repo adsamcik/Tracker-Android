@@ -6,8 +6,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.annotation.WorkerThread
-import com.adsamcik.recycler.AppendPriority
-import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.database.AppDatabase

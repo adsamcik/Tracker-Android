@@ -16,6 +16,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.dialog.dateTimeRangePicker
@@ -28,7 +29,6 @@ import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
@@ -339,7 +339,7 @@ internal class MapSheetController(
 
 		rootLayout.findViewById<RecyclerView>(R.id.map_layers_recycler).apply {
 			layoutManager = GridLayoutManager(context, 2, GridLayoutManager.HORIZONTAL, false)
-			addItemDecoration(SimpleMarginDecoration(0, 4.dp, 0, 0))
+			addItemDecoration(MarginDecoration(0, 4.dp, 0, 0))
 			adapter = MapFilterableAdapter(context, R.layout.layout_layer_icon) {
 				context.getString(it.layerInfo.nameRes)
 			}.apply {

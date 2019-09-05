@@ -5,10 +5,12 @@ import androidx.preference.CheckBoxPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
+import com.adsamcik.tracker.tracker.notification.NotificationManagementActivity
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 
 class TrackerPreferencePage : PreferencePage {
@@ -128,11 +130,20 @@ class TrackerPreferencePage : PreferencePage {
 		}
 	}
 
+	private fun initializeNotificationPreference(caller: PreferenceFragmentCompat) {
+		caller.findPreference(R.string.settings_notification_customize_key)
+				.setOnPreferenceClickListener {
+					it.context.startActivity<NotificationManagementActivity> { }
+					false
+				}
+	}
+
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		snackMaker = SnackMaker(caller.requireView())
 
 		initializeAutoTrackingPreferences(caller)
 		initializeEnableTrackingPreferences(caller)
+		initializeNotificationPreference(caller)
 	}
 
 }

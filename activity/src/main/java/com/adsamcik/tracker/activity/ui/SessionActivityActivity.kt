@@ -2,86 +2,28 @@ package com.adsamcik.tracker.activity.ui
 
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup
-import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.AppendPriority
-import com.adsamcik.recycler.SortableAdapter
+import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.tracker.activity.ui.recycler.ContextualSwipeTouchHelper
-import com.adsamcik.tracker.common.activity.DetailActivity
+import com.adsamcik.tracker.common.activity.ManageActivity
 import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleView
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar.LENGTH_LONG
-import kotlinx.android.synthetic.main.activity_session_activity.*
-import kotlinx.android.synthetic.main.layout_add_activity.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-
-//todo add session editing
-class SessionActivityActivity : DetailActivity() {
-
+class SessionActivityActivity : ManageActivity() {
 	private lateinit var swipeTouchHelper: ContextualSwipeTouchHelper
-	private lateinit var keyboardManager: KeyboardManager
-
-	private lateinit var snackMaker: SnackMaker
 
 	private val adapter = ActivityRecyclerAdapter()
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-
-		val rootView = inflateContent<ViewGroup>(R.layout.activity_session_activity)
-		keyboardManager = KeyboardManager(rootView)
-		snackMaker = SnackMaker(rootView.findViewById(R.id.coordinator))
-
-		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler).apply {
-			this.adapter = this@SessionActivityActivity.adapter
-			val layoutManager = LinearLayoutManager(this@SessionActivityActivity)
-			this.layoutManager = layoutManager
-
-			val dividerItemDecoration = DividerItemDecoration(
-					this@SessionActivityActivity,
-					layoutManager.orientation
-			)
-			addItemDecoration(dividerItemDecoration)
-		}
-
-		swipeTouchHelper = ContextualSwipeTouchHelper(this, adapter) { it.id >= 0 }.apply {
-			onSwipedCallback = this@SessionActivityActivity::onItemSwipedCallback
-		}
-		ItemTouchHelper(swipeTouchHelper).attachToRecyclerView(recycler)
-		val fab = rootView.findViewById<FloatingActionButton>(R.id.fab).apply {
-			setOnClickListener { isExpanded = true }
-		}
-
-		button_cancel.setOnClickListener { fab.isExpanded = false }
-
-		button_ok.setOnClickListener {
-			val context = this@SessionActivityActivity
-
-			fab.isExpanded = false
-			keyboardManager.hideKeyboard()
-
-			val inputText = input_name.text.toString()
-			input_name.clearFocus()
-			input_name.text = null
-
-			launch(Dispatchers.Default) {
-				val newActivity = SessionActivity(0, inputText, null)
-
-				adapter.addItemPersistent(context, newActivity, AppendPriority.Any)
-			}
-		}
 
 		launch(Dispatchers.Default) {
 			val itemCollection = SessionActivity.getAll(this@SessionActivityActivity).map {
@@ -95,8 +37,34 @@ class SessionActivityActivity : DetailActivity() {
 				adapter.addAll(itemCollection)
 			}
 		}
+	}
 
-		initializeColorController()
+	override fun getAdapter(): RecyclerView.Adapter<RecyclerView.ViewHolder> {
+		@Suppress("unchecked_cast")
+		return adapter as RecyclerView.Adapter<RecyclerView.ViewHolder>
+	}
+
+	override fun onCreateRecycler(recyclerView: RecyclerView) {
+		swipeTouchHelper = ContextualSwipeTouchHelper(this, adapter) { it.id >= 0 }.apply {
+			onSwipedCallback = this@SessionActivityActivity::onItemSwipedCallback
+		}
+		ItemTouchHelper(swipeTouchHelper).attachToRecyclerView(recyclerView)
+	}
+
+	override fun onDataSave(dataCollection: List<EditData>) {
+		require(dataCollection.size == 1)
+		require(dataCollection.first().id == NAME_FIELD)
+
+		val value = dataCollection.first().currentValue
+		launch(Dispatchers.Default) {
+			val newActivity = SessionActivity(0, value, null)
+
+			adapter.addItemPersistent(this@SessionActivityActivity, newActivity, AppendPriority.Any)
+		}
+	}
+
+	override fun getEmptyEditData(): Collection<EditData> {
+		return listOf(EditData(NAME_FIELD, EditType.EditText, R.string.activity_name, ""))
 	}
 
 	override fun onConfigure(configuration: Configuration) {
@@ -125,15 +93,13 @@ class SessionActivityActivity : DetailActivity() {
 		)
 	}
 
-	private fun initializeColorController() {
-		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
-		styleController.watchView(StyleView(findViewById(R.id.fab), 1, isInverted = true))
-		styleController.watchView(StyleView(add_item_layout, 2))
-	}
-
 	override fun onDestroy() {
 		super.onDestroy()
 		swipeTouchHelper.onDestroy()
+	}
+
+	companion object {
+		private const val NAME_FIELD = "name"
 	}
 }
 

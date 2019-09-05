@@ -44,7 +44,7 @@ class MapLegendController(rootLayout: View) {
 			descriptionView.setText(descriptionRes)
 		}
 
-		legendAdapter.clear()
+		legendAdapter.removeAll()
 		legendAdapter.addAll(layerData.legend.valueList)
 	}
 

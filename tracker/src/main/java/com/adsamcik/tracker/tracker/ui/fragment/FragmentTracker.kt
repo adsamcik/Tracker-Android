@@ -19,6 +19,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
@@ -38,7 +39,6 @@ import com.adsamcik.tracker.common.extension.requireParent
 import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.recycler.decoration.SimpleMarginDecoration
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.useMock
@@ -95,7 +95,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		val columnPlusOneWidth = computedWidth / (minColumnCount + 1)
 		val columnCount = if (columnPlusOneWidth < minWidth) minColumnCount else minColumnCount + 1
 		layoutManager = StaggeredGridLayoutManager(columnCount, LinearLayoutManager.VERTICAL)
-		addItemDecoration(SimpleMarginDecoration(horizontalMargin = oneSideHorizontalMargin))
+		addItemDecoration(MarginDecoration(horizontalMargin = oneSideHorizontalMargin))
 	}
 
 	override fun onStart() {
