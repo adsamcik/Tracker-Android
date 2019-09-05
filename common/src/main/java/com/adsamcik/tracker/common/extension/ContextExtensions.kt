@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
 import android.app.NotificationManager
+import android.app.Service
 import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
@@ -32,7 +33,7 @@ import androidx.fragment.app.Fragment
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Activity.startActivity(
+inline fun <reified T : Activity> Activity.startActivity(
 		requestCode: Int = -1,
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}
@@ -49,7 +50,7 @@ inline fun <reified T : Any> Activity.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Fragment.startActivity(
+inline fun <reified T : Activity> Fragment.startActivity(
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}
 ) {
@@ -62,7 +63,7 @@ inline fun <reified T : Any> Fragment.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Context.startActivity(
+inline fun <reified T : Activity> Context.startActivity(
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}
 ) {
@@ -113,7 +114,7 @@ fun Activity.startActivity(className: String) {
  *
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Context.startService(
+inline fun <reified T : Service> Context.startService(
 		noinline init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
@@ -126,7 +127,7 @@ inline fun <reified T : Any> Context.startService(
  *
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Any> Context.startForegroundService(
+inline fun <reified T : Service> Context.startForegroundService(
 		noinline init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
