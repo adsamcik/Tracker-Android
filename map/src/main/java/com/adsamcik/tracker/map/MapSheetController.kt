@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map
 
 import android.annotation.SuppressLint
-import android.app.Activity
+import android.graphics.Color
 import android.location.Geocoder
 import android.view.View
 import android.view.ViewGroup
@@ -14,12 +14,12 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.dialog.dateTimeRangePicker
 import com.adsamcik.tracker.common.extension.coerceIn
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.marginBottom
@@ -39,10 +39,12 @@ import com.adsamcik.tracker.map.layer.logic.LocationHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
-import com.afollestad.materialdialogs.MaterialDialog
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.datepicker.CalendarConstraints
+import com.google.android.material.datepicker.MaterialDatePicker
+import com.google.android.material.datepicker.Month
 import kotlinx.android.synthetic.main.layout_map_bottom_sheet_peek.view.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +56,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.math.roundToInt
 
 internal class MapSheetController(
-		activity: Activity,
+		activity: FragmentActivity,
 		private val map: GoogleMap,
 		mapOwner: MapOwner,
 		private val rootLayout: ViewGroup,
@@ -286,8 +288,8 @@ internal class MapSheetController(
 				}
 
 				val selectedRange = mapController.dateRange.coerceIn(availableRange)
-				/*val rangeFrom = createCalendarWithTime(availableRange.first)
-				val rangeTo = createCalendarWithTime(availableRange.last)*/
+				//val rangeFrom = createCalendarWithTime(availableRange.first)
+				//val rangeTo = createCalendarWithTime(availableRange.last)
 
 				launch(Dispatchers.Main) {
 					if (availableRange.last <= availableRange.first) {
@@ -295,28 +297,39 @@ internal class MapSheetController(
 								R.string.map_layer_no_data
 						)
 					} else {
-						MaterialDialog(it.context).dateTimeRangePicker(
-								availableRange,
-								selectedRange
-						) {
-							mapController.dateRange = it.first..it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
-						}.show()
+						val constraints = CalendarConstraints.Builder()
+								.setStart(Month.create(availableRange.first))
+								.setEnd(Month.create(availableRange.last))
 
-						/*val constraints = CalendarConstraints.Builder()
-								.setStart(Month.create(rangeFrom.year, rangeFrom.month))
-								.setEnd(Month.create(rangeTo.year, rangeTo.month))
+						//todo DatePicker is still in alpha an might get View exposure in the next build
+						// so this is kind of hacky for now just to quickly remove the old approach
 						MaterialDatePicker.Builder.dateRangePicker()
 								.setCalendarConstraints(constraints.build())
 								.setTheme(com.adsamcik.tracker.common.R.style.CalendarPicker)
-								.build(
-
-								).apply {
+								.build().apply {
 									addOnPositiveButtonClickListener {
 										val from = it.first ?: selectedRange.first
 										val to = it.second ?: from
 										mapController.dateRange = from..to
 									}
-								}.show(requireFragmentManager(), "picker")*/
+									addOnDismissListener {
+									}
+
+									viewLifecycleOwnerLiveData.observeForever {
+										when (it?.lifecycle?.currentState) {
+											Lifecycle.State.INITIALIZED -> {
+												val view = requireView()
+												val styleView = StyleView(view, 2)
+												view.setBackgroundColor(Color.WHITE)
+												styleController.watchView(styleView)
+												view.viewTreeObserver.addOnGlobalLayoutListener {
+													styleController.updateOnce(styleView, true)
+												}
+											}
+											else -> return@observeForever
+										}
+									}
+								}.show(activity.supportFragmentManager, "picker")
 					}
 				}
 			}

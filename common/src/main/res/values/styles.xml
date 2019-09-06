@@ -10,7 +10,7 @@
         <item name="android:letterSpacing">0</item>
     </style>
 
-    <style name="CalendarPicker" parent="Theme.MaterialComponents">
+    <style name="CalendarPicker" parent="ThemeOverlay.MaterialComponents.MaterialCalendar">
 
     </style>
 </resources>

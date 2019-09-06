@@ -164,7 +164,8 @@ internal class StyleUpdater {
 			backgroundLuminance: Int,
 			view: View,
 			layer: Int,
-			depthLeft: Int
+			depthLeft: Int,
+			allowRecycler: Boolean = false
 	) {
 		var newLayer = layer
 
@@ -179,7 +180,7 @@ internal class StyleUpdater {
 		if (wasBackgroundUpdated) newLayer++
 
 		if (view is ViewGroup) {
-			if (depthLeft <= 0 || view is RecyclerView) return
+			if (depthLeft <= 0 || (!allowRecycler && view is RecyclerView)) return
 
 			val newDepthLeft = depthLeft - 1
 

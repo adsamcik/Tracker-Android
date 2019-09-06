@@ -361,6 +361,24 @@ class StyleController : CoroutineScope {
 		}
 	}
 
+	fun updateOnce(styleView: StyleView, allowRecycler: Boolean) {
+		launch {
+			val styleData = styleData
+			val backgroundColor = styleData.backgroundColorFor(styleView)
+			val foregroundColor = styleData.foregroundColorFor(styleView)
+			val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+			styleUpdater.updateSingle(
+					backgroundColor,
+					foregroundColor,
+					perceivedLuminance,
+					styleView.view,
+					styleView.layer,
+					styleView.maxDepth,
+					allowRecycler
+			)
+		}
+	}
+
 	/**
 	 * Removes color listener
 	 */
