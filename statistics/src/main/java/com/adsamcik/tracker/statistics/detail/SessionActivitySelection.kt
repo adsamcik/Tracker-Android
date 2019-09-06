@@ -44,7 +44,7 @@ class SessionActivitySelection(
 		}
 	}
 
-	private fun onSelected(dialog: MaterialDialog, index: Int, title: String) {
+	private fun onSelected(dialog: MaterialDialog, index: Int, title: CharSequence) {
 		val session = MutableTrackerSession(session)
 		session.sessionActivityId = activityList[index].id
 		launch(Dispatchers.Default) {
