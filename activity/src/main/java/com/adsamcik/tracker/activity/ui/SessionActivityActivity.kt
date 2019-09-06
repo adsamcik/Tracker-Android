@@ -20,7 +20,17 @@ import kotlinx.coroutines.launch
 class SessionActivityActivity : ManageActivity() {
 	private lateinit var swipeTouchHelper: ContextualSwipeTouchHelper
 
-	private val adapter = ActivityRecyclerAdapter()
+	private val adapter = ActivityRecyclerAdapter(this::onEdit)
+
+	private fun onEdit(position: Int) {
+		val data = adapter.getItem(position)
+		val editList = generateEditDataList(data)
+		edit(data.id.toString(), editList)
+	}
+
+	private fun generateEditDataList(sessionActivity: SessionActivity): Collection<EditDataInstance> {
+		return listOf(EditDataInstance(NAME_FIELD, sessionActivity.name))
+	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -51,20 +61,42 @@ class SessionActivityActivity : ManageActivity() {
 		ItemTouchHelper(swipeTouchHelper).attachToRecyclerView(recyclerView)
 	}
 
-	override fun onDataSave(dataCollection: List<EditData>) {
+	override fun onDataSave(tag: String?, dataCollection: List<EditDataInstance>) {
 		require(dataCollection.size == 1)
 		require(dataCollection.first().id == NAME_FIELD)
 
-		val value = dataCollection.first().currentValue
+		val name = dataCollection.first().value
 		launch(Dispatchers.Default) {
-			val newActivity = SessionActivity(0, value, null)
+			if (tag != null) {
+				val id = tag.toLong()
+				var tmpItem: SessionActivity? = null
+				for (i in 0 until adapter.itemCount) {
+					val tmp = adapter.getItem(i)
+					if (id == tmp.id) {
+						tmpItem = tmp
+						break
+					}
+				}
 
-			adapter.addItemPersistent(this@SessionActivityActivity, newActivity, AppendPriority.Any)
+				val item = requireNotNull(tmpItem)
+
+				val newItem = SessionActivity(item.id, name, item.iconName)
+
+				adapter.updateItemPersistent(this@SessionActivityActivity, newItem)
+			} else {
+				val newActivity = SessionActivity(0, name, null)
+
+				adapter.addItemPersistent(
+						this@SessionActivityActivity,
+						newActivity,
+						AppendPriority.Any
+				)
+			}
 		}
 	}
 
 	override fun getEmptyEditData(): Collection<EditData> {
-		return listOf(EditData(NAME_FIELD, EditType.EditText, R.string.activity_name, ""))
+		return listOf(EditData(NAME_FIELD, EditType.EditText, R.string.activity_name, true))
 	}
 
 	override fun onConfigure(configuration: Configuration) {

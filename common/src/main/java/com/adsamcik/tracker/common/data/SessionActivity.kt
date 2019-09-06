@@ -12,7 +12,7 @@ import com.adsamcik.tracker.common.database.AppDatabase
 @Entity(tableName = "activity", indices = [Index("name")])
 data class SessionActivity(
 		@PrimaryKey(autoGenerate = true) var id: Long = 0,
-		var name: String,
+		val name: String,
 		val iconName: String? = null
 ) {
 

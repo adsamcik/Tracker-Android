@@ -5,16 +5,17 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.EditText
+import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.annotation.CallSuper
 import androidx.annotation.StringRes
+import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.extension.findChildrenOfType
+import com.adsamcik.tracker.common.extension.findChildOfType
 import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.style.RecyclerStyleView
@@ -25,6 +26,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.android.synthetic.main.layout_recycler_edit.*
 
+@Suppress("TooManyFunctions")
 abstract class ManageActivity : DetailActivity() {
 	protected lateinit var keyboardManager: KeyboardManager
 		private set
@@ -34,6 +36,12 @@ abstract class ManageActivity : DetailActivity() {
 
 	protected lateinit var fab: FloatingActionButton
 		private set
+
+	private var editContentRootLayout: ViewGroup? = null
+
+	private val editFieldList = mutableListOf<EditData>()
+
+	private var isEditInitialized: Boolean = false
 
 	abstract fun getAdapter(): RecyclerView.Adapter<RecyclerView.ViewHolder>
 
@@ -62,10 +70,10 @@ abstract class ManageActivity : DetailActivity() {
 		onCreateRecycler(recycler)
 
 		fab = rootView.findViewById<FloatingActionButton>(R.id.fab).apply {
+			onCreateEdit()
 			setOnClickListener { isExpanded = true }
 		}
 
-		onCreateEdit()
 		initializeColorController()
 	}
 
@@ -79,8 +87,6 @@ abstract class ManageActivity : DetailActivity() {
 
 	private fun initializeEditText(data: EditData): View {
 		val editText = TextInputEditText(this).apply {
-			setText(data.currentValue)
-			tag = data
 			this.layoutParams = LinearLayout.LayoutParams(
 					ViewGroup.LayoutParams.MATCH_PARENT,
 					ViewGroup.LayoutParams.WRAP_CONTENT
@@ -97,11 +103,34 @@ abstract class ManageActivity : DetailActivity() {
 		}
 	}
 
+	private fun setEditText(editText: TextInputEditText, data: EditDataInstance) {
+		editText.setText(data.value)
+	}
+
+	private fun getEditTextValue(view: View, editData: EditData): EditDataInstance? {
+		require(view is TextInputLayout)
+		val editText = view.findChildOfType<TextInputEditText>()
+		val editableText = editText.text
+		return if (editData.isRequired && editableText.isNullOrBlank()) {
+			null
+		} else {
+			EditDataInstance(editData.id, editableText.toString())
+		}
+	}
+
 	private fun initializeCheckbox(data: EditData): View {
 		return MaterialCheckBox(this).apply {
-			isChecked = data.currentValue.toBoolean()
 			setHint(data.hintRes)
 		}
+	}
+
+	private fun setCheckbox(checkBox: CheckBox, data: EditDataInstance) {
+		checkBox.isChecked = data.value.toBoolean()
+	}
+
+	private fun getCheckboxValue(view: View, editData: EditData): EditDataInstance {
+		require(view is CheckBox)
+		return EditDataInstance(editData.id, view.isChecked.toString())
 	}
 
 	private fun initializeEditFields(rootLayout: ViewGroup, collection: Collection<EditData>) {
@@ -113,12 +142,70 @@ abstract class ManageActivity : DetailActivity() {
 
 			rootLayout.addView(layout)
 		}
+
+		editFieldList.addAll(collection)
+	}
+
+	private fun setDefaultDataEditFields(
+			view: View,
+			data: EditData,
+			instance: EditDataInstance
+	) {
+		when (data.type) {
+			EditType.EditText -> {
+				require(view is TextInputLayout)
+				val child = view.findChildOfType<TextInputEditText>()
+				setEditText(child, instance)
+
+			}
+			EditType.Checkbox -> {
+				require(view is CheckBox)
+				setCheckbox(view, instance)
+			}
+		}
+	}
+
+	private fun setDefaultDataEditFields(
+			rootLayout: ViewGroup,
+			collection: Collection<EditDataInstance>
+	) {
+		require(collection.distinct().size == collection.size)
+
+		val matchList = collection.map { instance ->
+			editFieldList.indexOfFirst { instance.id == it.id } to instance
+		}
+
+		require(matchList.all { it.first >= 0 })
+
+		val sorted = matchList.sortedBy { it.first }
+		rootLayout.children.forEachIndexed { index, view ->
+			val match = sorted[index]
+			require(index == match.first)
+			val editData = editFieldList[index]
+			setDefaultDataEditFields(view, editData, match.second)
+		}
+	}
+
+	private fun getFieldValues(
+			rootLayout: ViewGroup
+	): Collection<EditDataInstance?> {
+		return rootLayout.children.mapIndexed { index, view ->
+			val editData = editFieldList[index]
+			when (editData.type) {
+				EditType.EditText -> getEditTextValue(view, editData)
+				EditType.Checkbox -> getCheckboxValue(view, editData)
+			}
+		}.toList()
 	}
 
 	private fun onCreateEdit() {
+		if (isEditInitialized) return
+		isEditInitialized = true
+
 		val rootView = inflateEdit()
 
 		val editContent = rootView.findViewById<ViewGroup>(R.id.edit_content)
+		editContentRootLayout = editContent
 
 		val editDataCollection = getEmptyEditData()
 
@@ -128,16 +215,13 @@ abstract class ManageActivity : DetailActivity() {
 			fab.isExpanded = false
 			keyboardManager.hideKeyboard()
 
-			val editDataList = editContent.findChildrenOfType<EditText>().map {
-				val editData = it.tag as EditData
-				val newData = EditData(editData, it.text.toString())
-				it.clearFocus()
-				it.text = null
+			val editDataList = getFieldValues(editContent)
+			val editDataListNonNull = editDataList.filterNotNull()
 
-				newData
+			if (editDataList.size == editDataListNonNull.size) {
+				val tag = requireNotNull(editContentRootLayout).tag as? String
+				onDataSave(tag, editDataListNonNull)
 			}
-
-			onDataSave(editDataList)
 		}
 
 		rootView.findViewById<Button>(R.id.button_cancel).setOnClickListener {
@@ -145,9 +229,18 @@ abstract class ManageActivity : DetailActivity() {
 		}
 	}
 
-	protected abstract fun onDataSave(dataCollection: List<EditData>)
+	protected abstract fun onDataSave(tag: String?, dataCollection: List<EditDataInstance>)
 
 	protected abstract fun getEmptyEditData(): Collection<EditData>
+
+	protected fun edit(tag: String, data: Collection<EditDataInstance>) {
+		onCreateEdit()
+		val rootLayout = requireNotNull(editContentRootLayout)
+		rootLayout.tag = tag
+		setDefaultDataEditFields(rootLayout, data)
+		fab.isExpanded = true
+	}
+
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.useColorControllerForContent = true
@@ -164,15 +257,13 @@ abstract class ManageActivity : DetailActivity() {
 			val id: String,
 			val type: EditType,
 			@StringRes val hintRes: Int,
-			val currentValue: String
-	) {
-		constructor(data: EditData, newValue: String) : this(
-				data.id,
-				data.type,
-				data.hintRes,
-				newValue
-		)
-	}
+			val isRequired: Boolean = false
+	)
+
+	data class EditDataInstance(
+			val id: String,
+			val value: String
+	)
 
 	enum class EditType {
 		EditText,

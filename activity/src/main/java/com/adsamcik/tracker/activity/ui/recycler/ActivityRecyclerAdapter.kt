@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.annotation.WorkerThread
 import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
 import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
@@ -18,9 +17,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivityViewHolder>(),
-		IViewChange,
-		CoroutineScope {
+class ActivityRecyclerAdapter(
+		private val editCallback: (position: Int) -> Unit
+) : SortableAdapter<SessionActivity, RecyclerActivityViewHolder>(), IViewChange, CoroutineScope {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val job = SupervisorJob()
@@ -36,13 +35,28 @@ class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivit
 			val icon = item.getIcon(context)
 			setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
 		}
+
+		if (item.id >= 0) {
+			holder.editButton.apply {
+				tag = position
+				setOnClickListener { editCallback(it.tag as Int) }
+				visibility = View.VISIBLE
+			}
+		} else {
+			holder.editButton.visibility = View.GONE
+		}
+
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerActivityViewHolder {
 		val inflater = LayoutInflater.from(parent.context)
 		val rootView = inflater.inflate(R.layout.layout_activity_item, parent, false)
-		return RecyclerActivityViewHolder(rootView, rootView as TextView)
+		return RecyclerActivityViewHolder(
+				rootView,
+				rootView.findViewById(R.id.title),
+				rootView.findViewById(R.id.edit)
+		)
 	}
 
 	@WorkerThread
@@ -58,6 +72,13 @@ class ActivityRecyclerAdapter : SortableAdapter<SessionActivity, RecyclerActivit
 		val id = AppDatabase.database(context).activityDao().insert(item)
 		item.id = id
 		launch { add(item, priority) }
+	}
+
+	fun updateItemPersistent(context: Context, item: SessionActivity) {
+		AppDatabase.database(context).activityDao().update(item)
+		val index = indexOf(item)
+		require(index >= 0)
+		launch { updateAt(index, item) }
 	}
 }
 

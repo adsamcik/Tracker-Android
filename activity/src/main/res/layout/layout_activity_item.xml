@@ -1,13 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.appcompat.widget.AppCompatTextView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    style="@style/TextAppearance.AppCompat.Subhead"
     android:layout_width="match_parent"
-    android:layout_height="48dp"
-    android:layout_weight="1"
-    android:drawablePadding="@dimen/content_padding"
-    android:gravity="center_vertical"
-    android:paddingStart="@dimen/content_padding"
-    android:paddingEnd="@dimen/content_padding"
-    tools:drawableStart="@drawable/ic_outline_directions_run_24px"
-    tools:text="@string/activity_run" />
+    android:layout_height="48dp">
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/title"
+        style="@style/TextAppearance.AppCompat.Subhead"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:drawablePadding="@dimen/content_padding"
+        android:gravity="center_vertical"
+        android:paddingStart="@dimen/content_padding"
+        android:paddingEnd="@dimen/content_padding"
+        tools:drawableStart="@drawable/ic_outline_directions_run_24px"
+        tools:text="@string/activity_run" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/edit"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        app:icon="@drawable/ic_baseline_edit" />
+</androidx.appcompat.widget.LinearLayoutCompat>

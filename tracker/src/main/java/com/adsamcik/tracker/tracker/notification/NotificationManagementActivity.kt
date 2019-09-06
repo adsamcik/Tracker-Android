@@ -62,7 +62,7 @@ class NotificationManagementActivity : ManageActivity() {
 		ItemTouchHelper(simpleItemTouchCallback).attachToRecyclerView(recyclerView)
 	}
 
-	override fun onDataSave(dataCollection: List<EditData>) {
+	override fun onDataSave(tag: String?, dataCollection: List<EditDataInstance>) {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
 
@@ -71,14 +71,12 @@ class NotificationManagementActivity : ManageActivity() {
 				EditData(
 						"showInTitle",
 						EditType.Checkbox,
-						R.string.hint_customizenoti_show_in_title,
-						false.toString()
+						R.string.hint_customizenoti_show_in_title
 				),
 				EditData(
 						"showInContent",
 						EditType.Checkbox,
-						R.string.hint_customizenoti_show_in_content,
-						false.toString()
+						R.string.hint_customizenoti_show_in_content
 				)
 		)
 	}
