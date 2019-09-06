@@ -10,6 +10,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.children
+import com.adsamcik.tracker.common.exception.NotFoundException
 import java.util.*
 
 /**
@@ -202,4 +203,29 @@ fun <T : View> ViewGroup.findChildrenOfType(
 
 	assert(queue.isEmpty())
 	return found
+}
+
+inline fun <reified T : View> ViewGroup.findChildOfType() =
+		findChildOfType(T::class.java)
+
+fun <T : View> ViewGroup.findChildOfType(
+		iClass: Class<T>
+): T {
+	val queue = ArrayDeque<ViewGroup>()
+
+	queue.push(this)
+
+	while (true) {
+		val item = queue.poll() ?: break
+
+		item.children.forEach {
+			if (it is ViewGroup) queue.add(it)
+
+			@Suppress("unchecked_cast")
+			if (iClass.isInstance(it)) return it as T
+		}
+	}
+
+	assert(queue.isEmpty())
+	throw NotFoundException("Child of type ${iClass.name} not found")
 }
