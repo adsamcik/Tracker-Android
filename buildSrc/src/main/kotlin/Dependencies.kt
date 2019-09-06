@@ -5,24 +5,24 @@ import org.gradle.kotlin.dsl.kotlin
 object Dependencies {
 	object Versions {
 		internal const val constraintLayout = "2.0.0-beta2"
-		internal const val coreKtx = "1.2.0-alpha03"
-		internal const val appcompat = "1.1.0-rc01"
-		internal const val fragment = "1.2.0-alpha02"
+		internal const val coreKtx = "1.2.0-alpha04"
+		internal const val appcompat = "1.1.0"
+		internal const val fragment = "1.2.0-alpha03"
 		const val kotlin: String = "1.3.50"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.8.0"
 		internal const val work = "2.2.0"
-		internal const val lifecycle = "2.2.0-alpha03"
-		internal const val preference = "1.1.0-rc01"
-		internal const val material = "1.1.0-alpha09"
-		internal const val coroutines = "1.3.0"
+		internal const val lifecycle = "2.2.0-alpha04"
+		internal const val preference = "1.1.0"
+		internal const val material = "1.1.0-alpha10"
+		internal const val coroutines = "1.3.1"
 
 		internal const val requery = "3.29.0"
-		internal const val room = "2.1.0"
+		internal const val room = "2.2.0-rc01"
 
 		internal const val maps = "17.0.0"
 		internal const val firebaseCore = "17.2.0"
-		internal const val recyclerView = "1.1.0-beta03"
+		internal const val recyclerView = "1.1.0-beta04"
 		internal const val paging = "2.1.0"
 
 		internal const val crashlytics = "2.10.1"
@@ -33,7 +33,7 @@ object Dependencies {
 
 		internal const val sublimePicker = "2.1.2"
 		internal const val spotlight = "2.1.0"
-		internal const val dialogs = "3.1.0"
+		internal const val dialogs = "3.1.1"
 
 		internal const val componentsRecycler = "0.5.2"
 
@@ -190,7 +190,7 @@ object Dependencies {
 			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
 			androidTestImplementation("androidx.test.ext:junit:1.1.1")
-			androidTestImplementation("androidx.arch.core:core-testing:2.1.0-rc01")
+			androidTestImplementation("androidx.arch.core:core-testing:2.1.0")
 			androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
 			androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
 			androidTestImplementation("androidx.test.espresso:espresso-contrib:${Versions.Test.espresso}")
