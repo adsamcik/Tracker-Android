@@ -69,16 +69,7 @@ class SessionActivityActivity : ManageActivity() {
 		launch(Dispatchers.Default) {
 			if (tag != null) {
 				val id = tag.toLong()
-				var tmpItem: SessionActivity? = null
-				for (i in 0 until adapter.itemCount) {
-					val tmp = adapter.getItem(i)
-					if (id == tmp.id) {
-						tmpItem = tmp
-						break
-					}
-				}
-
-				val item = requireNotNull(tmpItem)
+				val item = requireNotNull(adapter.find { it.id == id })
 
 				val newItem = SessionActivity(item.id, name, item.iconName)
 

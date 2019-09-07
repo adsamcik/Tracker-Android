@@ -263,7 +263,9 @@ abstract class ManageActivity : DetailActivity() {
 	data class EditDataInstance(
 			val id: String,
 			val value: String
-	)
+	) {
+		constructor(id: String, value: Any) : this(id, value.toString())
+	}
 
 	enum class EditType {
 		EditText,

@@ -7,6 +7,7 @@
     android:orientation="horizontal">
 
     <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/drag_button"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:padding="8dp"
@@ -23,10 +24,12 @@
         android:paddingEnd="@dimen/content_padding"
         tools:text="Current speed" />
 
-    <com.google.android.material.checkbox.MaterialCheckBox
-        android:id="@+id/checkbox"
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/edit"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:clickable="false"
-        android:focusableInTouchMode="false" />
+        android:focusableInTouchMode="false"
+        app:icon="@drawable/ic_baseline_edit" />
 </LinearLayout>

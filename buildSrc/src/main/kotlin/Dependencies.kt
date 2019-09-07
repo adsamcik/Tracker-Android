@@ -35,7 +35,7 @@ object Dependencies {
 		internal const val spotlight = "2.1.0"
 		internal const val dialogs = "3.1.1"
 
-		internal const val componentsRecycler = "0.6.0"
+		internal const val componentsRecycler = "0.6.1"
 
 		object Test {
 			const val androidxTest: String = "1.2.0"

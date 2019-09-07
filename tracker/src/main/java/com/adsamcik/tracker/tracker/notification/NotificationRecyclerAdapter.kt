@@ -1,24 +1,34 @@
 package com.adsamcik.tracker.tracker.notification
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.CheckBox
+import android.widget.Button
+import android.widget.ImageView
 import android.widget.TextView
-import androidx.appcompat.widget.AppCompatImageView
+import androidx.annotation.WorkerThread
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
+import com.adsamcik.tracker.common.database.PreferenceDatabase
 import com.adsamcik.tracker.common.database.data.NotificationPreference
 import com.adsamcik.tracker.common.style.marker.IViewChange
 import com.adsamcik.tracker.tracker.R
-import com.google.android.material.checkbox.MaterialCheckBox
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.max
+import kotlin.math.min
 
-class NotificationRecyclerAdapter : BaseRecyclerAdapter<NotificationPreferenceInstance, NotificationRecyclerAdapter.ViewHolder>(),
+internal class NotificationRecyclerAdapter(
+		private val dragStartListener: OnStartDragListener,
+		private val editCallback: (position: Int) -> Unit
+) : BaseRecyclerAdapter<TrackerNotificationComponent, NotificationRecyclerAdapter.ViewHolder>(),
 		IViewChange,
 		CoroutineScope {
 	override var onViewChangedListener: ((View) -> Unit)? = null
@@ -28,10 +38,22 @@ class NotificationRecyclerAdapter : BaseRecyclerAdapter<NotificationPreferenceIn
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
 
+	@SuppressLint("ClickableViewAccessibility")
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 		val item = getItem(position)
 		val context = holder.itemView.context
 		holder.textView.setText(item.titleRes)
+		holder.dragButton.setOnTouchListener { view, motionEvent ->
+			when (motionEvent.actionMasked) {
+				MotionEvent.ACTION_DOWN -> dragStartListener.onStartDrag(holder)
+				else -> view.onTouchEvent(motionEvent)
+			}
+			return@setOnTouchListener true
+		}
+
+		holder.editButton.setOnClickListener {
+			editCallback(position)
+		}
 		//holder.checkBox.
 
 		onViewChangedListener?.invoke(holder.itemView)
@@ -41,13 +63,53 @@ class NotificationRecyclerAdapter : BaseRecyclerAdapter<NotificationPreferenceIn
 		val inflater = LayoutInflater.from(parent.context)
 		val rootView = inflater.inflate(R.layout.notification_recycler_item, parent, false)
 		val textView = rootView.findViewById<AppCompatTextView>(R.id.title)
-		val checkbox = rootView.findViewById<MaterialCheckBox>(R.id.checkbox)
-		return ViewHolder(rootView, textView, checkbox)
+		val editButton = rootView.findViewById<Button>(R.id.edit)
+		val dragButton = rootView.findViewById<ImageView>(R.id.drag_button)
+		return ViewHolder(rootView, textView, dragButton, editButton)
+	}
+
+	@WorkerThread
+	fun updateItemPersistent(context: Context, item: NotificationPreference) {
+		PreferenceDatabase.database(context).notificationDao.update(item)
+		val index = indexOf { it.id == item.id }
+		require(index >= 0)
+		launch {
+			getItem(index).preference = item
+			notifyItemChanged(index)
+		}
+	}
+
+	@WorkerThread
+	fun moveItemPersistent(context: Context, from: Int, to: Int) {
+		launch {
+			move(from, to)
+
+			launch(Dispatchers.Default) {
+				val fromIndex = min(from, to)
+				val toIndex = max(from, to)
+
+				val updateOrderList = ArrayList<NotificationPreference>(toIndex - fromIndex + 1)
+				for (i in fromIndex..toIndex) {
+					val item = getItem(i).preference
+					updateOrderList.add(
+							NotificationPreference(
+									item.id,
+									i,
+									item.isInTitle,
+									item.isInContent
+							)
+					)
+				}
+
+				PreferenceDatabase.database(context).notificationDao.upsert(updateOrderList)
+			}
+		}
 	}
 
 	class ViewHolder(
 			root: View,
 			val textView: TextView,
-			val checkBox: CheckBox
+			val dragButton: ImageView,
+			val editButton: Button
 	) : RecyclerView.ViewHolder(root)
 }

@@ -37,7 +37,7 @@ interface BaseDao<T> {
 	fun update(obj: T)
 
 	/**
-	 * Update an array of objects from the database.
+	 * Update an collection of objects from the database.
 	 *
 	 * @param obj the object to be updated
 	 */
@@ -61,7 +61,7 @@ interface BaseDao<T> {
 	fun delete(obj: Collection<T>)
 }
 
-@Dao
+
 @Suppress("unused")
 interface BaseUpsertDao<T> : BaseDao<T> {
 	@Transaction

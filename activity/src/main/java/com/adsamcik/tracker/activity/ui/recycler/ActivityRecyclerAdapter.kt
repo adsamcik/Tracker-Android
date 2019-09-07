@@ -74,9 +74,10 @@ class ActivityRecyclerAdapter(
 		launch { add(item, priority) }
 	}
 
+	@WorkerThread
 	fun updateItemPersistent(context: Context, item: SessionActivity) {
 		AppDatabase.database(context).activityDao().update(item)
-		val index = indexOf(item)
+		val index = indexOf { it.id == item.id }
 		require(index >= 0)
 		launch { updateAt(index, item) }
 	}
