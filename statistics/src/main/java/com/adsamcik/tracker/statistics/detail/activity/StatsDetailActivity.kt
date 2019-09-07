@@ -14,6 +14,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeAdapter
+import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeData
+import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeViewHolder
+import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeViewHolderCreator
 import com.adsamcik.recycler.adapter.implementation.sortable.AppendBehavior
 import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
 import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
@@ -34,8 +38,8 @@ import com.adsamcik.tracker.common.extension.observe
 import com.adsamcik.tracker.common.extension.requireValue
 import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.recycler.multitype.MultiTypeAdapter
-import com.adsamcik.tracker.common.recycler.multitype.MultiTypeData
+import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
+import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.statistics.R
@@ -57,7 +61,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
 
-typealias StatsDetailAdapter = MultiTypeAdapter<StatisticDetailType, MultiTypeData<StatisticDetailType>>
+typealias StatsDetailAdapter = StyleMultiTypeAdapter<StatisticDetailType, MultiTypeData<StatisticDetailType>>
 
 class StatsDetailActivity : DetailActivity() {
 	private lateinit var viewModel: ViewModel
@@ -88,7 +92,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
 
-		if (sessionId <= 0L) throw IllegalArgumentException("Argument $ARG_SESSION_ID must be set with valid value!")
+		require(sessionId > 0L) { "Argument $ARG_SESSION_ID must be set with valid value!" }
 
 		viewModel = ViewModelProvider(this)[ViewModel::class.java].also {
 			launch(Dispatchers.Default) {

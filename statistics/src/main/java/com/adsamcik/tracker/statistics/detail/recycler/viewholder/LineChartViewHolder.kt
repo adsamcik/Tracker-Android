@@ -4,7 +4,7 @@ import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolder
+import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.common.style.StyleController
 import com.adsamcik.tracker.common.style.StyleData
 import com.adsamcik.tracker.statistics.detail.recycler.data.LineChartStatisticsData
@@ -16,7 +16,7 @@ class LineChartViewHolder(
 		root: View,
 		val title: TextView,
 		val chart: LineChart
-) : MultiTypeViewHolder<LineChartStatisticsData>(root) {
+) : StyleMultiTypeViewHolder<LineChartStatisticsData>(root) {
 
 
 	private fun onColorChange(styleData: StyleData) {

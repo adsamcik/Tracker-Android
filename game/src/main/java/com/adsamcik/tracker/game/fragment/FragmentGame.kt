@@ -8,11 +8,13 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
+import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeAdapter
+import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeViewHolder
 import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.recycler.multitype.MultiTypeAdapter
+import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.game.R
@@ -26,7 +28,7 @@ import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-typealias GameAdapter = MultiTypeAdapter<GameRecyclerType, GameRecyclerData>
+typealias GameAdapter = StyleMultiTypeAdapter<GameRecyclerType, GameRecyclerData>
 
 @Suppress("unused")
 class FragmentGame : CoreUIFragment(), IOnDemandView {

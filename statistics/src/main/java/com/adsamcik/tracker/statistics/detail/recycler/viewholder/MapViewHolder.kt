@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.statistics.detail.recycler.viewholder
 
-import com.adsamcik.tracker.common.recycler.multitype.MultiTypeViewHolder
+import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.common.style.StyleController
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
@@ -11,7 +11,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.PolylineOptions
 
-class MapViewHolder(val map: MapView) : MultiTypeViewHolder<MapStatisticsData>(map) {
+class MapViewHolder(val map: MapView) : StyleMultiTypeViewHolder<MapStatisticsData>(map) {
 	private var googleMap: GoogleMap? = null
 
 	override fun bind(value: MapStatisticsData, styleController: StyleController) {

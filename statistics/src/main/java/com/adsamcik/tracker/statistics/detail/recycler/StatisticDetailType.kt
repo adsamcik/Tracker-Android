@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.statistics.detail.recycler
 
-import com.adsamcik.tracker.common.recycler.multitype.MultiTypeData
+import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeData
 
 enum class StatisticDetailType {
 	Information,
