@@ -28,7 +28,7 @@ object Dependencies {
 		internal const val crashlytics = "2.10.1"
 
 		internal const val playServicesBase = "17.1.0"
-		internal const val playCore = "1.6.1"
+		internal const val playCore = "1.6.2"
 		internal const val playLocation = "17.0.0"
 
 		internal const val sublimePicker = "2.1.2"
