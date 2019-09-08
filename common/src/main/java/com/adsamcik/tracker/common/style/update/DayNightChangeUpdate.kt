@@ -36,19 +36,19 @@ class DayNightChangeUpdate : StyleUpdate {
 			(nowTime >= sunriseTime) and (nowTime < sunsetTime) -> {
 				val progress = (nowTime - sunriseTime) / dayDuration
 
-				UpdateData(styleList[NIGHT], styleList[DAY], dayDuration, progress)
+				UpdateData(styleList[DAY], styleList[NIGHT], dayDuration, progress)
 			}
 			nowTime >= sunsetTime -> {
 				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
 				val progress = (nowTime - sunsetTime) / nightDuration
 
-				UpdateData(styleList[DAY], styleList[NIGHT], nightDuration, progress)
+				UpdateData(styleList[NIGHT], styleList[DAY], nightDuration, progress)
 			}
 			nowTime < sunriseTime -> {
 				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
 				val previousSunset = sunsetTime - Time.DAY_IN_MILLISECONDS
 				val progress = (nowTime - previousSunset) / nightDuration
-				UpdateData(styleList[DAY], styleList[NIGHT], nightDuration, progress)
+				UpdateData(styleList[NIGHT], styleList[DAY], nightDuration, progress)
 			}
 			else -> throw IllegalStateException()
 		}
