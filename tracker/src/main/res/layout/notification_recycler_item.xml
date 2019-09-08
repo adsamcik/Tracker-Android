@@ -20,9 +20,23 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:gravity="center_vertical"
-        android:paddingStart="@dimen/content_padding"
-        android:paddingEnd="@dimen/content_padding"
         tools:text="Current speed" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/icon_title"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:scaleType="fitCenter"
+        app:srcCompat="@drawable/ic_format_title" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/icon_content"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:scaleType="fitCenter"
+        app:srcCompat="@drawable/ic_subtitles_outline" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/edit"

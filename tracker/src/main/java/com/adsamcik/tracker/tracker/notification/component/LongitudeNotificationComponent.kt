@@ -10,10 +10,15 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 
 internal class LongitudeNotificationComponent : TrackerNotificationComponent() {
 	override val defaultPreference: NotificationPreference
-		get() = NotificationPreference(ID, 0, isInTitle = true, isInContent = true)
+		get() = NotificationPreference(
+				this::class.java.simpleName,
+				0,
+				isInTitle = true,
+				isInContent = true
+		)
 
 	override val titleRes: Int
-		get() = R.string.longitude
+		get() = R.string.longitude_title
 
 	override fun generateText(
 			context: Context,
@@ -21,10 +26,9 @@ internal class LongitudeNotificationComponent : TrackerNotificationComponent() {
 			data: CollectionData
 	): String? {
 		val location = data.location ?: return null
-		return Assist.coordinateToString(location.longitude)
-	}
-
-	companion object {
-		const val ID = "Longitude"
+		return context.getString(
+				R.string.longitude_value,
+				Assist.coordinateToString(location.longitude)
+		)
 	}
 }

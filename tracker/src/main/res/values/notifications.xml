@@ -20,4 +20,41 @@
         <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
         <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
     </plurals>
+
+    <string name="latitude_title">Latitude</string>
+    <string name="latitude_value">lat %s</string>
+    <string name="longitude_title">Longitude</string>
+    <string name="longitude_value">lon %s</string>
+    <string name="altitude_title">Altitude</string>
+    <string name="altitude_value">alt %s</string>
+    <string name="horizontal_accuracy_title">Accuracy</string>
+    <string name="horizontal_accuracy_value">acc %s</string>
+    <string name="speed_title">Speed</string>
+    <string name="speed_value">speed %s</string>
+    <string name="distance_title">Distance</string>
+    <string name="distance_value">distance %s</string>
+    <string name="distance_invehicle_title">Distance in vehicle</string>
+    <string name="distance_invehicle_value">in vehicle %s</string>
+    <string name="distance_onfoot_title">Distance on foot</string>
+    <string name="distance_onfoot_value">on foot %s</string>
+
+    <string name="start_time_title">Start time</string>
+    <string name="start_time_value">start %s</string>
+    <string name="last_update_title">Last update time</string>
+    <string name="last_update_value">last %s</string>
+    <string name="duration_title">Duration</string>
+    <string name="duration_value">duration %s</string>
+
+    <string name="cell_count_title">Cell count</string>
+    <string name="cell_count_value">cells %d</string>
+    <string name="cell_current_title">Current cell</string>
+    <string name="cell_current_value">active cells (%s)</string>
+    <!-- Operator Technology Decibels -->
+    <string name="cell_current_single_value">%s %s %f dBm</string>
+    <string name="wifi_count_title">Wi-Fi count</string>
+    <string name="wifi_count_value">Wi-Fi %d</string>
+    <string name="activity_title">Activity</string>
+    <string name="activity_value">%s</string>
+    <string name="collection_count_title">Collection count</string>
+    <string name="collection_count_value">%d collections</string>
 </resources>

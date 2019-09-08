@@ -11,6 +11,8 @@ import android.widget.LinearLayout
 import androidx.annotation.CallSuper
 import androidx.annotation.StringRes
 import androidx.core.view.children
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -71,6 +73,7 @@ abstract class ManageActivity : DetailActivity() {
 
 		fab = rootView.findViewById<FloatingActionButton>(R.id.fab).apply {
 			onCreateEdit()
+			isGone = true
 			setOnClickListener { isExpanded = true }
 		}
 

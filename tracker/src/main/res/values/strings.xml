@@ -14,7 +14,6 @@
     <string name="longitude">longitude</string>
     <string name="altitude">altitude</string>
     <string name="speed">speed</string>
-    <string name="speed_value">%s/s</string>
     <string name="horizontal_accuracy">horizontal accuracy</string>
     <string name="vertical_accuracy">vertical accuracy</string>
 
