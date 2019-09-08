@@ -42,6 +42,7 @@ import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.StepPreTrackerComponent
@@ -174,7 +175,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(DatabaseCellComponent())
 			add(DatabaseLocationComponent())
 			add(DatabaseWifiComponent())
-			add(DatabaseLocationComponent())
+			add(DatabaseWifiLocationCountComponent())
 		}.forEach { it.onEnable(this) }
 	}
 
