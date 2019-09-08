@@ -78,7 +78,7 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 			TrackerNotificationProvider.updatePreferences(this@NotificationManagementActivity)
 			val activeComponentList = TrackerNotificationProvider.internalActiveList
 
-			adapter.addAll(activeComponentList)
+			adapter.addAll(activeComponentList.sortedBy { it.preference.order })
 		}
 
 		touchHelper.attachToRecyclerView(recyclerView)

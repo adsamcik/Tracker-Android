@@ -8,9 +8,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeAdapter
-import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeViewHolder
-import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
@@ -96,10 +94,10 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		}
 	}
 
-	override fun onEnter(activity: FragmentActivity) {}
+	override fun onEnter(activity: FragmentActivity) = Unit
 
-	override fun onLeave(activity: FragmentActivity) {}
+	override fun onLeave(activity: FragmentActivity) = Unit
 
-	override fun onPermissionResponse(requestCode: Int, success: Boolean) {}
+	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
 }
 

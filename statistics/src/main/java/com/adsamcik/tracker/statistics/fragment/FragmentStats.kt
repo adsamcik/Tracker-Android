@@ -11,8 +11,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.adapter.implementation.card.table.TableCard
-import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
-import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
@@ -250,7 +250,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	}
 
 	private fun addSessionData(sessionList: List<TrackerSession>, priority: AppendPriority) {
-		val tableList = ArrayList<SortableAdapter.SortableData<TableCard>>(sessionList.size)
+		val tableList = ArrayList<PrioritySortAdapter.PriorityWrap<TableCard>>(sessionList.size)
 
 		sessionList.forEach { session ->
 			val table = TableCard(false, 10)
@@ -283,7 +283,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 				}
 			})
 
-			tableList.add(SortableAdapter.SortableData(table, priority))
+			tableList.add(PrioritySortAdapter.PriorityWrap.create(table, priority))
 		}
 
 		//launch(Dispatchers.Main) { adapter.addAll(tableList) }

@@ -13,6 +13,8 @@ import androidx.annotation.WorkerThread
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.BaseSortAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
 import com.adsamcik.tracker.common.database.PreferenceDatabase
 import com.adsamcik.tracker.common.database.data.NotificationPreference
 import com.adsamcik.tracker.common.style.marker.IViewChange
@@ -31,6 +33,7 @@ internal class NotificationRecyclerAdapter(
 ) : BaseRecyclerAdapter<TrackerNotificationComponent, NotificationRecyclerAdapter.ViewHolder>(),
 		IViewChange,
 		CoroutineScope {
+
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val job = SupervisorJob()
@@ -78,7 +81,7 @@ internal class NotificationRecyclerAdapter(
 			notifyItemChanged(index)
 		}
 	}
-
+	
 	@WorkerThread
 	fun moveItemPersistent(context: Context, from: Int, to: Int) {
 		launch {

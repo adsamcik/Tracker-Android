@@ -14,13 +14,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeAdapter
 import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeData
-import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeViewHolder
-import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeViewHolderCreator
-import com.adsamcik.recycler.adapter.implementation.sortable.AppendBehavior
-import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
-import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.AppendBehavior
+import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.data.LengthUnit
@@ -39,7 +36,6 @@ import com.adsamcik.tracker.common.extension.requireValue
 import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.statistics.R
@@ -264,7 +260,9 @@ class StatsDetailActivity : DetailActivity() {
 				)
 		)
 
-		adapter.addAll(data.map { SortableAdapter.SortableData<StatisticDetailData>(it) })
+		adapter.addAllWrap(data.map {
+			PrioritySortAdapter.PriorityWrap.create<StatisticDetailData>(it)
+		})
 	}
 
 	private fun addLocationStats(session: TrackerSession, adapter: StatsDetailAdapter) {
@@ -280,12 +278,12 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	private fun addLocationMap(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
-		val locationData = SortableAdapter.SortableData<StatisticDetailData>(
+		val locationData = PrioritySortAdapter.PriorityWrap.create<StatisticDetailData>(
 				MapStatisticsData(locations),
 				AppendPriority(AppendBehavior.Start)
 		)
 		launch(Dispatchers.Main) {
-			adapter.add(locationData)
+			adapter.addWrap(locationData)
 		}
 	}
 
@@ -429,7 +427,9 @@ class StatsDetailActivity : DetailActivity() {
 			appendPriority: AppendPriority
 	) {
 		launch(Dispatchers.Main) {
-			adapter.addAll(data.map { SortableAdapter.SortableData(it, appendPriority) })
+			adapter.addAllWrap(data.map {
+				PrioritySortAdapter.PriorityWrap.create(it, appendPriority)
+			})
 		}
 	}
 

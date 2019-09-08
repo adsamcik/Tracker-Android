@@ -4,8 +4,8 @@ import android.os.Bundle
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
-import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.tracker.activity.ui.recycler.ContextualSwipeTouchHelper
@@ -36,15 +36,16 @@ class SessionActivityActivity : ManageActivity() {
 		super.onCreate(savedInstanceState)
 
 		launch(Dispatchers.Default) {
-			val itemCollection = SessionActivity.getAll(this@SessionActivityActivity).map {
-				SortableAdapter.SortableData(
-						it,
-						if (it.id >= 0) AppendPriority.Start else AppendPriority.Any
-				)
-			}
+			val itemCollection =
+					SessionActivity.getAll(this@SessionActivityActivity).map {
+						PrioritySortAdapter.PriorityWrap.create(
+								it,
+								if (it.id >= 0) AppendPriority.Start else AppendPriority.Any
+						)
+					}
 
 			launch(Dispatchers.Main) {
-				adapter.addAll(itemCollection)
+				adapter.addAllWrap(itemCollection)
 			}
 		}
 	}

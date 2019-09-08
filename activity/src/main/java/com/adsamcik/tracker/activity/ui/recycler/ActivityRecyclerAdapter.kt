@@ -5,8 +5,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.WorkerThread
-import com.adsamcik.recycler.adapter.implementation.sortable.AppendPriority
-import com.adsamcik.recycler.adapter.implementation.sortable.SortableAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
+import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.database.AppDatabase
@@ -19,7 +19,7 @@ import kotlin.coroutines.CoroutineContext
 
 class ActivityRecyclerAdapter(
 		private val editCallback: (position: Int) -> Unit
-) : SortableAdapter<SessionActivity, RecyclerActivityViewHolder>(), IViewChange, CoroutineScope {
+) : PrioritySortAdapter<SessionActivity, RecyclerActivityViewHolder>(), IViewChange, CoroutineScope {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val job = SupervisorJob()
