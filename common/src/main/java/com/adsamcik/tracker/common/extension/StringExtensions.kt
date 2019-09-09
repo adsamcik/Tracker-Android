@@ -12,6 +12,7 @@ import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
+
 fun Double.format(digits: Int): String = java.lang.String.format("%.${digits}f", this)
 
 fun Float.format(digits: Int): String = java.lang.String.format("%.${digits}f", this)
@@ -99,12 +100,14 @@ fun Long.formatAsDuration(context: Context): String {
 
 fun Double.formatReadable(digits: Int): String {
 	val df = DecimalFormat("#,###,###.${"#".repeat(digits)}")
-	return df.format(this).removeSuffix(".")
+	val separator = df.decimalFormatSymbols.decimalSeparator
+	return df.format(this).removeSuffix(separator.toString())
 }
 
 fun Float.formatReadable(digits: Int): String {
 	val df = DecimalFormat("#,###,###.${"#".repeat(digits)}")
-	return df.format(this).removeSuffix(".")
+	val separator = df.decimalFormatSymbols.decimalSeparator
+	return df.format(this).removeSuffix(separator.toString())
 }
 
 fun Long.formatAsShortDateTime(): String {
