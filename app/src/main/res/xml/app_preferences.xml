@@ -6,6 +6,11 @@
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_tracking_title"
         app:icon="@drawable/ic_radar">
+
+        <Preference
+            android:summary="@string/settings_tracking_notice_summary"
+            android:title="@string/settings_tracking_notice_title" />
+
         <androidx.preference.PreferenceCategory android:title="@string/settings_auto_tracking_category">
 
             <com.adsamcik.tracker.preference.ImageSwitchPreference
@@ -17,7 +22,8 @@
             <androidx.preference.SwitchPreferenceCompat
                 android:defaultValue="@string/settings_auto_tracking_transition_default"
                 android:key="@string/settings_auto_tracking_transition_key"
-                android:title="@string/settings_auto_tracking_transition_title" />
+                android:title="@string/settings_auto_tracking_transition_title"
+                app:icon="@drawable/ic_transition" />
 
             <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_activity_watcher_default"
@@ -40,7 +46,8 @@
                 android:summary="@string/settings_disabled_recharge_summary"
                 android:thumbTint="@color/negative_switch_color"
                 android:thumbTintMode="src_in"
-                android:title="@string/settings_disabled_recharge_title" />
+                android:title="@string/settings_disabled_recharge_title"
+                app:icon="@drawable/ic_battery_charging_outline" />
         </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory android:title="@string/settings_notification_category">
@@ -48,7 +55,8 @@
             <androidx.preference.Preference
                 android:key="@string/settings_notification_customize_key"
                 android:summary="@string/settings_notification_customize_summary"
-                android:title="@string/settings_notification_customize_title" />
+                android:title="@string/settings_notification_customize_title"
+                app:icon="@drawable/ic_notification_clear_all" />
 
         </androidx.preference.PreferenceCategory>
 
@@ -136,40 +144,40 @@
             android:title="@string/settings_export_title"
             app:icon="@drawable/ic_export">
             <androidx.preference.Preference
-                android:icon="@drawable/ic_json"
                 android:key="@string/settings_export_json_key"
                 android:summary="@string/settings_export_json_summary"
-                android:title="@string/settings_export_json_title" />
+                android:title="@string/settings_export_json_title"
+                app:icon="@drawable/ic_json" />
             <androidx.preference.Preference
-                android:icon="@drawable/ic_icons8_gpx"
                 android:key="@string/settings_export_gpx_key"
                 android:summary="@string/settings_export_gpx_summary"
-                android:title="@string/settings_export_gpx_title" />
+                android:title="@string/settings_export_gpx_title"
+                app:icon="@drawable/ic_icons8_gpx" />
             <androidx.preference.Preference
-                android:icon="@drawable/ic_icons8_kml"
                 android:key="@string/settings_export_kml_key"
                 android:summary="@string/settings_export_kml_summary"
-                android:title="@string/settings_export_kml_title" />
+                android:title="@string/settings_export_kml_title"
+                app:icon="@drawable/ic_icons8_kml" />
 
             <androidx.preference.Preference
-                android:icon="@drawable/ic_database_export"
                 android:key="@string/settings_export_sqlite_key"
                 android:summary="@string/settings_export_sqlite_summary"
-                android:title="@string/settings_export_sqlite_title" />
+                android:title="@string/settings_export_sqlite_title"
+                app:icon="@drawable/ic_database_export" />
         </androidx.preference.PreferenceScreen>
 
         <androidx.preference.Preference
-            android:icon="@drawable/ic_import"
             android:key="@string/settings_import_key"
             android:summary="@string/settings_import_summary"
-            android:title="@string/settings_import_title" />
+            android:title="@string/settings_import_title"
+            app:icon="@drawable/ic_import" />
 
         <androidx.preference.PreferenceCategory>
             <androidx.preference.Preference
-                android:icon="@drawable/delete_forever_outline"
                 android:key="@string/settings_remove_all_collected_data_key"
                 android:summary="@string/settings_remove_all_collected_data_summary"
-                android:title="@string/settings_remove_all_collected_data_title" />
+                android:title="@string/settings_remove_all_collected_data_title"
+                app:icon="@drawable/delete_forever_outline" />
         </androidx.preference.PreferenceCategory>
     </androidx.preference.PreferenceScreen>
 
@@ -194,36 +202,37 @@
             android:defaultValue="@string/settings_length_system_default"
             android:entries="@array/settings_length_system_names"
             android:entryValues="@array/settings_length_system_values"
-            android:icon="@drawable/ic_ruler"
             android:key="@string/settings_length_system_key"
             android:summary="%s"
-            android:title="@string/settings_length_system_title" />
+            android:title="@string/settings_length_system_title"
+            app:icon="@drawable/ic_ruler" />
 
         <androidx.preference.ListPreference
             android:defaultValue="@string/settings_speed_format_default"
             android:entries="@array/settings_speed_format_names"
             android:entryValues="@array/settings_speed_format_values"
-            android:icon="@drawable/ic_speedometer"
             android:key="@string/settings_speed_format_key"
             android:summary="%s"
-            android:title="@string/settings_speed_format_title" />
+            android:title="@string/settings_speed_format_title"
+            app:icon="@drawable/ic_speedometer" />
 
         <androidx.preference.CheckBoxPreference
             android:defaultValue="R.string.show_tips_default"
-            android:icon="@drawable/ic_tips"
             android:key="@string/show_tips_key"
-            android:title="@string/show_tips_title" />
+            android:title="@string/show_tips_title"
+            app:icon="@drawable/ic_tips" />
 
         <androidx.preference.SwitchPreferenceCompat
             android:defaultValue="@string/settings_error_reporting_default"
             android:key="@string/settings_error_reporting_key"
             android:summary="@string/settings_error_reporting_summary"
-            android:title="@string/settings_error_reporting_title" />
+            android:title="@string/settings_error_reporting_title"
+            app:icon="@drawable/ic_firebase" />
 
         <androidx.preference.Preference
-            android:icon="@drawable/ic_open_source_licenses"
             android:key="@string/settings_licenses_key"
-            android:title="@string/settings_licenses_title" />
+            android:title="@string/settings_licenses_title"
+            app:icon="@drawable/ic_open_source_licenses" />
 
         <androidx.preference.PreferenceScreen
             android:key="@string/settings_debug_key"
