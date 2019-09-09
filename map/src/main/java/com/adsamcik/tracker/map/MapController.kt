@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map
 
 import android.content.Context
 import android.widget.TextView
+import androidx.annotation.MainThread
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import com.adsamcik.tracker.common.Time
@@ -32,6 +33,7 @@ internal class MapController(
 			activeLayer.dateRange = value
 		}
 
+	@MainThread
 	fun setLayer(context: Context, logic: MapLayerLogic) {
 		if (this.activeLayer::class != logic::class) {
 			this.activeLayer.onDisable(map)

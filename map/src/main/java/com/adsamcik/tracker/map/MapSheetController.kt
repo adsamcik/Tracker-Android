@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.Color
 import android.location.Geocoder
 import android.view.View
@@ -29,6 +30,7 @@ import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.misc.SnackMaker
+import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
@@ -358,13 +360,31 @@ internal class MapSheetController(
 			}.apply {
 				addAll(mapLayerList)
 				onItemClickListener = this@MapSheetController::onItemClicked
+
+				initializeLastLayer(context, mapLayerList)
+			}
+		}
+	}
+
+	private fun initializeLastLayer(context: Context, list: List<MapLayerLogic>) {
+		launch(Dispatchers.Default) {
+			val default = Preferences.getPref(context)
+					.getStringRes(R.string.settings_map_last_layer_key) ?: return@launch
+
+			val lastIndex = list.indexOfFirst { it.layerInfo.type.name == default }
+			if (lastIndex >= 0) {
+				onItemClicked(lastIndex, list[lastIndex])
+			} else {
+				onItemClicked(0, list[0])
 			}
 		}
 	}
 
 	private fun setLayer(layer: MapLayerLogic) {
-		mapController.setLayer(rootLayout.context, layer)
-		legendController.setLayer(layer.layerData())
+		launch(Dispatchers.Main.immediate) {
+			mapController.setLayer(rootLayout.context, layer)
+			legendController.setLayer(layer.layerData())
+		}
 	}
 
 	private fun onItemClicked(position: Int, item: MapLayerLogic) {
