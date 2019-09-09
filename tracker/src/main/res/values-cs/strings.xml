@@ -19,20 +19,17 @@
     <string name="settings_auto_tracking_category">Automatický sběr dat</string>
     <string name="settings_cell_enabled_title">Sběr mobilních sítí</string>
 
-    <string name="notification_activity">aktivita %s</string>
     <plurals name="notification_cell_count">
         <item quantity="one">1 mobilní vysílač v dosahu</item>
         <item quantity="few">%d mobilní vysílače v dosahu</item>
         <item quantity="other">%d mobilních vysílačů v dosahu</item>
     </plurals>
-    <string name="notification_cell_current">aktivní %1$s %2$d dBm</string>
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_stop">Zastavit</string>
     <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
     <string name="notification_stop_til_recharge">Zastavit do nabití</string>
     <string name="notification_tracker_active_ticker">Sběr dat je aktivní</string>
     <string name="notification_tracking_active">Záznam dat je aktivní</string>
-    <string name="notification_wifi">%d Wi-Fi</string>
 
     <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
@@ -58,18 +55,53 @@
     <string name="tracker_session_card_title">Relace</string>
     <string name="tracker_steps">Kroky</string>
 
-    <string name="altitude">výška</string>
     <plurals name="main_collections">
         <item quantity="one">1 záznam</item>
         <item quantity="few">%d záznamy</item>
         <item quantity="other">%d záznamů</item>
     </plurals>
-    <string name="latitude">zeměpisná šířka</string>
-    <string name="longitude">zeměpisná délka</string>
-    <string name="speed">rychlost</string>
-    <string name="speed_value">%s/s</string>
-    <string name="vertical_accuracy">Vertikální přesnost</string>
-    <string name="horizontal_accuracy">horizontální přesnost</string>
-    <string name="notification_altitude">%s nadmořská výška</string>
     <string name="description_settings">Tlačítko pro nastavení</string>
+    <string name="activity_title">Aktivita</string>
+    <string name="activity_value">%s</string>
+    <string name="altitude_title">Nadmořská výška</string>
+    <string name="altitude_value">%s n.m.</string>
+    <string name="cell_count_title">Počet mobilních vysílačů</string>
+    <string name="cell_count_value">m. vysílačů %d</string>
+    <string name="cell_current_single_value">%s %s %f dBm</string>
+    <string name="cell_current_title">Aktivní mobilní vysílače</string>
+    <string name="cell_current_value">aktivní vysílače (%s)</string>
+    <string name="collection_count_title">Počet záznamů</string>
+    <string name="collection_count_value">%d záznamů</string>
+    <string name="distance_invehicle_title">Vzdálenost ve vozidle</string>
+    <string name="distance_invehicle_value">ve vozidle %s</string>
+    <string name="distance_onfoot_title">Vzdálenost pěšky</string>
+    <string name="distance_onfoot_value">pěšky %s</string>
+    <string name="distance_title">Vzdálenost</string>
+    <string name="distance_value">vzdálenost %s</string>
+    <string name="duration_title">Doba trvání relace</string>
+    <string name="duration_value">trvání %s</string>
+    <string name="hint_customizenoti_show_in_content">Zobrazit v obsahu notifikace</string>
+    <string name="hint_customizenoti_show_in_title">Zobrazit v názvu notifikace</string>
+    <string name="horizontal_accuracy_title">Přesnost</string>
+    <string name="horizontal_accuracy_value">přesnost %s</string>
+    <string name="last_update_title">Čas poslední záznamu</string>
+    <string name="last_update_value">poslední %s</string>
+    <string name="latitude_title">Zeměpisná šířka</string>
+    <string name="latitude_value">%s s. š.</string>
+    <string name="longitude_title">Zeměpisná délka</string>
+    <string name="longitude_value">%s v.d.</string>
+    <string name="notification_starting">Spouštím službu Tracker</string>
+    <string name="settings_auto_tracking_transition_title">Používat přechody aktivit</string>
+    <string name="settings_auto_tracking_transition_summary">Přechody mohou snížit využití baterie při zapnutém automatickém trackování, ale mohou být méně reaktivní vůči změnám.</string>
+    <string name="settings_notification_category">Notifikace</string>
+    <string name="settings_notification_customize_title">Přizpůsobení notifikace</string>
+    <string name="settings_notification_customize_summary">Možnosti nastavení co se má zobrazit a v jakém pořadí v notifikaci.</string>
+    <string name="settings_notification_separator_title">Vyberte oddělovač</string>
+    <string name="speed_title">Rychlost</string>
+    <string name="speed_value">rychlost %s</string>
+    <string name="start_time_title">Začátek relace</string>
+    <string name="start_time_value">začátek %s</string>
+    <string name="wifi_count_title">Počet Wi-Fi</string>
+    <string name="wifi_count_value">Wi-Fi %d</string>
+    <string name="vertical_accuracy_title">Vertikální přesnost</string>
 </resources>

@@ -55,5 +55,13 @@ object TrackerNotificationProvider {
 				component.preference = preference
 			}
 		}
+
+		internalActiveList.sortedBy { it.preference.order }
+				.forEachIndexed { index, trackerNotificationComponent ->
+					trackerNotificationComponent.preference =
+							trackerNotificationComponent.preference.copy(
+									order = index
+							)
+				}
 	}
 }

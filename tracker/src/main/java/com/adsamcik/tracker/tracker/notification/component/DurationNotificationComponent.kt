@@ -14,7 +14,7 @@ internal class DurationNotificationComponent : TrackerNotificationComponent() {
 				this::class.java.simpleName,
 				0,
 				isInTitle = true,
-				isInContent = true
+				isInContent = false
 		)
 
 	override val titleRes: Int

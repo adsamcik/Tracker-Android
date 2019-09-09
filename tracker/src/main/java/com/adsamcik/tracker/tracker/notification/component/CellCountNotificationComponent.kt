@@ -12,7 +12,7 @@ internal class CellCountNotificationComponent : TrackerNotificationComponent() {
 		get() = NotificationPreference(
 				this::class.java.simpleName,
 				0,
-				isInTitle = true,
+				isInTitle = false,
 				isInContent = true
 		)
 

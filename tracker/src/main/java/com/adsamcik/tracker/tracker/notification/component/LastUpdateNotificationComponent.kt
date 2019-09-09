@@ -13,8 +13,8 @@ internal class LastUpdateNotificationComponent : TrackerNotificationComponent() 
 		get() = NotificationPreference(
 				this::class.java.simpleName,
 				0,
-				isInTitle = true,
-				isInContent = true
+				isInTitle = false,
+				isInContent = false
 		)
 
 	override val titleRes: Int

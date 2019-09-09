@@ -11,7 +11,12 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 
 internal class AltitudeNotificationComponent : TrackerNotificationComponent() {
 	override val defaultPreference: NotificationPreference
-		get() = NotificationPreference(this::class.java.simpleName, 0, isInTitle = true, isInContent = true)
+		get() = NotificationPreference(
+				this::class.java.simpleName,
+				0,
+				isInTitle = false,
+				isInContent = true
+		)
 
 	override val titleRes: Int
 		get() = R.string.altitude_title
@@ -25,8 +30,8 @@ internal class AltitudeNotificationComponent : TrackerNotificationComponent() {
 		val altitude = location.altitude ?: return null
 
 		return context.getString(
-				R.string.longitude_value,
-				context.resources.formatDistance(altitude, 0, Preferences.getLengthSystem(context))
+				R.string.altitude_value,
+				context.resources.formatDistance(altitude, 2, Preferences.getLengthSystem(context))
 		)
 	}
 }

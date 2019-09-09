@@ -10,12 +10,5 @@
         <item quantity="other">%d collections</item>
     </plurals>
 
-    <string name="latitude">latitude</string>
-    <string name="longitude">longitude</string>
-    <string name="altitude">altitude</string>
-    <string name="speed">speed</string>
-    <string name="horizontal_accuracy">horizontal accuracy</string>
-    <string name="vertical_accuracy">vertical accuracy</string>
-
     <string name="description_settings">Settings button</string>
 </resources>

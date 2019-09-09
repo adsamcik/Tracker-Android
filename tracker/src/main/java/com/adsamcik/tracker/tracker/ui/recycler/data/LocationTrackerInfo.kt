@@ -17,18 +17,18 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 
 		holder.getBoldText().apply {
 			value.text = Assist.coordinateToString(location.latitude)
-			title.setText(R.string.latitude)
+			title.setText(R.string.latitude_title)
 		}
 
 		holder.getBoldText().apply {
 			value.text = Assist.coordinateToString(location.longitude)
-			title.setText(R.string.longitude)
+			title.setText(R.string.longitude_title)
 		}
 
 		location.altitude?.let {
 			holder.getBoldText().apply {
 				value.text = resources.formatDistance(it, 1, lengthSystem)
-				title.setText(R.string.altitude)
+				title.setText(R.string.altitude_title)
 			}
 		}
 
@@ -40,21 +40,21 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 						lengthSystem,
 						Preferences.getSpeedFormat(context)
 				)
-				title.setText(R.string.speed)
+				title.setText(R.string.speed_title)
 			}
 		}
 
 		location.horizontalAccuracy?.let {
 			holder.getBoldText().apply {
 				value.text = resources.formatDistance(it, 1, lengthSystem)
-				title.setText(R.string.horizontal_accuracy)
+				title.setText(R.string.horizontal_accuracy_title)
 			}
 		}
 
 		location.verticalAccuracy?.let {
 			holder.getBoldText().apply {
 				value.text = resources.formatDistance(it, 1, lengthSystem)
-				title.setText(R.string.vertical_accuracy)
+				title.setText(R.string.vertical_accuracy_title)
 			}
 		}
 	}

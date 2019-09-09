@@ -27,8 +27,8 @@
     <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
     <string name="settings_notification_customize_key" translatable="false">customize_notification</string>
 
-    <string name="hint_customizenoti_show_in_title">Show in title</string>
-    <string name="hint_customizenoti_show_in_content">Show in content</string>
+    <string name="hint_customizenoti_show_in_title">Show in notification title</string>
+    <string name="hint_customizenoti_show_in_content">Show in notification content</string>
 
     <string name="settings_notification_separator_title">Select separator</string>
 

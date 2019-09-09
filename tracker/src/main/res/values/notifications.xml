@@ -7,14 +7,10 @@
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
-    <string name="notification_wifi">%d Wi-Fi</string>
-    <string name="notification_altitude">%s altitude</string>
     <plurals name="notification_cell_count">
         <item quantity="one">1 cell in range</item>
         <item quantity="other">%d cells in range</item>
     </plurals>
-    <string name="notification_cell_current">active %1$s %2$d dBm</string>
-    <string name="notification_activity">activity %s</string>
 
     <plurals name="notification_auto_tracking_lock">
         <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
@@ -22,13 +18,14 @@
     </plurals>
 
     <string name="latitude_title">Latitude</string>
-    <string name="latitude_value">lat %s</string>
+    <string name="latitude_value">%s N</string>
     <string name="longitude_title">Longitude</string>
-    <string name="longitude_value">lon %s</string>
+    <string name="longitude_value">%s E</string>
     <string name="altitude_title">Altitude</string>
     <string name="altitude_value">alt %s</string>
-    <string name="horizontal_accuracy_title">Accuracy</string>
+    <string name="horizontal_accuracy_title">Horizontal accuracy</string>
     <string name="horizontal_accuracy_value">acc %s</string>
+    <string name="vertical_accuracy_title">Vertical accuracy</string>
     <string name="speed_title">Speed</string>
     <string name="speed_value">speed %s</string>
     <string name="distance_title">Distance</string>
@@ -38,11 +35,11 @@
     <string name="distance_onfoot_title">Distance on foot</string>
     <string name="distance_onfoot_value">on foot %s</string>
 
-    <string name="start_time_title">Start time</string>
+    <string name="start_time_title">Session start time</string>
     <string name="start_time_value">start %s</string>
     <string name="last_update_title">Last update time</string>
     <string name="last_update_value">last %s</string>
-    <string name="duration_title">Duration</string>
+    <string name="duration_title">Session duration</string>
     <string name="duration_value">duration %s</string>
 
     <string name="cell_count_title">Cell count</string>

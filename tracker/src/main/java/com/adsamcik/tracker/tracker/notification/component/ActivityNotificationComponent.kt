@@ -4,16 +4,16 @@ import android.content.Context
 import com.adsamcik.tracker.common.data.CollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.data.NotificationPreference
-import com.adsamcik.tracker.common.extension.formatAsDateTime
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+import java.util.*
 
 internal class ActivityNotificationComponent : TrackerNotificationComponent() {
 	override val defaultPreference: NotificationPreference
 		get() = NotificationPreference(
 				this::class.java.simpleName,
 				0,
-				isInTitle = true,
+				isInTitle = false,
 				isInContent = true
 		)
 
@@ -27,6 +27,10 @@ internal class ActivityNotificationComponent : TrackerNotificationComponent() {
 	): String? {
 		val activity = data.activity ?: return null
 		// todo localize
-		return context.getString(R.string.activity_value, activity.activity.toString())
+		return context.getString(
+				R.string.activity_value, activity.activity.toString().toLowerCase(
+				Locale.getDefault()
+		)
+		)
 	}
 }

@@ -1,42 +1,60 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
-import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.res.Resources
-import android.location.Location
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.common.data.CollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.extension.formatDistance
-import com.adsamcik.tracker.common.extension.formatSpeed
-import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.TrackerNotificationManager
-import com.adsamcik.tracker.tracker.TrackerNotificationManager.Companion.NOTIFICATION_ID
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.tracker.tracker.service.TrackerService
-import java.math.RoundingMode
-import java.text.DecimalFormat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 internal class NotificationComponent : PostTrackerComponent {
+
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
 
 	private var trackerNotificationManager: TrackerNotificationManager? = null
 
 	private val requireTNotificationManager get() = requireNotNull(trackerNotificationManager)
 
+	private val titleComponentList: MutableList<TrackerNotificationComponent> = mutableListOf()
+
+	private val contentComponentList: MutableList<TrackerNotificationComponent> = mutableListOf()
+
+	//todo add localization support
+	private val delimiter = ", "
+
 	override suspend fun onDisable(context: Context) {
 		trackerNotificationManager = null
+		contentComponentList.clear()
+		titleComponentList.clear()
 	}
 
-	override suspend fun onEnable(context: Context) {
+	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
+		val preferenceUpdate = async(Dispatchers.Default) {
+			TrackerNotificationProvider.updatePreferences(context)
+			contentComponentList.addAll(TrackerNotificationProvider.internalActiveList
+					                            .filter { it.preference.isInContent }
+					                            .sortedBy { it.preference.order })
+
+			titleComponentList.addAll(TrackerNotificationProvider.internalActiveList
+					                          .filter { it.preference.isInTitle }
+					                          .sortedBy { it.preference.order })
+		}
 		trackerNotificationManager = TrackerNotificationManager(context)
+
+		preferenceUpdate.await()
 	}
 
 	override fun onNewData(
@@ -45,8 +63,7 @@ internal class NotificationComponent : PostTrackerComponent {
 			collectionData: CollectionData,
 			tempData: CollectionTempData
 	) {
-		val location = tempData.tryGetLocation()
-		notify(generateNotification(context, location, collectionData))
+		notify(generateNotification(context, collectionData, session))
 	}
 
 	fun onError(context: Context, @StringRes textRes: Int) {
@@ -59,45 +76,49 @@ internal class NotificationComponent : PostTrackerComponent {
 			requireTNotificationManager.notify(builder)
 
 
-	private fun generateNoGpsTitle(resources: Resources, builder: NotificationCompat.Builder) {
-		builder.setContentTitle(resources.getString(R.string.notification_looking_for_gps))
-	}
-
 	private fun buildContent(
 			context: Context,
-			resources: Resources,
 			builder: NotificationCompat.Builder,
-			location: Location? = null,
-			data: CollectionData? = null
+			session: TrackerSession,
+			data: CollectionData
 	) {
-		when {
-			location == null || data == null -> generateNoGpsTitle(resources, builder)
-			else -> {
-				//todo improve title
-				builder.setContentTitle(resources.getString(R.string.notification_tracking_active))
-				builder.setStyle(
-						NotificationCompat.BigTextStyle().bigText(
-								buildNotificationText(
-										context,
-										location,
-										data
-								)
-						)
-				)
-			}
+		builder.setContentTitle(generateTitle(context, data, session))
+
+		val notificationText = buildNotificationText(context, session, data)
+
+		builder.setStyle(NotificationCompat.BigTextStyle().bigText(notificationText))
+		builder.setContentText(notificationText)
+	}
+
+	private fun generateTitle(
+			context: Context,
+			data: CollectionData,
+			session: TrackerSession
+	): String {
+		val sb = StringBuilder()
+		titleComponentList.forEach {
+			val text = it.generateText(context, session, data) ?: return@forEach
+
+			sb.append(text).append(delimiter)
+		}
+
+		return if (sb.isEmpty()) {
+			context.getString(R.string.notification_tracking_active)
+		} else {
+			sb.removeSuffix(delimiter).toString()
 		}
 	}
 
 	private fun generateNotification(
 			context: Context,
-			location: Location? = null,
-			data: CollectionData? = null
+			data: CollectionData,
+			session: TrackerSession
 	): NotificationCompat.Builder {
 		val builder = requireTNotificationManager.createBuilder()
 
 		val resources = context.resources
 
-		buildContent(context, resources, builder, location, data)
+		buildContent(context, builder, session, data)
 
 		val trackingSessionInfo = TrackerService.sessionInfo.value
 
@@ -154,71 +175,19 @@ internal class NotificationComponent : PostTrackerComponent {
 
 	private fun buildNotificationText(
 			context: Context,
-			location: Location,
-			d: CollectionData
+			session: TrackerSession,
+			data: CollectionData
 	): String {
-		val resources = context.resources
+		context.resources
 		val sb = StringBuilder()
-		val df = DecimalFormat.getNumberInstance()
-		df.roundingMode = RoundingMode.HALF_UP
 
-		val lengthSystem = Preferences.getLengthSystem(context)
-		//todo add localization support
-		val delimiter = ", "
+		contentComponentList.forEach {
+			val text = it.generateText(context, session, data) ?: return@forEach
 
-		if (location.hasSpeed()) {
-			sb.append(resources.formatSpeed(context, location.speed.toDouble(), 1))
-					.append(delimiter)
+			sb.append(text).append(delimiter)
 		}
 
-		sb.append(
-				resources.getString(
-						R.string.notification_altitude,
-						resources.formatDistance(location.altitude, 2, lengthSystem)
-				)
-		)
-				.append(delimiter)
-
-		val activity = d.activity
-		if (activity != null) {
-			sb.append(
-					resources.getString(
-							R.string.notification_activity,
-							activity.getGroupedActivityName(context)
-					)
-			).append(delimiter)
-		}
-
-		val wifi = d.wifi
-		if (wifi != null) {
-			sb.append(resources.getString(R.string.notification_wifi, wifi.inRange.size))
-					.append(delimiter)
-		}
-
-		val cell = d.cell
-		if (cell != null && cell.registeredCells.isNotEmpty()) {
-			val mainCell = cell.registeredCells.first()
-			sb
-					.append(
-							resources.getString(
-									R.string.notification_cell_current,
-									mainCell.type.name,
-									mainCell.dbm
-							)
-					)
-					.append(' ')
-					.append(
-							resources.getQuantityString(
-									R.plurals.notification_cell_count, cell.totalCount,
-									cell.totalCount
-							)
-					)
-					.append(delimiter)
-		}
-
-		sb.setLength(sb.length - 2)
-
-		return sb.toString()
+		return sb.removeSuffix(delimiter).toString()
 	}
 
 	companion object {
