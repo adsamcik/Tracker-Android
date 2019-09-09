@@ -18,9 +18,11 @@
     </plurals>
 
     <string name="latitude_title">Latitude</string>
-    <string name="latitude_value">%s N</string>
+    <string name="latitude_value_north">%s N</string>
+    <string name="latitude_value_south">%s S</string>
     <string name="longitude_title">Longitude</string>
-    <string name="longitude_value">%s E</string>
+    <string name="longitude_value_east">%s E</string>
+    <string name="longitude_value_west">%s W</string>
     <string name="altitude_title">Altitude</string>
     <string name="altitude_value">alt %s</string>
     <string name="horizontal_accuracy_title">Horizontal accuracy</string>

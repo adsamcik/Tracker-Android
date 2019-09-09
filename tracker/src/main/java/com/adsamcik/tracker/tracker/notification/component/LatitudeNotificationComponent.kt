@@ -7,6 +7,7 @@ import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.data.NotificationPreference
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+import kotlin.math.abs
 
 internal class LatitudeNotificationComponent : TrackerNotificationComponent() {
 	override val defaultPreference: NotificationPreference
@@ -26,9 +27,17 @@ internal class LatitudeNotificationComponent : TrackerNotificationComponent() {
 			data: CollectionData
 	): String? {
 		val location = data.location ?: return null
+		val latitude = location.latitude
+
+		val resource = if (latitude >= 0) {
+			R.string.latitude_value_north
+		} else {
+			R.string.latitude_value_south
+		}
+
 		return context.getString(
-				R.string.latitude_value,
-				Assist.coordinateToString(location.latitude)
+				resource,
+				Assist.coordinateToString(abs(latitude))
 		)
 	}
 }

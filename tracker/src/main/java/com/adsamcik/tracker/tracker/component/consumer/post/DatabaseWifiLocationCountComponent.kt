@@ -6,6 +6,8 @@ import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.LocationWifiCountDao
 import com.adsamcik.tracker.common.database.data.DatabaseLocationWifiCount
+import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
@@ -15,6 +17,8 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 
 	private var wifiDao: LocationWifiCountDao? = null
 
+	private var isEnabled = false
+
 
 	override fun onNewData(
 			context: Context,
@@ -22,6 +26,8 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 			collectionData: CollectionData,
 			tempData: CollectionTempData
 	) {
+		if (!isEnabled) return
+
 		val wifiData = collectionData.wifi ?: return
 		val tmpWifiLocation = wifiData.location ?: return
 
@@ -36,9 +42,19 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 
 	override suspend fun onDisable(context: Context) {
 		wifiDao = null
+		this.isEnabled = false
 	}
 
 	override suspend fun onEnable(context: Context) {
-		wifiDao = AppDatabase.database(context).wifiLocationCountDao()
+		val isEnabled = Preferences.getPref(context)
+				.getBooleanRes(
+						R.string.settings_wifi_location_count_enabled_key,
+						R.string.settings_wifi_location_count_enabled_default
+				)
+
+		this.isEnabled = isEnabled
+		if (isEnabled) {
+			wifiDao = AppDatabase.database(context).wifiLocationCountDao()
+		}
 	}
 }

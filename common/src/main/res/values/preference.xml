@@ -19,8 +19,10 @@
     <string name="settings_tracking_min_time_key" translatable="false">minTrackingTimeDifference</string>
     <integer name="settings_tracking_required_accuracy_default">50</integer>
     <string name="settings_tracking_required_accuracy_key" translatable="false">requiredTrackingAccuracy</string>
-    <string name="settings_wifi_enabled_default" translatable="false">false</string>
-    <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
+    <string name="settings_wifi_network_enabled_default" translatable="false">false</string>
+    <string name="settings_wifi_network_enabled_key" translatable="false">trackingWifiNetworkEnabled</string>
+    <string name="settings_wifi_location_count_enabled_default" translatable="false">false</string>
+    <string name="settings_wifi_location_count_enabled_key" translatable="false">trackingWifiLocationCountEnabled</string>
 
     <string name="settings_length_system_key" translatable="false">lengthSystem</string>
     <string name="settings_length_system_default" translatable="false">Metric</string>

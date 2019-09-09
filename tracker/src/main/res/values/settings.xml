@@ -19,7 +19,8 @@
 
     <string name="settings_location_enabled_title">Location tracking</string>
     <string name="settings_activity_enabled_title">Activity tracking</string>
-    <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
+    <string name="settings_wifi_network_enabled_title">Wi-Fi network tracking</string>
+    <string name="settings_wifi_location_count_enabled_title">Wi-Fi count at location tracking</string>
     <string name="settings_cell_enabled_title">Cell tracking</string>
 
     <string name="settings_auto_tracking_transition_title">Use activity transitions</string>

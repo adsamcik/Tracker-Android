@@ -87,9 +87,7 @@
     <string name="last_update_title">Čas poslední záznamu</string>
     <string name="last_update_value">poslední %s</string>
     <string name="latitude_title">Zeměpisná šířka</string>
-    <string name="latitude_value">%s s. š.</string>
     <string name="longitude_title">Zeměpisná délka</string>
-    <string name="longitude_value">%s v.d.</string>
     <string name="notification_starting">Spouštím službu Tracker</string>
     <string name="settings_auto_tracking_transition_title">Používat přechody aktivit</string>
     <string name="settings_auto_tracking_transition_summary">Přechody mohou snížit využití baterie při zapnutém automatickém trackování, ale mohou být méně reaktivní vůči změnám.</string>
@@ -106,4 +104,8 @@
     <string name="vertical_accuracy_title">Vertikální přesnost</string>
     <string name="settings_tracking_notice_title">Upozornění</string>
     <string name="settings_tracking_notice_summary">Z technických důvodů vyžaduje většina změn trackování restart trackování. (Pokud je tracker aktivní, stačí ho vypnout a zapnout. Zavření a otevření aplikace nemusí fungovat.)</string>
+    <string name="latitude_value_north">%s s. š.</string>
+    <string name="latitude_value_south">%s j. š.</string>
+    <string name="longitude_value_east">%s v. d.</string>
+    <string name="longitude_value_west">%s z. d.</string>
 </resources>
