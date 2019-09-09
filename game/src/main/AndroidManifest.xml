@@ -1,5 +1,8 @@
 <manifest xmlns:dist="http://schemas.android.com/apk/distribution"
+    xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.adsamcik.tracker.game">
+
+    <uses-permission  android:name="com.adsamcik.tracker.permission.TRACKER" />
 
     <dist:module dist:title="@string/module_game_title">
         <dist:delivery>

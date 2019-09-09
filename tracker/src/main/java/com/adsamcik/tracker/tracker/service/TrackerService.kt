@@ -9,7 +9,6 @@ import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.MutableCollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
@@ -222,7 +221,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 
 			val sessionStartIntent = Intent(TrackerSession.RECEIVER_SESSION_STARTED)
-			LocalBroadcastManager.getInstance(this@TrackerService).sendBroadcast(sessionStartIntent)
+			sendBroadcast(sessionStartIntent, TrackerSession.BROADCAST_PERMISSION)
 
 			componentInitialization.await()
 
@@ -294,7 +293,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
 				`package` = this@TrackerService.packageName
 			}
-			sendBroadcast(sessionEndIntent, "com.adsamcik.tracker.permission.TRACKER")
+			applicationContext.sendBroadcast(sessionEndIntent, TrackerSession.BROADCAST_PERMISSION)
 		}
 	}
 

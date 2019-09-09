@@ -14,7 +14,6 @@ class GameModuleInitializer : ModuleInitializer {
 		val trackerSessionBroadcastFilter = IntentFilter().apply {
 			addAction(TrackerSession.RECEIVER_SESSION_STARTED)
 			addAction(TrackerSession.RECEIVER_SESSION_ENDED)
-
 		}
 
 		applicationContext.registerReceiver(

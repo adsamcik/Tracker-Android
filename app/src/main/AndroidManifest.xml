@@ -26,8 +26,6 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
-    <permission android:name="com.adsamcik.tracker.permission.TRACKER" />
-
     <!-- TODO REMOVE requestLegacyExternalStorage ONCE FILE LIBRARY SUPPORTS SCOPED STORAGE -->
     <application
         android:name="com.adsamcik.tracker.app.Application"
