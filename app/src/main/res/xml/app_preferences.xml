@@ -9,7 +9,8 @@
 
         <Preference
             android:summary="@string/settings_tracking_notice_summary"
-            android:title="@string/settings_tracking_notice_title" />
+            android:title="@string/settings_tracking_notice_title"
+            app:icon="@drawable/ic_bulletin_board" />
 
         <androidx.preference.PreferenceCategory android:title="@string/settings_auto_tracking_category">
 
