@@ -24,6 +24,7 @@
                 android:defaultValue="@string/settings_auto_tracking_transition_default"
                 android:key="@string/settings_auto_tracking_transition_key"
                 android:title="@string/settings_auto_tracking_transition_title"
+                android:summary="@string/settings_auto_tracking_transition_summary"
                 app:icon="@drawable/ic_transition" />
 
             <androidx.preference.CheckBoxPreference
