@@ -133,7 +133,7 @@ internal class MapSheetController(
 		val expandedOffset = EXPANDED_TOP_OFFSET_DP.dp
 		setExpandedOffset(expandedOffset)
 		state = BottomSheetBehavior.STATE_COLLAPSED
-		setBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+		bottomSheetCallback = object : BottomSheetBehavior.BottomSheetCallback() {
 			private var lastOffset = Float.MIN_VALUE
 
 			override fun onSlide(bottomSheet: View, slideOffset: Float) {
@@ -169,7 +169,7 @@ internal class MapSheetController(
 					rootLayout.edittext_map_search.clearFocus()
 				}
 			}
-		})
+		}
 
 		rootLayout.alpha = 0f
 		rootLayout.visibility = View.VISIBLE

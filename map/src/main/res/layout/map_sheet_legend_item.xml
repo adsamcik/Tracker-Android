@@ -5,6 +5,5 @@
     android:layout_height="48dp"
     android:drawablePadding="@dimen/content_padding"
     android:gravity="center_vertical"
-
     tools:drawableStart="@drawable/legend_color"
     tools:text="Lorem ipsum" />
