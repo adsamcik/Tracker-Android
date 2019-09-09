@@ -1,12 +1,16 @@
 package com.adsamcik.tracker.common.style
 
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.AdapterView
+import android.widget.ImageView
 import androidx.annotation.AnyThread
+import androidx.annotation.DrawableRes
 import androidx.annotation.IdRes
+import androidx.annotation.MainThread
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.style.StyleManager.styleData
 import com.adsamcik.tracker.common.style.marker.IViewChange
@@ -374,6 +378,19 @@ class StyleController : CoroutineScope {
 		synchronized(styleChangeListeners) {
 			styleChangeListeners.remove(onStyleChangeListener)
 		}
+	}
+
+	@MainThread
+	fun setDrawable(drawable: Drawable, styleView: BaseStyleView, view: ImageView) {
+		val updateData = styleData.updateDataFor(styleView)
+		styleUpdater.updateForegroundDrawable(drawable, updateData)
+		view.setImageDrawable(drawable)
+	}
+
+	@MainThread
+	fun setImageResource(@DrawableRes resourceId: Int, styleView: BaseStyleView, view: ImageView) {
+		val drawable = requireNotNull(view.context.getDrawable(resourceId))
+		setDrawable(drawable, styleView, view)
 	}
 
 

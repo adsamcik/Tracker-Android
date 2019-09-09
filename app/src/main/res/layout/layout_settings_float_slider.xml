@@ -18,7 +18,7 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:src="@drawable/ic_battery_alert_black" />
 
-    <TextView
+    <androidx.appcompat.widget.AppCompatTextView
         android:id="@android:id/title"
         style="@style/Base.TextAppearance.AppCompat.Subhead"
         android:layout_width="0dp"
@@ -30,7 +30,7 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Title" />
 
-    <TextView
+    <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/slider_value"
         style="@style/Base.TextAppearance.AppCompat.Body1"
         android:layout_width="wrap_content"

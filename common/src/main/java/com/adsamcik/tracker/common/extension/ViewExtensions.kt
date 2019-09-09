@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.common.extension
 
 import android.content.res.Resources
+import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import androidx.appcompat.widget.LinearLayoutCompat
@@ -11,6 +13,9 @@ import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.children
 import com.adsamcik.tracker.common.exception.NotFoundException
+import com.adsamcik.tracker.common.style.BaseStyleView
+import com.adsamcik.tracker.common.style.StyleController
+import com.adsamcik.tracker.common.style.StyleManager
 import java.util.*
 
 /**
@@ -228,4 +233,12 @@ fun <T : View> ViewGroup.findChildOfType(
 
 	assert(queue.isEmpty())
 	throw NotFoundException("Child of type ${iClass.name} not found")
+}
+
+fun ImageView.replaceDrawable(drawable: Drawable) {
+	/*val currentDrawable: Drawable? = this.drawable
+	drawable.mutate()
+	if(currentDrawable != null) {
+		drawable.setTint(imageTintList)
+	}*/
 }

@@ -21,6 +21,9 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
+import androidx.appcompat.widget.AppCompatImageView
+import androidx.appcompat.widget.AppCompatSeekBar
+import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.core.graphics.drawable.DrawableCompat
@@ -207,7 +210,7 @@ internal class StyleUpdater {
 	}
 
 	@MainThread
-	private fun updateStyleForeground(drawable: Drawable, updateStyleData: UpdateStyleData) {
+	internal fun updateForegroundDrawable(drawable: Drawable, updateStyleData: UpdateStyleData) {
 		drawable.mutate()
 		when (drawable) {
 			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(updateStyleData.baseForegroundColor)
@@ -221,7 +224,7 @@ internal class StyleUpdater {
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: TextView, updateStyleData: UpdateStyleData) {
+	private fun updateStyleForeground(view: AppCompatTextView, updateStyleData: UpdateStyleData) {
 		val alpha = view.textColors.defaultColor.alpha
 		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
 
@@ -230,9 +233,8 @@ internal class StyleUpdater {
 		}
 
 		view.setTextColor(colorStateList)
-		view.compoundDrawables.forEach {
-			if (it != null) updateStyleForeground(it, updateStyleData)
-		}
+
+		view.supportCompoundDrawablesTintList = colorStateList
 
 		val hintColorState = colorStateList.withAlpha(alpha - HINT_TEXT_ALPHA_OFFSET)
 		if (view is TextInputEditText) {
@@ -271,10 +273,7 @@ internal class StyleUpdater {
 
 	@MainThread
 	private fun updateStyleForeground(view: ImageView, updateStyleData: UpdateStyleData) {
-		view.drawable?.let { drawable ->
-			updateStyleForeground(drawable, updateStyleData)
-			view.invalidateDrawable(drawable)
-		}
+		view.imageTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 	}
 
 	@MainThread
@@ -283,7 +282,7 @@ internal class StyleUpdater {
 			when (val decoration = view.getItemDecorationAt(i)) {
 				is DividerItemDecoration -> {
 					val drawable = decoration.drawable
-					if (drawable != null) updateStyleForeground(drawable, updateStyleData)
+					if (drawable != null) updateForegroundDrawable(drawable, updateStyleData)
 				}
 			}
 		}
@@ -293,9 +292,9 @@ internal class StyleUpdater {
 	private fun updateStyleForeground(view: View, updateStyleData: UpdateStyleData) {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
-			is ImageView -> updateStyleForeground(view, updateStyleData)
-			is TextView -> updateStyleForeground(view, updateStyleData)
-			is SeekBar -> updateStyleForeground(view, updateStyleData)
+			is AppCompatImageView -> updateStyleForeground(view, updateStyleData)
+			is AppCompatTextView -> updateStyleForeground(view, updateStyleData)
+			is AppCompatSeekBar -> updateStyleForeground(view, updateStyleData)
 		}
 	}
 
