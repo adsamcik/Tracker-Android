@@ -81,6 +81,18 @@ data class StyleData(
 		return ColorFunctions.getBackgroundLayerColor(color, luminance, layer)
 	}
 
+	internal fun updateDataFor(
+			styleView: BaseStyleView,
+			isRecyclerAllowed: Boolean = false
+	): StyleUpdater.UpdateStyleData {
+		return StyleUpdater.UpdateStyleData(
+				baseBackgroundColor = backgroundColorFor(styleView),
+				baseForegroundColor = foregroundColorFor(styleView),
+				backgroundLuminance = perceivedLuminanceFor(styleView),
+				isRecyclerAllowed = isRecyclerAllowed
+		)
+	}
+
 	/**
 	 * Returns perceived luminance.
 	 *

@@ -211,13 +211,8 @@ class StyleController : CoroutineScope {
 			if (adapter is IViewChange) {
 				adapter.onViewChangedListener = {
 					val styleData = styleData
-					val backgroundColor = styleData.backgroundColorFor(styleView)
-					val foregroundColor = styleData.foregroundColorFor(styleView)
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 					styleUpdater.updateSingle(
-							backgroundColor,
-							foregroundColor,
-							perceivedLuminance,
+							styleData.updateDataFor(styleView),
 							it,
 							styleView.childrenLayer,
 							styleView.maxDepth
@@ -230,9 +225,7 @@ class StyleController : CoroutineScope {
 					override fun onChildViewAdded(parent: View, child: View) {
 						val styleData = styleData
 						styleUpdater.updateSingle(
-								styleData.backgroundColorFor(styleView),
-								styleData.foregroundColorFor(styleView),
-								styleData.perceivedLuminanceFor(styleView),
+								styleData.updateDataFor(styleView),
 								child,
 								styleView.childrenLayer,
 								styleView.maxDepth
@@ -364,13 +357,8 @@ class StyleController : CoroutineScope {
 	fun updateOnce(styleView: StyleView, allowRecycler: Boolean) {
 		launch {
 			val styleData = styleData
-			val backgroundColor = styleData.backgroundColorFor(styleView)
-			val foregroundColor = styleData.foregroundColorFor(styleView)
-			val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 			styleUpdater.updateSingle(
-					backgroundColor,
-					foregroundColor,
-					perceivedLuminance,
+					styleData.updateDataFor(styleView, allowRecycler),
 					styleView.view,
 					styleView.layer,
 					styleView.maxDepth,

@@ -80,8 +80,8 @@
     <string name="distance_value">vzdálenost %s</string>
     <string name="duration_title">Doba trvání relace</string>
     <string name="duration_value">trvání %s</string>
-    <string name="hint_customizenoti_show_in_content">Zobrazit v obsahu notifikace</string>
-    <string name="hint_customizenoti_show_in_title">Zobrazit v názvu notifikace</string>
+    <string name="hint_customize_notification_show_in_content">Zobrazit v obsahu notifikace</string>
+    <string name="hint_customize_notification_show_in_title">Zobrazit v názvu notifikace</string>
     <string name="horizontal_accuracy_title">Přesnost</string>
     <string name="horizontal_accuracy_value">přesnost %s</string>
     <string name="last_update_title">Čas poslední záznamu</string>

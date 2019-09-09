@@ -55,66 +55,73 @@
         <androidx.preference.PreferenceCategory android:title="@string/settings_notification_category">
 
             <androidx.preference.Preference
-                android:key="@string/settings_notification_customize_key"
-                android:summary="@string/settings_notification_customize_summary"
-                android:title="@string/settings_notification_customize_title"
-                app:icon="@drawable/ic_notification_clear_all" />
+                app:icon="@drawable/ic_notification_clear_all"
+                app:key="@string/settings_notification_customize_key"
+                app:summary="@string/settings_notification_customize_summary"
+                app:title="@string/settings_notification_customize_title" />
 
         </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory>
             <com.adsamcik.tracker.preference.IntValueSliderPreference
-                android:defaultValue="@integer/settings_tracking_min_distance_default"
-                android:dependency="@string/settings_location_enabled_key"
-                android:key="@string/settings_tracking_min_distance_key"
-                android:title="@string/settings_tracking_min_distance_title"
+                app:defaultValue="@integer/settings_tracking_min_distance_default"
+                app:dependency="@string/settings_location_enabled_key"
                 app:icon="@drawable/ic_outline_directions_run_24px"
                 app:items="@array/settings_tracking_min_distance_values"
-                app:stringFormat="%1$d m" />
+                app:key="@string/settings_tracking_min_distance_key"
+                app:stringFormat="%1$d m"
+                app:title="@string/settings_tracking_min_distance_title" />
 
             <com.adsamcik.tracker.preference.IntValueSliderPreference
-                android:defaultValue="@integer/settings_tracking_min_time_default"
-                android:key="@string/settings_tracking_min_time_key"
-                android:title="@string/settings_tracking_min_time_title"
+                app:defaultValue="@integer/settings_tracking_min_time_default"
                 app:icon="@drawable/ic_outline_access_time_24px"
                 app:items="@array/settings_tracking_min_time_values"
-                app:stringFormat="%1$d s" />
+                app:key="@string/settings_tracking_min_time_key"
+                app:stringFormat="%1$d s"
+                app:title="@string/settings_tracking_min_time_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
             <com.adsamcik.tracker.preference.IntValueSliderPreference
-                android:defaultValue="@integer/settings_tracking_required_accuracy_default"
-                android:key="@string/settings_tracking_required_accuracy_key"
-                android:title="@string/settings_tracking_required_accuracy_title"
+                app:defaultValue="@integer/settings_tracking_required_accuracy_default"
                 app:icon="@drawable/ic_gps_fixed_black_24dp"
                 app:items="@array/settings_tracking_required_accuracy"
-                app:stringFormat="%1$d m" />
+                app:key="@string/settings_tracking_required_accuracy_key"
+                app:stringFormat="%1$d m"
+                app:title="@string/settings_tracking_required_accuracy_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
             <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_location_enabled_default"
-                android:key="@string/settings_location_enabled_key"
-                android:title="@string/settings_location_enabled_title"
-                app:icon="@drawable/ic_outline_location_on_24px" />
+                app:defaultValue="@string/settings_location_enabled_default"
+                app:icon="@drawable/ic_outline_location_on_24px"
+                app:key="@string/settings_location_enabled_key"
+                app:title="@string/settings_location_enabled_title" />
 
             <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_activity_enabled_default"
-                android:key="@string/settings_activity_enabled_key"
-                android:title="@string/settings_activity_enabled_title"
-                app:icon="@drawable/ic_directions_walk_white_24dp" />
+                app:defaultValue="@string/settings_activity_enabled_default"
+                app:icon="@drawable/ic_directions_walk_white_24dp"
+                app:key="@string/settings_activity_enabled_key"
+                app:title="@string/settings_activity_enabled_title" />
+
+            <androidx.preference.CheckBoxPreference
+                app:defaultValue="@string/settings_wifi_enabled_default"
+                app:disableDependentsState="false"
+                app:icon="@drawable/ic_outline_network_wifi_24px"
+                app:key="@string/settings_wifi_enabled_key"
+                app:title="@string/settings_wifi_enabled_title" />
 
 
             <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_wifi_network_enabled_default"
-                android:key="@string/settings_wifi_network_enabled_key"
-                android:title="@string/settings_wifi_network_enabled_title"
-                app:icon="@drawable/ic_outline_network_wifi_24px" />
+                app:defaultValue="@string/settings_wifi_network_enabled_default"
+                app:dependency="@string/settings_wifi_enabled_key"
+                app:key="@string/settings_wifi_network_enabled_key"
+                app:title="@string/settings_wifi_network_enabled_title" />
 
             <androidx.preference.CheckBoxPreference
-                android:defaultValue="@string/settings_wifi_location_count_enabled_default"
-                android:key="@string/settings_wifi_location_count_enabled_key"
-                android:title="@string/settings_wifi_location_count_enabled_title"
-                app:icon="@drawable/ic_outline_network_wifi_24px" />
-            
+                app:defaultValue="@string/settings_wifi_location_count_enabled_default"
+                app:dependency="@string/settings_wifi_enabled_key"
+                app:key="@string/settings_wifi_location_count_enabled_key"
+                app:title="@string/settings_wifi_location_count_enabled_title" />
+
             <androidx.preference.CheckBoxPreference
                 android:defaultValue="@string/settings_cell_enabled_default"
                 android:key="@string/settings_cell_enabled_key"

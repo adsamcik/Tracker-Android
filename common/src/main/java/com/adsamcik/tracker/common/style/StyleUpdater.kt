@@ -15,7 +15,7 @@ import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.widget.CheckBox
+import android.widget.CompoundButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
@@ -42,8 +42,15 @@ internal class StyleUpdater {
 		val foregroundColor = styleData.foregroundColorFor(styleView)
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
+		val updateData = UpdateStyleData(
+				backgroundColor,
+				foregroundColor,
+				perceivedLuminance,
+				false
+		)
+
 		styleView.view.post {
-			updateSingle(styleView, backgroundColor, foregroundColor, perceivedLuminance)
+			updateSingle(styleView, updateData)
 		}
 	}
 
@@ -52,9 +59,17 @@ internal class StyleUpdater {
 		val foregroundColor = styleData.foregroundColorFor(styleView)
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 
+		val updateData = UpdateStyleData(
+				backgroundColor,
+				foregroundColor,
+				perceivedLuminance,
+				false
+		)
+
 		styleView.view.post {
 			updateSingle(
-					backgroundColor, foregroundColor, perceivedLuminance, styleView.view,
+					updateData,
+					styleView.view,
 					styleView.layer,
 					styleView.maxDepth
 			)
@@ -126,16 +141,12 @@ internal class StyleUpdater {
 	@MainThread
 	internal fun updateSingle(
 			styleData: RecyclerStyleView,
-			@ColorInt backgroundColor: Int,
-			@ColorInt foregroundColor: Int,
-			backgroundLuminance: Int
+			updateStyleData: UpdateStyleData
 	) {
 		if (!styleData.onlyChildren) {
-			updateStyleForeground(styleData.view, foregroundColor)
+			updateStyleForeground(styleData.view, updateStyleData)
 			updateSingle(
-					backgroundColor,
-					foregroundColor,
-					backgroundLuminance,
+					updateStyleData,
 					styleData.view,
 					styleData.layer,
 					depthLeft = 0
@@ -146,9 +157,7 @@ internal class StyleUpdater {
 
 		for (item in iterator) {
 			updateSingle(
-					backgroundColor,
-					foregroundColor,
-					backgroundLuminance,
+					updateStyleData,
 					item,
 					styleData.childrenLayer,
 					depthLeft = Int.MAX_VALUE
@@ -159,9 +168,7 @@ internal class StyleUpdater {
 	@MainThread
 	@Suppress("LongParameterList")
 	internal fun updateSingle(
-			@ColorInt backgroundColor: Int,
-			@ColorInt foregroundColor: Int,
-			backgroundLuminance: Int,
+			updateStyleData: UpdateStyleData,
 			view: View,
 			layer: Int,
 			depthLeft: Int,
@@ -170,12 +177,14 @@ internal class StyleUpdater {
 		var newLayer = layer
 
 		val backgroundLayerColor = ColorFunctions.getBackgroundLayerColor(
-				backgroundColor,
-				backgroundLuminance, layer
+				updateStyleData.baseBackgroundColor,
+				updateStyleData.backgroundLuminance,
+				layer
 		)
 		val wasBackgroundUpdated = updateBackgroundDrawable(
-				view, backgroundLayerColor,
-				backgroundLuminance
+				view,
+				backgroundLayerColor,
+				updateStyleData.backgroundLuminance
 		)
 		if (wasBackgroundUpdated) newLayer++
 
@@ -186,54 +195,60 @@ internal class StyleUpdater {
 
 			for (i in 0 until view.childCount) {
 				updateSingle(
-						backgroundColor, foregroundColor, backgroundLuminance,
-						view.getChildAt(i), newLayer,
+						updateStyleData,
+						view.getChildAt(i),
+						newLayer,
 						newDepthLeft
 				)
 			}
 		} else {
-			updateStyleForeground(view, foregroundColor)
+			updateStyleForeground(view, updateStyleData)
 		}
 	}
 
 	@MainThread
-	private fun updateStyleForeground(drawable: Drawable, @ColorInt foregroundColor: Int) {
+	private fun updateStyleForeground(drawable: Drawable, updateStyleData: UpdateStyleData) {
 		drawable.mutate()
 		when (drawable) {
-			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(foregroundColor)
-			else -> DrawableCompat.setTint(drawable, foregroundColor)
+			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(updateStyleData.baseForegroundColor)
+			else -> DrawableCompat.setTint(drawable, updateStyleData.baseForegroundColor)
 		}
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: TextView, @ColorInt foregroundColor: Int) {
-		if (view is CheckBox) {
-			view.buttonTintList = ColorStateList.valueOf(foregroundColor)
+	private fun updateStyleForeground(view: CompoundButton, colorStateList: ColorStateList) {
+		view.buttonTintList = colorStateList
+	}
+
+	@MainThread
+	private fun updateStyleForeground(view: TextView, updateStyleData: UpdateStyleData) {
+		val alpha = view.textColors.defaultColor.alpha
+		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
+
+		when (view) {
+			is CompoundButton -> updateStyleForeground(view, colorStateList)
 		}
 
-		val alpha = view.currentTextColor.alpha
-		val newTextColor = ColorUtils.setAlphaComponent(foregroundColor, alpha)
-		view.setTextColor(newTextColor)
+		view.setTextColor(colorStateList)
 		view.compoundDrawables.forEach {
-			if (it != null) updateStyleForeground(it, foregroundColor)
+			if (it != null) updateStyleForeground(it, updateStyleData)
 		}
 
-		val hintColor = ColorUtils.setAlphaComponent(newTextColor, newTextColor.alpha - 25)
-
+		val hintColorState = colorStateList.withAlpha(alpha - HINT_TEXT_ALPHA_OFFSET)
 		if (view is TextInputEditText) {
 			val parent = view.firstParent<TextInputLayout>(1)
 			require(parent is TextInputLayout) {
 				"TextInputEditText ($view) should always have TextInputLayout as it's parent! Found $parent instead"
 			}
 
-			parent.defaultHintTextColor = ColorStateList.valueOf(hintColor)
+			parent.defaultHintTextColor = hintColorState
 		} else {
-			view.setHintTextColor(hintColor)
+			view.setHintTextColor(hintColorState)
 		}
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: SeekBar, @ColorInt foregroundColor: Int) {
+	private fun updateStyleForeground(view: SeekBar, updateStyleData: UpdateStyleData) {
 		view.thumbTintList = ColorStateList(
 				arrayOf(
 						intArrayOf(-state_enabled),
@@ -241,40 +256,46 @@ internal class StyleUpdater {
 						intArrayOf(state_pressed)
 				),
 				intArrayOf(
-						ColorUtils.setAlphaComponent(foregroundColor, SEEKBAR_DISABLED_ALPHA),
-						foregroundColor,
-						ColorUtils.setAlphaComponent(foregroundColor, SEEKBAR_PRESSED_ALPHA)
+						ColorUtils.setAlphaComponent(
+								updateStyleData.baseForegroundColor,
+								DISABLED_ALPHA
+						),
+						updateStyleData.baseForegroundColor,
+						ColorUtils.setAlphaComponent(
+								updateStyleData.baseForegroundColor,
+								SEEKBAR_PRESSED_ALPHA
+						)
 				)
 		)
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: ImageView, @ColorInt foregroundColor: Int) {
+	private fun updateStyleForeground(view: ImageView, updateStyleData: UpdateStyleData) {
 		view.drawable?.let { drawable ->
-			updateStyleForeground(drawable, foregroundColor)
+			updateStyleForeground(drawable, updateStyleData)
 			view.invalidateDrawable(drawable)
 		}
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: RecyclerView, @ColorInt foregroundColor: Int) {
+	private fun updateStyleForeground(view: RecyclerView, updateStyleData: UpdateStyleData) {
 		for (i in 0 until view.itemDecorationCount) {
 			when (val decoration = view.getItemDecorationAt(i)) {
 				is DividerItemDecoration -> {
 					val drawable = decoration.drawable
-					if (drawable != null) updateStyleForeground(drawable, foregroundColor)
+					if (drawable != null) updateStyleForeground(drawable, updateStyleData)
 				}
 			}
 		}
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: View, @ColorInt foregroundColor: Int) {
+	private fun updateStyleForeground(view: View, updateStyleData: UpdateStyleData) {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
-			is ImageView -> updateStyleForeground(view, foregroundColor)
-			is TextView -> updateStyleForeground(view, foregroundColor)
-			is SeekBar -> updateStyleForeground(view, foregroundColor)
+			is ImageView -> updateStyleForeground(view, updateStyleData)
+			is TextView -> updateStyleForeground(view, updateStyleData)
+			is SeekBar -> updateStyleForeground(view, updateStyleData)
 		}
 	}
 
@@ -326,8 +347,31 @@ internal class StyleUpdater {
 		return false
 	}
 
+	data class UpdateStyleData(
+			@ColorInt val baseBackgroundColor: Int,
+			@ColorInt val baseForegroundColor: Int,
+			val backgroundLuminance: Int,
+			val isRecyclerAllowed: Boolean
+	) {
+		private val stateArray = arrayOf(
+				intArrayOf(state_enabled),
+				intArrayOf(-state_enabled)
+		)
+
+		fun getBaseTextColorStateList(alpha: Int): ColorStateList {
+			return ColorStateList(
+					stateArray,
+					intArrayOf(
+							ColorUtils.setAlphaComponent(baseForegroundColor, alpha),
+							ColorUtils.setAlphaComponent(baseForegroundColor, DISABLED_ALPHA)
+					)
+			)
+		}
+	}
+
 	companion object {
-		const val SEEKBAR_DISABLED_ALPHA = 128
 		const val SEEKBAR_PRESSED_ALPHA = 255
+		const val DISABLED_ALPHA = 97
+		const val HINT_TEXT_ALPHA_OFFSET = 48
 	}
 }

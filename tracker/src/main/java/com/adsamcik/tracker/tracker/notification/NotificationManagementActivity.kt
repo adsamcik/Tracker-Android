@@ -117,12 +117,12 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 				EditData(
 						SHOW_IN_TITLE,
 						EditType.Checkbox,
-						R.string.hint_customizenoti_show_in_title
+						R.string.hint_customize_notification_show_in_title
 				),
 				EditData(
 						SHOW_IN_CONTENT,
 						EditType.Checkbox,
-						R.string.hint_customizenoti_show_in_content
+						R.string.hint_customize_notification_show_in_content
 				)
 		)
 	}

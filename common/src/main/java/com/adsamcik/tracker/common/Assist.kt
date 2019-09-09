@@ -185,8 +185,12 @@ object Assist {
 						R.string.settings_cell_enabled_default
 				) ||
 				preferences.getBooleanRes(
-						R.string.settings_wifi_enabled_key,
-						R.string.settings_wifi_enabled_default
+						R.string.settings_wifi_location_count_enabled_key,
+						R.string.settings_wifi_location_count_enabled_default
+				) ||
+				preferences.getBooleanRes(
+						R.string.settings_wifi_network_enabled_key,
+						R.string.settings_wifi_network_enabled_default
 				)
 	}
 
