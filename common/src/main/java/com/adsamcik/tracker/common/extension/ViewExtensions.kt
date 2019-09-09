@@ -234,11 +234,3 @@ fun <T : View> ViewGroup.findChildOfType(
 	assert(queue.isEmpty())
 	throw NotFoundException("Child of type ${iClass.name} not found")
 }
-
-fun ImageView.replaceDrawable(drawable: Drawable) {
-	/*val currentDrawable: Drawable? = this.drawable
-	drawable.mutate()
-	if(currentDrawable != null) {
-		drawable.setTint(imageTintList)
-	}*/
-}

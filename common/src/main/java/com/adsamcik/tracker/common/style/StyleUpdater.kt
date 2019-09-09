@@ -2,11 +2,9 @@ package com.adsamcik.tracker.common.style
 
 import android.R.attr.state_enabled
 import android.R.attr.state_pressed
-import android.annotation.SuppressLint
 import android.content.res.ColorStateList
 import android.graphics.BlendMode
 import android.graphics.BlendModeColorFilter
-import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.ColorDrawable
@@ -21,8 +19,6 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
-import androidx.appcompat.widget.AppCompatImageView
-import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
@@ -76,68 +72,6 @@ internal class StyleUpdater {
 					styleView.layer,
 					styleView.maxDepth
 			)
-		}
-	}
-
-	private fun updateUiVisibility(view: View, luminance: Int) {
-		assert(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-		@SuppressLint("InlinedApi")
-		view.systemUiVisibility = if (luminance > 0) {
-			view.systemUiVisibility or
-					View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-					View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-		} else {
-			view.systemUiVisibility and
-					(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-							View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR).inv()
-		}
-	}
-
-	internal fun updateNavigationBar(styleView: SystemBarStyleView, styleData: StyleData) {
-		styleView.view.post {
-			when (styleView.style) {
-				SystemBarStyle.LayerColor -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					val backgroundColor = styleData.backgroundColorFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
-
-					styleView.window.navigationBarColor = ColorFunctions.getBackgroundLayerColor(
-							backgroundColor,
-							perceivedLuminance,
-							styleView.layer
-					)
-				}
-				SystemBarStyle.Transparent -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
-					styleView.window.navigationBarColor = Color.TRANSPARENT
-				}
-				SystemBarStyle.Translucent, SystemBarStyle.Default -> Unit
-			}
-		}
-	}
-
-	internal fun updateNotificationBar(styleView: SystemBarStyleView, styleData: StyleData) {
-		styleView.view.post {
-			when (styleView.style) {
-				SystemBarStyle.LayerColor -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					val backgroundColor = styleData.backgroundColorFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
-
-					styleView.window.statusBarColor = ColorFunctions.getBackgroundLayerColor(
-							backgroundColor,
-							perceivedLuminance,
-							styleView.layer
-					)
-				}
-				SystemBarStyle.Transparent -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
-					styleView.window.statusBarColor = Color.TRANSPARENT
-				}
-				SystemBarStyle.Translucent, SystemBarStyle.Default -> Unit
-			}
 		}
 	}
 
@@ -213,7 +147,11 @@ internal class StyleUpdater {
 	internal fun updateForegroundDrawable(drawable: Drawable, updateStyleData: UpdateStyleData) {
 		drawable.mutate()
 		when (drawable) {
-			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(updateStyleData.baseForegroundColor)
+			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(
+					updateStyleData.getBaseTextColorStateList(
+							255
+					)
+			)
 			else -> DrawableCompat.setTint(drawable, updateStyleData.baseForegroundColor)
 		}
 	}
@@ -224,17 +162,34 @@ internal class StyleUpdater {
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: AppCompatTextView, updateStyleData: UpdateStyleData) {
+	private fun updateStyleForeground(view: AppCompatTextView, colorStateList: ColorStateList) {
+		var isAnyStyleable = false
+		view.compoundDrawables.forEach {
+			if (it is StyleableForegroundDrawable) {
+				it.onForegroundStyleChanged(colorStateList)
+				isAnyStyleable = true
+			}
+		}
+
+		if (!isAnyStyleable) {
+			view.supportCompoundDrawablesTintList = colorStateList
+			//view.supportCompoundDrawablesTintMode = PorterDuff.Mode.SRC_ATOP
+		}
+
+	}
+
+	@MainThread
+	private fun updateStyleForeground(view: TextView, updateStyleData: UpdateStyleData) {
 		val alpha = view.textColors.defaultColor.alpha
 		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
 
 		when (view) {
 			is CompoundButton -> updateStyleForeground(view, colorStateList)
+			is AppCompatTextView -> updateStyleForeground(view, colorStateList)
 		}
 
 		view.setTextColor(colorStateList)
 
-		view.supportCompoundDrawablesTintList = colorStateList
 
 		val hintColorState = colorStateList.withAlpha(alpha - HINT_TEXT_ALPHA_OFFSET)
 		if (view is TextInputEditText) {
@@ -273,7 +228,14 @@ internal class StyleUpdater {
 
 	@MainThread
 	private fun updateStyleForeground(view: ImageView, updateStyleData: UpdateStyleData) {
-		view.imageTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+		val drawable = view.drawable
+		if (drawable is StyleableForegroundDrawable) {
+			val drawableAlpha = drawable.alpha
+			val colorStateList = updateStyleData.getBaseTextColorStateList(drawableAlpha)
+			drawable.onForegroundStyleChanged(colorStateList)
+		} else {
+			view.imageTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+		}
 	}
 
 	@MainThread
@@ -292,9 +254,9 @@ internal class StyleUpdater {
 	private fun updateStyleForeground(view: View, updateStyleData: UpdateStyleData) {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
-			is AppCompatImageView -> updateStyleForeground(view, updateStyleData)
-			is AppCompatTextView -> updateStyleForeground(view, updateStyleData)
-			is AppCompatSeekBar -> updateStyleForeground(view, updateStyleData)
+			is ImageView -> updateStyleForeground(view, updateStyleData)
+			is TextView -> updateStyleForeground(view, updateStyleData)
+			is SeekBar -> updateStyleForeground(view, updateStyleData)
 		}
 	}
 
@@ -357,7 +319,7 @@ internal class StyleUpdater {
 				intArrayOf(-state_enabled)
 		)
 
-		fun getBaseTextColorStateList(alpha: Int): ColorStateList {
+		fun getBaseTextColorStateList(alpha: Int = 255): ColorStateList {
 			return ColorStateList(
 					stateArray,
 					intArrayOf(

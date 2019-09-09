@@ -1,16 +1,12 @@
 package com.adsamcik.tracker.common.style
 
-import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.AdapterView
-import android.widget.ImageView
 import androidx.annotation.AnyThread
-import androidx.annotation.DrawableRes
 import androidx.annotation.IdRes
-import androidx.annotation.MainThread
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.style.StyleManager.styleData
 import com.adsamcik.tracker.common.style.marker.IViewChange
@@ -45,6 +41,7 @@ class StyleController : CoroutineScope {
 	private var navigationBarStyleView: SystemBarStyleView? = null
 
 	private val styleUpdater = StyleUpdater()
+	private val systemStyleUpdater = SystemStyleUpdater()
 
 	/**
 	 * Colors listener array. Holds all listeners.
@@ -172,7 +169,7 @@ class StyleController : CoroutineScope {
 
 		navigationBarStyleView = validatedStyleView
 		updateFlags(notificationStyleView, validatedStyleView)
-		styleUpdater.updateNavigationBar(validatedStyleView, styleData)
+		systemStyleUpdater.updateNavigationBar(validatedStyleView, styleData)
 	}
 
 	private fun ensureValidNotificationStyle(styleView: SystemBarStyleView): SystemBarStyleView {
@@ -195,7 +192,7 @@ class StyleController : CoroutineScope {
 
 		notificationStyleView = validatedStyleView
 		updateFlags(validatedStyleView, navigationBarStyleView)
-		styleUpdater.updateNotificationBar(validatedStyleView, styleData)
+		systemStyleUpdater.updateNotificationBar(validatedStyleView, styleData)
 	}
 
 	/**
@@ -380,20 +377,6 @@ class StyleController : CoroutineScope {
 		}
 	}
 
-	@MainThread
-	fun setDrawable(drawable: Drawable, styleView: BaseStyleView, view: ImageView) {
-		val updateData = styleData.updateDataFor(styleView)
-		styleUpdater.updateForegroundDrawable(drawable, updateData)
-		view.setImageDrawable(drawable)
-	}
-
-	@MainThread
-	fun setImageResource(@DrawableRes resourceId: Int, styleView: BaseStyleView, view: ImageView) {
-		val drawable = requireNotNull(view.context.getDrawable(resourceId))
-		setDrawable(drawable, styleView, view)
-	}
-
-
 	/**
 	 * Internal update function which should be called only by StyleManager
 	 */
@@ -416,11 +399,11 @@ class StyleController : CoroutineScope {
 		}
 
 		notificationStyleView?.let { styleView ->
-			styleUpdater.updateNotificationBar(styleView, styleData)
+			systemStyleUpdater.updateNotificationBar(styleView, styleData)
 		}
 
 		navigationBarStyleView?.let { styleView ->
-			styleUpdater.updateNavigationBar(styleView, styleData)
+			systemStyleUpdater.updateNavigationBar(styleView, styleData)
 		}
 
 		synchronized(styleChangeListeners) {
