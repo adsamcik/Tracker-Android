@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.notification
 
+import android.os.Bundle
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.ItemTouchHelper.DOWN
 import androidx.recyclerview.widget.ItemTouchHelper.END
@@ -125,6 +126,11 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 						R.string.hint_customize_notification_show_in_content
 				)
 		)
+	}
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		isAddEnabled = false
 	}
 
 	private lateinit var dao: NotificationPreferenceDao

@@ -12,7 +12,7 @@ import androidx.annotation.CallSuper
 import androidx.annotation.StringRes
 import androidx.core.view.children
 import androidx.core.view.isGone
-import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -45,6 +45,22 @@ abstract class ManageActivity : DetailActivity() {
 
 	private var isEditInitialized: Boolean = false
 
+	protected var isAddEnabled: Boolean = true
+		set(value) {
+			if (value) {
+				fab.updateLayoutParams {
+					height = ViewGroup.LayoutParams.WRAP_CONTENT
+					width = ViewGroup.LayoutParams.WRAP_CONTENT
+				}
+			} else {
+				fab.updateLayoutParams {
+					height = 0
+					width = 0
+				}
+			}
+			field = value
+		}
+
 	abstract fun getAdapter(): RecyclerView.Adapter<RecyclerView.ViewHolder>
 
 	abstract fun onCreateRecycler(recyclerView: RecyclerView)
@@ -73,7 +89,6 @@ abstract class ManageActivity : DetailActivity() {
 
 		fab = rootView.findViewById<FloatingActionButton>(R.id.fab).apply {
 			onCreateEdit()
-			isGone = true
 			setOnClickListener { isExpanded = true }
 		}
 

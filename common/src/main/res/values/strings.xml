@@ -81,4 +81,6 @@
     <string name="settings_color_day_title">Day</string>
     <string name="settings_color_evening_title">Evening</string>
     <string name="settings_color_night_title">Night</string>
+
+    <string name="accessibility_add_new">Add new</string>
 </resources>

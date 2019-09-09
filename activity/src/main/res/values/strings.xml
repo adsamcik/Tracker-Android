@@ -27,8 +27,4 @@
     <string name="settings_activity_key" translatable="false">activities</string>
 
     <string name="settings_activity_snackbar_message">Removed %s</string>
-
-
-    <string name="sessioncategory_add">Add category</string>
-    <string name="sessioncategory_add_contentdescription">Add category</string>
 </resources>
