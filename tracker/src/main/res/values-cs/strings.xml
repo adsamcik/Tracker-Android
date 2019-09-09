@@ -104,4 +104,6 @@
     <string name="wifi_count_title">Počet Wi-Fi</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
     <string name="vertical_accuracy_title">Vertikální přesnost</string>
+    <string name="settings_tracking_notice_title">Upozornění</string>
+    <string name="settings_tracking_notice_summary">Z technických důvodů vyžaduje většina změn trackování restart trackování. (Pokud je tracker aktivní, stačí ho vypnout a zapnout. Zavření a otevření aplikace nemusí fungovat.)</string>
 </resources>

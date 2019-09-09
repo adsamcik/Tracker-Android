@@ -3,7 +3,7 @@
     <string name="settings_tracking_title">Tracking</string>
 
     <string name="settings_tracking_notice_title">Notice</string>
-    <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again, application restart might not help)</string>
+    <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
 
     <!--- TRACKING -->
     <string name="settings_disabled_recharge_title">Disabled until recharge</string>
