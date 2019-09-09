@@ -22,6 +22,7 @@ import android.view.LayoutInflater
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 
@@ -33,7 +34,7 @@ import androidx.fragment.app.Fragment
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Activity> Activity.startActivity(
+inline fun <reified T : AppCompatActivity> Activity.startActivity(
 		requestCode: Int = -1,
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}
@@ -50,7 +51,7 @@ inline fun <reified T : Activity> Activity.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Activity> Fragment.startActivity(
+inline fun <reified T : AppCompatActivity> Fragment.startActivity(
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}
 ) {
@@ -63,7 +64,7 @@ inline fun <reified T : Activity> Fragment.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : Activity> Context.startActivity(
+inline fun <reified T : AppCompatActivity> Context.startActivity(
 		options: Bundle? = null,
 		noinline init: Intent.() -> Unit = {}
 ) {
