@@ -16,6 +16,7 @@ import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.extension.findChildOfType
 import com.adsamcik.tracker.common.keyboard.KeyboardManager

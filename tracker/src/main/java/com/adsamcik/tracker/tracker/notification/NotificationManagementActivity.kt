@@ -131,6 +131,7 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		isAddEnabled = false
+		setTitle(R.string.settings_notification_customize_title)
 	}
 
 	private lateinit var dao: NotificationPreferenceDao

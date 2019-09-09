@@ -48,6 +48,8 @@ class SessionActivityActivity : ManageActivity() {
 				adapter.addAllWrap(itemCollection)
 			}
 		}
+
+		setTitle(R.string.settings_activity_title)
 	}
 
 	override fun getAdapter(): RecyclerView.Adapter<RecyclerView.ViewHolder> {
