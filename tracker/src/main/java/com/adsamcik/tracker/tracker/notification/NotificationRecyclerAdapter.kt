@@ -43,7 +43,6 @@ internal class NotificationRecyclerAdapter(
 	@SuppressLint("ClickableViewAccessibility")
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 		val item = getItem(position)
-		val context = holder.itemView.context
 		holder.textView.setText(item.titleRes)
 		holder.dragButton.setOnTouchListener { view, motionEvent ->
 			when (motionEvent.actionMasked) {
@@ -54,7 +53,7 @@ internal class NotificationRecyclerAdapter(
 		}
 
 		holder.editButton.setOnClickListener {
-			editCallback(position)
+			editCallback(holder.adapterPosition)
 		}
 
 		val preference = item.preference
