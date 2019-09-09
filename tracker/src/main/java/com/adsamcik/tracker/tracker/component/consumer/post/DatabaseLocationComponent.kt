@@ -24,11 +24,9 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 			collectionData: CollectionData,
 			tempData: CollectionTempData
 	) {
-		val location = collectionData.location
-		if (location != null) {
-			val activity = collectionData.activity ?: ActivityInfo.UNKNOWN
-			saveLocation(location, activity)
-		}
+		val location = collectionData.location ?: return
+		val activity = collectionData.activity ?: ActivityInfo.UNKNOWN
+		saveLocation(location, activity)
 	}
 
 	private fun saveLocation(location: Location, activityInfo: ActivityInfo) {

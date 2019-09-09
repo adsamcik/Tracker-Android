@@ -21,6 +21,13 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	private var cellLocationDao: CellLocationDao? = null
 	private var cellOperatorDao: CellOperatorDao? = null
 
+	private fun toOwnLocation(location: android.location.Location?): Location? {
+		return if (location != null) {
+			Location(location)
+		} else {
+			null
+		}
+	}
 
 	override fun onNewData(
 			context: Context,
@@ -28,15 +35,14 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 			collectionData: CollectionData,
 			tempData: CollectionTempData
 	) {
-		val cellData = collectionData.cell
-		if (cellData != null) {
-			val location = collectionData.location
-			if (location != null) {
-				saveLocation(collectionData.time, cellData, location)
-			}
-
-			saveOperator(cellData)
+		// todo add tracking without location
+		val cellData = collectionData.cell ?: return
+		val location = collectionData.location ?: toOwnLocation(tempData.tryGetLocation())
+		if (location != null) {
+			saveLocation(collectionData.time, cellData, location)
 		}
+
+		saveOperator(cellData)
 	}
 
 	private fun saveOperator(cell: CellInfo) {
