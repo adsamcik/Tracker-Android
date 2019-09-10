@@ -49,7 +49,7 @@
     <string name="cell_current_title">Current cell</string>
     <string name="cell_current_value">active cells (%s)</string>
     <!-- Operator Technology Decibels -->
-    <string name="cell_current_single_value">%s %s %d dBm</string>
+    <string name="cell_current_single_value">%1$s %2$s %3$d dBm</string>
     <string name="wifi_count_title">Wi-Fi count</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
     <string name="activity_title">Activity</string>
