@@ -25,5 +25,6 @@
         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
         android:layout_width="48dp"
         android:layout_height="48dp"
+        android:textColor="#FF000000"
         app:icon="@drawable/ic_baseline_edit" />
 </androidx.appcompat.widget.LinearLayoutCompat>

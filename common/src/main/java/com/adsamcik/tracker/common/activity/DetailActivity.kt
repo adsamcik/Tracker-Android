@@ -64,7 +64,8 @@ abstract class DetailActivity : CoreUIActivity() {
 		back_button.setOnClickListener { onBackPressed() }
 
 
-		val desiredElevation = configuration.elevation ?: 4.dp * configuration.titleBarLayer
+		val desiredElevation = configuration.elevation
+				?: DEFAULT_TITLE_BAR_ELEVATION.dp * configuration.titleBarLayer
 		top_panel_root.elevation = kotlin.math.max(0, desiredElevation).toFloat()
 
 		val topBarStyleView = StyleView(top_panel_root, configuration.titleBarLayer)
@@ -250,6 +251,7 @@ abstract class DetailActivity : CoreUIActivity() {
 
 	companion object {
 		const val CONTENT_ID: Int = 2668368
+		const val DEFAULT_TITLE_BAR_ELEVATION = 4
 	}
 
 	data class Configuration(

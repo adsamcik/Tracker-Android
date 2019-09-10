@@ -13,12 +13,14 @@ import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
+import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
@@ -162,6 +164,11 @@ internal class StyleUpdater {
 	}
 
 	@MainThread
+	private fun updateStyleForeground(view: MaterialButton, colorStateList: ColorStateList) {
+		view.iconTint = colorStateList
+	}
+
+	@MainThread
 	private fun updateStyleForeground(view: AppCompatTextView, colorStateList: ColorStateList) {
 		var isAnyStyleable = false
 		view.compoundDrawables.forEach {
@@ -184,12 +191,12 @@ internal class StyleUpdater {
 		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
 
 		when (view) {
+			is MaterialButton -> updateStyleForeground(view, colorStateList)
 			is CompoundButton -> updateStyleForeground(view, colorStateList)
 			is AppCompatTextView -> updateStyleForeground(view, colorStateList)
 		}
 
 		view.setTextColor(colorStateList)
-
 
 		val hintColorState = colorStateList.withAlpha(alpha - HINT_TEXT_ALPHA_OFFSET)
 		if (view is TextInputEditText) {

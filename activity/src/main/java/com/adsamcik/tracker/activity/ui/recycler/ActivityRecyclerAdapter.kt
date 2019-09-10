@@ -19,7 +19,9 @@ import kotlin.coroutines.CoroutineContext
 
 class ActivityRecyclerAdapter(
 		private val editCallback: (position: Int) -> Unit
-) : PrioritySortAdapter<SessionActivity, RecyclerActivityViewHolder>(), IViewChange, CoroutineScope {
+) : PrioritySortAdapter<SessionActivity, RecyclerActivityViewHolder>(),
+		IViewChange,
+		CoroutineScope {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	private val job = SupervisorJob()
