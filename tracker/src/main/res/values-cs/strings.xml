@@ -67,7 +67,7 @@
     <string name="altitude_value">%s n.m.</string>
     <string name="cell_count_title">Počet mobilních vysílačů</string>
     <string name="cell_count_value">m. vysílačů %d</string>
-    <string name="cell_current_single_value">%s %s %f dBm</string>
+    <string name="cell_current_single_value">%s %s %d dBm</string>
     <string name="cell_current_title">Aktivní mobilní vysílače</string>
     <string name="cell_current_value">aktivní vysílače (%s)</string>
     <string name="collection_count_title">Počet záznamů</string>

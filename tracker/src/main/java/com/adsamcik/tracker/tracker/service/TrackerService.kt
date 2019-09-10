@@ -18,6 +18,8 @@ import com.adsamcik.tracker.common.extension.forEachIf
 import com.adsamcik.tracker.common.extension.getSystemServiceTyped
 import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.hasSelfPermissions
+import com.adsamcik.tracker.common.extension.tryWithReport
+import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.common.preference.Preferences
@@ -92,7 +94,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		//if we don't know the accuracy the location is worthless
 		if (!preComponentList.all {
 					if (it.requirementsMet(tempData)) {
-						it.onNewData(tempData)
+						tryWithResultAndReport({ true }) {
+							it.onNewData(tempData)
+						}
 					} else {
 						true
 					}
@@ -103,13 +107,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val collectionData = MutableCollectionData(tempData.timeMillis)
 
 		dataComponentList.forEachIf({ it.requirementsMet(tempData) }) {
-			it.onDataUpdated(tempData, collectionData)
+			tryWithReport {
+				it.onDataUpdated(tempData, collectionData)
+			}
 		}
 
 		requireNotNull(sessionComponent).onDataUpdated(tempData, collectionData)
 
 		postComponentList.forEachIf({ it.requirementsMet(tempData) }) {
-			it.onNewData(this, session, collectionData, tempData)
+			tryWithReport {
+				it.onNewData(this, session, collectionData, tempData)
+			}
 		}
 
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()

@@ -22,8 +22,7 @@ data class NetworkOperator(
 		 */
 		val mnc: String,
 		/**
-		 * Mobile country code
-		 * Replaced with System ID on CDMA
+		 * Operator name
 		 */
 		val name: String?
 ) : Parcelable {

@@ -9,6 +9,7 @@ import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.tracker.common.data.MutableTrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -30,11 +31,10 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 
 		val deferredResults = activeRecognizers.map {
 			async {
-				val result = try {
+				val result = tryWithResultAndReport(
+						default = { ActivityRecognitionResult(null, 0) }
+				) {
 					it.resolve(session, locationCollection)
-				} catch (e: Exception) {
-					Reporter.report(e)
-					ActivityRecognitionResult(null, 0)
 				}
 				Pair(it, result)
 			}

@@ -6,6 +6,7 @@ import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.common.extension.tryWithReport
 import com.adsamcik.tracker.common.introduction.IntroductionManager.showIntroduction
 import com.adsamcik.tracker.common.preference.Preferences
 import com.takusemba.spotlight.Spotlight
@@ -31,7 +32,7 @@ object IntroductionManager {
 	 */
 	fun showIntroduction(activity: FragmentActivity, introduction: Introduction): Boolean {
 		val preferences = Preferences.getPref(activity)
-		try {
+		tryWithReport {
 			if (!anyShown &&
 					preferences.getBooleanRes(R.string.show_tips_key, R.string.show_tips_default) &&
 					!preferences.getBoolean(introduction.preference, false)) {
@@ -55,8 +56,6 @@ object IntroductionManager {
 					return true
 				}
 			}
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Reporter.report(e)
 		}
 		return false
 	}

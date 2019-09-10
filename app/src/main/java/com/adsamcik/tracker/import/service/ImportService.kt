@@ -11,6 +11,8 @@ import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.lowerCaseExtension
 import com.adsamcik.tracker.common.extension.notificationManager
+import com.adsamcik.tracker.common.extension.tryWithReport
+import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import com.adsamcik.tracker.common.service.CoreService
 import com.adsamcik.tracker.import.DataImport
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
@@ -72,11 +74,9 @@ class ImportService : CoreService() {
 	@AnyThread
 	private fun showNotification(text: String, inProgress: Boolean) {
 		//notification should under no circumstances crash import
-		try {
+		tryWithReport {
 			val notification = createNotification(text, inProgress)
 			notificationManager.notify(NOTIFICATION_ID, notification)
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Reporter.report(e)
 		}
 	}
 
@@ -132,12 +132,9 @@ class ImportService : CoreService() {
 				true
 		)
 
-		return try {
+		return tryWithResultAndReport({ 0 }) {
 			import.import(this, database, file)
 			1
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Reporter.report(e)
-			0
 		}
 	}
 
