@@ -17,7 +17,7 @@ buildscript {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.24.0")
+	id("com.github.ben-manes.versions") version ("0.25.0")
 }
 
 allprojects {
