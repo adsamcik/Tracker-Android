@@ -8,7 +8,7 @@ class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
 
 	override val iconRes: Int
 		get() = when (cellData.registeredCells.firstOrNull()?.type) {
-			null -> R.drawable.signal_off
+			null, CellType.None -> R.drawable.signal_off
 			CellType.Unknown -> R.drawable.signal
 			CellType.GSM, CellType.CDMA -> R.drawable.signal_2g
 			CellType.WCDMA -> R.drawable.signal_3g

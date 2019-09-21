@@ -16,6 +16,7 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.data.CellInfo
+import com.adsamcik.tracker.common.data.CellType
 import com.adsamcik.tracker.common.data.NetworkOperator
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.getSystemServiceTyped
@@ -90,7 +91,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			val mcc: String?
 			val mnc: String?
 
-			if (Build.VERSION.SDK_INT >= 29) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 				mcc = it.mccString
 				mnc = it.mncString
 			} else {
@@ -116,8 +117,6 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			telephonyManager: TelephonyManager,
 			registeredOperators: List<NetworkOperator>
 	): CellScanData? {
-		//Annoying lint bug CoarseLocation permission is not required when android.permission.ACCESS_FINE_LOCATION is present
-		@SuppressLint("MissingPermission")
 		val cellInfo = telephonyManager.allCellInfo ?: return null
 
 		val phoneCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) telephonyManager.phoneCount else 1
@@ -130,6 +129,21 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 				}
 
 				if (registeredCells.size == phoneCount - 1) return@forEach
+			}
+		}
+
+		if (registeredCells.isEmpty()) {
+			registeredOperators.forEach {
+				registeredCells.add(
+						CellInfo(
+								it,
+								cellId = 0,
+								type = CellType.None,
+								asu = 0,
+								dbm = 0,
+								level = 0
+						)
+				)
 			}
 		}
 

@@ -203,6 +203,9 @@ enum class CellType {
 	},
 	NR {
 		override val nameRes: Int = R.string.cell_nr
+	},
+	None {
+		override val nameRes: Int = R.string.cell_none
 	};
 
 	abstract val nameRes: Int
