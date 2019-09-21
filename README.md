@@ -3,7 +3,7 @@
 
 # Tracker Android (dev name, brand name reveal soon)
 
-Signals is an free open-source offline location, fitness, Wi-Fi, cell tracker with statistics and game elements. Now that that is out of the way, you can read more in features.
+Signals is a free open-source offline location, fitness, Wi-Fi, cell tracker with statistics and game elements. Now that that is out of the way, you can read more in features.
 
 ## Features
 
