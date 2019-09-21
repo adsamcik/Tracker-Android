@@ -7,12 +7,12 @@ object Dependencies {
 		internal const val constraintLayout = "2.0.0-beta2"
 		internal const val coreKtx = "1.2.0-alpha04"
 		internal const val appcompat = "1.1.0"
-		internal const val fragment = "1.2.0-alpha03"
+		internal const val fragment = "1.2.0-alpha04"
 		const val kotlin: String = "1.3.50"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.8.0"
 		internal const val work = "2.2.0"
-		internal const val lifecycle = "2.2.0-alpha04"
+		internal const val lifecycle = "2.2.0-alpha05"
 		internal const val preference = "1.1.0"
 		internal const val material = "1.1.0-alpha10"
 		internal const val coroutines = "1.3.1"
@@ -166,8 +166,8 @@ object Dependencies {
 	fun gpx(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("stax:stax-api:1.0.1")
-			implementation("com.fasterxml:aalto-xml:1.2.1")
-			implementation("io.jenetics:jpx:1.5.2")
+			implementation("com.fasterxml:aalto-xml:1.2.2")
+			implementation("io.jenetics:jpx:1.5.3")
 		}
 	}
 
