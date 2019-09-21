@@ -85,7 +85,7 @@ fun MaterialDialog.dateTimeRangePicker(
 
 	setActionButtonEnabled(WhichButton.POSITIVE, true)
 	setActionButtonEnabled(WhichButton.NEGATIVE, true)
-	setCancelable(true)
+	cancelable(true)
 
 	layout.addView(calendarPicker)
 
