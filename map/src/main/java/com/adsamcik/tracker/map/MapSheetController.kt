@@ -40,6 +40,7 @@ import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
+import com.adsamcik.tracker.map.layer.logic.WifiCountHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
@@ -349,6 +350,7 @@ internal class MapSheetController(
 				LocationHeatmapLogic(),
 				CellHeatmapLogic(),
 				WifiHeatmapLogic(),
+				WifiCountHeatmapLogic(),
 				LocationPolylineLogic()
 		)
 
