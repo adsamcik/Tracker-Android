@@ -47,6 +47,6 @@ internal class CellHeatmapTileCreator(
 
 	companion object {
 		private const val APPROXIMATE_SIZE_IN_METERS = 50f
-		private const val FALLOFF_EXPONENT = 6
+		private const val FALLOFF_EXPONENT = 4
 	}
 }
