@@ -104,7 +104,6 @@ dependencies {
 	Dependencies.gpx(this)
 
 	//Google dependencies
-	implementation("com.google.android:flexbox:1.1.0")
 	implementation("androidx.cardview:cardview:1.0.0")
 
 	//Preference
