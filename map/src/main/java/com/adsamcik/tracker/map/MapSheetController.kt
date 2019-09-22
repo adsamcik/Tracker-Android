@@ -15,6 +15,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
+import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.recyclerview.widget.GridLayoutManager
@@ -99,6 +100,8 @@ internal class MapSheetController(
 
 	private val legendController = MapLegendController(rootLayout)
 
+	private val scrollView = rootLayout.findViewById<NestedScrollView>(R.id.map_sheet_scroll_view)
+
 	init {
 		mapOwner.addOnEnableListener { onEnable() }
 		mapOwner.addOnDisableListener { onDisable() }
@@ -144,10 +147,11 @@ internal class MapSheetController(
 						navbarHeightInverseRatio,
 						halfExpandedRatio
 				)
+
 				if (updatedOffset != lastOffset) {
 					lastOffset = updatedOffset
 
-					if (lastOffset >= 0) {
+					if (updatedOffset >= 0) {
 						val parentHeight = (bottomSheet.parent as View).height
 						val maxHeightDifference = parentHeight - expandedOffset - peekHeight
 						val offset = (peekHeight + updatedOffset * maxHeightDifference).roundToInt()
@@ -162,6 +166,10 @@ internal class MapSheetController(
 						val offset = ((1 + updatedOffset) * peekHeight).roundToInt()
 						setSheetOffset(offset)
 					}
+				}
+
+				scrollView.updateLayoutParams {
+					height = bottomSheet.height - bottomSheet.top - peekHeight + navbarDim.y
 				}
 			}
 
