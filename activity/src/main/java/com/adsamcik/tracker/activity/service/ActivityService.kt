@@ -87,7 +87,7 @@ internal class ActivityService : IntentService(this::class.java.simpleName) {
 				delayInS: Int,
 				requestedTransitions: Collection<ActivityTransitionData>
 		): Boolean {
-			return if (Assist.checkPlayServices(context)) {
+			return if (Assist.isPlayServicesAvailable(context)) {
 				val client = ActivityRecognition.getClient(context)
 
 				val intent = getActivityDetectionPendingIntent(context)

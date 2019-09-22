@@ -211,7 +211,6 @@ class StyleController : CoroutineScope {
 			val adapter = styleView.view.adapter
 			if (adapter is IViewChange) {
 				adapter.onViewChangedListener = {
-					val styleData = styleData
 					styleUpdater.updateSingle(
 							styleData.updateDataFor(styleView),
 							it,

@@ -64,7 +64,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		val fragmentManager = fragmentManager
 				?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
 
-		if (Assist.checkPlayServices(activity)) {
+		if (Assist.isPlayServicesAvailable(activity)) {
 			mapOwner.createMap(fragmentManager)
 		}
 
@@ -92,7 +92,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 	): View? {
 		val activity = requireActivity()
 		val fragmentView: View
-		if (Assist.checkPlayServices(activity) && container != null) {
+		if (Assist.isPlayServicesAvailable(activity) && container != null) {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
 		} else {
 			fragmentView = inflater.inflate(

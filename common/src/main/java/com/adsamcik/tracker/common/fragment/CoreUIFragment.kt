@@ -12,7 +12,7 @@ abstract class CoreUIFragment : CoreFragment() {
 	protected val styleController: StyleController = StyleManager.createController()
 
 	private val permissionRequestList = mutableMapOf<Int, PermissionRequest>()
-	private var lastPermissionRequestId = Int.MIN_VALUE
+	private var lastPermissionRequestId = 1000
 
 	@CallSuper
 	override fun onDestroy() {
@@ -52,7 +52,7 @@ abstract class CoreUIFragment : CoreFragment() {
 	@Synchronized
 	fun requestPermissions(request: PermissionRequest) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			val id = lastPermissionRequestId++
+			val id = ++lastPermissionRequestId
 
 			permissionRequestList[id] = request
 			requestPermissions(request.permissionList, id)

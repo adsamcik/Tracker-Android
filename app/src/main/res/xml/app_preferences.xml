@@ -266,11 +266,6 @@
                     android:key="@string/settings_activity_status_key"
                     android:title="@string/settings_activity_status_title" />
 
-                <SwitchPreferenceCompat
-                    android:defaultValue="@string/settings_log_activity_default"
-                    android:key="@string/settings_log_activity_key"
-                    android:title="@string/settings_log_activity_title" />
-
                 <androidx.preference.Preference
                     android:key="@string/settings_log_list_activity_key"
                     android:title="@string/settings_log_list_activity_title" />
@@ -281,14 +276,18 @@
             </androidx.preference.PreferenceCategory>
 
             <androidx.preference.PreferenceCategory>
+                <SwitchPreferenceCompat
+                    android:defaultValue="@string/settings_log_activity_default"
+                    android:key="@string/settings_log_activity_key"
+                    android:title="@string/settings_log_activity_title" />
 
-                <androidx.preference.Preference
-                    android:key="@string/settings_clear_data_key"
-                    android:title="@string/settings_clear_data_title" />
+                <SwitchPreferenceCompat
+                    android:defaultValue="@string/settings_log_games_default"
+                    android:key="@string/settings_log_games_key"
+                    android:title="@string/settings_log_games_title" />
+            </androidx.preference.PreferenceCategory>
 
-                <androidx.preference.Preference
-                    android:key="@string/settings_clear_cache_key"
-                    android:title="@string/settings_clear_cache_title" />
+            <androidx.preference.PreferenceCategory>
 
                 <androidx.preference.Preference
                     android:key="@string/settings_clear_preferences_key"

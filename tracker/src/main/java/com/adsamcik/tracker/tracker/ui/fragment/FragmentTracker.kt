@@ -200,18 +200,27 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	 * @param enable ensures intended action
 	 */
 	private fun toggleCollecting(activity: FragmentActivity, enable: Boolean) {
-		if (TrackerServiceApi.isActive == enable) return
+		val isActive = TrackerServiceApi.isActive
+		if (isActive == enable) return
 
 		val missingPermissions = Assist.checkTrackingPermissions(activity)
 
-		if (missingPermissions.isEmpty()) {
-			if (!TrackerServiceApi.isActive) {
+		fun internalToggleCollecting() {
+			if (!isActive) {
 				startTracking(activity)
 			} else {
 				stopTracking(activity)
 			}
-		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			activity.requestPermissions(missingPermissions, 0)
+		}
+
+		if (missingPermissions.isEmpty()) {
+			internalToggleCollecting()
+		} else {
+			requestPermissions(missingPermissions) { response ->
+				if (response.all { it.second }) {
+					internalToggleCollecting()
+				}
+			}
 		}
 	}
 

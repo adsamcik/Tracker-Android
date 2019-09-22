@@ -40,4 +40,7 @@
 
     <string name="settings_log_activity_key" translatable="false">log_activity</string>
     <string name="settings_log_activity_default" translatable="false">false</string>
+
+    <string name="settings_log_games_key" translatable="false">log_games</string>
+    <string name="settings_log_games_default" translatable="false">false</string>
 </resources>

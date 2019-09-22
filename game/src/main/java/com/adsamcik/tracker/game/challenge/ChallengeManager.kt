@@ -5,6 +5,7 @@ import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
+import com.adsamcik.tracker.common.debug.LogData
 import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
@@ -14,6 +15,7 @@ import com.adsamcik.tracker.game.challenge.data.definition.StepChallengeDefiniti
 import com.adsamcik.tracker.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.ChallengeLoader
+import com.adsamcik.tracker.game.logGame
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -96,6 +98,11 @@ object ChallengeManager {
 		}
 	}
 
+	private fun logNewChallenge(context: Context, definition: ChallengeDefinition<*>) {
+		val title = context.getString(definition.titleRes)
+		logGame(LogData(message = "Created new random challenge $title"))
+	}
+
 
 	private fun activateRandomChallenge(context: Context): ChallengeInstance<*, *>? {
 		val possibleChallenges =
@@ -106,8 +113,11 @@ object ChallengeManager {
 		if (possibleChallenges.isEmpty()) return null
 
 		val selectedChallengeIndex = Random.nextInt(possibleChallenges.size)
-		val selectedChallenge = possibleChallenges[selectedChallengeIndex]
-		return selectedChallenge.newInstance(context, Time.nowMillis)
+		val selectedChallengeDefinition = possibleChallenges[selectedChallengeIndex]
+
+		logNewChallenge(context, selectedChallengeDefinition)
+
+		return selectedChallengeDefinition.newInstance(context, Time.nowMillis)
 	}
 }
 

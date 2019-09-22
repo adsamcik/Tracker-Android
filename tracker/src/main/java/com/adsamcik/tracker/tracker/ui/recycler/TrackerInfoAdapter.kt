@@ -17,8 +17,7 @@ import com.adsamcik.tracker.tracker.ui.recycler.data.SessionTrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.TrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.WifiTrackerInfo
 
-class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>(),
-		IViewChange {
+class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>(), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 	private val data = mutableListOf<TrackerInfo>()
 

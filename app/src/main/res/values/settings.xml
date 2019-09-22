@@ -90,6 +90,7 @@
     </plurals>
 
     <string name="settings_log_activity_title">Log activity changes</string>
+    <string name="settings_log_games_title">Log games</string>
 
     <string name="settings_log_list_activity_title">Activity log</string>
     <string name="settings_log_list_activity_key" translatable="false">logListActivity</string>

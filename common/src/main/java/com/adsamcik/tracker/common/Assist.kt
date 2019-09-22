@@ -201,7 +201,7 @@ object Assist {
 	 * @param activity context
 	 * @return true if available
 	 */
-	fun checkPlayServices(activity: Activity): Boolean {
+	fun isPlayServicesAvailable(activity: Activity): Boolean {
 		val playServicesResolutionRequest = PLAY_SERVICES_REQUEST_ID
 		val api = GoogleApiAvailability.getInstance()
 		val resultCode = api.isGooglePlayServicesAvailable(activity)
@@ -221,7 +221,7 @@ object Assist {
 	 * @param context context
 	 * @return true if available
 	 */
-	fun checkPlayServices(context: Context): Boolean {
+	fun isPlayServicesAvailable(context: Context): Boolean {
 		val api = GoogleApiAvailability.getInstance()
 		val resultCode = api.isGooglePlayServicesAvailable(context)
 		return resultCode == ConnectionResult.SUCCESS
