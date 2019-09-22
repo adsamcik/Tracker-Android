@@ -152,7 +152,6 @@ object Dependencies {
 
 	fun fileChooser(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			//todo update to version that supports Android Q when ready
 			implementation("com.afollestad.material-dialogs:files:${Versions.dialogs}")
 		}
 	}
