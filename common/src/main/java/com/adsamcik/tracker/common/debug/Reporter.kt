@@ -52,7 +52,8 @@ object Reporter {
 	}
 
 	fun report(exception: Throwable) {
-		if (BuildConfig.DEBUG) throw exception
+		@Suppress("TooGenericExceptionThrown")
+		if (BuildConfig.DEBUG) throw Exception(exception)
 
 		checkInitialized()
 		if (isEnabled) Crashlytics.logException(exception)
