@@ -56,7 +56,7 @@ class MainActivity : CoreUIActivity() {
 
 		trackerFragment = FragmentTracker()
 		supportFragmentManager.transaction {
-			replace(R.id.root, trackerFragment)
+			replace(R.id.tracker_placeholder, trackerFragment)
 		}
 	}
 
