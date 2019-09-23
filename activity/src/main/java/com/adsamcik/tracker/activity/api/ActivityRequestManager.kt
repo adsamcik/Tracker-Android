@@ -1,7 +1,10 @@
 package com.adsamcik.tracker.activity.api
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.util.SparseArray
+import androidx.core.content.ContextCompat
 import androidx.core.util.forEach
 import androidx.core.util.isEmpty
 import androidx.core.util.isNotEmpty
@@ -94,7 +97,10 @@ object ActivityRequestManager {
 	) {
 		minInterval = interval
 		ActivityRequestManager.transitions = transitions
-		ActivityService.startActivityRecognition(context, minInterval, transitions)
+
+		if (hasActivityRecognitionPermission(context)) {
+			ActivityService.startActivityRecognition(context, minInterval, transitions)
+		}
 	}
 
 	private fun getMinInterval(): Int {
@@ -133,6 +139,15 @@ object ActivityRequestManager {
 		activeRequestArray.forEach { _, value ->
 			value.transitionData?.let { onActivityTransition(context, it, reversedEvents) }
 		}
+	}
+
+	fun hasActivityRecognitionPermission(context: Context): Boolean {
+		val permissionState = ContextCompat.checkSelfPermission(
+				context,
+				Manifest.permission.ACTIVITY_RECOGNITION
+		)
+
+		return permissionState == PackageManager.PERMISSION_GRANTED
 	}
 }
 
