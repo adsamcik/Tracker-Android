@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.org/adsamcik/Signals-android.svg?branch=master)](https://travis-ci.org/adsamcik/Signals-android)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Signals-android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Signals-android&amp;utm_campaign=Badge_Grade)
+[![Build Status](https://travis-ci.org/adsamcik/Tracker-Android.svg?branch=master)](https://travis-ci.org/adsamcik/Tracker-Android)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Tracker-Android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Tracker-Android&amp;utm_campaign=Badge_Grade)
 
 # Tracker Android (dev name, brand name reveal soon)
 
