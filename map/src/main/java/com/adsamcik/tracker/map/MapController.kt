@@ -4,7 +4,6 @@ import android.content.Context
 import android.widget.TextView
 import androidx.annotation.MainThread
 import androidx.core.view.isGone
-import androidx.core.view.isVisible
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.commonmap.ColorMap
@@ -100,11 +99,13 @@ internal class MapController(
 		this.quality = quality
 		activeLayer.quality = quality
 		activeLayer.tileCountInGeneration.observeForever(this::generatingTileCountObserver)
+		activeLayer.onEnable(context, map, quality)
 	}
 
 	private fun onDisable() {
 		ColorMap.removeListener(map)
 		activeLayer.tileCountInGeneration.removeObserver(this::generatingTileCountObserver)
+		activeLayer.onDisable(map)
 	}
 
 	companion object {
