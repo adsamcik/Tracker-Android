@@ -24,8 +24,17 @@ interface CellLocationDao : BaseDao<DatabaseCellLocation> {
 	): List<Database2DLocationWeightedMinimal>
 
 	@Query(
-			"""SELECT lat, lon, type as weight FROM cell_location
-			WHERE time >= :from and time <= :to and lat >= :bottomLatitude and lon >= :leftLongitude and lat <= :topLatitude and lon <= :rightLongitude"""
+			"""
+				SELECT lat, lon, type as weight
+				FROM cell_location
+				WHERE
+					time >= :from and
+					time <= :to and
+					lat >= :bottomLatitude and
+					lon >= :leftLongitude and
+					lat <= :topLatitude and
+					lon <= :rightLongitude
+				"""
 	)
 	fun getAllInsideAndBetween(
 			from: Long,
@@ -39,7 +48,7 @@ interface CellLocationDao : BaseDao<DatabaseCellLocation> {
 	@Query("SELECT COUNT(*) from cell_location")
 	fun count(): Long
 
-	@Query("SELECT COUNT(*) from cell_location GROUP BY mcc, mnc, cell_id")
+	@Query("SELECT COUNT(*) FROM (SELECT COUNT(*) from cell_location GROUP BY mcc, mnc, cell_id)")
 	fun uniqueCount(): Long
 
 	@Query("SELECT MIN(time) as start, MAX(time) as endInclusive from cell_location")
