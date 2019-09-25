@@ -6,6 +6,7 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.activity.ActivityModuleInitializer
 import com.adsamcik.tracker.common.debug.Logger
 import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.common.module.ModuleClassLoader
 import com.adsamcik.tracker.common.module.ModuleInitializer
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.notification.NotificationChannels
@@ -24,10 +25,13 @@ class Application : SplitCompatApplication() {
 		TrackerModuleInitializer().initialize(this)
 
 		val activeModules = Module.getActiveModuleInfo(this)
+
 		activeModules.forEach {
+			val moduleName = it.module.moduleName
 			try {
-				val initializer = it.module.loadClass<ModuleInitializer>(
-						"${it.module.moduleName.capitalize()}${ModuleInitializer::class.java.simpleName}"
+				val initializer = ModuleClassLoader.loadClass<ModuleInitializer>(
+						moduleName = moduleName,
+						className = "${it.module.moduleName.capitalize()}${ModuleInitializer::class.java.simpleName}"
 				)
 				initializer.newInstance().initialize(this)
 			} catch (e: ClassNotFoundException) {

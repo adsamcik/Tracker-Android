@@ -2,6 +2,7 @@ package com.adsamcik.tracker.module
 
 import android.content.Context
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.common.module.ModuleClassLoader
 import com.google.android.play.core.splitinstall.SplitInstallManager
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 
@@ -30,8 +31,7 @@ enum class Module {
 
 	@Throws(ClassNotFoundException::class)
 	@Suppress("unchecked_cast")
-	fun <T> loadClass(className: String): Class<T> =
-			Class.forName("$modulePath.$className") as Class<T>
+	fun <T> loadClass(className: String): Class<T> = ModuleClassLoader.loadClass(moduleName, className)
 
 
 	companion object {
