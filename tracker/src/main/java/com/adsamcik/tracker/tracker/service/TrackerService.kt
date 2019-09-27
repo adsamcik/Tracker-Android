@@ -207,7 +207,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
 		sessionInfoMutable.value = this.sessionInfo
 
-		val notificationBuilder = TrackerNotificationManager(this)
+		val notificationBuilder = TrackerNotificationManager(this, isUserInitiated)
 				.createBuilder()
 				.apply {
 					setContentTitle(getString(R.string.notification_starting))

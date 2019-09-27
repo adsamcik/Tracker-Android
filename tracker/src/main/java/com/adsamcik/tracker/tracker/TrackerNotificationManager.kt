@@ -3,13 +3,19 @@ package com.adsamcik.tracker.tracker
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
+import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
 
-class TrackerNotificationManager(private val context: Context) {
+class TrackerNotificationManager(
+		private val context: Context,
+		private val isUserInitiatedSession: Boolean
+) {
 	private var notificationManager: NotificationManager = context.notificationManager
 
 	fun createBuilder(): NotificationCompat.Builder {
@@ -30,6 +36,60 @@ class TrackerNotificationManager(private val context: Context) {
 					addNextIntentWithParentStack(intent)
 					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
 				})
+				.addTrackerActions()
+	}
+
+	private fun NotificationCompat.Builder.addTrackerActions(): NotificationCompat.Builder {
+		val resources = context.resources
+		val stopIntent = Intent(context, TrackerNotificationReceiver::class.java)
+
+		val notificationAction = if (isUserInitiatedSession) {
+			TrackerNotificationReceiver.STOP_TRACKING_ACTION
+		} else {
+			TrackerNotificationReceiver.LOCK_RECHARGE_ACTION
+		}
+
+		stopIntent.putExtra(TrackerNotificationReceiver.ACTION_STRING, notificationAction)
+		val stop = PendingIntent.getBroadcast(
+				context,
+				0,
+				stopIntent,
+				PendingIntent.FLAG_UPDATE_CURRENT
+		)
+		if (isUserInitiatedSession) {
+			addAction(
+					R.drawable.ic_pause_circle_filled_black_24dp,
+					resources.getString(R.string.notification_stop), stop
+			)
+		} else {
+			addAction(
+					R.drawable.ic_battery_alert_black,
+					resources.getString(R.string.notification_stop_til_recharge), stop
+			)
+
+			val stopForMinutesIntent = Intent(context, TrackerNotificationReceiver::class.java)
+			stopForMinutesIntent.putExtra(
+					TrackerNotificationReceiver.ACTION_STRING,
+					TrackerNotificationReceiver.STOP_MINUTES_EXTRA
+			)
+			stopForMinutesIntent.putExtra(
+					TrackerNotificationReceiver.STOP_MINUTES_EXTRA,
+					NotificationComponent.stopForMinutes
+			)
+			val stopForMinutesAction = PendingIntent.getBroadcast(
+					context, 1, stopIntent,
+					PendingIntent.FLAG_UPDATE_CURRENT
+			)
+			addAction(
+					R.drawable.ic_stop_black_24dp,
+					resources.getString(
+							R.string.notification_stop_for_minutes,
+							NotificationComponent.stopForMinutes
+					),
+					stopForMinutesAction
+			)
+		}
+		return this
 	}
 
 	fun notify(builder: NotificationCompat.Builder) {
