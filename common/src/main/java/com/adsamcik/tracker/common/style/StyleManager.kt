@@ -8,10 +8,12 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import com.adsamcik.tracker.common.BuildConfig
 import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.style.update.DayNightChangeUpdate
 import com.adsamcik.tracker.common.style.update.MorningDayEveningNightTransitionUpdate
 import com.adsamcik.tracker.common.style.update.NoChangeUpdate
+import com.adsamcik.tracker.common.style.update.SingleColorUpdate
 import com.adsamcik.tracker.common.style.update.StyleUpdate
 import com.adsamcik.tracker.common.style.update.UpdateData
 import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
@@ -65,7 +67,8 @@ object StyleManager {
 
 	private val enabledUpdateList = listOf(
 			MorningDayEveningNightTransitionUpdate(),
-			DayNightChangeUpdate()
+			DayNightChangeUpdate(),
+			SingleColorUpdate()
 	)
 
 	val enabledUpdateInfo: List<StyleUpdateInfo>
@@ -258,9 +261,14 @@ object StyleManager {
 		update = enabledUpdateList[index]
 
 		colorList.clear()
-		colorList.addAll(update.requiredColorData.list.map { it.defaultColor })
+		val newColorList = update.requiredColorData.list.map { it.defaultColor }
+		colorList.addAll(newColorList)
 
-		startUpdate()
+		when {
+			newColorList.size >= 2 -> startUpdate()
+			newColorList.size == 1 -> update(newColorList.first())
+			else -> Reporter.report("Color update has no colors")
+		}
 	}
 
 	/**
