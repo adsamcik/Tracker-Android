@@ -13,11 +13,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.marginRight
 import com.google.android.material.button.MaterialButton
+import io.github.luizgrp.sectionedrecyclerviewadapter.Section
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionParameters
-import io.github.luizgrp.sectionedrecyclerviewadapter.StatelessSection
 import kotlin.math.roundToInt
 
-class SummarySection : StatelessSection(
+class SummarySection : Section(
 		SectionParameters.builder()
 				.itemViewWillBeProvided()
 				.build()

@@ -15,7 +15,7 @@ object Dependencies {
 		internal const val lifecycle = "2.2.0-alpha05"
 		internal const val preference = "1.1.0"
 		internal const val material = "1.1.0-alpha10"
-		internal const val coroutines = "1.3.1"
+		internal const val coroutines = "1.3.2"
 
 		internal const val requery = "3.29.0"
 		internal const val room = "2.2.0-rc01"
@@ -34,6 +34,7 @@ object Dependencies {
 		internal const val sublimePicker = "2.1.2"
 		internal const val spotlight = "2.1.0"
 		internal const val dialogs = "3.1.1"
+		internal const val sectionedRecyclerViewAdapter = "3.0.0"
 
 		internal const val componentsRecycler = "0.7.2"
 
@@ -172,7 +173,7 @@ object Dependencies {
 
 	fun sectionedRecyclerAdapter(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("io.github.luizgrp.sectionedrecyclerviewadapter:sectionedrecyclerviewadapter:2.1.0")
+			implementation("io.github.luizgrp.sectionedrecyclerviewadapter:sectionedrecyclerviewadapter:${Versions.sectionedRecyclerViewAdapter}")
 		}
 	}
 

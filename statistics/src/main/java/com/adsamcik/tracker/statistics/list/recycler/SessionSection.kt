@@ -17,8 +17,8 @@ import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
+import io.github.luizgrp.sectionedrecyclerviewadapter.Section
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionParameters
-import io.github.luizgrp.sectionedrecyclerviewadapter.StatelessSection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,7 +27,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 
-class SessionSection(private val time: Long, private val distance: Double) : StatelessSection(
+class SessionSection(private val time: Long, private val distance: Double) : Section(
 		SectionParameters.builder()
 				.headerResourceId(R.layout.layout_section_header_session)
 				.itemResourceId(R.layout.layout_section_preview_session)
