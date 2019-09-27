@@ -59,7 +59,10 @@ internal class NotificationRecyclerAdapter(
 		val preference = item.preference
 		holder.imageTitle.isGone = !preference.isInTitle
 		holder.imageContent.isGone = !preference.isInContent
+	}
 
+	override fun onViewAttachedToWindow(holder: ViewHolder) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 

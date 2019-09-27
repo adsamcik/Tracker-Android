@@ -47,7 +47,10 @@ class ActivityRecyclerAdapter(
 		} else {
 			holder.editButton.visibility = View.GONE
 		}
+	}
 
+	override fun onViewAttachedToWindow(holder: RecyclerActivityViewHolder) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 

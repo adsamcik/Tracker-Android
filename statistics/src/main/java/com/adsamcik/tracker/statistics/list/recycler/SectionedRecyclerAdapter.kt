@@ -10,8 +10,8 @@ class SectionedRecyclerAdapter : SectionedRecyclerViewAdapter(),
 		IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
-	override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-		super.onBindViewHolder(holder, position)
+	override fun onViewAttachedToWindow(holder: RecyclerView.ViewHolder) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 

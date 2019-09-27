@@ -14,6 +14,10 @@ open class StyleMultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<Da
 
 	override fun onBindViewHolder(holder: StyleMultiTypeViewHolder<Data>, position: Int) {
 		holder.bind(getItem(position), styleController)
+	}
+
+	override fun onViewAttachedToWindow(holder: StyleMultiTypeViewHolder<Data>) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 

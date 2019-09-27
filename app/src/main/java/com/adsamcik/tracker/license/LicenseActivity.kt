@@ -129,8 +129,12 @@ class LicenseActivity : DetailActivity() {
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 			val root = LayoutInflater.from(parent.context)
 					.inflate(R.layout.layout_license_item, parent, false)
-			onViewChangedListener?.invoke(root)
 			return ViewHolder(root.findViewById(R.id.button), root)
+		}
+
+		override fun onViewAttachedToWindow(holder: ViewHolder) {
+			super.onViewAttachedToWindow(holder)
+			onViewChangedListener?.invoke(holder.itemView)
 		}
 
 		override fun getItemCount(): Int = licenses.size

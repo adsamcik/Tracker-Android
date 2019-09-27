@@ -50,7 +50,10 @@ class MapLegendAdapter : BaseRecyclerAdapter<MapLegendValue, MapLegendAdapter.Vi
 			setText(data.nameRes)
 			compoundDrawables.forEach { updateCompoundDrawable(it, data.color) }
 		}
+	}
 
+	override fun onViewAttachedToWindow(holder: ViewHolder) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 }

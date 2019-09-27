@@ -15,9 +15,9 @@ internal class ChangeTableAdapter(@StyleRes themeInt: Int) : CardListAdapter<Tab
 ), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
-	override fun onBindViewHolder(holder: TableCard.ViewHolder, position: Int) {
-		super.onBindViewHolder(holder, position)
-		onViewChangedListener?.invoke(holder.cardView)
+	override fun onViewAttachedToWindow(holder: TableCard.ViewHolder) {
+		super.onViewAttachedToWindow(holder)
+		onViewChangedListener?.invoke(holder.itemView)
 	}
 }
 

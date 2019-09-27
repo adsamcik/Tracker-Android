@@ -182,6 +182,10 @@ class ModuleActivity : DetailActivity() {
 			holder.checkbox.setText(info.module.titleRes)
 			holder.checkbox.isChecked = info.isInstalled
 			holder.checkbox.setOnCheckedChangeListener { _, isChecked -> info.shouldBeInstalled = isChecked }
+		}
+
+		override fun onViewAttachedToWindow(holder: ViewHolder) {
+			super.onViewAttachedToWindow(holder)
 			onViewChangedListener?.invoke(holder.itemView)
 		}
 

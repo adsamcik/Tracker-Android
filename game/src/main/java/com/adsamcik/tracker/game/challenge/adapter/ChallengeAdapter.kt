@@ -69,7 +69,10 @@ class ChallengeAdapter(
 		holder.progressText.text = String.format(Locale.getDefault(), "%d%%", progress)
 
 		holder.timeTextView.text = (challenge.endTime - Time.nowMillis).formatAsDuration(holder.itemView.context)
+	}
 
+	override fun onViewAttachedToWindow(holder: ViewHolder) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 }

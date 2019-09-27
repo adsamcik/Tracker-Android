@@ -35,7 +35,10 @@ class SessionSummaryAdapter
 		val item = list[position]
 		holder.title.text = item.id
 		holder.value.text = item.value
+	}
 
+	override fun onViewAttachedToWindow(holder: ViewHolder) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 

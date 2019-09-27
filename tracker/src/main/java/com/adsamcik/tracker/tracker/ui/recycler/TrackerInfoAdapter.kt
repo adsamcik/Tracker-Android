@@ -33,6 +33,10 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 		data[position].bind(holder)
+	}
+
+	override fun onViewAttachedToWindow(holder: ViewHolder) {
+		super.onViewAttachedToWindow(holder)
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 
