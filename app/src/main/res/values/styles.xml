@@ -15,14 +15,12 @@
         <item name="md_corner_radius">@dimen/dialog_corner_radius</item>
     </style>
 
-    <style name="AppTheme.Translucent" parent="Theme.MaterialComponents.Light.NoActionBar.Bridge">
+    <style name="AppTheme.Translucent" parent="AppTheme">
         <item name="android:windowTranslucentNavigation">true</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
         <item name="android:windowBackground">@null</item>
-        <item name="md_corner_radius">@dimen/dialog_corner_radius</item>
     </style>
 
     <style name="Divider">
