@@ -26,7 +26,6 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 
 	private val sunsetRise = SunSetRise()
 
-	protected val colorListLock = ReentrantLock()
 	private val timerLock = ReentrantLock()
 
 	override fun onPostEnable(context: Context, configData: StyleConfigData) {
@@ -51,7 +50,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 	 * Checks if a timer is running, if not start a new timer.
 	 */
 	fun ensureUpdate() {
-		colorListLock.withLock {
+		updateLock.withLock {
 			if (colorList.size > 1) {
 				synchronized(timerActive) {
 					if (!timerActive) startUpdate()
@@ -67,7 +66,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 	}
 
 	private fun updateUpdate() {
-		colorListLock.withLock {
+		updateLock.withLock {
 			if (colorList.size > 1) {
 				synchronized(timerActive) {
 					stopUpdate()
@@ -100,8 +99,10 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 			return
 		}
 
-		colorListLock.withLock {
-			onColorUpdate(ColorUtils.blendARGB(data.fromColor, data.toColor, delta))
+		updateLock.withLock {
+			if (isEnabled) {
+				onColorUpdate(ColorUtils.blendARGB(data.fromColor, data.toColor, delta))
+			}
 		}
 	}
 
@@ -112,7 +113,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 	 * 1 color should never call an update, because the color never changes.
 	 */
 	private fun startUpdate() {
-		colorListLock.withLock {
+		updateLock.withLock {
 			if (colorList.size >= 2) {
 				val data = getUpdateData(
 						colorList,
@@ -137,7 +138,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 	private fun calculateDeltaUpdate(changeLength: Long) = changeLength / calculateUpdateCount()
 
 	private fun calculateUpdateCount(): Int {
-		colorListLock.withLock {
+		updateLock.withLock {
 			check(colorList.size >= 2) { "Update rate cannot be calculated for less than 2 colors" }
 
 			val currentColor = colorList[currentIndex]
@@ -161,10 +162,14 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 		private var currentTime: Long = data.progress
 
 		override fun run() {
-			timerLock.withLock {
-				currentTime = (currentTime + deltaTime).coerceAtMost(data.duration)
-				val delta = currentTime.toFloat() / data.duration
-				deltaUpdate(delta, data)
+			updateLock.withLock {
+				if (isEnabled) {
+					timerLock.withLock {
+						currentTime = (currentTime + deltaTime).coerceAtMost(data.duration)
+						val delta = currentTime.toFloat() / data.duration
+						deltaUpdate(delta, data)
+					}
+				}
 			}
 		}
 	}
