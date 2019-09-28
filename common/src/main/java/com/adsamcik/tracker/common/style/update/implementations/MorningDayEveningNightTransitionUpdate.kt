@@ -1,11 +1,16 @@
-package com.adsamcik.tracker.common.style.update
+package com.adsamcik.tracker.common.style.update.implementations
 
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.style.SunSetRise
+import com.adsamcik.tracker.common.style.update.DayTimeStyleUpdate
+import com.adsamcik.tracker.common.style.update.RequiredColorData
+import com.adsamcik.tracker.common.style.update.RequiredColors
+import com.adsamcik.tracker.common.style.update.StyleUpdate
+import com.adsamcik.tracker.common.style.update.UpdateData
 import java.util.*
 
-class MorningDayEveningNightTransitionUpdate : StyleUpdate {
+internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	override val nameRes: Int = R.string.settings_color_update_mden_trans_title
 
 	override val requiredColorData: RequiredColors
@@ -62,23 +67,25 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 			now: Long,
 			midnight: Long,
 			sunrise: Long
-	): UpdateData = UpdateData(
-			fromColor = MIDNIGHT,
-			toColor = SUNRISE,
-			duration = sunrise - midnight,
-			progress = now - midnight
-	)
+	): UpdateData =
+			UpdateData(
+					fromColor = MIDNIGHT,
+					toColor = SUNRISE,
+					duration = sunrise - midnight,
+					progress = now - midnight
+			)
 
 	private fun betweenSunsetAndMidnight(
 			now: Long,
 			sunset: Long,
 			midnight: Long
-	): UpdateData = UpdateData(
-			fromColor = SUNSET,
-			toColor = MIDNIGHT,
-			duration = midnight - sunset,
-			progress = now - sunset
-	)
+	): UpdateData =
+			UpdateData(
+					fromColor = SUNSET,
+					toColor = MIDNIGHT,
+					duration = midnight - sunset,
+					progress = now - sunset
+			)
 
 	private fun afterSunset(
 			now: Long,
@@ -107,23 +114,25 @@ class MorningDayEveningNightTransitionUpdate : StyleUpdate {
 			now: Long,
 			noon: Long,
 			sunset: Long
-	): UpdateData = UpdateData(
-			fromColor = NOON,
-			toColor = SUNSET,
-			duration = sunset - noon,
-			progress = now - noon
-	)
+	): UpdateData =
+			UpdateData(
+					fromColor = NOON,
+					toColor = SUNSET,
+					duration = sunset - noon,
+					progress = now - noon
+			)
 
 	private fun betweenSunriseAndNoon(
 			now: Long,
 			sunrise: Long,
 			noon: Long
-	): UpdateData = UpdateData(
-			fromColor = SUNRISE,
-			toColor = NOON,
-			duration = noon - sunrise,
-			progress = now - sunrise
-	)
+	): UpdateData =
+			UpdateData(
+					fromColor = SUNRISE,
+					toColor = NOON,
+					duration = noon - sunrise,
+					progress = now - sunrise
+			)
 
 	private fun betweenSunriseAndSunset(
 			now: Long,

@@ -155,7 +155,7 @@ class ColorPreference : Preference, CoroutineScope {
 
 	private fun onColorChange(color: Int) {
 		requireNotNull(recyclerColorData).color = color
-		StyleManager.updateColorAt(position, color)
+		StyleManager.updateColorAt(context, position, color)
 
 		notifyChanged()
 	}

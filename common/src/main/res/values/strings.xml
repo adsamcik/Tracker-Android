@@ -76,6 +76,7 @@
     <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
     <string name="settings_color_update_dn_switch_title">Day/night switch</string>
     <string name="settings_color_update_single_title">Static color</string>
+    <string name="settings_color_update_light_title">Day/Night light sensor</string>
 
     <string name="settings_color_in_template">%s color</string>
 

@@ -8,7 +8,7 @@ data class StyleUpdateInfo(
 		val nameRes: Int,
 		val requiredColors: RequiredColors
 ) {
-	constructor(update: StyleUpdate) : this(
+	internal constructor(update: StyleUpdate) : this(
 			update.id,
 			update.nameRes,
 			update.requiredColorData

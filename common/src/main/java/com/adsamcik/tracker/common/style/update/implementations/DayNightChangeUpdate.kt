@@ -1,11 +1,16 @@
-package com.adsamcik.tracker.common.style.update
+package com.adsamcik.tracker.common.style.update.implementations
 
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.style.SunSetRise
+import com.adsamcik.tracker.common.style.update.DayTimeStyleUpdate
+import com.adsamcik.tracker.common.style.update.RequiredColorData
+import com.adsamcik.tracker.common.style.update.RequiredColors
+import com.adsamcik.tracker.common.style.update.StyleUpdate
+import com.adsamcik.tracker.common.style.update.UpdateData
 import java.util.*
 
-class DayNightChangeUpdate : StyleUpdate {
+internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 	override val nameRes: Int = R.string.settings_color_update_dn_switch_title
 
 	override val requiredColorData: RequiredColors
@@ -36,19 +41,34 @@ class DayNightChangeUpdate : StyleUpdate {
 			(nowTime >= sunriseTime) and (nowTime < sunsetTime) -> {
 				val progress = (nowTime - sunriseTime) / dayDuration
 
-				UpdateData(styleList[DAY], styleList[NIGHT], dayDuration, progress)
+				UpdateData(
+						styleList[DAY],
+						styleList[NIGHT],
+						dayDuration,
+						progress
+				)
 			}
 			nowTime >= sunsetTime -> {
 				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
 				val progress = (nowTime - sunsetTime) / nightDuration
 
-				UpdateData(styleList[NIGHT], styleList[DAY], nightDuration, progress)
+				UpdateData(
+						styleList[NIGHT],
+						styleList[DAY],
+						nightDuration,
+						progress
+				)
 			}
 			nowTime < sunriseTime -> {
 				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
 				val previousSunset = sunsetTime - Time.DAY_IN_MILLISECONDS
 				val progress = (nowTime - previousSunset) / nightDuration
-				UpdateData(styleList[NIGHT], styleList[DAY], nightDuration, progress)
+				UpdateData(
+						styleList[NIGHT],
+						styleList[DAY],
+						nightDuration,
+						progress
+				)
 			}
 			else -> throw IllegalStateException()
 		}

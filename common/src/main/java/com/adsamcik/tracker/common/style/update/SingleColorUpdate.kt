@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.common.style.update
 
+import android.content.Context
 import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.style.SunSetRise
 
-class SingleColorUpdate : StyleUpdate {
+internal class SingleColorUpdate : StyleUpdate() {
 	override val nameRes: Int
 		get() = R.string.settings_color_update_single_title
 
@@ -17,7 +17,9 @@ class SingleColorUpdate : StyleUpdate {
 				)
 		)
 
-	override fun getUpdateData(styleList: List<Int>, sunSetRise: SunSetRise): UpdateData {
-		return UpdateData(styleList[0], styleList[0], 0L, 0L)
+	override fun onPostEnable(context: Context, configData: StyleConfigData) {
+		configData.callback(colorList.first())
 	}
+
+	override fun onPreDisable(context: Context) = Unit
 }

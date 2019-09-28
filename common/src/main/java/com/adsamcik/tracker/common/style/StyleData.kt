@@ -34,9 +34,7 @@ data class StyleData(
 				backgroundColor.blue,
 				baseColorHSL
 		)
-		perceivedLuminance = perceivedRelLuminance(
-				backgroundColor
-		)
+		perceivedLuminance = perceivedRelLuminance(backgroundColor)
 	}
 
 	/**

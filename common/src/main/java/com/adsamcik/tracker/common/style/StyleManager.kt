@@ -8,21 +8,17 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import com.adsamcik.tracker.common.BuildConfig
 import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.style.update.DayNightChangeUpdate
-import com.adsamcik.tracker.common.style.update.MorningDayEveningNightTransitionUpdate
-import com.adsamcik.tracker.common.style.update.NoChangeUpdate
 import com.adsamcik.tracker.common.style.update.SingleColorUpdate
+import com.adsamcik.tracker.common.style.update.StyleConfigData
 import com.adsamcik.tracker.common.style.update.StyleUpdate
-import com.adsamcik.tracker.common.style.update.UpdateData
+import com.adsamcik.tracker.common.style.update.implementations.DayNightChangeUpdate
+import com.adsamcik.tracker.common.style.update.implementations.LightChangeUpdate
+import com.adsamcik.tracker.common.style.update.implementations.MorningDayEveningNightTransitionUpdate
+import com.adsamcik.tracker.common.style.update.implementations.NoChangeUpdate
 import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
-import java.util.*
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.ConcurrentModificationException
-import kotlin.collections.ArrayList
 import kotlin.concurrent.withLock
-import kotlin.math.abs
 
 /**
  * Class that handles globally calculation of current color.
@@ -32,26 +28,10 @@ import kotlin.math.abs
 //  for example someone could choose between x colors and the system would divide the day by them
 //  and updates as needed while reusing existing transition functions
 @AnyThread
-@Suppress("TooManyFunctions")
 object StyleManager {
 	//Lock order colorList, colorManagerLock, timer
 
-	private val colorList = ArrayList<@ColorInt Int>(0)
-	private var timer: Timer? = null
-	private var timerActive = false
-
 	private val controllerCollection = mutableListOf<StyleController>()
-
-	private val sunsetRise = SunSetRise()
-
-	private var currentIndex = 0
-
-	private val nextIndex: Int
-		get() {
-			synchronized(colorList) {
-				return (currentIndex + 1).rem(colorList.size)
-			}
-		}
 
 	private var darkTextColor: Int = 0
 	private var lightTextColor: Int = 0
@@ -60,15 +40,14 @@ object StyleManager {
 		private set
 
 	private val controllerLock = ReentrantLock()
-	private val colorListLock = ReentrantLock()
-	private val timerLock = ReentrantLock()
 
 	private var update: StyleUpdate = NoChangeUpdate()
 
 	private val enabledUpdateList = listOf(
 			MorningDayEveningNightTransitionUpdate(),
 			DayNightChangeUpdate(),
-			SingleColorUpdate()
+			SingleColorUpdate(),
+			LightChangeUpdate()
 	)
 
 	val enabledUpdateInfo: List<StyleUpdateInfo>
@@ -78,7 +57,7 @@ object StyleManager {
 		get() = StyleUpdateInfo(update)
 
 	val activeColorList: List<ActiveColorData>
-		get() = colorList.zip(update.requiredColorData.list) { a, r ->
+		get() = update.colorList.zip(update.requiredColorData.list) { a, r ->
 			ActiveColorData(active = a, required = r)
 		}
 
@@ -116,7 +95,7 @@ object StyleManager {
 		controllerLock.withLock {
 			controllerCollection.add(colorManager)
 
-			if (controllerCollection.size == 1) ensureUpdate()
+			//if (controllerCollection.size == 1) ensureUpdate()
 		}
 
 		return colorManager
@@ -131,45 +110,38 @@ object StyleManager {
 			throw ConcurrentModificationException("Controller cannot be removed during an update")
 		}
 
-		var isCollectionEmpty = false
+		//var isCollectionEmpty = false
 		controllerLock.withLock {
 			controllerCollection.remove(styleController)
 			styleController.dispose()
-			isCollectionEmpty = controllerCollection.isEmpty()
+			//isCollectionEmpty = controllerCollection.isEmpty()
 		}
 
-		if (isCollectionEmpty) stopUpdate()
+		//if (isCollectionEmpty) stopUpdate()
 	}
 
-	/**
-	 * Checks if a timer is running, if not start a new timer.
-	 */
-	fun ensureUpdate() {
-		colorListLock.withLock {
-			if (colorList.size > 1) {
-				synchronized(timerActive) {
-					if (!timerActive) startUpdate()
-				}
-			} else if (colorList.size == 1) {
-				update(colorList.first())
-			}
-		}
+	private fun enableUpdate(context: Context, preferenceColorList: List<Int> = listOf()) {
+		update.onEnable(context, StyleConfigData(preferenceColorList, this::update))
 	}
 
-	/**
-	 * Delta update which is called internally by update functions
-	 *
-	 * @param delta value from 0 to 1
-	 */
-	private fun deltaUpdate(delta: Float, data: UpdateData) {
-		if (delta >= 1) {
-			updateUpdate()
-			return
+	private fun enableUpdateWithPreference(context: Context) {
+		val preferences = Preferences.getPref(context)
+		val requiredColorList = update.requiredColorData.list
+		val format = context.getString(R.string.settings_color_key)
+		val list = ArrayList<Int>(requiredColorList.size)
+
+		for (i in requiredColorList.indices) {
+			val default = requiredColorList[i].defaultColor
+			val key = format.format(i)
+			val color = preferences.getInt(key, default)
+			list.add(color)
 		}
 
-		colorListLock.withLock {
-			update(ColorUtils.blendARGB(data.fromColor, data.toColor, delta))
-		}
+		enableUpdate(context, list)
+	}
+
+	private fun disableUpdate(context: Context) {
+		update.onDisable(context)
 	}
 
 	/**
@@ -181,7 +153,6 @@ object StyleManager {
 
 		val styleData = StyleData(backgroundColor, foregroundColor)
 
-
 		this.styleData = styleData
 
 		controllerLock.withLock {
@@ -191,83 +162,18 @@ object StyleManager {
 		}
 	}
 
-	private fun updateUpdate() {
-		colorListLock.withLock {
-			if (colorList.size > 1) {
-				synchronized(timerActive) {
-					stopUpdate()
-					startUpdate()
-				}
-			} else {
-				update(colorList.first())
-			}
-		}
-	}
-
-	/**
-	 * Handles start update function. Supports only 2 or 4 colors.
-	 * 1 color should never call an update, because the color never changes.
-	 */
-	private fun startUpdate() {
-		colorListLock.withLock {
-			if (colorList.size >= 2) {
-				val data = update.getUpdateData(colorList, sunsetRise)
-				timerLock.withLock {
-					timerActive = true
-					val timer = Timer("ColorUpdate", true)
-					val deltaTime = calculateDeltaUpdate(data.duration)
-					timer.schedule(
-							ColorUpdateTask(data, deltaTime),
-							0L,
-							deltaTime
-					)
-
-					StyleManager.timer = timer
-				}
-			}
-		}
-	}
-
-	private fun calculateDeltaUpdate(changeLength: Long) = changeLength / calculateUpdateCount()
-
-	private fun calculateUpdateCount(): Int {
-		colorListLock.withLock {
-			check(colorList.size >= 2) { "Update rate cannot be calculated for less than 2 colors" }
-
-			val currentColor = colorList[currentIndex]
-			val targetColor = colorList[nextIndex]
-			val rDiff = abs(Color.red(currentColor) - Color.red(targetColor))
-			val gDiff = abs(Color.green(currentColor) - Color.green(targetColor))
-			val bDiff = abs(Color.blue(currentColor) - Color.blue(targetColor))
-			val totalDiff = rDiff + gDiff + bDiff
-			return if (totalDiff == 0) 1 else totalDiff
-		}
-	}
-
-	private fun stopUpdate() {
-		timerLock.withLock {
-			if (timerActive) {
-				timerActive = false
-				requireNotNull(timer).cancel()
-			}
-		}
-	}
-
 	fun setMode(context: Context, info: StyleUpdateInfo) {
 		val index = enabledUpdateInfo.indexOf(info)
 		require(index >= 0 && index < enabledUpdateList.size) { "Invalid update info $info" }
 
-		stopUpdate()
-		update = enabledUpdateList[index]
-
-		colorList.clear()
-		val newColorList = update.requiredColorData.list.map { it.defaultColor }
-		colorList.addAll(newColorList)
-
-		when {
-			newColorList.size >= 2 -> startUpdate()
-			newColorList.size == 1 -> update(newColorList.first())
-			else -> Reporter.report("Color update has no colors")
+		val newUpdate = enabledUpdateList[index]
+		val isResetRequired = update !is NoChangeUpdate && update.javaClass != newUpdate.javaClass
+		disableUpdate(context)
+		update = newUpdate
+		if (isResetRequired) {
+			enableUpdate(context)
+		} else {
+			enableUpdateWithPreference(context)
 		}
 	}
 
@@ -275,44 +181,18 @@ object StyleManager {
 	 * Initializes colors from preference. This completely replaces all current colors with those saved in preferences.
 	 */
 	fun initializeFromPreferences(context: Context) {
-		sunsetRise.addListener(this::onLocationChange)
-		sunsetRise.initialize(context)
-
 		val preferences = Preferences.getPref(context)
 		val mode = preferences.getStringRes(R.string.settings_style_mode_key)
 				?: enabledUpdateList.first().id
 
 		if (mode == update.id) return
 
-		stopUpdate()
+		disableUpdate(context)
 
 		//can be null if the mode was removed
-		update = enabledUpdateList.firstOrNull { it.id == mode }
-				?: enabledUpdateList.first()
+		update = enabledUpdateList.firstOrNull { it.id == mode } ?: enabledUpdateList.first()
 
-		initializeColorListFromPreferences(context)
-
-		startUpdate()
-	}
-
-	private fun initializeColorListFromPreferences(context: Context) {
-		val preferences = Preferences.getPref(context)
-		val requiredColorList = update.requiredColorData.list
-		val format = context.getString(R.string.settings_color_key)
-
-		colorListLock.withLock {
-			colorList.clear()
-			colorList.ensureCapacity(requiredColorList.size)
-
-			for (i in requiredColorList.indices) {
-				val default = requiredColorList[i].defaultColor
-				val key = format.format(i)
-				val color = preferences.getInt(key, default)
-				colorList.add(color)
-			}
-
-			colorList.trimToSize()
-		}
+		enableUpdateWithPreference(context)
 	}
 
 
@@ -321,35 +201,9 @@ object StyleManager {
 	 * This function can cause a lot of bugs so use it carefully.
 	 * It is intended mainly to be used for easy color switching when preference is changed.
 	 */
-	fun updateColorAt(index: Int, @ColorInt color: Int) {
-		colorListLock.withLock {
-			require(index >= 0 && index < colorList.size) { "Index $index is out of bounds. Size is ${colorList.size}." }
-			colorList[index] = color
-			updateUpdate()
-		}
-	}
-
-	private fun onLocationChange(@Suppress("unused_parameter") sunSetRise: SunSetRise) {
-		timerLock.withLock {
-			stopUpdate()
-			startUpdate()
-		}
-	}
-
-	/**
-	 * Color update task that calculates delta update based on parameters. It is used for color transitions.
-	 */
-	internal class ColorUpdateTask(
-			private val data: UpdateData,
-			private val deltaTime: Long
-	) : TimerTask() {
-		private var currentTime: Long = data.progress
-
-		override fun run() {
-			currentTime = (currentTime + deltaTime).coerceAtMost(data.duration)
-			val delta = currentTime.toFloat() / data.duration
-			deltaUpdate(delta, data)
-		}
+	fun updateColorAt(context: Context, index: Int, @ColorInt color: Int) {
+		disableUpdate(context)
+		enableUpdateWithPreference(context)
 	}
 }
 

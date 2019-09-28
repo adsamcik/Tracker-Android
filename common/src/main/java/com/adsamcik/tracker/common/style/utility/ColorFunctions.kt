@@ -89,11 +89,7 @@ fun perceivedLuminance(@ColorInt color: Int): Double = 0.299 * relRed(
  */
 @Suppress("MagicNumber")
 fun perceivedRelLuminance(@ColorInt color: Int): Int =
-		floor(
-				(perceivedLuminance(
-						color
-				) - 0.5) * MAX_COLOR_COMPONENT_VALUE
-		).toInt()
+		floor((perceivedLuminance(color) - 0.5) * MAX_COLOR_COMPONENT_VALUE).toInt()
 
 object ColorFunctions {
 	const val LIGHTNESS_PER_LEVEL: Int = 17
