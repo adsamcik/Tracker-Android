@@ -10,7 +10,7 @@ internal class LightDayNightSwitchUpdate : LightStyleUpdate() {
 	override val minTimeBetweenUpdatesInMs: Long
 		get() = Time.SECOND_IN_MILLISECONDS * 2L
 
-	override val requiredChangeForUpdate: Float
+	override val requiredLuminanceChange: Float
 		get() = 0.05f
 
 	override val nameRes: Int = R.string.settings_color_update_light_switch_title
@@ -31,8 +31,8 @@ internal class LightDayNightSwitchUpdate : LightStyleUpdate() {
 
 	override fun filter(luminance: Float): Boolean = true
 
-	override fun onNewLuminance(newLuminance: Float, luminancePercentage: Float) {
-		val color = if (newLuminance > 0f) colorList[0] else colorList[1]
+	override fun onNewLuminance(newLuminance: Float) {
+		val color = if (newLuminance < 1f) colorList[1] else colorList[0]
 		requireConfigData().callback(color)
 	}
 }

@@ -16,42 +16,35 @@ internal abstract class LightStyleUpdate : StyleUpdate(), SensorEventListener {
 	protected var lightSensor: Sensor? = null
 		private set
 
-	protected var lastLuminance: Float = Float.MIN_VALUE
-		private set
-
-	protected var lastLuminancePercentage: Float = Float.MIN_VALUE
+	protected var lastLuminance: Float = Float.MAX_VALUE
 		private set
 
 	protected var lastUpdate: Long = 0L
 		private set
 
-	protected var maxLuminance: Float = Float.MIN_VALUE
-		private set
-
 	protected abstract val minTimeBetweenUpdatesInMs: Long
-	protected abstract val requiredChangeForUpdate: Float
+	protected abstract val requiredLuminanceChange: Float
 
-	protected abstract fun onNewLuminance(newLuminance: Float, luminancePercentage: Float)
+	protected abstract fun onNewLuminance(newLuminance: Float)
 
 	private fun baseFilter(luminance: Float): Boolean {
 		val now = Time.elapsedRealtimeMillis
-		val percentage = luminance / maxLuminance
 		return now - minTimeBetweenUpdatesInMs > lastUpdate &&
-				abs(lastLuminancePercentage - percentage) > requiredChangeForUpdate
+				abs(lastLuminance - luminance) > requiredLuminanceChange
 	}
 
 	protected abstract fun filter(luminance: Float): Boolean
 
 	@CallSuper
 	override fun onPostEnable(context: Context, configData: StyleConfigData) {
-		lightSensor = context.sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
+		val sensorManager = context.sensorManager
+		lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
 				.also { lightSensor ->
-					context.sensorManager.registerListener(
+					sensorManager.registerListener(
 							this,
 							lightSensor,
 							SensorManager.SENSOR_DELAY_NORMAL
 					)
-					maxLuminance = lightSensor.maximumRange
 				}
 
 	}
@@ -68,16 +61,14 @@ internal abstract class LightStyleUpdate : StyleUpdate(), SensorEventListener {
 		if (event.sensor.type == Sensor.TYPE_LIGHT) {
 			val luminance = event.values[0]
 			if (baseFilter(luminance) && filter(luminance)) {
-				val luminancePercentage = luminance / maxLuminance
 				updateLock.withLock {
 					if (isEnabled) {
-						onNewLuminance(luminance, luminancePercentage)
+						onNewLuminance(luminance)
+
+						lastLuminance = lastLuminance
+						lastUpdate = Time.elapsedRealtimeMillis
 					}
 				}
-
-				lastLuminancePercentage = luminancePercentage
-				lastLuminance = luminance
-				lastUpdate = Time.elapsedRealtimeMillis
 			}
 		}
 	}
