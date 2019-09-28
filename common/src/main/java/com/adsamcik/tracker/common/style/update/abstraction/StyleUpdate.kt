@@ -1,6 +1,8 @@
-package com.adsamcik.tracker.common.style.update
+package com.adsamcik.tracker.common.style.update.abstraction
 
 import android.content.Context
+import com.adsamcik.tracker.common.style.update.data.RequiredColors
+import com.adsamcik.tracker.common.style.update.data.StyleConfigData
 
 internal abstract class StyleUpdate {
 	abstract val nameRes: Int

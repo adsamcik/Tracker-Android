@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.style.update
+package com.adsamcik.tracker.common.style.update.data
 
 data class StyleConfigData(
 		val preferenceColorList: List<Int>,

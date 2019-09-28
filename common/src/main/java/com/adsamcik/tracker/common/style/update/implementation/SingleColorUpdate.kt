@@ -1,7 +1,11 @@
-package com.adsamcik.tracker.common.style.update
+package com.adsamcik.tracker.common.style.update.implementation
 
 import android.content.Context
 import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.common.style.update.data.RequiredColorData
+import com.adsamcik.tracker.common.style.update.data.RequiredColors
+import com.adsamcik.tracker.common.style.update.data.StyleConfigData
+import com.adsamcik.tracker.common.style.update.abstraction.StyleUpdate
 
 internal class SingleColorUpdate : StyleUpdate() {
 	override val nameRes: Int

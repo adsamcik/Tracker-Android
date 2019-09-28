@@ -9,13 +9,13 @@ import androidx.core.graphics.alpha
 import com.adsamcik.tracker.common.BuildConfig
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.style.update.SingleColorUpdate
-import com.adsamcik.tracker.common.style.update.StyleConfigData
-import com.adsamcik.tracker.common.style.update.StyleUpdate
-import com.adsamcik.tracker.common.style.update.implementations.DayNightChangeUpdate
-import com.adsamcik.tracker.common.style.update.implementations.LightChangeUpdate
-import com.adsamcik.tracker.common.style.update.implementations.MorningDayEveningNightTransitionUpdate
-import com.adsamcik.tracker.common.style.update.implementations.NoChangeUpdate
+import com.adsamcik.tracker.common.style.update.implementation.SingleColorUpdate
+import com.adsamcik.tracker.common.style.update.data.StyleConfigData
+import com.adsamcik.tracker.common.style.update.abstraction.StyleUpdate
+import com.adsamcik.tracker.common.style.update.implementation.DayNightChangeUpdate
+import com.adsamcik.tracker.common.style.update.implementation.LightChangeUpdate
+import com.adsamcik.tracker.common.style.update.implementation.MorningDayEveningNightTransitionUpdate
+import com.adsamcik.tracker.common.style.update.implementation.NoChangeUpdate
 import com.adsamcik.tracker.common.style.utility.perceivedRelLuminance
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -121,7 +121,12 @@ object StyleManager {
 	}
 
 	private fun enableUpdate(context: Context, preferenceColorList: List<Int> = listOf()) {
-		update.onEnable(context, StyleConfigData(preferenceColorList, this::update))
+		update.onEnable(context,
+		                StyleConfigData(
+				                preferenceColorList,
+				                this::update
+		                )
+		)
 	}
 
 	private fun enableUpdateWithPreference(context: Context) {

@@ -1,9 +1,11 @@
-package com.adsamcik.tracker.common.style.update
+package com.adsamcik.tracker.common.style.update.abstraction
 
 import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.common.style.SunSetRise
+import com.adsamcik.tracker.common.style.update.data.StyleConfigData
+import com.adsamcik.tracker.common.style.update.data.UpdateData
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock

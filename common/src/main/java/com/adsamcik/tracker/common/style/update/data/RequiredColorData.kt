@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.style.update
+package com.adsamcik.tracker.common.style.update.data
 
 import androidx.annotation.StringRes
 

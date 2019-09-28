@@ -1,13 +1,12 @@
-package com.adsamcik.tracker.common.style.update.implementations
+package com.adsamcik.tracker.common.style.update.implementation
 
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.style.SunSetRise
-import com.adsamcik.tracker.common.style.update.DayTimeStyleUpdate
-import com.adsamcik.tracker.common.style.update.RequiredColorData
-import com.adsamcik.tracker.common.style.update.RequiredColors
-import com.adsamcik.tracker.common.style.update.StyleUpdate
-import com.adsamcik.tracker.common.style.update.UpdateData
+import com.adsamcik.tracker.common.style.update.abstraction.DayTimeStyleUpdate
+import com.adsamcik.tracker.common.style.update.data.RequiredColorData
+import com.adsamcik.tracker.common.style.update.data.RequiredColors
+import com.adsamcik.tracker.common.style.update.data.UpdateData
 import java.util.*
 
 internal class DayNightChangeUpdate : DayTimeStyleUpdate() {

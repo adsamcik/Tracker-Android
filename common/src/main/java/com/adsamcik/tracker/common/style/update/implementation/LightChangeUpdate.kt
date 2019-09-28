@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.style.update.implementations
+package com.adsamcik.tracker.common.style.update.implementation
 
 import android.content.Context
 import android.hardware.Sensor
@@ -9,10 +9,10 @@ import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.sensorManager
-import com.adsamcik.tracker.common.style.update.RequiredColorData
-import com.adsamcik.tracker.common.style.update.RequiredColors
-import com.adsamcik.tracker.common.style.update.StyleConfigData
-import com.adsamcik.tracker.common.style.update.StyleUpdate
+import com.adsamcik.tracker.common.style.update.data.RequiredColorData
+import com.adsamcik.tracker.common.style.update.data.RequiredColors
+import com.adsamcik.tracker.common.style.update.data.StyleConfigData
+import com.adsamcik.tracker.common.style.update.abstraction.StyleUpdate
 import kotlin.math.abs
 
 internal class LightChangeUpdate : StyleUpdate(), SensorEventListener {
