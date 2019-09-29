@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <dimen name="content_padding">16dp</dimen>
-    <dimen name="status_bar_height">24dp</dimen>
     <dimen name="corner_radius">16dp</dimen>
     <dimen name="dialog_corner_radius">@dimen/corner_radius</dimen>
 </resources>

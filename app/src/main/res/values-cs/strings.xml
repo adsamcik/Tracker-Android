@@ -1,33 +1,26 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-
     <string name="app_name">Signals</string>
 
-    <string name="cell_new">Nové mobilní vysílače</string>
-
-    <string name="collections_title">Záznamů</string>
-
-
-    <string name="dev_activity_recognition_hide">Filtrovat</string>
-    <string name="dev_activity_recognition_show">Zobrazit vše</string>
     <string name="dev_notification_dummy">Ahoj světe!</string>
 
     <string name="did_you_know">Věděli jste, že</string>
 
     <string name="error_no_locations_in_interval">Nebyly nalezeny žádné záznamy pro zadaný interval</string>
 
-    <string name="share_button">Sdílet (Export)</string>
+    <string name="export_button">Export</string>
+    <string name="export_default_file_name">SignalsExportovanaData</string>
+    <string name="export_file_name">Název souboru</string>
+    <string name="export_gpx_description">Export pozičních informací s pomocí aplikace Signals mezi %1$s - %2$s</string>
 
-    <string name="info_accuracy">%s přesnost</string>
-    <string name="info_altitude">%s n. m.</string>
-    <plurals name="info_session_collections">
-        <item quantity="one">%d sběr</item>
-        <item quantity="few">%d sběry</item>
-        <item quantity="other">%d sběrů</item>
+    <string name="import_notification_extracting">Rozbaluji %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import dokončen. Úspěšně naimportován %d soubor.</item>
+        <item quantity="few">Import dokončen. Úspěšně naimportovány %d soubory.</item>
+        <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
     </plurals>
-    <string name="info_session_distance">%s vzdálenost</string>
-
-    <string name="locations_new_title">Nových míst</string>
+    <string name="import_notification_importing">Importuji %s …</string>
+    <string name="import_notification_progress">Probíhá import …</string>
 
     <string-array name="lorem_ipsum_facts">
         <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>
@@ -42,12 +35,17 @@
         <item>Dodělat více textu, kterej nikdo neuvidí.</item>
     </string-array>
 
+    <string name="module_download_progress">Staženo %1$s / %2$s</string>
+    <string name="module_error">Selhala instalace modulu %1$s (číslo chyby %2$d)</string>
+    <string name="module_game_title">hry</string>
+    <string name="module_installing">Instaluje se modul %s</string>
+    <string name="module_map_title">mapa</string>
+    <string name="module_statistics_title">statistiky</string>
+    <string name="module_success">Instalace byla úspěšně dokončena</string>
+
     <string name="open_source_licenses">Licence otevřeného softwaru</string>
 
     <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
-
-    <string name="settings_clear_cache_title">Smazat dočasné soubory</string>
-    <string name="settings_clear_data_title">Smazat nasbíraná data</string>
     <string name="settings_clear_preferences_title">Smazat preference</string>
     <string name="settings_color_default_title">Výchozí barvy</string>
     <string name="settings_data_title">Data</string>
@@ -58,16 +56,24 @@
     </plurals>
     <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
     <string name="settings_debug_title">Vývojářské nástroje</string>
+    <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
+    <string name="settings_error_reporting_title">Automatické hlášení chyb</string>
     <string name="settings_export_dialog_from">Od</string>
     <string name="settings_export_dialog_to">Do</string>
-    <string name="settings_export_json_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
-    <string name="settings_export_json_title">Jako hrubá data</string>
     <string name="settings_export_gpx_summary">Exportujte vámi natrackované polohy do GPX souboru</string>
     <string name="settings_export_gpx_title">Jako GPX soubor</string>
+    <string name="settings_export_json_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
+    <string name="settings_export_json_title">Jako hrubá data</string>
     <string name="settings_export_kml_summary">Exportujte vámi natrackované polohy do KML souboru</string>
     <string name="settings_export_kml_title">Jako KML soubor</string>
+    <string name="settings_export_no_data">Není co exportovat</string>
+    <string name="settings_export_sqlite_summary">Exportovat databázový soubor ve formátu SQLite3</string>
+    <string name="settings_export_sqlite_title">Databázový soubor</string>
     <string name="settings_export_title">Exportovat nasbíraná data</string>
     <string name="settings_hello_world_title">Vítej světe!</string>
+    <string name="settings_import_no_types">bohužel, žádné typy nejsou dostupné na tomto zařízení.</string>
+    <string name="settings_import_summary">Import daty z podporovaných formátů (%1$s) a archivů (%2$s)</string>
+    <string name="settings_import_title">Import</string>
     <string-array name="settings_length_system_names">
         <item>Metrický</item>
         <item>Imperiální (USA)</item>
@@ -75,74 +81,30 @@
     </string-array>
     <string name="settings_length_system_title">Délkový systém</string>
     <string name="settings_licenses_title">Otevřené licence</string>
-    <string name="settings_notifications_title">Notifikace</string>
+    <string name="settings_log_activity_title">Zaznamenávat změny aktivity</string>
+    <string name="settings_log_list_activity_title">Záznamy změn aktivity</string>
+    <string name="settings_module_enable_title">Moduly</string>
+    <string name="settings_module_group_title">Nastavení modulů</string>
     <string name="settings_other_title">Ostatní</string>
-    <string-array name="settings_style_mode_names">
-        <item>neměnná barva</item>
-        <item>den/noc</item>
-        <item>ráno/den/večer/noc</item>
-    </string-array>
+    <string name="settings_remove_all_collected_data_summary">Odstraní nasbíraná data (Uživatelské aktivity, nastavení atd. zůstanou nedotčena)</string>
+    <string name="settings_remove_all_collected_data_title">Odstranit veškerá nasbíraná data</string>
+    <string name="settings_speed_format_title">Formát rychlosti</string>
     <string name="settings_style_mode_title">Režim barev</string>
     <string name="settings_style_title">Vzhled</string>
     <string name="settings_title">Nastavení</string>
 
+    <string name="share_button">Sdílet (Export)</string>
 
     <string name="show_tips_title">Zobrazovat tipy</string>
 
     <string name="tutorial_activity_description">Aktivity můžete najít vpravo</string>
     <string name="tutorial_activity_title">Aktivita</string>
     <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
+    <string name="tutorial_map_title">Mapa</string>
     <string name="tutorial_settings_description">Pod tímto tlačítkem najdete nastavení</string>
     <string name="tutorial_settings_title">Nastavení</string>
     <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
     <string name="tutorial_stats_title">Statistiky</string>
     <string name="tutorial_welcome_description">Aplikaci s otevřeným kódem pro trackování Wi-Fi a mobilních sítí. Tyto tipy můžete vypnout v nastavení.</string>
     <string name="tutorial_welcome_title">Vítejte v Signals</string>
-
-    <string name="wifi_new_title">Nové Wi-Fi</string>
-
-
-    <string name="export_button">Export</string>
-    <string name="export_default_file_name">SignalsExportovanaData</string>
-    <string name="export_file_name">Název souboru</string>
-    <string name="module_download_progress">Staženo %1$s / %2$s</string>
-    <string name="module_downloading">Stahuji modul %s</string>
-    <string name="module_error">Selhala instalace modulu %1$s (číslo chyby %2$d)</string>
-    <string name="module_game_title">hry</string>
-    <string name="module_installing">Instaluje se modul %s</string>
-    <string name="module_map_title">mapa</string>
-    <string name="module_statistics_title">statistiky</string>
-    <string name="module_success">Instalace byla úspěšně dokončena</string>
-    <string name="settings_error_reporting_title">Automatické hlášení chyb</string>
-    <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
-    <string name="settings_export_sqlite_summary">Exportovat databázový soubor ve formátu SQLite3</string>
-    <string name="settings_export_sqlite_title">Databázový soubor</string>
-    <string name="settings_module_enable_title">Moduly</string>
-    <string name="settings_module_group_title">Nastavení modulů</string>
-    <string name="settings_speed_format_title">Formát rychlosti</string>
-    <string name="title_game">Hra</string>
-    <string name="title_map">Mapa</string>
-    <string name="title_statistics">Statistika</string>
-    <string name="tutorial_map_title">Mapa</string>
-    <string name="export_gpx_description">Export pozičních informací s pomocí aplikace Signals mezi %1$s - %2$s</string>
-    <string name="date_long_press_range_selection">Dlouhým stistkem a táhnutím z data aktivuje výběr časového období</string>
-    <string name="import_notification_extracting">Rozbaluji %s …</string>
-    <string name="import_notification_importing">Importuji %s …</string>
-    <string name="import_notification_progress">Probíhá import …</string>
-    <string name="settings_import_no_types">bohužel, žádné typy nejsou dostupné na tomto zařízení.</string>
-    <string name="settings_import_summary">Import daty z podporovaných formátů (%1$s) a archivů (%2$s)</string>
-    <string name="settings_import_title">Import</string>
-    <string name="settings_language_summary">Aktuální jazyk: %s</string>
-    <string name="settings_language_title">Jazyk aplikace</string>
-
-    <string name="settings_remove_all_collected_data_summary">Odstraní nasbíraná data (Uživatelské aktivity, nastavení atd. zůstanou nedotčena)</string>
-    <string name="settings_remove_all_collected_data_title">Odstranit veškerá nasbíraná data</string>
-    <plurals name="import_notification_finished">
-        <item quantity="one">Import dokončen. Úspěšně naimportován %d soubor.</item>
-        <item quantity="few">Import dokončen. Úspěšně naimportovány %d soubory.</item>
-        <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
-    </plurals>
-    <string name="settings_export_no_data">Není co exportovat</string>
-    <string name="settings_log_activity_title">Zaznamenávat změny aktivity</string>
-    <string name="settings_log_list_activity_title">Záznamy změn aktivity</string>
 </resources>

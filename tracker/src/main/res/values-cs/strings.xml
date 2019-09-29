@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_tracking_enable_category">Možnosti ke sběru dat</string>
     <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
     <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
     <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
@@ -19,11 +18,6 @@
     <string name="settings_auto_tracking_category">Automatický sběr dat</string>
     <string name="settings_cell_enabled_title">Sběr mobilních sítí</string>
 
-    <plurals name="notification_cell_count">
-        <item quantity="one">1 mobilní vysílač v dosahu</item>
-        <item quantity="few">%d mobilní vysílače v dosahu</item>
-        <item quantity="other">%d mobilních vysílačů v dosahu</item>
-    </plurals>
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_stop">Zastavit</string>
     <string name="notification_stop_for_minutes">Zastavit na %d minut</string>
@@ -44,7 +38,6 @@
 
     <string name="in_range">v dosahu</string>
     <string name="cell_current">%1$s %2$d dbm</string>
-    <string name="current">aktuální</string>
 
     <string name="tracker_activity_card_title">Aktivita</string>
     <string name="tracker_activity_confidence">Jistota</string>
@@ -53,13 +46,7 @@
     <string name="tracker_distance_title">Vzdálenost</string>
     <string name="tracker_session_age">Začátek relace</string>
     <string name="tracker_session_card_title">Relace</string>
-    <string name="tracker_steps">Kroky</string>
 
-    <plurals name="main_collections">
-        <item quantity="one">1 záznam</item>
-        <item quantity="few">%d záznamy</item>
-        <item quantity="other">%d záznamů</item>
-    </plurals>
     <string name="description_settings">Tlačítko pro nastavení</string>
     <string name="activity_title">Aktivita</string>
     <string name="activity_value">%s</string>
@@ -94,7 +81,6 @@
     <string name="settings_notification_category">Notifikace</string>
     <string name="settings_notification_customize_title">Přizpůsobení notifikace</string>
     <string name="settings_notification_customize_summary">Možnosti nastavení co se má zobrazit a v jakém pořadí v notifikaci.</string>
-    <string name="settings_notification_separator_title">Vyberte oddělovač</string>
     <string name="speed_title">Rychlost</string>
     <string name="speed_value">rychlost %s</string>
     <string name="start_time_title">Začátek relace</string>

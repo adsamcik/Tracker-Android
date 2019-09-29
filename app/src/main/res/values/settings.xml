@@ -15,18 +15,6 @@
 
     <string name="settings_style_color_category_key" translatable="false">styleColorCategory</string>
 
-    <string-array name="settings_style_mode_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-    </string-array>
-
-    <string-array name="settings_style_mode_names">
-        <item>static color</item>
-        <item>day/night</item>
-        <item>morning/day/evening/night</item>
-    </string-array>
-
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
 
@@ -101,16 +89,9 @@
     <string name="settings_hello_world_title">Hello world!</string>
     <string name="settings_hello_world_key" translatable="false">helloWorld</string>
 
-    <string name="settings_clear_data_title">Remove persistent files</string>
-    <string name="settings_clear_data_key" translatable="false">clearData</string>
-
-    <string name="settings_clear_cache_title">Remove cache files</string>
-    <string name="settings_clear_cache_key" translatable="false">clearCache</string>
-
     <string name="settings_clear_preferences_title">Clear preferences</string>
     <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
     <!-- OTHER -->
-    <string name="settings_notifications_title">Notifications</string>
 
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>

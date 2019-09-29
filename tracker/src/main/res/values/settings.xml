@@ -15,7 +15,6 @@
     <string name="settings_disabled_time_default" translatable="false">0</string>
 
     <string name="settings_auto_tracking_category">Automatic tracking</string>
-    <string name="settings_tracking_enable_category">Tracking options</string>
 
     <string name="settings_location_enabled_title">Location tracking</string>
     <string name="settings_activity_enabled_title">Activity tracking</string>
@@ -34,8 +33,6 @@
 
     <string name="hint_customize_notification_show_in_title">Show in notification title</string>
     <string name="hint_customize_notification_show_in_content">Show in notification content</string>
-
-    <string name="settings_notification_separator_title">Select separator</string>
 
     <string-array name="tracking_options_titles">
         <item>Disabled</item>

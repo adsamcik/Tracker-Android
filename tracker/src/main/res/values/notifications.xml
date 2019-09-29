@@ -7,10 +7,6 @@
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
     <string name="notification_stop">Stop</string>
     <string name="notification_tracker_active_ticker">Signals tracker is active</string>
-    <plurals name="notification_cell_count">
-        <item quantity="one">1 cell in range</item>
-        <item quantity="other">%d cells in range</item>
-    </plurals>
 
     <plurals name="notification_auto_tracking_lock">
         <item quantity="one">Auto tracking has been locked for %1$d minute.</item>

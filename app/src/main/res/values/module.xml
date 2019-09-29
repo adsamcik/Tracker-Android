@@ -4,7 +4,6 @@
     <string name="module_statistics_title">statistics</string>
     <string name="module_map_title">map</string>
 
-    <string name="module_downloading">Downloading module %s</string>
     <string name="module_installing">Installing module %s</string>
     <string name="module_error">Failed to install modules %1$s (error code %2$d)</string>
 

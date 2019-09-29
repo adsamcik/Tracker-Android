@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <integer name="viewport_width">48</integer>
-    <integer name="viewport_height">48</integer>
-    <integer name="viewport_center_x">24</integer>
-    <integer name="viewport_center_y">24</integer>
-    <integer name="inactive_alpha">138</integer>
-</resources>

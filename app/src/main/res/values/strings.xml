@@ -1,11 +1,6 @@
 <resources>
     <string name="app_name">Signals</string>
 
-    <string name="wifi_new_title">New Wi-Fi</string>
-    <string name="cell_new">New cell</string>
-    <string name="collections_title">Collections</string>
-    <string name="locations_new_title">New locations</string>
-
     <string name="share_button">Share</string>
     <string name="export_button">Export</string>
     <string name="export_gpx_description">Export of location data tracked using Signals between %1$s - %2$s</string>
@@ -21,8 +16,6 @@
     <string name="import_notification_importing">Importing %s …</string>
 
     <string name="dev_notification_dummy">Hello World!</string>
-    <string name="dev_activity_recognition_hide">Filter</string>
-    <string name="dev_activity_recognition_show">Show all</string>
 
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
@@ -30,17 +23,4 @@
     <!-- PREFERENCES KEYS -->
     <string name="key_last_app_version" translatable="false">lastVersion</string>
 
-    <!-- NEW UI -->
-    <string name="info_altitude">%s altitude</string>
-    <string name="info_accuracy">%s accuracy</string>
-    <plurals name="info_session_collections">
-        <item quantity="one">%d collection</item>
-        <item quantity="other">%d collections</item>
-    </plurals>
-    <string name="info_session_distance">%s distance</string>
-    <string name="title_statistics">Statistics</string>
-    <string name="title_game">Game</string>
-    <string name="title_map">Map</string>
-
-    <string name="date_long_press_range_selection">Long press and pull activates date range selection</string>
 </resources>

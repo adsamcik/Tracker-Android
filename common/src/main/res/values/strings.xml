@@ -1,91 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources>
-    <string name="day_short">%d d</string>
-    <string name="hour_short">%d h</string>
-    <string name="minute_short">%d m</string>
-    <string name="second_short">%d s</string>
+    <string name="accessibility_add_new">Add new</string>
 
-    <!-- Strings as parameters for better readability -->
-    <string name="meter_abbr">%s m</string>
-    <string name="kilometer_abbr">%s km</string>
-    <string name="mile_abbr">%s mi</string>
-    <string name="feet_abbr">%s ft</string>
-    <string name="passus">%s pace</string>
-    <string name="millepassus">%s roman mile</string>
+    <string name="activity_bicycle">bicycle</string>
+    <string name="activity_idle">Idle</string>
+    <string name="activity_in_vehicle">In vehicle</string>
+    <string name="activity_name">Activity name</string>
+    <string name="activity_on_foot">On foot</string>
+    <string name="activity_run">run</string>
+    <string name="activity_unknown">Unknown</string>
+    <string name="activity_vehicle">vehicle</string>
+    <string name="activity_walk">walk</string>
 
-    <string name="per_second_abbr">%s/s</string>
-    <string name="per_minute_abbr">%s/m</string>
-    <string name="per_hour_abbr">%s/h</string>
+    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <string name="alert_confirm_generic">Are you sure?</string>
 
-    <string name="error_play_services_not_available">Play services are not available</string>
-    <string name="error_gnss_not_enabled">Satellite location not enabled (GPS)</string>
-    <string name="error_missing_permission">App does not have required permission</string>
-    <string name="error_general">Error occurred</string>
-
-
-    <string name="wifi">Wi-Fi</string>
     <string name="cell">Cell</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">None</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">Unknown</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+
+    <string name="day_short">%d d</string>
+
+    <string name="error_gnss_not_enabled">Satellite location not enabled (GPS)</string>
+
+    <string name="feet_abbr">%s ft</string>
+
+    <string name="hour_short">%d h</string>
+
+    <string name="kilometer_abbr">%s km</string>
+
     <string name="location">Location</string>
 
-
-    <!-- Activity strings -->
-    <string name="activity_idle">Idle</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_unknown">Unknown</string>
-
-    <string name="activity_run">run</string>
-    <string name="activity_walk">walk</string>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_vehicle">vehicle</string>
-
-    <!-- Dialog -->
-    <string name="alert_confirm_generic">Are you sure?</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
-
-
-    <!-- Introduction -->
-    <string name="next_part">continue</string>
-    <string name="skip_tips">skip</string>
-
-    <!-- Activity managamenet -->
-    <string name="activity_name">Activity name</string>
-
-    <!-- unused for now -->
-    <string name="activity_icon">Activity icon</string>
-
-    <string name="undo">undo</string>
-
+    <string name="map_date_range_all">All</string>
     <plurals name="map_date_range_last_days">
         <item quantity="one">Today</item>
         <item quantity="other">Last %d days</item>
     </plurals>
-    <string name="map_date_range_all">All</string>
 
-    <!-- Cell -->
-    <string name="cell_none">None</string>
-    <string name="cell_unknown">Unknown</string>
-    <string name="cell_gsm">2G (GSM)</string>
-    <string name="cell_cdma">2G (CDMA)</string>
-    <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_nr">5G (NR)</string>
+    <string name="meter_abbr">%s m</string>
 
+    <string name="mile_abbr">%s mi</string>
 
-    <!-- Colors -->
+    <string name="millepassus">%s roman mile</string>
 
-    <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
-    <string name="settings_color_update_dn_switch_title">Day/night switch</string>
-    <string name="settings_color_update_single_title">Static color</string>
-    <string name="settings_color_update_light_switch_title">Day/Night light based switch</string>
-    <string name="settings_color_update_light_transition_title">Day/Night light based transition</string>
+    <string name="minute_short">%d m</string>
 
-    <string name="settings_color_in_template">%s color</string>
+    <string name="next_part">continue</string>
 
-    <string name="settings_color_static_title">Background</string>
-    <string name="settings_color_morning_title">Morning</string>
+    <string name="passus">%s pace</string>
+
+    <string name="per_hour_abbr">%s/h</string>
+    <string name="per_minute_abbr">%s/m</string>
+    <string name="per_second_abbr">%s/s</string>
+
+    <string name="second_short">%d s</string>
+
     <string name="settings_color_day_title">Day</string>
     <string name="settings_color_evening_title">Evening</string>
+    <string name="settings_color_morning_title">Morning</string>
     <string name="settings_color_night_title">Night</string>
+    <string name="settings_color_static_title">Background</string>
+    <string name="settings_color_update_dn_switch_title">Day/night switch</string>
+    <string name="settings_color_update_light_switch_title">Day/Night light based switch</string>
+    <string name="settings_color_update_light_transition_title">Day/Night light based transition</string>
+    <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
+    <string name="settings_color_update_single_title">Static color</string>
 
-    <string name="accessibility_add_new">Add new</string>
+    <string name="skip_tips">skip</string>
+
+    <string name="undo">undo</string>
+
+    <string name="wifi">Wi-Fi</string>
 </resources>

@@ -5,21 +5,14 @@
     <string name="activity_in_vehicle">Ve vozidle</string>
     <string name="activity_on_foot">Pěšky</string>
     <string name="activity_unknown">Neznámý</string>
-    <string name="agree">Souhlasím</string>
     <string name="alert_confirm">Jste si jistí, že chcete %1$s?</string>
     <string name="alert_confirm_generic">Jste si jistí?</string>
     <string name="back">zpět</string>
     <string name="cancel">Zrušit</string>
     <string name="cell">Mobilní síť</string>
-    <string name="clear">Vyčistit</string>
     <string name="day_short">%d d</string>
-    <string name="deselect_all">Odznačit vše</string>
-    <string name="disagree">Nesouhlasím</string>
     <string name="enable">Povolit</string>
-    <string name="error_general">Objevila se chyba</string>
     <string name="error_gnss_not_enabled">Satelitní lokalizace není povolena (GPS)</string>
-    <string name="error_missing_permission">Aplikace nemá dostatečná oprávnění</string>
-    <string name="error_play_services_not_available">Služby Play nejsou dostupné</string>
     <string name="feet_abbr">%s ft</string>
     <string name="kilometer_abbr">%s km</string>
     <string name="location">Lokace</string>
@@ -28,14 +21,8 @@
     <string name="millepassus">%s římských mil</string>
     <string name="minute_short">%d m</string>
     <string name="no">Ne</string>
-    <string name="other">Ostatní</string>
     <string name="passus">%s dvojkroků</string>
     <string name="second_short">%d s</string>
-    <string name="select_all">Vybrat vše</string>
-    <string name="send">Odeslat</string>
-    <string name="share_nothing_to_share">Není co sdílet</string>
-    <string name="start">Start</string>
-    <string name="stop">Stop</string>
     <string name="wifi">Wi-Fi</string>
     <string name="yes">Ano</string>
     <string name="next_part">pokračovat</string>
@@ -47,7 +34,6 @@
     <string name="per_hour_abbr">%s/h</string>
     <string name="per_minute_abbr">%s/m</string>
     <string name="per_second_abbr">%s/s</string>
-    <string name="activity_icon">Ikonka aktivity</string>
     <string name="activity_name">Název aktivity</string>
     <string name="undo">vrátit</string>
 
@@ -71,7 +57,6 @@
     <string name="settings_color_evening_title">Večerní</string>
     <string name="settings_color_morning_title">Ranní</string>
     <string name="settings_color_night_title">Noční</string>
-    <string name="settings_color_in_template">%s barva</string>
     <string name="settings_color_update_dn_switch_title">Den/noc přepínač</string>
     <string name="settings_color_update_mden_trans_title">Ráno/den/večer/noc přechod</string>
 </resources>
