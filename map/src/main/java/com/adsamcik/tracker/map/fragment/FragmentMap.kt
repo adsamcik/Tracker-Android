@@ -96,14 +96,14 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 			fragmentView = view ?: inflater.inflate(R.layout.fragment_map, container, false)
 		} else {
 			fragmentView = inflater.inflate(
-					com.adsamcik.tracker.common.R.layout.layout_error,
+					R.layout.layout_error,
 					container,
 					false
 			)
 
 			val textRes = com.adsamcik.tracker.common.R.string.error_play_services_not_available
 
-			fragmentView.findViewById<AppCompatTextView>(com.adsamcik.tracker.common.R.id.activity_error_text)
+			fragmentView.findViewById<AppCompatTextView>(R.id.activity_error_text)
 					.setText(textRes)
 		}
 

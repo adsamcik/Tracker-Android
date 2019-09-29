@@ -20,7 +20,7 @@ class MapSettings : ModuleSettings {
 			setTitle(R.string.settings_map_quality_title)
 			setSummary(R.string.settings_map_quality_summary)
 			setDefaultValue(resources.getString(R.string.settings_map_quality_default).toFloat())
-			setIcon(com.adsamcik.tracker.common.R.drawable.ic_outline_hd_24dp)
+			setIcon(R.drawable.ic_outline_hd)
 
 			setValuesResource(R.array.settings_map_quality_values)
 			setStringFormat("%.2fx")

@@ -26,7 +26,10 @@
 
     <string name="day_short">%d d</string>
 
+    <string name="error_general">Error occurred</string>
     <string name="error_gnss_not_enabled">Satellite location not enabled (GPS)</string>
+    <string name="error_missing_permission">App does not have required permission</string>
+    <string name="error_play_services_not_available">Play services are not available</string>
 
     <string name="feet_abbr">%s ft</string>
 
