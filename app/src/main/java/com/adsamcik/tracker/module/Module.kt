@@ -31,7 +31,8 @@ enum class Module {
 
 	@Throws(ClassNotFoundException::class)
 	@Suppress("unchecked_cast")
-	fun <T> loadClass(className: String): Class<T> = ModuleClassLoader.loadClass(moduleName, className)
+	fun <T> loadClass(className: String): Class<T> =
+			ModuleClassLoader.loadClass(moduleName, className)
 
 
 	companion object {
@@ -45,8 +46,10 @@ enum class Module {
 		fun getActiveModuleInfo(manager: SplitInstallManager): List<ModuleInfo> {
 			val installedModules = manager.installedModules
 			return values()
+					.asSequence()
 					.filter { it.enabled }
 					.map { ModuleInfo(it) }
+					.toList()
 					.apply {
 						forEach {
 							if (installedModules.contains(it.module.moduleName)) {

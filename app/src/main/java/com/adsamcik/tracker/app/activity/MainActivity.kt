@@ -20,14 +20,18 @@ import com.adsamcik.tracker.app.HomeIntroduction
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.activity.CoreUIActivity
+import com.adsamcik.tracker.common.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.guidelineEnd
 import com.adsamcik.tracker.common.extension.transaction
 import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
+import com.adsamcik.tracker.common.module.FirstRun
+import com.adsamcik.tracker.common.module.ModuleClassLoader
+import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.style.SystemBarStyle
 import com.adsamcik.tracker.common.style.SystemBarStyleView
-import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.module.AppFirstRun
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
@@ -64,6 +68,24 @@ class MainActivity : CoreUIActivity() {
 		super.onStart()
 		root.post {
 			IntroductionManager.showIntroduction(this, HomeIntroduction())
+
+			FirstRunDialogBuilder().apply {
+				val modules = ModuleClassLoader.getEnabledModuleNames(this@MainActivity)
+				addData(AppFirstRun())
+				modules.forEach {
+					try {
+						val firstRunClass = ModuleClassLoader.loadModuleClass<FirstRun>(
+								it,
+								"${it.capitalize()}FirstRun"
+						)
+						addData(firstRunClass.newInstance())
+					} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+						//do nothing, it's fine
+					}
+				}
+			}.run {
+				show(this@MainActivity)
+			}
 		}
 	}
 

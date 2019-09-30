@@ -18,6 +18,7 @@ import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.common.extension.dynamicStyle
 import com.adsamcik.tracker.common.extension.formatAsDuration
 import com.adsamcik.tracker.common.extension.formatAsShortDateTime
 import com.adsamcik.tracker.common.extension.formatDistance
@@ -144,14 +145,9 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 				title(res = titleRes)
 				customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
 					addItemDecoration(MarginDecoration())
-					styleController.watchRecyclerView(RecyclerStyleView(this, 2))
 				}
 
-				styleController.watchView(StyleView(view, 2))
-				setOnDismissListener {
-					styleController.stopWatchingView(view)
-					styleController.stopWatchingRecyclerView(getRecyclerView())
-				}
+				dynamicStyle(styleController, DIALOG_LAYER)
 			}
 		}
 	}
@@ -306,12 +302,12 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		viewModel.updateSessionData()
 	}
 
-	override fun onLeave(activity: FragmentActivity) {
-	}
+	override fun onLeave(activity: FragmentActivity) = Unit
 
+	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
 
-	override fun onPermissionResponse(requestCode: Int, success: Boolean) {
-
+	companion object {
+		const val DIALOG_LAYER = 2
 	}
 }
 

@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.tracker
+package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
 import com.adsamcik.tracker.common.Process

@@ -1,37 +1,35 @@
 package com.adsamcik.tracker.app
 
+import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
-import com.adsamcik.tracker.activity.ActivityModuleInitializer
 import com.adsamcik.tracker.common.debug.Logger
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.module.ModuleClassLoader
 import com.adsamcik.tracker.common.module.ModuleInitializer
-import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.notification.NotificationChannels
-import com.adsamcik.tracker.tracker.TrackerModuleInitializer
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.util.*
 
 @Suppress("unused")
+@ExperimentalStdlibApi
 class Application : SplitCompatApplication() {
+
+	@SuppressLint("DefaultLocale")
 	@WorkerThread
 	private fun initializeModules() {
-		ActivityModuleInitializer().initialize(this)
-		TrackerModuleInitializer().initialize(this)
+		val activeModules = ModuleClassLoader.getEnabledModuleNames(this)
 
-		val activeModules = Module.getActiveModuleInfo(this)
-
-		activeModules.forEach {
-			val moduleName = it.module.moduleName
+		activeModules.forEach { moduleName ->
 			try {
 				val initializer = ModuleClassLoader.loadClass<ModuleInitializer>(
 						moduleName = moduleName,
-						className = "${it.module.moduleName.capitalize()}${ModuleInitializer::class.java.simpleName}"
+						className = "${moduleName.capitalize(Locale.getDefault())}${ModuleInitializer::class.java.simpleName}"
 				)
 				initializer.newInstance().initialize(this)
 			} catch (e: ClassNotFoundException) {

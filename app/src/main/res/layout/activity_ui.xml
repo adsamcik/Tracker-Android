@@ -5,6 +5,7 @@
     android:id="@+id/coordinator"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#FFFFFFFF"
     android:theme="@style/AppTheme.Translucent">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -18,7 +19,7 @@
         <FrameLayout
             android:id="@+id/tracker_placeholder"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
+            android:layout_height="match_parent" />
 
         <com.adsamcik.draggable.DraggableImageButton
             android:id="@+id/button_stats"
