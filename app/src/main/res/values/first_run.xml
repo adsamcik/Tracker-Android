@@ -9,5 +9,5 @@
     <string name="first_run_error_reporting_title">Automatic error reporting</string>
     <string name="first_run_error_reporting_description">Would you like to enable automatic error reporting?
         It is very important for issue resolving as it provides crucial information about the issue.
-        For more information see <a href="#tbd">privacy policy</a></string>
+        For more information see <a href="#tbd">privacy policy</a>.</string>
 </resources>

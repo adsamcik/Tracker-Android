@@ -3,10 +3,12 @@ package com.adsamcik.tracker.tracker.module
 import android.content.Context
 import com.adsamcik.tracker.common.module.FirstRun
 import com.adsamcik.tracker.common.module.OnDoneListener
+import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.afollestad.materialdialogs.list.listItemsMultiChoice
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
 
+@Suppress("unused")
 class TrackerFirstRun : FirstRun() {
 	override fun onFirstRun(context: Context, onDoneListener: OnDoneListener) {
 		autoTrackingOptions(context, onDoneListener)
@@ -17,9 +19,18 @@ class TrackerFirstRun : FirstRun() {
 			title(R.string.settings_auto_tracking_category)
 			listItemsSingleChoice(
 					R.array.tracking_options_titles,
-					waitForPositiveButton = true
+					waitForPositiveButton = true,
+					selection = { dialog, index, _ ->
+						Preferences.getPref(dialog.context).edit {
+							setInt(
+									com.adsamcik.tracker.common.R.string.settings_tracking_activity_key,
+									index
+							)
+						}
+					}
 			)
 			positiveButton {
+
 				whatToTrackOptions(it.context, onDoneListener)
 			}
 		}
@@ -77,7 +88,27 @@ class TrackerFirstRun : FirstRun() {
 					items = titleList,
 					waitForPositiveButton = true,
 					initialSelection = selection,
-					allowEmptySelection = true
+					allowEmptySelection = true,
+					selection = { dialog, indices, _ ->
+						Preferences.getPref(dialog.context).edit {
+							list.forEachIndexed { index, triple ->
+								setBoolean(triple.first, indices.contains(index))
+							}
+
+							val anyWifi = list.mapIndexedNotNull { index, triple ->
+								if (triple.first == R.string.settings_wifi_location_count_enabled_key ||
+										triple.first == R.string.settings_wifi_location_count_enabled_key) {
+									index
+								} else {
+									null
+								}
+							}.any { indices.contains(it) }
+
+							if (anyWifi) {
+								setBoolean(R.string.settings_wifi_enabled_key, true)
+							}
+						}
+					}
 			)
 			positiveButton {
 				onDoneListener(it.context)
