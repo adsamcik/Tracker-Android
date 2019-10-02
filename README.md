@@ -58,10 +58,6 @@ Late test builds that are feature complete (no new features should be added in t
 
 Most stable releases meant for general public
 
-## Google Play Services
-
-Becuase Google proves time and time again that they are not capable of delivering stable experience (and good developer experience) with Google Play Services, any future updates to the app should not add anything and any functionality that uses them should ideally have alternative that does not rely on them. Over the developmnent of this app there were multiple issues with activity detection that just started one day and the same happened with FusedLocationManager.
-
 ## Contributions
 
 Signals is open to contributions, if you want to improve some part of the app or add some features feel free to do so. Each contribution should not create any issues. If an issue is not valid, it should be explicitly stated as suppressed. However every pull request is manually verified so overly using Suppress annotation will be seen as issue in itself.
