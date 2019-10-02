@@ -20,6 +20,9 @@ internal class FusedLocationTrackerTimer : LocationTrackerTimer() {
 	override val requiredPermissions: Collection<String>
 		get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
+	override val titleRes: Int
+		get() = R.string.settings_tracker_timer_fused
+
 	private val locationCallback: LocationCallback = object : LocationCallback() {
 		override fun onLocationResult(result: LocationResult) {
 			if (receiver == null) {

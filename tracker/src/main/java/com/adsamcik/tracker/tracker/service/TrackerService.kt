@@ -22,7 +22,6 @@ import com.adsamcik.tracker.common.extension.tryWithReport
 import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
-import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.service.CoreService
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.TrackerNotificationManager
@@ -34,6 +33,7 @@ import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
+import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
@@ -47,8 +47,6 @@ import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocation
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.StepPreTrackerComponent
-import com.adsamcik.tracker.tracker.component.timer.FusedLocationTrackerTimer
-import com.adsamcik.tracker.tracker.component.timer.TimeTrackerTimer
 import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
@@ -245,17 +243,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	private fun initializeTimer() {
-		val preferences = Preferences.getPref(this)
-		val useLocation = preferences.getBooleanRes(
-				R.string.settings_location_enabled_key,
-				R.string.settings_location_enabled_default
-		)
-
-		timerComponent = if (useLocation) {
-			FusedLocationTrackerTimer()
-		} else {
-			TimeTrackerTimer()
-		}
+		timerComponent = TrackerTimerManager.getSelected(this)
 	}
 
 	override fun onUpdate(tempData: MutableCollectionTempData): Job = launch {

@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.annotation.WorkerThread
 
 internal interface TrackerTimerComponent {
+	val titleRes: Int
 	val requiredPermissions: Collection<String>
 	fun onEnable(context: Context, @WorkerThread receiver: TrackerTimerReceiver)
 	fun onDisable(context: Context)
 }
 
 internal class NoTimer : TrackerTimerComponent {
+	override val titleRes: Int get() = 0
+
 	override val requiredPermissions: Collection<String> get() = emptyList()
 
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {

@@ -12,6 +12,11 @@
             android:title="@string/settings_tracking_notice_title"
             app:icon="@drawable/ic_bulletin_board" />
 
+        <androidx.preference.ListPreference
+            android:key="@string/settings_tracker_timer_key"
+            android:summary="@string/settings_tracker_timer_summary"
+            android:title="@string/settings_tracker_timer_title" />
+
         <androidx.preference.PreferenceCategory android:title="@string/settings_auto_tracking_category">
 
             <com.adsamcik.tracker.preference.ImageSwitchPreference
@@ -89,7 +94,7 @@
                 app:stringFormat="%1$d m"
                 app:title="@string/settings_tracking_required_accuracy_title" />
         </androidx.preference.PreferenceCategory>
-        <androidx.preference.PreferenceCategory>
+        <androidx.preference.PreferenceCategory android:title="@string/settings_enable_category_title">
             <androidx.preference.CheckBoxPreference
                 app:defaultValue="@string/settings_location_enabled_default"
                 app:icon="@drawable/ic_outline_location_on_24px"

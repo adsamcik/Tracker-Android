@@ -2,6 +2,7 @@ package com.adsamcik.tracker.preference.pages
 
 import android.content.pm.PackageManager
 import androidx.preference.CheckBoxPreference
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
@@ -9,6 +10,7 @@ import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
+import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.notification.NotificationManagementActivity
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
@@ -90,6 +92,18 @@ class TrackerPreferencePage : PreferencePage {
 		}
 	}
 
+	private fun initializeTrackingTickerPreference(caller: PreferenceFragmentCompat) {
+		caller.findPreferenceTyped<ListPreference>(R.string.settings_tracker_timer_key).apply {
+			val values = TrackerTimerManager.availableTimerData
+			val resources = context.resources
+			entries = values.map { resources.getString(it.second) }.toTypedArray()
+			entryValues = values.map { it.first }.toTypedArray()
+			val selectedKey = TrackerTimerManager.getSelectedKey(context)
+			val selectedIndex = values.indexOfFirst { it.first == selectedKey }
+			setValueIndex(selectedIndex)
+		}
+	}
+
 	private fun initializeAutoTrackingPreferences(caller: PreferenceFragmentCompat) {
 		caller.findPreference(R.string.settings_tracking_activity_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
@@ -144,6 +158,7 @@ class TrackerPreferencePage : PreferencePage {
 		initializeAutoTrackingPreferences(caller)
 		initializeEnableTrackingPreferences(caller)
 		initializeNotificationPreference(caller)
+		initializeTrackingTickerPreference(caller)
 	}
 
 }

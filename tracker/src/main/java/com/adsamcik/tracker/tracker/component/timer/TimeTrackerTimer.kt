@@ -12,6 +12,9 @@ import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 internal class TimeTrackerTimer : TrackerTimerComponent {
 	override val requiredPermissions: Collection<String> get() = emptyList()
 
+	override val titleRes: Int
+		get() = R.string.settings_tracker_timer_clock
+
 	private var repeatEveryMs: Long = -1L
 	private val handler = Handler()
 
@@ -19,11 +22,8 @@ internal class TimeTrackerTimer : TrackerTimerComponent {
 
 	private val handlerCallback: Runnable = object : Runnable {
 		override fun run() {
-			val receiver = receiver
-			if (receiver != null) {
-				receiver.onUpdate(createCollectionData())
-				handler.postDelayed(this, repeatEveryMs)
-			}
+			this@TimeTrackerTimer.receiver?.onUpdate(createCollectionData())
+			handler.postDelayed(this, repeatEveryMs)
 		}
 	}
 
@@ -39,6 +39,7 @@ internal class TimeTrackerTimer : TrackerTimerComponent {
 				R.integer.settings_tracking_min_time_default
 		)
 
+		this.receiver = receiver
 		repeatEveryMs = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
 		handler.postDelayed(handlerCallback, repeatEveryMs)
 	}

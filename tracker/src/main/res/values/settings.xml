@@ -11,11 +11,20 @@
     <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
 
+    <string name="settings_tracker_timer_title">Timers</string>
+    <string name="settings_tracker_timer_summary">Currently active: %s. Component that serves as update - triggers collection</string>
+    <string name="settings_tracker_timer_key" translatable="false">trackerTicker</string>
+
+    <string name="settings_tracker_timer_fused">Google Play location</string>
+    <string name="settings_tracker_timer_clock">Timer</string>
+    <string name="settings_tracker_timer_location">Android location</string>
+
     <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_disabled_time_default" translatable="false">0</string>
 
     <string name="settings_auto_tracking_category">Automatic tracking</string>
 
+    <string name="settings_enable_category_title">What to track</string>
     <string name="settings_location_enabled_title">Location tracking</string>
     <string name="settings_activity_enabled_title">Activity tracking</string>
     <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
