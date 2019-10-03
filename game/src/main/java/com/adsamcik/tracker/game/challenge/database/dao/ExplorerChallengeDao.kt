@@ -13,4 +13,7 @@ interface ExplorerChallengeDao : BaseDao<ExplorerChallengeEntity> {
 
 	@Query("SELECT * FROM challenge_explorer WHERE entry_id == :entryId")
 	fun getByEntry(entryId: Long): ExplorerChallengeEntity
+
+	@Query("DELETE FROM challenge_explorer")
+	fun deleteAll()
 }

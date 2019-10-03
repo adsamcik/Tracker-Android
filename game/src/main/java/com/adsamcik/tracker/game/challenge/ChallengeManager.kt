@@ -6,6 +6,8 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.debug.LogData
+import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.common.extension.formatAsDateTime
 import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
@@ -15,10 +17,13 @@ import com.adsamcik.tracker.game.challenge.data.definition.StepChallengeDefiniti
 import com.adsamcik.tracker.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.ChallengeLoader
+import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.game.logGame
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.random.Random
 
 /**
@@ -39,6 +44,8 @@ object ChallengeManager {
 			mutableActiveChallengeList_
 	)
 
+	private val activeChallengeLock = ReentrantLock()
+
 	/**
 	 * Returns immutable list of active challenges
 	 */
@@ -48,30 +55,28 @@ object ChallengeManager {
 	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
 		val database = ChallengeDatabase.database(context)
 		val active = database.entryDao.getActiveEntry(Time.nowMillis)
-		return active.map { ChallengeLoader.loadChallenge(context, it) }
+
+		return active.mapNotNull {
+			try {
+				ChallengeLoader.loadChallenge(context, it)
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				Reporter.report(e)
+				database.entryDao.delete(it)
+				null
+			}
+		}
 	}
 
 	@AnyThread
-	fun initialize(context: Context) {
-		initialize(context, null)
-	}
-
-	@AnyThread
-	fun initialize(context: Context, onInitialized: (() -> Unit)?) {
+	fun initialize(context: Context, onInitialized: (() -> Unit)? = null) {
 		GlobalScope.launch(Dispatchers.Default) {
 			val active = initFromDb(context)
 
-			mutableActiveChallengeList_.clear()
-			mutableActiveChallengeList_.addAll(active)
-			while (mutableActiveChallengeList_.size < MAX_CHALLENGE_COUNT) {
-				val newChallenge = activateRandomChallenge(context = context)
-				if (newChallenge != null) {
-					mutableActiveChallengeList_.add(newChallenge)
-				} else {
-					break
-				}
+			activeChallengeLock.withLock {
+				mutableActiveChallengeList_.clear()
+				mutableActiveChallengeList_.addAll(active)
+				fillEmptyChallengeSlots(context)
 			}
-			mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 			onInitialized?.invoke()
 		}
 	}
@@ -88,12 +93,47 @@ object ChallengeManager {
 				processSession(context, session, onChallengeCompletedListener)
 			}
 		} else {
-			mutableActiveChallengeList_.forEach {
-				it.process(
-						context,
-						session,
-						onChallengeCompletedListener
-				)
+			activeChallengeLock.withLock {
+				mutableActiveChallengeList_.forEach {
+					it.process(
+							context,
+							session,
+							onChallengeCompletedListener
+					)
+				}
+			}
+		}
+	}
+
+	private fun fillEmptyChallengeSlots(context: Context) {
+		if (mutableActiveChallengeList_.size >= MAX_CHALLENGE_COUNT) return
+
+		activeChallengeLock.withLock {
+			while (mutableActiveChallengeList_.size < MAX_CHALLENGE_COUNT) {
+				val newChallenge = activateRandomChallenge(context)
+				if (newChallenge != null) {
+					mutableActiveChallengeList_.add(newChallenge)
+				} else {
+					break
+				}
+			}
+			mutableActiveChallenges.postValue(mutableActiveChallengeList_)
+			scheduleNextChallengeExpiredWork(context)
+		}
+	}
+
+	private fun scheduleNextChallengeExpiredWork(context: Context) {
+		val nextExpiry = requireNotNull(mutableActiveChallengeList_.minBy { it.endTime }).endTime
+		ChallengeExpiredWorker.schedule(context, nextExpiry)
+		logGame(LogData(message = "Scheduled next expiry worker to run at ${nextExpiry.formatAsDateTime()}"))
+	}
+
+	internal fun checkExpiredChallenges(context: Context) {
+		val expired = mutableActiveChallengeList_.filter { it.endTime > Time.nowMillis }
+		if (expired.isNotEmpty()) {
+			activeChallengeLock.withLock {
+				mutableActiveChallengeList_.removeAll(expired)
+				fillEmptyChallengeSlots(context)
 			}
 		}
 	}

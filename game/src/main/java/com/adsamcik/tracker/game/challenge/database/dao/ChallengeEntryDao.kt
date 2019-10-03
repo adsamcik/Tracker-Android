@@ -17,6 +17,9 @@ interface ChallengeEntryDao : BaseDao<ChallengeEntry> {
 	@Query("SELECT * FROM entry WHERE id = :id")
 	fun get(id: Long): ChallengeEntry
 
+	@Query("DELETE FROM entry")
+	fun deleteAll()
+
 	@Transaction
 	fun insertSetId(item: ChallengeEntry) {
 		val id = insert(item)

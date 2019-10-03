@@ -13,7 +13,7 @@ import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.logGame
 
-class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
+internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
 		context,
 		workerParams
 ) {

@@ -12,4 +12,7 @@ interface WalkDistanceChallengeDao : BaseDao<WalkDistanceChallengeEntity> {
 
 	@Query("SELECT * FROM challenge_walk_distance WHERE entry_id == :entryId")
 	fun getByEntry(entryId: Long): WalkDistanceChallengeEntity
+
+	@Query("DELETE FROM challenge_walk_distance")
+	fun deleteAll()
 }
