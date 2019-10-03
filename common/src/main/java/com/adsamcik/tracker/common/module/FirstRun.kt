@@ -7,7 +7,7 @@ import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
 import com.afollestad.materialdialogs.MaterialDialog
 
-typealias OnDoneListener = (Context) -> Unit
+typealias OnDoneListener = (Context, isCloseRequested: Boolean) -> Unit
 
 abstract class FirstRun {
 	private val styleController = StyleManager.createController()

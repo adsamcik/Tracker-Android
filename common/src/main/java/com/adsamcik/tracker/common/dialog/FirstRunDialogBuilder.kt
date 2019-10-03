@@ -3,7 +3,6 @@ package com.adsamcik.tracker.common.dialog
 import android.content.Context
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.module.FirstRun
-import com.afollestad.materialdialogs.MaterialDialog
 
 class FirstRunDialogBuilder {
 	private val dialogDataList = mutableListOf<FirstRun>()
@@ -11,6 +10,8 @@ class FirstRunDialogBuilder {
 	private var isLocked = false
 
 	private var currentIndex = -1
+
+	var onFirstRunFinished: (() -> Unit)? = null
 
 	fun addData(data: FirstRun) {
 		if (isLocked) {
@@ -22,12 +23,14 @@ class FirstRunDialogBuilder {
 
 	fun show(context: Context) {
 		isLocked = true
-		next(context)
+		next(context, isCloseRequested = false)
 	}
 
-	private fun next(context: Context) {
-		if (++currentIndex < dialogDataList.size) {
+	private fun next(context: Context, isCloseRequested: Boolean) {
+		if (!isCloseRequested && ++currentIndex < dialogDataList.size) {
 			dialogDataList[currentIndex].onFirstRun(context, this::next)
+		} else {
+			onFirstRunFinished?.invoke()
 		}
 	}
 }

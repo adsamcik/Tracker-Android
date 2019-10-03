@@ -79,9 +79,13 @@ open class Preferences {
 	}
 
 	fun getBooleanRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): Boolean {
-		val key = getKey(keyRes)
 		//This is fine, because getString is never null (@NonNull annotation)
 		val default = resources.getString(defaultRes).toBoolean()
+		return getBooleanRes(keyRes, default)
+	}
+
+	fun getBooleanRes(@StringRes keyRes: Int, default: Boolean): Boolean {
+		val key = getKey(keyRes)
 		return getBoolean(key, default)
 	}
 

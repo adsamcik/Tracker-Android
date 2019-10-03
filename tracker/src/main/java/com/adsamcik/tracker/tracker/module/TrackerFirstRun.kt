@@ -30,7 +30,6 @@ class TrackerFirstRun : FirstRun() {
 					}
 			)
 			positiveButton {
-
 				whatToTrackOptions(it.context, onDoneListener)
 			}
 		}
@@ -111,7 +110,7 @@ class TrackerFirstRun : FirstRun() {
 					}
 			)
 			positiveButton {
-				onDoneListener(it.context)
+				onDoneListener(it.context, false)
 			}
 		}
 	}

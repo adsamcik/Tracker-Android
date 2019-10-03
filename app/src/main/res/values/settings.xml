@@ -10,6 +10,8 @@
 
     <string name="settings_debug_key" translatable="false">debugSection</string>
 
+    <string name="settings_first_run_key" translatable="false">firstRun</string>
+
     <!-- STYLE -->
     <string name="settings_style_mode_title">Style mode</string>
 

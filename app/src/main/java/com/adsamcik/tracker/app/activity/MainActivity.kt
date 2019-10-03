@@ -28,6 +28,7 @@ import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.module.FirstRun
 import com.adsamcik.tracker.common.module.ModuleClassLoader
+import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.style.SystemBarStyle
 import com.adsamcik.tracker.common.style.SystemBarStyleView
@@ -66,26 +67,42 @@ class MainActivity : CoreUIActivity() {
 
 	override fun onStart() {
 		super.onStart()
+		if (!Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
+			firstRun()
+		} else {
+			uiIntroduction()
+		}
+	}
+
+	private fun uiIntroduction() {
 		root.post {
 			IntroductionManager.showIntroduction(this, HomeIntroduction())
+		}
+	}
 
-			FirstRunDialogBuilder().apply {
-				val modules = ModuleClassLoader.getEnabledModuleNames(this@MainActivity)
-				addData(AppFirstRun())
-				modules.forEach {
-					try {
-						val firstRunClass = ModuleClassLoader.loadModuleClass<FirstRun>(
-								it,
-								"${it.capitalize()}FirstRun"
-						)
-						addData(firstRunClass.newInstance())
-					} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-						//do nothing, it's fine
-					}
+	private fun firstRun() {
+		FirstRunDialogBuilder().apply {
+			val modules = ModuleClassLoader.getEnabledModuleNames(this@MainActivity)
+			addData(AppFirstRun())
+			modules.forEach {
+				try {
+					val firstRunClass = ModuleClassLoader.loadModuleClass<FirstRun>(
+							it,
+							"${it.capitalize()}FirstRun"
+					)
+					addData(firstRunClass.newInstance())
+				} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+					//do nothing, it's fine
 				}
-			}.run {
-				show(this@MainActivity)
 			}
+			onFirstRunFinished = {
+				Preferences.getPref(this@MainActivity).edit {
+					setBoolean(R.string.settings_first_run_key, true)
+				}
+				uiIntroduction()
+			}
+		}.run {
+			show(this@MainActivity)
 		}
 	}
 

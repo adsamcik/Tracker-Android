@@ -39,7 +39,7 @@ class AppFirstRun : FirstRun() {
 				setReportingPreference(it.context, false)
 			}
 
-			onDismiss { onDoneListener(context) }
+			onDismiss { onDoneListener(context, false) }
 		}
 	}
 }
