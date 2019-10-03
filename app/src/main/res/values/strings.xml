@@ -19,6 +19,7 @@
 
     <!-- Open source licenses -->
     <string name="open_source_licenses">Open source licenses</string>
+    <string name="error_failed_to_open_license">Failed to open license. If auto reporting is enabled, report was sent.</string>
 
     <!-- PREFERENCES KEYS -->
     <string name="key_last_app_version" translatable="false">lastVersion</string>

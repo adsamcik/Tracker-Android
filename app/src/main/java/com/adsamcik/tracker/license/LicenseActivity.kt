@@ -15,6 +15,8 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.common.extension.tryWithReport
+import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.style.marker.IViewChange
@@ -147,15 +149,21 @@ class LicenseActivity : DetailActivity() {
 		}
 
 		private fun onButtonClicked(view: View) {
-			showLicense(view.context, view.tag as LicenseObject)
+			showLicense(view, view.tag as LicenseObject)
 		}
 
-		private fun showLicense(context: Context, licenseObject: LicenseObject) {
-			val notice = licenseObject.notice
-			LicensesDialog.Builder(context)
-					.setNotices(notice)
-					.build()
-					.show()
+		private fun showLicense(view: View, licenseObject: LicenseObject) {
+			val isDialogCreated = tryWithReport {
+				val notice = licenseObject.notice
+				LicensesDialog.Builder(view.context)
+						.setNotices(notice)
+						.build()
+						.show()
+			}
+
+			if (!isDialogCreated) {
+				SnackMaker(view).addMessage(R.string.error_failed_to_open_license)
+			}
 		}
 
 		fun addLicense(license: LicenseObject) {
