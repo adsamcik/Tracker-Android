@@ -6,8 +6,8 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.debug.LogData
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.formatAsDateTime
+import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
@@ -57,12 +57,12 @@ object ChallengeManager {
 		val active = database.entryDao.getActiveEntry(Time.nowMillis)
 
 		return active.mapNotNull {
-			try {
+			tryWithResultAndReport({ null }) {
 				ChallengeLoader.loadChallenge(context, it)
-			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-				Reporter.report(e)
-				database.entryDao.delete(it)
-				null
+			}.also { instance ->
+				if (instance == null) {
+					database.entryDao.delete(it)
+				}
 			}
 		}
 	}
