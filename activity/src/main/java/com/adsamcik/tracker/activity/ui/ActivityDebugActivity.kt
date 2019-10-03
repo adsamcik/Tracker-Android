@@ -14,8 +14,6 @@ import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.debug.DebugDatabase
 import com.adsamcik.tracker.common.debug.LogData
 import com.adsamcik.tracker.common.extension.formatAsDateTime
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class ActivityDebugActivity : DetailActivity() {
 
@@ -33,7 +31,7 @@ class ActivityDebugActivity : DetailActivity() {
 			layoutManager = LinearLayoutManager(this@ActivityDebugActivity)
 			addItemDecoration(MarginDecoration())
 			adapter = Adapter().also { adapter ->
-				launch(Dispatchers.Default) {
+				this@apply.post {
 					val data = DebugDatabase
 							.getInstance(this@ActivityDebugActivity)
 							.genericLogDao()
