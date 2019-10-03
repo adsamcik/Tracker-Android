@@ -14,7 +14,7 @@ class AppFirstRun : FirstRun() {
 			message(res = R.string.first_run_app_description)
 			positiveButton { errorReporting(context, onDoneListener) }
 			negativeButton(res = R.string.skip_tips) {
-				it.dismiss()
+				onDoneListener.invoke(context, true)
 			}
 		}
 	}
