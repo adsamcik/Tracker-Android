@@ -3,6 +3,7 @@ package com.adsamcik.tracker.activity.api
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.SparseArray
 import androidx.core.content.ContextCompat
 import androidx.core.util.forEach
@@ -142,12 +143,16 @@ object ActivityRequestManager {
 	}
 
 	fun hasActivityRecognitionPermission(context: Context): Boolean {
-		val permissionState = ContextCompat.checkSelfPermission(
-				context,
-				Manifest.permission.ACTIVITY_RECOGNITION
-		)
+		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			val permissionState = ContextCompat.checkSelfPermission(
+					context,
+					Manifest.permission.ACTIVITY_RECOGNITION
+			)
 
-		return permissionState == PackageManager.PERMISSION_GRANTED
+			permissionState == PackageManager.PERMISSION_GRANTED
+		} else {
+			true
+		}
 	}
 }
 

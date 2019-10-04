@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import androidx.annotation.MainThread
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
 import com.adsamcik.tracker.common.data.GroupedActivity
@@ -112,6 +113,7 @@ class MapPositionController(context: Context, map: GoogleMap) {
 		)
 	}
 
+	@MainThread
 	fun onNewPosition(latlng: LatLng, accuracy: Float) {
 		hasLocation = true
 
@@ -129,6 +131,7 @@ class MapPositionController(context: Context, map: GoogleMap) {
 		userActivity.isVisible = hasValidActivity
 	}
 
+	@MainThread
 	fun onNewActivity(groupedActivity: GroupedActivity) {
 		if (groupedActivity == GroupedActivity.UNKNOWN) {
 			hasValidActivity = false
@@ -140,6 +143,7 @@ class MapPositionController(context: Context, map: GoogleMap) {
 		}
 	}
 
+	@MainThread
 	fun onDirectionChanged(radians: Double) {
 		hasValidDirection = true
 		userDirection.isVisible = hasLocation

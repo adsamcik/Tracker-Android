@@ -14,6 +14,7 @@ import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.debug.DebugDatabase
 import com.adsamcik.tracker.common.debug.LogData
 import com.adsamcik.tracker.common.extension.formatAsDateTime
+import com.adsamcik.tracker.common.style.RecyclerStyleView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -38,7 +39,7 @@ class ActivityDebugActivity : DetailActivity() {
 							.getInstance(this@ActivityDebugActivity)
 							.genericLogDao()
 							.getLastOrderedDesc(1000)
-					
+
 					this@apply.post {
 						adapter.addAll(data)
 					}
@@ -46,6 +47,8 @@ class ActivityDebugActivity : DetailActivity() {
 			}
 		}
 		rootView.addView(recyclerView)
+
+		styleController.watchRecyclerView(RecyclerStyleView(recyclerView))
 	}
 
 	class Adapter : BaseRecyclerAdapter<LogData, Adapter.ViewHolder>() {

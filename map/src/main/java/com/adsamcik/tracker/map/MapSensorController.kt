@@ -24,15 +24,19 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 
 @Suppress("TooManyFunctions")
 internal class MapSensorController(
 		context: Context,
 		private val map: GoogleMap,
 		private val eventListener: MapEventListener
-) : SensorEventListener {
+) : SensorEventListener, CoroutineScope {
 	private var followMyPosition: Boolean = false
-	private var useGyroscope = false
 
 	private val sensorManager: SensorManager = context.sensorManager
 	private val rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -44,6 +48,11 @@ internal class MapSensorController(
 	private var targetZoom: Float = 0f
 
 	private val mapPositionController = MapPositionController(context, map)
+
+	private val job = SupervisorJob()
+
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Main + job
 
 
 	//Orientation
@@ -90,7 +99,9 @@ internal class MapSensorController(
 	}
 
 	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {
-		mapPositionController.onNewActivity(activity.groupedActivity)
+		launch {
+			mapPositionController.onNewActivity(activity.groupedActivity)
+		}
 	}
 
 	/**

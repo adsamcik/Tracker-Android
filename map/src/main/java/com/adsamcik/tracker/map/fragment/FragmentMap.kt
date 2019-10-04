@@ -40,8 +40,6 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
 
 	override fun onLeave(activity: FragmentActivity) {
-		locationListener?.onDestroy(activity)
-
 		mapOwner.onDisable()
 	}
 
