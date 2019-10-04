@@ -27,7 +27,6 @@ import com.google.android.gms.tasks.Task
  */
 internal class ActivityService : IntentService(this::class.java.simpleName) {
 	override fun onHandleIntent(intent: Intent?) {
-
 		if (ActivityRecognitionResult.hasResult(intent)) {
 			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
 			onActivityResult(result)

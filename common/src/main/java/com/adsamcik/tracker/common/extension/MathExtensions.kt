@@ -9,14 +9,14 @@ import kotlin.math.roundToInt
 /// </summary>
 /// <param name="deg">Degree to convert</param>
 /// <returns>Degree in radians</returns>
-fun Double.deg2rad(): Double = (this * kotlin.math.PI / HALF_CIRCLE_IN_DEGREES)
+fun Double.toRadians(): Double = (this * kotlin.math.PI / HALF_CIRCLE_IN_DEGREES)
 
 /// <summary>
 /// Converts radians to degrees
 /// </summary>
 /// <param name="rad">Radians to convert</param>
 /// <returns>Radians as degrees</returns>
-fun Double.rad2deg(): Double = (this / kotlin.math.PI * HALF_CIRCLE_IN_DEGREES)
+fun Double.toDegrees(): Double = (this / kotlin.math.PI * HALF_CIRCLE_IN_DEGREES)
 
 fun Double.round(decimals: Int): Double {
 	var multiplier = 1.0

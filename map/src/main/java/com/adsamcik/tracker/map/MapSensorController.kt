@@ -8,7 +8,6 @@ import android.hardware.SensorManager
 import android.location.Location
 import android.os.Looper
 import androidx.appcompat.widget.AppCompatImageButton
-import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
@@ -23,18 +22,11 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.Circle
-import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
-import java.lang.Math.toDegrees
 
-//todo add activity icon instead of generic location icon when possible
 @Suppress("TooManyFunctions")
-internal class UpdateLocationListener(
+internal class MapSensorController(
 		context: Context,
 		private val map: GoogleMap,
 		private val eventListener: MapEventListener
@@ -51,22 +43,8 @@ internal class UpdateLocationListener(
 	private var targetBearing: Float = 0f
 	private var targetZoom: Float = 0f
 
-	private var userRadius: Circle = map.addCircle(
-			CircleOptions()
-					.fillColor(ContextCompat.getColor(context, R.color.color_user_accuracy))
-					.center(LatLng(0.0, 0.0))
-					.radius(0.0)
-					.zIndex(100f)
-					.strokeWidth(0f)
-	)
+	private val mapPositionController = MapPositionController(context, map)
 
-	private var userCenter: Marker = map.addMarker(
-			MarkerOptions()
-					.flat(true)
-					.position(LatLng(0.0, 0.0))
-					.icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_user_location))
-					.anchor(0.5f, 0.5f)
-	)
 
 	//Orientation
 	private var prevRotation: Float = 0f
@@ -86,7 +64,7 @@ internal class UpdateLocationListener(
 
 	private fun onNewLocationAvailable(location: Location) {
 		val latlng = LatLng(location.latitude, location.longitude)
-		drawUserPosition(latlng, location.accuracy)
+		mapPositionController.onNewPosition(latlng, location.accuracy)
 		setUserPosition(latlng)
 	}
 
@@ -98,18 +76,25 @@ internal class UpdateLocationListener(
 		ActivityRequestManager.requestActivity(
 				context,
 				ActivityRequestData(
-						UpdateLocationListener::class,
+						this::class,
 						ActivityChangeRequestData(10, this::onActivityUpdate)
 				)
+		)
+
+		sensorManager.registerListener(
+				this,
+				rotationVector,
+				SensorManager.SENSOR_DELAY_NORMAL,
+				SensorManager.SENSOR_DELAY_UI
 		)
 	}
 
 	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {
-		//todo
+		mapPositionController.onNewActivity(activity.groupedActivity)
 	}
 
 	/**
-	 * Registers map to the [UpdateLocationListener]. Initializing camera position and registering camera listeners.
+	 * Registers map to the [MapSensorController]. Initializing camera position and registering camera listeners.
 	 */
 	private fun initializePositions() {
 		val cameraPosition = map.cameraPosition
@@ -149,10 +134,14 @@ internal class UpdateLocationListener(
 		}
 	}
 
-	fun unsubscribeFromLocationUpdates(context: Context) {
+	fun onDestroy(context: Context) {
 		val locationClient = LocationServices.getFusedLocationProviderClient(context)
 		locationClient.removeLocationUpdates(locationCallback)
 		isSubscribed = false
+
+		if (rotationVector != null) sensorManager.unregisterListener(this, rotationVector)
+
+		ActivityRequestManager.removeActivityRequest(context, this::class)
 	}
 
 
@@ -165,29 +154,6 @@ internal class UpdateLocationListener(
 	}
 
 	/**
-	 * Draws user accuracy radius and location
-	 * Is automatically initialized if no circle exists
-	 *
-	 * @param latlng   Latitude and longitude
-	 * @param accuracy Accuracy
-	 */
-	private fun drawUserPosition(latlng: LatLng, accuracy: Float) {
-		userRadius.center = latlng
-		userRadius.radius = accuracy.toDouble()
-		userCenter.position = latlng
-	}
-
-	private fun stopUsingGyroscope(returnToDefault: Boolean) {
-		useGyroscope = false
-		if (rotationVector != null) sensorManager.unregisterListener(this, rotationVector)
-		targetBearing = 0f
-		targetTilt = 0f
-		if (returnToDefault) {
-			animateTo(targetPosition, targetZoom, 0f, 0f, DURATION_SHORT)
-		}
-	}
-
-	/**
 	 * Call to stop updating camera position to look at user's position.
 	 *
 	 * @param returnToDefault True if you want to return any tilt to default orientation
@@ -195,10 +161,12 @@ internal class UpdateLocationListener(
 	fun stopUsingUserPosition(button: AppCompatImageButton, returnToDefault: Boolean) {
 		if (followMyPosition) {
 			this.followMyPosition = false
-			if (useGyroscope) {
-				stopUsingGyroscope(returnToDefault)
-			}
 			button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_gps_not_fixed_black_24dp)
+		}
+
+		onCameraMoveStartedListener?.run {
+			onCameraMoveStartedListener = null
+			eventListener -= this
 		}
 	}
 
@@ -253,25 +221,11 @@ internal class UpdateLocationListener(
 		map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), duration, null)
 	}
 
+	private var onCameraMoveStartedListener: GoogleMap.OnCameraMoveStartedListener? = null
+
 	fun onMyPositionButtonClick(button: AppCompatImageButton) {
 		if (followMyPosition) {
-			when {
-				useGyroscope -> {
-					button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_gps_fixed_black_24dp)
-					stopUsingGyroscope(true)
-				}
-				else -> {
-					useGyroscope = true
-					if (rotationVector != null) {
-						sensorManager.registerListener(
-								this, rotationVector,
-								SensorManager.SENSOR_DELAY_NORMAL, SensorManager.SENSOR_DELAY_UI
-						)
-					}
-					animateToTilt(45f)
-					button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_compass)
-				}
-			}
+			stopUsingUserPosition(button, false)
 		} else {
 			button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_gps_fixed_black_24dp)
 			this.followMyPosition = true
@@ -280,10 +234,12 @@ internal class UpdateLocationListener(
 				moveTo(requireNotNull(lastUserPos))
 			}
 
-			eventListener += GoogleMap.OnCameraMoveStartedListener {
+			onCameraMoveStartedListener = GoogleMap.OnCameraMoveStartedListener {
 				if (it == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
 					stopUsingUserPosition(button, true)
 				}
+			}.also {
+				eventListener += it
 			}
 		}
 	}
@@ -313,7 +269,9 @@ internal class UpdateLocationListener(
 					rotationMatrix,
 					orientation
 			)[0].toDouble()
-			updateRotation(((toDegrees(orientation) + 360.0) % 360.0).toFloat())
+			//updateRotation()
+			val directionRadians = (orientation + 2.0).rem(2.0)
+			mapPositionController.onDirectionChanged(directionRadians)
 		}
 	}
 

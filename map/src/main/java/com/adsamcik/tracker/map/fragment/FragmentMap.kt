@@ -19,7 +19,7 @@ import com.adsamcik.tracker.map.MapEventListener
 import com.adsamcik.tracker.map.MapOwner
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.UpdateLocationListener
+import com.adsamcik.tracker.map.MapSensorController
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.SupportMapFragment
@@ -27,7 +27,7 @@ import kotlinx.android.synthetic.main.fragment_map.*
 
 @Suppress("unused")
 class FragmentMap : CoreUIFragment(), IOnDemandView {
-	private var locationListener: UpdateLocationListener? = null
+	private var locationListener: MapSensorController? = null
 	private var mapController: MapController? = null
 	private var mapSheetController: MapSheetController? = null
 
@@ -40,7 +40,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
 
 	override fun onLeave(activity: FragmentActivity) {
-		locationListener?.unsubscribeFromLocationUpdates(activity)
+		locationListener?.onDestroy(activity)
 
 		mapOwner.onDisable()
 	}
@@ -81,7 +81,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 			locationListener?.subscribeToLocationUpdates(requireContext())
 		}
 		mapOwner.addOnDisableListener {
-			locationListener?.unsubscribeFromLocationUpdates(requireContext())
+			locationListener?.onDestroy(requireContext())
 		}
 	}
 
@@ -134,7 +134,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		val inProgressTileTextView = activity.findViewById<TextView>(R.id.tile_generation_count_textview)
 		val mapController = MapController(activity, map, mapOwner, inProgressTileTextView)
-		val locationListener = UpdateLocationListener(activity, map, mapEventListener)
+		val locationListener = MapSensorController(activity, map, mapEventListener)
 
 		this.mapController = mapController
 		this.locationListener = locationListener

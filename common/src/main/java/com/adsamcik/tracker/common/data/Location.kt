@@ -6,7 +6,7 @@ import androidx.room.ColumnInfo
 import com.adsamcik.tracker.common.constant.LengthConstants
 import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
 import com.adsamcik.tracker.common.extension.LocationExtensions.METER_DEGREE_LATITUDE
-import com.adsamcik.tracker.common.extension.deg2rad
+import com.adsamcik.tracker.common.extension.toRadians
 import com.adsamcik.tracker.common.extension.round
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -134,10 +134,10 @@ data class Location(
 				secondLongitude: Double,
 				unit: LengthUnit
 		): Double {
-			val lat1Rad = firstLatitude.deg2rad()
-			val lat2Rad = secondLatitude.deg2rad()
-			val latDistance = (secondLatitude - firstLatitude).deg2rad()
-			val lonDistance = (secondLongitude - firstLongitude).deg2rad()
+			val lat1Rad = firstLatitude.toRadians()
+			val lat2Rad = secondLatitude.toRadians()
+			val latDistance = (secondLatitude - firstLatitude).toRadians()
+			val lonDistance = (secondLongitude - firstLongitude).toRadians()
 
 			val sinLatDistance = kotlin.math.sin(latDistance / 2)
 			val sinLonDistance = kotlin.math.sin(lonDistance / 2)
@@ -182,7 +182,7 @@ data class Location(
 		}
 
 		private fun calculateLineOfLongitudeM(latitude: Double) =
-				kotlin.math.cos(latitude.deg2rad()) * EARTH_CIRCUMFERENCE
+				kotlin.math.cos(latitude.toRadians()) * EARTH_CIRCUMFERENCE
 
 		fun longitudeAccuracy(precisionInMeters: Double, latitude: Double): Double =
 				precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(

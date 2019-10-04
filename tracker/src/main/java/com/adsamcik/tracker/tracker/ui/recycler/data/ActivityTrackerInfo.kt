@@ -1,20 +1,13 @@
 package com.adsamcik.tracker.tracker.ui.recycler.data
 
 import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.data.GroupedActivity
 import com.adsamcik.tracker.tracker.R
 import java.text.NumberFormat
 import java.util.*
 
 class ActivityTrackerInfo(var activity: ActivityInfo) : TrackerInfo(NAME_RESOURCE) {
 	override val iconRes: Int
-		get() = when (activity.groupedActivity) {
-			GroupedActivity.STILL -> R.drawable.ic_outline_still_24px
-			GroupedActivity.ON_FOOT -> R.drawable.ic_directions_walk_white_24dp
-			GroupedActivity.IN_VEHICLE -> R.drawable.ic_directions_car_white_24dp
-			GroupedActivity.UNKNOWN -> R.drawable.ic_help_white_24dp
-			else -> throw IllegalStateException()
-		}
+		get() = activity.groupedActivity.iconRes
 
 	override fun bindContent(holder: InfoFieldHolder) {
 		val context = holder.context

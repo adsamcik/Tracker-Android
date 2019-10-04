@@ -65,7 +65,7 @@ internal class MapSheetController(
 		mapOwner: MapOwner,
 		private val rootLayout: ViewGroup,
 		private val mapController: MapController,
-		private val locationListener: UpdateLocationListener,
+		private val locationListener: MapSensorController,
 		private val mapEventListener: MapEventListener
 ) : CoroutineScope, GoogleMap.OnMapClickListener {
 	private val job = SupervisorJob()

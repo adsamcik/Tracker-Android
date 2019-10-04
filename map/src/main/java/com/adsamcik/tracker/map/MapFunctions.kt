@@ -6,7 +6,7 @@ import com.adsamcik.tracker.common.constant.GeometryConstants.CIRCLE_IN_RADIANS
 import com.adsamcik.tracker.common.constant.GeometryConstants.HALF_CIRCLE_IN_DEGREES
 import com.adsamcik.tracker.common.constant.GeometryConstants.HALF_CIRCLE_IN_RADIANS
 import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
-import com.adsamcik.tracker.common.extension.deg2rad
+import com.adsamcik.tracker.common.extension.toRadians
 import kotlin.math.PI
 import kotlin.math.atan
 import kotlin.math.cos
@@ -40,7 +40,7 @@ internal object MapFunctions {
 	}
 
 	fun countPixelSize(latitude: Double, zoom: Int): Double {
-		return EARTH_CIRCUMFERENCE * cos(latitude.deg2rad()) / 2.0.pow(zoom + 8)
+		return EARTH_CIRCUMFERENCE * cos(latitude.toRadians()) / 2.0.pow(zoom + 8)
 	}
 
 	fun getTileSize(zoom: Int): Double2 {
