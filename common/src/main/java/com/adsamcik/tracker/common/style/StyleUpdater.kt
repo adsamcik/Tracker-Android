@@ -2,6 +2,8 @@ package com.adsamcik.tracker.common.style
 
 import android.R.attr.state_enabled
 import android.R.attr.state_pressed
+import android.animation.ArgbEvaluator
+import android.animation.ValueAnimator
 import android.content.res.ColorStateList
 import android.graphics.BlendMode
 import android.graphics.BlendModeColorFilter
@@ -13,14 +15,12 @@ import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
-import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
@@ -267,6 +267,30 @@ internal class StyleUpdater {
 		}
 	}
 
+	private fun updateBackgroundColorDrawable(
+			drawable: ColorDrawable,
+			@ColorInt bgColor: Int
+	) {
+		val originalColor = drawable.color
+		if (ColorFunctions.distance(
+						originalColor,
+						bgColor
+				) > COLOR_DIFFERENCE_ANIMATION_THRESHOLD) {
+			val colorAnimation = ValueAnimator.ofObject(
+					ArgbEvaluator(),
+					originalColor,
+					bgColor
+			)
+			colorAnimation.duration = 1000
+			colorAnimation.addUpdateListener {
+				drawable.color = it.animatedValue as Int
+			}
+			colorAnimation.start()
+		} else {
+			drawable.color = bgColor
+		}
+	}
+
 	//todo refactor
 	@MainThread
 	@Suppress("ReturnCount")
@@ -287,9 +311,7 @@ internal class StyleUpdater {
 
 				background.mutate()
 				when (background) {
-					is ColorDrawable -> {
-						view.setBackgroundColor(bgColor)
-					}
+					is ColorDrawable -> updateBackgroundColorDrawable(background, bgColor)
 					is RippleDrawable -> {
 						val nextLevel = ColorFunctions.getBackgroundLayerColor(
 								bgColor,
@@ -341,5 +363,7 @@ internal class StyleUpdater {
 		const val SEEKBAR_PRESSED_ALPHA = 255
 		const val DISABLED_ALPHA = 97
 		const val HINT_TEXT_ALPHA_OFFSET = 48
+
+		private const val COLOR_DIFFERENCE_ANIMATION_THRESHOLD = 50
 	}
 }

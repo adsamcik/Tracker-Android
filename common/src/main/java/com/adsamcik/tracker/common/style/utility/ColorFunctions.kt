@@ -8,6 +8,7 @@ import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
 import com.adsamcik.tracker.common.style.utility.palette.LabConstants
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.pow
 import kotlin.math.round
@@ -214,6 +215,14 @@ object ColorFunctions {
 	@Suppress("MagicNumber")
 	private fun labToXyz(t: Double): Double {
 		return if (t > LabConstants.t1) t.pow(3) else (LabConstants.t2 * (t - LabConstants.t0))
+	}
+
+	fun distance(@ColorInt colorA: Int, @ColorInt colorB: Int): Int {
+		val redDist = abs(colorB.red - colorA.red)
+		val blueDist = abs(colorB.blue - colorA.blue)
+		val greenDist = abs(colorB.green - colorA.green)
+
+		return redDist + blueDist + greenDist
 	}
 }
 

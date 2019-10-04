@@ -6,6 +6,7 @@ import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.style.update.abstraction.LightStyleUpdate
 import com.adsamcik.tracker.common.style.update.data.RequiredColorData
 import com.adsamcik.tracker.common.style.update.data.RequiredColors
+import com.adsamcik.tracker.common.style.utility.ColorFunctions
 import kotlin.math.min
 
 internal class LightDayNightTransitionUpdate : LightStyleUpdate() {
@@ -31,15 +32,20 @@ internal class LightDayNightTransitionUpdate : LightStyleUpdate() {
 				)
 		)
 
+	private var lastColor: Int = 0
+
 	override fun filter(luminance: Float): Boolean = true
 
 	override fun onNewLuminance(newLuminance: Float) {
 		val customLuminancePercentage = min(MAX_BRIGHTNESS_LUM, newLuminance) / MAX_BRIGHTNESS_LUM
 		val color = ColorUtils.blendARGB(colorList[1], colorList[0], customLuminancePercentage)
-		requireConfigData().callback(color)
+		if (ColorFunctions.distance(lastColor, color) > COLOR_DIFFERENCE_THRESHOLD) {
+			requireConfigData().callback(color)
+		}
 	}
 
 	companion object {
-		const val MAX_BRIGHTNESS_LUM = 5000f
+		private const val MAX_BRIGHTNESS_LUM = 5000f
+		private const val COLOR_DIFFERENCE_THRESHOLD = 50
 	}
 }

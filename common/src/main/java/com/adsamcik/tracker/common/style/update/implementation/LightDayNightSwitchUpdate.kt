@@ -29,10 +29,20 @@ internal class LightDayNightSwitchUpdate : LightStyleUpdate() {
 				)
 		)
 
-	override fun filter(luminance: Float): Boolean = true
+	private var lastColorIndex: Int = -1
+
+	private fun evalLuminance(luminance: Float) = if (luminance < LUMINANCE_THRESHOLD) 1 else 0
+
+	override fun filter(luminance: Float): Boolean = evalLuminance(luminance) != lastColorIndex
 
 	override fun onNewLuminance(newLuminance: Float) {
-		val color = if (newLuminance < 1f) colorList[1] else colorList[0]
+		val colorIndex = evalLuminance(newLuminance)
+		lastColorIndex = colorIndex
+		val color = colorList[colorIndex]
 		requireConfigData().callback(color)
+	}
+
+	companion object {
+		private const val LUMINANCE_THRESHOLD = 10f
 	}
 }
