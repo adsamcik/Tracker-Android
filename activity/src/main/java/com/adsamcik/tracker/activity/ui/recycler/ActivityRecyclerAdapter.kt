@@ -5,8 +5,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.WorkerThread
-import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
-import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.BaseSortAdapter
+import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.database.AppDatabase
@@ -19,7 +19,7 @@ import kotlin.coroutines.CoroutineContext
 
 class ActivityRecyclerAdapter(
 		private val editCallback: (position: Int) -> Unit
-) : PrioritySortAdapter<SessionActivity, RecyclerActivityViewHolder>(),
+) : BaseSortAdapter<SessionActivity, RecyclerActivityViewHolder>(SessionActivity::class.java),
 		IViewChange,
 		CoroutineScope {
 	override var onViewChangedListener: ((View) -> Unit)? = null
@@ -73,10 +73,13 @@ class ActivityRecyclerAdapter(
 	}
 
 	@WorkerThread
-	fun addItemPersistent(context: Context, item: SessionActivity, priority: AppendPriority) {
+	fun addItemPersistent(
+			context: Context,
+			item: SessionActivity
+	) {
 		val id = AppDatabase.database(context).activityDao().insert(item)
 		item.id = id
-		launch { add(item, priority) }
+		launch { add(item) }
 	}
 
 	@WorkerThread
@@ -85,6 +88,22 @@ class ActivityRecyclerAdapter(
 		val index = indexOf { it.id == item.id }
 		require(index >= 0)
 		launch { updateAt(index, item) }
+	}
+
+
+	override val sortCallback: SortCallback<SessionActivity> = object : SortCallback<SessionActivity> {
+		override fun areContentsTheSame(a: SessionActivity, b: SessionActivity): Boolean {
+			return a == b
+		}
+
+		override fun areItemsTheSame(a: SessionActivity, b: SessionActivity): Boolean {
+			return a.id == b.id
+		}
+
+		override fun compare(a: SessionActivity, b: SessionActivity): Int {
+			return a.name.compareTo(b.name)
+		}
+
 	}
 }
 

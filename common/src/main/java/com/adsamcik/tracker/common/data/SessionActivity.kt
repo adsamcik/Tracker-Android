@@ -8,7 +8,6 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.adsamcik.tracker.common.database.AppDatabase
 
-//todo add icon
 @Entity(tableName = "activity", indices = [Index("name")])
 data class SessionActivity(
 		@PrimaryKey(autoGenerate = true) var id: Long = 0,
@@ -26,7 +25,7 @@ data class SessionActivity(
 	fun getIcon(context: Context): Drawable {
 		val resources = context.resources
 		val drawableName = iconName
-				?: com.adsamcik.tracker.common.R.drawable::ic_baseline_device_unknown.name
+				?: com.adsamcik.tracker.common.R.drawable::ic_help_white.name
 		val drawableId = resources.getIdentifier(drawableName, "drawable", context.packageName)
 
 		if (drawableId == 0) throw NullPointerException("Resource with name $drawableName not found")

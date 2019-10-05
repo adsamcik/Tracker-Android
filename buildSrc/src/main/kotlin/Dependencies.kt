@@ -36,7 +36,7 @@ object Dependencies {
 		internal const val dialogs = "3.1.1"
 		internal const val sectionedRecyclerViewAdapter = "3.0.0"
 
-		internal const val componentsRecycler = "0.7.2"
+		internal const val componentsRecycler = "0.7.3"
 
 		object Test {
 			const val androidxTest: String = "1.2.0"
