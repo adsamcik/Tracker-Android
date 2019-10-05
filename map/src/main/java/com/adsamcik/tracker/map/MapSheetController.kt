@@ -397,6 +397,7 @@ internal class MapSheetController(
 		}
 	}
 
+	@Suppress("unused_parameter")
 	private fun onItemClicked(position: Int, item: MapLayerLogic) {
 		setLayer(item)
 

@@ -47,6 +47,7 @@ internal class WeightedHeatmap(
 
 	private var pointCount = 0
 
+	@Suppress("unused_parameter")
 	private fun mergeWeightDefault(
 			current: Float,
 			currentAlpha: Int,
@@ -56,7 +57,7 @@ internal class WeightedHeatmap(
 		return current + stampValue * value
 	}
 
-	@Suppress("Unused")
+	@Suppress("unused_parameter")
 	private fun mergeAlphaDefault(value: Int, stampValue: Float, weight: Float): UByte {
 		return max(value, (stampValue * UByte.MAX_VALUE.toFloat()).toInt()).toUByte()
 	}
