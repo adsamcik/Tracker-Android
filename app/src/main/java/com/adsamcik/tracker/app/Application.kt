@@ -8,6 +8,7 @@ import com.adsamcik.tracker.common.debug.Logger
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.module.ModuleClassLoader
 import com.adsamcik.tracker.common.module.ModuleInitializer
+import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
@@ -55,6 +56,11 @@ class Application : SplitCompatApplication() {
 		Logger.initialize(this)
 	}
 
+	@WorkerThread
+	private fun initializeDatabaseMaintenance() {
+		DatabaseMaintenanceWorker.schedule(this)
+	}
+
 	override fun onCreate() {
 		super.onCreate()
 		initializeImportantSingletons()
@@ -62,6 +68,7 @@ class Application : SplitCompatApplication() {
 		GlobalScope.launch(Dispatchers.Default) {
 			initializeClasses()
 			initializeModules()
+			initializeDatabaseMaintenance()
 		}
 	}
 
