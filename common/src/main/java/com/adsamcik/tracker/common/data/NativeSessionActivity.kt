@@ -26,7 +26,7 @@ enum class NativeSessionActivity(val id: Long) {
 		override val iconName: String = R.drawable::swim.name
 	},
 	TENIS(-7) {
-		override val nameRes: Int = R.string.activity_tenis
+		override val nameRes: Int = R.string.activity_tennis
 		override val iconName: String = R.drawable::tennis.name
 	},
 	VOLLEYBALL(-8) {
