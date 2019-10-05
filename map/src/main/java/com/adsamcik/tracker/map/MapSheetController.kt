@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.extension.coerceIn
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.marginBottom
@@ -110,7 +111,7 @@ internal class MapSheetController(
 	}
 
 	init {
-		val (position, navbarHeight) = Assist.getNavigationBarSize(activity)
+		val (position, navbarHeight) = DisplayAssist.getNavigationBarSize(activity)
 		this.navbarDim = navbarHeight
 		this.navbarPosition = position
 

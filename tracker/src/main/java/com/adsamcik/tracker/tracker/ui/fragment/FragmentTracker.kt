@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.CellData
 import com.adsamcik.tracker.common.data.CellInfo
@@ -64,7 +65,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 		val view = inflater.inflate(R.layout.fragment_tracker, container, false)
 		view.top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-			height += Assist.getStatusBarHeight(container.context)
+			height += DisplayAssist.getStatusBarHeight(container.context)
 		}
 
 		view.tracker_recycler.apply {
@@ -152,7 +153,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		super.onResume()
 		val context = requireContext()
 
-		val orientation = Assist.orientation(context)
+		val orientation = DisplayAssist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
 			tracker_recycler.setPadding(
 					RECYCLER_HORIZONTAL_PADDING.dp,

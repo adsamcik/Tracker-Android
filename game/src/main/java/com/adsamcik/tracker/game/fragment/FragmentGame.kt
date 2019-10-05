@@ -11,6 +11,7 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.common.style.RecyclerStyleView
@@ -50,8 +51,8 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 
 		val contentPadding = context.resources.getDimension(com.adsamcik.tracker.common.R.dimen.content_padding)
 				.toInt()
-		val statusBarHeight = Assist.getStatusBarHeight(context)
-		val navBarSize = Assist.getNavigationBarSize(context)
+		val statusBarHeight = DisplayAssist.getStatusBarHeight(context)
+		val navBarSize = DisplayAssist.getNavigationBarSize(context)
 		val navBarHeight = navBarSize.second.y
 
 		recycler.addItemDecoration(

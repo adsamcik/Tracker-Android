@@ -18,6 +18,7 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.style.SystemBarStyle
@@ -80,7 +81,7 @@ abstract class DetailActivity : CoreUIActivity() {
 			styleController.watchView(StyleView(detail_root, 0, maxDepth = 0))
 		} else {
 			top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-				height += Assist.getStatusBarHeight(this@DetailActivity)
+				height += DisplayAssist.getStatusBarHeight(this@DetailActivity)
 			}
 		}
 	}

@@ -370,25 +370,29 @@ class StatsDetailActivity : DetailActivity() {
 		var maxAltitude = previousAltitude
 		var minAltitude = previousAltitude
 
-		val elevationList = locations.mapNotNull {
-			val altitude = it.altitude ?: return@mapNotNull null
+		val elevationList = locations
+				.asSequence()
+				.filterNot { it.altitude == null }
+				.map {
+					val altitude = requireNotNull(it.altitude)
 
-			if (altitude > maxAltitude) {
-				maxAltitude = altitude
-			} else if (altitude < minAltitude) {
-				minAltitude = altitude
-			}
+					if (altitude > maxAltitude) {
+						maxAltitude = altitude
+					} else if (altitude < minAltitude) {
+						minAltitude = altitude
+					}
 
-			val diff = altitude - previousAltitude
-			if (diff > 0) {
-				ascended += diff
-			} else {
-				descended -= diff
-			}
-			previousAltitude = altitude
+					val diff = altitude - previousAltitude
+					if (diff > 0) {
+						ascended += diff
+					} else {
+						descended -= diff
+					}
+					previousAltitude = altitude
 
-			Entry((it.time - firstTime).toFloat(), altitude.toFloat())
-		}
+					Entry((it.time - firstTime).toFloat(), altitude.toFloat())
+				}
+				.toList()
 
 		val resources = resources
 		val lengthSystem = Preferences.getLengthSystem(this)
@@ -452,6 +456,7 @@ class StatsDetailActivity : DetailActivity() {
 
 	companion object {
 		const val ARG_SESSION_ID = "session_id"
+		private const val ALTITUDE_REQUIRED_CHANGE = 1.0
 	}
 }
 

@@ -76,19 +76,6 @@ abstract class AppDatabase : RoomDatabase() {
 			)
 		}
 
-		//todo move this away so it's not run every time database is initialized
-		private fun initialize(context: Context, database: AppDatabase) {
-			GlobalScope.launch(Dispatchers.Default) {
-				val activityDao = database.activityDao()
-
-				val sessionActivity = NativeSessionActivity.values().map {
-					it.getSessionActivity(context)
-				}
-
-				activityDao.insert(sessionActivity)
-			}
-		}
-
 		@WorkerThread
 		fun deleteAllCollectedData(context: Context) {
 			val database = database(context)

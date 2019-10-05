@@ -16,6 +16,7 @@ import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.extension.dynamicStyle
@@ -97,8 +98,8 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 				com.adsamcik.tracker.common.R.dimen.content_padding
 		)
 				.toInt()
-		val statusBarHeight = Assist.getStatusBarHeight(activity)
-		val navBarSize = Assist.getNavigationBarSize(activity)
+		val statusBarHeight = DisplayAssist.getStatusBarHeight(activity)
+		val navBarSize = DisplayAssist.getNavigationBarSize(activity)
 		val navBarHeight = navBarSize.second.y
 
 		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {

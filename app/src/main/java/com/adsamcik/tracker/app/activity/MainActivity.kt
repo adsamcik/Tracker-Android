@@ -20,6 +20,7 @@ import com.adsamcik.tracker.app.HomeIntroduction
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.activity.CoreUIActivity
+import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.guidelineEnd
@@ -298,7 +299,7 @@ class MainActivity : CoreUIActivity() {
 			navigationOffset = navigation_guideline.guidelineEnd
 		}
 
-		val (position, navDim) = Assist.getNavigationBarSize(this)
+		val (position, navDim) = DisplayAssist.getNavigationBarSize(this)
 		if (navDim.x > navDim.y) {
 			navDim.x = 0
 		} else {
