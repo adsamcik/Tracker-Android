@@ -13,6 +13,7 @@ import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.constant.GeometryConstants
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.sensorManager
@@ -86,7 +87,10 @@ internal class MapSensorController(
 				context,
 				ActivityRequestData(
 						this::class,
-						ActivityChangeRequestData(10, this::onActivityUpdate)
+						ActivityChangeRequestData(
+								ACTIVITY_DETECTION_INTERVAL_S,
+								this::onActivityUpdate
+						)
 				)
 		)
 
@@ -120,7 +124,7 @@ internal class MapSensorController(
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
 			val locationRequest = LocationRequest().apply {
 				this.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-				this.interval = LOCATION_UPDATE_INTERVAL
+				this.interval = LOCATION_UPDATE_INTERVAL_MS
 			}
 
 			Assist.ensureLooper()
@@ -281,7 +285,8 @@ internal class MapSensorController(
 					orientation
 			)[0].toDouble()
 			//updateRotation()
-			val directionRadians = (orientation + 2.0).rem(2.0)
+			val directionRadians = (orientation + GeometryConstants.CIRCLE_IN_RADIANS)
+					.rem(GeometryConstants.CIRCLE_IN_RADIANS)
 			mapPositionController.onDirectionChanged(directionRadians)
 		}
 	}
@@ -297,7 +302,8 @@ internal class MapSensorController(
 		private const val MAX_MOVE_ZOOM = 17f
 		private const val MIN_MOVE_ZOOM = 16f
 
-		private const val LOCATION_UPDATE_INTERVAL = 2 * Time.SECOND_IN_MILLISECONDS
+		private const val LOCATION_UPDATE_INTERVAL_MS = 2 * Time.SECOND_IN_MILLISECONDS
+		private const val ACTIVITY_DETECTION_INTERVAL_S = 10
 	}
 }
 
