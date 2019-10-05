@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.common.extension
 
+import androidx.annotation.FloatRange
 import com.adsamcik.tracker.common.graph.Vertex
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -126,4 +128,33 @@ fun <T> List<T>.sortByVertexes(vertexList: Collection<Vertex>): List<T> {
 	val sortedList = ArrayList<T>(size)
 	vertexList.forEach { sortedList.add(get(it.value)) }
 	return sortedList
+}
+
+fun List<Float>.filterConsecutive(@FloatRange(from = 0.0) similarity: Float): List<Float> {
+	return filterConsecutive { lastValue, value -> abs(lastValue - value) > similarity }
+}
+
+inline fun <T> List<T>.filterConsecutive(similarityFunc: (lastValue: T, value: T) -> Boolean): List<T> {
+	return filterConsecutive({ it }, similarityFunc)
+}
+
+inline fun <T, R> List<T>.filterConsecutive(
+		similarityTransform: (value: T) -> R,
+		similarityFunc: (lastValue: R, value: R) -> Boolean
+): List<T> {
+	if (size <= 1) return toList()
+
+	var lastKeptValue = similarityTransform(get(0))
+
+	val toKeepList = mutableListOf(get(0))
+
+	for (i in 1 until size) {
+		val value = get(i)
+		val transformedValue = similarityTransform(value)
+		if (similarityFunc.invoke(lastKeptValue, transformedValue)) {
+			toKeepList.add(value)
+			lastKeptValue = transformedValue
+		}
+	}
+	return toKeepList
 }
