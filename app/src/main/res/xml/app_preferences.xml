@@ -103,7 +103,7 @@
 
             <androidx.preference.CheckBoxPreference
                 app:defaultValue="@string/settings_activity_enabled_default"
-                app:icon="@drawable/ic_directions_walk_white_24dp"
+                app:icon="@drawable/ic_directions_walk_white"
                 app:key="@string/settings_activity_enabled_key"
                 app:title="@string/settings_activity_enabled_title" />
 

@@ -49,7 +49,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 							resources.getString(R.string.channel_challenges_id)
 					)
 							.setContentTitle(title)
-							.setSmallIcon(R.drawable.ic_directions_walk_white_24dp)
+							.setSmallIcon(R.drawable.ic_signals)
 							.build()
 			)
 		}

@@ -102,6 +102,7 @@ internal class MapSensorController(
 		)
 	}
 
+	@Suppress("unused_parameter")
 	private fun onActivityUpdate(context: Context, activity: ActivityInfo, elapsedTime: Long) {
 		launch {
 			mapPositionController.onNewActivity(activity.groupedActivity)

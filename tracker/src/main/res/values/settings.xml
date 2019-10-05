@@ -51,7 +51,7 @@
 
     <integer-array name="tracking_options_drawables">
         <item>@drawable/ic_close_black</item>
-        <item>@drawable/ic_directions_walk_white_24dp</item>
+        <item>@drawable/ic_directions_walk_white</item>
         <item>@drawable/ic_directions_car_white_24dp</item>
     </integer-array>
 

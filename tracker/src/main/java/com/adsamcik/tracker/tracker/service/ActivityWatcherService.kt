@@ -99,16 +99,8 @@ class ActivityWatcherService : CoreService() {
 						activityInfo.confidence
 				)
 		)
-		when (activityInfo.groupedActivity) {
-			GroupedActivity.IN_VEHICLE -> builder.setSmallIcon(
-					R.drawable.ic_directions_car_white_24dp
-			)
-			GroupedActivity.ON_FOOT -> builder.setSmallIcon(
-					R.drawable.ic_directions_walk_white_24dp
-			)
-			GroupedActivity.STILL -> builder.setSmallIcon(R.drawable.ic_accessibility_white)
-			GroupedActivity.UNKNOWN -> builder.setSmallIcon(R.drawable.ic_help_white_24dp)
-		}
+
+		builder.setSmallIcon(activityInfo.groupedActivity.iconRes)
 
 		return builder.build()
 	}

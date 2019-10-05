@@ -10,13 +10,13 @@ enum class GroupedActivity {
 		override val iconRes: Int = R.drawable.ic_still
 	},
 	ON_FOOT {
-		override val iconRes: Int = R.drawable.ic_directions_walk_white_24dp
+		override val iconRes: Int = R.drawable.ic_directions_walk_white
 	},
 	IN_VEHICLE {
-		override val iconRes: Int = R.drawable.ic_directions_car_white_24dp
+		override val iconRes: Int = R.drawable.ic_baseline_commute
 	},
 	UNKNOWN {
-		override val iconRes: Int = R.drawable.ic_help_white_24dp
+		override val iconRes: Int = R.drawable.ic_help_white
 	};
 
 	val isIdle: Boolean get() = this == UNKNOWN || this == STILL

@@ -245,7 +245,7 @@ class StatsDetailActivity : DetailActivity() {
 						resources.formatDistance(session.distanceInM, 2, lengthSystem)
 				),
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_directions_walk_white_24dp,
+						com.adsamcik.tracker.common.R.drawable.ic_directions_walk_white,
 						R.string.stats_distance_on_foot,
 						resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)
 				),

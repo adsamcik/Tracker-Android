@@ -6,7 +6,7 @@ import com.adsamcik.tracker.common.R
 enum class NativeSessionActivity(val id: Long) {
 	WALK(-2) {
 		override val nameRes: Int = R.string.activity_walk
-		override val iconName: String = R.drawable::ic_directions_walk_white_24dp.name
+		override val iconName: String = R.drawable::ic_directions_walk_white.name
 	},
 	RUN(-3) {
 		override val nameRes: Int = R.string.activity_run
