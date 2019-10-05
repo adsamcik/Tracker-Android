@@ -42,13 +42,13 @@ class LineChartViewHolder(
 		title.text = titleText
 		val icon = ContextCompat.getDrawable(context, value.iconRes)
 		title.setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
-
+		
 		val dataSet = LineDataSet(value.values, titleText).apply {
 			setDrawCircles(false)
 			setDrawValues(false)
+			setDrawFilled(false)
 			lineWidth = 1.dp.toFloat()
-			mode = LineDataSet.Mode.CUBIC_BEZIER
-			cubicIntensity = 0.4f
+			mode = LineDataSet.Mode.LINEAR
 		}
 
 		val data = LineData(dataSet)
