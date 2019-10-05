@@ -81,13 +81,15 @@ data class StyleData(
 
 	internal fun updateDataFor(
 			styleView: BaseStyleView,
-			isRecyclerAllowed: Boolean = false
+			isRecyclerAllowed: Boolean = false,
+			isAnimationAllowed: Boolean = true
 	): StyleUpdater.UpdateStyleData {
 		return StyleUpdater.UpdateStyleData(
 				baseBackgroundColor = backgroundColorFor(styleView),
 				baseForegroundColor = foregroundColorFor(styleView),
 				backgroundLuminance = perceivedLuminanceFor(styleView),
-				isRecyclerAllowed = isRecyclerAllowed
+				isRecyclerAllowed = isRecyclerAllowed,
+				isAnimationAllowed = isAnimationAllowed
 		)
 	}
 

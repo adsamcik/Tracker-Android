@@ -90,7 +90,7 @@ class StyleController : CoroutineScope {
 		synchronized(viewList) {
 			viewList.add(styleView)
 		}
-		styleUpdater.updateSingle(styleView, styleData)
+		styleUpdater.updateSingle(styleView, styleData, isAnimationAllowed = false)
 	}
 
 	@Suppress("ComplexMethod", "ComplexCondition")
@@ -234,7 +234,7 @@ class StyleController : CoroutineScope {
 				})
 			}
 
-			styleUpdater.updateSingle(styleView, styleData)
+			styleUpdater.updateSingle(styleView, styleData, isAnimationAllowed = false)
 		}
 	}
 
@@ -387,13 +387,13 @@ class StyleController : CoroutineScope {
 
 		synchronized(viewList) {
 			viewList.forEach { styleView ->
-				styleUpdater.updateSingle(styleView, styleData)
+				styleUpdater.updateSingle(styleView, styleData, isAnimationAllowed = true)
 			}
 		}
 
 		synchronized(recyclerList) {
 			recyclerList.forEach { styleView ->
-				styleUpdater.updateSingle(styleView, styleData)
+				styleUpdater.updateSingle(styleView, styleData, isAnimationAllowed = true)
 			}
 		}
 

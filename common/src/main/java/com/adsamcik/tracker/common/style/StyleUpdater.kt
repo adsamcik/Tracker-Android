@@ -38,7 +38,11 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
 internal class StyleUpdater {
-	internal fun updateSingle(styleView: RecyclerStyleView, styleData: StyleData) {
+	internal fun updateSingle(
+			styleView: RecyclerStyleView,
+			styleData: StyleData,
+			isAnimationAllowed: Boolean
+	) {
 		val backgroundColor = styleData.backgroundColorFor(styleView)
 		val foregroundColor = styleData.foregroundColorFor(styleView)
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
@@ -47,7 +51,8 @@ internal class StyleUpdater {
 				backgroundColor,
 				foregroundColor,
 				perceivedLuminance,
-				false
+				false,
+				isAnimationAllowed
 		)
 
 		styleView.view.post {
@@ -55,7 +60,11 @@ internal class StyleUpdater {
 		}
 	}
 
-	internal fun updateSingle(styleView: StyleView, styleData: StyleData) {
+	internal fun updateSingle(
+			styleView: StyleView,
+			styleData: StyleData,
+			isAnimationAllowed: Boolean
+	) {
 		val backgroundColor = styleData.backgroundColorFor(styleView)
 		val foregroundColor = styleData.foregroundColorFor(styleView)
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
@@ -64,7 +73,8 @@ internal class StyleUpdater {
 				backgroundColor,
 				foregroundColor,
 				perceivedLuminance,
-				false
+				false,
+				isAnimationAllowed
 		)
 
 		styleView.view.post {
@@ -123,7 +133,7 @@ internal class StyleUpdater {
 		val wasBackgroundUpdated = updateBackgroundDrawable(
 				view,
 				backgroundLayerColor,
-				updateStyleData.backgroundLuminance
+				updateStyleData
 		)
 		if (wasBackgroundUpdated) newLayer++
 
@@ -269,13 +279,12 @@ internal class StyleUpdater {
 
 	private fun updateBackgroundColorDrawable(
 			drawable: ColorDrawable,
-			@ColorInt bgColor: Int
+			@ColorInt bgColor: Int,
+			updateStyleData: UpdateStyleData
 	) {
 		val originalColor = drawable.color
-		if (ColorFunctions.distance(
-						originalColor,
-						bgColor
-				) > COLOR_DIFFERENCE_ANIMATION_THRESHOLD) {
+		if (updateStyleData.isAnimationAllowed &&
+				ColorFunctions.distance(originalColor, bgColor) > COLOR_DIST_ANIMATION_THRESHOLD) {
 			val colorAnimation = ValueAnimator.ofObject(
 					ArgbEvaluator(),
 					originalColor,
@@ -297,9 +306,10 @@ internal class StyleUpdater {
 	private fun updateBackgroundDrawable(
 			view: View,
 			@ColorInt bgColor: Int,
-			luminance: Int
+			updateStyleData: UpdateStyleData
 	): Boolean {
 		val background = view.background
+		val luminance = updateStyleData.backgroundLuminance
 		when {
 			view is MaterialButton -> {
 				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
@@ -311,7 +321,11 @@ internal class StyleUpdater {
 
 				background.mutate()
 				when (background) {
-					is ColorDrawable -> updateBackgroundColorDrawable(background, bgColor)
+					is ColorDrawable -> updateBackgroundColorDrawable(
+							background,
+							bgColor,
+							updateStyleData
+					)
 					is RippleDrawable -> {
 						val nextLevel = ColorFunctions.getBackgroundLayerColor(
 								bgColor,
@@ -341,7 +355,8 @@ internal class StyleUpdater {
 			@ColorInt val baseBackgroundColor: Int,
 			@ColorInt val baseForegroundColor: Int,
 			val backgroundLuminance: Int,
-			val isRecyclerAllowed: Boolean
+			val isRecyclerAllowed: Boolean,
+			val isAnimationAllowed: Boolean
 	) {
 		private val stateArray = arrayOf(
 				intArrayOf(state_enabled),
@@ -364,6 +379,6 @@ internal class StyleUpdater {
 		const val DISABLED_ALPHA = 97
 		const val HINT_TEXT_ALPHA_OFFSET = 48
 
-		private const val COLOR_DIFFERENCE_ANIMATION_THRESHOLD = 50
+		private const val COLOR_DIST_ANIMATION_THRESHOLD = 50
 	}
 }
