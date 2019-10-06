@@ -30,7 +30,7 @@ class TrackerNotificationReceiver : BroadcastReceiver() {
 	}
 
 	companion object {
-		private const val TAG = "SignalsReceiver"
+		private const val TAG = "AdventionReceiver"
 		const val ACTION_STRING: String = "action"
 		const val STOP_MINUTES_EXTRA: String = "stopForMinutes"
 

@@ -19,7 +19,7 @@ fun handlePermissions(accept: Boolean) {
 			try {
 				allowPermissions.click()
 			} catch (e: UiObjectNotFoundException) {
-				Log.e("Signals", "There is no permissions dialog to interact with ")
+				Log.e("Advention", "There is no permissions dialog to interact with ")
 			}
 
 		}

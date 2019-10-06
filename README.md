@@ -1,9 +1,9 @@
 [![Build Status](https://travis-ci.org/adsamcik/Tracker-Android.svg?branch=master)](https://travis-ci.org/adsamcik/Tracker-Android)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Tracker-Android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Tracker-Android&amp;utm_campaign=Badge_Grade)
 
-# Tracker Android (dev name, brand name reveal soon)
+# Tracker Android (Advention)
 
-Signals is a free open-source offline location, fitness, Wi-Fi, cell tracker with statistics and game elements. Now that that is out of the way, you can read more in features.
+Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker with statistics and game elements. Now that that is out of the way, you can read more in features.
 
 ## Features
 
@@ -60,4 +60,4 @@ Most stable releases meant for general public
 
 ## Contributions
 
-Signals is open to contributions, if you want to improve some part of the app or add some features feel free to do so. Each contribution should not create any issues. If an issue is not valid, it should be explicitly stated as suppressed. However every pull request is manually verified so overly using Suppress annotation will be seen as issue in itself.
+Tracker is open to contributions, if you want to improve some part of the app or add some features feel free to do so. Each contribution should not create any issues. If an issue is not valid, it should be explicitly stated as suppressed. However every pull request is manually verified so overly using Suppress annotation will be seen as issue in itself.

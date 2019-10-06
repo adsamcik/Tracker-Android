@@ -9,7 +9,7 @@
     <string name="error_no_locations_in_interval">Nebyly nalezeny žádné záznamy pro zadaný interval</string>
 
     <string name="export_button">Export</string>
-    <string name="export_default_file_name">SignalsExportovanaData</string>
+    <string name="export_default_file_name">Advention_exportovana_data</string>
     <string name="export_file_name">Název souboru</string>
     <string name="export_gpx_description">Export pozičních informací s pomocí aplikace Signals mezi %1$s - %2$s</string>
 
@@ -106,7 +106,7 @@
     <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
     <string name="tutorial_stats_title">Statistiky</string>
     <string name="tutorial_welcome_description">Aplikaci s otevřeným kódem pro trackování Wi-Fi a mobilních sítí. Tyto tipy můžete vypnout v nastavení.</string>
-    <string name="tutorial_welcome_title">Vítejte v Signals</string>
+    <string name="tutorial_welcome_title">Vítejte v Advention</string>
     <string name="error_failed_to_open_license">Nelze otevřít licenci. Pokud je automatické hlášení chyb povoleno, bylo odesláno hlášení.</string>
     <string name="first_run_app_description">Díky, že jste dali Advention šanci. Průvodce počátečním nastavením je VYSOCE DOPORUČEN novým uživatelům. Nechť vám aplikace dobře slouží.</string>
     <string name="first_run_app_title">Vítejte v Advention</string>
