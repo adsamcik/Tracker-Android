@@ -81,25 +81,6 @@ internal class MapSensorController(
 
 	init {
 		initializePositions()
-		subscribeToLocationUpdates(context, true)
-
-		ActivityRequestManager.requestActivity(
-				context,
-				ActivityRequestData(
-						this::class,
-						ActivityChangeRequestData(
-								ACTIVITY_DETECTION_INTERVAL_S,
-								this::onActivityUpdate
-						)
-				)
-		)
-
-		sensorManager.registerListener(
-				this,
-				rotationVector,
-				SensorManager.SENSOR_DELAY_NORMAL,
-				SensorManager.SENSOR_DELAY_UI
-		)
 	}
 
 	@Suppress("unused_parameter")
@@ -150,7 +131,29 @@ internal class MapSensorController(
 		}
 	}
 
-	fun onDestroy(context: Context) {
+	fun onEnable(context: Context) {
+		subscribeToLocationUpdates(context, true)
+
+		ActivityRequestManager.requestActivity(
+				context,
+				ActivityRequestData(
+						this::class,
+						ActivityChangeRequestData(
+								ACTIVITY_DETECTION_INTERVAL_S,
+								this::onActivityUpdate
+						)
+				)
+		)
+
+		sensorManager.registerListener(
+				this,
+				rotationVector,
+				SensorManager.SENSOR_DELAY_NORMAL,
+				SensorManager.SENSOR_DELAY_UI
+		)
+	}
+
+	fun onDisable(context: Context) {
 		val locationClient = LocationServices.getFusedLocationProviderClient(context)
 		locationClient.removeLocationUpdates(locationCallback)
 		isSubscribed = false

@@ -76,10 +76,10 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		mapOwner.addOnCreateListener(this::onMapReady)
 		mapOwner.addOnEnableListener {
-			locationListener?.subscribeToLocationUpdates(requireContext())
+			locationListener?.onEnable(requireContext())
 		}
 		mapOwner.addOnDisableListener {
-			locationListener?.onDestroy(requireContext())
+			locationListener?.onDisable(requireContext())
 		}
 	}
 
