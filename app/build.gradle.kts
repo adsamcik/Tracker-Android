@@ -19,11 +19,11 @@ android {
 	compileSdkVersion(Android.compile)
 	buildToolsVersion(Android.buildTools)
 	defaultConfig {
-		applicationId = "com.adsamcik.signalcollector"
+		applicationId = "com.adsamcik.tracker"
 		minSdkVersion(Android.min)
 		targetSdkVersion(Android.target)
 		versionCode = 324
-		versionName = "2019.1ι11"
+		versionName = "2019.1β1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		resConfigs("en", "cs")
 	}
