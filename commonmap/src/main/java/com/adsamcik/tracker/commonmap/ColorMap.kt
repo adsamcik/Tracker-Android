@@ -102,8 +102,9 @@ object ColorMap {
 	private fun getMapStyleRes(styleData: StyleData): Int {
 		val perceivedLuminance = styleData.perceivedLuminance(false)
 		return when {
-			styleData.saturation > 0.6f && perceivedLuminance > -70 -> R.raw.map_style_vibrant
-			perceivedLuminance > 24 -> R.raw.map_style_light
+			styleData.saturation > 0.5f && perceivedLuminance > -70 -> R.raw.map_style_vibrant
+			styleData.saturation > 0.2f && perceivedLuminance > -48 -> R.raw.map_style_default
+			perceivedLuminance > 60 -> R.raw.map_style_light
 			perceivedLuminance < -48 -> R.raw.map_style_dark
 			else -> R.raw.map_style_grey
 		}
