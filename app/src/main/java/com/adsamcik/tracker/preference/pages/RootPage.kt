@@ -126,8 +126,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 
 			setDefaultValue(LocaleManager.getLocale(context))
 
-			setOnPreferenceChangeListener { preference, newValue ->
-				LocaleManager.setLocale(preference.context, newValue as String)
+			setOnPreferenceChangeListener { _, _ ->
 				caller.requireActivity().recreate()
 				true
 			}

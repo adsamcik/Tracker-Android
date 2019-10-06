@@ -64,7 +64,6 @@ class Application : SplitCompatApplication() {
 
 	override fun onCreate() {
 		super.onCreate()
-		LocaleManager.setLocaleFromPreference(this)
 		initializeImportantSingletons()
 
 		GlobalScope.launch(Dispatchers.Default) {
