@@ -235,6 +235,12 @@
             android:title="@string/settings_speed_format_title"
             app:icon="@drawable/ic_speedometer" />
 
+        <androidx.preference.ListPreference
+            android:key="@string/settings_language_key"
+            android:summary="@string/settings_language_summary"
+            android:title="@string/settings_language_title"
+            app:icon="@drawable/ic_translate" />
+
         <androidx.preference.CheckBoxPreference
             android:defaultValue="R.string.show_tips_default"
             android:key="@string/show_tips_key"

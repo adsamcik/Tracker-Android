@@ -66,7 +66,6 @@
     <!-- LANGUAGE -->
     <string name="settings_language_title">Application language</string>
     <string name="settings_language_summary">Current language: %s</string>
-    <string name="settings_language_key" translatable="false">language</string>
 
     <!-- DEBUG -->
     <string name="settings_debug_already_available">You already have access to developer options</string>

@@ -62,11 +62,6 @@ typealias StatsDetailAdapter = StyleMultiTypeAdapter<StatisticDetailType, MultiT
 class StatsDetailActivity : DetailActivity() {
 	private lateinit var viewModel: ViewModel
 
-	override fun attachBaseContext(newBase: Context?) {
-		super.attachBaseContext(newBase)
-		SplitCompat.install(this)
-	}
-
 	override fun onConfigure(configuration: Configuration) {
 		configuration.elevation = 0
 		configuration.titleBarLayer = 1

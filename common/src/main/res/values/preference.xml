@@ -9,6 +9,7 @@
     <string name="settings_color_key" translatable="false">styleColor%d</string>
     <string name="settings_error_reporting_default" translatable="false">false</string>
     <string name="settings_error_reporting_key" translatable="false">errorReporting</string>
+    <string name="settings_language_key" translatable="false">language</string>
     <string name="settings_length_system_default" translatable="false">Metric</string>
     <string name="settings_length_system_key" translatable="false">lengthSystem</string>
     <string name="settings_location_enabled_default" translatable="false">true</string>

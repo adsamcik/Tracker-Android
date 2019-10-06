@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.common.activity
 
+import android.content.Context
 import android.os.Bundle
 import androidx.annotation.CallSuper
+import com.adsamcik.tracker.common.language.LocaleContextWrapper
 import com.adsamcik.tracker.common.style.StyleController
 import com.adsamcik.tracker.common.style.StyleManager
 
@@ -30,6 +32,11 @@ abstract class CoreUIActivity : CoreActivity() {
 	override fun onResume() {
 		styleController.isSuspended = false
 		super.onResume()
+	}
+
+	@CallSuper
+	override fun attachBaseContext(newBase: Context) {
+		super.attachBaseContext(LocaleContextWrapper.wrap(newBase))
 	}
 
 	private fun initializeColors() {

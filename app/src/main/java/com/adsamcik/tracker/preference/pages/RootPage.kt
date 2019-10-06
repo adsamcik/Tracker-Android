@@ -2,6 +2,7 @@ package com.adsamcik.tracker.preference.pages
 
 import android.content.Context
 import android.widget.Toast
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
@@ -9,6 +10,7 @@ import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivity
+import com.adsamcik.tracker.common.language.LocaleManager
 import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.introduction.Introduction
 import com.adsamcik.tracker.common.misc.SnackMaker
@@ -20,6 +22,7 @@ import com.adsamcik.tracker.module.activity.ModuleActivity
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.preference.setOnClickListener
+import java.util.*
 
 class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePage {
 	private var clickCount = 0
@@ -100,6 +103,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		}
 
 		createModuleScreens(caller)
+		initializeLanguage(caller)
 	}
 
 	override fun onExit(caller: PreferenceFragmentCompat) {
@@ -111,6 +115,24 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			string,
 			Toast.LENGTH_SHORT
 	).show()
+
+	private fun initializeLanguage(caller: PreferenceFragmentCompat) {
+		caller.findPreferenceTyped<ListPreference>(R.string.settings_language_key).apply {
+			val languages = LocaleManager.getLocaleList(context)
+			entryValues = languages.toTypedArray()
+
+			val localeList = languages.map { Locale(it) }
+			entries = localeList.map { it.displayName }.toTypedArray()
+
+			setDefaultValue(LocaleManager.getLocale(context))
+
+			setOnPreferenceChangeListener { preference, newValue ->
+				LocaleManager.setLocale(preference.context, newValue as String)
+				caller.requireActivity().recreate()
+				true
+			}
+		}
+	}
 
 
 	private fun createModuleScreens(caller: PreferenceFragmentCompat) {
