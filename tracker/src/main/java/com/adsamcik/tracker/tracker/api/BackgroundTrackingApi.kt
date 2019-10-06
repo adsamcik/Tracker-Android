@@ -77,7 +77,7 @@ object BackgroundTrackingApi {
 
 	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
 			!context.powerManager.isPowerSaveMode &&
-			Assist.canTrack(context)
+			Assist.hasAnythingToTrack(context)
 
 	/**
 	 * Checks if background tracking can be activated

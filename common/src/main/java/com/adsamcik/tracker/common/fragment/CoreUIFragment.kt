@@ -51,6 +51,8 @@ abstract class CoreUIFragment : CoreFragment() {
 	 */
 	@Synchronized
 	fun requestPermissions(request: PermissionRequest) {
+		require(request.permissionList.isNotEmpty())
+
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			val id = ++lastPermissionRequestId
 

@@ -123,7 +123,7 @@ object Assist {
 	 * @param context context
 	 * @return true if at least one fo location, cell and wifi tracking is enabled
 	 */
-	fun canTrack(context: Context): Boolean {
+	fun hasAnythingToTrack(context: Context): Boolean {
 		val preferences = Preferences.getPref(context)
 
 		return preferences.getBooleanRes(

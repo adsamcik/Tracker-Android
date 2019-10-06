@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.ui.fragment
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.LayoutInflater
@@ -183,7 +182,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 				                                             )
 				                                             startActivity(locationOptionsIntent)
 			                                             })
-		} else if (!Assist.canTrack(activity)) {
+		} else if (!Assist.hasAnythingToTrack(activity)) {
 			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
 		} else {
 			TrackerServiceApi.startService(activity, isUserInitiated = true)
@@ -215,10 +214,12 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		}
 
 		if (missingPermissions.isEmpty()) {
+			Assist.checkTrackingPermissions(activity)
 			internalToggleCollecting()
 		} else {
 			requestPermissions(missingPermissions) { response ->
-				if (response.all { it.second }) {
+				if (response.isNotEmpty() && response.all { it.second }) {
+					Assist.checkTrackingPermissions(activity)
 					internalToggleCollecting()
 				}
 			}
