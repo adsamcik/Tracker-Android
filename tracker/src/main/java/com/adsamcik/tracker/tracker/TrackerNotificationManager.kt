@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -19,23 +20,7 @@ class TrackerNotificationManager(
 	private var notificationManager: NotificationManager = context.notificationManager
 
 	fun createBuilder(): NotificationCompat.Builder {
-		val resources = context.resources
-		val intent = requireNotNull(context.packageManager.getLaunchIntentForPackage(context.packageName))
-
-		return NotificationCompat.Builder(
-				context,
-				resources.getString(com.adsamcik.tracker.common.R.string.channel_track_id)
-		)
-				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals)  // the done icon
-				.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
-				.setWhen(Time.nowMillis)  // the time stamp
-				.setOngoing(true)
-				.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
-				.setContentIntent(TaskStackBuilder.create(context).run {
-					addNextIntentWithParentStack(intent)
-					getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
-				})
+		return Companion.createBuilder(context)
 				.addTrackerActions()
 	}
 
@@ -98,5 +83,30 @@ class TrackerNotificationManager(
 
 	companion object {
 		const val NOTIFICATION_ID = -7643
+
+		private fun createBuilder(context: Context): NotificationCompat.Builder {
+			val resources = context.resources
+			val intent = requireNotNull(context.packageManager.getLaunchIntentForPackage(context.packageName))
+			return NotificationCompat.Builder(
+					context,
+					resources.getString(com.adsamcik.tracker.common.R.string.channel_track_id)
+			)
+					.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+					.setSmallIcon(R.drawable.ic_signals)  // the done icon
+					.setTicker(resources.getString(R.string.notification_tracker_active_ticker))  // the done text
+					.setWhen(Time.nowMillis)  // the time stamp
+					.setOngoing(true)
+					.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
+					.setContentIntent(TaskStackBuilder.create(context).run {
+						addNextIntentWithParentStack(intent)
+						getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
+					})
+		}
+
+		fun getForegroundNotification(context: Context): Notification {
+			return createBuilder(context)
+					.setContentTitle(context.getString(R.string.notification_starting))
+					.build()
+		}
 	}
 }

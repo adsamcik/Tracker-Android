@@ -127,6 +127,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	override fun onCreate() {
 		super.onCreate()
 
+		startForeground(
+				TrackerNotificationManager.NOTIFICATION_ID,
+				TrackerNotificationManager.getForegroundNotification(this)
+		)
+
 		//Get managers
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(
@@ -204,14 +209,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
 		sessionInfoMutable.value = this.sessionInfo
-
-		val notificationBuilder = TrackerNotificationManager(this, isUserInitiated)
-				.createBuilder()
-				.apply {
-					setContentTitle(getString(R.string.notification_starting))
-				}
-
-		startForeground(TrackerNotificationManager.NOTIFICATION_ID, notificationBuilder.build())
 
 		if (!isUserInitiated) {
 			TrackerLocker.isLocked.observe(this) {
