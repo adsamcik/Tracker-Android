@@ -40,7 +40,11 @@ class LocaleContextWrapper(base: Context?) : ContextWrapper(base) {
 			}
 			if (language.isNotEmpty() && sysLocale?.language != language) {
 				val localeSplit = language.split('-', '_')
-				val locale = Locale(localeSplit[0], localeSplit[1])
+				val locale = if (localeSplit.size == 1) {
+					Locale(language)
+				} else {
+					Locale(localeSplit[0], localeSplit[1])
+				}
 				Locale.setDefault(locale)
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
 					setSystemLocale(config, locale)
