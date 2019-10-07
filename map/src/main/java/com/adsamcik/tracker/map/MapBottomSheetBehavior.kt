@@ -69,41 +69,4 @@ class MapBottomSheetBehavior<V : View> : BottomSheetBehavior<V> {
 				event
 		)
 	}
-
-	/*override fun onInterceptTouchEvent(
-			parent: CoordinatorLayout,
-			child: V,
-			event: MotionEvent
-	): Boolean {
-		if (isLockedInside && event.actionMasked != MotionEvent.ACTION_DOWN) return false
-
-		val nested = child.findViewById<NestedScrollView>(R.id.map_sheet_scroll_view) //NestedScrollView
-		val x = event.x
-		val y = event.y
-
-		val position = IntArray(2)
-		nested.getLocationOnScreen(position)
-
-		val nestedX = position[0]
-		val nestedY = position[1]
-
-
-		val boundLeft = nestedX
-		val boundRight = nestedX + nested.width
-		val boundTop = nestedY
-		val boundBottom = nestedY + nested.height
-
-
-		if ((x > boundLeft && x < boundRight && y > boundTop && y < boundBottom) || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-			//Touched inside of the scrollview-> pass the touch event to the scrollview
-			isLockedInside = true
-			return false
-		} else {
-			isLockedInside = false
-		}
-
-
-		//touched outside, use the parents computation to make the bottomsheet work
-		return super.onInterceptTouchEvent(parent, child, event)
-	}*/
 }

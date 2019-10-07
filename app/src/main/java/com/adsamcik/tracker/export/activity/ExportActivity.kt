@@ -62,6 +62,40 @@ class ExportActivity : DetailActivity() {
 		configuration.useColorControllerForContent = true
 	}
 
+	private val clickListener: (View) -> Unit = { view: View ->
+		launch(Dispatchers.Default) {
+			val sessionDao = AppDatabase.database(view.context).sessionDao()
+			val availableRange = sessionDao.range().let {
+				if (it.start == 0L && it.endInclusive == 0L) {
+					LongRange.EMPTY
+				} else {
+					LongRange(it.start, it.endInclusive)
+				}
+			}
+
+			if (availableRange.isEmpty()) {
+				//todo improve this message to be properly shown in time
+				SnackMaker(root).addMessage(R.string.settings_export_no_data)
+				return@launch
+			}
+
+			val selectedRange = LongRange(
+					range.start.timeInMillis,
+					range.endInclusive.timeInMillis
+			)
+			launch(Dispatchers.Main) {
+				MaterialDialog(view.context).dateTimeRangePicker(
+						availableRange,
+						selectedRange
+				) {
+					range = createCalendarWithTime(it.first)..createCalendarWithTime(
+							it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
+					)
+				}.show()
+			}
+		}
+	}
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
@@ -86,41 +120,6 @@ class ExportActivity : DetailActivity() {
 			}
 
 			range = monthBefore..in15minutes
-
-
-			val clickListener: (View) -> Unit = { view: View ->
-				launch(Dispatchers.Default) {
-					val sessionDao = AppDatabase.database(view.context).sessionDao()
-					val availableRange = sessionDao.range().let {
-						if (it.start == 0L && it.endInclusive == 0L) {
-							LongRange.EMPTY
-						} else {
-							LongRange(it.start, it.endInclusive)
-						}
-					}
-
-					if (availableRange.isEmpty()) {
-						//todo improve this message to be properly shown in time
-						SnackMaker(root).addMessage(R.string.settings_export_no_data)
-						return@launch
-					}
-
-					val selectedRange = LongRange(
-							range.start.timeInMillis,
-							range.endInclusive.timeInMillis
-					)
-					launch(Dispatchers.Main) {
-						MaterialDialog(view.context).dateTimeRangePicker(
-								availableRange,
-								selectedRange
-						) {
-							range = createCalendarWithTime(it.first)..createCalendarWithTime(
-									it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
-							)
-						}.show()
-					}
-				}
-			}
 
 			edittext_date_range_from.setOnClickListener(clickListener)
 			edittext_date_range_to.setOnClickListener(clickListener)
