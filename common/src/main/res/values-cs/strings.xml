@@ -122,4 +122,5 @@
     <string name="settings_color_update_light_switch_title">Den/Noc přepnutí dle světla</string>
     <string name="settings_color_update_light_transition_title">Den/Noc přechod dle světla</string>
     <string name="settings_color_update_single_title">Statická barva</string>
+    <string name="ok">OK</string>
 </resources>

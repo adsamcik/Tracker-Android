@@ -47,7 +47,6 @@ dependencies {
 	Dependencies.draggable(this)
 	Dependencies.map(this)
 	Dependencies.location(this)
-	Dependencies.dateTimePicker(this)
 	Dependencies.preference(this)
 	Dependencies.test(this)
 	Dependencies.introduction(this)

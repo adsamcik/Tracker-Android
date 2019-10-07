@@ -139,12 +139,6 @@ object Dependencies {
 		}
 	}
 
-	fun dateTimePicker(dependencyHandler: DependencyHandler) {
-		with(dependencyHandler) {
-			implementation("com.appeaser.sublimepickerlibrary:sublimepickerlibrary:${Versions.sublimePicker}")
-		}
-	}
-
 	fun preference(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("androidx.preference:preference:${Versions.preference}")

@@ -2,6 +2,7 @@
 <resources>
     <string name="back">back</string>
     <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="enable">Enable</string>

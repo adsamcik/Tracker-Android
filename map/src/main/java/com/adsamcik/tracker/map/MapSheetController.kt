@@ -2,7 +2,6 @@ package com.adsamcik.tracker.map
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Color
 import android.location.Geocoder
 import android.view.View
 import android.view.ViewGroup
@@ -17,12 +16,11 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.Lifecycle
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.assist.DisplayAssist
+import com.adsamcik.tracker.common.dialog.createDateTimeDialog
 import com.adsamcik.tracker.common.extension.coerceIn
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.marginBottom
@@ -47,9 +45,6 @@ import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.datepicker.CalendarConstraints
-import com.google.android.material.datepicker.MaterialDatePicker
-import com.google.android.material.datepicker.Month
 import kotlinx.android.synthetic.main.layout_map_bottom_sheet_peek.view.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -140,7 +135,7 @@ internal class MapSheetController(
 		val expandedOffset = EXPANDED_TOP_OFFSET_DP.dp
 		setExpandedOffset(expandedOffset)
 		state = BottomSheetBehavior.STATE_COLLAPSED
-		bottomSheetCallback = object : BottomSheetBehavior.BottomSheetCallback() {
+		addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
 			private var lastOffset = Float.MIN_VALUE
 
 			override fun onSlide(bottomSheet: View, slideOffset: Float) {
@@ -181,7 +176,7 @@ internal class MapSheetController(
 					rootLayout.edittext_map_search.clearFocus()
 				}
 			}
-		}
+		})
 
 		rootLayout.alpha = 0f
 		rootLayout.visibility = View.VISIBLE
@@ -309,39 +304,15 @@ internal class MapSheetController(
 								R.string.map_layer_no_data
 						)
 					} else {
-						val constraints = CalendarConstraints.Builder()
-								.setStart(Month.create(availableRange.first))
-								.setEnd(Month.create(availableRange.last))
 
-						//todo DatePicker is still in alpha an might get View exposure in the next build
-						// so this is kind of hacky for now just to quickly remove the old approach
-						MaterialDatePicker.Builder.dateRangePicker()
-								.setCalendarConstraints(constraints.build())
-								.setTheme(com.adsamcik.tracker.common.R.style.CalendarPicker)
-								.build().apply {
-									addOnPositiveButtonClickListener {
-										val from = it.first ?: selectedRange.first
-										val to = it.second ?: from
-										mapController.dateRange = from..to
-									}
-									addOnDismissListener {
-									}
+						activity.createDateTimeDialog(
+								styleController,
+								availableRange,
+								selectedRange
+						) {
+							mapController.dateRange = it
+						}
 
-									viewLifecycleOwnerLiveData.observeForever {
-										when (it?.lifecycle?.currentState) {
-											Lifecycle.State.INITIALIZED -> {
-												val view = requireView()
-												val styleView = StyleView(view, 2)
-												view.setBackgroundColor(Color.WHITE)
-												styleController.watchView(styleView)
-												view.viewTreeObserver.addOnGlobalLayoutListener {
-													styleController.updateOnce(styleView, true)
-												}
-											}
-											else -> return@observeForever
-										}
-									}
-								}.show(activity.supportFragmentManager, "picker")
 					}
 				}
 			}

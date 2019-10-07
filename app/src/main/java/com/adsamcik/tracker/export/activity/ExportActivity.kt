@@ -13,7 +13,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.dialog.dateTimeRangePicker
+import com.adsamcik.tracker.common.dialog.createDateTimeDialog
 import com.adsamcik.tracker.common.extension.cloneCalendar
 import com.adsamcik.tracker.common.extension.createCalendarWithTime
 import com.adsamcik.tracker.common.extension.hasExternalStorageReadPermission
@@ -84,14 +84,11 @@ class ExportActivity : DetailActivity() {
 					range.endInclusive.timeInMillis
 			)
 			launch(Dispatchers.Main) {
-				MaterialDialog(view.context).dateTimeRangePicker(
-						availableRange,
-						selectedRange
-				) {
+				createDateTimeDialog(styleController, availableRange, selectedRange) {
 					range = createCalendarWithTime(it.first)..createCalendarWithTime(
 							it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
 					)
-				}.show()
+				}
 			}
 		}
 	}
