@@ -18,7 +18,7 @@ fun MaterialDialog.dateTimeRangePicker(
 		selectedRange: LongRange,
 		successCallback: (range: LongRange) -> Unit
 ): MaterialDialog {
-	require(allowedRange.last > allowedRange.first)
+	require(allowedRange.last >= allowedRange.first)
 
 	val minDate = Date(allowedRange.first)
 	val maxDate = Date(allowedRange.last + Time.DAY_IN_MILLISECONDS)
