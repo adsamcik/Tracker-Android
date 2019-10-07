@@ -119,6 +119,8 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 						colorList,
 						sunsetRise
 				)
+
+				require(data.duration >= 0)
 				timerLock.withLock {
 					timerActive = true
 					val timer = Timer("ColorUpdate", true)

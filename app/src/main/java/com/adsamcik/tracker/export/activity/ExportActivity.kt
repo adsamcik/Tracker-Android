@@ -120,22 +120,6 @@ class ExportActivity : DetailActivity() {
 						}.show()
 					}
 				}
-
-				/*DateTimeRangeDialog().apply {
-					arguments = Bundle().apply {
-						putParcelable(DateTimeRangeDialog.ARG_OPTIONS, SublimeOptions().apply {
-							setCanPickDateRange(true)
-							setDateParams(range.start, range.endInclusive)
-							setDisplayOptions(ACTIVATE_DATE_PICKER.or(ACTIVATE_TIME_PICKER))
-							setDateRange(-1L, in15minutes.timeInMillis)
-							pickerToShow = SublimeOptions.Picker.DATE_PICKER
-							setAnimateLayoutChanges(true)
-						})
-					}
-					successCallback = { range ->
-						this@ExportActivity.range = range
-					}
-				}.notify(supportFragmentManager, "Map date range dialog")*/
 			}
 
 			edittext_date_range_from.setOnClickListener(clickListener)
