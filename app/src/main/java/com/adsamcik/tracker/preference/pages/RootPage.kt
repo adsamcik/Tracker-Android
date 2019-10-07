@@ -10,9 +10,10 @@ import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivity
-import com.adsamcik.tracker.common.language.LocaleManager
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.introduction.Introduction
+import com.adsamcik.tracker.common.language.LocaleManager
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.preference.ModuleSettings
 import com.adsamcik.tracker.common.preference.Preferences
@@ -118,13 +119,26 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 
 	private fun initializeLanguage(caller: PreferenceFragmentCompat) {
 		caller.findPreferenceTyped<ListPreference>(R.string.settings_language_key).apply {
-			val languages = LocaleManager.getLocaleList(context)
+			val languages = LocaleManager.getLocaleList()
 			entryValues = languages.toTypedArray()
 
 			val localeList = languages.map { Locale(it) }
-			entries = localeList.map { it.displayName }.toTypedArray()
+			entries = localeList.map { it.getDisplayName(it) }.toTypedArray()
 
-			setDefaultValue(LocaleManager.getLocale(context))
+			val currentLocale = LocaleManager.getLocale(context)
+			var indexOf = languages.indexOf(currentLocale)
+
+			if (indexOf < 0) {
+				indexOf = languages.indexOfFirst {
+					currentLocale.substringBefore('-') == it.substringBefore('-')
+				}
+			}
+
+			if (indexOf >= 0) {
+				setValueIndex(indexOf)
+			} else {
+				Reporter.report("Could not find index for language $currentLocale")
+			}
 
 			setOnPreferenceChangeListener { _, _ ->
 				caller.requireActivity().recreate()

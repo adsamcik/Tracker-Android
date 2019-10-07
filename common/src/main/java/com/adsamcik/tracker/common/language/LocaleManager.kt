@@ -3,13 +3,15 @@ package com.adsamcik.tracker.common.language
 import android.content.Context
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.preference.Preferences
-import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import java.util.*
 
 
 object LocaleManager {
-	fun getLocaleList(context: Context): Set<String> {
-		return SplitInstallManagerFactory.create(context).installedLanguages
+	private const val CZECH = "cs"
+	private const val ENGLISH = "en"
+
+	fun getLocaleList(): List<String> {
+		return listOf(ENGLISH, CZECH)
 	}
 
 	fun getLocale(context: Context): String {
