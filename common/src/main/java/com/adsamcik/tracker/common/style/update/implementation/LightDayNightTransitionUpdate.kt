@@ -38,14 +38,15 @@ internal class LightDayNightTransitionUpdate : LightStyleUpdate() {
 
 	override fun onNewLuminance(newLuminance: Float) {
 		val customLuminancePercentage = min(MAX_BRIGHTNESS_LUM, newLuminance) / MAX_BRIGHTNESS_LUM
-		val color = ColorUtils.blendARGB(colorList[1], colorList[0], customLuminancePercentage)
+		val transformedPercentage = customLuminancePercentage * customLuminancePercentage
+		val color = ColorUtils.blendARGB(colorList[1], colorList[0], transformedPercentage)
 		if (ColorFunctions.distance(lastColor, color) > COLOR_DIFFERENCE_THRESHOLD) {
 			requireConfigData().callback(color)
 		}
 	}
 
 	companion object {
-		private const val MAX_BRIGHTNESS_LUM = 5000f
+		private const val MAX_BRIGHTNESS_LUM = 150f
 		private const val COLOR_DIFFERENCE_THRESHOLD = 50
 	}
 }
