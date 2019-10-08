@@ -218,8 +218,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 			internalToggleCollecting()
 		} else {
 			requestPermissions(missingPermissions) { response ->
-				if (response.isNotEmpty() && response.all { it.second }) {
-					Assist.checkTrackingPermissions(activity)
+				if (response.isSuccess) {
 					internalToggleCollecting()
 				}
 			}

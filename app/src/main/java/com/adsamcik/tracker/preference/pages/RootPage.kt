@@ -45,16 +45,6 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			it.context.startActivity<SessionActivityActivity> { }
 		}
 
-		val resources = caller.resources
-
-		val devEnabledKeyRes = R.string.settings_debug_enabled_key
-		val devEnabledDefaultRes = R.string.settings_debug_enabled_default
-
-		val debugPreference = caller.findPreference(R.string.settings_debug_key).apply {
-			isVisible = Preferences.getPref(context)
-					.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
-		}
-
 		caller.findPreference(R.string.show_tips_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
 			if (newValue as Boolean) {
@@ -65,12 +55,30 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			true
 		}
 
+		initializeVersion(caller)
+		createModuleScreens(caller)
+		initializeLanguage(caller)
+	}
+
+	override fun onExit(caller: PreferenceFragmentCompat) = Unit
+
+	private fun initializeVersion(caller: PreferenceFragmentCompat) {
 		val version = caller.findPreference(R.string.settings_app_version_key)
 		version.title = String.format(
 				"%1\$s - %2\$s",
 				BuildConfig.VERSION_CODE,
 				BuildConfig.VERSION_NAME
 		)
+
+		val resources = caller.resources
+
+		val devEnabledKeyRes = R.string.settings_debug_enabled_key
+		val devEnabledDefaultRes = R.string.settings_debug_enabled_default
+
+		val debugPreference = caller.findPreference(R.string.settings_debug_key).apply {
+			isVisible = Preferences.getPref(context)
+					.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
+		}
 
 		version.setOnPreferenceClickListener {
 			val context = it.context
@@ -82,7 +90,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			}
 
 			clickCount++
-			if (clickCount >= 7) {
+			if (clickCount >= REQUIRED_DEV_TAP_COUNT) {
 				preferences.edit {
 					setBoolean(devEnabledKeyRes, true)
 				}
@@ -90,8 +98,8 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 				debugPreference.isVisible = true
 				caller.findPreferenceTyped<SwitchPreferenceCompat>(devEnabledKeyRes)
 						.isChecked = true
-			} else if (clickCount >= 4) {
-				val remainingClickCount = 7 - clickCount
+			} else if (clickCount >= REQUIRED_DEV_TAP_SNACK_COUNT) {
+				val remainingClickCount = REQUIRED_DEV_TAP_COUNT - clickCount
 				showToast(
 						context,
 						resources.getQuantityString(
@@ -102,13 +110,6 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			}
 			true
 		}
-
-		createModuleScreens(caller)
-		initializeLanguage(caller)
-	}
-
-	override fun onExit(caller: PreferenceFragmentCompat) {
-
 	}
 
 	private fun showToast(context: Context, string: String) = Toast.makeText(
@@ -167,5 +168,9 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		}
 	}
 
+	companion object {
+		private const val REQUIRED_DEV_TAP_COUNT = 7
+		private const val REQUIRED_DEV_TAP_SNACK_COUNT = 4
+	}
 }
 

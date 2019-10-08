@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.common.activity
 
-typealias PermissionCallback = (List<Pair<String, Boolean>>) -> Unit
+typealias PermissionCallback = (result: PermissionResult) -> Unit
 
 data class PermissionRequest(
 		val permissionList: Array<String>,

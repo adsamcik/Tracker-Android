@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.common.activity
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.common.language.LocaleContextWrapper
@@ -9,6 +11,9 @@ import com.adsamcik.tracker.common.style.StyleManager
 
 abstract class CoreUIActivity : CoreActivity() {
 	protected val styleController: StyleController = StyleManager.createController()
+
+	private val permissionRequestList = mutableListOf<Pair<Int, PermissionRequest>>()
+	private var lastPermissionRequestId = 1000
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {

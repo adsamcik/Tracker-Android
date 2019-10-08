@@ -139,6 +139,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		mapSheetController = MapSheetController(
 				activity,
+				this,
 				map,
 				mapOwner,
 				map_ui_parent,

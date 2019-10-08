@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Geocoder
@@ -19,12 +20,15 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
+import com.adsamcik.tracker.common.activity.PermissionRequest
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.dialog.createDateTimeDialog
 import com.adsamcik.tracker.common.extension.coerceIn
 import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.marginBottom
 import com.adsamcik.tracker.common.extension.requireParent
+import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.keyboard.KeyboardListener
 import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
@@ -57,6 +61,7 @@ import kotlin.math.roundToInt
 
 internal class MapSheetController(
 		activity: FragmentActivity,
+		fragment: CoreUIFragment,
 		private val map: GoogleMap,
 		mapOwner: MapOwner,
 		private val rootLayout: ViewGroup,
@@ -68,7 +73,6 @@ internal class MapSheetController(
 
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
-
 
 	private val navbarDim: Int2
 	private val navbarPosition: NavBarPosition
@@ -318,7 +322,20 @@ internal class MapSheetController(
 			}
 		}
 		rootLayout.button_map_my_location.setOnClickListener {
-			locationListener.onMyPositionButtonClick(it as AppCompatImageButton)
+			fun onPositionClick(button: AppCompatImageButton) {
+				locationListener.onMyPositionButtonClick(button)
+			}
+
+			it as AppCompatImageButton
+			if (it.context.hasLocationPermission) {
+				onPositionClick(it)
+			} else {
+				fragment.requestPermissions(PermissionRequest(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)) { result ->
+					if (result.isSuccess) {
+						onPositionClick(it)
+					}
+				})
+			}
 		}
 		// styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
 	}
