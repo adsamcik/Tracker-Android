@@ -38,9 +38,14 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 	open fun selectDuration() {
 		val range = definition.minDurationMultiplier..definition.maxDurationMultiplier
 		durationMultiplier = normalRandom(range)
+
+		require(durationMultiplier > 0)
+
 		durationMultiplierNormalized = durationMultiplier.normalize(range)
 
 		duration = (definition.defaultDuration * durationMultiplier).toLong()
+
+		require(duration > 0L)
 	}
 
 	abstract fun selectChallengeSpecificParameters()

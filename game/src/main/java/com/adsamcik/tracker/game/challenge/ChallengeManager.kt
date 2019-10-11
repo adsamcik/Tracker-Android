@@ -129,7 +129,8 @@ object ChallengeManager {
 	}
 
 	internal fun checkExpiredChallenges(context: Context) {
-		val expired = mutableActiveChallengeList_.filter { it.endTime > Time.nowMillis }
+		val now = Time.nowMillis
+		val expired = mutableActiveChallengeList_.filter { it.endTime < now }
 		if (expired.isNotEmpty()) {
 			activeChallengeLock.withLock {
 				mutableActiveChallengeList_.removeAll(expired)
@@ -138,9 +139,13 @@ object ChallengeManager {
 		}
 	}
 
-	private fun logNewChallenge(context: Context, definition: ChallengeDefinition<*>) {
-		val title = context.getString(definition.titleRes)
-		logGame(LogData(message = "Created new random challenge $title"))
+	private fun logNewChallenge(context: Context, instance: ChallengeInstance<*, *>) {
+		val title = context.getString(instance.definition.titleRes)
+		logGame(
+				LogData(
+						message = "Created new random challenge $title with expiration on ${instance.endTime.formatAsDateTime()}"
+				)
+		)
 	}
 
 
@@ -155,9 +160,11 @@ object ChallengeManager {
 		val selectedChallengeIndex = Random.nextInt(possibleChallenges.size)
 		val selectedChallengeDefinition = possibleChallenges[selectedChallengeIndex]
 
-		logNewChallenge(context, selectedChallengeDefinition)
+		val newInstance = selectedChallengeDefinition.newInstance(context, Time.nowMillis)
 
-		return selectedChallengeDefinition.newInstance(context, Time.nowMillis)
+		logNewChallenge(context, newInstance)
+
+		return newInstance
 	}
 }
 
