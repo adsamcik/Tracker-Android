@@ -130,7 +130,7 @@ object ChallengeManager {
 
 	internal fun checkExpiredChallenges(context: Context) {
 		val now = Time.nowMillis
-		val expired = mutableActiveChallengeList_.filter { it.endTime < now }
+		val expired = mutableActiveChallengeList_.filter { it.endTime <= now }
 		if (expired.isNotEmpty()) {
 			activeChallengeLock.withLock {
 				mutableActiveChallengeList_.removeAll(expired)
