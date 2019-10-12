@@ -74,6 +74,13 @@ fun Calendar.toTimeSinceMidnight(): Long = get(Calendar.HOUR_OF_DAY) * Time.HOUR
 		get(Calendar.MINUTE) * Time.MINUTE_IN_MILLISECONDS +
 		get(Calendar.SECOND) * Time.SECOND_IN_MILLISECONDS
 
+
+fun Calendar.setDateFrom(calendar: Calendar): Calendar {
+	set(Calendar.YEAR, calendar.year)
+	set(Calendar.DAY_OF_YEAR, calendar.dayOfYear)
+	return this
+}
+
 val Calendar.month: Int get() = get(Calendar.MONTH)
 val Calendar.day: Int get() = get(Calendar.DAY_OF_MONTH)
 val Calendar.dayOfYear: Int get() = get(Calendar.DAY_OF_YEAR)

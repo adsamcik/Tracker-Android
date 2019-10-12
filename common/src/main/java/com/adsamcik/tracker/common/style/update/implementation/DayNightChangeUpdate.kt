@@ -2,6 +2,8 @@ package com.adsamcik.tracker.common.style.update.implementation
 
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.extension.setDateFrom
+import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.style.SunSetRise
 import com.adsamcik.tracker.common.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.common.style.update.data.RequiredColorData
@@ -41,8 +43,8 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 		require(sunset != null)
 		require(sunrise != null)
 
-		val sunsetTime = sunset.time
-		val sunriseTime = sunrise.time
+		val sunsetTime = sunset.toCalendar().setDateFrom(time).timeInMillis
+		val sunriseTime = sunrise.toCalendar().setDateFrom(time).timeInMillis
 
 		val nowTime = time.timeInMillis
 		val dayDuration = sunsetTime - sunriseTime

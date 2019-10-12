@@ -1,13 +1,16 @@
 package com.adsamcik.tracker.common.style.update.implementation
 
+import android.util.Log
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.extension.formatAsDateTime
+import com.adsamcik.tracker.common.extension.setDateFrom
+import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.style.SunSetRise
 import com.adsamcik.tracker.common.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.common.style.update.data.RequiredColorData
 import com.adsamcik.tracker.common.style.update.data.RequiredColors
 import com.adsamcik.tracker.common.style.update.data.UpdateData
-import java.text.SimpleDateFormat
 
 internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	override val nameRes: Int = R.string.settings_color_update_mden_trans_title
@@ -57,7 +60,11 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		require(sunset != null)
 		require(sunrise != null)
 
-		val localUpdateData = calculateProgress(time.timeInMillis, sunrise.time, sunset.time)
+		//todo revisit if too inaccurate
+		val sunsetTime = sunset.toCalendar().setDateFrom(time).timeInMillis
+		val sunriseTime = sunrise.toCalendar().setDateFrom(time).timeInMillis
+
+		val localUpdateData = calculateProgress(time.timeInMillis, sunriseTime, sunsetTime)
 
 		return UpdateData(
 				styleList[localUpdateData.fromColor],
@@ -194,7 +201,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: Long
 	): UpdateData {
 		return when {
-			now >= sunset -> afterSunset(
+			sunset >= sunrise -> afterSunset(
 					now,
 					sunrise,
 					sunset
