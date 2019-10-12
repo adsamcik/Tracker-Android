@@ -47,7 +47,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val sunsetTime = sunSetRise.sunsetForToday()
 		val sunriseTime = sunSetRise.sunriseForToday()
 
-		require(sunriseTime.timeInMillis > sunsetTime.timeInMillis)
+		require(sunriseTime.timeInMillis < sunsetTime.timeInMillis)
 
 		val localUpdateData = calculateProgress(time, sunriseTime, sunsetTime)
 
