@@ -7,7 +7,7 @@ import com.adsamcik.tracker.common.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.common.style.update.data.RequiredColorData
 import com.adsamcik.tracker.common.style.update.data.RequiredColors
 import com.adsamcik.tracker.common.style.update.data.UpdateData
-import java.util.*
+import java.text.SimpleDateFormat
 
 internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	override val nameRes: Int = R.string.settings_color_update_mden_trans_title
@@ -44,12 +44,20 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 
 		val time = Time.now
 
-		val sunsetTime = sunSetRise.sunsetForToday()
-		val sunriseTime = sunSetRise.sunriseForToday()
+		val sunData = sunSetRise.sunDataFor(time)
+		val sunset = sunData.set
+		val sunrise = sunData.rise
 
-		require(sunriseTime.timeInMillis < sunsetTime.timeInMillis)
+		if (sunData.isAlwaysUp) {
+			return UpdateData(styleList[NOON], styleList[NOON], Long.MAX_VALUE, 0L)
+		} else if (sunData.isAlwaysDown) {
+			return UpdateData(styleList[MIDNIGHT], styleList[MIDNIGHT], Long.MAX_VALUE, 0L)
+		}
 
-		val localUpdateData = calculateProgress(time, sunriseTime, sunsetTime)
+		require(sunset != null)
+		require(sunrise != null)
+
+		val localUpdateData = calculateProgress(time.timeInMillis, sunrise.time, sunset.time)
 
 		return UpdateData(
 				styleList[localUpdateData.fromColor],
@@ -181,25 +189,22 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	}
 
 	private fun calculateProgress(
-			now: Calendar,
-			sunrise: Calendar,
-			sunset: Calendar
+			now: Long,
+			sunrise: Long,
+			sunset: Long
 	): UpdateData {
-		val nowInMillis = now.timeInMillis
-		val sunriseInMillis = sunrise.timeInMillis
-		val sunsetInMillis = sunset.timeInMillis
 		return when {
-			nowInMillis >= sunsetInMillis -> afterSunset(
-					nowInMillis,
-					sunriseInMillis,
-					sunsetInMillis
+			now >= sunset -> afterSunset(
+					now,
+					sunrise,
+					sunset
 			)
-			nowInMillis >= sunriseInMillis -> betweenSunriseAndSunset(
-					nowInMillis,
-					sunriseInMillis,
-					sunsetInMillis
+			now >= sunrise -> betweenSunriseAndSunset(
+					now,
+					sunrise,
+					sunset
 			)
-			else -> beforeSunrise(nowInMillis, sunriseInMillis, sunsetInMillis)
+			else -> beforeSunrise(now, sunrise, sunset)
 		}
 	}
 

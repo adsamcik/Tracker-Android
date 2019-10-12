@@ -28,11 +28,22 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 
 	override fun getUpdateData(styleList: List<Int>, sunSetRise: SunSetRise): UpdateData {
 		val time = Calendar.getInstance()
-		val sunset = sunSetRise.sunsetForToday()
-		val sunrise = sunSetRise.sunriseForToday()
+		val sunData = sunSetRise.sunDataFor(time)
+		val sunset = sunData.set
+		val sunrise = sunData.rise
 
-		val sunsetTime = sunset.timeInMillis
-		val sunriseTime = sunrise.timeInMillis
+		if (sunData.isAlwaysUp) {
+			return UpdateData(styleList[DAY], styleList[DAY], Long.MAX_VALUE, 0L)
+		} else if (sunData.isAlwaysDown) {
+			return UpdateData(styleList[NIGHT], styleList[NIGHT], Long.MAX_VALUE, 0L)
+		}
+
+		require(sunset != null)
+		require(sunrise != null)
+
+		val sunsetTime = sunset.time
+		val sunriseTime = sunrise.time
+
 		val nowTime = time.timeInMillis
 		val dayDuration = sunsetTime - sunriseTime
 

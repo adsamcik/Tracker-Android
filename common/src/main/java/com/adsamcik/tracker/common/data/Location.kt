@@ -204,7 +204,7 @@ data class BaseLocation(
 		val longitude: Double,
 		@Json(name = "alt")
 		@ColumnInfo(name = "alt")
-		val altitude: Double?
+		val altitude: Double? = null
 ) {
 
 	constructor(location: Location) : this(location.latitude, location.longitude, location.altitude)

@@ -67,7 +67,7 @@ dependencies {
 	Dependencies.preference(this)
 	Dependencies.introduction(this)
 
-	implementation("com.luckycatlabs:SunriseSunsetCalculator:1.2")
+	implementation("org.shredzone.commons:commons-suncalc:2.6")
 
 	Dependencies.test(this)
 }

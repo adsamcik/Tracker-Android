@@ -3,15 +3,18 @@ package com.adsamcik.tracker.common.style
 import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.data.BaseLocation
 import com.adsamcik.tracker.common.data.LengthUnit
-import com.adsamcik.tracker.common.extension.roundToDate
+import com.adsamcik.tracker.common.data.Location
+import com.adsamcik.tracker.common.extension.toCalendar
+import com.adsamcik.tracker.common.extension.toDate
 import com.adsamcik.tracker.common.preference.Preferences
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
-import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
-import com.luckycatlabs.sunrisesunset.dto.Location
+import org.shredzone.commons.suncalc.SunTimes
+import org.shredzone.commons.suncalc.param.TimeResultParameter
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -25,7 +28,7 @@ typealias SunSetRiseChangeListener = (SunSetRise) -> Unit
 //todo add central location API to better manage passive location updates in the future
 class SunSetRise {
 	private val locationLock = ReentrantLock()
-	private var location: Location? = null
+	private var location: BaseLocation? = null
 
 	private var appContext: Context? = null
 
@@ -40,29 +43,38 @@ class SunSetRise {
 
 	}
 
-	fun sunriseForToday(): Calendar = sunriseFor(Time.now)
+	fun sunriseForToday(): Calendar? = sunriseFor(Time.now)
 
-	fun sunriseFor(calendar: Calendar): Calendar {
+	fun sunriseFor(calendar: Calendar): Calendar? {
 		val location = location
 		return if (location != null) {
 			return getSunrise(location, calendar)
 		} else {
-			calendar.roundToDate()
-			calendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNRISE)
-			calendar
+			val dateCalendar = calendar.toDate()
+			dateCalendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNRISE)
+			dateCalendar
 		}
 	}
 
-	fun sunsetForToday(): Calendar = sunsetFor(Time.now)
+	fun sunsetForToday(): Calendar? = sunsetFor(Time.now)
 
-	fun sunsetFor(calendar: Calendar): Calendar {
+	fun sunsetFor(calendar: Calendar): Calendar? {
 		val location = location
 		return if (location != null) {
 			return getSunset(location, calendar)
 		} else {
-			calendar.roundToDate()
-			calendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNSET)
-			calendar
+			val dateCalendar = calendar.toDate()
+			dateCalendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNSET)
+			dateCalendar
+		}
+	}
+
+	fun sunDataFor(calendar: Calendar): SunTimes {
+		val location = location
+		return if (location != null) {
+			return getCalculator(location, calendar)
+		} else {
+			SunTimes.compute().execute()
 		}
 	}
 
@@ -87,7 +99,7 @@ class SunSetRise {
 		val lastLongitude = preferences.getDouble(LAST_LONGITUDE_KEY, Double.NaN)
 
 		val location = if (!lastLatitude.isNaN() && !lastLongitude.isNaN()) {
-			Location(lastLatitude, lastLongitude)
+			BaseLocation(lastLatitude, lastLongitude)
 		} else {
 			return
 		}
@@ -112,9 +124,9 @@ class SunSetRise {
 		locationLock.withLock {
 			val currentLocation = this.location
 			val distance = if (currentLocation != null) {
-				com.adsamcik.tracker.common.data.Location.distance(
-						currentLocation.latitude.toDouble(),
-						currentLocation.longitude.toDouble(),
+				Location.distance(
+						currentLocation.latitude,
+						currentLocation.longitude,
 						loc.latitude,
 						loc.longitude,
 						LengthUnit.Kilometer
@@ -122,7 +134,7 @@ class SunSetRise {
 			} else {
 				Double.POSITIVE_INFINITY
 			}
-			this.location = Location(loc.latitude, loc.longitude)
+			this.location = BaseLocation(loc.latitude, loc.longitude)
 
 			if (distance > MIN_DIFFERENCE_IN_KILOMETERS) {
 				Preferences.getPref(context).edit {
@@ -135,24 +147,30 @@ class SunSetRise {
 		}
 	}
 
-	private fun getCalculator(location: Location, calendar: Calendar): SunriseSunsetCalculator {
-		return SunriseSunsetCalculator(location, calendar.timeZone)
+	private fun getCalculator(location: BaseLocation, calendar: Calendar): SunTimes {
+		return SunTimes
+				.compute()
+				.at(location.latitude, location.longitude)
+				.on(calendar)
+				.truncatedTo(TimeResultParameter.Unit.MINUTES)
+				.twilight(SunTimes.Twilight.VISUAL)
+				.execute()
 	}
 
-	private fun getSunset(calculator: SunriseSunsetCalculator, calendar: Calendar): Calendar {
-		return calculator.getOfficialSunsetCalendarForDate(calendar)
+	private fun getSunset(calculator: SunTimes): Calendar? {
+		return calculator.set?.toCalendar()
 	}
 
-	private fun getSunset(location: Location, calendar: Calendar): Calendar {
-		return getSunset(getCalculator(location, calendar), calendar)
+	private fun getSunset(location: BaseLocation, calendar: Calendar): Calendar? {
+		return getSunset(getCalculator(location, calendar))
 	}
 
-	private fun getSunrise(calculator: SunriseSunsetCalculator, calendar: Calendar): Calendar {
-		return calculator.getOfficialSunriseCalendarForDate(calendar)
+	private fun getSunrise(calculator: SunTimes): Calendar? {
+		return calculator.rise?.toCalendar()
 	}
 
-	private fun getSunrise(location: Location, calendar: Calendar): Calendar {
-		return getSunrise(getCalculator(location, calendar), calendar)
+	private fun getSunrise(location: BaseLocation, calendar: Calendar): Calendar? {
+		return getSunrise(getCalculator(location, calendar))
 	}
 
 	companion object {
