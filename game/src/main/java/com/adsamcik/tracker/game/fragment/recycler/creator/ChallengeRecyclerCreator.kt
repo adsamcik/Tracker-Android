@@ -4,7 +4,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeViewHolderCreator
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolderCreator
@@ -25,7 +24,9 @@ class ChallengeRecyclerCreator : StyleMultiTypeViewHolderCreator<GameRecyclerDat
 
 		@Suppress("unchecked_cast")
 		return ChallengeRecyclerViewHolder(
-				rootView, rootView.findViewById(R.id.title), recycler,
+				rootView,
+				rootView.findViewById(R.id.title),
+				recycler,
 				2
 		) as StyleMultiTypeViewHolder<GameRecyclerData>
 	}

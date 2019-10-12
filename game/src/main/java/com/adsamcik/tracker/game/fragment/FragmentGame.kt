@@ -10,7 +10,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
@@ -79,7 +78,12 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 
 		ChallengeManager.activeChallenges.observe(this) { updateChallenges(challengeAdapter, it) }
 
-		ChallengeManager.initialize(context)
+		val challengeList = ChallengeManager.activeChallenges.value
+		if (challengeList.isNullOrEmpty()) {
+			ChallengeManager.initialize(context)
+		} else {
+			updateChallenges(challengeAdapter, challengeList)
+		}
 
 		return rootView
 	}
