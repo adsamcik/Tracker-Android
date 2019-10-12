@@ -120,7 +120,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 						sunsetRise
 				)
 
-				require(data.duration >= 0)
+				require(data.duration >= 0) { "Duration was negative while using ${this::class.java.simpleName}" }
 				timerLock.withLock {
 					timerActive = true
 					val timer = Timer("ColorUpdate", true)
