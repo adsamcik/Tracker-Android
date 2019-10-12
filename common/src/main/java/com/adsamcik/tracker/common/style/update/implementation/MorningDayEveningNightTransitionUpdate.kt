@@ -47,6 +47,8 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val sunsetTime = sunSetRise.sunsetForToday()
 		val sunriseTime = sunSetRise.sunriseForToday()
 
+		require(sunriseTime.timeInMillis > sunsetTime.timeInMillis)
+
 		val localUpdateData = calculateProgress(time, sunriseTime, sunsetTime)
 
 		return UpdateData(
@@ -171,7 +173,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			)
 			now >= yesterdayApproxSunset -> betweenSunsetAndMidnight(
 					now,
-					sunset,
+					yesterdayApproxSunset,
 					midnight
 			)
 			else -> throw IllegalStateException()
