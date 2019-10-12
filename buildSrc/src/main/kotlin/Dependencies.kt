@@ -7,7 +7,7 @@ object Dependencies {
 		internal const val constraintLayout = "2.0.0-beta2"
 		internal const val coreKtx = "1.2.0-beta01"
 		internal const val appcompat = "1.1.0"
-		internal const val fragment = "1.2.0-beta01"
+		internal const val fragment = "1.2.0-beta02"
 		const val kotlin: String = "1.3.50"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.8.0"
@@ -22,7 +22,7 @@ object Dependencies {
 
 		internal const val maps = "17.0.0"
 		internal const val firebaseCore = "17.2.0"
-		internal const val recyclerView = "1.1.0-beta05"
+		internal const val recyclerView = "1.1.0-beta04"
 		internal const val paging = "2.1.0"
 
 		internal const val crashlytics = "2.10.1"
