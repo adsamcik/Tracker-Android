@@ -14,7 +14,6 @@ import com.adsamcik.recycler.adapter.implementation.card.table.TableCard
 import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.data.TrackerSession
@@ -37,6 +36,7 @@ import com.adsamcik.tracker.statistics.list.recycler.SectionedDividerDecoration
 import com.adsamcik.tracker.statistics.list.recycler.SessionSection
 import com.adsamcik.tracker.statistics.list.recycler.SessionSummaryAdapter
 import com.adsamcik.tracker.statistics.list.recycler.SummarySection
+import com.adsamcik.tracker.statistics.wifi.WifiBrowseActivity
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.customListAdapter
 import com.afollestad.materialdialogs.list.getRecyclerView
@@ -70,6 +70,10 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 			addData(R.string.stats_weekly_title) {
 				showLastSevenDays()
+			}
+
+			addData(R.string.stats_wifi_overview) {
+				startActivity<WifiBrowseActivity> { }
 			}
 		}.also { viewModel.adapter.addSection(it) }
 

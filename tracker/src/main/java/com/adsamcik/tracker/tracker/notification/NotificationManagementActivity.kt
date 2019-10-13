@@ -92,7 +92,7 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 		touchHelper.attachToRecyclerView(recyclerView)
 	}
 
-	override fun onDataSave(tag: String?, dataCollection: List<EditDataInstance>) {
+	override fun onDataConfirmed(tag: String?, dataCollection: List<EditDataInstance>) {
 		require(dataCollection.size == 2)
 		require(tag != null)
 

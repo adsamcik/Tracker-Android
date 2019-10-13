@@ -57,7 +57,7 @@ class SessionActivityActivity : ManageActivity() {
 		ItemTouchHelper(swipeTouchHelper).attachToRecyclerView(recyclerView)
 	}
 
-	override fun onDataSave(tag: String?, dataCollection: List<EditDataInstance>) {
+	override fun onDataConfirmed(tag: String?, dataCollection: List<EditDataInstance>) {
 		require(dataCollection.size == 1)
 		require(dataCollection.first().id == NAME_FIELD)
 

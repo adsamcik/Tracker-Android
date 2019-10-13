@@ -2,7 +2,9 @@ package com.adsamcik.tracker.common.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Transaction
+import androidx.sqlite.db.SupportSQLiteQuery
 import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.tracker.common.database.data.DatabaseWifiData
 import com.adsamcik.tracker.common.database.data.DateRange
@@ -56,6 +58,12 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 
 	@Query("SELECT * from wifi_data")
 	fun getAll(): List<DatabaseWifiData>
+
+	@Query("SELECT * from wifi_data LIMIT :count")
+	fun getAll(count: Long): List<DatabaseWifiData>
+
+	@RawQuery
+	fun getAll(query: SupportSQLiteQuery): List<DatabaseWifiData>
 
 	@Query(
 			"""

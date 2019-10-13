@@ -7,11 +7,11 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import androidx.annotation.CallSuper
 import androidx.annotation.StringRes
 import androidx.core.view.children
-import androidx.core.view.isGone
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -74,6 +74,9 @@ abstract class ManageActivity : DetailActivity() {
 		keyboardManager = KeyboardManager(rootView)
 		snackMaker = SnackMaker(rootView.findViewById(R.id.coordinator))
 
+		val manageConfiguration = ManageConfiguration()
+		onManageConfigure(manageConfiguration)
+
 		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler).apply {
 			this.adapter = this@ManageActivity.getAdapter()
 			val layoutManager = LinearLayoutManager(this@ManageActivity)
@@ -84,6 +87,19 @@ abstract class ManageActivity : DetailActivity() {
 					layoutManager.orientation
 			)
 			addItemDecoration(dividerItemDecoration)
+
+			addItemDecoration(MarginDecoration())
+
+			if (manageConfiguration.isHorizontallyScrollable) {
+				val horizontalScroll = HorizontalScrollView(this@ManageActivity)
+				(parent as ViewGroup).let {
+					val recyclerIndex = it.indexOfChild(this@apply)
+					it.addView(horizontalScroll, recyclerIndex)
+					it.removeView(this@apply)
+				}
+
+				horizontalScroll.addView(this)
+			}
 		}
 
 		onCreateRecycler(recycler)
@@ -239,7 +255,7 @@ abstract class ManageActivity : DetailActivity() {
 
 			if (editDataList.size == editDataListNonNull.size) {
 				val tag = requireNotNull(editContentRootLayout).tag as? String
-				onDataSave(tag, editDataListNonNull)
+				onDataConfirmed(tag, editDataListNonNull)
 			}
 		}
 
@@ -248,7 +264,7 @@ abstract class ManageActivity : DetailActivity() {
 		}
 	}
 
-	protected abstract fun onDataSave(tag: String?, dataCollection: List<EditDataInstance>)
+	protected abstract fun onDataConfirmed(tag: String?, dataCollection: List<EditDataInstance>)
 
 	protected abstract fun getEmptyEditData(): Collection<EditData>
 
@@ -266,11 +282,17 @@ abstract class ManageActivity : DetailActivity() {
 		configuration.titleBarLayer = 1
 	}
 
+	open fun onManageConfigure(configuration: ManageConfiguration) = Unit
+
 	private fun initializeColorController() {
 		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
 		styleController.watchView(StyleView(findViewById(R.id.fab), 1, isInverted = true))
 		styleController.watchView(StyleView(add_item_layout, 2))
 	}
+
+	data class ManageConfiguration(
+			var isHorizontallyScrollable: Boolean = false
+	)
 
 	data class EditData(
 			val id: String,

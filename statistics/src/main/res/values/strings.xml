@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="stats_wifi_overview">Wi-Fi list</string>
     <string name="stats_weekly_title">Last 7 days</string>
     <string name="stats_sum_title">Summary</string>
     <string name="stats_steps">Step count</string>

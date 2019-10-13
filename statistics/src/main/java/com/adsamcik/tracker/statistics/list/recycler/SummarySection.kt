@@ -32,7 +32,7 @@ class SummarySection : Section(
 
 	private fun addButton(context: Context, buttonData: ButtonData): Button {
 		return MaterialButton(context).apply {
-			setPadding(16.dp)
+			setPadding(BUTTON_PADDING.dp)
 			setText(buttonData.text)
 			setOnClickListener { buttonData.onClick.invoke() }
 		}
@@ -45,9 +45,7 @@ class SummarySection : Section(
 			itemList.forEach {
 				val button = addButton(context, it)
 				addView(button)
-				if (childCount == 1) {
-					button.marginRight = 16.dp
-				}
+				button.marginRight = BUTTON_MARGIN_RIGHT.dp
 			}
 		}
 	}
@@ -70,5 +68,10 @@ class SummarySection : Section(
 
 	data class ButtonData(@StringRes val text: Int, val onClick: () -> Unit)
 	private data class ViewHolder(val layout: ViewGroup) : RecyclerView.ViewHolder(layout)
+
+	companion object {
+		private const val BUTTON_MARGIN_RIGHT = 16
+		private const val BUTTON_PADDING = 16
+	}
 }
 
