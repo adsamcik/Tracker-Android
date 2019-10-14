@@ -134,7 +134,6 @@ class SunSetRise {
 			} else {
 				Double.POSITIVE_INFINITY
 			}
-			this.location = BaseLocation(loc.latitude, loc.longitude)
 
 			if (distance > MIN_DIFFERENCE_IN_KILOMETERS) {
 				Preferences.getPref(context).edit {
@@ -143,17 +142,21 @@ class SunSetRise {
 				}
 
 				listeners.forEach { it.invoke(this) }
+				this.location = BaseLocation(loc.latitude, loc.longitude)
 			}
 		}
 	}
 
 	private fun getCalculator(location: BaseLocation, calendar: Calendar): SunTimes {
 		return SunTimes
-				.compute()
-				.at(location.latitude, location.longitude)
-				.on(calendar)
-				.truncatedTo(TimeResultParameter.Unit.MINUTES)
-				.twilight(SunTimes.Twilight.VISUAL)
+				.compute().apply {
+					if (location.isValid) {
+						at(location.latitude, location.longitude)
+					}
+					on(calendar)
+					truncatedTo(TimeResultParameter.Unit.MINUTES)
+					twilight(SunTimes.Twilight.VISUAL)
+				}
 				.execute()
 	}
 

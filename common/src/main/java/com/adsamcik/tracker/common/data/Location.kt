@@ -6,8 +6,8 @@ import androidx.room.ColumnInfo
 import com.adsamcik.tracker.common.constant.LengthConstants
 import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
 import com.adsamcik.tracker.common.extension.LocationExtensions.METER_DEGREE_LATITUDE
-import com.adsamcik.tracker.common.extension.toRadians
 import com.adsamcik.tracker.common.extension.round
+import com.adsamcik.tracker.common.extension.toRadians
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize
@@ -206,6 +206,9 @@ data class BaseLocation(
 		@ColumnInfo(name = "alt")
 		val altitude: Double? = null
 ) {
+
+	val isValid: Boolean
+		get() = latitude >= -90.0 && latitude <= 90.0 && longitude >= -180.0 && longitude <= 180.0
 
 	constructor(location: Location) : this(location.latitude, location.longitude, location.altitude)
 }
