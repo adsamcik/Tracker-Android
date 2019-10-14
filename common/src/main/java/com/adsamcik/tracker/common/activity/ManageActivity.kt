@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.common.activity
 
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -126,6 +127,8 @@ abstract class ManageActivity : DetailActivity() {
 					ViewGroup.LayoutParams.MATCH_PARENT,
 					ViewGroup.LayoutParams.WRAP_CONTENT
 			)
+			inputType = InputType.TYPE_CLASS_TEXT
+			maxLines = 1
 		}
 
 		return TextInputLayout(this).apply {
