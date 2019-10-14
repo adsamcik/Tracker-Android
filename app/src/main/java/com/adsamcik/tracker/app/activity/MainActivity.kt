@@ -262,10 +262,12 @@ class MainActivity : CoreUIActivity() {
 
 	private fun hideBottomLayer() {
 		trackerFragment.view?.visibility = View.GONE
+		trackerFragment.onPause()
 	}
 
 	private fun showBottomLayer() {
 		trackerFragment.view?.visibility = View.VISIBLE
+		trackerFragment.onResume()
 	}
 
 	private fun hideMiddleLayer() {
