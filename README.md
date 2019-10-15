@@ -22,14 +22,9 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 - Supported length systems: metric, imperial (USC), ancient roman
 - Does not upload your tracked data anywhere (well except for automatic Android backup which sometimes works)
 
-## Planned features
+## Roadmap
 
-- Database import
-- Proper automatic database backup (Android automatic only goes up to 25 megabytes)
-- More games
-- More challenges
-- More statistics (pace)
-- And more (roadmaps are in issues)
+Milestones form a roadmap of sorts for this project. Dates are only approximate and are subject to change. If you want to implement any one feature, see [contributions](#contributions)
 
 ## Versioning
 
@@ -60,4 +55,4 @@ Most stable releases meant for general public
 
 ## Contributions
 
-Tracker is open to contributions, if you want to improve some part of the app or add some features feel free to do so. Each contribution should not create any issues. If an issue is not valid, it should be explicitly stated as suppressed. However every pull request is manually verified so overly using Suppress annotation will be seen as issue in itself.
+Contributions to Tracker are welcome. Planned new features can be seen in milestones. If you want any new feature (even if it's in later milestone or no milestone at all) you are free to do so. It is recommended to consult on larger issues as they might collide with some future system revamps and might not be merged because of it.
