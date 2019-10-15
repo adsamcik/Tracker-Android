@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.statistics.wifi
 
+import android.os.Bundle
 import androidx.recyclerview.widget.RecyclerView
 import androidx.sqlite.db.SupportSQLiteQueryBuilder
 import com.adsamcik.tracker.common.activity.ManageActivity
@@ -20,6 +21,11 @@ class WifiBrowseActivity : ManageActivity() {
 
 	override fun onManageConfigure(configuration: ManageConfiguration) {
 		configuration.isHorizontallyScrollable = true
+	}
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		setTitle(R.string.wifilist_title)
 	}
 
 	override fun onCreateRecycler(recyclerView: RecyclerView) {

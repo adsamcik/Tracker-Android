@@ -33,4 +33,10 @@
     <string name="stats_format_unknown_activity">relace</string>
     <string name="stats_lunch">oběd</string>
     <string name="stats_midnight">půlnoc</string>
+    <string name="wifilist_title">Seznam Wi-Fi sítí</string>
+    <string name="wifilist_filter_bssid">BSSID (identifikátor)</string>
+    <string name="wifilist_filter_capabilities">Vlastnosti</string>
+    <string name="wifilist_filter_count">Kolik zobrazit</string>
+    <string name="wifilist_filter_frequency">Frekvence</string>
+    <string name="wifilist_filter_ssid">SSID (název)</string>
 </resources>
