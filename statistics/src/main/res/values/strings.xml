@@ -23,5 +23,5 @@
 
     <string name="edit_session">Edit session</string>
     <string name="change_activity">Change activity</string>
-    <string name="remove_session">Remove session</string>
+    <string name="remove_session">Delete session</string>
 </resources>

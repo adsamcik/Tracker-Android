@@ -30,7 +30,6 @@ class WifiRecyclerAdapter : BaseSortAdapter<DatabaseWifiData, RecyclerWifiViewHo
 
 	override fun onBindViewHolder(holder: RecyclerWifiViewHolder, position: Int) {
 		val item = getItem(position)
-		val context = holder.itemView.context
 		holder.apply {
 			bssid.text = item.bssid
 			ssid.text = item.ssid

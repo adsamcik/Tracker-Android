@@ -49,9 +49,9 @@ import com.adsamcik.tracker.statistics.detail.recycler.creator.MapViewHolderCrea
 import com.adsamcik.tracker.statistics.detail.recycler.data.InformationStatisticsData
 import com.adsamcik.tracker.statistics.detail.recycler.data.LineChartStatisticsData
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
+import com.afollestad.materialdialogs.MaterialDialog
 import com.github.mikephil.charting.data.Entry
 import com.google.android.gms.maps.MapsInitializer
-import com.google.android.play.core.splitcompat.SplitCompat
 import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -115,9 +115,23 @@ class StatsDetailActivity : DetailActivity() {
 				          findViewById<View>(
 						          R.id.button_change_activity
 				          ).setOnClickListener { showActivitySelectionDialog() }
-				          findViewById<View>(R.id.button_remove_session).setOnClickListener { removeSession() }
+				          findViewById<View>(R.id.button_remove_session).setOnClickListener { showDeleteConfirmDialog() }
 			          }
 		          })
+	}
+
+	private fun showDeleteConfirmDialog() {
+		MaterialDialog(this)
+				.message(
+						text = getString(
+								com.adsamcik.tracker.common.R.string.alert_confirm,
+								getString(R.string.remove_session)
+						)
+				)
+				.title(com.adsamcik.tracker.common.R.string.alert_confirm_generic)
+				.positiveButton(com.adsamcik.tracker.common.R.string.yes) { removeSession() }
+				.negativeButton(com.adsamcik.tracker.common.R.string.no)
+				.show()
 	}
 
 	private fun removeSession() {
