@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.Location
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.constant.CoordinateConstants
 import com.adsamcik.tracker.common.data.LocationData
 import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
@@ -28,13 +29,21 @@ internal abstract class LocationTrackerTimer : TrackerTimerComponent {
 		return locationAge < maxAge
 	}
 
+	private fun isLocationValid(location: Location): Boolean {
+		return location.latitude >= CoordinateConstants.MIN_LATITUDE &&
+				location.latitude <= CoordinateConstants.MAX_LATITUDE &&
+				location.longitude >= CoordinateConstants.MIN_LONGITUDE &&
+				location.longitude <= CoordinateConstants.MAX_LONGITUDE
+	}
+
 	protected fun onNewData(locations: List<Location>) {
 		require(locations.isNotEmpty())
 		newDataLock.withLock {
 			val receiver = receiver ?: return
 
 			val lastLocation = locations.last()
-			if (lastLocation.elapsedRealtimeNanos + MAX_LOCATION_AGE_IN_NANOS > startedAtElapsedRealtimeNanos) {
+			if (lastLocation.elapsedRealtimeNanos + MAX_LOCATION_AGE_IN_NANOS > startedAtElapsedRealtimeNanos &&
+					isLocationValid(lastLocation)) {
 				val tempData = createCollectionTempData(locations)
 				receiver.onUpdate(tempData)
 

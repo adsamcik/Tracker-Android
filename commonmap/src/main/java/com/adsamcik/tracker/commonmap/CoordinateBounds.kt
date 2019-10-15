@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.commonmap
 
 import android.os.Parcelable
+import com.adsamcik.tracker.common.constant.CoordinateConstants.MAX_LATITUDE
+import com.adsamcik.tracker.common.constant.CoordinateConstants.MAX_LONGITUDE
+import com.adsamcik.tracker.common.constant.CoordinateConstants.MIN_LATITUDE
+import com.adsamcik.tracker.common.constant.CoordinateConstants.MIN_LONGITUDE
 import com.adsamcik.tracker.common.data.Location
 import kotlinx.android.parcel.Parcelize
 
@@ -57,13 +61,6 @@ data class CoordinateBounds(
 		this.rightBound = right
 		this.bottomBound = bottom
 		this.leftBound = left
-	}
-
-	companion object {
-		const val MIN_LATITUDE: Double = -90.0
-		const val MAX_LATITUDE: Double = 90.0
-		const val MIN_LONGITUDE: Double = -180.0
-		const val MAX_LONGITUDE: Double = 180.0
 	}
 }
 
