@@ -109,8 +109,8 @@ internal class LocationPolylineLogic : MapLayerLogic, CoroutineScope {
 		clearActivePolylines()
 
 		launch {
-			val sessionDao = requireNotNull(sessionDao)
-			val locationDao = requireNotNull(locationDao)
+			val sessionDao = sessionDao ?: return@launch
+			val locationDao = locationDao ?: return@launch
 
 			val sessions = if (dateRange == LongRange.EMPTY) {
 				sessionDao.getAll()
