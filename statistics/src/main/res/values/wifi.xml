@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="wifilist_title">Wi-Fi list</string>
     <string name="wifilist_filter_ssid">SSID (name)</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>
     <string name="wifilist_filter_frequency">Frequency</string>

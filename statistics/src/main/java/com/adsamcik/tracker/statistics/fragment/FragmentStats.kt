@@ -72,7 +72,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 				showLastSevenDays()
 			}
 
-			addData(R.string.wifi_overview) {
+			addData(R.string.wifilist_title) {
 				startActivity<WifiBrowseActivity> { }
 			}
 		}.also { viewModel.adapter.addSection(it) }

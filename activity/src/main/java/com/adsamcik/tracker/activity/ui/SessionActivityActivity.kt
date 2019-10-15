@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.tracker.activity.ui.recycler.ContextualSwipeTouchHelper
@@ -29,6 +28,10 @@ class SessionActivityActivity : ManageActivity() {
 
 	private fun generateEditDataList(sessionActivity: SessionActivity): Collection<EditDataInstance> {
 		return listOf(EditDataInstance(NAME_FIELD, sessionActivity.name))
+	}
+
+	override fun onManageConfigure(configuration: ManageConfiguration) {
+		configuration.isRecyclerMarginEnabled = false
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {

@@ -16,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
+	private lateinit var dao: NotificationPreferenceDao
+
 	private val adapter = NotificationRecyclerAdapter(this, this::onEdit)
 
 	private val simpleItemTouchCallback =
@@ -86,7 +88,7 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 						order = index
 				)
 			}
-			adapter.addAll(collection)
+			launch(Dispatchers.Main) { adapter.addAll(collection) }
 		}
 
 		touchHelper.attachToRecyclerView(recyclerView)
@@ -128,13 +130,14 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 		)
 	}
 
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		isAddEnabled = false
-		setTitle(R.string.settings_notification_customize_title)
+	override fun onManageConfigure(configuration: ManageConfiguration) {
+		configuration.isAddEnabled = false
 	}
 
-	private lateinit var dao: NotificationPreferenceDao
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		setTitle(R.string.settings_notification_customize_title)
+	}
 
 	companion object {
 		private const val SHOW_IN_TITLE = "showInTitle"

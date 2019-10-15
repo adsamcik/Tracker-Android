@@ -20,7 +20,10 @@ class WifiBrowseActivity : ManageActivity() {
 	}
 
 	override fun onManageConfigure(configuration: ManageConfiguration) {
-		configuration.isHorizontallyScrollable = true
+		configuration.apply {
+			isHorizontallyScrollable = true
+			dialogFabIcon = com.adsamcik.tracker.common.R.drawable.ic_filter_list
+		}
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {

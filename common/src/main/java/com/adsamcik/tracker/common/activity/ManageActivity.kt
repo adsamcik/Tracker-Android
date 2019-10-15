@@ -7,19 +7,22 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.Checkable
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import androidx.annotation.CallSuper
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.view.children
+import androidx.core.view.forEach
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.extension.findChildOfType
 import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.style.RecyclerStyleView
@@ -63,6 +66,8 @@ abstract class ManageActivity : DetailActivity() {
 			field = value
 		}
 
+	protected var resetOnAdd: Boolean = true
+
 	abstract fun getAdapter(): RecyclerView.Adapter<RecyclerView.ViewHolder>
 
 	abstract fun onCreateRecycler(recyclerView: RecyclerView)
@@ -89,7 +94,9 @@ abstract class ManageActivity : DetailActivity() {
 			)
 			addItemDecoration(dividerItemDecoration)
 
-			addItemDecoration(MarginDecoration())
+			if (manageConfiguration.isRecyclerMarginEnabled) {
+				addItemDecoration(MarginDecoration())
+			}
 
 			if (manageConfiguration.isHorizontallyScrollable) {
 				val horizontalScroll = HorizontalScrollView(this@ManageActivity)
@@ -107,10 +114,20 @@ abstract class ManageActivity : DetailActivity() {
 
 		fab = rootView.findViewById<FloatingActionButton>(R.id.fab).apply {
 			onCreateEdit()
-			setOnClickListener { isExpanded = true }
+			setOnClickListener(this@ManageActivity::onFabClick)
+			setImageDrawable(resources.getDrawable(manageConfiguration.dialogFabIcon, theme))
 		}
 
 		initializeColorController()
+
+		isAddEnabled = manageConfiguration.isAddEnabled
+		resetOnAdd = manageConfiguration.resetDialogOnAdd
+	}
+
+	@Suppress("unused_parameter")
+	private fun onFabClick(view: View) {
+		if (resetOnAdd) resetDialogInput()
+		fab.isExpanded = true
 	}
 
 	private fun inflateEdit(): ViewGroup {
@@ -141,13 +158,13 @@ abstract class ManageActivity : DetailActivity() {
 		}
 	}
 
-	private fun setEditText(editText: TextInputEditText, data: EditDataInstance) {
+	private fun setEditText(editText: EditText, data: EditDataInstance) {
 		editText.setText(data.value)
 	}
 
 	private fun getEditTextValue(view: View, editData: EditData): EditDataInstance? {
 		require(view is TextInputLayout)
-		val editText = view.findChildOfType<TextInputEditText>()
+		val editText = requireNotNull(view.editText)
 		val editableText = editText.text
 		return if (editData.isRequired && editableText.isNullOrBlank()) {
 			null
@@ -192,8 +209,7 @@ abstract class ManageActivity : DetailActivity() {
 		when (data.type) {
 			EditType.EditText -> {
 				require(view is TextInputLayout)
-				val child = view.findChildOfType<TextInputEditText>()
-				setEditText(child, instance)
+				setEditText(requireNotNull(view.editText), instance)
 
 			}
 			EditType.Checkbox -> {
@@ -234,6 +250,15 @@ abstract class ManageActivity : DetailActivity() {
 				EditType.Checkbox -> getCheckboxValue(view, editData)
 			}
 		}.toList()
+	}
+
+	private fun resetDialogInput() {
+		requireNotNull(editContentRootLayout).forEach {
+			when (it) {
+				is TextInputLayout -> requireNotNull(it.editText).setText("")
+				is Checkable -> it.isChecked = false
+			}
+		}
 	}
 
 	private fun onCreateEdit() {
@@ -294,7 +319,11 @@ abstract class ManageActivity : DetailActivity() {
 	}
 
 	data class ManageConfiguration(
-			var isHorizontallyScrollable: Boolean = false
+			var isHorizontallyScrollable: Boolean = false,
+			@DrawableRes var dialogFabIcon: Int = R.drawable.ic_outline_add,
+			var isAddEnabled: Boolean = true,
+			var resetDialogOnAdd: Boolean = true,
+			var isRecyclerMarginEnabled: Boolean = true
 	)
 
 	data class EditData(
