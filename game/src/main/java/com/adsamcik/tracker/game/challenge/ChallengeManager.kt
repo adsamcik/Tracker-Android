@@ -76,6 +76,7 @@ object ChallengeManager {
 				mutableActiveChallengeList_.clear()
 				mutableActiveChallengeList_.addAll(active)
 				fillEmptyChallengeSlots(context)
+				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 			}
 			onInitialized?.invoke()
 		}
@@ -117,7 +118,6 @@ object ChallengeManager {
 					break
 				}
 			}
-			mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 			scheduleNextChallengeExpiredWork(context)
 		}
 	}
@@ -135,6 +135,7 @@ object ChallengeManager {
 			activeChallengeLock.withLock {
 				mutableActiveChallengeList_.removeAll(expired)
 				fillEmptyChallengeSlots(context)
+				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 			}
 		}
 	}
