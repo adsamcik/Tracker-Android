@@ -34,16 +34,16 @@ class LineChartViewHolder(
 		}
 	}
 
-	override fun bind(value: LineChartStatisticsData, styleController: StyleController) {
+	override fun bind(data: LineChartStatisticsData, styleController: StyleController) {
 		val context = itemView.context
 		val resources = context.resources
-		val titleText = resources.getString(value.titleRes)
+		val titleText = resources.getString(data.titleRes)
 
 		title.text = titleText
-		val icon = ContextCompat.getDrawable(context, value.iconRes)
+		val icon = ContextCompat.getDrawable(context, data.iconRes)
 		title.setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
-		
-		val dataSet = LineDataSet(value.values, titleText).apply {
+
+		val dataSet = LineDataSet(data.values, titleText).apply {
 			setDrawCircles(false)
 			setDrawValues(false)
 			setDrawFilled(false)

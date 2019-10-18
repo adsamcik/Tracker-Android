@@ -14,18 +14,18 @@ import com.google.android.gms.maps.model.PolylineOptions
 class MapViewHolder(val map: MapView) : StyleMultiTypeViewHolder<MapStatisticsData>(map) {
 	private var googleMap: GoogleMap? = null
 
-	override fun bind(value: MapStatisticsData, styleController: StyleController) {
+	override fun bind(data: MapStatisticsData, styleController: StyleController) {
 		map.onCreate(null)
 		map.getMapAsync {
 			googleMap = it
 			val polyline = PolylineOptions().apply {
-				addAll(value.locations)
+				addAll(data.locations)
 			}
 			it.addPolyline(polyline)
 
 			val bounds = LatLngBounds.Builder()
-					.include(LatLng(value.bounds.bottom, value.bounds.left))
-					.include(LatLng(value.bounds.top, value.bounds.right))
+					.include(LatLng(data.bounds.bottom, data.bounds.left))
+					.include(LatLng(data.bounds.top, data.bounds.right))
 					.build()
 
 			val padding = 0
