@@ -7,42 +7,42 @@
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/bssid"
-        style="@style/TextAppearance.AppCompat.Body2"
+        style="@style/RecyclerTableWifiItem"
         android:layout_width="140dp"
         android:layout_height="wrap_content"
         tools:text="d8:c7:c8:cc:43:25" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/ssid"
-        style="@style/TextAppearance.AppCompat.Body1"
+        style="@style/RecyclerTableWifiItem"
         android:layout_width="150dp"
         android:layout_height="wrap_content"
         tools:text="My super awesome Wi-Fi" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/capabilities"
-        style="@style/TextAppearance.AppCompat.Body1"
+        style="@style/RecyclerTableWifiItem"
         android:layout_width="180dp"
         android:layout_height="wrap_content"
         tools:text="[WPA2-PSK-CCMP+TKIP][WPA-PSK-CCMP+TKIP][ESS]" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/frequency"
-        style="@style/TextAppearance.AppCompat.Body1"
-        android:layout_width="60dp"
+        style="@style/RecyclerTableWifiItem"
+        android:layout_width="70dp"
         android:layout_height="wrap_content"
         tools:text="2.4 GHz" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/first_seen"
-        style="@style/TextAppearance.AppCompat.Body1"
+        style="@style/RecyclerTableWifiItem"
         android:layout_width="120dp"
         android:layout_height="wrap_content"
         tools:text="10th October 3000" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/last_seen"
-        style="@style/TextAppearance.AppCompat.Body1"
+        style="@style/RecyclerTableWifiItem"
         android:layout_width="120dp"
         android:layout_height="match_parent"
         tools:text="1st January 3012" />

@@ -23,6 +23,7 @@ class WifiBrowseActivity : ManageActivity() {
 		configuration.apply {
 			isHorizontallyScrollable = true
 			dialogFabIcon = com.adsamcik.tracker.common.R.drawable.ic_filter_list
+			resetDialogOnAdd = false
 		}
 	}
 
@@ -76,9 +77,9 @@ class WifiBrowseActivity : ManageActivity() {
 		}
 	}
 
-	private fun generateWhere(filterData: FilterData): Pair<String, Array<out Any>> {
+	private fun generateWhere(filterData: FilterData): Pair<String, Array<out String>> {
 		val conditionList = mutableListOf<String>()
-		val outList = mutableListOf<Any>()
+		val outList = mutableListOf<String>()
 		if (!filterData.bssid.isNullOrBlank()) {
 			conditionList.add("bssid LIKE ?")
 			outList.add("%${filterData.bssid}%")
@@ -93,7 +94,7 @@ class WifiBrowseActivity : ManageActivity() {
 		}
 		if (!filterData.frequency.isNullOrBlank()) {
 			conditionList.add("frequency LIKE ?")
-			outList.add("%${filterData.frequency}%")
+			outList.add("${filterData.frequency}%")
 		}
 
 		return conditionList.joinToString(separator = " AND ") to outList.toTypedArray()
@@ -108,8 +109,12 @@ class WifiBrowseActivity : ManageActivity() {
 						EditType.EditText,
 						R.string.wifilist_filter_capabilities
 				),
-				EditData(FILTER_FREQUENCY, EditType.EditText, R.string.wifilist_filter_frequency),
-				EditData(FILTER_COUNT, EditType.EditText, R.string.wifilist_filter_count)
+				EditData(
+						FILTER_FREQUENCY,
+						EditType.EditTextNumber,
+						R.string.wifilist_filter_frequency
+				),
+				EditData(FILTER_COUNT, EditType.EditTextNumber, R.string.wifilist_filter_count)
 		)
 	}
 

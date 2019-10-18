@@ -138,7 +138,7 @@ abstract class ManageActivity : DetailActivity() {
 		return rootView as ViewGroup
 	}
 
-	private fun initializeEditText(data: EditData): View {
+	private fun initializeEditText(data: EditData): TextInputLayout {
 		val editText = TextInputEditText(this).apply {
 			this.layoutParams = LinearLayout.LayoutParams(
 					ViewGroup.LayoutParams.MATCH_PARENT,
@@ -193,6 +193,13 @@ abstract class ManageActivity : DetailActivity() {
 			val layout = when (it.type) {
 				EditType.EditText -> initializeEditText(it)
 				EditType.Checkbox -> initializeCheckbox(it)
+				EditType.EditTextNumber -> {
+					initializeEditText(it).also { layout ->
+						requireNotNull(layout.editText).inputType = InputType.TYPE_CLASS_NUMBER
+					}
+				}
+				EditType.DateTime -> TODO()
+				EditType.DateTimeRange -> TODO()
 			}
 
 			rootLayout.addView(layout)
@@ -207,7 +214,7 @@ abstract class ManageActivity : DetailActivity() {
 			instance: EditDataInstance
 	) {
 		when (data.type) {
-			EditType.EditText -> {
+			EditType.EditText, EditType.EditTextNumber -> {
 				require(view is TextInputLayout)
 				setEditText(requireNotNull(view.editText), instance)
 
@@ -216,6 +223,8 @@ abstract class ManageActivity : DetailActivity() {
 				require(view is CheckBox)
 				setCheckbox(view, instance)
 			}
+			EditType.DateTime -> TODO()
+			EditType.DateTimeRange -> TODO()
 		}
 	}
 
@@ -246,8 +255,10 @@ abstract class ManageActivity : DetailActivity() {
 		return rootLayout.children.mapIndexed { index, view ->
 			val editData = editFieldList[index]
 			when (editData.type) {
-				EditType.EditText -> getEditTextValue(view, editData)
+				EditType.EditText, EditType.EditTextNumber -> getEditTextValue(view, editData)
 				EditType.Checkbox -> getCheckboxValue(view, editData)
+				EditType.DateTime -> TODO()
+				EditType.DateTimeRange -> TODO()
 			}
 		}.toList()
 	}
@@ -342,6 +353,9 @@ abstract class ManageActivity : DetailActivity() {
 
 	enum class EditType {
 		EditText,
-		Checkbox
+		EditTextNumber,
+		Checkbox,
+		DateTime,
+		DateTimeRange
 	}
 }
