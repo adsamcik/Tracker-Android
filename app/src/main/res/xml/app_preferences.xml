@@ -59,6 +59,13 @@
 
         <androidx.preference.PreferenceCategory android:title="@string/settings_notification_category">
 
+            <androidx.preference.CheckBoxPreference
+                android:defaultValue="@string/settings_notification_styled_default"
+                android:icon="@drawable/ic_outline_style_24px"
+                android:key="@string/settings_notification_styled_key"
+                android:summary="@string/settings_notification_styled_summary"
+                android:title="@string/settings_notification_styled_title" />
+
             <androidx.preference.Preference
                 app:icon="@drawable/ic_notification_clear_all"
                 app:key="@string/settings_notification_customize_key"
