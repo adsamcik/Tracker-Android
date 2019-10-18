@@ -20,12 +20,11 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 
 	private fun calculateSpeed(prevLocation: Location, location: Location): Float {
 		val recordedSpeed = location.speed
-
-		if (recordedSpeed <= 0f) return calculatedSpeed
-
 		val distance = location.distanceTo(prevLocation)
 		val deltaS = (location.elapsedRealtimeNanos - prevLocation.elapsedRealtimeNanos) / Time.SECOND_IN_NANOSECONDS
 		val calculatedSpeed = distance / deltaS
+
+		if (recordedSpeed <= 0f) return calculatedSpeed
 
 		val changePercentage = abs(calculatedSpeed - recordedSpeed) / recordedSpeed
 
