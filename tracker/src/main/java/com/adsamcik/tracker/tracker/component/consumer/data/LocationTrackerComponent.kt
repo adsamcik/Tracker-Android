@@ -28,7 +28,7 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 
 		val changePercentage = abs(calculatedSpeed - recordedSpeed) / recordedSpeed
 
-		return if (changePercentage >= 0.2f) {
+		return if (changePercentage >= MAX_ALLOWED_DIFFERENCE_TO_COMPUTED) {
 			calculatedSpeed
 		} else {
 			recordedSpeed
@@ -50,6 +50,10 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 		}
 
 		collectionData.setLocation(location)
+	}
+
+	companion object {
+		private const val MAX_ALLOWED_DIFFERENCE_TO_COMPUTED = 0.2f
 	}
 }
 
