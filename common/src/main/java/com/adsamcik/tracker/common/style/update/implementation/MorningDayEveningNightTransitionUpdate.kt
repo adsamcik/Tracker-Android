@@ -1,9 +1,7 @@
 package com.adsamcik.tracker.common.style.update.implementation
 
-import android.util.Log
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.formatAsDateTime
 import com.adsamcik.tracker.common.extension.setDateFrom
 import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.style.SunSetRise
@@ -201,7 +199,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: Long
 	): UpdateData {
 		return when {
-			sunset >= sunrise -> afterSunset(
+			now >= sunset -> afterSunset(
 					now,
 					sunrise,
 					sunset
