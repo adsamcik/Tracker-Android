@@ -39,4 +39,14 @@
     <string name="wifilist_filter_count">Kolik zobrazit</string>
     <string name="wifilist_filter_frequency">Frekvence</string>
     <string name="wifilist_filter_ssid">SSID (název)</string>
+    <string name="wifilist_count">Nalezeno %d Wi-Fi splňujících filtr</string>
+    <string name="wifilist_filter_from">Od</string>
+    <string name="wifilist_filter_to">Do</string>
+    <string name="wifilist_item_frequency">%d MHz</string>
+    <string name="wifilist_title_bssid">BSSID</string>
+    <string name="wifilist_title_capabilities">Vlastnosti</string>
+    <string name="wifilist_title_first_seen">Poprvé viděno</string>
+    <string name="wifilist_title_frequency">Frekvence</string>
+    <string name="wifilist_title_last_seen">Naposledy viděno</string>
+    <string name="wifilist_title_ssid">SSID</string>
 </resources>

@@ -94,4 +94,14 @@
     <string name="latitude_value_south">%s j. š.</string>
     <string name="longitude_value_east">%s v. d.</string>
     <string name="longitude_value_west">%s z. d.</string>
+    <string name="settings_enable_category_title">Co trackovat</string>
+    <string name="settings_notification_styled_summary">Využívat barvu vzhledu aplikace také pro notifikace?</string>
+    <string name="settings_notification_styled_title">Stylovat vzhled</string>
+    <string name="settings_tracker_timer_clock">Časovač</string>
+    <string name="settings_tracker_timer_fused">Google Play lokalizace</string>
+    <string name="settings_tracker_timer_location">Android lokalizace</string>
+    <string name="settings_tracker_timer_summary">Aktuálně aktivní: %s. Komponenta využívání pro aktualizace - inicializuje jednotlivé sběry</string>
+    <string name="settings_tracker_timer_title">Časovače</string>
+    <string name="settings_wifi_location_count_enabled_title">Počet Wi-Fi na jednotlivých polohách</string>
+    <string name="settings_wifi_network_enabled_title">Informace o jednotlivých Wi-Fi vysílačích</string>
 </resources>
