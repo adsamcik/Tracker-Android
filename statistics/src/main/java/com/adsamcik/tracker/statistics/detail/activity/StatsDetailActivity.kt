@@ -111,7 +111,7 @@ class StatsDetailActivity : DetailActivity() {
 				          header_root.updatePadding(top = 0)
 			          } else {
 				          add_item_layout.visibility = View.VISIBLE
-				          header_root.updatePadding(top = 16.dp)
+				          header_root.updatePadding(top = HEADER_ROOT_PADDING.dp)
 				          findViewById<View>(
 						          R.id.button_change_activity
 				          ).setOnClickListener { showActivitySelectionDialog() }
@@ -175,11 +175,11 @@ class StatsDetailActivity : DetailActivity() {
 		}
 
 		adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-			override fun onChanged() {}
+			override fun onChanged() = Unit
 
-			override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {}
+			override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = Unit
 
-			override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {}
+			override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) = Unit
 
 			override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
 				if (layoutManager.findFirstCompletelyVisibleItemPosition() == 0) {
@@ -187,9 +187,10 @@ class StatsDetailActivity : DetailActivity() {
 				}
 			}
 
-			override fun onItemRangeChanged(positionStart: Int, itemCount: Int) {}
+			override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = Unit
 
-			override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) {}
+			override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) =
+					Unit
 		})
 
 		recycler.adapter = adapter
@@ -296,50 +297,52 @@ class StatsDetailActivity : DetailActivity() {
 		}
 	}
 
-	private fun addSpeedStats(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
-		if (locations.isEmpty()) return
+	private fun getSpeed(previous: Location, current: Location, secondsElapsed: Double): Double {
+		val recordedSpeed = current.speed
+		return if (recordedSpeed != null) {
+			recordedSpeed.toDouble()
+		} else {
+			val previousAltitude = previous.altitude
+			val currentAltitude = current.altitude
+			val distance = if (currentAltitude != null && previousAltitude != null) {
+				Location.distance(
+						previous.latitude,
+						previous.longitude,
+						previousAltitude,
+						current.latitude,
+						current.longitude,
+						currentAltitude,
+						LengthUnit.Meter
+				)
+			} else {
+				Location.distance(
+						previous.latitude,
+						previous.longitude,
+						current.latitude,
+						current.longitude,
+						LengthUnit.Meter
+				)
+			}
 
+			distance / secondsElapsed
+		}
+	}
+
+	private data class SpeedStats(val avgSpeed: Double, val maxSpeed: Double)
+
+	private fun calculateSpeedStats(locations: List<DatabaseLocation>): SpeedStats {
 		var maxSpeed = 0.0
 		var speedSum = 0.0
 		var speedCount = 0
 
 		var previous = locations[0]
-		var previousAltitude = previous.altitude
 		for (i in 1 until locations.size) {
 			val current = locations[i]
-			val currentAltitude = current.altitude
 			val timeDifference = current.time - previous.time
 			val secondsElapsed = timeDifference.toDouble() / Time.SECOND_IN_MILLISECONDS.toDouble()
 
-			if (secondsElapsed <= 70.0) {
-				val speed: Double
-
-				val recordedSpeed = current.location.speed
-				speed = if (recordedSpeed != null) {
-					recordedSpeed.toDouble()
-				} else {
-					val distance = if (currentAltitude != null && previousAltitude != null) {
-						Location.distance(
-								previous.latitude,
-								previous.longitude,
-								previousAltitude,
-								current.latitude,
-								current.longitude,
-								currentAltitude,
-								LengthUnit.Meter
-						)
-					} else {
-						Location.distance(
-								previous.latitude,
-								previous.longitude,
-								current.latitude,
-								current.longitude,
-								LengthUnit.Meter
-						)
-					}
-
-					distance / secondsElapsed
-				}
+			if (secondsElapsed <= MAX_SECONDS_ELAPSED_FOR_CONTINUOUS_PATH) {
+				val speed = getSpeed(previous.location, current.location, secondsElapsed)
 
 				if (speed > maxSpeed) maxSpeed = speed
 				speedSum += speed
@@ -347,23 +350,31 @@ class StatsDetailActivity : DetailActivity() {
 			}
 
 			previous = current
-			previousAltitude = currentAltitude
 		}
 
 		val avgSpeed = speedSum / speedCount
+
+		return SpeedStats(avgSpeed, maxSpeed)
+	}
+
+	private fun addSpeedStats(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
+		if (locations.isEmpty()) return
+
+		val speedStats = calculateSpeedStats(locations)
+
 		val lengthSystem = Preferences.getLengthSystem(this)
 		val speedFormat = Preferences.getSpeedFormat(this)
 		val dataList = listOf(
 				InformationStatisticsData(
 						com.adsamcik.tracker.common.R.drawable.ic_speedometer,
 						R.string.stats_max_speed,
-						resources.formatSpeed(maxSpeed, 1, lengthSystem, speedFormat)
+						resources.formatSpeed(speedStats.maxSpeed, 1, lengthSystem, speedFormat)
 				),
 
 				InformationStatisticsData(
 						com.adsamcik.tracker.common.R.drawable.ic_speedometer,
 						R.string.stats_avg_speed,
-						resources.formatSpeed(avgSpeed, 1, lengthSystem, speedFormat)
+						resources.formatSpeed(speedStats.avgSpeed, 1, lengthSystem, speedFormat)
 				)
 		)
 
@@ -451,6 +462,9 @@ class StatsDetailActivity : DetailActivity() {
 		private var initialized = false
 		private val sessionMutable: MutableLiveData<TrackerSession> = MutableLiveData()
 
+		/**
+		 * Returns LiveData containing tracker sessions
+		 */
 		val session: LiveData<TrackerSession> get() = sessionMutable
 
 		@WorkerThread
@@ -466,6 +480,8 @@ class StatsDetailActivity : DetailActivity() {
 	companion object {
 		const val ARG_SESSION_ID = "session_id"
 		private const val ALTITUDE_REQUIRED_CHANGE = 1.0
+		private const val HEADER_ROOT_PADDING = 16
+		private const val MAX_SECONDS_ELAPSED_FOR_CONTINUOUS_PATH = 70.0
 	}
 }
 
