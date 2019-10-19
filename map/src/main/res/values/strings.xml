@@ -19,6 +19,9 @@
     <string name="tips_map_date_range_title">Date range</string>
     <string name="tips_map_date_range_description">Selecting date range can show you only data for the range you desire.</string>
 
+    <string name="tips_map_hidden_sheet_title">The sheet is gone!!!</string>
+    <string name="tips_map_hidden_sheet_description">No worries, you can always bring it back up with a gentle tap on the map.</string>
+
     <string name="map_legend_title">%s legend</string>
 
     <string name="description_legend">Map legend</string>

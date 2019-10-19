@@ -17,9 +17,10 @@ import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
 import com.adsamcik.tracker.map.MapOwner
+import com.adsamcik.tracker.map.MapSensorController
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.MapSensorController
+import com.adsamcik.tracker.map.introduction.MapIntroduction
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.SupportMapFragment
@@ -59,11 +60,8 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		this.fActivity = activity
 
-		val fragmentManager = fragmentManager
-				?: throw NullPointerException("Fragment Manager is null. This was probably called too early!")
-
 		if (Assist.isPlayServicesAvailable(activity)) {
-			mapOwner.createMap(fragmentManager)
+			mapOwner.createMap(childFragmentManager)
 		}
 
 		mapOwner.onEnable()

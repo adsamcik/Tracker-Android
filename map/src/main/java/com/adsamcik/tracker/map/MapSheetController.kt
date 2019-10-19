@@ -29,6 +29,7 @@ import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.marginBottom
 import com.adsamcik.tracker.common.extension.requireParent
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
+import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.keyboard.KeyboardListener
 import com.adsamcik.tracker.common.keyboard.KeyboardManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
@@ -40,6 +41,7 @@ import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
+import com.adsamcik.tracker.map.introduction.MapSheetHiddenIntroduction
 import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
@@ -178,6 +180,12 @@ internal class MapSheetController(
 				if (newState != BottomSheetBehavior.STATE_EXPANDED && newState != BottomSheetBehavior.STATE_SETTLING) {
 					keyboardManager.hideKeyboard()
 					rootLayout.edittext_map_search.clearFocus()
+				}
+
+				if (newState == BottomSheetBehavior.STATE_HIDDEN) {
+					bottomSheet.post {
+						IntroductionManager.showIntroduction(activity, MapSheetHiddenIntroduction())
+					}
 				}
 			}
 		})

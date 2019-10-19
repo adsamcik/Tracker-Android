@@ -21,6 +21,34 @@ object DisplayAssist {
 		return context.windowManager.defaultDisplay.rotation
 	}
 
+	fun getRealArea(context: Context): Int2 {
+		val display = context.windowManager.defaultDisplay
+		val realScreenSize = Point()
+
+		display.getRealSize(realScreenSize)
+		return Int2(realScreenSize.x, realScreenSize.y)
+	}
+
+	fun getUsableArea(context: Context): Int2 {
+		val display = context.windowManager.defaultDisplay
+		val appUsableSize = Point()
+
+		display.getSize(appUsableSize)
+		return Int2(appUsableSize.x, appUsableSize.y)
+	}
+
+	fun getDisplayOffsets(context: Context): Int2 {
+		val display = context.windowManager.defaultDisplay
+
+		val appUsableSize = Point()
+		val realScreenSize = Point()
+
+		display.getRealSize(realScreenSize)
+		display.getSize(appUsableSize)
+
+		return Int2(realScreenSize.x - appUsableSize.x, realScreenSize.y - appUsableSize.y)
+	}
+
 	/**
 	 * Calculates current navbar size and it's current position.
 	 * Size is stored inside Point class.

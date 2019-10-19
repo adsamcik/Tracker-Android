@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.fragment
+package com.adsamcik.tracker.map.introduction
 
 import android.view.View
 import androidx.fragment.app.FragmentActivity
@@ -22,17 +22,26 @@ class MapIntroduction : Introduction() {
 
 			val dp8 = RECTANGLE_RADIUS_DP.dp.toFloat()
 
-			var target = findViewById<View>(R.id.map_search_parent)
-			val searchTarget = SimpleTarget.Builder(this)
+			var target = findViewById<View>(R.id.map_sheet_drag_area)
+			val mapMenuButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
-					.setTitle(getString(R.string.tips_map_search_title))
+					.setTitle(getString(R.string.tips_map_sheet_title))
+					.addButtonData(buttonData)
 					.addButtonData(SimpleTarget.ButtonData(
 							resources.getString(
-									com.adsamcik.tracker.common.R.string.skip_tips
+									com.adsamcik.tracker.common.R.string.skip_introduction
 							)
 					) { _, spotlight ->
 						spotlight.finishSpotlight()
 					})
+					.setShape(RoundedRectangle(target, dp8, dp8))
+					.setDescription(getString(R.string.tips_map_sheet_description))
+					.build()
+
+			target = findViewById<View>(R.id.map_search_parent)
+			val searchTarget = SimpleTarget.Builder(this)
+					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
+					.setTitle(getString(R.string.tips_map_search_title))
 					.addButtonData(buttonData)
 					.setShape(RoundedRectangle(target, dp8, dp8))
 					.setDescription(getString(R.string.tips_map_search_description)).build()
@@ -44,15 +53,6 @@ class MapIntroduction : Introduction() {
 					.addButtonData(buttonData)
 					.setShape(Circle(target))
 					.setDescription(getString(R.string.tips_map_my_location_description))
-					.build()
-
-			target = findViewById<View>(R.id.map_sheet_drag_area)
-			val mapMenuButtonTarget = SimpleTarget.Builder(this)
-					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
-					.setTitle(getString(R.string.tips_map_sheet_title))
-					.addButtonData(buttonData)
-					.setShape(RoundedRectangle(target, dp8, dp8))
-					.setDescription(getString(R.string.tips_map_sheet_description))
 					.build()
 
 			target = findViewById<View>(R.id.button_map_date_range)

@@ -97,8 +97,8 @@
 
     <string name="show_tips_title">Zobrazovat tipy</string>
 
-    <string name="tutorial_activity_description">Aktivity můžete najít vpravo</string>
-    <string name="tutorial_activity_title">Aktivita</string>
+    <string name="tutorial_game_description">Hry jsou napravo</string>
+    <string name="tutorial_game_title">Hry</string>
     <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
     <string name="tutorial_map_title">Mapa</string>
     <string name="tutorial_settings_description">Pod tímto tlačítkem najdete nastavení</string>

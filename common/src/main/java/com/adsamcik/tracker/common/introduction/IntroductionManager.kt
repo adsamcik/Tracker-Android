@@ -5,7 +5,6 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.tryWithReport
 import com.adsamcik.tracker.common.introduction.IntroductionManager.showIntroduction
 import com.adsamcik.tracker.common.preference.Preferences

@@ -12,8 +12,8 @@
     <string name="tutorial_stats_title">Statistics</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
 
-    <string name="tutorial_activity_title">Activity</string>
-    <string name="tutorial_activity_description">You can find activities on the right</string>
+    <string name="tutorial_game_title">Games</string>
+    <string name="tutorial_game_description">You can find games on the right</string>
 
     <string name="tutorial_map_title">Map</string>
     <string name="tutorial_map_description">If you click or drag this surface upwards, it will bring up the map</string>

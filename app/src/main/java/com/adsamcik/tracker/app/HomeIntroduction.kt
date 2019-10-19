@@ -6,7 +6,6 @@ import android.graphics.PointF
 import android.view.View
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.introduction.Introduction
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Target
@@ -24,7 +23,7 @@ class HomeIntroduction : Introduction() {
 			.setTitle(resources.getString(R.string.tutorial_welcome_title))
 			.addButtonData(SimpleTarget.ButtonData(
 					resources.getString(
-							com.adsamcik.tracker.common.R.string.skip_tips
+							com.adsamcik.tracker.common.R.string.skip_introduction
 					)
 			) { _, spotlight ->
 				spotlight.finishSpotlight()
@@ -60,7 +59,13 @@ class HomeIntroduction : Introduction() {
 				.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 				.setTitle(resources.getString(R.string.tutorial_map_title))
 				.addButtonData(buttonData)
-				.setShape(RoundedRectangle(target, 8.dp.toFloat(), target.height.toFloat()))
+				.setShape(
+						RoundedRectangle(
+								target,
+								target.height.toFloat(),
+								target.height.toFloat()
+						)
+				)
 				.setDescription(resources.getString(R.string.tutorial_map_description))
 				.build()
 	}
@@ -73,10 +78,10 @@ class HomeIntroduction : Introduction() {
 		val target = activity.findViewById<View>(R.id.button_game)
 		return SimpleTarget.Builder(activity)
 				.setPoint(target.x + target.pivotX, target.y + target.pivotY)
-				.setTitle(resources.getString(R.string.tutorial_activity_title))
+				.setTitle(resources.getString(R.string.tutorial_game_title))
 				.addButtonData(buttonData)
 				.setShape(Circle(target))
-				.setDescription(resources.getString(R.string.tutorial_activity_description))
+				.setDescription(resources.getString(R.string.tutorial_game_description))
 				.build()
 	}
 
@@ -98,7 +103,6 @@ class HomeIntroduction : Introduction() {
 
 	override fun getTargets(activity: FragmentActivity): Collection<Target> {
 		val resources = activity.resources
-		//todo add next button to library
 		val buttonData = SimpleTarget.ButtonData(
 				resources.getString(com.adsamcik.tracker.common.R.string.next_part)
 		) { _, spotlight ->
