@@ -8,7 +8,7 @@ buildscript {
 		classpath("com.android.tools.build:gradle:3.5.0")
 		classpath("com.google.gms:google-services:4.3.2")
 		classpath("com.google.gms:oss-licenses:0.9.2")
-		classpath("io.fabric.tools:gradle:1.31.1")
+		classpath("io.fabric.tools:gradle:1.31.2")
 
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
@@ -17,7 +17,7 @@ buildscript {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.26.0")
+	id("com.github.ben-manes.versions") version ("0.27.0")
 }
 
 allprojects {
