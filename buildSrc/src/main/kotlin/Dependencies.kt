@@ -31,7 +31,7 @@ object Dependencies {
 		internal const val playCore = "1.6.3"
 		internal const val playLocation = "17.0.0"
 
-		internal const val spotlight = "2.2.1"
+		internal const val spotlight = "2.2.2"
 		internal const val dialogs = "3.1.1"
 		internal const val sectionedRecyclerViewAdapter = "3.0.0"
 
