@@ -3,6 +3,7 @@ package com.adsamcik.tracker.common.style.update.abstraction
 import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
+import com.adsamcik.tracker.common.misc.BlendFunctions
 import com.adsamcik.tracker.common.style.SunSetRise
 import com.adsamcik.tracker.common.style.update.data.StyleConfigData
 import com.adsamcik.tracker.common.style.update.data.UpdateData
@@ -42,22 +43,6 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 		timerLock.withLock {
 			stopUpdate()
 			startUpdate()
-		}
-	}
-
-
-	/**
-	 * Checks if a timer is running, if not start a new timer.
-	 */
-	fun ensureUpdate() {
-		updateLock.withLock {
-			if (colorList.size > 1) {
-				synchronized(timerActive) {
-					if (!timerActive) startUpdate()
-				}
-			} else if (colorList.size == 1) {
-				onColorUpdate(colorList.first())
-			}
 		}
 	}
 
@@ -169,7 +154,8 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 					timerLock.withLock {
 						currentTime = (currentTime + deltaTime).coerceAtMost(data.duration)
 						val delta = currentTime.toFloat() / data.duration
-						deltaUpdate(delta, data)
+						val blendDelta = BlendFunctions.bezier(delta)
+						deltaUpdate(blendDelta, data)
 					}
 				}
 			}
