@@ -10,6 +10,9 @@ import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 
 abstract class TrackerInfo(@StringRes val nameRes: Int) {
 
+	/**
+	 * Resource for icon that is used in title
+	 */
 	abstract val iconRes: Int
 
 	//Todo make lastIndex safe
@@ -18,6 +21,7 @@ abstract class TrackerInfo(@StringRes val nameRes: Int) {
 
 		bindTitle(holder.title)
 		bindContent(infoFieldHolder)
+		infoFieldHolder.done()
 	}
 
 	protected open fun bindTitle(title: TextView) {
