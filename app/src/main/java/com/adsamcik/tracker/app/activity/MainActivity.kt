@@ -17,7 +17,6 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.HomeIntroduction
-import com.adsamcik.tracker.common.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.activity.CoreUIActivity
 import com.adsamcik.tracker.common.assist.DisplayAssist

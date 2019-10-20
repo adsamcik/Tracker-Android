@@ -1,24 +1,19 @@
-package com.adsamcik.tracker.common
+package com.adsamcik.tracker.common.assist
 
 import android.animation.ObjectAnimator
 import android.app.Activity
 import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.Point
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.RippleDrawable
 import android.location.LocationManager
 import android.os.Build
 import android.os.Looper
 import android.provider.Settings
-import android.view.Surface
 import android.view.ViewGroup
-import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.locationManager
-import com.adsamcik.tracker.common.extension.windowManager
-import com.adsamcik.tracker.common.keyboard.NavBarPosition
-import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.preference.Preferences
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability

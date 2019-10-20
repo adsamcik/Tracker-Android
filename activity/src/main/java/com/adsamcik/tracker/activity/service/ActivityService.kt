@@ -7,7 +7,7 @@ import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.DetectedActivity

@@ -2,7 +2,7 @@ package com.adsamcik.tracker.common.adapter
 
 
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope

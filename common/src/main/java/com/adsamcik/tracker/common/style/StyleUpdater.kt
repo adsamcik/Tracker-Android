@@ -28,7 +28,7 @@ import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.extension.firstParent
 import com.adsamcik.tracker.common.style.marker.StyleableForegroundDrawable
 import com.adsamcik.tracker.common.style.marker.StyleableView

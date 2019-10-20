@@ -16,7 +16,7 @@ import androidx.annotation.StringRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.extension.dp

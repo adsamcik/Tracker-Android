@@ -11,7 +11,7 @@ import androidx.appcompat.widget.AppCompatImageButton
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.constant.GeometryConstants
 import com.adsamcik.tracker.common.data.ActivityInfo

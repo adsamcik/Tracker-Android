@@ -9,7 +9,7 @@ import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.style.StyleManager

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.notification.component
 
 import android.content.Context
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.data.CollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.data.NotificationPreference

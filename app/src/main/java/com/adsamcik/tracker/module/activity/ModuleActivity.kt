@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.Assist
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.style.RecyclerStyleView
