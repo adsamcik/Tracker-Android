@@ -16,12 +16,6 @@ abstract class CoreUIActivity : CoreActivity() {
 	private var lastPermissionRequestId = 1000
 
 	@CallSuper
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		initializeColors()
-	}
-
-	@CallSuper
 	override fun onDestroy() {
 		StyleManager.recycleController(styleController)
 		super.onDestroy()
@@ -36,6 +30,7 @@ abstract class CoreUIActivity : CoreActivity() {
 	@CallSuper
 	override fun onResume() {
 		styleController.isSuspended = false
+		initializeColors()
 		super.onResume()
 	}
 
