@@ -88,8 +88,7 @@ class ActivityWatcherService : CoreService() {
 								this, 0, intent,
 								0
 						)
-				) // The intent to send when the entry is clicked
-				.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
+				)
 
 		builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
 		builder.setContentText(
