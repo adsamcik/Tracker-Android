@@ -104,19 +104,20 @@ class SessionSection(private val time: Long, private val distance: Double) : Sec
 		holder.info.text = serializeInfo(context, session)
 
 		val activityId = session.sessionActivityId
-		if (activityId == null) {
-			holder.title.text = StatsFormat.createTitle(
-					context,
-					startCalendar,
-					endCalendar,
-					SessionActivity.UNKNOWN
-			)
-		} else {
-			launch {
-				val activity = AppDatabase.database(context).activityDao().get(activityId)
-						?: SessionActivity.UNKNOWN
+		holder.title.text = StatsFormat.createTitle(
+				context,
+				startCalendar,
+				endCalendar,
+				SessionActivity.UNKNOWN
+		)
+		if (activityId != null) {
+			launch(Dispatchers.Default) {
+				val activity = AppDatabase.database(context).activityDao().getLocalized(
+						context,
+						activityId
+				) ?: SessionActivity.UNKNOWN
 
-				launch(Dispatchers.Main) {
+				holder.title.post {
 					holder.title.text = StatsFormat.createTitle(
 							context,
 							startCalendar,

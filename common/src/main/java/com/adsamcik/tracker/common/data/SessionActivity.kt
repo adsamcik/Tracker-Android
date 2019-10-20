@@ -34,6 +34,9 @@ data class SessionActivity(
 	}
 
 	companion object {
+		/**
+		 * Unknown activity value. Default for many applications.
+		 */
 		val UNKNOWN get() = SessionActivity(0L, "", null)
 
 		@WorkerThread

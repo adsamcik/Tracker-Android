@@ -139,9 +139,15 @@ enum class NativeSessionActivity(val id: Long) {
 		override val iconName: String = R.drawable::train.name
 	};
 
+	/**
+	 * Resource id of name for native session activity.
+	 */
 	abstract val nameRes: Int
-	abstract val iconName: String
 
+	/**
+	 * Name of the icon, Allows for dynamic retrieval.
+	 */
+	abstract val iconName: String
 
 	fun getSessionActivity(context: Context): SessionActivity {
 		return SessionActivity(id, context.getString(nameRes), iconName)
