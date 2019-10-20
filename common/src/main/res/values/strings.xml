@@ -2,6 +2,9 @@
 <resources>
     <string name="accessibility_add_new">Add new</string>
 
+    <string name="activity_raw_tilting">Tilting</string>
+    <string name="activity_raw_still">Still</string>
+
     <string name="activity_bicycle">bicycle</string>
     <string name="activity_idle">Idle</string>
     <string name="activity_in_vehicle">In vehicle</string>

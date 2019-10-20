@@ -123,4 +123,6 @@
     <string name="settings_color_update_light_transition_title">Den/Noc přechod dle světla</string>
     <string name="settings_color_update_single_title">Statická barva</string>
     <string name="ok">OK</string>
+    <string name="activity_raw_still">V klidu</string>
+    <string name="activity_raw_tilting">Naklánění</string>
 </resources>

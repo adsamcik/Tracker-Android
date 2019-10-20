@@ -26,11 +26,9 @@ internal class ActivityNotificationComponent : TrackerNotificationComponent() {
 			data: CollectionData
 	): String? {
 		val activity = data.activity ?: return null
-		// todo localize
 		return context.getString(
-				R.string.activity_value, activity.activity.toString().toLowerCase(
-				Locale.getDefault()
-		)
+				R.string.activity_value,
+				context.getString(activity.activity.nameRes).toLowerCase(Locale.getDefault())
 		)
 	}
 }

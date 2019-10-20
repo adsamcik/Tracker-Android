@@ -37,10 +37,7 @@ data class ActivityInfo(
 	@Ignore
 	val groupedActivity: GroupedActivity = activity.groupedActivity
 
-	constructor(parcel: Parcel) : this(
-			parcel.readInt(),
-			parcel.readInt()
-	)
+	constructor(parcel: Parcel) : this(parcel.readInt(), parcel.readInt())
 
 	/**
 	 * Shortcut function for static version of this function
@@ -66,48 +63,3 @@ data class ActivityInfo(
 				}
 	}
 }
-
-enum class DetectedActivity(val value: Int) {
-	STILL(com.google.android.gms.location.DetectedActivity.STILL) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.STILL
-	},
-	RUNNING(com.google.android.gms.location.DetectedActivity.RUNNING) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.ON_FOOT
-	},
-	ON_FOOT(com.google.android.gms.location.DetectedActivity.ON_FOOT) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.ON_FOOT
-	},
-	ON_BICYCLE(com.google.android.gms.location.DetectedActivity.ON_BICYCLE) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.IN_VEHICLE
-	},
-	IN_VEHICLE(com.google.android.gms.location.DetectedActivity.IN_VEHICLE) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.IN_VEHICLE
-	},
-	TILTING(com.google.android.gms.location.DetectedActivity.TILTING) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.UNKNOWN
-	},
-	UNKNOWN(com.google.android.gms.location.DetectedActivity.UNKNOWN) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.UNKNOWN
-	},
-	WALKING(com.google.android.gms.location.DetectedActivity.WALKING) {
-		override val groupedActivity: GroupedActivity
-			get() = GroupedActivity.ON_FOOT
-	};
-
-	abstract val groupedActivity: GroupedActivity
-
-	companion object {
-		fun fromDetectedType(type: Int): DetectedActivity {
-			return values().find { it.value == type }
-					?: throw IllegalArgumentException("Activity type with value $type is not defined.")
-		}
-	}
-}
-
