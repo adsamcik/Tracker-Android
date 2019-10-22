@@ -2,8 +2,6 @@ package com.adsamcik.tracker.common.style.update.implementation
 
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.setDateFrom
-import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.style.SunSetRise
 import com.adsamcik.tracker.common.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.common.style.update.data.RequiredColorData
@@ -28,6 +26,43 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 				)
 		)
 
+	private fun calculateDay(
+			nowTime: Long,
+			sunriseTime: Long,
+			sunsetTime: Long,
+			styleList: List<Int>
+	): UpdateData {
+		val nightDuration = sunriseTime - sunsetTime
+		val dayDuration = Time.DAY_IN_MILLISECONDS - nightDuration
+		val progress = (dayDuration - (sunsetTime - nowTime)) / dayDuration
+
+		return UpdateData(
+				styleList[DAY],
+				styleList[NIGHT],
+				dayDuration,
+				progress
+		)
+	}
+
+	private fun calculateNight(
+			nowTime: Long,
+			sunriseTime: Long,
+			sunsetTime: Long,
+			styleList: List<Int>
+	): UpdateData {
+		val dayDuration = sunsetTime - sunriseTime
+		val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
+		val progress = (nightDuration - (sunriseTime - nowTime)) / nightDuration
+
+		return UpdateData(
+				styleList[NIGHT],
+				styleList[DAY],
+				nightDuration,
+				progress
+		)
+	}
+
+	@Suppress("ComplexMethod")
 	override fun getUpdateData(styleList: List<Int>, sunSetRise: SunSetRise): UpdateData {
 		val time = Calendar.getInstance()
 		val sunData = sunSetRise.sunDataFor(time)
@@ -43,46 +78,14 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 		require(sunset != null)
 		require(sunrise != null)
 
-		val sunsetTime = sunset.toCalendar().setDateFrom(time).timeInMillis
-		val sunriseTime = sunrise.toCalendar().setDateFrom(time).timeInMillis
-
 		val nowTime = time.timeInMillis
-		val dayDuration = sunsetTime - sunriseTime
+		val sunsetTime = sunset.time
+		val sunriseTime = sunrise.time
 
-		return when {
-			(nowTime >= sunriseTime) and (nowTime < sunsetTime) -> {
-				val progress = (nowTime - sunriseTime) / dayDuration
-
-				UpdateData(
-						styleList[DAY],
-						styleList[NIGHT],
-						dayDuration,
-						progress
-				)
-			}
-			nowTime >= sunsetTime -> {
-				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
-				val progress = (nowTime - sunsetTime) / nightDuration
-
-				UpdateData(
-						styleList[NIGHT],
-						styleList[DAY],
-						nightDuration,
-						progress
-				)
-			}
-			nowTime < sunriseTime -> {
-				val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
-				val previousSunset = sunsetTime - Time.DAY_IN_MILLISECONDS
-				val progress = (nowTime - previousSunset) / nightDuration
-				UpdateData(
-						styleList[NIGHT],
-						styleList[DAY],
-						nightDuration,
-						progress
-				)
-			}
-			else -> throw IllegalStateException()
+		return if (sunriseTime < sunsetTime) {
+			calculateDay(nowTime, sunriseTime, sunsetTime, styleList)
+		} else {
+			calculateNight(nowTime, sunriseTime, sunsetTime, styleList)
 		}
 	}
 

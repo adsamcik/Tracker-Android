@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.common.activity
 
 import android.content.Context
+import android.os.Bundle
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.common.language.LocaleContextWrapper
 import com.adsamcik.tracker.common.language.LocaleManager
@@ -14,6 +15,11 @@ abstract class CoreUIActivity : CoreActivity() {
 	private var lastPermissionRequestId = 1000
 
 	private var language = ""
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		StyleManager.initializeFromPreferences(this)
+	}
 
 	@CallSuper
 	override fun onDestroy() {
@@ -38,7 +44,7 @@ abstract class CoreUIActivity : CoreActivity() {
 	@CallSuper
 	override fun onResume() {
 		styleController.isSuspended = false
-		initializeColors()
+		StyleManager.onResume(this)
 		super.onResume()
 		recreateIfLanguageChanged()
 	}
@@ -49,9 +55,5 @@ abstract class CoreUIActivity : CoreActivity() {
 		if (language.isEmpty()) {
 			language = LocaleManager.getLocale(this)
 		}
-	}
-
-	private fun initializeColors() {
-		StyleManager.initializeFromPreferences(this)
 	}
 }

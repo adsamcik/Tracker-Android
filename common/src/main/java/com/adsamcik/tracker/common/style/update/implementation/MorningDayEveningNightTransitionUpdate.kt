@@ -2,8 +2,6 @@ package com.adsamcik.tracker.common.style.update.implementation
 
 import com.adsamcik.tracker.common.R
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.setDateFrom
-import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.style.SunSetRise
 import com.adsamcik.tracker.common.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.common.style.update.data.RequiredColorData
@@ -58,11 +56,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		require(sunset != null)
 		require(sunrise != null)
 
-		//todo revisit if too inaccurate
-		val sunsetTime = sunset.toCalendar().setDateFrom(time).timeInMillis
-		val sunriseTime = sunrise.toCalendar().setDateFrom(time).timeInMillis
-
-		val localUpdateData = calculateProgress(time.timeInMillis, sunriseTime, sunsetTime)
+		val localUpdateData = calculateProgress(time.timeInMillis, sunrise.time, sunset.time)
 
 		return UpdateData(
 				styleList[localUpdateData.fromColor],
@@ -100,6 +94,25 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 					duration = midnight - sunset,
 					progress = now - sunset
 			)
+
+	private fun betweenSunsetAndSunrise(
+			now: Long,
+			sunrise: Long,
+			sunset: Long
+	): UpdateData {
+		val approximateLastSunset = sunset - Time.DAY_IN_MILLISECONDS
+		val dstToSunrise = sunrise - now
+		val dstToSunset = now - approximateLastSunset
+
+		require(dstToSunrise >= 0)
+		require(dstToSunset >= 0)
+
+		return if (dstToSunrise < dstToSunset) {
+			beforeSunrise(now, sunrise, approximateLastSunset)
+		} else {
+			afterSunset(now, sunrise, approximateLastSunset)
+		}
+	}
 
 	private fun afterSunset(
 			now: Long,
@@ -153,7 +166,8 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunrise: Long,
 			sunset: Long
 	): UpdateData {
-		val noonInMillis = calculateMidTime(sunrise, sunset)
+		val approximateLastSunrise = sunrise - Time.DAY_IN_MILLISECONDS
+		val noonInMillis = calculateMidTime(approximateLastSunrise, sunset)
 		return when {
 			now >= noonInMillis -> betweenNoonAndSunset(
 					now,
@@ -162,7 +176,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			)
 			now >= sunrise -> betweenSunriseAndNoon(
 					now,
-					sunrise,
+					approximateLastSunrise,
 					noonInMillis
 			)
 			else -> throw IllegalStateException()
@@ -198,18 +212,10 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunrise: Long,
 			sunset: Long
 	): UpdateData {
-		return when {
-			now >= sunset -> afterSunset(
-					now,
-					sunrise,
-					sunset
-			)
-			now >= sunrise -> betweenSunriseAndSunset(
-					now,
-					sunrise,
-					sunset
-			)
-			else -> beforeSunrise(now, sunrise, sunset)
+		return if (sunset < sunrise) {
+			betweenSunsetAndSunrise(now, sunrise, sunset)
+		} else {
+			betweenSunriseAndSunset(now, sunrise, sunset)
 		}
 	}
 

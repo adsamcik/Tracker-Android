@@ -123,13 +123,7 @@ object StyleManager {
 	}
 
 	private fun enableUpdate(context: Context, preferenceColorList: List<Int> = listOf()) {
-		update.onEnable(
-				context,
-				StyleConfigData(
-						preferenceColorList,
-						this::update
-				)
-		)
+		update.onEnable(context, StyleConfigData(preferenceColorList, this::update))
 	}
 
 	private fun enableUpdateWithPreference(context: Context) {
@@ -201,6 +195,11 @@ object StyleManager {
 		update = enabledUpdateList.firstOrNull { it.id == mode } ?: enabledUpdateList.first()
 
 		enableUpdateWithPreference(context)
+	}
+
+	fun onResume(context: Context) {
+		update.onDisable(context)
+		enableUpdate(context, update.colorList)
 	}
 
 
