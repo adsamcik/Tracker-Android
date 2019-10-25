@@ -5,7 +5,7 @@ import java.net.URL
 plugins {
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
-	id("com.google.gms.oss.licenses.plugin")
+	id("com.google.android.gms.oss-licenses-plugin")
 	id("io.fabric")
 	Dependencies.corePlugins(this)
 }
@@ -108,7 +108,10 @@ dependencies {
 
 	//Preference
 	Dependencies.preference(this)
+
+	//Open-source licenses
 	implementation("de.psdev.licensesdialog:licensesdialog:2.1.0")
+	implementation("com.google.android.gms:play-services-oss-licenses:17.0.0")
 
 	//PlayServices
 	Dependencies.location(this)
