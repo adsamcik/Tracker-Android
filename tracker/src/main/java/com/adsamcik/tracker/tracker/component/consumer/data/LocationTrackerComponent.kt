@@ -42,12 +42,13 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 		val locationResult = tempData.getLocationData(this)
 
 		val location = locationResult.lastLocation
-		val previousLocation = locationResult.previousLocation
+
+		/*val previousLocation = locationResult.previousLocation
 
 		if (previousLocation != null) {
 			val speed = calculateSpeed(previousLocation, location)
 			location.speed = speed
-		}
+		}*/
 
 		collectionData.setLocation(location)
 	}
