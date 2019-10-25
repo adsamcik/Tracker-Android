@@ -34,13 +34,9 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
 		val baseMeterSize = BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow(MapController.MAX_ZOOM - zoom)
 		return HeatmapStamp.generateNonlinear(ceil(baseMeterSize / pixelInMeters).toInt()) {
-			it.pow(
-					2f
-			)
+			it.pow(2f)
 		}
 	}
-
-	//todo update heat on per zoom basis
 
 	private val dao = AppDatabase.database(context).locationDao()
 

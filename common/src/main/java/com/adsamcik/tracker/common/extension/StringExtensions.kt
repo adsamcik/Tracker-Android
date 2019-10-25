@@ -52,17 +52,17 @@ fun Long.formatAsDuration(context: Context): String {
 	var hours = 0L
 	var days = 0L
 
-	if (seconds >= Time.SECONDS_IN_A_MINUTE) {
-		minutes = seconds / Time.SECONDS_IN_A_MINUTE
-		seconds -= minutes * Time.SECONDS_IN_A_MINUTE
+	if (seconds >= Time.MINUTE_IN_SECONDS) {
+		minutes = seconds / Time.MINUTE_IN_SECONDS
+		seconds -= minutes * Time.MINUTE_IN_SECONDS
 
-		if (minutes >= Time.MINUTES_IN_AN_HOUR) {
-			hours = minutes / Time.MINUTES_IN_AN_HOUR
-			minutes -= hours * Time.MINUTES_IN_AN_HOUR
+		if (minutes >= Time.HOUR_IN_MINUTES) {
+			hours = minutes / Time.HOUR_IN_MINUTES
+			minutes -= hours * Time.HOUR_IN_MINUTES
 
-			if (hours >= Time.HOURS_IN_A_DAY) {
-				days = hours / Time.HOURS_IN_A_DAY
-				hours -= days * Time.HOURS_IN_A_DAY
+			if (hours >= Time.DAY_IN_HOURS) {
+				days = hours / Time.DAY_IN_HOURS
+				hours -= days * Time.DAY_IN_HOURS
 			}
 		}
 	}
@@ -144,11 +144,11 @@ fun Resources.formatSpeed(
 		)
 		SpeedFormat.Minute -> getString(
 				R.string.per_minute_abbr,
-				formatDistance(metersPerSecond * Time.SECONDS_IN_A_MINUTE, digits, lengthSystem)
+				formatDistance(metersPerSecond * Time.MINUTE_IN_SECONDS, digits, lengthSystem)
 		)
 		SpeedFormat.Hour -> getString(
 				R.string.per_hour_abbr,
-				formatDistance(metersPerSecond * Time.SECONDS_IN_AN_HOUR, digits, lengthSystem)
+				formatDistance(metersPerSecond * Time.HOUR_IN_SECONDS, digits, lengthSystem)
 		)
 	}
 }
