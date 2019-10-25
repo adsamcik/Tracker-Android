@@ -45,23 +45,27 @@ import kotlinx.coroutines.launch
 import java.util.*
 
 @Suppress("unused")
-//todo move this to the main package so basic overview can be accessed and activities set
 class FragmentStats : CoreUIFragment(), IOnDemandView {
-	private lateinit var viewModel: StatsViewModel
+	private var viewModel: StatsViewModel? = null
+
+	private var isEntered = false
+
+	private fun requireViewModel() = requireNotNull(viewModel)
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		viewModel = ViewModelProvider(this).get(StatsViewModel::class.java)
-
-		viewModel.sessionLiveData.observe(this, this::onDataUpdated)
+		viewModel = ViewModelProvider(this).get(StatsViewModel::class.java).also { viewModel ->
+			viewModel.sessionLiveData.observe(this, this::onDataUpdated)
+		}
 	}
 
 	//Todo add smart update if sections exist
 	private fun onDataUpdated(collection: Collection<TrackerSession>?) {
 		if (collection == null) return
 
-		viewModel.adapter.removeAllSections()
+		val adapter = requireViewModel().adapter
+		adapter.removeAllSections()
 
 		SummarySection().apply {
 			addData(R.string.stats_sum_title) {
@@ -75,16 +79,16 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			addData(R.string.wifilist_title) {
 				startActivity<WifiBrowseActivity> { }
 			}
-		}.also { viewModel.adapter.addSection(it) }
+		}.also { adapter.addSection(it) }
 
 		collection.groupBy { Time.roundToDate(it.start) }.forEach {
 			val distance = it.value.sumByDouble { session -> session.distanceInM.toDouble() }
-			viewModel.adapter.addSection(SessionSection(it.key, distance).apply {
+			adapter.addSection(SessionSection(it.key, distance).apply {
 				addAll(it.value)
 			})
 		}
 
-		viewModel.adapter.notifyDataSetChanged()
+		adapter.notifyDataSetChanged()
 	}
 
 	override fun onCreateView(
@@ -107,13 +111,14 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		val navBarHeight = navBarSize.second.y
 
 		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {
-			adapter = viewModel.adapter
+			val adapter = requireViewModel().adapter
+			this.adapter = adapter
 			val layoutManager = LinearLayoutManager(activity)
 			this.layoutManager = layoutManager
 
 			addItemDecoration(
 					SectionedDividerDecoration(
-							viewModel.adapter,
+							adapter,
 							context,
 							layoutManager.orientation
 					)
@@ -300,11 +305,14 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 	override fun onResume() {
 		super.onResume()
-		viewModel.updateSessionData()
+		if (isEntered) {
+			viewModel?.updateSessionData()
+		}
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
-		viewModel.updateSessionData()
+		isEntered = true
+		viewModel?.updateSessionData()
 	}
 
 	override fun onLeave(activity: FragmentActivity) = Unit
