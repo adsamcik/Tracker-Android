@@ -174,7 +174,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 					noonInMillis,
 					sunset
 			)
-			now >= sunrise -> betweenSunriseAndNoon(
+			now >= approximateLastSunrise -> betweenSunriseAndNoon(
 					now,
 					approximateLastSunrise,
 					noonInMillis
