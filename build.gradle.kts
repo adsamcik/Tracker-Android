@@ -27,6 +27,7 @@ allprojects {
 		maven("https://jitpack.io")
 		maven("https://dl.bintray.com/adsamcik/android-forks")
 		maven("https://kotlin.bintray.com/kotlinx/")
+		mavenCentral()
 	}
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {

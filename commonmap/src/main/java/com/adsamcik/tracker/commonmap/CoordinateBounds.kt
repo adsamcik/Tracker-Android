@@ -28,8 +28,8 @@ data class CoordinateBounds(
 	val height: Double get() = topBound - bottomBound
 
 
-	fun updateBounds(collection: Collection<Location>) {
-		if (collection.isEmpty()) return
+	fun updateBounds(collection: Iterable<Location>) {
+		if (collection.none()) return
 		val first = collection.first()
 		//todo improve this
 		if (first.latitude > topBound) topBound = first.latitude

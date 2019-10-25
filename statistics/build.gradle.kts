@@ -48,6 +48,7 @@ dependencies {
 	Dependencies.sectionedRecyclerAdapter(this)
 
 	implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
+	implementation("com.goebl:simplify:1.0.0")
 
 	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))

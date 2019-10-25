@@ -34,12 +34,14 @@ import com.adsamcik.tracker.common.extension.formatSpeed
 import com.adsamcik.tracker.common.extension.observe
 import com.adsamcik.tracker.common.extension.requireValue
 import com.adsamcik.tracker.common.extension.toCalendar
+import com.adsamcik.tracker.common.misc.Double2
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
+import com.adsamcik.tracker.statistics.data.LocationExtractor
 import com.adsamcik.tracker.statistics.detail.SessionActivitySelection
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailType
@@ -51,6 +53,7 @@ import com.adsamcik.tracker.statistics.detail.recycler.data.LineChartStatisticsD
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
 import com.afollestad.materialdialogs.MaterialDialog
 import com.github.mikephil.charting.data.Entry
+import com.goebl.simplify.Simplify3D
 import com.google.android.gms.maps.MapsInitializer
 import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
@@ -279,15 +282,21 @@ class StatsDetailActivity : DetailActivity() {
 		launch(Dispatchers.Default) {
 			val database = AppDatabase.database(this@StatsDetailActivity)
 			val locations = database.locationDao().getAllBetween(session.start, session.end)
+			val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
+			val simplifiedLocations = simplify.simplify(
+					locations.map { it.location }.toTypedArray(),
+					POSITION_TOLERANCE,
+					false
+			)
 			if (locations.isNotEmpty()) {
-				addLocationMap(locations, adapter)
-				launch(Dispatchers.Default) { addElevationStats(locations, adapter) }
+				addLocationMap(simplifiedLocations, adapter)
+				launch(Dispatchers.Default) { addElevationStats(simplifiedLocations, adapter) }
 				launch(Dispatchers.Default) { addSpeedStats(locations, adapter) }
 			}
 		}
 	}
 
-	private fun addLocationMap(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
+	private fun addLocationMap(locations: Array<Location>, adapter: StatsDetailAdapter) {
 		val locationData = PrioritySortAdapter.PriorityWrap.create<StatisticDetailData>(
 				MapStatisticsData(locations),
 				AppendPriority(AppendBehavior.Start)
@@ -381,38 +390,49 @@ class StatsDetailActivity : DetailActivity() {
 		addStatisticsData(adapter, dataList, AppendPriority(AppendBehavior.Any))
 	}
 
-	private fun addElevationStats(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
+	@Suppress("LongMethod")
+	private fun addElevationStats(locations: Array<Location>, adapter: StatsDetailAdapter) {
 		val firstTime = locations.first().time
 		var descended = 0.0
 		var ascended = 0.0
-		var previousAltitude = locations.firstOrNull { it.altitude != null }?.altitude ?: return
+
+		val firstWithAltitude = locations.firstOrNull { it.altitude != null } ?: return
+
+		val altitudeList = locations
+				.mapNotNull {
+					val altitude = it.altitude
+					if (altitude != null) {
+						Double2((it.time - firstTime).toDouble(), altitude)
+					} else {
+						null
+					}
+				}
+
+
+		val elevationList = altitudeList
+		//.simplifyRDP(HEIGHT_FILTER)
+
+		var previousAltitude = requireNotNull(firstWithAltitude.altitude)
 
 		var maxAltitude = previousAltitude
 		var minAltitude = previousAltitude
 
-		val elevationList = locations
-				.asSequence()
-				.filterNot { it.altitude == null }
-				.map {
-					val altitude = requireNotNull(it.altitude)
+		elevationList.forEach {
+			val altitude = it.y
+			if (altitude > maxAltitude) {
+				maxAltitude = altitude
+			} else if (altitude < minAltitude) {
+				minAltitude = altitude
+			}
 
-					if (altitude > maxAltitude) {
-						maxAltitude = altitude
-					} else if (altitude < minAltitude) {
-						minAltitude = altitude
-					}
-
-					val diff = altitude - previousAltitude
-					if (diff > 0) {
-						ascended += diff
-					} else {
-						descended -= diff
-					}
-					previousAltitude = altitude
-
-					Entry((it.time - firstTime).toFloat(), altitude.toFloat())
-				}
-				.toList()
+			val diff = altitude - previousAltitude
+			if (diff > 0) {
+				ascended += diff
+			} else {
+				descended -= diff
+			}
+			previousAltitude = altitude
+		}
 
 		val resources = resources
 		val lengthSystem = Preferences.getLengthSystem(this)
@@ -438,7 +458,8 @@ class StatsDetailActivity : DetailActivity() {
 				),
 				LineChartStatisticsData(
 						com.adsamcik.tracker.common.R.drawable.ic_outline_terrain,
-						R.string.stats_elevation, elevationList
+						R.string.stats_elevation,
+						elevationList.map { Entry(it.x.toFloat(), it.y.toFloat()) }
 				)
 		)
 
@@ -479,9 +500,9 @@ class StatsDetailActivity : DetailActivity() {
 
 	companion object {
 		const val ARG_SESSION_ID = "session_id"
-		private const val ALTITUDE_REQUIRED_CHANGE = 1.0
 		private const val HEADER_ROOT_PADDING = 16
 		private const val MAX_SECONDS_ELAPSED_FOR_CONTINUOUS_PATH = 70.0
+		private const val POSITION_TOLERANCE = 500.0
 	}
 }
 
