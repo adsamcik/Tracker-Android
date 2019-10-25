@@ -33,7 +33,6 @@ import kotlin.math.roundToInt
 
 typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) -> UByte
 
-//todo add current alpha
 typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
 
 internal class WeightedHeatmap(
@@ -124,9 +123,6 @@ internal class WeightedHeatmap(
 
 	fun renderDefaultTo(): IntArray = renderTo(HeatmapColorScheme.default)
 
-	//TODO Time whether it makes a noticeable difference to inline that code
-	// here and drop the saturation step.
-
 	/* If the heatmap is empty, h->max (and thus the saturation value) is 0.0, resulting in a 0-by-0 division.
 	 * In that case, we should set the saturation to anything but 0, since we want the result of the division to be 0.
 	 * Also, a comparison to exact 0.0f (as opposed to 1e-14) is OK, since we only do division.
@@ -161,10 +157,7 @@ internal class WeightedHeatmap(
 			for (itX in 0 until width) {
 				val value = weightArray[index]
 				val normalizedValue = normalizedValueModifierFunction(
-						min(
-								value,
-								saturation
-						) / saturation
+						min(value, saturation) / saturation
 				)
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
