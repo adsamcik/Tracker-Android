@@ -213,9 +213,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: Long
 	): UpdateData {
 		return if (sunset < sunrise) {
-			betweenSunsetAndSunrise(now, sunrise, sunset)
-		} else {
 			betweenSunriseAndSunset(now, sunrise, sunset)
+		} else {
+			betweenSunsetAndSunrise(now, sunrise, sunset)
 		}
 	}
 
