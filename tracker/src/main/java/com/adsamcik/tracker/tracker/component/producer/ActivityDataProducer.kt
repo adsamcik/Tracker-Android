@@ -6,6 +6,7 @@ import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
+import com.adsamcik.tracker.common.data.GroupedActivity
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
@@ -41,8 +42,10 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 	private fun onActivityChanged(context: Context, activity: ActivityInfo, elapsedTime: Long) {
 		if (activity.confidence < ACTIVITY_CONFIDENCE_THRESHOLD) return
 
-		lastActivity = activity
-		lastActivityElapsedTimeMillis = elapsedTime
+		if (activity.groupedActivity != GroupedActivity.UNKNOWN) {
+			lastActivity = activity
+			lastActivityElapsedTimeMillis = elapsedTime
+		}
 	}
 
 	override fun onEnable(context: Context) {
@@ -71,7 +74,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 
 	companion object {
 		private const val ACTIVITY_CONFIDENCE_THRESHOLD = 50
-		private const val MAX_ACTIVITY_AGE_IN_MILLIS = Time.MINUTE_IN_MILLISECONDS
+		private const val MAX_ACTIVITY_AGE_IN_MILLIS = 5 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
 

@@ -19,7 +19,9 @@ enum class GroupedActivity {
 		override val iconRes: Int = R.drawable.ic_help_white
 	};
 
-	val isIdle: Boolean get() = this == UNKNOWN || this == STILL
+	val isIdleOrUnknown: Boolean get() = this == UNKNOWN || this == STILL
+	val isKnownMovement: Boolean get() = this == ON_FOOT || this == IN_VEHICLE
+
 	abstract val iconRes: Int
 }
 
