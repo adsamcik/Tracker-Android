@@ -83,9 +83,9 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 		val sunriseTime = sunrise.time
 
 		return if (sunriseTime < sunsetTime) {
-			calculateDay(nowTime, sunriseTime, sunsetTime, styleList)
-		} else {
 			calculateNight(nowTime, sunriseTime, sunsetTime, styleList)
+		} else {
+			calculateDay(nowTime, sunriseTime, sunsetTime, styleList)
 		}
 	}
 
