@@ -21,8 +21,11 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 		val max = 1.25 + 4.75 * durationMultiplierNormalized
 		val countMultiplier = normalRandom(min..max)
 		requiredLocationCount = (definition.defaultLocationCount * countMultiplier).toInt()
-		this.difficultyMultiplier *= countMultiplier.additiveInverse(min..max)
-				.rescale(min..max, 0.4..2.5)
+		addDifficulty(
+				countMultiplier
+						.additiveInverse(min..max)
+						.rescale(min..max, 0.4..2.5)
+		)
 	}
 
 	override fun selectChallengeSpecificParameters() {

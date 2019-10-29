@@ -22,8 +22,11 @@ class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallenge
 		val max = 1.0 + 2.3 * durationMultiplierNormalized
 		val countMultiplier = normalRandom(min..max)
 		distanceRequired = (definition.defaultDistanceInM * countMultiplier).toFloat()
-		this.difficultyMultiplier = (difficultyMultiplier + countMultiplier.additiveInverse(min..max)
-				.rescale(min..max, 0.4..2.2)) / 2.0
+		addDifficulty(
+				countMultiplier
+						.additiveInverse(min..max)
+						.rescale(min..max, 0.4..2.2)
+		)
 	}
 
 	override fun selectChallengeSpecificParameters() {

@@ -22,8 +22,11 @@ class StepChallengeBuilder(private val definition: StepChallengeDefinition) : Ch
 		val max = 1.2 + 2.0 * durationMultiplierNormalized
 		val countMultiplier = normalRandom(min..max)
 		stepsRequired = (definition.defaultRequiredStepCount * countMultiplier).roundToInt()
-		this.difficultyMultiplier *= countMultiplier.additiveInverse(min..max)
-				.rescale(min..max, 0.4..2.2)
+		addDifficulty(
+				countMultiplier
+						.additiveInverse(min..max)
+						.rescale(min..max, 0.4..2.2)
+		)
 	}
 
 	override fun selectChallengeSpecificParameters() {

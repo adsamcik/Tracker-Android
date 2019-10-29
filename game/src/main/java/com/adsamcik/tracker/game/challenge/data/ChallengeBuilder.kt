@@ -11,7 +11,14 @@ import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 		private val definition: ChallengeDefinition<ChallengeType>
 ) {
-	protected var difficultyMultiplier: Double = 1.0
+	private var difficultySum: Double = 0.0
+	private var difficultyCount: Int = 0
+
+	protected fun addDifficulty(value: Double) {
+		require(value > 0.0)
+		difficultyCount++
+		difficultySum += value
+	}
 
 	protected var duration: Long = 0L
 		private set
@@ -23,12 +30,15 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 		private set
 
 	protected open val difficulty: ChallengeDifficulty
-		get() = when {
-			difficultyMultiplier < 0.5 -> ChallengeDifficulty.VERY_EASY
-			difficultyMultiplier < 0.8 -> ChallengeDifficulty.EASY
-			difficultyMultiplier < 1.25 -> ChallengeDifficulty.MEDIUM
-			difficultyMultiplier < 2 -> ChallengeDifficulty.HARD
-			else -> ChallengeDifficulty.VERY_HARD
+		get() {
+			val difficultyAvg = difficultySum / difficultyCount
+			return when {
+				difficultyAvg < 0.5 -> ChallengeDifficulty.VERY_EASY
+				difficultyAvg < 0.8 -> ChallengeDifficulty.EASY
+				difficultyAvg < 1.25 -> ChallengeDifficulty.MEDIUM
+				difficultyAvg < 2 -> ChallengeDifficulty.HARD
+				else -> ChallengeDifficulty.VERY_HARD
+			}
 		}
 
 	//todo improve this. It is not quite normal distribution due to clamping of values to 0 and 1. It is kinda ok, because the probability is around 2% iirc but still.
