@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.export
 
 import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.data.DatabaseLocation
 import com.adsamcik.tracker.common.extension.applicationName
@@ -10,6 +12,7 @@ import io.jenetics.jpx.WayPoint
 import java.io.File
 import java.io.FileOutputStream
 
+@RequiresApi(Build.VERSION_CODES.O)
 class GpxExporter : Exporter {
 	override val canSelectDateRange: Boolean = true
 

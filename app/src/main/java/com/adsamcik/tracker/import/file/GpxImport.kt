@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.import.file
 
 import android.content.Context
+import android.os.Build
 import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
@@ -19,7 +20,7 @@ import io.jenetics.jpx.WayPoint
 import java.io.File
 import java.time.ZonedDateTime
 
-@RequiresApi(26)
+@RequiresApi(Build.VERSION_CODES.O)
 class GpxImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("gpx")
 
