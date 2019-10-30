@@ -10,7 +10,7 @@ object Dependencies {
 		internal const val fragment = "1.2.0-rc01"
 		const val kotlin: String = "1.3.50"
 		const val dokka: String = "0.9.18"
-		internal const val moshi = "1.8.0"
+		internal const val moshi = "1.9.0"
 		internal const val work = "2.2.0"
 		internal const val lifecycle = "2.2.0-rc01"
 		internal const val preference = "1.1.0"
@@ -160,7 +160,7 @@ object Dependencies {
 		with(dependencyHandler) {
 			implementation("stax:stax-api:1.0.1")
 			implementation("com.fasterxml:aalto-xml:1.2.2")
-			implementation("io.jenetics:jpx:1.5.3")
+			implementation("io.jenetics:jpx:1.6.0")
 		}
 	}
 
