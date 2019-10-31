@@ -16,8 +16,7 @@
 #   public *;
 #}
 
--dontwarn okhttp3.**
--dontwarn okio.**
+-keep class com.adsamcik.tracker.**
 
 # Crashlytics
 -keepattributes *Annotation*
