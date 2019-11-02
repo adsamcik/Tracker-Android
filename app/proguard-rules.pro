@@ -16,7 +16,7 @@
 #   public *;
 #}
 
--keep class com.adsamcik.tracker.**
+-keep class com.adsamcik.tracker.**  { *; }
 
 # Crashlytics
 -keepattributes *Annotation*
@@ -55,3 +55,7 @@
     <init>(...);
     <fields>;
 }
+
+-keep class javax.xml.stream.**  { *; }
+-keep class io.jenetics.jpx.** { *; }
+-keep class javax.xml.stream.FactoryFinder
