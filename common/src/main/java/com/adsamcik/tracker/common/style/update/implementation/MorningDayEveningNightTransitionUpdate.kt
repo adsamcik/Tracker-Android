@@ -104,8 +104,10 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val dstToSunrise = sunrise - now
 		val dstToSunset = now - approximateLastSunset
 
-		require(dstToSunrise >= 0)
-		require(dstToSunset >= 0)
+		require(dstToSunrise >= 0) { "Sunrise is in the past $dstToSunrise (sunrise: $sunrise, now: $now)" }
+		require(dstToSunset >= 0) {
+			"Sunset is in the past $dstToSunset (sunset: $sunset, lastSunset: $approximateLastSunset, now: $now)"
+		}
 
 		return if (dstToSunrise < dstToSunset) {
 			beforeSunrise(now, sunrise, approximateLastSunset)
