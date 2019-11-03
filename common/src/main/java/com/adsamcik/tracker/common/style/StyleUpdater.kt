@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.CompoundButton
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
@@ -37,6 +38,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
+@Suppress("TooManyFunctions")
 internal class StyleUpdater {
 	internal fun updateSingle(
 			styleView: RecyclerStyleView,
@@ -221,8 +223,19 @@ internal class StyleUpdater {
 		}
 	}
 
+	private fun updateStyleForeground(view: ProgressBar, updateStyleData: UpdateStyleData) {
+		view.progressTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+		view.progressBackgroundTintList = ColorStateList.valueOf(
+				ColorUtils.setAlphaComponent(
+						updateStyleData.baseForegroundColor,
+						DISABLED_ALPHA
+				)
+		)
+	}
+
 	@MainThread
 	private fun updateStyleForeground(view: SeekBar, updateStyleData: UpdateStyleData) {
+		updateStyleForeground(view as ProgressBar, updateStyleData)
 		view.thumbTintList = ColorStateList(
 				arrayOf(
 						intArrayOf(-state_enabled),
@@ -274,6 +287,7 @@ internal class StyleUpdater {
 			is ImageView -> updateStyleForeground(view, updateStyleData)
 			is TextView -> updateStyleForeground(view, updateStyleData)
 			is SeekBar -> updateStyleForeground(view, updateStyleData)
+			is ProgressBar -> updateStyleForeground(view, updateStyleData)
 		}
 	}
 
