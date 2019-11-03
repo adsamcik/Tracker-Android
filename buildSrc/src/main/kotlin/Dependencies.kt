@@ -10,14 +10,14 @@ object Dependencies {
 		internal const val fragment = "1.2.0-rc01"
 		const val kotlin: String = "1.3.50"
 		const val dokka: String = "0.9.18"
-		internal const val moshi = "1.9.0"
+		internal const val moshi = "1.9.1"
 		internal const val work = "2.2.0"
 		internal const val lifecycle = "2.2.0-rc01"
 		internal const val preference = "1.1.0"
 		internal const val material = "1.1.0-beta01"
 		internal const val coroutines = "1.3.2"
 
-		internal const val requery = "3.29.0"
+		internal const val requery = "3.30.1"
 		internal const val room = "2.2.1"
 
 		internal const val maps = "17.0.0"
