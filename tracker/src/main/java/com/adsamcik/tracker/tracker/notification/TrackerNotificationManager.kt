@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.tracker
+package com.adsamcik.tracker.tracker.notification
 
 import android.app.Notification
 import android.app.NotificationManager
@@ -11,6 +11,7 @@ import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
 
@@ -21,10 +22,15 @@ class TrackerNotificationManager(
 ) {
 	private var notificationManager: NotificationManager = context.notificationManager
 
-	private var useStyle = getNotificationStylePreference(context)
+	private var useStyle = getNotificationStylePreference(
+			context
+	)
 
 	fun createBuilder(): NotificationCompat.Builder {
-		return Companion.createBuilder(context, useStyle)
+		return createBuilder(
+				context,
+				useStyle
+		)
 				.addTrackerActions()
 	}
 
@@ -53,20 +59,23 @@ class TrackerNotificationManager(
 		} else {
 			addAction(
 					R.drawable.ic_battery_alert_black,
-					resources.getString(R.string.notification_stop_til_recharge), stop
+					resources.getString(R.string.notification_stop_til_recharge),
+					stop
 			)
 
 			val stopForMinutesIntent = Intent(context, TrackerNotificationReceiver::class.java)
 			stopForMinutesIntent.putExtra(
 					TrackerNotificationReceiver.ACTION_STRING,
-					TrackerNotificationReceiver.STOP_MINUTES_EXTRA
+					TrackerNotificationReceiver.LOCK_TIME_ACTION
 			)
 			stopForMinutesIntent.putExtra(
 					TrackerNotificationReceiver.STOP_MINUTES_EXTRA,
 					NotificationComponent.stopForMinutes
 			)
 			val stopForMinutesAction = PendingIntent.getBroadcast(
-					context, 1, stopIntent,
+					context,
+					1,
+					stopIntent,
 					PendingIntent.FLAG_UPDATE_CURRENT
 			)
 			addAction(
@@ -118,7 +127,12 @@ class TrackerNotificationManager(
 		}
 
 		fun getForegroundNotification(context: Context): Notification {
-			return createBuilder(context, getNotificationStylePreference(context))
+			return createBuilder(
+					context,
+					getNotificationStylePreference(
+							context
+					)
+			)
 					.setContentTitle(context.getString(R.string.notification_starting))
 					.build()
 		}
