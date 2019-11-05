@@ -1,21 +1,18 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.common.data.CollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.extension.requireValue
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.TrackerNotificationManager
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
-import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
 import com.adsamcik.tracker.tracker.service.TrackerService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async

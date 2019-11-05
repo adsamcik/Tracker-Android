@@ -24,7 +24,7 @@ import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.common.service.CoreService
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.TrackerNotificationManager
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer

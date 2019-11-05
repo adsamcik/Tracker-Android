@@ -34,9 +34,9 @@ class TrackerNotificationReceiver : BroadcastReceiver() {
 		const val ACTION_STRING: String = "action"
 		const val STOP_MINUTES_EXTRA: String = "stopForMinutes"
 
-		const val STOP_TRACKING_ACTION: Int = 0
-		const val LOCK_RECHARGE_ACTION: Int = 1
-		const val LOCK_TIME_ACTION: Int = 2
+		const val STOP_TRACKING_ACTION: Int = 1
+		const val LOCK_RECHARGE_ACTION: Int = 2
+		const val LOCK_TIME_ACTION: Int = 3
 	}
 }
 
