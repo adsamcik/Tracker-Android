@@ -4,11 +4,11 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
-import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.tracker.common.debug.Reporter
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapter
 import kotlin.math.roundToInt
 
@@ -22,7 +22,6 @@ class SectionedDividerDecoration(
 	companion object {
 		const val HORIZONTAL = LinearLayout.HORIZONTAL
 		const val VERTICAL = LinearLayout.VERTICAL
-		private const val TAG = "DividerItem"
 		private val ATTRS = intArrayOf(android.R.attr.listDivider)
 	}
 
@@ -43,9 +42,13 @@ class SectionedDividerDecoration(
 		val a = context.obtainStyledAttributes(ATTRS)
 		mDivider = a.getDrawable(0)
 		if (mDivider == null) {
-			Log.w(
-					TAG,
-					"@android:attr/listDivider was not set in the theme used for this " + "DividerItemDecoration. Please set that attribute all call setDrawable()"
+			Reporter.report(
+					"""
+				@android:attr/listDivider was not set in the
+				theme used for this DividerItemDecoration.
+				Please set that attribute all call setDrawable()
+					"""
+							.trimIndent()
 			)
 		}
 		a.recycle()
@@ -59,10 +62,8 @@ class SectionedDividerDecoration(
 	 * @param orientation [.HORIZONTAL] or [.VERTICAL]
 	 */
 	override fun setOrientation(orientation: Int) {
-		if (orientation != HORIZONTAL && orientation != VERTICAL) {
-			throw IllegalArgumentException(
-					"Invalid orientation. It should be either HORIZONTAL or VERTICAL"
-			)
+		require(!(orientation != HORIZONTAL && orientation != VERTICAL)) {
+			"Invalid orientation. It should be either HORIZONTAL or VERTICAL"
 		}
 		mOrientation = orientation
 	}

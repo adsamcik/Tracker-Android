@@ -41,11 +41,6 @@ class PaletteGenerator {
 			distanceType: ColorDistanceCalculator.DistanceType = ColorDistanceCalculator.DistanceType.Default,
 			seed: Long = Random.nextLong()
 	): List<LabColor> {
-		Log.d(
-				"test",
-				"Generate palettes for $colorsCount colors using color distance $distanceType"
-		)
-
 		val random = Random(seed)
 
 		return when (mode) {

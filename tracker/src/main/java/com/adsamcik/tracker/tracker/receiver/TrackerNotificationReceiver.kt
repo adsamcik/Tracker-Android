@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.stopService
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
@@ -25,12 +26,11 @@ class TrackerNotificationReceiver : BroadcastReceiver() {
 					TrackerLocker.lockTimeLock(context, Time.MINUTE_IN_MILLISECONDS * minutes)
 				}
 			}
-			else -> Log.w(TAG, "Unknown value $value")
+			else -> Reporter.report("Unknown value $value")
 		}
 	}
 
 	companion object {
-		private const val TAG = "AdventionReceiver"
 		const val ACTION_STRING: String = "action"
 		const val STOP_MINUTES_EXTRA: String = "stopForMinutes"
 
