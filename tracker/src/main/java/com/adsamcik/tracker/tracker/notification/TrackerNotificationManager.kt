@@ -54,7 +54,8 @@ class TrackerNotificationManager(
 		if (isUserInitiatedSession) {
 			addAction(
 					R.drawable.ic_pause_circle_filled_black_24dp,
-					resources.getString(R.string.notification_stop), stop
+					resources.getString(R.string.notification_stop),
+					stop
 			)
 		} else {
 			addAction(
@@ -75,7 +76,7 @@ class TrackerNotificationManager(
 			val stopForMinutesAction = PendingIntent.getBroadcast(
 					context,
 					1,
-					stopIntent,
+					stopForMinutesIntent,
 					PendingIntent.FLAG_UPDATE_CURRENT
 			)
 			addAction(
