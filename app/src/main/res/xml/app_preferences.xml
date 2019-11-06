@@ -169,11 +169,11 @@
         <androidx.preference.PreferenceScreen
             android:title="@string/settings_export_title"
             app:icon="@drawable/ic_export">
-            <androidx.preference.Preference
+           <!--- <androidx.preference.Preference
                 android:key="@string/settings_export_json_key"
                 android:summary="@string/settings_export_json_summary"
                 android:title="@string/settings_export_json_title"
-                app:icon="@drawable/ic_json" />
+                app:icon="@drawable/ic_json" /> -->
             <androidx.preference.Preference
                 android:key="@string/settings_export_gpx_key"
                 android:summary="@string/settings_export_gpx_summary"
