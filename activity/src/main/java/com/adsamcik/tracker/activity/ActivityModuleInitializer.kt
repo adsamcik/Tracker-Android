@@ -22,7 +22,7 @@ class ActivityModuleInitializer : ModuleInitializer {
 
 	private fun initializeTrackerSessionReceivers(context: Context) {
 		val trackerSessionBroadcastFilter = IntentFilter().apply {
-			addAction(TrackerSession.RECEIVER_SESSION_ENDED)
+			addAction(TrackerSession.ACTION_SESSION_ENDED)
 		}
 
 		context.registerReceiver(ActivitySessionReceiver(), trackerSessionBroadcastFilter)

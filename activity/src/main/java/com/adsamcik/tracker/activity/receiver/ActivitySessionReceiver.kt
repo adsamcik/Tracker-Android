@@ -30,7 +30,7 @@ class ActivitySessionReceiver : BroadcastReceiver() {
 
 	override fun onReceive(context: Context, intent: Intent) {
 		when (intent.action) {
-			TrackerSession.RECEIVER_SESSION_ENDED -> onSessionEnded(context, intent)
+			TrackerSession.ACTION_SESSION_ENDED -> onSessionEnded(context, intent)
 		}
 	}
 

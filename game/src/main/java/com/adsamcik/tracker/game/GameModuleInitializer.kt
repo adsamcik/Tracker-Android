@@ -12,8 +12,8 @@ class GameModuleInitializer : ModuleInitializer {
 	@WorkerThread
 	private fun initializeTrackerSessionReceivers(applicationContext: Context) {
 		val trackerSessionBroadcastFilter = IntentFilter().apply {
-			addAction(TrackerSession.RECEIVER_SESSION_STARTED)
-			addAction(TrackerSession.RECEIVER_SESSION_ENDED)
+			addAction(TrackerSession.ACTION_SESSION_STARTED)
+			addAction(TrackerSession.ACTION_SESSION_ENDED)
 		}
 
 		applicationContext.registerReceiver(

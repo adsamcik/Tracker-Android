@@ -24,7 +24,6 @@ import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.common.service.CoreService
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
@@ -51,6 +50,7 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import kotlinx.coroutines.Dispatchers
@@ -223,12 +223,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				initializeComponents(isSessionUserInitiated = isUserInitiated)
 			}
 
-			val sessionStartIntent = Intent(TrackerSession.RECEIVER_SESSION_STARTED)
-			sendBroadcast(sessionStartIntent, TrackerSession.BROADCAST_PERMISSION)
-
 			componentInitialization.await()
 
 			if (hasSelfPermissions(timerComponent.requiredPermissions).all { it }) {
+				sendSessionStartBroadcast()
 				timerComponent.onEnable(this@TrackerService, this@TrackerService)
 			} else {
 				stopSelf()
@@ -237,6 +235,30 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 
 		return START_NOT_STICKY
+	}
+
+	private fun sendSessionStartBroadcast() {
+		val sessionComponent = requireNotNull(sessionComponent)
+		val session = sessionComponent.session
+
+		val sessionStartIntent = Intent(TrackerSession.ACTION_SESSION_STARTED).apply {
+			putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
+			putExtra(TrackerSession.RECEIVER_SESSION_IS_NEW, sessionComponent.isNewSession)
+		}
+
+		sendBroadcast(sessionStartIntent, TrackerSession.BROADCAST_PERMISSION)
+	}
+
+	private fun sendSessionEndBroadcast() {
+		val session = session
+		val resumeTimeout = if (session.isUserInitiated) 0L else SessionTrackerComponent.SESSION_RESUME_TIMEOUT
+
+		val sessionEndIntent = Intent(TrackerSession.ACTION_SESSION_ENDED).apply {
+			putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
+			putExtra(TrackerSession.RECEIVER_SESSION_RESUME_TIMEOUT, resumeTimeout)
+			`package` = this@TrackerService.packageName
+		}
+		sendBroadcast(sessionEndIntent, TrackerSession.BROADCAST_PERMISSION)
 	}
 
 	private fun initializeTimer() {
@@ -282,11 +304,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		//Can be null if TrackerServices is immediately stopped after start
 		if (sessionComponent != null) {
-			val sessionEndIntent = Intent(TrackerSession.RECEIVER_SESSION_ENDED).apply {
-				putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
-				`package` = this@TrackerService.packageName
-			}
-			applicationContext.sendBroadcast(sessionEndIntent, TrackerSession.BROADCAST_PERMISSION)
+			sendSessionEndBroadcast()
 		}
 	}
 

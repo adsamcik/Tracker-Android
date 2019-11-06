@@ -39,6 +39,9 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	val session: TrackerSession
 		get() = mutableSession
 
+	var isNewSession: Boolean = false
+		private set
+
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1
 
@@ -139,28 +142,30 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 		val lastSession = sessionDao.getLast(1)
 		val now = Time.nowMillis
 
-		var continuingSession = false
+		var isNewSession = true
 		if (lastSession != null) {
 			val lastSessionEnd = lastSession.end
 			val lastSessionAge = now - lastSessionEnd
 
-			if (lastSessionAge in 1..MERGE_SESSION_MAX_AGE &&
+			if (lastSessionAge in 0..SESSION_RESUME_TIMEOUT &&
 					lastSession.isUserInitiated == isUserInitiated &&
 					!isUserInitiated) {
 				mutableSession = MutableTrackerSession(lastSession)
-				continuingSession = true
+				isNewSession = false
 			}
 		}
 
-		if (!continuingSession) {
+		if (isNewSession) {
 			val session = MutableTrackerSession(now, isUserInitiated)
 			session.id = sessionDao.insert(session)
 			mutableSession = session
 		}
+
+		this.isNewSession = isNewSession
 	}
 
 	companion object {
-		const val MERGE_SESSION_MAX_AGE = 10 * Time.MINUTE_IN_MILLISECONDS
+		const val SESSION_RESUME_TIMEOUT = 15 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
 
