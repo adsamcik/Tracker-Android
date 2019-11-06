@@ -21,6 +21,7 @@ import com.adsamcik.tracker.tracker.service.TrackerService
 /**
  * Singleton that takes care of tracking locks.
  */
+@Suppress("TooManyFunctions")
 @AnyThread
 object TrackerLocker {
 	/**
