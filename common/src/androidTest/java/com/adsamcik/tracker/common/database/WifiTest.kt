@@ -16,7 +16,7 @@ class WifiTest {
 
 	@Before
 	fun setup() {
-		wifiDao = AppDatabase.getTestDatabase(ApplicationProvider.getApplicationContext()).wifiDao()
+		wifiDao = AppDatabase.testDatabase(ApplicationProvider.getApplicationContext()).wifiDao()
 	}
 
 	@Test
