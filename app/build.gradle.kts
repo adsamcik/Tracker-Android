@@ -22,8 +22,8 @@ android {
 		applicationId = "com.adsamcik.tracker"
 		minSdkVersion(Android.min)
 		targetSdkVersion(Android.target)
-		versionCode = 339
-		versionName = "2019.1β16"
+		versionCode = 340
+		versionName = "2019.1_rc1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		resConfigs("en", "cs")
 	}
@@ -66,8 +66,6 @@ android {
 	}
 
 	dynamicFeatures = mutableSetOf(":statistics", ":game", ":map")
-
-
 }
 
 tasks.withType<DokkaTask> {
