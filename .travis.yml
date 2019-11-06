@@ -6,7 +6,7 @@ dist: trusty
 env:
   global:
     - ANDROID_API=29
-    - EMULATOR_API=24
+#    - EMULATOR_API=24
     - ANDROID_BUILD_TOOLS=29.0.1
     - ADB_INSTALL_TIMEOUT=5
     - ANDROID_ABI=armeabi-v7a
@@ -51,10 +51,10 @@ before_install:
   # Install the rest of tools (e.g., avdmanager).
   - echo yes | sdkmanager tools > /dev/null
   # Update emulator
-  - echo yes | sdkmanager 'emulator' > /dev/null
+#  - echo yes | sdkmanager 'emulator' > /dev/null
   # Install the system image.
   - echo yes | sdkmanager "platforms;android-$ANDROID_API" > /dev/null
-  - echo yes | sdkmanager "system-images;android-$EMULATOR_API;default;$ANDROID_ABI" > /dev/null
+#  - echo yes | sdkmanager "system-images;android-$EMULATOR_API;default;$ANDROID_ABI" > /dev/null
   # Create and start emulator for the script. Meant to race the install task.
   # - echo no | avdmanager create avd --force -n emulatorname -k "system-images;android-$EMULATOR_API;default;$ANDROID_ABI"
   # - $ANDROID_HOME/emulator/emulator -memory 1024 -avd emulatorname -skin 768x1280 -no-boot-anim -no-audio -no-window -no-snapshot -no-snapstorage -no-cache &
