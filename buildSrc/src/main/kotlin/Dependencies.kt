@@ -14,7 +14,7 @@ object Dependencies {
 		internal const val work = "2.2.0"
 		internal const val lifecycle = "2.2.0-rc02"
 		internal const val preference = "1.1.0"
-		internal const val material = "1.1.0-beta01"
+		internal const val material = "1.1.0-beta02"
 		internal const val coroutines = "1.3.2"
 
 		internal const val requery = "3.30.1"
