@@ -3,5 +3,5 @@ object Android {
 	const val compile: String = "android-29"
 	const val target: String = "29"
 
-	const val buildTools: String = "29.0.5"
+	const val buildTools: String = "29.0.2"
 }
