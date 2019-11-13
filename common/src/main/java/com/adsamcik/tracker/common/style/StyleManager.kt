@@ -143,7 +143,9 @@ object StyleManager {
 	}
 
 	private fun disableUpdate(context: Context) {
-		update.onDisable(context)
+		if (update.isEnabled) {
+			update.onDisable(context)
+		}
 	}
 
 	/**
@@ -198,8 +200,9 @@ object StyleManager {
 	}
 
 	fun onResume(context: Context) {
-		update.onDisable(context)
-		enableUpdate(context, update.colorList)
+		val colorList = update.colorList.toList()
+		disableUpdate(context)
+		enableUpdate(context, colorList)
 	}
 
 
