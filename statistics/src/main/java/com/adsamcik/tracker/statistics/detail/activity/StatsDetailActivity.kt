@@ -283,7 +283,7 @@ class StatsDetailActivity : DetailActivity() {
 			val database = AppDatabase.database(this@StatsDetailActivity)
 			val locations = database.locationDao().getAllBetween(session.start, session.end)
 
-			if (locations.isNotEmpty()) {
+			if (locations.size >= 2) {
 
 				val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
 				val simplifiedLocations = simplify.simplify(
