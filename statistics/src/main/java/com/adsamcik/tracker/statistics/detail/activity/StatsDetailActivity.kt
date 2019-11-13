@@ -282,13 +282,16 @@ class StatsDetailActivity : DetailActivity() {
 		launch(Dispatchers.Default) {
 			val database = AppDatabase.database(this@StatsDetailActivity)
 			val locations = database.locationDao().getAllBetween(session.start, session.end)
-			val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
-			val simplifiedLocations = simplify.simplify(
-					locations.map { it.location }.toTypedArray(),
-					POSITION_TOLERANCE,
-					false
-			)
+
 			if (locations.isNotEmpty()) {
+
+				val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
+				val simplifiedLocations = simplify.simplify(
+						locations.map { it.location }.toTypedArray(),
+						POSITION_TOLERANCE,
+						false
+				)
+
 				addLocationMap(simplifiedLocations, adapter)
 				launch(Dispatchers.Default) { addElevationStats(simplifiedLocations, adapter) }
 				launch(Dispatchers.Default) { addSpeedStats(locations, adapter) }
