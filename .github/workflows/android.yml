@@ -24,7 +24,7 @@ jobs:
       uses: actions/cache@v1.0.0
       with:
         path: .gradle/caches/
-        key: ${{ runner.OS }}-gradle-${{ hashFiles('**/package-lock.json') }}
+        key: ${{ runner.OS }}-gradle }}
         restore-keys: |
           ${{ runner.OS }}-gradle-${{ env.cache-name }}-
           ${{ runner.OS }}-gradle-
@@ -33,7 +33,7 @@ jobs:
       uses: actions/cache@v1.0.0
       with:
         path: .gradle/wrapper/
-        key: ${{ runner.OS }}-wrapper-${{ hashFiles('**/package-lock.json') }}
+        key: ${{ runner.OS }}-wrapper}}
         restore-keys: |
           ${{ runner.OS }}-wrapper-${{ env.cache-name }}-
           ${{ runner.OS }}-wrapper-
@@ -42,7 +42,7 @@ jobs:
       uses: actions/cache@v1.0.0
       with:
         path: .android/build-cache
-        key: ${{ runner.OS }}-build-${{ hashFiles('**/package-lock.json') }}
+        key: ${{ runner.OS }}-build }}
         restore-keys: |
           ${{ runner.OS }}-build-${{ env.cache-name }}-
           ${{ runner.OS }}-build-
