@@ -13,6 +13,11 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
+    - name: Prepare for build
+      run: |
+        chmod +x gradlew
+        yes | cp -rf keys.xml.example app/src/main/res/values/keys.xml
+        yes | cp -rf google-services.json.example app/google-services.json
     - name: Build with Gradle
       run: ./gradlew build
     - name: Cache
