@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/adsamcik/Tracker-Android.svg?branch=master)](https://travis-ci.org/adsamcik/Tracker-Android)
+![Build Status](https://github.com/adsamcik/Tracker-Android/workflows/Android%20CI/badge.svg)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Tracker-Android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Tracker-Android&amp;utm_campaign=Badge_Grade)
 
 # Tracker Android (Advention)
