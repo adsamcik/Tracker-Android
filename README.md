@@ -1,6 +1,8 @@
 ![Build Status](https://github.com/adsamcik/Tracker-Android/workflows/Android%20CI/badge.svg)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Tracker-Android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Tracker-Android&amp;utm_campaign=Badge_Grade)
 
+<a href='https://play.google.com/store/apps/details?id=com.adsamcik.tracker&utm_campaign=Github&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'><img alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png' height="50px"/></a>
+
 # Tracker Android (Advention)
 
 Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker with statistics and game elements. Now that that is out of the way, you can read more in features.
@@ -56,3 +58,7 @@ Most stable releases meant for general public
 ## Contributions
 
 Contributions to Tracker are welcome. Planned new features can be seen in milestones. If you want any new feature (even if it's in later milestone or no milestone at all) you are free to do so. It is recommended to consult on larger issues as they might collide with some future system revamps and might not be merged because of it.
+
+## Legal
+
+Google Play and the Google Play logo are trademarks of Google LLC.
