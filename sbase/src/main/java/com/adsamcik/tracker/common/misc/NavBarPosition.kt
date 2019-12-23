@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.keyboard
+package com.adsamcik.tracker.common.misc
 
 /**
  * Enum for information about navigation bar position on the screen
