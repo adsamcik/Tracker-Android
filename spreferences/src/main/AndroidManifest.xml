@@ -1,2 +1,2 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.adsamcik.androidcomponents.common_preferences" />
+    package="com.adsamcik.tracker.shared.preferences" />

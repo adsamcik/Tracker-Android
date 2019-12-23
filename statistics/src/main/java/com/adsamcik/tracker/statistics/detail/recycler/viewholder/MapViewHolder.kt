@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.statistics.detail.recycler.viewholder
 
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
-import com.adsamcik.tracker.common.style.StyleController
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
+import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
 import com.google.android.gms.maps.CameraUpdateFactory

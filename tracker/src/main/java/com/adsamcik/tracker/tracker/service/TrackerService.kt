@@ -12,17 +12,17 @@ import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.MutableCollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.exception.PermissionException
 import com.adsamcik.tracker.common.extension.forEachIf
 import com.adsamcik.tracker.common.extension.getSystemServiceTyped
 import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.hasSelfPermissions
-import com.adsamcik.tracker.common.extension.tryWithReport
-import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.common.service.CoreService
+import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -92,7 +92,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		//if we don't know the accuracy the location is worthless
 		if (!preComponentList.all {
 					if (it.requirementsMet(tempData)) {
-						tryWithResultAndReport({ true }) {
+						tryWithResultAndReport(
+								{ true }) {
 							it.onNewData(tempData)
 						}
 					} else {

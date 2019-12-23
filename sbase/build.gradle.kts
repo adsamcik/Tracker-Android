@@ -62,12 +62,7 @@ dependencies {
 	Dependencies.core(this)
 	Dependencies.moshi(this)
 	Dependencies.database(this)
-	Dependencies.crashlytics(this)
 	Dependencies.location(this)
-	Dependencies.preference(this)
-	Dependencies.introduction(this)
-
-	implementation("org.shredzone.commons:commons-suncalc:2.6")
 
 	Dependencies.test(this)
 }

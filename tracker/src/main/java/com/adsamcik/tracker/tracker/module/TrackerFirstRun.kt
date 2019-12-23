@@ -1,12 +1,10 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
-import com.adsamcik.tracker.common.module.FirstRun
-import com.adsamcik.tracker.common.module.OnDoneListener
+import com.adsamcik.tracker.shared.utils.module.FirstRun
+import com.adsamcik.tracker.shared.utils.module.OnDoneListener
 import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
-import com.afollestad.materialdialogs.list.listItemsMultiChoice
-import com.afollestad.materialdialogs.list.listItemsSingleChoice
 
 @Suppress("unused")
 class TrackerFirstRun : FirstRun() {

@@ -54,4 +54,5 @@ dependencies {
 	implementation(project(":app"))
 	implementation(project(":sbase"))
 	implementation(project(":activity"))
+	implementation(project(":sutils"))
 }

@@ -53,4 +53,5 @@ dependencies {
 	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))
 	implementation(project(":sbase"))
+	implementation(project(":sutils"))
 }

@@ -18,7 +18,7 @@ import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.data.CellInfo
 import com.adsamcik.tracker.common.data.CellType
 import com.adsamcik.tracker.common.data.NetworkOperator
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.extension.getSystemServiceTyped
 import com.adsamcik.tracker.common.extension.hasReadPhonePermission
 import com.adsamcik.tracker.common.extension.telephonyManager

@@ -11,11 +11,11 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.preferences.Preferences
-import com.adsamcik.tracker.common.style.ActiveColorData
-import com.adsamcik.tracker.common.style.StyleManager
-import com.adsamcik.tracker.common.style.utility.ColorConstants
-import com.adsamcik.tracker.common.style.utility.ColorGenerator
-import com.adsamcik.tracker.common.style.utility.brightenColor
+import com.adsamcik.tracker.shared.utils.style.ActiveColorData
+import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants
+import com.adsamcik.tracker.shared.utils.style.utility.ColorGenerator
+import com.adsamcik.tracker.shared.utils.style.utility.brightenColor
 import com.adsamcik.tracker.preference.pages.StylePage
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.color.colorChooser

@@ -2,10 +2,9 @@ package com.adsamcik.tracker.module
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.module.FirstRun
-import com.adsamcik.tracker.common.module.OnDoneListener
+import com.adsamcik.tracker.shared.utils.module.FirstRun
+import com.adsamcik.tracker.shared.utils.module.OnDoneListener
 import com.adsamcik.tracker.common.preferences.Preferences
-import com.afollestad.materialdialogs.callbacks.onDismiss
 
 class AppFirstRun : FirstRun() {
 	override fun onFirstRun(context: Context, onDoneListener: OnDoneListener) {

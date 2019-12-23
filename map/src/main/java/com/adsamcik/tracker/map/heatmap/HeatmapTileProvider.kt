@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.map.heatmap
 
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.extension.LocationExtensions
 import com.adsamcik.tracker.common.misc.ConditionVariableInt
 import com.adsamcik.tracker.common.misc.Int2

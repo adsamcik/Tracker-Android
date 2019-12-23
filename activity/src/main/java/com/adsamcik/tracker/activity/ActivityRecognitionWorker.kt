@@ -8,8 +8,8 @@ import com.adsamcik.tracker.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.tracker.common.data.MutableTrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.extension.tryWithResultAndReport
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 

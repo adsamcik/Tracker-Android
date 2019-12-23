@@ -2,7 +2,7 @@ package com.adsamcik.tracker.statistics.detail.recycler.creator
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.viewholder.LineChartViewHolder

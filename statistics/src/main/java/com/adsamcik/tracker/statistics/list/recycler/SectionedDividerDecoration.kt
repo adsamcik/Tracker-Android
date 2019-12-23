@@ -8,7 +8,7 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapter
 import kotlin.math.roundToInt
 

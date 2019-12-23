@@ -4,9 +4,9 @@ import androidx.preference.ListPreference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.style.ActiveColorData
-import com.adsamcik.tracker.common.style.StyleManager
-import com.adsamcik.tracker.common.style.update.data.RequiredColorData
+import com.adsamcik.tracker.shared.utils.style.ActiveColorData
+import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
 import com.adsamcik.tracker.preference.ColorPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped

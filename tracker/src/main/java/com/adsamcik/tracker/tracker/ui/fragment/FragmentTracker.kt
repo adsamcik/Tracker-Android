@@ -32,16 +32,13 @@ import com.adsamcik.tracker.common.data.NetworkOperator
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.data.WifiData
 import com.adsamcik.tracker.common.data.WifiInfo
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.observe
-import com.adsamcik.tracker.common.extension.requireParent
-import com.adsamcik.tracker.common.extension.startActivity
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.common.useMock
+import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
@@ -49,7 +46,6 @@ import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
 import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
-import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.android.synthetic.main.fragment_tracker.view.*
 
 class FragmentTracker : CoreUIFragment(), LifecycleObserver {

@@ -3,11 +3,10 @@ package com.adsamcik.tracker.statistics.wifi
 import android.os.Bundle
 import androidx.recyclerview.widget.RecyclerView
 import androidx.sqlite.db.SupportSQLiteQueryBuilder
-import com.adsamcik.tracker.common.activity.ManageActivity
+import com.adsamcik.tracker.shared.utils.activity.ManageActivity
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.statistics.R
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class WifiBrowseActivity : ManageActivity() {
 	private val adapter = WifiRecyclerAdapter()

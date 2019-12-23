@@ -6,8 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
-import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
@@ -19,7 +17,6 @@ import com.adsamcik.recycler.adapter.implementation.sort.AppendBehavior
 import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.data.LengthUnit
 import com.adsamcik.tracker.common.data.Location
 import com.adsamcik.tracker.common.data.NativeSessionActivity
@@ -28,17 +25,15 @@ import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.data.DatabaseLocation
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.formatDistance
 import com.adsamcik.tracker.common.extension.formatReadable
-import com.adsamcik.tracker.common.extension.formatSpeed
-import com.adsamcik.tracker.common.extension.observe
 import com.adsamcik.tracker.common.extension.requireValue
 import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.misc.Double2
 import com.adsamcik.tracker.common.preferences.Preferences
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.data.LocationExtractor
@@ -55,9 +50,7 @@ import com.afollestad.materialdialogs.MaterialDialog
 import com.github.mikephil.charting.data.Entry
 import com.goebl.simplify.Simplify3D
 import com.google.android.gms.maps.MapsInitializer
-import kotlinx.android.synthetic.main.activity_stats_detail.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.util.*
 
 typealias StatsDetailAdapter = StyleMultiTypeAdapter<StatisticDetailType, MultiTypeData<StatisticDetailType>>

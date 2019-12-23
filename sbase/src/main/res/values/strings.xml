@@ -2,47 +2,46 @@
 <resources>
     <string name="accessibility_add_new">Add new</string>
 
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_raw_still">Still</string>
-
+    <string name="activity_airballoon">air balloon</string>
+    <string name="activity_airplane">airplane</string>
+    <string name="activity_badminton">badminton</string>
+    <string name="activity_baseball">baseball</string>
+    <string name="activity_basketball">basketball</string>
     <string name="activity_bicycle">bicycle</string>
+    <string name="activity_canoe">canoe</string>
+    <string name="activity_cricket">cricket</string>
+    <string name="activity_dive">dive</string>
+    <string name="activity_ferry">ferry</string>
+    <string name="activity_football">football</string>
+    <string name="activity_golf">golf</string>
+    <string name="activity_handball">handball</string>
+    <string name="activity_hiking">hiking</string>
+    <string name="activity_hockey">hockey</string>
+    <string name="activity_horseride">horse ride</string>
     <string name="activity_idle">Idle</string>
     <string name="activity_in_vehicle">In vehicle</string>
+    <string name="activity_kayak">kayak</string>
+    <string name="activity_martial_arts">martial arts</string>
     <string name="activity_name">Activity name</string>
     <string name="activity_on_foot">On foot</string>
-    <string name="activity_run">run</string>
-    <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
-    <string name="activity_walk">walk</string>
-    <string name="activity_swim">swim</string>
-    <string name="activity_tennis">tennis</string>
-    <string name="activity_volleyball">volleyball</string>
-    <string name="activity_football">football</string>
-    <string name="activity_rugby">rugby</string>
-    <string name="activity_martial_arts">martial arts</string>
-    <string name="activity_hockey">hockey</string>
-    <string name="activity_handball">handball</string>
-    <string name="activity_golf">golf</string>
-    <string name="activity_basketball">basketball</string>
-    <string name="activity_baseball">baseball</string>
-    <string name="activity_softball">softball</string>
-    <string name="activity_badminton">badminton</string>
-    <string name="activity_hiking">hiking</string>
-    <string name="activity_cricket">cricket</string>
     <string name="activity_race">race</string>
+    <string name="activity_raw_still">Still</string>
+    <string name="activity_raw_tilting">Tilting</string>
+    <string name="activity_rowing">rowing</string>
+    <string name="activity_rugby">rugby</string>
+    <string name="activity_run">run</string>
+    <string name="activity_sailing">sailing</string>
     <string name="activity_skate">skate</string>
     <string name="activity_ski">ski</string>
     <string name="activity_snowboard">snowboard</string>
-    <string name="activity_horseride">horse ride</string>
-    <string name="activity_sailing">sailing</string>
-    <string name="activity_canoe">canoe</string>
-    <string name="activity_kayak">kayak</string>
-    <string name="activity_rowing">rowing</string>
-    <string name="activity_dive">dive</string>
-    <string name="activity_airplane">airplane</string>
+    <string name="activity_softball">softball</string>
+    <string name="activity_swim">swim</string>
+    <string name="activity_tennis">tennis</string>
     <string name="activity_train">train</string>
-    <string name="activity_airballoon">air balloon</string>
-    <string name="activity_ferry">ferry</string>
+    <string name="activity_unknown">Unknown</string>
+    <string name="activity_vehicle">vehicle</string>
+    <string name="activity_volleyball">volleyball</string>
+    <string name="activity_walk">walk</string>
 
     <string name="alert_confirm">Are you sure you want to %1$s?</string>
     <string name="alert_confirm_generic">Are you sure?</string>
@@ -63,11 +62,7 @@
     <string name="error_missing_permission">App does not have required permission</string>
     <string name="error_play_services_not_available">Play services are not available</string>
 
-    <string name="feet_abbr">%s ft</string>
-
     <string name="hour_short">%d h</string>
-
-    <string name="kilometer_abbr">%s km</string>
 
     <string name="location">Location</string>
 
@@ -77,21 +72,9 @@
         <item quantity="other">Last %d days</item>
     </plurals>
 
-    <string name="meter_abbr">%s m</string>
-
-    <string name="mile_abbr">%s mi</string>
-
-    <string name="millepassus">%s roman mile</string>
-
     <string name="minute_short">%d m</string>
 
     <string name="next_part">continue</string>
-
-    <string name="passus">%s pace</string>
-
-    <string name="per_hour_abbr">%s/h</string>
-    <string name="per_minute_abbr">%s/m</string>
-    <string name="per_second_abbr">%s/s</string>
 
     <string name="second_short">%d s</string>
 

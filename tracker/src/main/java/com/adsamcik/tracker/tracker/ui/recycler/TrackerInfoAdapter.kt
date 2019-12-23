@@ -8,7 +8,7 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.data.CollectionData
 import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.style.marker.IViewChange
+import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.ui.recycler.data.ActivityTrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.CellTrackerInfo

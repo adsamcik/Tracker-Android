@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
-import com.adsamcik.tracker.common.style.utility.ColorConstants
+import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerInfo
 import com.adsamcik.tracker.commonmap.MapLegend

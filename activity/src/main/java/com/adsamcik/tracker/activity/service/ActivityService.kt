@@ -11,8 +11,8 @@ import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.DetectedActivity
-import com.adsamcik.tracker.common.debug.LogData
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityRecognitionResult

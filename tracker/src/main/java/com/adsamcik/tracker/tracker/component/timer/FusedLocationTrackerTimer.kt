@@ -4,7 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData

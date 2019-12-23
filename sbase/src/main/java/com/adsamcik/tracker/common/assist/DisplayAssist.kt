@@ -6,8 +6,8 @@ import android.os.Build
 import android.view.Surface
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.windowManager
-import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
+import com.adsamcik.tracker.common.misc.NavBarPosition
 
 object DisplayAssist {
 	/**

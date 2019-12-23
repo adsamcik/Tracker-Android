@@ -8,15 +8,15 @@ import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.extension.lowerCaseExtension
 import com.adsamcik.tracker.common.extension.notificationManager
-import com.adsamcik.tracker.common.extension.tryWithReport
-import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import com.adsamcik.tracker.common.service.CoreService
 import com.adsamcik.tracker.import.DataImport
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
 import com.adsamcik.tracker.import.file.FileImport
+import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.launch
 import java.io.File
 

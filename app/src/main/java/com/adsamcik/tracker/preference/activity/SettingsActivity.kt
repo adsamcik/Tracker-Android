@@ -5,12 +5,10 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.activity.DetailActivity
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.transaction
 import com.adsamcik.androidcomponents.common_preferences.ModuleSettings
-import com.adsamcik.tracker.common.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings
 import com.adsamcik.tracker.preference.pages.DataPage
@@ -20,6 +18,7 @@ import com.adsamcik.tracker.preference.pages.PreferencePage
 import com.adsamcik.tracker.preference.pages.RootPage
 import com.adsamcik.tracker.preference.pages.StylePage
 import com.adsamcik.tracker.preference.pages.TrackerPreferencePage
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 
 /**
  * Settings Activity contains local settings and hosts debugging features

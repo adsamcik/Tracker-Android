@@ -6,7 +6,7 @@ import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.LocationDataDao
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
-import com.adsamcik.tracker.common.style.utility.ColorGenerator
+import com.adsamcik.tracker.shared.utils.style.utility.ColorGenerator
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerInfo
 import com.adsamcik.tracker.commonmap.MapLayerLogic

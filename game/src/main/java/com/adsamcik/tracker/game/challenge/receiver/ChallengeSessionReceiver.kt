@@ -10,7 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.extension.getPositiveLongExtraReportNull
+import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNull
 import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.common.useMock
 import com.adsamcik.tracker.game.R

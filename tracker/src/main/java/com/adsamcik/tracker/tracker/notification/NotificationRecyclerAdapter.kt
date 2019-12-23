@@ -16,7 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.tracker.common.database.PreferenceDatabase
 import com.adsamcik.tracker.common.database.data.NotificationPreference
-import com.adsamcik.tracker.common.style.marker.IViewChange
+import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.tracker.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

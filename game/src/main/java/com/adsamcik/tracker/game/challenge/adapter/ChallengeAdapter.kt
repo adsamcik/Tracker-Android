@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.formatAsDuration
 import com.adsamcik.tracker.common.extension.toIntPercent
-import com.adsamcik.tracker.common.style.marker.IViewChange
+import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*

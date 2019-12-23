@@ -4,9 +4,10 @@ import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
 import com.adsamcik.tracker.common.extension.remove
-import com.adsamcik.tracker.common.style.StyleController
-import com.adsamcik.tracker.common.style.StyleData
-import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.shared.map.R
+import com.adsamcik.tracker.shared.utils.style.StyleController
+import com.adsamcik.tracker.shared.utils.style.StyleData
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,9 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 
+/**
+ * Object that provides color updates to maps.
+ */
 object ColorMap {
 	private val styleChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
 	private var resources: Resources? = null

@@ -4,9 +4,9 @@ import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
-import com.adsamcik.tracker.common.style.StyleController
-import com.adsamcik.tracker.common.style.StyleData
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
+import com.adsamcik.tracker.shared.utils.style.StyleController
+import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.statistics.detail.recycler.data.LineChartStatisticsData
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.LineData

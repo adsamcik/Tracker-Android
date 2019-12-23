@@ -9,9 +9,9 @@ import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.style.StyleData
-import com.adsamcik.tracker.common.style.StyleManager
-import com.adsamcik.tracker.common.style.utility.ColorFunctions
+import com.adsamcik.tracker.shared.utils.style.StyleData
+import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
 
 class ContextualSwipeTouchHelper(
 		context: Context,

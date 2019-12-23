@@ -11,10 +11,9 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.adapter.ChallengeAdapter
@@ -23,8 +22,8 @@ import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType
 import com.adsamcik.tracker.game.fragment.recycler.creator.ChallengeRecyclerCreator
 import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
+import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 typealias GameAdapter = StyleMultiTypeAdapter<GameRecyclerType, GameRecyclerData>
 

@@ -18,17 +18,14 @@ import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.extension.dynamicStyle
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.common.extension.formatAsDuration
 import com.adsamcik.tracker.common.extension.formatAsShortDateTime
-import com.adsamcik.tracker.common.extension.formatDistance
 import com.adsamcik.tracker.common.extension.formatReadable
-import com.adsamcik.tracker.common.extension.observe
-import com.adsamcik.tracker.common.extension.startActivity
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
 import com.adsamcik.tracker.common.preferences.Preferences
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.StatData
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
@@ -41,7 +38,6 @@ import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.customListAdapter
 import com.afollestad.materialdialogs.list.getRecyclerView
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.util.*
 
 @Suppress("unused")

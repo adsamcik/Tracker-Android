@@ -85,6 +85,7 @@ dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
+	implementation(project(":sutils"))
 
 	Dependencies.core(this)
 	//1st party dependencies

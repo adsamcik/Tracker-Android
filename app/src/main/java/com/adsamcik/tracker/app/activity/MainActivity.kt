@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import com.adsamcik.draggable.DragAxis
 import com.adsamcik.draggable.DragTargetAnchor
@@ -18,26 +17,23 @@ import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.HomeIntroduction
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.activity.CoreUIActivity
 import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.guidelineEnd
-import com.adsamcik.tracker.common.extension.transaction
-import com.adsamcik.tracker.common.introduction.IntroductionManager
-import com.adsamcik.tracker.common.keyboard.NavBarPosition
-import com.adsamcik.tracker.common.module.FirstRun
+import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
+import com.adsamcik.tracker.sutils.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.module.ModuleClassLoader
 import com.adsamcik.tracker.common.preferences.Preferences
-import com.adsamcik.tracker.common.style.StyleView
-import com.adsamcik.tracker.common.style.SystemBarStyle
-import com.adsamcik.tracker.common.style.SystemBarStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleView
+import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
+import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
 import com.adsamcik.tracker.module.AppFirstRun
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
+import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
+import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
+import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
-import kotlinx.android.synthetic.main.activity_ui.*
 
 
 /**

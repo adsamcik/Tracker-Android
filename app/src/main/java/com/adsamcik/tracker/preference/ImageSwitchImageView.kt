@@ -5,8 +5,8 @@ import android.content.res.ColorStateList
 import android.util.AttributeSet
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.common.style.StyleData
-import com.adsamcik.tracker.common.style.marker.StyleableView
+import com.adsamcik.tracker.shared.utils.style.StyleData
+import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
 
 class ImageSwitchImageView : AppCompatImageView,
 		StyleableView {

@@ -60,6 +60,7 @@ android {
 dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":activity"))
+	implementation(project(":sutils"))
 
 	Dependencies.core(this)
 	Dependencies.database(this)

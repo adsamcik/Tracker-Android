@@ -10,7 +10,7 @@ import androidx.core.app.TaskStackBuilder
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.common.preferences.Preferences
-import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver

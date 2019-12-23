@@ -5,9 +5,8 @@ import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.debug.LogData
+import com.adsamcik.tracker.shared.utils.debug.LogData
 import com.adsamcik.tracker.common.extension.formatAsDateTime
-import com.adsamcik.tracker.common.extension.tryWithResultAndReport
 import com.adsamcik.tracker.common.misc.NonNullLiveData
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
@@ -19,6 +18,7 @@ import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.ChallengeLoader
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.game.logGame
+import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch

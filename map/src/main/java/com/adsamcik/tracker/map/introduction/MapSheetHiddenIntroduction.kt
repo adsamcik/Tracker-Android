@@ -5,7 +5,7 @@ import android.view.View
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.introduction.Introduction
+import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.adsamcik.tracker.map.R
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Target

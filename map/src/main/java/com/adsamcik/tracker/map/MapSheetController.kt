@@ -20,25 +20,24 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.activity.PermissionRequest
+import com.adsamcik.tracker.sutils.fragment.PermissionRequest
 import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.dialog.createDateTimeDialog
+import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.common.extension.coerceIn
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.hasLocationPermission
 import com.adsamcik.tracker.common.extension.marginBottom
 import com.adsamcik.tracker.common.extension.requireParent
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.introduction.IntroductionManager
-import com.adsamcik.tracker.common.keyboard.KeyboardListener
-import com.adsamcik.tracker.common.keyboard.KeyboardManager
-import com.adsamcik.tracker.common.keyboard.NavBarPosition
+import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
+import com.adsamcik.tracker.shared.utils.keyboard.KeyboardListener
+import com.adsamcik.tracker.shared.utils.keyboard.KeyboardManager
+import com.adsamcik.tracker.sutils.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.common.preferences.Preferences
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleManager
-import com.adsamcik.tracker.common.style.StyleView
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
 import com.adsamcik.tracker.map.introduction.MapSheetHiddenIntroduction
@@ -48,6 +47,7 @@ import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.WifiCountHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
+import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -338,11 +338,14 @@ internal class MapSheetController(
 			if (it.context.hasLocationPermission) {
 				onPositionClick(it)
 			} else {
-				fragment.requestPermissions(PermissionRequest(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)) { result ->
-					if (result.isSuccess) {
-						onPositionClick(it)
-					}
-				})
+				fragment.requestPermissions(
+						com.adsamcik.tracker.sutils.fragment.PermissionRequest(
+								arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+						) { result ->
+							if (result.isSuccess) {
+								onPositionClick(it)
+							}
+						})
 			}
 		}
 		// styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))

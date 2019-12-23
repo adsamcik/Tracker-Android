@@ -2,7 +2,7 @@ package com.adsamcik.tracker.statistics.detail.recycler.creator
 
 import android.view.ViewGroup
 import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeViewHolder
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.viewholder.MapViewHolder
 import com.google.android.gms.maps.GoogleMap

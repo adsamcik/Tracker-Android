@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.import.archive
 
 import android.content.Context
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream

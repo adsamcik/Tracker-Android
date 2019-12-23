@@ -10,9 +10,8 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.introduction.IntroductionManager
-import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
@@ -21,10 +20,10 @@ import com.adsamcik.tracker.map.MapSensorController
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.introduction.MapIntroduction
+import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.SupportMapFragment
-import kotlinx.android.synthetic.main.fragment_map.*
 
 @Suppress("unused")
 class FragmentMap : CoreUIFragment(), IOnDemandView {
