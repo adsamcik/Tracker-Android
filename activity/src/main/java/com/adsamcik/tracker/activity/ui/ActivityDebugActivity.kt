@@ -13,7 +13,6 @@ import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.debug.DebugDatabase
 import com.adsamcik.tracker.common.debug.LogData
-import com.adsamcik.tracker.common.extension.formatAsDateTime
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

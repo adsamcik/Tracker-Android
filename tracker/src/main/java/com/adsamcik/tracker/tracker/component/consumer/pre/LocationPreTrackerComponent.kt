@@ -2,7 +2,7 @@ package com.adsamcik.tracker.tracker.component.consumer.pre
 
 import android.content.Context
 import androidx.lifecycle.Observer
-import com.adsamcik.tracker.common.preference.observer.PreferenceObserver
+import com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -28,7 +28,7 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 
 	override suspend fun onEnable(context: Context) {
 		withContext(coroutineContext) {
-			PreferenceObserver.observeIntRes(
+			com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.observeIntRes(
 					context,
 					keyRes = R.string.settings_tracking_required_accuracy_key,
 					defaultRes = R.integer.settings_tracking_required_accuracy_default,
@@ -39,7 +39,7 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 
 	override suspend fun onDisable(context: Context) {
 		withContext(coroutineContext) {
-			PreferenceObserver.removeObserver(
+			com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.removeObserver(
 					context,
 					R.string.settings_tracking_required_accuracy_key,
 					observer

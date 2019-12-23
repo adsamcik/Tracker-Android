@@ -8,7 +8,7 @@ object Dependencies {
 		internal const val coreKtx = "1.2.0-beta02"
 		internal const val appcompat = "1.1.0"
 		internal const val fragment = "1.2.0-rc02"
-		const val kotlin: String = "1.3.50"
+		const val kotlin: String = "1.3.61"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.9.1"
 		internal const val work = "2.2.0"

@@ -7,7 +7,7 @@ import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.WifiDataDao
 import com.adsamcik.tracker.common.database.data.DatabaseWifiData
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -47,7 +47,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onEnable(context: Context) {
-		val isEnabled = Preferences.getPref(context)
+		val isEnabled = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
 				.getBooleanRes(
 						R.string.settings_wifi_network_enabled_key,
 						R.string.settings_wifi_network_enabled_default

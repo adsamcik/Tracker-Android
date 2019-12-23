@@ -26,7 +26,7 @@ import com.adsamcik.tracker.common.extension.formatReadable
 import com.adsamcik.tracker.common.extension.observe
 import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.statistics.R
@@ -185,7 +185,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 							resources.getString(R.string.stats_distance_total),
 							resources.formatDistance(
 									sumSessionData.distanceInM, 1,
-									Preferences.getLengthSystem(activity)
+									com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(activity)
 							)
 					),
 					StatData(
@@ -235,7 +235,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 							resources.getString(R.string.stats_distance_total),
 							resources.formatDistance(
 									lastWeekSummary.distanceInM, 1,
-									Preferences.getLengthSystem(activity)
+									com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(activity)
 							)
 					),
 					StatData(
@@ -263,7 +263,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			table.title = "${session.start.formatAsShortDateTime()} - ${session.end.formatAsShortDateTime()}"
 
 			val resources = resources
-			val lengthSystem = Preferences.getLengthSystem(requireContext())
+			val lengthSystem = com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(requireContext())
 
 			table.addData(
 					resources.getString(R.string.stats_distance_total),

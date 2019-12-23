@@ -1,1 +1,1 @@
-include(":app", ":statistics", ":game", ":map", ":common", ":commonmap", ":tracker", ":activity")
+include(":app", ":statistics", ":game", ":map", ":sbase", ":smap", ":spreferences", "sutils", ":tracker", ":activity")

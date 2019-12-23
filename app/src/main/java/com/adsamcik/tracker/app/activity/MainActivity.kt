@@ -28,7 +28,7 @@ import com.adsamcik.tracker.common.introduction.IntroductionManager
 import com.adsamcik.tracker.common.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.module.FirstRun
 import com.adsamcik.tracker.common.module.ModuleClassLoader
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.common.style.SystemBarStyle
 import com.adsamcik.tracker.common.style.SystemBarStyleView
@@ -67,7 +67,7 @@ class MainActivity : CoreUIActivity() {
 
 	override fun onStart() {
 		super.onStart()
-		if (!Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
+		if (!com.adsamcik.tracker.common.preferences.Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
 			firstRun()
 		} else {
 			uiIntroduction()
@@ -96,7 +96,7 @@ class MainActivity : CoreUIActivity() {
 				}
 			}
 			onFirstRunFinished = {
-				Preferences.getPref(this@MainActivity).edit {
+				com.adsamcik.tracker.common.preferences.Preferences.getPref(this@MainActivity).edit {
 					setBoolean(R.string.settings_first_run_key, true)
 				}
 				uiIntroduction()

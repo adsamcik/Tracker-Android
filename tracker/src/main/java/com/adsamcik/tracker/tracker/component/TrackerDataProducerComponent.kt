@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.component
 import android.content.Context
 import androidx.annotation.CallSuper
 import androidx.lifecycle.Observer
-import com.adsamcik.tracker.common.preference.observer.PreferenceObserver
+import com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
 internal abstract class TrackerDataProducerComponent(private val changeReceiver: TrackerDataProducerObserver) {
@@ -16,7 +16,7 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 		private set
 
 	fun onAttach(context: Context) {
-		PreferenceObserver.observe(
+		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.observe(
 				context,
 				keyRes = keyRes,
 				defaultRes = defaultRes,
@@ -25,7 +25,7 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 	}
 
 	fun onDetach(context: Context) {
-		PreferenceObserver.removeObserver(context, keyRes, observer)
+		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.removeObserver(context, keyRes, observer)
 		if (isEnabled) onDisable(context)
 	}
 

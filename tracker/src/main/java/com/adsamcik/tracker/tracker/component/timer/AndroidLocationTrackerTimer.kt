@@ -9,7 +9,7 @@ import android.os.Bundle
 import android.os.Looper
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.locationManager
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
@@ -43,7 +43,7 @@ internal class AndroidLocationTrackerTimer : LocationTrackerTimer() {
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		super.onEnable(context, receiver)
 
-		val preferences = Preferences.getPref(context)
+		val preferences = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
 		val minUpdateDelayInSeconds = preferences.getIntRes(
 				R.string.settings_tracking_min_time_key,
 				R.integer.settings_tracking_min_time_default

@@ -4,7 +4,6 @@ package com.adsamcik.tracker.tracker.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.stopService

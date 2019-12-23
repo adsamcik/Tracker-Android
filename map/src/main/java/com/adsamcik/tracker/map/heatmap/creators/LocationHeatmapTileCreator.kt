@@ -3,7 +3,7 @@ package com.adsamcik.tracker.map.heatmap.creators
 import android.content.Context
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
@@ -46,7 +46,7 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 			return LongRange(range.start, range.endInclusive)
 		}
 
-	override val weightNormalizationValue: Double = Preferences
+	override val weightNormalizationValue: Double = com.adsamcik.tracker.common.preferences.Preferences
 			.getPref(context)
 			.getIntRes(
 					R.string.settings_tracking_required_accuracy_key,

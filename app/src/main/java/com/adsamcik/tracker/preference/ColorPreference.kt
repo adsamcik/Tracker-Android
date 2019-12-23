@@ -10,7 +10,7 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.common.style.ActiveColorData
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.common.style.utility.ColorConstants
@@ -66,7 +66,7 @@ class ColorPreference : Preference, CoroutineScope {
 		val colorData = requireNotNull(recyclerColorData) { "First set color data by calling ${this::setColor.name}" }
 		val defaultColor = colorData.required.defaultColor
 
-		Preferences.getPref(context).edit {
+		com.adsamcik.tracker.common.preferences.Preferences.getPref(context).edit {
 			val key = context.getString(
 					R.string.settings_color_key,
 					position
@@ -161,7 +161,7 @@ class ColorPreference : Preference, CoroutineScope {
 	}
 
 	private fun updatePreference(color: Int) {
-		Preferences.getPref(context).edit {
+		com.adsamcik.tracker.common.preferences.Preferences.getPref(context).edit {
 			val key = context.getString(
 					R.string.settings_color_key,
 					position

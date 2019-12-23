@@ -82,7 +82,7 @@ tasks.withType<DokkaTask> {
 }
 
 dependencies {
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
 
@@ -121,7 +121,7 @@ dependencies {
 
 	Dependencies.test(this)
 	//workaround  Multiple APKs packaging the same library can cause runtime errors.
-	implementation(project(":commonmap"))
+	implementation(project(":smap"))
 	Dependencies.map(this)
 }
 apply {

@@ -9,7 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.notificationManager
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.common.style.StyleManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
@@ -99,7 +99,7 @@ class TrackerNotificationManager(
 		const val NOTIFICATION_ID = -7643
 
 		private fun getNotificationStylePreference(context: Context): Boolean =
-				Preferences.getPref(context).getBooleanRes(
+				com.adsamcik.tracker.common.preferences.Preferences.getPref(context).getBooleanRes(
 						R.string.settings_notification_styled_key,
 						R.string.settings_notification_styled_default
 				)

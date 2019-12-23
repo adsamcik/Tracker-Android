@@ -3,7 +3,7 @@ package com.adsamcik.tracker.game.challenge.data.instance
 import android.content.Context
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.extension.formatDistance
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
@@ -24,7 +24,7 @@ class WalkDistanceChallengeInstance(
 		get() = WalkDistanceChallengePersistence()
 
 	override fun getDescription(context: Context): String {
-		val lengthSystem = Preferences.getLengthSystem(context)
+		val lengthSystem = com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(context)
 		val resources = context.resources
 		return resources.getString(
 				definition.descriptionRes,

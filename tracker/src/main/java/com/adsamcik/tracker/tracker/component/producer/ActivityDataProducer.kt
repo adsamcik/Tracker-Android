@@ -7,7 +7,7 @@ import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.GroupedActivity
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
@@ -50,7 +50,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
-		val preferences = Preferences.getPref(context)
+		val preferences = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
 		val minUpdateDelayInSeconds = preferences.getIntRes(
 				R.string.settings_tracking_min_time_key,
 				R.integer.settings_tracking_min_time_default

@@ -5,7 +5,7 @@ import android.widget.TextView
 import androidx.annotation.MainThread
 import androidx.core.view.isGone
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
@@ -42,7 +42,7 @@ internal class MapController(
 			logic.dateRange = dateRange
 			this.activeLayer = logic
 
-			Preferences.getPref(context).edit {
+			com.adsamcik.tracker.common.preferences.Preferences.getPref(context).edit {
 				setString(R.string.settings_map_last_layer_key, logic.layerInfo.type.name)
 			}
 
@@ -88,7 +88,7 @@ internal class MapController(
 	private fun onEnable() {
 		ColorMap.addListener(context, map)
 
-		val pref = Preferences.getPref(context)
+		val pref = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
 		val resources = context.resources
 
 		val quality = pref.getFloat(

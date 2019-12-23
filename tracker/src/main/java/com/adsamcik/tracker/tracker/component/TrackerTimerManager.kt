@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.timer.AndroidLocationTrackerTimer
 import com.adsamcik.tracker.tracker.component.timer.FusedLocationTrackerTimer
@@ -27,7 +27,7 @@ object TrackerTimerManager {
 	}
 
 	fun getSelectedKey(context: Context): String {
-		return Preferences.getPref(context).getStringRes(R.string.settings_tracker_timer_key)
+		return com.adsamcik.tracker.common.preferences.Preferences.getPref(context).getStringRes(R.string.settings_tracker_timer_key)
 				?: getKey(availableTimers[0])
 	}
 }

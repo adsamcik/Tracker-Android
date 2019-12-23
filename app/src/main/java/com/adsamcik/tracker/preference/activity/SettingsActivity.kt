@@ -9,7 +9,7 @@ import com.adsamcik.tracker.common.activity.DetailActivity
 import com.adsamcik.tracker.common.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
 import com.adsamcik.tracker.common.extension.transaction
-import com.adsamcik.tracker.common.preference.ModuleSettings
+import com.adsamcik.androidcomponents.common_preferences.ModuleSettings
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings
@@ -31,7 +31,7 @@ class SettingsActivity : DetailActivity(),
 
 	private val backstack = mutableListOf<PreferenceScreen>()
 
-	private val moduleSettingsList = mutableMapOf<Module, ModuleSettings>()
+	private val moduleSettingsList = mutableMapOf<Module, com.adsamcik.androidcomponents.common_preferences.ModuleSettings>()
 
 	private var activePage: PreferencePage? = null
 
@@ -65,7 +65,7 @@ class SettingsActivity : DetailActivity(),
 		val modules = Module.getActiveModuleInfo(this)
 		modules.forEach {
 			try {
-				val tClass = it.module.loadClass<ModuleSettings>(
+				val tClass = it.module.loadClass<com.adsamcik.androidcomponents.common_preferences.ModuleSettings>(
 						"preference.${it.module.moduleName.capitalize()}Settings"
 				)
 				val instance = tClass.newInstance()

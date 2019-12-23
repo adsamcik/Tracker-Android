@@ -12,7 +12,7 @@ import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.extension.alarmManager
 import com.adsamcik.tracker.common.extension.stopService
 import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
@@ -62,7 +62,7 @@ object TrackerLocker {
 	 * Initializes locks from SharedPreferences (persistence)
 	 */
 	fun initializeFromPersistence(context: Context) {
-		val preferences = Preferences.getPref(context)
+		val preferences = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
 
 		setTimeLock(
 				context, preferences.getLongResString(
@@ -81,7 +81,7 @@ object TrackerLocker {
 	private fun setRechargeLock(context: Context, lock: Boolean) {
 		val keyDisabledRecharge = context.getString(R.string.settings_disabled_recharge_key)
 		synchronized(this) {
-			Preferences.getPref(context).edit {
+			com.adsamcik.tracker.common.preferences.Preferences.getPref(context).edit {
 				setBoolean(keyDisabledRecharge, lock)
 			}
 
@@ -93,7 +93,7 @@ object TrackerLocker {
 
 	private fun setTimeLock(context: Context, time: Long) {
 		synchronized(this) {
-			Preferences.getPref(context).edit {
+			com.adsamcik.tracker.common.preferences.Preferences.getPref(context).edit {
 				setLong(R.string.settings_disabled_time_key, time)
 			}
 

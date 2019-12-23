@@ -46,5 +46,5 @@ dependencies {
 	Dependencies.test(this)
 
 	implementation(project(":app"))
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 }

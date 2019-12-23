@@ -1,13 +1,13 @@
 package com.adsamcik.tracker.map.preference
 
 import androidx.preference.PreferenceScreen
-import com.adsamcik.tracker.common.preference.ModuleSettings
+import com.adsamcik.androidcomponents.common_preferences.ModuleSettings
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.preference.FloatValueSliderPreference
 import com.adsamcik.tracker.preference.IntValueSliderPreference
 
 @Suppress("unused")
-class MapSettings : ModuleSettings {
+class MapSettings : com.adsamcik.androidcomponents.common_preferences.ModuleSettings {
 	override val iconRes: Int = com.adsamcik.tracker.common.R.drawable.ic_outline_map_24dp
 
 	override fun onCreatePreferenceScreen(preferenceScreen: PreferenceScreen) {

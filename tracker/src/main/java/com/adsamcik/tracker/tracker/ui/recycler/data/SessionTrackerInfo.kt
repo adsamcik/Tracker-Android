@@ -5,7 +5,7 @@ import android.text.format.DateUtils.MINUTE_IN_MILLIS
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.extension.formatDistance
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 
 class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURCE) {
@@ -22,7 +22,7 @@ class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURC
 	override fun bindContent(holder: InfoFieldHolder) {
 		val context = holder.context
 		val resources = holder.resources
-		val lengthSystem = Preferences.getLengthSystem(context)
+		val lengthSystem = com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(context)
 
 		holder.getBoldText().apply {
 			value.text = DateUtils.getRelativeTimeSpanString(

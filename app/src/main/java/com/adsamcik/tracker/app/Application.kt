@@ -6,7 +6,6 @@ import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.common.debug.Logger
 import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.language.LocaleManager
 import com.adsamcik.tracker.common.module.ModuleClassLoader
 import com.adsamcik.tracker.common.module.ModuleInitializer
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker

@@ -40,7 +40,7 @@ android {
 }
 
 dependencies {
-	implementation(project(":commonmap"))
+	implementation(project(":smap"))
 	Dependencies.core(this)
 	Dependencies.draggable(this)
 	Dependencies.map(this)
@@ -52,5 +52,5 @@ dependencies {
 
 	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 }

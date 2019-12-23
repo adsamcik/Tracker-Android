@@ -58,7 +58,7 @@ android {
 }
 
 dependencies {
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 	implementation(project(":activity"))
 
 	Dependencies.core(this)

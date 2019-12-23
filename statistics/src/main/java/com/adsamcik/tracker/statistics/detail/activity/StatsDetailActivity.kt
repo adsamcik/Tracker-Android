@@ -35,7 +35,7 @@ import com.adsamcik.tracker.common.extension.observe
 import com.adsamcik.tracker.common.extension.requireValue
 import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.misc.Double2
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.common.style.StyleView
@@ -248,7 +248,7 @@ class StatsDetailActivity : DetailActivity() {
 
 	private fun addBasicStats(session: TrackerSession, adapter: StatsDetailAdapter) {
 		val resources = resources
-		val lengthSystem = Preferences.getLengthSystem(this)
+		val lengthSystem = com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(this)
 
 
 		val data = mutableListOf(
@@ -374,8 +374,8 @@ class StatsDetailActivity : DetailActivity() {
 
 		val speedStats = calculateSpeedStats(locations)
 
-		val lengthSystem = Preferences.getLengthSystem(this)
-		val speedFormat = Preferences.getSpeedFormat(this)
+		val lengthSystem = com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(this)
+		val speedFormat = com.adsamcik.tracker.common.preferences.Preferences.getSpeedFormat(this)
 		val dataList = listOf(
 				InformationStatisticsData(
 						com.adsamcik.tracker.common.R.drawable.ic_speedometer,
@@ -438,7 +438,7 @@ class StatsDetailActivity : DetailActivity() {
 		}
 
 		val resources = resources
-		val lengthSystem = Preferences.getLengthSystem(this)
+		val lengthSystem = com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(this)
 
 		val altitudeStatisticsList = listOf(
 				InformationStatisticsData(

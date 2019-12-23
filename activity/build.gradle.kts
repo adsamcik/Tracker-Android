@@ -58,7 +58,7 @@ android {
 }
 
 dependencies {
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 
 	Dependencies.core(this)
 	Dependencies.crashlytics(this)

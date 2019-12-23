@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.module
 import android.content.Context
 import com.adsamcik.tracker.common.module.FirstRun
 import com.adsamcik.tracker.common.module.OnDoneListener
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.afollestad.materialdialogs.list.listItemsMultiChoice
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
@@ -21,7 +21,7 @@ class TrackerFirstRun : FirstRun() {
 					R.array.tracking_options_titles,
 					waitForPositiveButton = true,
 					selection = { dialog, index, _ ->
-						Preferences.getPref(dialog.context).edit {
+						com.adsamcik.tracker.common.preferences.Preferences.getPref(dialog.context).edit {
 							setInt(
 									com.adsamcik.tracker.common.R.string.settings_tracking_activity_key,
 									index
@@ -89,7 +89,7 @@ class TrackerFirstRun : FirstRun() {
 					initialSelection = selection,
 					allowEmptySelection = true,
 					selection = { dialog, indices, _ ->
-						Preferences.getPref(dialog.context).edit {
+						com.adsamcik.tracker.common.preferences.Preferences.getPref(dialog.context).edit {
 							list.forEachIndexed { index, triple ->
 								setBoolean(triple.first, indices.contains(index))
 							}
