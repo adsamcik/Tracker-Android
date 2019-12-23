@@ -18,6 +18,6 @@ fun <T> LiveData<T>.observe(owner: LifecycleOwner, body: (T?) -> Unit) {
 /**
  * Returns the current value or throws exception if value is null. Note that calling this method on a background thread does not guarantee that the latest value set will be received
  */
-val <T> LiveData<T>.requireValue: T
+val <T> LiveData<T?>.requireValue: T
 	get() = value ?: throw NullPointerException("Value cannot be null.")
 

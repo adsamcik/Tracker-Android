@@ -17,6 +17,7 @@ import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.worker.ChallengeWorker
+import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit

@@ -24,6 +24,7 @@ import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 typealias GameAdapter = StyleMultiTypeAdapter<GameRecyclerType, GameRecyclerData>
 

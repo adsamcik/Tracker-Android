@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.observe
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
@@ -22,6 +23,9 @@ import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.common.extension.formatAsDuration
 import com.adsamcik.tracker.common.extension.formatAsShortDateTime
 import com.adsamcik.tracker.common.extension.formatReadable
+import com.adsamcik.tracker.common.extension.startActivity
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -38,6 +42,7 @@ import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.customListAdapter
 import com.afollestad.materialdialogs.list.getRecyclerView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.*
 
 @Suppress("unused")

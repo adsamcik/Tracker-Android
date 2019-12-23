@@ -370,13 +370,13 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val lastCollectionData: LiveData<CollectionDataEcho> get() = lastCollectionDataMutable
 
 
-		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo> = MutableLiveData()
+		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo?> = MutableLiveData()
 
 		/**
 		 * Current information about session.
 		 * Null when no session is active.
 		 */
-		val sessionInfo: LiveData<TrackerSessionInfo> get() = sessionInfoMutable
+		val sessionInfo: LiveData<TrackerSessionInfo?> get() = sessionInfoMutable
 
 
 		const val ARG_IS_USER_INITIATED = "userInitiated"

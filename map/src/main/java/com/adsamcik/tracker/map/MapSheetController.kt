@@ -20,7 +20,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.sutils.fragment.PermissionRequest
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.common.extension.coerceIn
@@ -31,10 +30,9 @@ import com.adsamcik.tracker.common.extension.requireParent
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.keyboard.KeyboardListener
 import com.adsamcik.tracker.shared.utils.keyboard.KeyboardManager
-import com.adsamcik.tracker.sutils.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
+import com.adsamcik.tracker.common.misc.NavBarPosition
 import com.adsamcik.tracker.common.misc.SnackMaker
-
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -47,7 +45,10 @@ import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.WifiCountHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
+import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -63,7 +64,7 @@ import kotlin.math.roundToInt
 
 internal class MapSheetController(
 		activity: FragmentActivity,
-		fragment: CoreUIFragment,
+		fragment: CorePermissionFragment,
 		private val map: GoogleMap,
 		mapOwner: MapOwner,
 		private val rootLayout: ViewGroup,
@@ -339,7 +340,7 @@ internal class MapSheetController(
 				onPositionClick(it)
 			} else {
 				fragment.requestPermissions(
-						com.adsamcik.tracker.sutils.fragment.PermissionRequest(
+						PermissionRequest(
 								arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
 						) { result ->
 							if (result.isSuccess) {

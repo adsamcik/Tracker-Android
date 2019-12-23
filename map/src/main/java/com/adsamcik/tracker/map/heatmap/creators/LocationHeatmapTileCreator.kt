@@ -8,6 +8,7 @@ import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.math.ceil
 import kotlin.math.pow
 

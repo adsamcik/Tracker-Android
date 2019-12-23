@@ -4,11 +4,16 @@ import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
+import androidx.core.view.isVisible
+import androidx.core.view.updatePadding
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.observe
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -29,8 +34,11 @@ import com.adsamcik.tracker.common.extension.formatReadable
 import com.adsamcik.tracker.common.extension.requireValue
 import com.adsamcik.tracker.common.extension.toCalendar
 import com.adsamcik.tracker.common.misc.Double2
+import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -51,12 +59,15 @@ import com.github.mikephil.charting.data.Entry
 import com.goebl.simplify.Simplify3D
 import com.google.android.gms.maps.MapsInitializer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.*
 
 typealias StatsDetailAdapter = StyleMultiTypeAdapter<StatisticDetailType, MultiTypeData<StatisticDetailType>>
 
 class StatsDetailActivity : DetailActivity() {
 	private lateinit var viewModel: ViewModel
+
+	val recycler: RecyclerView by lazy { findViewById<RecyclerView>(R.id.recycler) }
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.elevation = 0
@@ -102,12 +113,14 @@ class StatsDetailActivity : DetailActivity() {
 
 		addAction(com.adsamcik.tracker.common.R.drawable.ic_baseline_edit, R.string.edit_session,
 		          View.OnClickListener {
-			          if (add_item_layout.isVisible) {
-				          add_item_layout.visibility = View.GONE
-				          header_root.updatePadding(top = 0)
+			          val addItemLayout = findViewById<View>(R.id.add_item_layout)
+			          val headerRoot = findViewById<ViewGroup>(R.id.header_root)
+			          if (addItemLayout.isVisible) {
+				          addItemLayout.visibility = View.GONE
+				          headerRoot.updatePadding(top = 0)
 			          } else {
-				          add_item_layout.visibility = View.VISIBLE
-				          header_root.updatePadding(top = HEADER_ROOT_PADDING.dp)
+				          addItemLayout.visibility = View.VISIBLE
+				          headerRoot.updatePadding(top = HEADER_ROOT_PADDING.dp)
 				          findViewById<View>(
 						          R.id.button_change_activity
 				          ).setOnClickListener { showActivitySelectionDialog() }
@@ -189,6 +202,7 @@ class StatsDetailActivity : DetailActivity() {
 					Unit
 		})
 
+		val recycler = findViewById<RecyclerView>(R.id.recycler)
 		recycler.adapter = adapter
 
 		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
@@ -198,7 +212,10 @@ class StatsDetailActivity : DetailActivity() {
 
 		setTitle(session)
 
-		date_time.text = StatsFormat.formatRange(startCalendar, endCalendar)
+		findViewById<TextView>(R.id.date_time).text = StatsFormat.formatRange(
+				startCalendar,
+				endCalendar
+		)
 	}
 
 	private fun setTitle(session: TrackerSession) {
@@ -233,7 +250,7 @@ class StatsDetailActivity : DetailActivity() {
 
 			launch(Dispatchers.Main) {
 				setTitle(title)
-				activity.setImageDrawable(drawable)
+				findViewById<ImageView>(R.id.activity).setImageDrawable(drawable)
 			}
 		}
 	}
@@ -477,12 +494,12 @@ class StatsDetailActivity : DetailActivity() {
 
 	class ViewModel : androidx.lifecycle.ViewModel() {
 		private var initialized = false
-		private val sessionMutable: MutableLiveData<TrackerSession> = MutableLiveData()
+		private val sessionMutable: MutableLiveData<TrackerSession?> = MutableLiveData()
 
 		/**
 		 * Returns LiveData containing tracker sessions
 		 */
-		val session: LiveData<TrackerSession> get() = sessionMutable
+		val session: LiveData<TrackerSession?> get() = sessionMutable
 
 		@WorkerThread
 		fun initialize(context: Context, sessionId: Long) {

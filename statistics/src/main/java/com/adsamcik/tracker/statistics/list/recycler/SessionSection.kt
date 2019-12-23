@@ -10,9 +10,10 @@ import com.adsamcik.tracker.common.data.SessionActivity
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.extension.formatAsDuration
-import com.adsamcik.tracker.common.extension.formatDistance
 import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.extension.toCalendar
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat

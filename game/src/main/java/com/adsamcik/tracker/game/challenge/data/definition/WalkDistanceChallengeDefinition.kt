@@ -8,7 +8,7 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.game.challenge.data.builder.WalkDistanceChallengeBuilder
 import com.adsamcik.tracker.game.challenge.data.instance.WalkDistanceChallengeInstance
 
-class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChallengeInstance>(
+internal class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChallengeInstance>(
 		R.string.challenge_walk_in_the_park_title, R.string.challenge_walk_in_the_park_description,
 		BASE_DAY_COUNT * Time.DAY_IN_MILLISECONDS
 ) {

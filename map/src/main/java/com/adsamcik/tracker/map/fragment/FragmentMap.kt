@@ -20,13 +20,17 @@ import com.adsamcik.tracker.map.MapSensorController
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.introduction.MapIntroduction
+import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.SupportMapFragment
 
+/**
+ * Fragment containing primary map with overlays, user location and more.
+ */
 @Suppress("unused")
-class FragmentMap : CoreUIFragment(), IOnDemandView {
+class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	private var locationListener: MapSensorController? = null
 	private var mapController: MapController? = null
 	private var mapSheetController: MapSheetController? = null
@@ -134,12 +138,14 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		this.mapController = mapController
 		this.locationListener = locationListener
 
+		val mapUiParent = activity.findViewById<ViewGroup>(R.id.map_ui_parent)
+
 		mapSheetController = MapSheetController(
 				activity,
 				this,
 				map,
 				mapOwner,
-				map_ui_parent,
+				mapUiParent,
 				mapController,
 				locationListener,
 				mapEventListener
@@ -147,7 +153,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		ColorMap.addListener(activity, map)
 
-		map_ui_parent.post {
+		mapUiParent.post {
 			IntroductionManager.showIntroduction(requireActivity(), MapIntroduction())
 		}
 	}

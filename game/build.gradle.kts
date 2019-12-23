@@ -48,4 +48,5 @@ dependencies {
 	implementation(project(":app"))
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 }

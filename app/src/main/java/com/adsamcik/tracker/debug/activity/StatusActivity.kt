@@ -48,7 +48,7 @@ class StatusActivity : DetailActivity() {
 
 		lastId = createPair(
 				"Is locked",
-				TrackerLocker.isLocked.requireValue.toString(),
+				TrackerLocker.isLocked.value.toString(),
 				layout,
 				lastId
 		)
@@ -62,7 +62,7 @@ class StatusActivity : DetailActivity() {
 	}
 
 	@Suppress("MagicNumber")
-	fun createPair(
+	private fun createPair(
 			titleString: String,
 			valueString: String,
 			parent: ViewGroup,

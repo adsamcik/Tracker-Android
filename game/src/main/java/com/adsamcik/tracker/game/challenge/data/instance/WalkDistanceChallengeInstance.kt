@@ -2,15 +2,17 @@ package com.adsamcik.tracker.game.challenge.data.instance
 
 import android.content.Context
 import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.extension.formatDistance
 
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.persistence.WalkDistanceChallengePersistence
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
-class WalkDistanceChallengeInstance(
+
+internal class WalkDistanceChallengeInstance(
 		data: ChallengeEntry,
 		definition: ChallengeDefinition<WalkDistanceChallengeInstance>,
 		extra: WalkDistanceChallengeEntity

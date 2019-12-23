@@ -7,11 +7,11 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.debug.LogData
-import com.adsamcik.tracker.common.extension.getPositiveLongReportNull
 import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.logGame
+import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 
 internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
 		context,

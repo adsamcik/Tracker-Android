@@ -9,6 +9,7 @@ import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.maps.GoogleMap
 
 internal class MapController(

@@ -10,7 +10,7 @@ import com.adsamcik.tracker.game.challenge.data.instance.WalkDistanceChallengeIn
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 
-class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) :
+internal class WalkDistanceChallengeBuilder(private val definition: WalkDistanceChallengeDefinition) :
 		ChallengeBuilder<WalkDistanceChallengeInstance>(
 				definition
 		) {
