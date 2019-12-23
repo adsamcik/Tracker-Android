@@ -4,8 +4,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.AppCompatCheckBox
+import androidx.core.widget.ContentLoadingProgressBar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
@@ -73,12 +75,14 @@ class ModuleActivity : DetailActivity() {
 	}
 
 	private fun displayLoadingState(state: SplitInstallSessionState, message: String) {
-		progress_layout.visibility = View.VISIBLE
+		findViewById<View>(R.id.progress_layout).visibility = View.VISIBLE
 
-		progress.max = state.totalBytesToDownload().toInt()
-		progress.progress = state.bytesDownloaded().toInt()
+		findViewById<ContentLoadingProgressBar>(R.id.progress).apply {
+			max = state.totalBytesToDownload().toInt()
+			progress = state.bytesDownloaded().toInt()
+		}
 
-		progress_title.text = message
+		findViewById<TextView>(R.id.progress_title).text = message
 	}
 
 	private fun onLoadSuccess() {
@@ -125,9 +129,9 @@ class ModuleActivity : DetailActivity() {
 			}
 		}
 
-		button_cancel.setOnClickListener { finish() }
+		findViewById<View>(R.id.button_cancel).setOnClickListener { finish() }
 
-		button_ok.setOnClickListener { updateModules() }
+		findViewById<View>(R.id.button_ok).setOnClickListener { updateModules() }
 	}
 
 	private fun updateModules() {

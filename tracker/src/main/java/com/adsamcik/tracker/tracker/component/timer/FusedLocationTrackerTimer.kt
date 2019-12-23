@@ -4,8 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
@@ -47,7 +48,7 @@ internal class FusedLocationTrackerTimer : LocationTrackerTimer() {
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		super.onEnable(context, receiver)
 
-		val preferences = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+		val preferences = Preferences.getPref(context)
 		val minUpdateDelayInSeconds = preferences.getIntRes(
 				R.string.settings_tracking_min_time_key,
 				R.integer.settings_tracking_min_time_default

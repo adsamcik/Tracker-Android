@@ -86,6 +86,7 @@ dependencies {
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
 	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 
 	Dependencies.core(this)
 	//1st party dependencies

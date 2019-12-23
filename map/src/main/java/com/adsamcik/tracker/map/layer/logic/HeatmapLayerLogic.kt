@@ -3,7 +3,7 @@ package com.adsamcik.tracker.map.layer.logic
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.MutableLiveData
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.HeatmapTileProvider
@@ -64,7 +64,7 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 			availableRange = tileCreator.availableRange
 		}
 
-		val maxHeat = com.adsamcik.tracker.common.preferences.Preferences.getPref(context).getIntResString(
+		val maxHeat = Preferences.getPref(context).getIntResString(
 				R.string.settings_map_max_heat_key,
 				R.string.settings_map_max_heat_default
 		).toFloat()

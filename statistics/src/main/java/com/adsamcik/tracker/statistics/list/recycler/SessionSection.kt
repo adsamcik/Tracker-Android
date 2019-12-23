@@ -13,7 +13,7 @@ import com.adsamcik.tracker.common.extension.formatAsDuration
 import com.adsamcik.tracker.common.extension.formatDistance
 import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.extension.toCalendar
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
@@ -58,7 +58,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sec
 		val distance = resources.formatDistance(
 				session.distanceInM,
 				1,
-				com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(context)
+				Preferences.getLengthSystem(context)
 		)
 		builder.append(" | ").append(distance)
 
@@ -79,7 +79,7 @@ class SessionSection(private val time: Long, private val distance: Double) : Sec
 		holder.distance.text = resources.formatDistance(
 				distance,
 				1,
-				com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(context)
+				Preferences.getLengthSystem(context)
 		)
 	}
 

@@ -15,17 +15,17 @@ import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.androidcomponents.common_preferences.ModuleSettings
-import com.adsamcik.tracker.common.preferences.Preferences
 import com.adsamcik.tracker.license.LicenseActivity
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.activity.ModuleActivity
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.preference.setOnClickListener
+import com.adsamcik.tracker.shared.preferences.ModuleSettings
+import com.adsamcik.tracker.shared.preferences.Preferences
 import java.util.*
 
-class RootPage(private val modules: Map<Module, com.adsamcik.androidcomponents.common_preferences.ModuleSettings>) : PreferencePage {
+class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePage {
 	private var clickCount = 0
 
 	private lateinit var snackMaker: SnackMaker
@@ -48,7 +48,7 @@ class RootPage(private val modules: Map<Module, com.adsamcik.androidcomponents.c
 		caller.findPreference(R.string.show_tips_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
 			if (newValue as Boolean) {
-				com.adsamcik.tracker.common.preferences.Preferences.getPref(preference.context).edit {
+				Preferences.getPref(preference.context).edit {
 					removeKeyByPrefix(Introduction.prefix)
 				}
 			}
@@ -76,13 +76,13 @@ class RootPage(private val modules: Map<Module, com.adsamcik.androidcomponents.c
 		val devEnabledDefaultRes = R.string.settings_debug_enabled_default
 
 		val debugPreference = caller.findPreference(R.string.settings_debug_key).apply {
-			isVisible = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+			isVisible = Preferences.getPref(context)
 					.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
 		}
 
 		version.setOnPreferenceClickListener {
 			val context = it.context
-			val preferences = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+			val preferences = Preferences.getPref(context)
 
 			if (preferences.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)) {
 				showToast(context, resources.getString(R.string.settings_debug_already_available))

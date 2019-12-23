@@ -2,9 +2,11 @@ package com.adsamcik.tracker.module
 
 import android.content.Context
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.OnDoneListener
-import com.adsamcik.tracker.common.preferences.Preferences
+import com.afollestad.materialdialogs.callbacks.onDismiss
+
 
 class AppFirstRun : FirstRun() {
 	override fun onFirstRun(context: Context, onDoneListener: OnDoneListener) {
@@ -19,9 +21,9 @@ class AppFirstRun : FirstRun() {
 	}
 
 	private fun setReportingPreference(context: Context, value: Boolean) {
-		com.adsamcik.tracker.common.preferences.Preferences.getPref(context).edit {
+		Preferences.getPref(context).edit {
 			setBoolean(
-					com.adsamcik.tracker.common.R.string.settings_error_reporting_key,
+					com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_key,
 					value
 			)
 		}

@@ -3,7 +3,8 @@ package com.adsamcik.tracker.tracker.component.timer
 import android.content.Context
 import android.os.Handler
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.Preferences
+
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
@@ -33,7 +34,7 @@ internal class TimeTrackerTimer : TrackerTimerComponent {
 	)
 
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
-		val preferences = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+		val preferences = Preferences.getPref(context)
 		val minUpdateDelayInSeconds = preferences.getIntRes(
 				R.string.settings_tracking_min_time_key,
 				R.integer.settings_tracking_min_time_default

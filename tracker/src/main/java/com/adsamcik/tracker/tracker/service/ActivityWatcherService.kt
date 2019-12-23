@@ -12,8 +12,9 @@ import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.extension.notificationManager
 import com.adsamcik.tracker.common.extension.startForegroundService
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.common.service.CoreService
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import java.util.*
@@ -34,7 +35,7 @@ class ActivityWatcherService : CoreService() {
 
 		instance = this
 
-		val updatePreferenceInSeconds = com.adsamcik.tracker.common.preferences.Preferences.getPref(this)
+		val updatePreferenceInSeconds = Preferences.getPref(this)
 				.getIntResString(
 						R.string.settings_activity_freq_key,
 						R.string.settings_activity_freq_default
@@ -107,20 +108,20 @@ class ActivityWatcherService : CoreService() {
 
 		private var instance: ActivityWatcherService? = null
 
-		private fun getWatcherPreference(context: Context): Boolean = com.adsamcik.tracker.common.preferences.Preferences.getPref(
+		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(
 				context
 		).getBooleanRes(
 				R.string.settings_activity_watcher_key, R.string.settings_activity_watcher_default
 		)
 
-		private fun getAutoTrackingPreference(context: Context): Int = com.adsamcik.tracker.common.preferences.Preferences.getPref(
+		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(
 				context
 		).getIntResString(
 				R.string.settings_tracking_activity_key,
 				R.string.settings_tracking_activity_default
 		)
 
-		private fun getActivityIntervalPreference(context: Context): Int = com.adsamcik.tracker.common.preferences.Preferences.getPref(
+		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(
 				context
 		).getIntResString(
 				R.string.settings_activity_freq_key, R.string.settings_activity_freq_default

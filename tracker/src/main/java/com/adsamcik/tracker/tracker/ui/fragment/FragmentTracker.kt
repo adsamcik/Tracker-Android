@@ -9,18 +9,21 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.ImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.observe
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.assist.DisplayAssist
 import com.adsamcik.tracker.common.data.ActivityInfo
 import com.adsamcik.tracker.common.data.CellData
@@ -32,13 +35,16 @@ import com.adsamcik.tracker.common.data.NetworkOperator
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.data.WifiData
 import com.adsamcik.tracker.common.data.WifiInfo
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.common.extension.requireParent
+import com.adsamcik.tracker.common.extension.startActivity
 import com.adsamcik.tracker.common.misc.SnackMaker
+import com.adsamcik.tracker.common.useMock
+import com.adsamcik.tracker.shared.preferences.PreferencesAssist
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
-import com.adsamcik.tracker.common.useMock
-import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
@@ -48,7 +54,10 @@ import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.android.synthetic.main.fragment_tracker.view.*
 
-class FragmentTracker : CoreUIFragment(), LifecycleObserver {
+/**
+ * Fragment that displays current tracking information
+ */
+class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 	private lateinit var adapter: TrackerInfoAdapter
 
 	override fun onCreateView(
@@ -97,12 +106,13 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	override fun onStart() {
 		super.onStart()
 
-		button_settings.setOnClickListener {
+		val view = requireView()
+		view.findViewById<View>(R.id.button_settings).setOnClickListener {
 			val context = it.context
 			context.startActivity("com.adsamcik.tracker.preference.activity.SettingsActivity")
 		}
 
-		button_tracking.setOnClickListener {
+		view.findViewById<View>(R.id.button_tracking).setOnClickListener {
 			val activity = requireActivity()
 			if (TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
 				TrackerLocker.lockTimeLock(
@@ -120,14 +130,15 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 			}
 		}
 
-		button_tracking_lock.setOnClickListener {
+		val buttonTrackingLock = view.findViewById<View>(R.id.button_tracking_lock)
+		buttonTrackingLock.setOnClickListener {
 			val context = requireContext()
 			TrackerLocker.unlockTimeLock(context)
 			TrackerLocker.unlockRechargeLock(context)
 		}
 
 		TrackerLocker.isLocked.observeGetCurrent(this) {
-			button_tracking_lock.visibility = if (it) VISIBLE else GONE
+			buttonTrackingLock.visibility = if (it) VISIBLE else GONE
 		}
 
 		initializeColorElements()
@@ -137,7 +148,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		}
 
 		TrackerService.lastCollectionData.observe(this) {
-			if (it != null && it.session.start > 0) {
+			if (it.session.start > 0) {
 				updateData(it)
 			}
 		}
@@ -150,7 +161,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 		val orientation = DisplayAssist.orientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
-			tracker_recycler.setPadding(
+			requireView().findViewById<View>(R.id.tracker_recycler).setPadding(
 					RECYCLER_HORIZONTAL_PADDING.dp,
 					0,
 					RECYCLER_HORIZONTAL_PADDING.dp,
@@ -178,7 +189,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 				                                             )
 				                                             startActivity(locationOptionsIntent)
 			                                             })
-		} else if (!Assist.hasAnythingToTrack(activity)) {
+		} else if (!PreferencesAssist.hasAnythingToTrack(activity)) {
 			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
 		} else {
 			TrackerServiceApi.startService(activity, isUserInitiated = true)
@@ -262,19 +273,27 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
+		val view = requireView()
 		styleController.apply {
-			watchView(StyleView(top_panel_root, layer = 1))
-			watchRecyclerView(RecyclerStyleView(tracker_recycler, layer = 0, childrenLayer = 1))
+			watchView(StyleView(view.findViewById<View>(R.id.top_panel_root), layer = 1))
+			watchRecyclerView(
+					RecyclerStyleView(
+							view.findViewById(R.id.tracker_recycler),
+							layer = 0,
+							childrenLayer = 1
+					)
+			)
 		}
 	}
 
 	private fun updateTrackerButton(state: Boolean) {
+		val buttonTracking = requireView().findViewById<ImageButton>(R.id.button_settings)
 		if (state) {
-			button_tracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
-			button_tracking.contentDescription = getString(R.string.description_tracking_stop)
+			buttonTracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
+			buttonTracking.contentDescription = getString(R.string.description_tracking_stop)
 		} else {
-			button_tracking.setImageResource(R.drawable.ic_play_circle_filled_black_24dp)
-			button_tracking.contentDescription = getString(R.string.description_tracking_start)
+			buttonTracking.setImageResource(R.drawable.ic_play_circle_filled_black_24dp)
+			buttonTracking.contentDescription = getString(R.string.description_tracking_start)
 		}
 	}
 

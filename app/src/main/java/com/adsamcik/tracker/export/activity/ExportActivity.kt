@@ -11,17 +11,21 @@ import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.FileProvider
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.extension.cloneCalendar
 import com.adsamcik.tracker.common.extension.createCalendarWithTime
+import com.adsamcik.tracker.common.extension.hasExternalStorageReadPermission
+import com.adsamcik.tracker.common.extension.hasExternalStorageWritePermission
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.adsamcik.tracker.export.ExportResult
 import com.adsamcik.tracker.export.Exporter
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.folderChooser
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,11 +40,14 @@ class ExportActivity : DetailActivity() {
 
 	private lateinit var exporter: Exporter
 
+	private val dataRangeFrom: AppCompatEditText by lazy { findViewById<AppCompatEditText>(R.id.edittext_date_range_from) }
+	private val dataRangeTo: AppCompatEditText by lazy { findViewById<AppCompatEditText>(R.id.edittext_date_range_to) }
+
 	private var range: ClosedRange<Calendar> = createDefaultRange()
 		set(value) {
 			field = value
-			updateDateTimeText(edittext_date_range_from, value.start)
-			updateDateTimeText(edittext_date_range_to, value.endInclusive)
+			updateDateTimeText(dataRangeFrom, value.start)
+			updateDateTimeText(dataRangeTo, value.endInclusive)
 		}
 
 	//init block cannot be used with custom setter (Kotlin 1.3)
@@ -113,18 +120,18 @@ class ExportActivity : DetailActivity() {
 
 			range = monthBefore..in15minutes
 
-			edittext_date_range_from.setOnClickListener(clickListener)
-			edittext_date_range_to.setOnClickListener(clickListener)
+			dataRangeFrom.setOnClickListener(clickListener)
+			dataRangeTo.setOnClickListener(clickListener)
 
 		} else {
-			edittext_date_range_from.visibility = View.GONE
-			edittext_date_range_to.visibility = View.GONE
-			imageview_from_date.visibility = View.GONE
+			dataRangeFrom.visibility = View.GONE
+			dataRangeTo.visibility = View.GONE
+			findViewById<View>(R.id.imageview_from_date).visibility = View.GONE
 		}
 
-		button_export.setOnClickListener { if (checkExternalStoragePermissions()) exportClick() }
+		findViewById<View>(R.id.button_export).setOnClickListener { if (checkExternalStoragePermissions()) exportClick() }
 
-		button_share.setOnClickListener {
+		findViewById<View>(R.id.button_share).setOnClickListener {
 			sharableDir.mkdirs()
 			export(sharableDir) {
 				val fileUri = FileProvider.getUriForFile(
@@ -180,7 +187,7 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun getExportFileName(): String {
-		val text = edittext_filename.text
+		val text = findViewById<AppCompatEditText>(R.id.edittext_date_range_from).text
 		return if (text.isNullOrBlank()) {
 			getString(R.string.export_default_file_name)
 		} else {

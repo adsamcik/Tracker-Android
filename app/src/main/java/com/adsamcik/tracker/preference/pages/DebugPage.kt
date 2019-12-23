@@ -10,11 +10,12 @@ import com.adsamcik.tracker.activity.ui.ActivityDebugActivity
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.dialog.ConfirmDialog
 import com.adsamcik.tracker.common.extension.startActivity
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.debug.activity.StatusActivity
 import com.adsamcik.tracker.notification.Notifications
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.setOnClickListener
+import com.adsamcik.tracker.shared.preferences.Preferences
 import java.util.*
 
 class DebugPage : PreferencePage {
@@ -57,7 +58,7 @@ class DebugPage : PreferencePage {
 					.setOnPreferenceClickListener { pref ->
 						val context = pref.context
 						ConfirmDialog.create(context, pref.title.toString()) {
-							com.adsamcik.tracker.common.preferences.Preferences.getPref(context).edit {
+							Preferences.getPref(context).edit {
 								clear()
 							}
 						}

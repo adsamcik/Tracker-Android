@@ -13,7 +13,11 @@ import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.misc.SnackMaker
 import com.google.android.material.snackbar.Snackbar.LENGTH_LONG
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
+/**
+ * Activity for session activities
+ */
 class SessionActivityActivity : ManageActivity() {
 	private lateinit var swipeTouchHelper: ContextualSwipeTouchHelper
 

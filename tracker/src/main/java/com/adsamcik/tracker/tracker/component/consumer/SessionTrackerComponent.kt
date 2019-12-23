@@ -10,7 +10,8 @@ import com.adsamcik.tracker.common.data.MutableTrackerSession
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.SessionDataDao
-import com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -102,11 +103,11 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onDisable(context: Context) {
-		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.removeObserver(
+		PreferenceObserver.removeObserver(
 				context, R.string.settings_tracking_min_distance_key,
 				minDistanceInMetersObserver
 		)
-		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.removeObserver(
+		PreferenceObserver.removeObserver(
 				context, R.string.settings_tracking_min_time_key,
 				minUpdateDelayInSecondsObserver
 		)
@@ -121,11 +122,11 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onEnable(context: Context) {
-		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.observeIntRes(
+		PreferenceObserver.observeIntRes(
 				context, R.string.settings_tracking_min_distance_key,
 				R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver
 		)
-		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.observeIntRes(
+		PreferenceObserver.observeIntRes(
 				context, R.string.settings_tracking_min_time_key,
 				R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver
 		)

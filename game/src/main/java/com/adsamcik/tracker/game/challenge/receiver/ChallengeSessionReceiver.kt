@@ -11,7 +11,7 @@ import androidx.work.WorkManager
 import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNull
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.common.useMock
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
@@ -69,7 +69,7 @@ class ChallengeSessionReceiver : BroadcastReceiver() {
 
 	override fun onReceive(context: Context, intent: Intent) {
 		//The receiver might be subscribed even though the challenges are disabled. Subscribing on demand could be really complicated.
-		if (com.adsamcik.tracker.common.preferences.Preferences.getPref(context).getBooleanRes(
+		if (Preferences.getPref(context).getBooleanRes(
 						R.string.settings_game_challenge_enable_key,
 						R.string.settings_game_challenge_enable_default
 				)) {

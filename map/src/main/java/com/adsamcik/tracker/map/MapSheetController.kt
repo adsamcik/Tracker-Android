@@ -34,7 +34,7 @@ import com.adsamcik.tracker.shared.utils.keyboard.KeyboardManager
 import com.adsamcik.tracker.sutils.keyboard.NavBarPosition
 import com.adsamcik.tracker.common.misc.Int2
 import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -378,7 +378,7 @@ internal class MapSheetController(
 
 	private fun initializeLastLayer(context: Context, list: List<MapLayerLogic>) {
 		launch(Dispatchers.Default) {
-			val default = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+			val default = Preferences.getPref(context)
 					.getStringRes(R.string.settings_map_last_layer_key) ?: return@launch
 
 			val lastIndex = list.indexOfFirst { it.layerInfo.type.name == default }

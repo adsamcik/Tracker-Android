@@ -6,7 +6,8 @@ import com.adsamcik.tracker.common.data.TrackerSession
 import com.adsamcik.tracker.common.database.AppDatabase
 import com.adsamcik.tracker.common.database.dao.LocationWifiCountDao
 import com.adsamcik.tracker.common.database.data.DatabaseLocationWifiCount
-import com.adsamcik.tracker.common.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.Preferences
+
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -46,7 +47,7 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onEnable(context: Context) {
-		val isEnabled = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+		val isEnabled = Preferences.getPref(context)
 				.getBooleanRes(
 						R.string.settings_wifi_location_count_enabled_key,
 						R.string.settings_wifi_location_count_enabled_default

@@ -1,13 +1,16 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.OnDoneListener
-import com.adsamcik.tracker.common.preferences.Preferences
+
 import com.adsamcik.tracker.tracker.R
+import com.afollestad.materialdialogs.list.listItemsMultiChoice
+import com.afollestad.materialdialogs.list.listItemsSingleChoice
 
 @Suppress("unused")
-class TrackerFirstRun : FirstRun() {
+internal class TrackerFirstRun : FirstRun() {
 	override fun onFirstRun(context: Context, onDoneListener: OnDoneListener) {
 		autoTrackingOptions(context, onDoneListener)
 	}
@@ -19,9 +22,9 @@ class TrackerFirstRun : FirstRun() {
 					R.array.tracking_options_titles,
 					waitForPositiveButton = true,
 					selection = { dialog, index, _ ->
-						com.adsamcik.tracker.common.preferences.Preferences.getPref(dialog.context).edit {
+						Preferences.getPref(dialog.context).edit {
 							setInt(
-									com.adsamcik.tracker.common.R.string.settings_tracking_activity_key,
+									com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
 									index
 							)
 						}
@@ -87,7 +90,7 @@ class TrackerFirstRun : FirstRun() {
 					initialSelection = selection,
 					allowEmptySelection = true,
 					selection = { dialog, indices, _ ->
-						com.adsamcik.tracker.common.preferences.Preferences.getPref(dialog.context).edit {
+						Preferences.getPref(dialog.context).edit {
 							list.forEachIndexed { index, triple ->
 								setBoolean(triple.first, indices.contains(index))
 							}

@@ -61,6 +61,7 @@ dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":activity"))
 	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 
 	Dependencies.core(this)
 	Dependencies.database(this)

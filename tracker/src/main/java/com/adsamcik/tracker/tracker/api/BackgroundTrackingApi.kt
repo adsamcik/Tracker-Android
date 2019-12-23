@@ -15,13 +15,17 @@ import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.data.DetectedActivity
 import com.adsamcik.tracker.common.data.GroupedActivity
 import com.adsamcik.tracker.common.extension.powerManager
-import com.adsamcik.tracker.common.preferences.Preferences
-import com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.PreferencesAssist
+import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.service.TrackerService
 
+/**
+ * Exposed methods for background tracking
+ */
 @Suppress("TooManyFunctions")
 object BackgroundTrackingApi {
 	//todo add option for this in settings
@@ -77,7 +81,7 @@ object BackgroundTrackingApi {
 
 	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
 			!context.powerManager.isPowerSaveMode &&
-			Assist.hasAnythingToTrack(context)
+			PreferencesAssist.hasAnythingToTrack(context)
 
 	/**
 	 * Checks if background tracking can be activated
@@ -86,7 +90,7 @@ object BackgroundTrackingApi {
 	 * @return true if background tracking can be activated
 	 */
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
-		val preferences = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+		val preferences = Preferences.getPref(context)
 		if (groupedActivity.isIdleOrUnknown ||
 				TrackerService.isServiceRunning.value ||
 				preferences.getBooleanRes(
@@ -96,7 +100,7 @@ object BackgroundTrackingApi {
 			return false
 		}
 
-		val preference = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+		val preference = Preferences.getPref(context)
 				.getIntResString(
 						R.string.settings_tracking_activity_key,
 						R.string.settings_tracking_activity_default
@@ -126,7 +130,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun getBackgroundTrackingActivityRequirement(context: Context) =
-			com.adsamcik.tracker.common.preferences.Preferences.getPref(context).getIntResString(
+			Preferences.getPref(context).getIntResString(
 					R.string.settings_tracking_activity_key,
 					R.string.settings_tracking_activity_default
 			)
@@ -177,7 +181,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun getActivityRequest(context: Context): ActivityChangeRequestData {
-		val interval = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+		val interval = Preferences.getPref(context)
 				.getIntResString(
 						R.string.settings_activity_freq_key,
 						R.string.settings_activity_freq_default
@@ -202,7 +206,7 @@ object BackgroundTrackingApi {
 		if (isActive) return
 		isActive = true
 
-		val useTransitionApi = com.adsamcik.tracker.common.preferences.Preferences.getPref(context)
+		val useTransitionApi = Preferences.getPref(context)
 				.getBooleanRes(
 						R.string.settings_auto_tracking_transition_key,
 						R.string.settings_auto_tracking_transition_default
@@ -225,12 +229,12 @@ object BackgroundTrackingApi {
 
 		appContext = context.applicationContext
 
-		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.observe(
+		PreferenceObserver.observe(
 				context, R.string.settings_auto_tracking_transition_key,
 				R.string.settings_auto_tracking_transition_default, transitionObserver
 		)
 
-		com.adsamcik.androidcomponents.common_preferences.observer.PreferenceObserver.observe(
+		PreferenceObserver.observe(
 				context, R.string.settings_tracking_activity_key,
 				R.string.settings_tracking_activity_default, observer
 		)

@@ -2,9 +2,10 @@ package com.adsamcik.tracker.tracker.ui.recycler.data
 
 import com.adsamcik.tracker.common.assist.Assist
 import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.extension.formatDistance
-import com.adsamcik.tracker.common.extension.formatSpeed
-import com.adsamcik.tracker.common.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+
 import com.adsamcik.tracker.tracker.R
 
 class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
@@ -13,7 +14,7 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 	override fun bindContent(holder: InfoFieldHolder) {
 		val context = holder.context
 		val resources = holder.resources
-		val lengthSystem = com.adsamcik.tracker.common.preferences.Preferences.getLengthSystem(context)
+		val lengthSystem = Preferences.getLengthSystem(context)
 
 		holder.getBoldText().apply {
 			value.text = Assist.coordinateToString(location.latitude)
@@ -38,7 +39,7 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 						it,
 						1,
 						lengthSystem,
-						com.adsamcik.tracker.common.preferences.Preferences.getSpeedFormat(context)
+						Preferences.getSpeedFormat(context)
 				)
 				title.setText(R.string.speed_title)
 			}
