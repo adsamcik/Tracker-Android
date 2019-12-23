@@ -6,8 +6,8 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.transaction
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings

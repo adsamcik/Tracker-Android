@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.component.timer
 import android.Manifest
 import android.content.Context
 import android.os.Looper
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 

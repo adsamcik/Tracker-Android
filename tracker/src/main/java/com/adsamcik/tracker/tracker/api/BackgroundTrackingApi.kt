@@ -11,10 +11,9 @@ import com.adsamcik.tracker.activity.ActivityTransitionRequestCallback
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.data.DetectedActivity
-import com.adsamcik.tracker.common.data.GroupedActivity
-import com.adsamcik.tracker.common.extension.powerManager
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver

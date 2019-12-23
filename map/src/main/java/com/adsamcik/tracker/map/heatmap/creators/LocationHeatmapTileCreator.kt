@@ -2,7 +2,7 @@ package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.MapController

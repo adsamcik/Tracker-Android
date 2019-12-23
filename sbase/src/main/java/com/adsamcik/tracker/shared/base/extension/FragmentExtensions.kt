@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.extension
+package com.adsamcik.tracker.shared.base.extension
 
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentTransaction

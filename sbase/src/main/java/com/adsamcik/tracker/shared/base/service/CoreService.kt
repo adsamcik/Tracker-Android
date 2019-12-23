@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.service
+package com.adsamcik.tracker.shared.base.service
 
 import androidx.lifecycle.LifecycleService
 import kotlinx.coroutines.CoroutineScope

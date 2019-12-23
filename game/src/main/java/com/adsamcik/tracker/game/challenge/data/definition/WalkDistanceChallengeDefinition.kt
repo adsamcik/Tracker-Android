@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.game.challenge.data.definition
 
 import android.content.Context
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeType

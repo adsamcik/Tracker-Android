@@ -8,8 +8,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.work.WorkManager
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.requireValue
+import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 
 /**

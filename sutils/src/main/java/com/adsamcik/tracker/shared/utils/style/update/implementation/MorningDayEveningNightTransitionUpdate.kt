@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.style.update.implementation
 
-import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.R
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData

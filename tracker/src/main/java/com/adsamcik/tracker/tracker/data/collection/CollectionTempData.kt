@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.data.collection
 
 import android.location.Location
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.data.LocationData
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.BuildConfig
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataConsumerComponent

@@ -8,12 +8,12 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.extension.notificationManager
-import com.adsamcik.tracker.common.extension.startForegroundService
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.extension.notificationManager
+import com.adsamcik.tracker.shared.base.extension.startForegroundService
 
-import com.adsamcik.tracker.common.service.CoreService
+import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.locker.TrackerLocker

@@ -3,9 +3,9 @@ package com.adsamcik.tracker.tracker.component.timer
 import android.content.Context
 import android.location.Location
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.constant.CoordinateConstants
-import com.adsamcik.tracker.common.data.LocationData
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
+import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData

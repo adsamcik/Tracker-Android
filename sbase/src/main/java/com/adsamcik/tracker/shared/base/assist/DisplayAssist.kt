@@ -1,13 +1,13 @@
-package com.adsamcik.tracker.common.assist
+package com.adsamcik.tracker.shared.base.assist
 
 import android.content.Context
 import android.graphics.Point
 import android.os.Build
 import android.view.Surface
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.windowManager
-import com.adsamcik.tracker.common.misc.Int2
-import com.adsamcik.tracker.common.misc.NavBarPosition
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.windowManager
+import com.adsamcik.tracker.shared.base.misc.Int2
+import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 
 object DisplayAssist {
 	/**

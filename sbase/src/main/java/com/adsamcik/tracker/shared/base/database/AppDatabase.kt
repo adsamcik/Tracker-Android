@@ -1,27 +1,27 @@
-package com.adsamcik.tracker.common.database
+package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.adsamcik.tracker.common.data.NetworkOperator
-import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.converter.CellTypeConverter
-import com.adsamcik.tracker.common.database.converter.DetectedActivityTypeConverter
-import com.adsamcik.tracker.common.database.dao.ActivityDao
-import com.adsamcik.tracker.common.database.dao.CellLocationDao
-import com.adsamcik.tracker.common.database.dao.CellOperatorDao
-import com.adsamcik.tracker.common.database.dao.GeneralDao
-import com.adsamcik.tracker.common.database.dao.LocationDataDao
-import com.adsamcik.tracker.common.database.dao.LocationWifiCountDao
-import com.adsamcik.tracker.common.database.dao.SessionDataDao
-import com.adsamcik.tracker.common.database.dao.WifiDataDao
-import com.adsamcik.tracker.common.database.data.DatabaseCellLocation
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
-import com.adsamcik.tracker.common.database.data.DatabaseLocationWifiCount
-import com.adsamcik.tracker.common.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.data.NetworkOperator
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
+import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
+import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
+import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
+import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
+import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationWifiCountDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
+import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
+import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 
 
 @Database(

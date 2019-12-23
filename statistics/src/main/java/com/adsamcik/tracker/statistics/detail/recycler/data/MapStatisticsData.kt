@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.statistics.detail.recycler.data
 
-import com.adsamcik.tracker.common.data.Location
+import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.commonmap.CoordinateBounds
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailType

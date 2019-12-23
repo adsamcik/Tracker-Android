@@ -1,13 +1,13 @@
-package com.adsamcik.tracker.common.database.dao
+package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Transaction
 import androidx.sqlite.db.SupportSQLiteQuery
-import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.tracker.common.database.data.DatabaseWifiData
-import com.adsamcik.tracker.common.database.data.DateRange
+import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.database.data.DateRange
 
 @Dao
 interface WifiDataDao : BaseDao<DatabaseWifiData> {

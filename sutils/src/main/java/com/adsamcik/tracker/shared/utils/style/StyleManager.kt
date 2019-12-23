@@ -6,7 +6,7 @@ import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
-import com.adsamcik.tracker.common.BuildConfig
+import com.adsamcik.tracker.shared.preferences.BuildConfig
 import com.adsamcik.tracker.shared.preferences.R
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.StyleUpdate

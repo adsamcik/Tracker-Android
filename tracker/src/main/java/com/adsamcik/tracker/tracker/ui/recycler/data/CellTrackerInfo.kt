@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.ui.recycler.data
 
-import com.adsamcik.tracker.common.data.CellData
-import com.adsamcik.tracker.common.data.CellType
+import com.adsamcik.tracker.shared.base.data.CellData
+import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.tracker.R
 
 class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {

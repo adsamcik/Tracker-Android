@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.graph
+package com.adsamcik.tracker.shared.base.graph
 
 /*data class Graph(s: String, edges: List<Pair<Int,Int>>) {
 	val vertices = s.split(", ")

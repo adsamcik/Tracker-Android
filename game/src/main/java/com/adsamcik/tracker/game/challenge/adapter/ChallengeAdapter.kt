@@ -7,9 +7,9 @@ import android.view.ViewGroup
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.formatAsDuration
-import com.adsamcik.tracker.common.extension.toIntPercent
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+import com.adsamcik.tracker.shared.base.extension.toIntPercent
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance

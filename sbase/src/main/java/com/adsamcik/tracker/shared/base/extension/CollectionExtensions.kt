@@ -1,7 +1,7 @@
-package com.adsamcik.tracker.common.extension
+package com.adsamcik.tracker.shared.base.extension
 
 import androidx.annotation.FloatRange
-import com.adsamcik.tracker.common.graph.Vertex
+import com.adsamcik.tracker.shared.base.graph.Vertex
 import kotlin.math.abs
 import kotlin.math.roundToInt
 

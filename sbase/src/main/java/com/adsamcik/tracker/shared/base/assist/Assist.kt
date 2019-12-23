@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.assist
+package com.adsamcik.tracker.shared.base.assist
 
 import android.animation.ObjectAnimator
 import android.app.Activity
@@ -11,8 +11,8 @@ import android.os.Build
 import android.os.Looper
 import android.provider.Settings
 import android.view.ViewGroup
-import com.adsamcik.tracker.common.extension.hasLocationPermission
-import com.adsamcik.tracker.common.extension.locationManager
+import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.locationManager
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import java.util.*

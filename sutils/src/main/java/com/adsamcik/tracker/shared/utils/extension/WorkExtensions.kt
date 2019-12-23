@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.extension
 
 import androidx.work.Data
-import com.adsamcik.tracker.common.extension.getLong
+import com.adsamcik.tracker.shared.base.extension.getLong
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 
 fun Data.getPositiveLongReportNull(key: String): Long? {

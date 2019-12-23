@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.style.utility.palette
 
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.common.extension.remove
+import com.adsamcik.tracker.shared.base.extension.remove
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions.validateLab
 import kotlin.random.Random
 

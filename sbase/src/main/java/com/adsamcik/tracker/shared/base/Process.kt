@@ -1,9 +1,9 @@
-package com.adsamcik.tracker.common
+package com.adsamcik.tracker.shared.base
 
 
 import android.app.ActivityManager
 import android.content.Context
-import com.adsamcik.tracker.common.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 
 
 object Process {

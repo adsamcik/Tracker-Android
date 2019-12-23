@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.adapter
+package com.adsamcik.tracker.shared.base.adapter
 
 import android.content.Context
 import android.view.LayoutInflater

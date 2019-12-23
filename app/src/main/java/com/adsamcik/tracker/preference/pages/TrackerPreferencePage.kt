@@ -6,8 +6,8 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.extension.startActivity
-import com.adsamcik.tracker.common.misc.SnackMaker
+import com.adsamcik.tracker.shared.base.extension.startActivity
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager

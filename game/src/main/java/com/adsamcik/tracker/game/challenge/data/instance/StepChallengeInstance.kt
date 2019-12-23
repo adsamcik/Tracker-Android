@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.game.challenge.data.instance
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.TrackerSession
+import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.challenge.data.ChallengePersistence

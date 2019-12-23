@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.ui.recycler.data
 
-import com.adsamcik.tracker.common.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.tracker.R
 import java.text.NumberFormat
 import java.util.*

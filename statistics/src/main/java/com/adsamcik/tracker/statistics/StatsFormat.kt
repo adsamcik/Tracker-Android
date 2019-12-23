@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.statistics
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.extension.dayOfYear
-import com.adsamcik.tracker.common.extension.toDate
-import com.adsamcik.tracker.common.extension.year
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.extension.dayOfYear
+import com.adsamcik.tracker.shared.base.extension.toDate
+import com.adsamcik.tracker.shared.base.extension.year
 import java.text.SimpleDateFormat
 import java.util.*
 

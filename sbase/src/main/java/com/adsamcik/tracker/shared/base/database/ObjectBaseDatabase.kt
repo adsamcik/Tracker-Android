@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.database
+package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import androidx.annotation.AnyThread

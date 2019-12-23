@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common
+package com.adsamcik.tracker.shared.base
 
 import android.os.Build
 

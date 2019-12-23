@@ -8,7 +8,7 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.data.SessionActivity
+import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
@@ -21,7 +21,7 @@ class ContextualSwipeTouchHelper(
 		0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
 ) {
 	private val icon: Drawable = requireNotNull(
-			context.getDrawable(com.adsamcik.tracker.common.R.drawable.ic_baseline_remove_circle_outline)
+			context.getDrawable(com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_remove_circle_outline)
 	)
 
 	private val colorController = StyleManager.createController()

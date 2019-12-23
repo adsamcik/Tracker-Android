@@ -2,10 +2,10 @@ package com.adsamcik.tracker.game.challenge.data.instance
 
 import android.content.Context
 import androidx.room.PrimaryKey
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.dao.LocationDataDao
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity

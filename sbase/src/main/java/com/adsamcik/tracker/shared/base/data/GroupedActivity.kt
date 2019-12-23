@@ -1,6 +1,6 @@
-package com.adsamcik.tracker.common.data
+package com.adsamcik.tracker.shared.base.data
 
-import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.shared.base.R
 
 /**
  * Singleton that contains [GroupedActivity]. It is made this way so even the constants are contained within an object.

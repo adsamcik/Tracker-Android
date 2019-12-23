@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.statistics.data
 
-import com.adsamcik.tracker.common.data.Location
+import com.adsamcik.tracker.shared.base.data.Location
 import com.goebl.simplify.Point3DExtractor
 
 class LocationExtractor : Point3DExtractor<Location> {

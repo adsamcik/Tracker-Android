@@ -14,7 +14,7 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.activity.service.ActivityService
-import com.adsamcik.tracker.common.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.utils.debug.LogData
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.google.android.gms.location.ActivityTransitionEvent

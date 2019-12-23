@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
-import com.adsamcik.tracker.common.Process
-import com.adsamcik.tracker.common.module.ModuleInitializer
+import com.adsamcik.tracker.shared.base.Process
+import com.adsamcik.tracker.shared.base.module.ModuleInitializer
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import kotlinx.coroutines.Dispatchers

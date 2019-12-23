@@ -1,7 +1,7 @@
-package com.adsamcik.tracker.common.misc
+package com.adsamcik.tracker.shared.base.misc
 
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.toIntArray
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.toIntArray
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp

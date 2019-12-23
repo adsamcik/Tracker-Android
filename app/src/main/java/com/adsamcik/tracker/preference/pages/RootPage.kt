@@ -11,10 +11,10 @@ import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivity
 import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.common.extension.startActivity
+import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
-import com.adsamcik.tracker.common.misc.SnackMaker
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.license.LicenseActivity
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.activity.ModuleActivity

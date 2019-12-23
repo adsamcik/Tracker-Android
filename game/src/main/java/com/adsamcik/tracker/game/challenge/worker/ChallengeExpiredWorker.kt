@@ -6,7 +6,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import java.util.concurrent.TimeUnit
 

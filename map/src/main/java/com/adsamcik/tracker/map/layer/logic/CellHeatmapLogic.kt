@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.CellType
+import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.utils.style.utility.ColorGenerator
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerInfo

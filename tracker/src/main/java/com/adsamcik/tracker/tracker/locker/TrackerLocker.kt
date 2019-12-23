@@ -8,10 +8,10 @@ import androidx.annotation.AnyThread
 import androidx.work.Constraints
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.alarmManager
-import com.adsamcik.tracker.common.extension.stopService
-import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.alarmManager
+import com.adsamcik.tracker.shared.base.extension.stopService
+import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R

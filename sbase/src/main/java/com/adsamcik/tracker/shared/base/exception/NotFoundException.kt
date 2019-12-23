@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.exception
+package com.adsamcik.tracker.shared.base.exception
 
 class NotFoundException : RuntimeException {
 	constructor() : super()

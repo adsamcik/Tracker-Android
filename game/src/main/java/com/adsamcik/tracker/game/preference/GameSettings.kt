@@ -10,7 +10,7 @@ import com.adsamcik.tracker.shared.preferences.ModuleSettings
  */
 @Suppress("unused")
 class GameSettings : ModuleSettings {
-	override val iconRes: Int = com.adsamcik.tracker.common.R.drawable.ic_outline_games_24dp
+	override val iconRes: Int = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_games_24dp
 
 	override fun onCreatePreferenceScreen(preferenceScreen: PreferenceScreen) {
 		val context = preferenceScreen.context

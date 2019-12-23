@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.constant
+package com.adsamcik.tracker.shared.base.constant
 
 object LengthConstants {
 	const val METERS_IN_KILOMETER: Double = 1000.0

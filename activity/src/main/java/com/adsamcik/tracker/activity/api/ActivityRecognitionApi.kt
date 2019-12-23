@@ -7,9 +7,9 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.debug.LogData
-import com.adsamcik.tracker.common.extension.forEachIf
+import com.adsamcik.tracker.shared.base.extension.forEachIf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch

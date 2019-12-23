@@ -3,7 +3,7 @@ package com.adsamcik.tracker.shared.utils.style.update.abstraction
 import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.common.misc.BlendFunctions
+import com.adsamcik.tracker.shared.base.misc.BlendFunctions
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData

@@ -2,13 +2,16 @@ package com.adsamcik.tracker.shared.utils.debug
 
 import android.content.Context
 import androidx.lifecycle.Observer
-import com.adsamcik.tracker.common.BuildConfig
-import com.adsamcik.tracker.common.isEmulator
+import com.adsamcik.tracker.shared.base.BuildConfig
+import com.adsamcik.tracker.shared.base.isEmulator
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 import com.crashlytics.android.Crashlytics
 import io.fabric.sdk.android.Fabric
 import java.lang.ref.WeakReference
 
+/**
+ * Object that handles reporting of any message, error or exception that is passed to it.
+ */
 object Reporter {
 	private var isInitialized = false
 	private var isEnabled = false
@@ -24,6 +27,9 @@ object Reporter {
 		}
 	}
 
+	/**
+	 * Initializes reporter. Required for proper functionality.
+	 */
 	fun initialize(context: Context) {
 		synchronized(isInitialized) {
 			if (isInitialized) return
@@ -58,6 +64,11 @@ object Reporter {
 		if (isEnabled) Crashlytics.logException(exception)
 	}
 
+	/**
+	 * Reports a message
+	 *
+	 * @param message Message that is reported
+	 */
 	@Suppress("TooGenericExceptionThrown")
 	fun report(message: String) {
 		if (BuildConfig.DEBUG) throw Exception(message)
@@ -66,6 +77,11 @@ object Reporter {
 		if (isEnabled) Crashlytics.logException(Throwable(message))
 	}
 
+	/**
+	 * Message that is logged and only reported if an error or exception is raised.
+	 *
+	 * @param message Message that is logged
+	 */
 	@Suppress("TooGenericExceptionThrown")
 	fun log(message: String) {
 		if (BuildConfig.DEBUG) throw Exception(message)

@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.misc
+package com.adsamcik.tracker.shared.base.misc
 
 import android.content.res.Resources
 import android.os.Handler
@@ -6,7 +6,7 @@ import android.view.View
 import androidx.annotation.AnyThread
 import androidx.annotation.IntDef
 import androidx.annotation.StringRes
-import com.adsamcik.tracker.common.extension.require
+import com.adsamcik.tracker.shared.base.extension.require
 import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE

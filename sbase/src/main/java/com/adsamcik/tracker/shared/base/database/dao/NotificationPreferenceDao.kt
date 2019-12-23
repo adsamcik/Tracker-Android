@@ -1,9 +1,9 @@
-package com.adsamcik.tracker.common.database.dao
+package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
-import com.adsamcik.tracker.common.database.data.NotificationPreference
+import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 
 @Dao
 interface NotificationPreferenceDao : BaseDao<NotificationPreference> {

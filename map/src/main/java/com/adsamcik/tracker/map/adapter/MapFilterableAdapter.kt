@@ -4,8 +4,8 @@ import android.content.Context
 import android.view.View
 import android.widget.TextView
 import androidx.annotation.LayoutRes
-import com.adsamcik.tracker.common.adapter.BaseFilterableAdapter
-import com.adsamcik.tracker.common.adapter.SimpleFilterableAdapter
+import com.adsamcik.tracker.shared.base.adapter.BaseFilterableAdapter
+import com.adsamcik.tracker.shared.base.adapter.SimpleFilterableAdapter
 import com.adsamcik.tracker.commonmap.CoordinateBounds
 import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.R

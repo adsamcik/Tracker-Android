@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.activity
+package com.adsamcik.tracker.shared.base.activity
 
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope

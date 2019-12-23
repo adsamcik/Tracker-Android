@@ -1,11 +1,11 @@
-package com.adsamcik.tracker.common.database.data
+package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.data.WifiInfo
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.data.WifiInfo
 
 @Entity(
 		tableName = "wifi_data",

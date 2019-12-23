@@ -7,9 +7,9 @@ import androidx.recyclerview.widget.ItemTouchHelper.END
 import androidx.recyclerview.widget.ItemTouchHelper.START
 import androidx.recyclerview.widget.ItemTouchHelper.UP
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.database.PreferenceDatabase
-import com.adsamcik.tracker.common.database.dao.NotificationPreferenceDao
-import com.adsamcik.tracker.common.database.data.NotificationPreference
+import com.adsamcik.tracker.shared.base.database.PreferenceDatabase
+import com.adsamcik.tracker.shared.base.database.dao.NotificationPreferenceDao
+import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 import com.adsamcik.tracker.shared.utils.activity.ManageActivity
 import com.adsamcik.tracker.tracker.R
 import kotlinx.coroutines.Dispatchers

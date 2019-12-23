@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.database.data
+package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Ignore

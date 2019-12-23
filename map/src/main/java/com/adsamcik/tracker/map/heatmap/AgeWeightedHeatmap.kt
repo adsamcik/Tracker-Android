@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map.heatmap
 
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt

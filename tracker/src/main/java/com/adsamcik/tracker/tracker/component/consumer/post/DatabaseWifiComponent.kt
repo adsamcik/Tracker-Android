@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.CollectionData
-import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.dao.WifiDataDao
-import com.adsamcik.tracker.common.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
+import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R

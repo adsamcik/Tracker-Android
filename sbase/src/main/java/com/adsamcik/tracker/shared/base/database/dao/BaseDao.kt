@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.database.dao
+package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
 import androidx.room.Delete

@@ -8,8 +8,8 @@ import androidx.annotation.LayoutRes
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.sort.BaseSortAdapter
 import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
-import com.adsamcik.tracker.common.database.data.DatabaseWifiData
-import com.adsamcik.tracker.common.extension.formatAsShortDateTime
+import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import kotlinx.coroutines.CoroutineScope

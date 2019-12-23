@@ -2,12 +2,12 @@ package com.adsamcik.tracker.shared.utils.extension
 
 import android.content.Context
 import android.content.res.Resources
-import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.constant.LengthConstants
-import com.adsamcik.tracker.common.extension.formatAncientRome
-import com.adsamcik.tracker.common.extension.formatImperial
-import com.adsamcik.tracker.common.extension.formatMetric
+import com.adsamcik.tracker.shared.base.R
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.constant.LengthConstants
+import com.adsamcik.tracker.shared.base.extension.formatAncientRome
+import com.adsamcik.tracker.shared.base.extension.formatImperial
+import com.adsamcik.tracker.shared.base.extension.formatMetric
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat

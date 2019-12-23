@@ -2,8 +2,8 @@ package com.adsamcik.tracker.import
 
 import android.content.Context
 import android.os.Build
-import com.adsamcik.tracker.common.extension.lowerCaseExtension
-import com.adsamcik.tracker.common.extension.startForegroundService
+import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
+import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
 import com.adsamcik.tracker.import.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.import.file.DatabaseImport

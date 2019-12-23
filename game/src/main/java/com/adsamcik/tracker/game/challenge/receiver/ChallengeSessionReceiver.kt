@@ -8,11 +8,11 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.TrackerSession
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNull
 
-import com.adsamcik.tracker.common.useMock
+import com.adsamcik.tracker.shared.base.useMock
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData

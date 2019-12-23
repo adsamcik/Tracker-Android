@@ -1,8 +1,8 @@
 @file:Suppress("MatchingDeclarationName")
 
-package com.adsamcik.tracker.common.graph
+package com.adsamcik.tracker.shared.base.graph
 
-import com.adsamcik.tracker.common.exception.CircularDependencyException
+import com.adsamcik.tracker.shared.base.exception.CircularDependencyException
 
 
 /**

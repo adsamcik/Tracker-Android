@@ -12,8 +12,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange

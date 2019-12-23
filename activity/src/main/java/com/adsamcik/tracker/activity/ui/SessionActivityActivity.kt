@@ -8,9 +8,9 @@ import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.ui.recycler.ActivityRecyclerAdapter
 import com.adsamcik.tracker.activity.ui.recycler.ContextualSwipeTouchHelper
 import com.adsamcik.tracker.shared.utils.activity.ManageActivity
-import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.misc.SnackMaker
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.google.android.material.snackbar.Snackbar.LENGTH_LONG
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -104,7 +104,7 @@ class SessionActivityActivity : ManageActivity() {
 				SnackMaker.SnackbarRecipe(
 						message = getString(R.string.settings_activity_snackbar_message, item.name),
 						priority = SnackMaker.SnackbarPriority.IMPORTANT,
-						action = getString(com.adsamcik.tracker.common.R.string.undo),
+						action = getString(com.adsamcik.tracker.shared.base.R.string.undo),
 						duration = LENGTH_LONG,
 						onDismissed = {
 							launch(Dispatchers.Default) {

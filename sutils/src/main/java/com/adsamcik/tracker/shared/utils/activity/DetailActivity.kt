@@ -18,10 +18,10 @@ import androidx.annotation.StringRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
-import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.shared.base.R
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView

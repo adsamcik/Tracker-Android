@@ -3,10 +3,10 @@ package com.adsamcik.tracker.activity
 import android.content.Context
 import android.content.IntentFilter
 import com.adsamcik.tracker.activity.receiver.ActivitySessionReceiver
-import com.adsamcik.tracker.common.data.NativeSessionActivity
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.module.ModuleInitializer
+import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.module.ModuleInitializer
 
 @Suppress("unused")
 class ActivityModuleInitializer : ModuleInitializer {

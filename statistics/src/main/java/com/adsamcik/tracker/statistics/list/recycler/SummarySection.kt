@@ -10,8 +10,8 @@ import androidx.annotation.StringRes
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.setPadding
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.marginRight
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.marginRight
 import com.google.android.material.button.MaterialButton
 import io.github.luizgrp.sectionedrecyclerviewadapter.Section
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionParameters
@@ -59,7 +59,7 @@ class SummarySection : Section(
 			orientation = LinearLayoutCompat.HORIZONTAL
 			layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
 			val contentPadding = parent.resources.getDimension(
-					com.adsamcik.tracker.common.R.dimen.content_padding
+					com.adsamcik.tracker.shared.base.R.dimen.content_padding
 			)
 					.roundToInt()
 			setPadding(contentPadding, 0, contentPadding, 0)

@@ -2,8 +2,7 @@ package com.adsamcik.tracker.shared.utils.debug
 
 import androidx.room.Dao
 import androidx.room.Query
-import com.adsamcik.tracker.common.database.dao.BaseDao
-import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 
 @Dao
 interface GenericLogDao : BaseDao<LogData> {

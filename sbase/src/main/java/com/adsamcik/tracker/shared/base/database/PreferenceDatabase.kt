@@ -1,11 +1,11 @@
-package com.adsamcik.tracker.common.database
+package com.adsamcik.tracker.shared.base.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.adsamcik.tracker.common.database.dao.GenericPreferenceDao
-import com.adsamcik.tracker.common.database.dao.NotificationPreferenceDao
-import com.adsamcik.tracker.common.database.data.GenericPreference
-import com.adsamcik.tracker.common.database.data.NotificationPreference
+import com.adsamcik.tracker.shared.base.database.dao.GenericPreferenceDao
+import com.adsamcik.tracker.shared.base.database.dao.NotificationPreferenceDao
+import com.adsamcik.tracker.shared.base.database.data.GenericPreference
+import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 
 @Database(
 		entities = [GenericPreference::class, NotificationPreference::class],

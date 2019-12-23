@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.assist
+package com.adsamcik.tracker.shared.base.assist
 
 import android.annotation.TargetApi
 import android.content.Context

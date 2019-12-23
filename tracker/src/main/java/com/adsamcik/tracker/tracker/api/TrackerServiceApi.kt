@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.api
 
 import android.content.Context
-import com.adsamcik.tracker.common.extension.startForegroundService
-import com.adsamcik.tracker.common.extension.stopService
+import com.adsamcik.tracker.shared.base.extension.startForegroundService
+import com.adsamcik.tracker.shared.base.extension.stopService
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.service.TrackerService
 

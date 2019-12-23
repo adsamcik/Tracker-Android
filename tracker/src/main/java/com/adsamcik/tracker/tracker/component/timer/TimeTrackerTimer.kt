@@ -2,7 +2,7 @@ package com.adsamcik.tracker.tracker.component.timer
 
 import android.content.Context
 import android.os.Handler
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R

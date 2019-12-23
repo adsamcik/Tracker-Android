@@ -1,10 +1,10 @@
-package com.adsamcik.tracker.common.extension
+package com.adsamcik.tracker.shared.base.extension
 
 import android.content.Context
 import android.content.res.Resources
-import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.constant.LengthConstants
+import com.adsamcik.tracker.shared.base.R
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*

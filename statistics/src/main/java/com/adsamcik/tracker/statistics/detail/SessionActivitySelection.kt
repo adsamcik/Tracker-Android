@@ -3,10 +3,10 @@ package com.adsamcik.tracker.statistics.detail
 import android.content.Context
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
-import com.adsamcik.tracker.common.data.MutableTrackerSession
-import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.listItems
 import kotlinx.coroutines.CoroutineScope

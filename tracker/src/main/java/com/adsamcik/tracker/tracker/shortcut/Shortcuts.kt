@@ -6,7 +6,7 @@ import android.content.pm.ShortcutInfo
 import android.graphics.drawable.Icon
 import android.os.Build
 import androidx.annotation.RequiresApi
-import com.adsamcik.tracker.common.extension.shortcutManager
+import com.adsamcik.tracker.shared.base.extension.shortcutManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.TrackerService
 import java.util.*

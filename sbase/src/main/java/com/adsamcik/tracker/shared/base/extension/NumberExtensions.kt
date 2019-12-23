@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.extension
+package com.adsamcik.tracker.shared.base.extension
 
 fun Double.toPercent(): Double = this * ONE_TO_PERCENTAGE
 

@@ -4,7 +4,7 @@ import android.graphics.Color
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
-import com.adsamcik.tracker.common.extension.observe
+import com.adsamcik.tracker.shared.base.extension.observe
 import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.google.android.material.datepicker.CalendarConstraints
@@ -24,7 +24,7 @@ fun FragmentActivity.createDateTimeDialog(
 
 	MaterialDatePicker.Builder.dateRangePicker()
 			.setCalendarConstraints(constraints)
-			.setTheme(com.adsamcik.tracker.common.R.style.CalendarPicker)
+			.setTheme(com.adsamcik.tracker.shared.base.R.style.CalendarPicker)
 			.build().apply {
 				addOnPositiveButtonClickListener {
 					val from = it.first ?: selectedRange.first

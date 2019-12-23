@@ -1,8 +1,8 @@
-package com.adsamcik.tracker.common
+package com.adsamcik.tracker.shared.base
 
 import android.os.SystemClock
-import com.adsamcik.tracker.common.extension.roundToDate
-import com.adsamcik.tracker.common.extension.toCalendar
+import com.adsamcik.tracker.shared.base.extension.roundToDate
+import com.adsamcik.tracker.shared.base.extension.toCalendar
 import java.util.*
 
 /**

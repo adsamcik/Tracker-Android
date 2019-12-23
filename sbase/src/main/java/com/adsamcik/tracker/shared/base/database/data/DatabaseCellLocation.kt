@@ -1,12 +1,12 @@
-package com.adsamcik.tracker.common.database.data
+package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.adsamcik.tracker.common.data.BaseLocation
-import com.adsamcik.tracker.common.data.CellType
+import com.adsamcik.tracker.shared.base.data.BaseLocation
+import com.adsamcik.tracker.shared.base.data.CellType
 
 @Entity(
 		tableName = "cell_location",

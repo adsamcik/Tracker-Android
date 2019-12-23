@@ -15,15 +15,15 @@ import com.adsamcik.recycler.adapter.implementation.card.table.TableCard
 import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
-import com.adsamcik.tracker.common.extension.formatAsDuration
-import com.adsamcik.tracker.common.extension.formatAsShortDateTime
-import com.adsamcik.tracker.common.extension.formatReadable
-import com.adsamcik.tracker.common.extension.startActivity
+import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
+import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
@@ -104,7 +104,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 		//todo unify this in some way so it can be easily reused for any recycler currently also in FragmentGame
 		val contentPadding = activity.resources.getDimension(
-				com.adsamcik.tracker.common.R.dimen.content_padding
+				com.adsamcik.tracker.shared.base.R.dimen.content_padding
 		)
 				.toInt()
 		val statusBarHeight = DisplayAssist.getStatusBarHeight(activity)

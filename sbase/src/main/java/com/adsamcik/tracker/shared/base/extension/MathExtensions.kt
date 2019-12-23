@@ -1,6 +1,6 @@
-package com.adsamcik.tracker.common.extension
+package com.adsamcik.tracker.shared.base.extension
 
-import com.adsamcik.tracker.common.constant.GeometryConstants.HALF_CIRCLE_IN_DEGREES
+import com.adsamcik.tracker.shared.base.constant.GeometryConstants.HALF_CIRCLE_IN_DEGREES
 import kotlin.math.roundToInt
 
 

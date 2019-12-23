@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.extension
+package com.adsamcik.tracker.shared.base.extension
 
 import android.content.res.Resources
 import android.view.View
@@ -10,7 +10,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.children
-import com.adsamcik.tracker.common.exception.NotFoundException
+import com.adsamcik.tracker.shared.base.exception.NotFoundException
 import java.util.*
 
 /**

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.ui.recycler.data
 
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.data.Location
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.style.update.implementation
 
 import android.content.Context
-import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.StyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors

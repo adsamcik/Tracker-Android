@@ -1,11 +1,11 @@
-package com.adsamcik.tracker.common.database
+package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.adsamcik.tracker.common.database.dao.ActivityDebugDao
-import com.adsamcik.tracker.common.database.data.DatabaseDebugActivity
+import com.adsamcik.tracker.shared.base.database.dao.ActivityDebugDao
+import com.adsamcik.tracker.shared.base.database.data.DatabaseDebugActivity
 
 @Database(entities = [DatabaseDebugActivity::class], version = 1)
 abstract class DebugDatabase : RoomDatabase() {

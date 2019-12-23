@@ -2,7 +2,7 @@ package com.adsamcik.tracker.shared.utils.language
 
 import android.content.Context
 import android.content.ContextWrapper
-import com.adsamcik.tracker.common.assist.LocaleAssist
+import com.adsamcik.tracker.shared.base.assist.LocaleAssist
 import java.util.*
 
 

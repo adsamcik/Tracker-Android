@@ -1,13 +1,13 @@
-package com.adsamcik.tracker.common.data
+package com.adsamcik.tracker.shared.base.data
 
 import android.os.Build
 import android.os.Parcelable
 import androidx.room.ColumnInfo
-import com.adsamcik.tracker.common.constant.LengthConstants
-import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
-import com.adsamcik.tracker.common.extension.LocationExtensions.METER_DEGREE_LATITUDE
-import com.adsamcik.tracker.common.extension.round
-import com.adsamcik.tracker.common.extension.toRadians
+import com.adsamcik.tracker.shared.base.constant.LengthConstants
+import com.adsamcik.tracker.shared.base.extension.LocationExtensions.EARTH_CIRCUMFERENCE
+import com.adsamcik.tracker.shared.base.extension.LocationExtensions.METER_DEGREE_LATITUDE
+import com.adsamcik.tracker.shared.base.extension.round
+import com.adsamcik.tracker.shared.base.extension.toRadians
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize

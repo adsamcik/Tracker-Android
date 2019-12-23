@@ -8,8 +8,8 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.recycler.adapter.implementation.sort.BaseSortAdapter
 import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

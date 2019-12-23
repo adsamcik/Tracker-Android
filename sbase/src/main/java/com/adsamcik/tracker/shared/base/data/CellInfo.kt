@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.data
+package com.adsamcik.tracker.shared.base.data
 
 import android.os.Parcelable
 import android.telephony.CellIdentityCdma
@@ -14,7 +14,7 @@ import android.telephony.CellSignalStrengthWcdma
 import androidx.annotation.RequiresApi
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
-import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.shared.base.R
 import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize
 

@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.activity
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.google.android.gms.location.ActivityTransition
 import kotlin.reflect.KClass
 

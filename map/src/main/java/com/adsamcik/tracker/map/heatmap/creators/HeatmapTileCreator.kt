@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
-import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.tracker.common.extension.isPowerOfTwo
+import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.tracker.shared.base.extension.isPowerOfTwo
 import com.adsamcik.tracker.commonmap.CoordinateBounds
 import com.adsamcik.tracker.map.heatmap.AlphaMergeFunction
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme

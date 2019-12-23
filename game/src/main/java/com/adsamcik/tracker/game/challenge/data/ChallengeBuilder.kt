@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.game.challenge.data
 
 import android.content.Context
-import com.adsamcik.tracker.common.extension.normalize
-import com.adsamcik.tracker.common.extension.rescale
-import com.adsamcik.tracker.common.misc.Probability
+import com.adsamcik.tracker.shared.base.extension.normalize
+import com.adsamcik.tracker.shared.base.extension.rescale
+import com.adsamcik.tracker.shared.base.misc.Probability
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry

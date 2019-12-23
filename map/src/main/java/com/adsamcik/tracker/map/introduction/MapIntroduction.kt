@@ -2,7 +2,7 @@ package com.adsamcik.tracker.map.introduction
 
 import android.view.View
 import androidx.fragment.app.FragmentActivity
-import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.adsamcik.tracker.map.R
 import com.takusemba.spotlight.SimpleTarget
@@ -15,7 +15,7 @@ class MapIntroduction : Introduction() {
 	override fun getTargets(activity: FragmentActivity): Collection<com.takusemba.spotlight.Target> {
 		activity.run {
 			val buttonData = SimpleTarget.ButtonData(
-					getString(com.adsamcik.tracker.common.R.string.next_part)
+					getString(com.adsamcik.tracker.shared.base.R.string.next_part)
 			) { _, spotlight ->
 				spotlight.next()
 			}
@@ -29,7 +29,7 @@ class MapIntroduction : Introduction() {
 					.addButtonData(buttonData)
 					.addButtonData(SimpleTarget.ButtonData(
 							resources.getString(
-									com.adsamcik.tracker.common.R.string.skip_introduction
+									com.adsamcik.tracker.shared.base.R.string.skip_introduction
 							)
 					) { _, spotlight ->
 						spotlight.finishSpotlight()

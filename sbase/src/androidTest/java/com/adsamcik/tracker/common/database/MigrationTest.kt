@@ -6,6 +6,15 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
+import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
+import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
+import com.adsamcik.tracker.shared.base.database.MIGRATION_5_6
+import com.adsamcik.tracker.shared.base.database.MIGRATION_6_7
+import com.adsamcik.tracker.shared.base.database.MIGRATION_7_8
+import com.adsamcik.tracker.shared.base.database.MIGRATION_8_9
+import com.adsamcik.tracker.shared.base.database.MIGRATION_9_10
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule

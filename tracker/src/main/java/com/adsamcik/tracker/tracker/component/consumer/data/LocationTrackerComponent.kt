@@ -2,8 +2,8 @@ package com.adsamcik.tracker.tracker.component.consumer.data
 
 import android.content.Context
 import android.location.Location
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.MutableCollectionData
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData

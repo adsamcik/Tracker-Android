@@ -2,8 +2,8 @@ package com.adsamcik.tracker.export
 
 import android.annotation.SuppressLint
 import android.content.Context
-import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStreamWriter

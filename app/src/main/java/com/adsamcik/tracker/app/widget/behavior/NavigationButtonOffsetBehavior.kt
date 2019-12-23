@@ -4,8 +4,8 @@ import android.view.View
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.guidelineEnd
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.guidelineEnd
 import kotlin.math.roundToInt
 
 /**

@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.activity.recognizer
 
 import androidx.annotation.IntRange
-import com.adsamcik.tracker.common.data.NativeSessionActivity
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 
 internal interface IActivityRecognizer {
 	/**

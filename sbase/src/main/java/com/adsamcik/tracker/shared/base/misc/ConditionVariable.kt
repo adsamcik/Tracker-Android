@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.misc
+package com.adsamcik.tracker.shared.base.misc
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

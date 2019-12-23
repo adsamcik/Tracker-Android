@@ -9,7 +9,7 @@ import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.tracker.common.assist.Assist
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.commonmap.ColorMap
@@ -21,7 +21,6 @@ import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.introduction.MapIntroduction
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
-import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.SupportMapFragment
@@ -100,7 +99,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 					false
 			)
 
-			val textRes = com.adsamcik.tracker.common.R.string.error_play_services_not_available
+			val textRes = com.adsamcik.tracker.shared.base.R.string.error_play_services_not_available
 
 			fragmentView.findViewById<AppCompatTextView>(R.id.activity_error_text)
 					.setText(textRes)

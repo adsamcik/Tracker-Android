@@ -2,8 +2,8 @@ package com.adsamcik.tracker.map.heatmap
 
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
-import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.tracker.common.extension.toByteArray
+import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.tracker.shared.base.extension.toByteArray
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
 import kotlin.math.roundToInt

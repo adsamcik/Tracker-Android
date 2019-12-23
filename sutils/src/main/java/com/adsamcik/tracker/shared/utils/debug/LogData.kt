@@ -2,7 +2,7 @@ package com.adsamcik.tracker.shared.utils.debug
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 
 
 @Entity(tableName = "log_data")

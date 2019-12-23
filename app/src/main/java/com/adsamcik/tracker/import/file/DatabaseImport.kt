@@ -5,14 +5,14 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteConstraintException
 import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.common.exception.NotFoundException
-import com.adsamcik.tracker.common.extension.sortByVertexes
-import com.adsamcik.tracker.common.graph.Edge
-import com.adsamcik.tracker.common.graph.Graph
-import com.adsamcik.tracker.common.graph.Vertex
-import com.adsamcik.tracker.common.graph.topSort
+import com.adsamcik.tracker.shared.base.exception.NotFoundException
+import com.adsamcik.tracker.shared.base.extension.sortByVertexes
+import com.adsamcik.tracker.shared.base.graph.Edge
+import com.adsamcik.tracker.shared.base.graph.Graph
+import com.adsamcik.tracker.shared.base.graph.Vertex
+import com.adsamcik.tracker.shared.base.graph.topSort
 import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 

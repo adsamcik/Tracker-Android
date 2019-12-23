@@ -4,7 +4,7 @@ import android.content.Context
 import android.widget.TextView
 import androidx.annotation.MainThread
 import androidx.core.view.isGone
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 
 import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.commonmap.MapLayerLogic

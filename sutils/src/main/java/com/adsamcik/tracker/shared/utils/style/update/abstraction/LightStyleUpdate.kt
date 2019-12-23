@@ -6,8 +6,8 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.sensorManager
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.sensorManager
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import kotlin.concurrent.withLock
 import kotlin.math.abs

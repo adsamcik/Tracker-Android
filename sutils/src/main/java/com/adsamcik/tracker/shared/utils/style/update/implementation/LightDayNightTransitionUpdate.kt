@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.shared.utils.style.update.implementation
 
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.common.R
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.R
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.LightStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors

@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.data
+package com.adsamcik.tracker.shared.base.data
 
 import android.net.wifi.ScanResult
 import android.net.wifi.ScanResult.CHANNEL_WIDTH_160MHZ

@@ -7,11 +7,11 @@ import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.common.extension.lowerCaseExtension
-import com.adsamcik.tracker.common.extension.notificationManager
-import com.adsamcik.tracker.common.service.CoreService
+import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
+import com.adsamcik.tracker.shared.base.extension.notificationManager
+import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.import.DataImport
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
 import com.adsamcik.tracker.import.file.FileImport

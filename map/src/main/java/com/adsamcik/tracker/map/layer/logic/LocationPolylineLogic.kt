@@ -3,9 +3,9 @@ package com.adsamcik.tracker.map.layer.logic
 import android.content.Context
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.dao.LocationDataDao
-import com.adsamcik.tracker.common.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.utils.style.utility.ColorGenerator
 import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.commonmap.MapLayerInfo

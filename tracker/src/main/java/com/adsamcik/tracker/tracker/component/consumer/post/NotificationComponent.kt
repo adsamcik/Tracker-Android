@@ -3,9 +3,9 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
-import com.adsamcik.tracker.common.data.CollectionData
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.extension.requireValue
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.extension.requireValue
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent

@@ -3,7 +3,7 @@ package com.adsamcik.tracker.preference.pages
 import android.os.Build
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.extension.startActivity
+import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.export.DatabaseExporter
 import com.adsamcik.tracker.export.GpxExporter
 import com.adsamcik.tracker.export.KmlExporter

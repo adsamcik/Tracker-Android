@@ -5,13 +5,13 @@ import android.text.format.DateUtils
 import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.extension.formatAsDuration
-import com.adsamcik.tracker.common.extension.startActivity
-import com.adsamcik.tracker.common.extension.toCalendar
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+import com.adsamcik.tracker.shared.base.extension.startActivity
+import com.adsamcik.tracker.shared.base.extension.toCalendar
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 

@@ -2,7 +2,7 @@ package com.adsamcik.tracker.map
 
 import androidx.annotation.AnyThread
 import androidx.fragment.app.FragmentManager
-import com.adsamcik.tracker.common.extension.transaction
+import com.adsamcik.tracker.shared.base.extension.transaction
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment

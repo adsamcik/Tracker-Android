@@ -2,12 +2,12 @@ package com.adsamcik.tracker.shared.utils.style
 
 import android.content.Context
 import android.os.Looper
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.BaseLocation
-import com.adsamcik.tracker.common.data.LengthUnit
-import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.extension.toCalendar
-import com.adsamcik.tracker.common.extension.toDate
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.BaseLocation
+import com.adsamcik.tracker.shared.base.data.LengthUnit
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.extension.toCalendar
+import com.adsamcik.tracker.shared.base.extension.toDate
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest

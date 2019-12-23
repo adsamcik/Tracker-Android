@@ -1,7 +1,8 @@
-package com.adsamcik.tracker.common.data
+package com.adsamcik.tracker.shared.base.data
 
 import android.content.Context
-import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.shared.base.R
+import com.adsamcik.tracker.shared.base.data.SessionActivity
 
 @Suppress("unused")
 enum class NativeSessionActivity(val id: Long) {

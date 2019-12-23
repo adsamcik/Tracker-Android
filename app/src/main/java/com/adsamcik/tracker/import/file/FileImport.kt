@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.import.file
 
 import android.content.Context
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import java.io.File
 
 interface FileImport {

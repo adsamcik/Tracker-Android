@@ -2,7 +2,7 @@ package com.adsamcik.tracker.tracker.notification
 
 import android.content.Context
 import androidx.annotation.WorkerThread
-import com.adsamcik.tracker.common.database.PreferenceDatabase
+import com.adsamcik.tracker.shared.base.database.PreferenceDatabase
 import com.adsamcik.tracker.tracker.notification.component.ActivityNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.AltitudeNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.CellCountNotificationComponent

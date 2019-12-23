@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.recyclerview.widget.RecyclerView
 import androidx.sqlite.db.SupportSQLiteQueryBuilder
 import com.adsamcik.tracker.shared.utils.activity.ManageActivity
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.statistics.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -16,13 +16,13 @@ class WifiBrowseActivity : ManageActivity() {
 
 	override fun getAdapter(): RecyclerView.Adapter<RecyclerView.ViewHolder> {
 		@Suppress("unchecked_cast")
-		return adapter as RecyclerView.Adapter<RecyclerView.ViewHolder>
+		return adapter
 	}
 
 	override fun onManageConfigure(configuration: ManageConfiguration) {
 		configuration.apply {
 			isHorizontallyScrollable = true
-			dialogFabIcon = com.adsamcik.tracker.common.R.drawable.ic_filter_list
+			dialogFabIcon = com.adsamcik.tracker.shared.base.R.drawable.ic_filter_list
 			resetDialogOnAdd = false
 		}
 	}

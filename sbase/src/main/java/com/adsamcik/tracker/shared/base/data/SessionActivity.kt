@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.data
+package com.adsamcik.tracker.shared.base.data
 
 import android.content.Context
 import android.graphics.drawable.Drawable
@@ -6,7 +6,7 @@ import androidx.annotation.WorkerThread
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.adsamcik.tracker.common.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 
 @Entity(tableName = "activity", indices = [Index("name")])
 data class SessionActivity(
@@ -25,7 +25,7 @@ data class SessionActivity(
 	fun getIcon(context: Context): Drawable {
 		val resources = context.resources
 		val drawableName = iconName
-				?: com.adsamcik.tracker.common.R.drawable::ic_help_white.name
+				?: com.adsamcik.tracker.shared.base.R.drawable::ic_help_white.name
 		val drawableId = resources.getIdentifier(drawableName, "drawable", context.packageName)
 
 		if (drawableId == 0) throw NullPointerException("Resource with name $drawableName not found")

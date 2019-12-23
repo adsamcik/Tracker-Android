@@ -8,8 +8,8 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.SystemClock
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent

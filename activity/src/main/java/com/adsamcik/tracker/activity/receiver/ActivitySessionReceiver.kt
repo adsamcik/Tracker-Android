@@ -8,7 +8,7 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
-import com.adsamcik.tracker.common.data.TrackerSession
+import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNull
 
 class ActivitySessionReceiver : BroadcastReceiver() {

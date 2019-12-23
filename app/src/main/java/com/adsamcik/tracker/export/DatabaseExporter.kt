@@ -2,8 +2,8 @@ package com.adsamcik.tracker.export
 
 import android.content.Context
 import androidx.sqlite.db.SimpleSQLiteQuery
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import java.io.File
 
 class DatabaseExporter : Exporter {

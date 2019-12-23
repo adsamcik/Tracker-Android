@@ -23,7 +23,7 @@ class HomeIntroduction : Introduction() {
 			.setTitle(resources.getString(R.string.tutorial_welcome_title))
 			.addButtonData(SimpleTarget.ButtonData(
 					resources.getString(
-							com.adsamcik.tracker.common.R.string.skip_introduction
+							com.adsamcik.tracker.shared.base.R.string.skip_introduction
 					)
 			) { _, spotlight ->
 				spotlight.finishSpotlight()
@@ -104,7 +104,7 @@ class HomeIntroduction : Introduction() {
 	override fun getTargets(activity: FragmentActivity): Collection<Target> {
 		val resources = activity.resources
 		val buttonData = SimpleTarget.ButtonData(
-				resources.getString(com.adsamcik.tracker.common.R.string.next_part)
+				resources.getString(com.adsamcik.tracker.shared.base.R.string.next_part)
 		) { _, spotlight ->
 			spotlight.next()
 		}

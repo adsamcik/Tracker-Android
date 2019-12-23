@@ -3,7 +3,7 @@ package com.adsamcik.tracker.shared.utils.activity
 import android.content.Context
 import android.os.Bundle
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.common.activity.CoreActivity
+import com.adsamcik.tracker.shared.base.activity.CoreActivity
 import com.adsamcik.tracker.shared.utils.language.LocaleContextWrapper
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import com.adsamcik.tracker.shared.utils.style.StyleController

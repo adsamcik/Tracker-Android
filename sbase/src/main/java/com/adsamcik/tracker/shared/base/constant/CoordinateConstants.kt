@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.constant
+package com.adsamcik.tracker.shared.base.constant
 
 object CoordinateConstants {
 	const val MIN_LATITUDE: Double = -90.0

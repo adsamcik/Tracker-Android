@@ -1,7 +1,7 @@
-package com.adsamcik.tracker.common.database.converter
+package com.adsamcik.tracker.shared.base.database.converter
 
 import androidx.room.TypeConverter
-import com.adsamcik.tracker.common.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
 
 class DetectedActivityTypeConverter {
 	@TypeConverter

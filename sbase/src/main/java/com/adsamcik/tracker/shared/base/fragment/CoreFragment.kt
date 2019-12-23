@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.fragment
+package com.adsamcik.tracker.shared.base.fragment
 
 import androidx.fragment.app.Fragment
 import kotlinx.coroutines.CoroutineScope

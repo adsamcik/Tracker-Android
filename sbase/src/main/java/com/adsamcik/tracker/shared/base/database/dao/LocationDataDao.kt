@@ -1,12 +1,12 @@
-package com.adsamcik.tracker.common.database.dao
+package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
-import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
-import com.adsamcik.tracker.common.database.data.DateRange
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.DateRange
 
 @Dao
 interface LocationDataDao : BaseDao<DatabaseLocation> {

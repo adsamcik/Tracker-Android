@@ -11,12 +11,12 @@ import androidx.appcompat.widget.AppCompatImageButton
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.constant.GeometryConstants
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.extension.hasLocationPermission
-import com.adsamcik.tracker.common.extension.sensorManager
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.constant.GeometryConstants
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -180,7 +180,7 @@ internal class MapSensorController(
 	fun stopUsingUserPosition(button: AppCompatImageButton, returnToDefault: Boolean) {
 		if (followMyPosition) {
 			this.followMyPosition = false
-			button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_gps_not_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.tracker.shared.base.R.drawable.ic_gps_not_fixed_black_24dp)
 		}
 
 		onCameraMoveStartedListener?.run {
@@ -246,7 +246,7 @@ internal class MapSensorController(
 		if (followMyPosition) {
 			stopUsingUserPosition(button, false)
 		} else {
-			button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_gps_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.tracker.shared.base.R.drawable.ic_gps_fixed_black_24dp)
 			this.followMyPosition = true
 
 			if (lastUserPos != null) {

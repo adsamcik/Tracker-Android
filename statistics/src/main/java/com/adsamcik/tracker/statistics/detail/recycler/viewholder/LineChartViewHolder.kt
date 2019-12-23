@@ -3,7 +3,7 @@ package com.adsamcik.tracker.statistics.detail.recycler.viewholder
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import com.adsamcik.tracker.common.extension.dp
+import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleData
@@ -12,6 +12,9 @@ import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 
+/**
+ * View holder for line chart view
+ */
 class LineChartViewHolder(
 		root: View,
 		val title: TextView,
@@ -51,8 +54,7 @@ class LineChartViewHolder(
 			mode = LineDataSet.Mode.LINEAR
 		}
 
-		val data = LineData(dataSet)
-		chart.data = data
+		chart.data = LineData(dataSet)
 		styleController.addListener(this::onColorChange)
 		chart.invalidate()
 	}

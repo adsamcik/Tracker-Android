@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.activity.recognizer
 
-import com.adsamcik.tracker.common.data.DetectedActivity
-import com.adsamcik.tracker.common.data.NativeSessionActivity
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 
 internal class VehicleActivityRecognizer : ActivityRecognizer() {
 	override val precisionConfidence: Int = 75

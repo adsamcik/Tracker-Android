@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.common.extension.formatAsDateTime
+import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.debug.DebugDatabase
 import com.adsamcik.tracker.shared.utils.debug.LogData

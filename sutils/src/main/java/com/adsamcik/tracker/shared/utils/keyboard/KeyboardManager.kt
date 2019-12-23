@@ -3,9 +3,9 @@ package com.adsamcik.tracker.shared.utils.keyboard
 import android.graphics.Rect
 import android.view.View
 import android.view.ViewTreeObserver
-import com.adsamcik.tracker.common.assist.DisplayAssist.getNavigationBarSize
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.inputMethodManager
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getNavigationBarSize
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.inputMethodManager
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 
 

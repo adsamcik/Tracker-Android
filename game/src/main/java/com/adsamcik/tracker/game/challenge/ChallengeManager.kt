@@ -3,12 +3,12 @@ package com.adsamcik.tracker.game.challenge
 import android.content.Context
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.TrackerSession
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.debug.LogData
-import com.adsamcik.tracker.common.extension.formatAsDateTime
-import com.adsamcik.tracker.common.misc.NonNullLiveData
-import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
+import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
+import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
+import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.challenge.data.definition.ExplorerChallengeDefinition

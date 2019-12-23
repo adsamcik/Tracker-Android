@@ -21,19 +21,19 @@ import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeData
 import com.adsamcik.recycler.adapter.implementation.sort.AppendBehavior
 import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.LengthUnit
-import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.data.NativeSessionActivity
-import com.adsamcik.tracker.common.data.SessionActivity
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.formatReadable
-import com.adsamcik.tracker.common.extension.requireValue
-import com.adsamcik.tracker.common.extension.toCalendar
-import com.adsamcik.tracker.common.misc.Double2
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.LengthUnit
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.base.extension.requireValue
+import com.adsamcik.tracker.shared.base.extension.toCalendar
+import com.adsamcik.tracker.shared.base.misc.Double2
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
@@ -111,7 +111,7 @@ class StatsDetailActivity : DetailActivity() {
 
 
 
-		addAction(com.adsamcik.tracker.common.R.drawable.ic_baseline_edit, R.string.edit_session,
+		addAction(com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit, R.string.edit_session,
 		          View.OnClickListener {
 			          val addItemLayout = findViewById<View>(R.id.add_item_layout)
 			          val headerRoot = findViewById<ViewGroup>(R.id.header_root)
@@ -133,13 +133,13 @@ class StatsDetailActivity : DetailActivity() {
 		MaterialDialog(this)
 				.message(
 						text = getString(
-								com.adsamcik.tracker.common.R.string.alert_confirm,
+								com.adsamcik.tracker.shared.base.R.string.alert_confirm,
 								getString(R.string.remove_session)
 						)
 				)
-				.title(com.adsamcik.tracker.common.R.string.alert_confirm_generic)
-				.positiveButton(com.adsamcik.tracker.common.R.string.yes) { removeSession() }
-				.negativeButton(com.adsamcik.tracker.common.R.string.no)
+				.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
+				.positiveButton(com.adsamcik.tracker.shared.base.R.string.yes) { removeSession() }
+				.negativeButton(com.adsamcik.tracker.shared.base.R.string.no)
 				.show()
 	}
 
@@ -263,21 +263,21 @@ class StatsDetailActivity : DetailActivity() {
 
 		val data = mutableListOf(
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_outline_directions_24px,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_directions_24px,
 						R.string.stats_distance_total,
 						resources.formatDistance(session.distanceInM, 2, lengthSystem)
 				),
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_directions_walk_white,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_directions_walk_white,
 						R.string.stats_distance_on_foot,
 						resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)
 				),
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_shoe_print,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
 						R.string.stats_steps, session.steps.formatReadable()
 				),
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_baseline_commute,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_commute,
 						R.string.stats_distance_in_vehicle,
 						resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)
 				)
@@ -388,13 +388,13 @@ class StatsDetailActivity : DetailActivity() {
 		val speedFormat = Preferences.getSpeedFormat(this)
 		val dataList = listOf(
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_speedometer,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_speedometer,
 						R.string.stats_max_speed,
 						resources.formatSpeed(speedStats.maxSpeed, 1, lengthSystem, speedFormat)
 				),
 
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_speedometer,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_speedometer,
 						R.string.stats_avg_speed,
 						resources.formatSpeed(speedStats.avgSpeed, 1, lengthSystem, speedFormat)
 				)
@@ -460,17 +460,17 @@ class StatsDetailActivity : DetailActivity() {
 						resources.formatDistance(descended, 1, lengthSystem)
 				),
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_outline_terrain,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_terrain,
 						R.string.stats_elevation_max,
 						resources.formatDistance(maxAltitude, 1, lengthSystem)
 				),
 				InformationStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_outline_terrain,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_terrain,
 						R.string.stats_elevation_min,
 						resources.formatDistance(minAltitude, 1, lengthSystem)
 				),
 				LineChartStatisticsData(
-						com.adsamcik.tracker.common.R.drawable.ic_outline_terrain,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_terrain,
 						R.string.stats_elevation,
 						elevationList.map { Entry(it.x.toFloat(), it.y.toFloat()) }
 				)

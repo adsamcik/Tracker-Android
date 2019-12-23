@@ -1,6 +1,6 @@
-package com.adsamcik.tracker.common.data
+package com.adsamcik.tracker.shared.base.data
 
-import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.shared.base.R
 
 enum class DetectedActivity(val value: Int) {
 	STILL(com.google.android.gms.location.DetectedActivity.STILL) {

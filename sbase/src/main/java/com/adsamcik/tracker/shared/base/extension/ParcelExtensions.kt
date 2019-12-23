@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.common.extension
+package com.adsamcik.tracker.shared.base.extension
 
 import android.os.Parcel
 import android.os.Parcelable

@@ -1,11 +1,11 @@
 package com.adsamcik.tracker.commonmap
 
 import android.os.Parcelable
-import com.adsamcik.tracker.common.constant.CoordinateConstants.MAX_LATITUDE
-import com.adsamcik.tracker.common.constant.CoordinateConstants.MAX_LONGITUDE
-import com.adsamcik.tracker.common.constant.CoordinateConstants.MIN_LATITUDE
-import com.adsamcik.tracker.common.constant.CoordinateConstants.MIN_LONGITUDE
-import com.adsamcik.tracker.common.data.Location
+import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MAX_LATITUDE
+import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MAX_LONGITUDE
+import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LATITUDE
+import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LONGITUDE
+import com.adsamcik.tracker.shared.base.data.Location
 import kotlinx.android.parcel.Parcelize
 
 /**

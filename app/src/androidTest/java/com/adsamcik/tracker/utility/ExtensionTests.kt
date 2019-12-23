@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.utility
 
-import com.adsamcik.tracker.common.extension.contains
-import com.adsamcik.tracker.common.extension.toDate
+import com.adsamcik.tracker.shared.base.extension.contains
+import com.adsamcik.tracker.shared.base.extension.toDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

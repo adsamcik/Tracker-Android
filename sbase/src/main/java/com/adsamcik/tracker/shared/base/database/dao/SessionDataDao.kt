@@ -1,15 +1,15 @@
-package com.adsamcik.tracker.common.database.dao
+package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.lifecycle.LiveData
 import androidx.paging.DataSource
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.data.DateRange
-import com.adsamcik.tracker.common.database.data.TrackerSessionSummary
-import com.adsamcik.tracker.common.database.data.TrackerSessionTimeSummary
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.data.DateRange
+import com.adsamcik.tracker.shared.base.database.data.TrackerSessionSummary
+import com.adsamcik.tracker.shared.base.database.data.TrackerSessionTimeSummary
 
 @Dao
 interface SessionDataDao : BaseDao<TrackerSession> {

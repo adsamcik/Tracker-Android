@@ -1,8 +1,8 @@
-package com.adsamcik.tracker.common.dialog
+package com.adsamcik.tracker.shared.base.dialog
 
 import android.content.Context
 import androidx.appcompat.app.AlertDialog
-import com.adsamcik.tracker.common.R
+import com.adsamcik.tracker.shared.base.R
 import java.util.*
 
 object ConfirmDialog {
