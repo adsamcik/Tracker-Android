@@ -9,6 +9,9 @@ import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 
+/**
+ * Abstract activity class implementing style and language support on top of [CoreActivity].
+ */
 abstract class CoreUIActivity : CoreActivity() {
 	protected val styleController: StyleController = StyleManager.createController()
 

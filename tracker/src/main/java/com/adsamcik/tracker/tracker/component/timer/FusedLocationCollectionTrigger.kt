@@ -17,7 +17,10 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 
-internal class FusedLocationTrackerTimer : LocationTrackerTimer() {
+/**
+ * Collection trigger that uses Fused Location Provider in Google Play Services.
+ */
+internal class FusedLocationCollectionTrigger : LocationCollectionTrigger() {
 	override val requiredPermissions: Collection<String>
 		get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
 

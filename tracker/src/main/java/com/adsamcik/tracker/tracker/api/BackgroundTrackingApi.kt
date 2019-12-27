@@ -222,6 +222,9 @@ object BackgroundTrackingApi {
 		isActive = false
 	}
 
+	/**
+	 * Initializes background tracking api.
+	 */
 	@MainThread
 	fun initialize(context: Context) {
 		if (appContext != null) return
@@ -229,13 +232,17 @@ object BackgroundTrackingApi {
 		appContext = context.applicationContext
 
 		PreferenceObserver.observe(
-				context, R.string.settings_auto_tracking_transition_key,
-				R.string.settings_auto_tracking_transition_default, transitionObserver
+				context,
+				R.string.settings_auto_tracking_transition_key,
+				R.string.settings_auto_tracking_transition_default,
+				transitionObserver
 		)
 
 		PreferenceObserver.observe(
-				context, R.string.settings_tracking_activity_key,
-				R.string.settings_tracking_activity_default, observer
+				context,
+				R.string.settings_tracking_activity_key,
+				R.string.settings_tracking_activity_default,
+				observer
 		)
 	}
 }

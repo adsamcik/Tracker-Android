@@ -6,13 +6,16 @@ import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 import com.adsamcik.tracker.shared.base.data.LocationData
-import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
+import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-internal abstract class LocationTrackerTimer : TrackerTimerComponent {
+/**
+ * Abstract collection trigger component to provide common operations and methods for location triggers.
+ */
+internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 	protected var receiver: TrackerTimerReceiver? = null
 		private set
 

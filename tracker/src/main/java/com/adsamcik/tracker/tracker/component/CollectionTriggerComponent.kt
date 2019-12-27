@@ -3,14 +3,14 @@ package com.adsamcik.tracker.tracker.component
 import android.content.Context
 import androidx.annotation.WorkerThread
 
-internal interface TrackerTimerComponent {
+internal interface CollectionTriggerComponent {
 	val titleRes: Int
 	val requiredPermissions: Collection<String>
 	fun onEnable(context: Context, @WorkerThread receiver: TrackerTimerReceiver)
 	fun onDisable(context: Context)
 }
 
-internal class NoTimer : TrackerTimerComponent {
+internal class NoTimer : CollectionTriggerComponent {
 	override val titleRes: Int get() = 0
 
 	override val requiredPermissions: Collection<String> get() = emptyList()

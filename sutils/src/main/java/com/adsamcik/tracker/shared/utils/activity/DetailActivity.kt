@@ -32,6 +32,12 @@ import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
  * Custom AppBar was implemented to provide complete control over that piece of layout.
  */
 abstract class DetailActivity : CoreUIActivity() {
+	/**
+	 * Method that can be used to change default configuration which is passed as an argument.
+	 * The [configuration] parameter is passed by reference with default configuration and can be changed as desired.
+	 *
+	 * @param configuration Configuration object.
+	 */
 	open fun onConfigure(configuration: Configuration) = Unit
 
 	private val topPanelRoot: ViewGroup by lazy { findViewById<ViewGroup>(R.id.top_panel_root) }
@@ -100,17 +106,30 @@ abstract class DetailActivity : CoreUIActivity() {
 		finish()
 	}
 
+	/**
+	 * Set activity title. Will be set in AppBar.
+	 *
+	 * @param title Char sequence (string) containing title
+	 */
 	@MainThread
 	override fun setTitle(title: CharSequence) {
 		super.setTitle(title)
 		findViewById<TextView>(R.id.content_detail_title).text = title
 	}
 
+	/**
+	 * Set activity title. Will be set in AppBar.
+	 *
+	 * @param titleId Resource id for the activity title.
+	 */
 	@MainThread
-	override fun setTitle(titleId: Int) {
+	override fun setTitle(@StringRes titleId: Int) {
 		title = getString(titleId)
 	}
 
+	/**
+	 * Adds action button to the right of the AppBar.
+	 */
 	@MainThread
 	protected fun addAction(
 			@DrawableRes iconRes: Int,
@@ -265,6 +284,9 @@ abstract class DetailActivity : CoreUIActivity() {
 		const val DEFAULT_TITLE_BAR_ELEVATION = 4
 	}
 
+	/**
+	 * Configuration data class used for configuring DetailActivity.
+	 */
 	data class Configuration(
 			var titleBarLayer: Int = 0,
 			var elevation: Int? = null,

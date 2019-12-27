@@ -16,7 +16,10 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 
-internal class AndroidLocationTrackerTimer : LocationTrackerTimer() {
+/**
+ * Collection trigger that uses native Android location manager.
+ */
+internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger() {
 	override val requiredPermissions: Collection<String>
 		get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
 

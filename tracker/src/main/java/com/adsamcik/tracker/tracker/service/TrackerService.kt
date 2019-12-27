@@ -29,7 +29,7 @@ import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
-import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
+import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
@@ -67,7 +67,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private val componentMutex = Mutex()
 
-	private var timerComponent: TrackerTimerComponent = NoTimer()
+	private var timerComponent: CollectionTriggerComponent = NoTimer()
 
 	private val notificationComponent: NotificationComponent = NotificationComponent()
 

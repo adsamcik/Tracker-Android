@@ -6,11 +6,14 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
+import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
-internal class TimeTrackerTimer : TrackerTimerComponent {
+/**
+ * Collection trigger that uses handler to periodically trigger collections.
+ */
+internal class HandlerCollectionTrigger : CollectionTriggerComponent {
 	override val requiredPermissions: Collection<String> get() = emptyList()
 
 	override val titleRes: Int
@@ -23,7 +26,7 @@ internal class TimeTrackerTimer : TrackerTimerComponent {
 
 	private val handlerCallback: Runnable = object : Runnable {
 		override fun run() {
-			this@TimeTrackerTimer.receiver?.onUpdate(createCollectionData())
+			this@HandlerCollectionTrigger.receiver?.onUpdate(createCollectionData())
 			handler.postDelayed(this, repeatEveryMs)
 		}
 	}
