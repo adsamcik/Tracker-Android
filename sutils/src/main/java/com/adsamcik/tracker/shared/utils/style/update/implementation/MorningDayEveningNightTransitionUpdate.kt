@@ -47,14 +47,11 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val sunset = sunData.set
 		val sunrise = sunData.rise
 
-		if (sunData.isAlwaysUp) {
+		if (sunData.isAlwaysUp || sunset == null) {
 			return UpdateData(styleList[NOON], styleList[NOON], Long.MAX_VALUE, 0L)
-		} else if (sunData.isAlwaysDown) {
+		} else if (sunData.isAlwaysDown || sunrise == null) {
 			return UpdateData(styleList[MIDNIGHT], styleList[MIDNIGHT], Long.MAX_VALUE, 0L)
 		}
-
-		require(sunset != null)
-		require(sunrise != null)
 
 		val localUpdateData = calculateProgress(time.timeInMillis, sunrise.time, sunset.time)
 

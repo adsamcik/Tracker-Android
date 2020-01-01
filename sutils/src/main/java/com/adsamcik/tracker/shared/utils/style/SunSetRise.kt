@@ -185,6 +185,7 @@ class SunSetRise {
 						at(location.latitude, location.longitude)
 					}
 					on(calendar)
+					oneDay()
 					truncatedTo(TimeResultParameter.Unit.MINUTES)
 					twilight(SunTimes.Twilight.VISUAL)
 				}
