@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.tracker.component.timer
+package com.adsamcik.tracker.tracker.component.trigger
 
 import android.content.Context
 import android.location.Location

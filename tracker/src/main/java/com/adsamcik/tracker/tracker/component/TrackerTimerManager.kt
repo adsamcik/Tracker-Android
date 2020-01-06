@@ -4,9 +4,9 @@ import android.content.Context
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.component.timer.AndroidLocationCollectionTrigger
-import com.adsamcik.tracker.tracker.component.timer.FusedLocationCollectionTrigger
-import com.adsamcik.tracker.tracker.component.timer.HandlerCollectionTrigger
+import com.adsamcik.tracker.tracker.component.trigger.AndroidLocationCollectionTrigger
+import com.adsamcik.tracker.tracker.component.trigger.FusedLocationCollectionTrigger
+import com.adsamcik.tracker.tracker.component.trigger.HandlerCollectionTrigger
 
 object TrackerTimerManager {
 	internal val availableTimers: List<CollectionTriggerComponent>
