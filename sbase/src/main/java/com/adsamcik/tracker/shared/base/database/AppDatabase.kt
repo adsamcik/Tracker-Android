@@ -24,15 +24,19 @@ import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 
 
+/**
+ * Provides access to main database.
+ * Contains only common data nothing module specific.
+ */
 @Database(
+		version = 10,
 		entities = [DatabaseLocation::class,
 			TrackerSession::class,
 			DatabaseWifiData::class,
 			SessionActivity::class,
 			NetworkOperator::class,
 			DatabaseCellLocation::class,
-			DatabaseLocationWifiCount::class],
-		version = 10
+			DatabaseLocationWifiCount::class]
 )
 @TypeConverters(CellTypeConverter::class, DetectedActivityTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -67,6 +71,10 @@ abstract class AppDatabase : RoomDatabase() {
 			)
 		}
 
+		/**
+		 * Deletes all collected data from the database.
+		 * Does not delete database itself.
+		 */
 		@WorkerThread
 		fun deleteAllCollectedData(context: Context) {
 			val database = database(context)
