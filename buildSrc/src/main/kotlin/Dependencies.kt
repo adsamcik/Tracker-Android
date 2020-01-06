@@ -1,8 +1,15 @@
 import org.gradle.api.artifacts.dsl.DependencyHandler
 import org.gradle.kotlin.dsl.kotlin
 
-@Suppress("TooManyFunctions")
+/**
+ * Object with common dependency groups for easy and central dependency management.
+ */
+@Suppress("TooManyFunctions", "SpellCheckingInspection")
 object Dependencies {
+	/**
+	 * Object containing versions for various dependencies.
+	 * Dependencies that are not project are required to be internal.
+	 */
 	object Versions {
 		internal const val constraintLayout = "2.0.0-beta4"
 		internal const val coreKtx = "1.2.0-rc01"
@@ -31,25 +38,33 @@ object Dependencies {
 		internal const val playCore = "1.6.4"
 		internal const val playLocation = "17.0.0"
 
+		internal const val stax = "1.0.1"
+		internal const val jpx = "1.6.1"
+		internal const val xml = "1.2.2"
+
 		internal const val spotlight = "2.2.2"
 		internal const val dialogs = "3.1.1"
 		internal const val sectionedRecyclerViewAdapter = "3.1.0"
 
 		internal const val componentsRecycler = "0.7.4"
+		internal const val componentsDraggable = "0.14.1"
 
-		object Test {
-			const val androidxTest: String = "1.2.0"
-			const val espresso: String = "3.2.0"
+		/**
+		 * Testing specific dependencies
+		 */
+		internal object Test {
+			internal const val androidxTest: String = "1.2.0"
+			internal const val espresso: String = "3.2.0"
+			internal const val coreTesting: String = "2.1.0"
+			internal const val testingKtx: String = "1.1.1"
 		}
 	}
 
 	private fun DependencyHandler.api(name: String) = add("api", name)
 	private fun DependencyHandler.implementation(name: String) = add("implementation", name)
 	private fun DependencyHandler.kapt(name: String) = add("kapt", name)
-	private fun DependencyHandler.androidTestImplementation(name: String) = add(
-			"androidTestImplementation",
-			name
-	)
+	private fun DependencyHandler.androidTestImplementation(name: String) =
+			add("androidTestImplementation", name)
 
 	fun moshi(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
@@ -134,7 +149,7 @@ object Dependencies {
 
 	fun draggable(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.adsamcik.android-components:draggable:0.14.1")
+			implementation("com.adsamcik.android-components:draggable:${Versions.componentsDraggable}")
 		}
 	}
 
@@ -158,9 +173,9 @@ object Dependencies {
 
 	fun gpx(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("stax:stax-api:1.0.1")
-			implementation("com.fasterxml:aalto-xml:1.2.2")
-			implementation("io.jenetics:jpx:1.6.0")
+			implementation("stax:stax-api:${Versions.stax}")
+			implementation("com.fasterxml:aalto-xml:${Versions.xml}")
+			implementation("io.jenetics:jpx:${Versions.jpx}")
 		}
 	}
 
@@ -183,8 +198,8 @@ object Dependencies {
 			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
 			androidTestImplementation("androidx.test.ext:junit:1.1.1")
-			androidTestImplementation("androidx.arch.core:core-testing:2.1.0")
-			androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
+			androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.coreTesting}")
+			androidTestImplementation("com.jraska.livedata:testing-ktx:${Versions.Test.testingKtx}")
 			androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
 			androidTestImplementation("androidx.test.espresso:espresso-contrib:${Versions.Test.espresso}")
 		}
