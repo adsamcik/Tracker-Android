@@ -17,10 +17,10 @@ data class StatData(
 		@ColumnInfo(name = "session_id")
 		val sessionId: Long,
 		/**
-		 * Cache id
+		 * Provider id
 		 */
-		@ColumnInfo(name = "cache_id")
-		val cacheId: String,
+		@ColumnInfo(name = "provider_id")
+		val providerId: String,
 		/**
 		 * Cache value
 		 */
