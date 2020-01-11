@@ -23,5 +23,5 @@ interface StatDataProducer : BaseStatDataSource {
 	 * @param dataMap Map with data provided by other producers. Includes all data provided by
 	 * producers specified in [dependsOn], other data may or may not be available.
 	 */
-	fun produce(rawDataMap: RawDataMap, dataMap: StatDataMap): String
+	fun produce(rawDataMap: RawDataMap, dataMap: StatDataMap): Any
 }

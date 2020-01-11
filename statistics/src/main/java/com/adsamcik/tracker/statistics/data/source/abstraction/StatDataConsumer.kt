@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.statistics.data.source.abstraction
 
 import android.content.Context
-import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 
 /**
@@ -32,5 +31,8 @@ interface StatDataConsumer : BaseStatDataSource {
 	/**
 	 * Creates statistic instance
 	 */
-	fun getStat(data: StatDataMap): Stat
+	fun getStat(
+			context: Context,
+			data: StatDataMap
+	): String
 }

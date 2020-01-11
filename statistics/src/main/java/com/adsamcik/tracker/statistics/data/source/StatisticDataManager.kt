@@ -156,7 +156,7 @@ class StatisticDataManager {
 		val statList = mutableListOf<Stat>()
 		consumers.forEach { consumer ->
 			if (consumer.dependsOn.all { dataMap.containsKey(it) }) {
-				statList.add(consumer.getStat(dataMap))
+				statList.add(consumer.getStat(, dataMap))
 			}
 		}
 		return statList

@@ -31,7 +31,7 @@ import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.data.StatData
+import com.adsamcik.tracker.statistics.database.data.StatData
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
 import com.adsamcik.tracker.statistics.list.recycler.SectionedDividerDecoration
 import com.adsamcik.tracker.statistics.list.recycler.SessionSection

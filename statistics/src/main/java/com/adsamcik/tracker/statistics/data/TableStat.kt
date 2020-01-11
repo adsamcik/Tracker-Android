@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.statistics.data
 
+import com.adsamcik.tracker.statistics.database.data.StatData
+
 /**
  * Object that contains data about specific statistic
  */
