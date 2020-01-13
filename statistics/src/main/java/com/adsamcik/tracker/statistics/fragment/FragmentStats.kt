@@ -19,19 +19,18 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
-
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.database.data.StatData
+import com.adsamcik.tracker.statistics.database.data.CacheStatData
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
 import com.adsamcik.tracker.statistics.list.recycler.SectionedDividerDecoration
 import com.adsamcik.tracker.statistics.list.recycler.SessionSection
@@ -146,7 +145,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		return fragmentView
 	}
 
-	private fun showSummaryDialog(statDataCollection: Collection<StatData>, @StringRes titleRes: Int) {
+	private fun showSummaryDialog(statDataCollection: Collection<CacheStatData>, @StringRes titleRes: Int) {
 		val activity = requireActivity()
 		val adapter = SessionSummaryAdapter().apply { addAll(statDataCollection) }
 
@@ -174,38 +173,38 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val sumSessionData = sessionDao.getSummary()
 
 			val statList = listOf(
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_time),
 							sumSessionData.duration.formatAsDuration(activity)
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_collections),
 							sumSessionData.collections.formatReadable()
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_distance_total),
 							resources.formatDistance(
 									sumSessionData.distanceInM, 1,
 									Preferences.getLengthSystem(activity)
 							)
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_location_count),
 							locationDao.count().formatReadable()
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_wifi_count),
 							wifiDao.count().formatReadable()
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_cell_count),
 							cellDao.uniqueCount().formatReadable()
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_session_count),
 							sessionDao.count().formatReadable()
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_steps),
 							sumSessionData.steps.formatReadable()
 					)
@@ -228,22 +227,22 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val sessionDao = database.sessionDao()
 			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
 			val statDataList = listOf(
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_time),
 							lastWeekSummary.duration.formatAsDuration(activity)
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_distance_total),
 							resources.formatDistance(
 									lastWeekSummary.distanceInM, 1,
 									Preferences.getLengthSystem(activity)
 							)
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_collections),
 							lastWeekSummary.collections.formatReadable()
 					),
-					StatData(
+					CacheStatData(
 							resources.getString(R.string.stats_steps),
 							lastWeekSummary.steps.formatReadable()
 					)
@@ -296,10 +295,10 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		//launch(Dispatchers.Main) { adapter.addAll(tableList) }
 	}
 
-	private fun generateStatData(index: Int): List<StatData> {
-		val list = ArrayList<StatData>()
+	private fun generateStatData(index: Int): List<CacheStatData> {
+		val list = ArrayList<CacheStatData>()
 		for (i in 1..index) {
-			list.add(StatData("Title $i", i.toString()))
+			list.add(CacheStatData("Title $i", i.toString()))
 		}
 		return list
 	}

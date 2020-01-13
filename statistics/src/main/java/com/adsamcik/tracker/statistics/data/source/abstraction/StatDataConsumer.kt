@@ -2,6 +2,7 @@ package com.adsamcik.tracker.statistics.data.source.abstraction
 
 import android.content.Context
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
+import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 
 /**
  * Statistics data consumer.
@@ -20,19 +21,25 @@ interface StatDataConsumer : BaseStatDataSource {
 	val providerId: String get() = this::class.java.simpleName
 
 	/**
-	 * Returns localized name for this consumer.
-	 *
-	 * @param context Context
-	 *
-	 * @return Localized name
+	 * String resource id for name.
 	 */
-	fun getName(context: Context): String
+	val nameRes: Int
+
+	/**
+	 * Drawable resource id for icon.
+	 */
+	val iconRes: Int
+
+	/**
+	 * How stats should be displayed to the user.
+	 */
+	val displayType: StatisticDisplayType
 
 	/**
 	 * Creates statistic instance
 	 */
-	fun getStat(
+	fun getData(
 			context: Context,
 			data: StatDataMap
-	): String
+	): Any
 }

@@ -10,7 +10,7 @@ import androidx.room.Entity
 		tableName = "statCache",
 		primaryKeys = ["session_id", "cache_id"]
 )
-data class StatData(
+data class CacheStatData(
 		/**
 		 * Session id
 		 */

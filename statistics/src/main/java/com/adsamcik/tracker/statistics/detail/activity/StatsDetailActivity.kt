@@ -45,9 +45,10 @@ import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.data.LocationExtractor
+import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.detail.SessionActivitySelection
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailType
+import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 import com.adsamcik.tracker.statistics.detail.recycler.creator.InformationViewHolderCreator
 import com.adsamcik.tracker.statistics.detail.recycler.creator.LineChartViewHolderCreator
 import com.adsamcik.tracker.statistics.detail.recycler.creator.MapViewHolderCreator
@@ -62,8 +63,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
 
-typealias StatsDetailAdapter = StyleMultiTypeAdapter<StatisticDetailType, MultiTypeData<StatisticDetailType>>
+typealias StatsDetailAdapter = StyleMultiTypeAdapter<StatisticDisplayType, MultiTypeData<StatisticDisplayType>>
 
+/**
+ * Activity for statistic details
+ */
 class StatsDetailActivity : DetailActivity() {
 	private lateinit var viewModel: ViewModel
 
@@ -175,9 +179,9 @@ class StatsDetailActivity : DetailActivity() {
 		}
 
 		val adapter = StatsDetailAdapter(styleController).apply {
-			registerType(StatisticDetailType.Information, InformationViewHolderCreator())
-			registerType(StatisticDetailType.Map, MapViewHolderCreator())
-			registerType(StatisticDetailType.LineChart, LineChartViewHolderCreator())
+			registerType(StatisticDisplayType.Information, InformationViewHolderCreator())
+			registerType(StatisticDisplayType.Map, MapViewHolderCreator())
+			registerType(StatisticDisplayType.LineChart, LineChartViewHolderCreator())
 			//todo add Wi-Fi and Cell
 
 			addBasicStats(session, this)
@@ -252,6 +256,20 @@ class StatsDetailActivity : DetailActivity() {
 			launch(Dispatchers.Main) {
 				setTitle(title)
 				findViewById<ImageView>(R.id.activity).setImageDrawable(drawable)
+			}
+		}
+	}
+
+	private fun convertToDisplayData(list: List<Stat>): List<StatisticDetailData> {
+		return list.map {
+			when (it.displayType) {
+				StatisticDisplayType.Information -> InformationStatisticsData(
+						it.iconRes,
+						it.nameRes,
+						it.data as String
+				)
+				StatisticDisplayType.Map -> MapStatisticsData(it.data)
+				StatisticDisplayType.LineChart -> LineChartStatisticsData()
 			}
 		}
 	}
