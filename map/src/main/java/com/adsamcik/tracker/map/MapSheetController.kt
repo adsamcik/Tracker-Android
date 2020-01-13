@@ -36,7 +36,7 @@ import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
-import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
 import com.adsamcik.tracker.map.introduction.MapSheetHiddenIntroduction
 import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic

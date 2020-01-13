@@ -4,7 +4,7 @@ import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.base.extension.LocationExtensions
 import com.adsamcik.tracker.shared.base.misc.ConditionVariableInt
 import com.adsamcik.tracker.shared.base.misc.Int2
-import com.adsamcik.tracker.commonmap.CoordinateBounds
+import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig

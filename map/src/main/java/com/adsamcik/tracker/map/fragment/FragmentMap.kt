@@ -12,7 +12,7 @@ import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.commonmap.ColorMap
+import com.adsamcik.tracker.shared.map.ColorMap
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
 import com.adsamcik.tracker.map.MapOwner

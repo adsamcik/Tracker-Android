@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.commonmap
+package com.adsamcik.tracker.shared.map
 
 import android.content.Context
 import androidx.lifecycle.LiveData

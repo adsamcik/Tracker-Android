@@ -5,7 +5,7 @@ import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.commonmap.MapLayerData
+import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.map.layer.legend.MapLegendAdapter
 
 class MapLegendController(rootLayout: View) {

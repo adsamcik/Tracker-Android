@@ -10,7 +10,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
-import com.adsamcik.tracker.commonmap.MapLegendValue
+import com.adsamcik.tracker.shared.map.MapLegendValue
 import com.adsamcik.tracker.map.R
 
 class MapLegendAdapter : BaseRecyclerAdapter<MapLegendValue, MapLegendAdapter.ViewHolder>(),

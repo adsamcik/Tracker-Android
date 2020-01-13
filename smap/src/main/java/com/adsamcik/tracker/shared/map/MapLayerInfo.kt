@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.commonmap
+package com.adsamcik.tracker.shared.map
 
 import android.os.Parcelable
 import kotlinx.android.parcel.Parcelize

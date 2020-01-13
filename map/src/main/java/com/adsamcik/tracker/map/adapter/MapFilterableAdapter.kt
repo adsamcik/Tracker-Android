@@ -6,8 +6,8 @@ import android.widget.TextView
 import androidx.annotation.LayoutRes
 import com.adsamcik.tracker.shared.base.adapter.BaseFilterableAdapter
 import com.adsamcik.tracker.shared.base.adapter.SimpleFilterableAdapter
-import com.adsamcik.tracker.commonmap.CoordinateBounds
-import com.adsamcik.tracker.commonmap.MapLayerLogic
+import com.adsamcik.tracker.shared.map.CoordinateBounds
+import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.map.R
 
 /**

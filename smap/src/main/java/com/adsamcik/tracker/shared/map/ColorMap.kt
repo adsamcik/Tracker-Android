@@ -1,10 +1,9 @@
-package com.adsamcik.tracker.commonmap
+package com.adsamcik.tracker.shared.map
 
 import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.RawRes
 import com.adsamcik.tracker.shared.base.extension.remove
-import com.adsamcik.tracker.shared.map.R
 import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
