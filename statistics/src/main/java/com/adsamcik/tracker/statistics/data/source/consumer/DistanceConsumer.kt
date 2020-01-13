@@ -1,24 +1,31 @@
 package com.adsamcik.tracker.statistics.data.source.consumer
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
+import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 import kotlin.reflect.KClass
 
 class DistanceConsumer : StatDataConsumer {
-	override fun getName(context: Context): String =
-			context.getString(R.string.stats_distance_total)
+	override val nameRes: Int = R.string.stats_distance_total
 
-	override fun getStat(
+	override val iconRes: Int = R.drawable.ic_outline_directions_24px
+
+	override val displayType: StatisticDisplayType = StatisticDisplayType.Information
+
+	override fun getData(
 			context: Context,
 			data: StatDataMap
-	): String {
-		val session = data[TrackerSessionProducer::class]
-		context.resources.formatDistance(session.distanceInM, 1, lengthSystem)
+	): Any {
+		val session = data.requiredTyped<TrackerSession>(TrackerSessionProducer::class)
+		val lengthSystem = Preferences.getLengthSystem(context)
+		return context.resources.formatDistance(session.distanceInM, 1, lengthSystem)
 	}
 
 	override val dependsOn: List<KClass<StatDataProducer>>

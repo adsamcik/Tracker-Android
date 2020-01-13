@@ -10,17 +10,19 @@ import com.adsamcik.tracker.shared.base.graph.Edge
 import com.adsamcik.tracker.shared.base.graph.Graph
 import com.adsamcik.tracker.shared.base.graph.Vertex
 import com.adsamcik.tracker.shared.base.graph.topSort
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.data.source.abstraction.RawDataProducer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
+import com.adsamcik.tracker.statistics.data.source.consumer.DistanceConsumer
 import com.adsamcik.tracker.statistics.database.StatsDatabase
-import com.adsamcik.tracker.statistics.database.data.StatData
+import com.adsamcik.tracker.statistics.database.data.CacheStatData
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.reflect.KClass
 
-typealias StatDataMap = Map<KClass<out StatDataProducer>, String>
+typealias StatDataMap = MultiTypeMap<KClass<out StatDataProducer>, Any>
 typealias RawDataMap = Map<StatDataSource, Any>
 
 /**
@@ -30,7 +32,7 @@ typealias RawDataMap = Map<StatDataSource, Any>
 class StatisticDataManager {
 	private val rawProducers: List<RawDataProducer> = listOf()
 	private val producers: List<StatDataProducer>
-	private val consumers: List<StatDataConsumer> = listOf()
+	private val consumers: List<StatDataConsumer> = listOf(DistanceConsumer())
 
 	init {
 		val producerList: List<StatDataProducer> = listOf()
@@ -54,17 +56,23 @@ class StatisticDataManager {
 		return requireNotNull(sessionDao.get(id))
 	}
 
-	private fun classToProducer(producerType: KClass<StatDataProducer>): StatDataProducer {
+	private fun classToProducer(producerType: KClass<StatDataProducer>): StatDataProducer? {
 		val instance = producers.find { it::class == producerType }
-		return requireNotNull(instance) { "Required producer dependency of type $producerType not found." }
+		if (instance == null) {
+			Reporter.report("Required producer dependency of type $producerType not found.")
+		}
+		return instance
 	}
 
 	private fun addProducersToQueue(
 			queue: Queue<StatDataProducer>,
 			list: Collection<KClass<StatDataProducer>>
 	) {
-		list.forEach {
-			queue.add(classToProducer(it))
+		list.forEach { producerClass ->
+			classToProducer(producerClass)?.let { producer ->
+				queue.add(producer)
+			}
+
 		}
 	}
 
@@ -105,7 +113,7 @@ class StatisticDataManager {
 	 */
 	private fun filterConsumers(
 			session: TrackerSession,
-			cacheList: List<StatData>
+			cacheList: List<CacheStatData>
 	): List<StatDataConsumer> {
 		val sessionActivityId = session.sessionActivityId
 		return consumers.filter { consumer ->
@@ -121,6 +129,7 @@ class StatisticDataManager {
 
 	private fun produceRawData(
 			context: Context,
+			session: TrackerSession,
 			rawDataProducers: Collection<RawDataProducer>
 	): RawDataMap {
 		val dataMap: MutableMap<StatDataSource, Any> = mutableMapOf()
@@ -130,6 +139,9 @@ class StatisticDataManager {
 				dataMap[it.type] = data
 			}
 		}
+		if (!dataMap.containsKey(StatDataSource.SESSION)) {
+			dataMap[StatDataSource.SESSION] = session
+		}
 		return dataMap
 	}
 
@@ -137,7 +149,7 @@ class StatisticDataManager {
 			dataProducers: Collection<StatDataProducer>,
 			rawDataMap: RawDataMap
 	): StatDataMap {
-		val dataMap: MutableMap<KClass<out StatDataProducer>, String> = mutableMapOf()
+		val dataMap: MutableMultiTypeMap<KClass<out StatDataProducer>, Any> = MutableMultiTypeMap()
 		dataProducers.forEach { producer ->
 			val hasRequiredRawData = producer.requiredRawData.all { rawDataMap.containsKey(it) }
 			val hasRequiredData = producer.dependsOn.all { dataMap.containsKey(it) }
@@ -149,14 +161,32 @@ class StatisticDataManager {
 		return dataMap
 	}
 
+	private fun consumeAndCacheData(
+			context: Context,
+			sessionId: Long,
+			consumer: StatDataConsumer,
+			dataMap: StatDataMap
+	): Any {
+		val data = consumer.getData(context, dataMap)
+		if (data is String) {
+			val cacheData = CacheStatData(sessionId, consumer::class.java.simpleName, data)
+			StatsDatabase.database(context).cacheDao().upsert(cacheData)
+		}
+		return data
+	}
+
 	private fun consumeData(
+			context: Context,
+			sessionId: Long,
 			consumers: Collection<StatDataConsumer>,
 			dataMap: StatDataMap
 	): List<Stat> {
 		val statList = mutableListOf<Stat>()
 		consumers.forEach { consumer ->
 			if (consumer.dependsOn.all { dataMap.containsKey(it) }) {
-				statList.add(consumer.getStat(, dataMap))
+				val value = consumeAndCacheData(context, sessionId, consumer, dataMap)
+				val stat = Stat(consumer.nameRes, consumer.iconRes, consumer.displayType, value)
+				statList.add(stat)
 			}
 		}
 		return statList
@@ -167,31 +197,32 @@ class StatisticDataManager {
 	 *
 	 * @param context Context
 	 * @param session Tracker session
-	 * @param cacheList List of cached [StatData]
+	 * @param cacheList List of cached [CacheStatData]
 	 *
 	 * @return List of statistics including cached data.
 	 */
+	@WorkerThread
 	private fun generateStatisticData(
 			context: Context,
 			session: TrackerSession,
-			cacheList: List<StatData>
+			cacheList: List<CacheStatData>
 	): List<Stat> {
 		val filteredConsumers = filterConsumers(session, cacheList)
 
 		val requiredProducers = getRequiredProducers(filteredConsumers)
 		val rawProducers = getRawDataProducers(requiredProducers)
 
-		val rawData = produceRawData(context, rawProducers)
+		val rawData = produceRawData(context, session, rawProducers)
 		val dataMap = produceData(requiredProducers, rawData)
 
-		val newData = consumeData(filteredConsumers, dataMap)
+		val newData = consumeData(context, session.id, filteredConsumers, dataMap)
 		return ArrayList<Stat>(newData.size + cacheList.size).apply {
 			addAll(newData)
 			cacheList.forEach { statData ->
 				val consumer = consumers.find { it.providerId == statData.providerId }
 
 				if (consumer != null) {
-					add(Stat(consumer.getName(context), statData))
+					add(Stat(consumer.nameRes, consumer.iconRes, consumer.displayType, statData))
 				}
 			}
 		}
