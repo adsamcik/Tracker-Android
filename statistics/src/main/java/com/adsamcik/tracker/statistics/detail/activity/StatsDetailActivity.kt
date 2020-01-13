@@ -260,6 +260,7 @@ class StatsDetailActivity : DetailActivity() {
 		}
 	}
 
+	@Suppress("UNCHECKED_CAST")
 	private fun convertToDisplayData(list: List<Stat>): List<StatisticDetailData> {
 		return list.map {
 			when (it.displayType) {
@@ -268,8 +269,12 @@ class StatsDetailActivity : DetailActivity() {
 						it.nameRes,
 						it.data as String
 				)
-				StatisticDisplayType.Map -> MapStatisticsData(it.data)
-				StatisticDisplayType.LineChart -> LineChartStatisticsData()
+				StatisticDisplayType.Map -> MapStatisticsData(it.data as List<Location>)
+				StatisticDisplayType.LineChart -> LineChartStatisticsData(
+						it.iconRes,
+						it.nameRes,
+						it.data as List<Entry>
+				)
 			}
 		}
 	}

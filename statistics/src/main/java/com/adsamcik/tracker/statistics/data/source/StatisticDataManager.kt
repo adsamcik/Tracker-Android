@@ -134,7 +134,7 @@ class StatisticDataManager {
 	): RawDataMap {
 		val dataMap: MutableMap<StatDataSource, Any> = mutableMapOf()
 		rawDataProducers.forEach {
-			val data = it.produce(context)
+			val data = it.produce(context,,)
 			if (data != null) {
 				dataMap[it.type] = data
 			}

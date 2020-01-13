@@ -19,5 +19,9 @@ interface RawDataProducer {
 	 * @return Returns data or null if the data is not available.
 	 */
 	@WorkerThread
-	fun produce(context: Context): Any?
+	fun produce(
+			context: Context,
+			startTime: Long,
+			endTime: Long
+	): Any?
 }
