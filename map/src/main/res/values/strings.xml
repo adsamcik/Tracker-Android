@@ -29,5 +29,8 @@
     <string name="description_my_location">Current location button</string>
     <string name="description_map_search">Search button</string>
 
-    <string name="generating_tile_count">generating %d tiles</string>
+    <plurals name="generating_tile_count">
+        <item quantity="one">generating 1 tile</item>
+        <item quantity="other">generating %d tiles</item>
+    </plurals>
 </resources>

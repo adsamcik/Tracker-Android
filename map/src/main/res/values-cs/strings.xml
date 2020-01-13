@@ -37,7 +37,11 @@
     <string name="description_my_location">Tlačítko pro aktuální polohu</string>
     <string name="description_date_range">Časové období pro mapová data</string>
     <string name="description_legend">Legenda pro mapu</string>
-    <string name="generating_tile_count">vytvářím %d dlaždic</string>
+    <plurals name="generating_tile_count">
+        <item quantity="one">vytvářím 1 dlaždici</item>
+        <item quantity="few">vytvářím %d dlaždice</item>
+        <item quantity="other">vytvářím %d dlaždic</item>
+    </plurals>
     <string name="map_layer_wifi_count_heatmap_title">Teplotní mapa pro počet Wi-Fi</string>
     <string name="tips_map_hidden_sheet_title">List je fuč!!!</string>
     <string name="tips_map_hidden_sheet_description">Žádný strach, můžete ho přivést zpět klepnutím na mapu.</string>
