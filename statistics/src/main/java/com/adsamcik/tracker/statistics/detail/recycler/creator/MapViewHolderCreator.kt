@@ -9,7 +9,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.MapView
 
-class MapViewHolderCreator : StatisticsViewHolderCreator{
+class MapViewHolderCreator : StatisticsViewHolderCreator {
 	override fun createViewHolder(parent: ViewGroup): StyleMultiTypeViewHolder<StatisticDetailData> {
 		val options = GoogleMapOptions().apply {
 			mapType(GoogleMap.MAP_TYPE_NORMAL)

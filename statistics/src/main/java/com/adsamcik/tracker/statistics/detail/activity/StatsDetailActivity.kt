@@ -111,7 +111,8 @@ class StatsDetailActivity : DetailActivity() {
 
 
 
-		addAction(com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit, R.string.edit_session,
+		addAction(com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
+		          R.string.edit_session,
 		          View.OnClickListener {
 			          val addItemLayout = findViewById<View>(R.id.add_item_layout)
 			          val headerRoot = findViewById<ViewGroup>(R.id.header_root)
