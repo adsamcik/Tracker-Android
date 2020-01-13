@@ -3,41 +3,12 @@ package com.adsamcik.tracker.statistics.data.source
 /**
  * Mutable multi-type map. Enables typed access to variables of different types.
  */
-class MutableMultiTypeMap<K : Any, V : Any> : MutableMap<K, V> {
-	private val map: MutableMap<K, V> = mutableMapOf()
+class MutableMultiTypeMap<K : Any, V : Any> : MultiTypeMap<K, V>(), MutableMap<K, V> {
+	override val map: MutableMap<K, V> = mutableMapOf()
 
 	override val size: Int
 		get() = map.size
 
-	override fun containsKey(key: K): Boolean {
-		return map.containsKey(key)
-	}
-
-	override fun containsValue(value: V): Boolean {
-		return map.containsValue(value)
-	}
-
-	override fun get(key: K): V {
-		return requireNotNull(map[key]) { "Value with key $key not found" }
-	}
-
-	/**
-	 *  Returns the value corresponding to the given key, or null if such a key is not present in the map.
-	 */
-	inline fun <reified T : V> requiredTyped(key: K): T {
-		val value = get(key)
-
-		val typedValue = get(key) as? T
-		requireNotNull(typedValue) {
-			"Value is not of type ${T::class.java.simpleName} but of type ${value::class.java.simpleName}"
-		}
-
-		return typedValue
-	}
-
-	override fun isEmpty(): Boolean {
-		return map.isEmpty()
-	}
 
 	override val entries: MutableSet<MutableMap.MutableEntry<K, V>>
 		get() = map.entries
