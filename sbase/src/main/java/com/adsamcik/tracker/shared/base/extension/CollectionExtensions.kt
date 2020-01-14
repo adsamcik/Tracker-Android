@@ -2,6 +2,11 @@ package com.adsamcik.tracker.shared.base.extension
 
 import androidx.annotation.FloatRange
 import com.adsamcik.tracker.shared.base.graph.Vertex
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -130,14 +135,31 @@ fun <T> List<T>.sortByVertexes(vertexList: Collection<Vertex>): List<T> {
 	return sortedList
 }
 
+/**
+ * Filters all consecutive values whose difference is smaller than [similarity] value.
+ *
+ */
 fun List<Float>.filterConsecutive(@FloatRange(from = 0.0) similarity: Float): List<Float> {
 	return filterConsecutive { lastValue, value -> abs(lastValue - value) > similarity }
 }
 
+/**
+ * Filters all equal consecutive values.
+ *
+ * Eg. [1,2,2,3,3,4] => [1,2,3,4]
+ */
 inline fun <T> List<T>.filterConsecutive(similarityFunc: (lastValue: T, value: T) -> Boolean): List<T> {
 	return filterConsecutive({ it }, similarityFunc)
 }
 
+/**
+ * Goes through the list and eliminates all consecutive values that are similar.
+ *
+ * @param similarityTransform Transforms data to desired similarity format.
+ * @param similarityFunc Similarity calculation function that returns true if values are similar.
+ *
+ * @return New list without consecutive similar values.
+ */
 inline fun <T, R> List<T>.filterConsecutive(
 		similarityTransform: (value: T) -> R,
 		similarityFunc: (lastValue: R, value: R) -> Boolean
@@ -158,3 +180,28 @@ inline fun <T, R> List<T>.filterConsecutive(
 	}
 	return toKeepList
 }
+
+/**
+ * Processes collection in parallel.
+ *
+ * @param context Coroutine context.
+ * @param func Function called in parallel to process collection.
+ */
+suspend inline fun <Data, Result> Collection<Data>.forEachParallel(
+		context: CoroutineContext,
+		crossinline func: suspend (Data) -> Result
+): List<Deferred<Result>> = coroutineScope { map { async(context) { func(it) } } }
+
+/**
+ * Processes collection in parallel.
+ *
+ * @param context Coroutine context.
+ * @param func Function called in parallel to process collection.
+ */
+fun <A> Collection<A>.forEachParallelBlocking(
+		context: CoroutineContext,
+		func: suspend (A) -> Unit
+): Unit =
+		runBlocking {
+			forEachParallel(context, func).forEach { it.await() }
+		}
