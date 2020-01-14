@@ -44,6 +44,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
 
+/**
+ * Fragment containing summary list of recent tracker sessions.
+ */
 @Suppress("unused")
 class FragmentStats : CoreUIFragment(), IOnDemandView {
 	private var viewModel: StatsViewModel? = null
@@ -147,7 +150,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 	private fun showSummaryDialog(statDataCollection: Collection<CacheStatData>, @StringRes titleRes: Int) {
 		val activity = requireActivity()
-		val adapter = SessionSummaryAdapter().apply { addAll(statDataCollection) }
+		val adapter = SessionSummaryAdapter()//.apply { addAll(statDataCollection) }
 
 
 		launch(Dispatchers.Main) {
@@ -172,7 +175,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val sessionDao = database.sessionDao()
 			val sumSessionData = sessionDao.getSummary()
 
-			val statList = listOf(
+			/*val statList = listOf(
 					CacheStatData(
 							resources.getString(R.string.stats_time),
 							sumSessionData.duration.formatAsDuration(activity)
@@ -208,9 +211,9 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 							resources.getString(R.string.stats_steps),
 							sumSessionData.steps.formatReadable()
 					)
-			)
+			)*/
 
-			showSummaryDialog(statList, R.string.stats_sum_title)
+			//showSummaryDialog(statList, R.string.stats_sum_title)
 
 		}
 	}
@@ -226,7 +229,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val database = AppDatabase.database(activity)
 			val sessionDao = database.sessionDao()
 			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
-			val statDataList = listOf(
+			/*val statDataList = listOf(
 					CacheStatData(
 							resources.getString(R.string.stats_time),
 							lastWeekSummary.duration.formatAsDuration(activity)
@@ -249,9 +252,9 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					/*StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable())*/
-			)
+			)*/
 
-			showSummaryDialog(statDataList, R.string.stats_weekly_title)
+			//showSummaryDialog(statDataList, R.string.stats_weekly_title)
 		}
 	}
 
@@ -293,14 +296,6 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		}
 
 		//launch(Dispatchers.Main) { adapter.addAll(tableList) }
-	}
-
-	private fun generateStatData(index: Int): List<CacheStatData> {
-		val list = ArrayList<CacheStatData>()
-		for (i in 1..index) {
-			list.add(CacheStatData("Title $i", i.toString()))
-		}
-		return list
 	}
 
 	override fun onResume() {

@@ -223,3 +223,15 @@ suspend inline fun <Data, Result> Collection<Data>.forEachParallel(
 fun <Data, Result> Collection<Data>.forEachParallelBlocking(
 		func: suspend (Data) -> Result
 ): List<Result> = runBlocking { forEachParallel(func).awaitAll() }
+
+/**
+ * Throws an [IllegalArgumentException] if the value is null.
+ * Otherwise returns the not null value.
+ *
+ * @param key Key
+ *
+ * @return Non-null value
+ */
+fun <K, V : Any> Map<K, V>.require(key: K): V {
+	return requireNotNull(get(key)) { "No value with key $key found" }
+}

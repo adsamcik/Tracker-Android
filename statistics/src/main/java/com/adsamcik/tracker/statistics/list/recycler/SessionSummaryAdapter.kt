@@ -7,17 +7,17 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.data.StatData
+import com.adsamcik.tracker.statistics.data.Stat
 
 class SessionSummaryAdapter
 	: RecyclerView.Adapter<SessionSummaryAdapter.ViewHolder>(), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
-	private val list = mutableListOf<StatData>()
+	private val list = mutableListOf<Stat>()
 
-	fun addAll(list: Collection<StatData>) {
+	/*fun addAll(list: Collection<StatData>) {
 		this.list.addAll(list)
-	}
+	}*/
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 		val inflater = LayoutInflater.from(parent.context)
@@ -33,8 +33,8 @@ class SessionSummaryAdapter
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 		val item = list[position]
-		holder.title.text = item.id
-		holder.value.text = item.value
+		/*holder.title.text = item.id
+		holder.value.text = item.value*/
 	}
 
 	override fun onViewAttachedToWindow(holder: ViewHolder) {

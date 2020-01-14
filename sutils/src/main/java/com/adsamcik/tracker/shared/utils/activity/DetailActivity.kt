@@ -72,7 +72,7 @@ abstract class DetailActivity : CoreUIActivity() {
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_content_detail)
 
-		findViewById<Button>(R.id.back_button).setOnClickListener { onBackPressed() }
+		findViewById<View>(R.id.back_button).setOnClickListener { onBackPressed() }
 
 
 		val desiredElevation = configuration.elevation

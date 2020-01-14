@@ -10,12 +10,16 @@ import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.extension.requireData
 import kotlin.reflect.KClass
 
+/**
+ * Consumer that returns distance from session.
+ */
 class DistanceConsumer : StatDataConsumer {
 	override val nameRes: Int = R.string.stats_distance_total
 
-	override val iconRes: Int = R.drawable.ic_outline_directions_24px
+	override val iconRes: Int = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_directions_24px
 
 	override val displayType: StatisticDisplayType = StatisticDisplayType.Information
 
@@ -23,12 +27,12 @@ class DistanceConsumer : StatDataConsumer {
 			context: Context,
 			data: StatDataMap
 	): Any {
-		val session = data.requiredTyped<TrackerSession>(TrackerSessionProducer::class)
+		val session = data.requireData<TrackerSession>(TrackerSessionProducer::class)
 		val lengthSystem = Preferences.getLengthSystem(context)
 		return context.resources.formatDistance(session.distanceInM, 1, lengthSystem)
 	}
 
 	override val dependsOn: List<KClass<StatDataProducer>>
-		get() = listOf()
+		get() = listOf(TrackerSessionProducer::class as KClass<StatDataProducer>)
 
 }

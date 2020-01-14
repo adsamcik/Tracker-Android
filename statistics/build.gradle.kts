@@ -44,6 +44,7 @@ dependencies {
 	implementation(project(":smap"))
 	Dependencies.core(this)
 	Dependencies.draggable(this)
+	Dependencies.database(this)
 	Dependencies.map(this)
 	Dependencies.test(this)
 	Dependencies.sectionedRecyclerAdapter(this)

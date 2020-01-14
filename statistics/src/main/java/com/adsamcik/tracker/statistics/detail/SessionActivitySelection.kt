@@ -15,6 +15,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Runtime object that provides access to activity selection dialog for tracker session.
+ */
 class SessionActivitySelection(
 		private val context: Context,
 		private val activityList: List<SessionActivity>,
@@ -37,6 +40,9 @@ class SessionActivitySelection(
 		}
 	}
 
+	/**
+	 * Opens activity selection dialog.
+	 */
 	@AnyThread
 	fun showActivitySelectionDialog() {
 		launch {

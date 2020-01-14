@@ -46,6 +46,7 @@ import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.data.LocationExtractor
 import com.adsamcik.tracker.statistics.data.Stat
+import com.adsamcik.tracker.statistics.data.source.StatisticDataManager
 import com.adsamcik.tracker.statistics.detail.SessionActivitySelection
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
@@ -184,8 +185,9 @@ class StatsDetailActivity : DetailActivity() {
 			registerType(StatisticDisplayType.LineChart, LineChartViewHolderCreator())
 			//todo add Wi-Fi and Cell
 
-			addBasicStats(session, this)
-			addLocationStats(session, this@apply)
+			//addBasicStats(session, this)
+			//addLocationStats(session, this@apply)
+			addStats(session, this)
 		}
 
 		adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
@@ -221,6 +223,17 @@ class StatsDetailActivity : DetailActivity() {
 				startCalendar,
 				endCalendar
 		)
+	}
+
+	private fun addStats(session: TrackerSession, adapter: StatsDetailAdapter) {
+		val context = this
+		launch(Dispatchers.Default) {
+			StatisticDataManager().getForSession(context, session.id) {
+				launch(Dispatchers.Main) {
+					adapter.add(convertToDisplayData(it))
+				}
+			}
+		}
 	}
 
 	private fun setTitle(session: TrackerSession) {
@@ -261,21 +274,19 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	@Suppress("UNCHECKED_CAST")
-	private fun convertToDisplayData(list: List<Stat>): List<StatisticDetailData> {
-		return list.map {
-			when (it.displayType) {
-				StatisticDisplayType.Information -> InformationStatisticsData(
-						it.iconRes,
-						it.nameRes,
-						it.data as String
-				)
-				StatisticDisplayType.Map -> MapStatisticsData(it.data as List<Location>)
-				StatisticDisplayType.LineChart -> LineChartStatisticsData(
-						it.iconRes,
-						it.nameRes,
-						it.data as List<Entry>
-				)
-			}
+	private fun convertToDisplayData(stat: Stat): StatisticDetailData {
+		return when (stat.displayType) {
+			StatisticDisplayType.Information -> InformationStatisticsData(
+					stat.iconRes,
+					stat.nameRes,
+					stat.data as String
+			)
+			StatisticDisplayType.Map -> MapStatisticsData(stat.data as List<Location>)
+			StatisticDisplayType.LineChart -> LineChartStatisticsData(
+					stat.iconRes,
+					stat.nameRes,
+					stat.data as List<Entry>
+			)
 		}
 	}
 

@@ -17,6 +17,10 @@ import com.adsamcik.tracker.statistics.data.source.abstraction.RawDataProducer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceConsumer
+import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
+import com.adsamcik.tracker.statistics.data.source.producer.raw.RawLocationDataProducer
+import com.adsamcik.tracker.statistics.data.source.producer.raw.RawSessionDataProducer
+import com.adsamcik.tracker.statistics.data.source.producer.raw.RawWifiLocationProducer
 import com.adsamcik.tracker.statistics.database.StatsDatabase
 import com.adsamcik.tracker.statistics.database.data.CacheStatData
 import kotlinx.coroutines.CoroutineScope
@@ -42,12 +46,15 @@ class StatisticDataManager : CoroutineScope {
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
-	private val rawProducers: List<RawDataProducer> = listOf()
+	private val rawProducers: List<RawDataProducer> = listOf(
+			RawLocationDataProducer(),
+			RawWifiLocationProducer()
+	)
 	private val producers: List<StatDataProducer>
 	private val consumers: List<StatDataConsumer> = listOf(DistanceConsumer())
 
 	init {
-		val producerList: List<StatDataProducer> = listOf()
+		val producerList: List<StatDataProducer> = listOf(TrackerSessionProducer())
 
 		val vertexList = MutableList(producerList.size) { Vertex(it) }
 		val edgeList = producerList.asSequence().withIndex().flatMap { producer ->
@@ -83,25 +90,38 @@ class StatisticDataManager : CoroutineScope {
 	 * @param session Tracker session
 	 * @param cacheList List of cached statistics
 	 */
-	private suspend fun filterConsumers(
+	private fun filterConsumers(
 			session: TrackerSession,
 			cacheList: List<CacheStatData>
 	): List<StatDataConsumer> {
 		val sessionActivityId = session.sessionActivityId
-		return consumers.filter { consumer ->
-			cacheList.contains { cacheData ->
-				cacheData.providerId == consumer::class.java.simpleName
-			}
-		}.filter { consumer ->
-			val allowedActivity = consumer.allowedSessionActivity
-			allowedActivity.isEmpty() ||
-					(sessionActivityId != null && allowedActivity.contains(sessionActivityId))
-		}
+		return consumers
+				.filterNot { consumer ->
+					cacheList.contains { cacheData ->
+						cacheData.providerId == consumer::class.java.simpleName
+					}
+				}.filter { consumer ->
+					val allowedActivity = consumer.allowedSessionActivity
+					allowedActivity.isEmpty() ||
+							(sessionActivityId != null && allowedActivity.contains(sessionActivityId))
+				}
 	}
 
-	private fun prepareDataMaps(consumers: Collection<StatDataConsumer>): Pair<RawDataMap, StatDataMap> {
+	private fun prepareDataMaps(
+			consumers: Collection<StatDataConsumer>,
+			session: TrackerSession
+	): Pair<RawDataMap, StatDataMap> {
 		val rawDataMap: MutableMap<StatDataSource, ConcurrentCacheData<RawDataProducer>> = mutableMapOf()
 		val statDataMap: MutableMap<KClass<out StatDataProducer>, ConcurrentCacheData<StatDataProducer>> = mutableMapOf()
+
+		// todo handle session better
+		@Suppress("UNCHECKED_CAST")
+		rawDataMap[StatDataSource.SESSION] = ConcurrentCacheData(
+				ReentrantLock(),
+				RawSessionDataProducer(),
+				session
+		) as ConcurrentCacheData<RawDataProducer>
+
 		consumers.forEach { consumer ->
 			consumer.dependsOn.forEach dependForEach@{ producerClass ->
 				val producer: StatDataProducer
@@ -212,20 +232,6 @@ class StatisticDataManager : CoroutineScope {
 		}
 	}
 
-	private suspend fun consumeAndCacheData(
-			context: Context,
-			sessionId: Long,
-			consumer: StatDataConsumer,
-			dataMap: StatDataMap
-	): Any {
-		val data = consumer.getData(context, dataMap)
-		if (data is String) {
-			val cacheData = CacheStatData(sessionId, consumer::class.java.simpleName, data)
-			StatsDatabase.database(context).cacheDao().upsert(cacheData)
-		}
-		return data
-	}
-
 	private fun createStat(
 			consumer: StatDataConsumer,
 			value: Any
@@ -250,7 +256,7 @@ class StatisticDataManager : CoroutineScope {
 			onStatFinished: StatAddCallback
 	): List<Stat> {
 		val filteredConsumers = filterConsumers(session, cacheList)
-		val (rawCacheMap, cacheMap) = prepareDataMaps(filteredConsumers)
+		val (rawCacheMap, cacheMap) = prepareDataMaps(filteredConsumers, session)
 
 		val result = filteredConsumers.forEachParallel {
 			val value = handleConsumer(context, session, it, rawCacheMap, cacheMap)

@@ -15,7 +15,7 @@ class TrackerSessionProducer : StatDataProducer {
 		get() = listOf(StatDataSource.SESSION)
 
 	override fun produce(rawDataMap: RawDataMap, dataMap: StatDataMap): Any {
-		return requireNotNull(rawDataMap[StatDataSource.SESSION])
+		return requireNotNull(rawDataMap[StatDataSource.SESSION]?.data)
 	}
 
 	override val dependsOn: List<KClass<StatDataProducer>>

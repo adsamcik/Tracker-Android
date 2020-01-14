@@ -2,14 +2,14 @@ package com.adsamcik.tracker.statistics.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 import com.adsamcik.tracker.statistics.database.dao.StatsCacheDao
+import com.adsamcik.tracker.statistics.database.data.CacheStatData
 
 /**
  * Provides access to statistics database.
  */
-@Database(version = 1, entities = [])
+@Database(version = 1, entities = [CacheStatData::class])
 abstract class StatsDatabase : RoomDatabase() {
 
 	/**
