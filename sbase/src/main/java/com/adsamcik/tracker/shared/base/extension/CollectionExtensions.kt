@@ -25,11 +25,17 @@ inline fun <T> Collection<T>.contains(func: (T) -> Boolean): Boolean {
 	return false
 }
 
-inline fun <T> Collection<T>.average(func: (T) -> Double): Double {
+/**
+ * Calculates average from [transform] function applied to items in collection.
+ *
+ * @param transform Transform function
+ * @return Average of transformed items
+ */
+inline fun <T> Collection<T>.average(transform: (T) -> Double): Double {
 	var sum = 0.0
 	var count = 0
 	forEach {
-		sum += func(it)
+		sum += transform(it)
 		count++
 	}
 	return sum / count.toDouble()
@@ -74,6 +80,13 @@ inline fun <T> Collection<T>.nearestLong(distance: (T) -> Long): T? {
 }
 
 
+/**
+ * Removes item from mutable list based on condition.
+ *
+ * @param condition Condition which returns true if item should be removed.
+ *
+ * @return True if item was removed.
+ */
 inline fun <T> MutableList<T>.remove(condition: (T) -> Boolean): Boolean {
 	for (i in 0 until size) {
 		if (condition(get(i))) {
@@ -84,10 +97,22 @@ inline fun <T> MutableList<T>.remove(condition: (T) -> Boolean): Boolean {
 	return false
 }
 
-fun <T> MutableList<T>.removeAllByIndexes(indexList: Collection<Int>) {
-	indexList.sortedDescending().toSet().forEach { removeAt(it) }
+/**
+ * Removes all items at indexes specified in [indexCollection] collection.
+ * Indexes are converted to set to prevent duplicate values before removal.
+ *
+ * @param indexCollection Index collection
+ */
+fun <T> MutableList<T>.removeAllByIndexes(indexCollection: Collection<Int>) {
+	indexCollection.sortedDescending().toSet().forEach { removeAt(it) }
 }
 
+/**
+ * Iterates over all items in array that meet passed [condition].
+ *
+ * @param condition Condition that returns true if item should be iterated on.
+ * @param action Action that is called when item met the condition.
+ */
 inline fun <T> Iterable<T>.forEachIf(condition: (T) -> Boolean, action: (T) -> Unit) {
 	forEach {
 		if (condition(it)) action(it)
