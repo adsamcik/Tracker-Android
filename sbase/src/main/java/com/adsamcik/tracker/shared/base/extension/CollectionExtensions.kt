@@ -4,9 +4,9 @@ import androidx.annotation.FloatRange
 import com.adsamcik.tracker.shared.base.graph.Vertex
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
-import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -184,24 +184,17 @@ inline fun <T, R> List<T>.filterConsecutive(
 /**
  * Processes collection in parallel.
  *
- * @param context Coroutine context.
  * @param func Function called in parallel to process collection.
  */
 suspend inline fun <Data, Result> Collection<Data>.forEachParallel(
-		context: CoroutineContext,
 		crossinline func: suspend (Data) -> Result
-): List<Deferred<Result>> = coroutineScope { map { async(context) { func(it) } } }
+): List<Deferred<Result>> = coroutineScope { map { async { func(it) } } }
 
 /**
  * Processes collection in parallel.
  *
- * @param context Coroutine context.
  * @param func Function called in parallel to process collection.
  */
-fun <A> Collection<A>.forEachParallelBlocking(
-		context: CoroutineContext,
-		func: suspend (A) -> Unit
-): Unit =
-		runBlocking {
-			forEachParallel(context, func).forEach { it.await() }
-		}
+fun <Data, Result> Collection<Data>.forEachParallelBlocking(
+		func: suspend (Data) -> Result
+): List<Result> = runBlocking { forEachParallel(func).awaitAll() }

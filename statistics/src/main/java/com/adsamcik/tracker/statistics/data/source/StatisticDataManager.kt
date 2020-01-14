@@ -5,6 +5,7 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.contains
+import com.adsamcik.tracker.shared.base.extension.forEachParallel
 import com.adsamcik.tracker.shared.base.extension.sortByVertexes
 import com.adsamcik.tracker.shared.base.graph.Edge
 import com.adsamcik.tracker.shared.base.graph.Graph
@@ -18,18 +19,29 @@ import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceConsumer
 import com.adsamcik.tracker.statistics.database.StatsDatabase
 import com.adsamcik.tracker.statistics.database.data.CacheStatData
-import java.util.*
-import kotlin.collections.ArrayList
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitAll
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
 
-typealias StatDataMap = MultiTypeMap<KClass<out StatDataProducer>, Any>
-typealias RawDataMap = Map<StatDataSource, Any>
+typealias StatDataMap = Map<KClass<out StatDataProducer>, ConcurrentCacheData<StatDataProducer>>
+typealias RawDataMap = Map<StatDataSource, ConcurrentCacheData<RawDataProducer>>
+typealias StatAddCallback = (stat: Stat) -> Unit
 
 /**
  * Data manager for statistics. Provides simple API for accessing statistics.
  * Uses database caching.
  */
-class StatisticDataManager {
+class StatisticDataManager : CoroutineScope {
+	private val job = SupervisorJob()
+
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Default + job
+
 	private val rawProducers: List<RawDataProducer> = listOf()
 	private val producers: List<StatDataProducer>
 	private val consumers: List<StatDataConsumer> = listOf(DistanceConsumer())
@@ -64,46 +76,6 @@ class StatisticDataManager {
 		return instance
 	}
 
-	private fun addProducersToQueue(
-			queue: Queue<StatDataProducer>,
-			list: Collection<KClass<StatDataProducer>>
-	) {
-		list.forEach { producerClass ->
-			classToProducer(producerClass)?.let { producer ->
-				queue.add(producer)
-			}
-
-		}
-	}
-
-	private fun getRequiredProducers(consumers: Collection<StatDataConsumer>): Collection<StatDataProducer> {
-		if (consumers.isEmpty()) return emptyList()
-
-		val requiredProducerList = mutableSetOf<StatDataProducer>()
-		val queue = ArrayDeque<StatDataProducer>(producers.size)
-
-		val initialProducers = consumers
-				.asSequence()
-				.flatMap { it.dependsOn.asSequence() }
-				.toSet()
-
-		addProducersToQueue(queue, initialProducers)
-
-		while (queue.isNotEmpty()) {
-			val next = queue.pop()
-			requiredProducerList.add(next)
-			addProducersToQueue(queue, next.dependsOn)
-		}
-
-		return requiredProducerList
-	}
-
-	private fun getRawDataProducers(producers: Collection<StatDataProducer>): List<RawDataProducer> {
-		val requiredRawData = producers.flatMap { it.requiredRawData }.toSet()
-		return requiredRawData.mapNotNull { source ->
-			rawProducers.find { producer -> producer.type == source }
-		}
-	}
 
 	/**
 	 * Filters consumers to only those that are compatible with given session.
@@ -111,7 +83,7 @@ class StatisticDataManager {
 	 * @param session Tracker session
 	 * @param cacheList List of cached statistics
 	 */
-	private fun filterConsumers(
+	private suspend fun filterConsumers(
 			session: TrackerSession,
 			cacheList: List<CacheStatData>
 	): List<StatDataConsumer> {
@@ -127,41 +99,120 @@ class StatisticDataManager {
 		}
 	}
 
-	private fun produceRawData(
+	private fun prepareDataMaps(consumers: Collection<StatDataConsumer>): Pair<RawDataMap, StatDataMap> {
+		val rawDataMap: MutableMap<StatDataSource, ConcurrentCacheData<RawDataProducer>> = mutableMapOf()
+		val statDataMap: MutableMap<KClass<out StatDataProducer>, ConcurrentCacheData<StatDataProducer>> = mutableMapOf()
+		consumers.forEach { consumer ->
+			consumer.dependsOn.forEach dependForEach@{ producerClass ->
+				val producer: StatDataProducer
+				if (!statDataMap.containsKey(producerClass)) {
+					producer = classToProducer(producerClass) ?: return@dependForEach
+					statDataMap[producerClass] = ConcurrentCacheData(
+							ReentrantLock(),
+							producer,
+							null
+					)
+				} else {
+					producer = requireNotNull(statDataMap[producerClass]).producer
+				}
+
+				prepareRawDataMap(producer, rawDataMap)
+			}
+		}
+		return Pair(rawDataMap, statDataMap)
+	}
+
+	private fun prepareRawDataMap(
+			producer: StatDataProducer,
+			map: MutableMap<StatDataSource, ConcurrentCacheData<RawDataProducer>>
+	) {
+		producer.requiredRawData.forEach { source ->
+			if (!map.containsKey(source)) {
+				val rawProducer = rawProducers.find { producer -> producer.type == source }
+				if (rawProducer != null) {
+					map[source] = ConcurrentCacheData(ReentrantLock(), rawProducer, null)
+				}
+			}
+		}
+	}
+
+	private suspend fun requireRawProducers(
 			context: Context,
 			session: TrackerSession,
-			rawDataProducers: Collection<RawDataProducer>
-	): RawDataMap {
-		val dataMap: MutableMap<StatDataSource, Any> = mutableMapOf()
-		rawDataProducers.forEach {
-			val data = it.produce(context,,)
-			if (data != null) {
-				dataMap[it.type] = data
+			source: Collection<StatDataSource>,
+			rawCacheMap: RawDataMap
+	): Boolean {
+		return source.forEachParallel {
+			val cacheData = rawCacheMap[it]
+			if (cacheData != null) {
+				cacheData.lock.withLock {
+					if (cacheData.data == null) {
+						cacheData.data = cacheData.producer.produce(
+								context,
+								session.start,
+								session.end
+						)
+					}
+				}
+				true
+			} else {
+				false
 			}
-		}
-		if (!dataMap.containsKey(StatDataSource.SESSION)) {
-			dataMap[StatDataSource.SESSION] = session
-		}
-		return dataMap
+		}.awaitAll().all { it }
 	}
 
-	private fun produceData(
-			dataProducers: Collection<StatDataProducer>,
-			rawDataMap: RawDataMap
-	): StatDataMap {
-		val dataMap: MutableMultiTypeMap<KClass<out StatDataProducer>, Any> = MutableMultiTypeMap()
-		dataProducers.forEach { producer ->
-			val hasRequiredRawData = producer.requiredRawData.all { rawDataMap.containsKey(it) }
-			val hasRequiredData = producer.dependsOn.all { dataMap.containsKey(it) }
+	private suspend fun requireProducers(
+			context: Context,
+			session: TrackerSession,
+			producers: Collection<KClass<StatDataProducer>>,
+			rawCacheMap: RawDataMap,
+			cacheMap: StatDataMap
+	): Boolean {
+		return producers.forEachParallel { producerClass ->
+			val cacheData = cacheMap[producerClass] ?: return@forEachParallel false
+			val hasAllRaw = requireRawProducers(
+					context,
+					session,
+					cacheData.producer.requiredRawData,
+					rawCacheMap
+			)
 
-			if (hasRequiredRawData && hasRequiredData) {
-				dataMap[producer::class] = producer.produce(rawDataMap, dataMap)
+			if (!hasAllRaw) {
+				return@forEachParallel false
 			}
-		}
-		return dataMap
+
+			cacheData.lock.withLock {
+				if (cacheData.data == null) {
+					cacheData.data = cacheData.producer.produce(rawCacheMap, cacheMap)
+				}
+			}
+			true
+		}.awaitAll().all { it }
 	}
 
-	private fun consumeAndCacheData(
+	private suspend fun handleConsumer(
+			context: Context,
+			session: TrackerSession,
+			consumer: StatDataConsumer,
+			rawCacheMap: RawDataMap,
+			cacheMap: StatDataMap
+	): Any? {
+		val hasAllData = requireProducers(
+				context,
+				session,
+				consumer.dependsOn,
+				rawCacheMap,
+				cacheMap
+		)
+
+		return if (hasAllData) {
+			consumer.getData(context, cacheMap)
+		} else {
+			null
+		}
+	}
+
+	private suspend fun consumeAndCacheData(
 			context: Context,
 			sessionId: Long,
 			consumer: StatDataConsumer,
@@ -175,21 +226,11 @@ class StatisticDataManager {
 		return data
 	}
 
-	private fun consumeData(
-			context: Context,
-			sessionId: Long,
-			consumers: Collection<StatDataConsumer>,
-			dataMap: StatDataMap
-	): List<Stat> {
-		val statList = mutableListOf<Stat>()
-		consumers.forEach { consumer ->
-			if (consumer.dependsOn.all { dataMap.containsKey(it) }) {
-				val value = consumeAndCacheData(context, sessionId, consumer, dataMap)
-				val stat = Stat(consumer.nameRes, consumer.iconRes, consumer.displayType, value)
-				statList.add(stat)
-			}
-		}
-		return statList
+	private fun createStat(
+			consumer: StatDataConsumer,
+			value: Any
+	): Stat {
+		return Stat(consumer.nameRes, consumer.iconRes, consumer.displayType, value)
 	}
 
 	/**
@@ -202,29 +243,36 @@ class StatisticDataManager {
 	 * @return List of statistics including cached data.
 	 */
 	@WorkerThread
-	private fun generateStatisticData(
+	private suspend fun generateStatisticData(
 			context: Context,
 			session: TrackerSession,
-			cacheList: List<CacheStatData>
+			cacheList: List<CacheStatData>,
+			onStatFinished: StatAddCallback
 	): List<Stat> {
 		val filteredConsumers = filterConsumers(session, cacheList)
+		val (rawCacheMap, cacheMap) = prepareDataMaps(filteredConsumers)
 
-		val requiredProducers = getRequiredProducers(filteredConsumers)
-		val rawProducers = getRawDataProducers(requiredProducers)
-
-		val rawData = produceRawData(context, session, rawProducers)
-		val dataMap = produceData(requiredProducers, rawData)
-
-		val newData = consumeData(context, session.id, filteredConsumers, dataMap)
-		return ArrayList<Stat>(newData.size + cacheList.size).apply {
-			addAll(newData)
-			cacheList.forEach { statData ->
-				val consumer = consumers.find { it.providerId == statData.providerId }
-
-				if (consumer != null) {
-					add(Stat(consumer.nameRes, consumer.iconRes, consumer.displayType, statData))
-				}
+		val result = filteredConsumers.forEachParallel {
+			val value = handleConsumer(context, session, it, rawCacheMap, cacheMap)
+			if (value != null) {
+				val stat = createStat(it, value)
+				onStatFinished(stat)
+				stat
+			} else {
+				null
 			}
+		}
+
+
+		val newData = result.mapNotNull { it.await() }
+		val cachedData = cacheList.mapNotNull { cacheData ->
+			val consumer = consumers.find { it.providerId == cacheData.providerId }
+					?: return@mapNotNull null
+			createStat(consumer, cacheData.value)
+		}
+		return ArrayList<Stat>(newData.size + cachedData.size).apply {
+			addAll(newData)
+			addAll(cachedData)
 		}
 	}
 
@@ -236,11 +284,15 @@ class StatisticDataManager {
 	 * @return List of available stats
 	 */
 	@WorkerThread
-	fun getForSession(context: Context, sessionId: Long): List<Stat> {
+	suspend fun getForSession(
+			context: Context,
+			sessionId: Long,
+			onStatFinished: StatAddCallback
+	): List<Stat> {
 		val session = getSession(context, sessionId)
 		val cacheDao = StatsDatabase.database(context).cacheDao()
 		val cached = cacheDao.getAllForSession(sessionId)
 
-		return generateStatisticData(context, session, cached)
+		return generateStatisticData(context, session, cached, onStatFinished)
 	}
 }
