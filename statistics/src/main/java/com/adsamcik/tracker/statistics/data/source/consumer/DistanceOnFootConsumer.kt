@@ -12,18 +12,22 @@ import com.adsamcik.tracker.statistics.extension.requireData
 import kotlin.reflect.KClass
 
 /**
- * Consumer that returns distance from session.
+ * Distance on foot consumer.
  */
-class DistanceConsumer : StatDataDistanceConsumer {
-	override val nameRes: Int = R.string.stats_distance_total
+class DistanceOnFootConsumer : StatDataDistanceConsumer {
+	override val nameRes: Int
+		get() = R.string.stats_distance_on_foot
 
-	override val iconRes: Int = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_directions_24px
+	override val iconRes: Int
+		get() = com.adsamcik.tracker.shared.base.R.drawable.ic_directions_walk_white
 
-	override val displayType: StatisticDisplayType = StatisticDisplayType.Information
+	override val displayType: StatisticDisplayType
+		get() = StatisticDisplayType.Information
+
 
 	override fun getDistance(context: Context, data: StatDataMap): Double {
 		val session = data.requireData<TrackerSession>(TrackerSessionProducer::class)
-		return session.distanceInM.toDouble()
+		return session.distanceOnFootInM.toDouble()
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

@@ -17,6 +17,10 @@ import com.adsamcik.tracker.statistics.data.source.abstraction.RawDataProducer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.DistanceInVehicleConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.DistanceOnFootConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.LocationMapConsumer
+import com.adsamcik.tracker.statistics.data.source.producer.OptimizedLocationDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
 import com.adsamcik.tracker.statistics.data.source.producer.raw.RawLocationDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.raw.RawSessionDataProducer
@@ -51,10 +55,18 @@ class StatisticDataManager : CoroutineScope {
 			RawWifiLocationProducer()
 	)
 	private val producers: List<StatDataProducer>
-	private val consumers: List<StatDataConsumer> = listOf(DistanceConsumer())
+	private val consumers: List<StatDataConsumer> = listOf(
+			DistanceConsumer(),
+			DistanceOnFootConsumer(),
+			DistanceInVehicleConsumer(),
+			LocationMapConsumer()
+	)
 
 	init {
-		val producerList: List<StatDataProducer> = listOf(TrackerSessionProducer())
+		val producerList: List<StatDataProducer> = listOf(
+				TrackerSessionProducer(),
+				OptimizedLocationDataProducer()
+		)
 
 		val vertexList = MutableList(producerList.size) { Vertex(it) }
 		val edgeList = producerList.asSequence().withIndex().flatMap { producer ->
@@ -75,7 +87,7 @@ class StatisticDataManager : CoroutineScope {
 		return requireNotNull(sessionDao.get(id))
 	}
 
-	private fun classToProducer(producerType: KClass<StatDataProducer>): StatDataProducer? {
+	private fun classToProducer(producerType: KClass<out StatDataProducer>): StatDataProducer? {
 		val instance = producers.find { it::class == producerType }
 		if (instance == null) {
 			Reporter.report("Required producer dependency of type $producerType not found.")
@@ -184,7 +196,7 @@ class StatisticDataManager : CoroutineScope {
 	private suspend fun requireProducers(
 			context: Context,
 			session: TrackerSession,
-			producers: Collection<KClass<StatDataProducer>>,
+			producers: Collection<KClass<out StatDataProducer>>,
 			rawCacheMap: RawDataMap,
 			cacheMap: StatDataMap
 	): Boolean {

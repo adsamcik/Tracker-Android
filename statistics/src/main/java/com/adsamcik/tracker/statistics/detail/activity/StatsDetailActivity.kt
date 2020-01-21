@@ -279,7 +279,7 @@ class StatsDetailActivity : DetailActivity() {
 			StatisticDisplayType.Information -> InformationStatisticsData(
 					stat.iconRes,
 					stat.nameRes,
-					stat.data as String
+					stat.data.toString()
 			)
 			StatisticDisplayType.Map -> MapStatisticsData(stat.data as List<Location>)
 			StatisticDisplayType.LineChart -> LineChartStatisticsData(
@@ -330,7 +330,7 @@ class StatsDetailActivity : DetailActivity() {
 
 			if (locations.size >= 2) {
 
-				val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
+				/*val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
 				val simplifiedLocations = simplify.simplify(
 						locations.map { it.location }.toTypedArray(),
 						POSITION_TOLERANCE,
@@ -339,7 +339,7 @@ class StatsDetailActivity : DetailActivity() {
 
 				addLocationMap(simplifiedLocations, adapter)
 				launch(Dispatchers.Default) { addElevationStats(simplifiedLocations, adapter) }
-				launch(Dispatchers.Default) { addSpeedStats(locations, adapter) }
+				launch(Dispatchers.Default) { addSpeedStats(locations, adapter) }*/
 			}
 		}
 	}
@@ -550,7 +550,6 @@ class StatsDetailActivity : DetailActivity() {
 		const val ARG_SESSION_ID = "session_id"
 		private const val HEADER_ROOT_PADDING = 16
 		private const val MAX_SECONDS_ELAPSED_FOR_CONTINUOUS_PATH = 70.0
-		private const val POSITION_TOLERANCE = 500.0
 	}
 }
 

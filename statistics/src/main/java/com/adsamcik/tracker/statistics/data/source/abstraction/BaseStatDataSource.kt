@@ -9,5 +9,5 @@ interface BaseStatDataSource {
 	/**
 	 * List of producer this depends on.
 	 */
-	val dependsOn: List<KClass<StatDataProducer>>
+	val dependsOn: List<KClass<out StatDataProducer>>
 }
