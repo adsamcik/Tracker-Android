@@ -16,11 +16,15 @@ import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.data.source.abstraction.RawDataProducer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
+import com.adsamcik.tracker.statistics.data.source.consumer.AscensionConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.DescensionConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceInVehicleConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceOnFootConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.ElevationChartConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.LocationMapConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.MaxAltitudeConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.MinAltitudeConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.StepCountConsumer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedAltitudeProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedLocationDataProducer
@@ -64,7 +68,11 @@ class StatisticDataManager : CoroutineScope {
 			DistanceInVehicleConsumer(),
 			LocationMapConsumer(),
 			StepCountConsumer(),
-			ElevationChartConsumer()
+			ElevationChartConsumer(),
+			AscensionConsumer(),
+			DescensionConsumer(),
+			MaxAltitudeConsumer(),
+			MinAltitudeConsumer()
 	)
 
 	init {
