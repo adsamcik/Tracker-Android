@@ -29,7 +29,7 @@ class OptimizedLocationDataProducer : StatDataProducer {
 				mappedLocations,
 				POSITION_TOLERANCE,
 				false
-		)
+		).toList()
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

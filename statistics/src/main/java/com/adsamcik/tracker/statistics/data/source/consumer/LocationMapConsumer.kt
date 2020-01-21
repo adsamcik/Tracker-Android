@@ -24,7 +24,7 @@ class LocationMapConsumer : StatDataConsumer {
 		get() = StatisticDisplayType.Map
 
 	override fun getData(context: Context, data: StatDataMap): Any {
-		return data.requireData<Array<Location>>(OptimizedLocationDataProducer::class).toList()
+		return data.requireData<List<Location>>(OptimizedLocationDataProducer::class)
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

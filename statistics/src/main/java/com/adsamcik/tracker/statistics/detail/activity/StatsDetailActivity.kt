@@ -44,7 +44,6 @@ import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
-import com.adsamcik.tracker.statistics.data.LocationExtractor
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.data.source.StatisticDataManager
 import com.adsamcik.tracker.statistics.detail.SessionActivitySelection
@@ -58,7 +57,6 @@ import com.adsamcik.tracker.statistics.detail.recycler.data.LineChartStatisticsD
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
 import com.afollestad.materialdialogs.MaterialDialog
 import com.github.mikephil.charting.data.Entry
-import com.goebl.simplify.Simplify3D
 import com.google.android.gms.maps.MapsInitializer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -457,7 +455,6 @@ class StatsDetailActivity : DetailActivity() {
 				}
 
 
-		val elevationList = altitudeList
 		//.simplifyRDP(HEIGHT_FILTER)
 
 		var previousAltitude = requireNotNull(firstWithAltitude.altitude)
@@ -465,7 +462,7 @@ class StatsDetailActivity : DetailActivity() {
 		var maxAltitude = previousAltitude
 		var minAltitude = previousAltitude
 
-		elevationList.forEach {
+		altitudeList.forEach {
 			val altitude = it.y
 			if (altitude > maxAltitude) {
 				maxAltitude = altitude
@@ -507,7 +504,7 @@ class StatsDetailActivity : DetailActivity() {
 				LineChartStatisticsData(
 						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_terrain,
 						R.string.stats_elevation,
-						elevationList.map { Entry(it.x.toFloat(), it.y.toFloat()) }
+						altitudeList.map { Entry(it.x.toFloat(), it.y.toFloat()) }
 				)
 		)
 
