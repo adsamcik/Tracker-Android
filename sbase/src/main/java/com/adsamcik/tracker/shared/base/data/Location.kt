@@ -13,6 +13,9 @@ import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize
 import kotlin.math.sqrt
 
+/**
+ * Location data object with latitude, longitude, altitude and other supporting parameters.
+ */
 @JsonClass(generateAdapter = true)
 @Parcelize
 data class Location(
@@ -62,23 +65,22 @@ data class Location(
 			location.speedAccuracy
 	)
 
-
-	/// <summary>
-	/// Calculates distance based on only latitude and longitude
-	/// </summary>
-	/// <param name="latlon">second location</param>
-	/// <param name="unit">unit type</param>
-	/// <returns></returns>
+	/**
+	 * Calculates distance between locations based on latitude and longitude
+	 *
+	 * @param location Second location
+	 * @param unit Length unity
+	 */
 	fun distanceFlat(location: Location, unit: LengthUnit): Double {
 		return distance(latitude, longitude, location.latitude, location.longitude, unit)
 	}
 
-	/// <summary>
-	/// Calculates distance between two locations
-	/// </summary>
-	/// <param name="latlon">second location</param>
-	/// <param name="unit">unity type</param>
-	/// <returns></returns>
+	/**
+	 * Calculates distance between two locations using latitude, longitude and altitude.
+	 *
+	 * @param location Second location
+	 * @param unit Length unity
+	 */
 	fun distance(location: Location, unit: LengthUnit): Double {
 		return if (location.altitude == null || altitude == null) {
 			distanceFlat(location, unit)

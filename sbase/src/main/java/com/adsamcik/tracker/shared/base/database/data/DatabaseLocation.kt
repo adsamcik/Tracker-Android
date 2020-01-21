@@ -7,6 +7,9 @@ import androidx.room.PrimaryKey
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.Location
 
+/**
+ * Database location object containing various location data and activity info.
+ */
 @Entity(tableName = "location_data", indices = [Index("lat"), Index("lon"), Index("time")])
 data class DatabaseLocation(
 		@Embedded val location: Location,
