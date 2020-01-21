@@ -208,6 +208,11 @@ class StatisticDataManager : CoroutineScope {
 	): Boolean {
 		return producers.forEachParallel { producerClass ->
 			val cacheData = cacheMap[producerClass] ?: return@forEachParallel false
+
+			cacheData.lock.withLock {
+				if (cacheData.data != null) return@forEachParallel true
+			}
+
 			val hasAllRaw = requireRawProducers(
 					context,
 					session,
