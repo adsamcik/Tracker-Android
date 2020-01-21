@@ -19,7 +19,10 @@ import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceInVehicleConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceOnFootConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.ElevationChartConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.LocationMapConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.StepCountConsumer
+import com.adsamcik.tracker.statistics.data.source.producer.OptimizedAltitudeProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedLocationDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
 import com.adsamcik.tracker.statistics.data.source.producer.raw.RawLocationDataProducer
@@ -59,13 +62,16 @@ class StatisticDataManager : CoroutineScope {
 			DistanceConsumer(),
 			DistanceOnFootConsumer(),
 			DistanceInVehicleConsumer(),
-			LocationMapConsumer()
+			LocationMapConsumer(),
+			StepCountConsumer(),
+			ElevationChartConsumer()
 	)
 
 	init {
 		val producerList: List<StatDataProducer> = listOf(
 				TrackerSessionProducer(),
-				OptimizedLocationDataProducer()
+				OptimizedLocationDataProducer(),
+				OptimizedAltitudeProducer()
 		)
 
 		val vertexList = MutableList(producerList.size) { Vertex(it) }
@@ -210,6 +216,18 @@ class StatisticDataManager : CoroutineScope {
 			)
 
 			if (!hasAllRaw) {
+				return@forEachParallel false
+			}
+
+			val hasAllProducers = requireProducers(
+					context,
+					session,
+					cacheData.producer.dependsOn,
+					rawCacheMap,
+					cacheMap
+			)
+
+			if (!hasAllProducers) {
 				return@forEachParallel false
 			}
 
