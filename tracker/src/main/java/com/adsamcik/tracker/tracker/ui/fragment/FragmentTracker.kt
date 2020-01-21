@@ -286,7 +286,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 	}
 
 	private fun updateTrackerButton(state: Boolean) {
-		val buttonTracking = requireView().findViewById<ImageButton>(R.id.button_settings)
+		val buttonTracking = requireView().findViewById<ImageButton>(R.id.button_tracking)
 		if (state) {
 			buttonTracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
 			buttonTracking.contentDescription = getString(R.string.description_tracking_stop)
