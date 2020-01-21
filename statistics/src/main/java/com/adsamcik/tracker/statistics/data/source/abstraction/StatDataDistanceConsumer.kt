@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.statistics.data.source.abstraction
 
 import android.content.Context
+import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
@@ -17,9 +18,9 @@ interface StatDataDistanceConsumer : StatDataConsumer {
 	 */
 	fun getDistance(context: Context, data: StatDataMap): Double
 
+	@CallSuper
 	override fun getData(context: Context, data: StatDataMap): Any {
 		val distance = getDistance(context, data)
-		val session = data.requireData<TrackerSession>(TrackerSessionProducer::class)
 		val lengthSystem = Preferences.getLengthSystem(context)
 		return context.resources.formatDistance(distance, 1, lengthSystem)
 	}
