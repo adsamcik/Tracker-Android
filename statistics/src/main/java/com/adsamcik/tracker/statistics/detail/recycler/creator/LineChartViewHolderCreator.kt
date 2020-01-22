@@ -4,13 +4,13 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
+import com.adsamcik.tracker.statistics.detail.recycler.StatisticsDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.viewholder.LineChartViewHolder
 import kotlinx.android.synthetic.main.layout_stats_detail_line_chart.view.*
 
 class LineChartViewHolderCreator : StatisticsViewHolderCreator {
 
-	override fun createViewHolder(parent: ViewGroup): StyleMultiTypeViewHolder<StatisticDetailData> {
+	override fun createViewHolder(parent: ViewGroup): StyleMultiTypeViewHolder<StatisticsDetailData> {
 		val view = LayoutInflater.from(parent.context)
 				.inflate(R.layout.layout_stats_detail_line_chart, parent, false)
 
@@ -31,7 +31,7 @@ class LineChartViewHolderCreator : StatisticsViewHolderCreator {
 		return LineChartViewHolder(
 				view, view.findViewById(R.id.title),
 				chart
-		) as StyleMultiTypeViewHolder<StatisticDetailData>
+		) as StyleMultiTypeViewHolder<StatisticsDetailData>
 	}
 
 }

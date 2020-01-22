@@ -16,7 +16,9 @@ class LocationDataProducer : StatDataProducer {
 		get() = listOf(StatDataSource.LOCATION)
 
 	override fun produce(rawDataMap: RawDataMap, dataMap: StatDataMap): Any {
-		return rawDataMap.requireData<List<DatabaseLocation>>(StatDataSource.LOCATION)
+		return rawDataMap
+				.requireData<List<DatabaseLocation>>(StatDataSource.LOCATION)
+				.map { it.location }
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

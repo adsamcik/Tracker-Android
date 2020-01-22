@@ -17,6 +17,7 @@ import com.adsamcik.tracker.statistics.data.source.abstraction.RawDataProducer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.consumer.AscensionConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.AvgSpeedConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DescensionConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.DistanceInVehicleConsumer
@@ -24,8 +25,10 @@ import com.adsamcik.tracker.statistics.data.source.consumer.DistanceOnFootConsum
 import com.adsamcik.tracker.statistics.data.source.consumer.ElevationChartConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.LocationMapConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.MaxAltitudeConsumer
+import com.adsamcik.tracker.statistics.data.source.consumer.MaxSpeedConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.MinAltitudeConsumer
 import com.adsamcik.tracker.statistics.data.source.consumer.StepCountConsumer
+import com.adsamcik.tracker.statistics.data.source.producer.LocationDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedAltitudeProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedLocationDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
@@ -72,14 +75,17 @@ class StatisticDataManager : CoroutineScope {
 			AscensionConsumer(),
 			DescensionConsumer(),
 			MaxAltitudeConsumer(),
-			MinAltitudeConsumer()
+			MinAltitudeConsumer(),
+			AvgSpeedConsumer(),
+			MaxSpeedConsumer()
 	)
 
 	init {
 		val producerList: List<StatDataProducer> = listOf(
 				TrackerSessionProducer(),
 				OptimizedLocationDataProducer(),
-				OptimizedAltitudeProducer()
+				OptimizedAltitudeProducer(),
+				LocationDataProducer()
 		)
 
 		val vertexList = MutableList(producerList.size) { Vertex(it) }

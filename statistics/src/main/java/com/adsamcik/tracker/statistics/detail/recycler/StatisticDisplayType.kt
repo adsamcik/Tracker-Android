@@ -11,4 +11,7 @@ enum class StatisticDisplayType {
 	LineChart
 }
 
-typealias StatisticDetailData = MultiTypeData<StatisticDisplayType>
+/**
+ * Interface representing recycler data type.
+ */
+interface StatisticsDetailData : MultiTypeData<StatisticDisplayType>

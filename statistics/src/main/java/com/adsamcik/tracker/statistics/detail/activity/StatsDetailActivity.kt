@@ -17,29 +17,17 @@ import androidx.lifecycle.observe
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.adapter.implementation.multitype.MultiTypeData
-import com.adsamcik.recycler.adapter.implementation.sort.AppendBehavior
-import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
-import com.adsamcik.recycler.adapter.implementation.sort.PrioritySortAdapter
-import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.LengthUnit
+import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.extension.dp
-import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.requireValue
 import com.adsamcik.tracker.shared.base.extension.toCalendar
-import com.adsamcik.tracker.shared.base.misc.Double2
-import com.adsamcik.tracker.shared.preferences.Preferences
-
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import com.adsamcik.tracker.shared.utils.extension.formatSpeed
-import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
+import com.adsamcik.tracker.shared.utils.multitype.StyleSortMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
@@ -47,8 +35,8 @@ import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.data.source.StatisticDataManager
 import com.adsamcik.tracker.statistics.detail.SessionActivitySelection
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.recycler.StatisticsDetailData
 import com.adsamcik.tracker.statistics.detail.recycler.creator.InformationViewHolderCreator
 import com.adsamcik.tracker.statistics.detail.recycler.creator.LineChartViewHolderCreator
 import com.adsamcik.tracker.statistics.detail.recycler.creator.MapViewHolderCreator
@@ -62,7 +50,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
 
-typealias StatsDetailAdapter = StyleMultiTypeAdapter<StatisticDisplayType, MultiTypeData<StatisticDisplayType>>
+typealias StatsDetailAdapter = StyleSortMultiTypeAdapter<StatisticDisplayType, StatisticsDetailData>
 
 /**
  * Activity for statistic details
@@ -177,7 +165,30 @@ class StatsDetailActivity : DetailActivity() {
 			supportsChangeAnimations = false
 		}
 
-		val adapter = StatsDetailAdapter(styleController).apply {
+		val callback = object : SortCallback<StatisticsDetailData> {
+			override fun areContentsTheSame(
+					a: StatisticsDetailData,
+					b: StatisticsDetailData
+			): Boolean {
+				return areItemsTheSame(a, b)
+			}
+
+			override fun areItemsTheSame(
+					a: StatisticsDetailData,
+					b: StatisticsDetailData
+			): Boolean = a == b
+
+			override fun compare(a: StatisticsDetailData, b: StatisticsDetailData): Int {
+				return a::class.java.simpleName.compareTo(b::class.java.simpleName)
+			}
+
+		}
+
+		val adapter = StatsDetailAdapter(
+				styleController,
+				callback,
+				StatisticsDetailData::class.java
+		).apply {
 			registerType(StatisticDisplayType.Information, InformationViewHolderCreator())
 			registerType(StatisticDisplayType.Map, MapViewHolderCreator())
 			registerType(StatisticDisplayType.LineChart, LineChartViewHolderCreator())
@@ -270,7 +281,7 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	@Suppress("UNCHECKED_CAST")
-	private fun convertToDisplayData(stat: Stat): StatisticDetailData {
+	private fun convertToDisplayData(stat: Stat): StatisticsDetailData {
 		return when (stat.displayType) {
 			StatisticDisplayType.Information -> InformationStatisticsData(
 					stat.iconRes,
@@ -287,48 +298,9 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 
-	private data class SpeedStats(val avgSpeed: Double, val maxSpeed: Double)
-
-	private fun calculateSpeedStats(locations: List<DatabaseLocation>): SpeedStats {
-		var maxSpeed = 0.0
-		var speedSum = 0.0
-		var speedCount = 0
-
-		var previous = locations[0]
-		for (i in 1 until locations.size) {
-			val current = locations[i]
-			val timeDifference = current.time - previous.time
-			val secondsElapsed = timeDifference.toDouble() / Time.SECOND_IN_MILLISECONDS.toDouble()
-
-			if (secondsElapsed <= MAX_SECONDS_ELAPSED_FOR_CONTINUOUS_PATH) {
-				val speed = getSpeed(previous.location, current.location, secondsElapsed)
-
-				if (speed > maxSpeed) maxSpeed = speed
-				speedSum += speed
-				speedCount++
-			}
-
-			previous = current
-		}
-
-		val avgSpeed = speedSum / speedCount
-
-		return SpeedStats(avgSpeed, maxSpeed)
-	}
-
-	private fun addStatisticsData(
-			adapter: StatsDetailAdapter,
-			data: List<StatisticDetailData>,
-			appendPriority: AppendPriority
-	) {
-		launch(Dispatchers.Main) {
-			adapter.addAllWrap(data.map {
-				PrioritySortAdapter.PriorityWrap.create(it, appendPriority)
-			})
-		}
-	}
-
-
+	/**
+	 * View model for statistics detail activity
+	 */
 	class ViewModel : androidx.lifecycle.ViewModel() {
 		private var initialized = false
 		private val sessionMutable: MutableLiveData<TrackerSession?> = MutableLiveData()
@@ -354,7 +326,6 @@ class StatsDetailActivity : DetailActivity() {
 		 */
 		const val ARG_SESSION_ID = "session_id"
 		private const val HEADER_ROOT_PADDING = 16
-		private const val MAX_SECONDS_ELAPSED_FOR_CONTINUOUS_PATH = 70.0
 	}
 }
 
