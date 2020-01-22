@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions")
 package com.adsamcik.tracker.shared.base.extension
 
 import androidx.annotation.FloatRange
@@ -9,6 +10,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
 
 /**
  * Find if collection contains any item satisfying [func]
@@ -31,12 +33,58 @@ inline fun <T> Collection<T>.contains(func: (T) -> Boolean): Boolean {
  * @param transform Transform function
  * @return Average of transformed items
  */
-inline fun <T> Collection<T>.average(transform: (T) -> Double): Double {
+inline fun <T> Collection<T>.averageDouble(transform: (T) -> Double): Double =
+		averageIfDouble({ true }, transform)
+
+/**
+ * Calculates average from [transform] function applied to items in collection.
+ *
+ * @param transform Transform function
+ * @return Average of transformed items
+ */
+inline fun <T> Collection<T>.averageFloat(transform: (T) -> Float): Float =
+		averageIfFloat({ true }, transform)
+
+/**
+ * Calculates average from [transform] function applied to items in collection that
+ * pass the condition function..
+ *
+ * @param transform Transform function
+ * @return Average of transformed items
+ */
+inline fun <T> Collection<T>.averageIfFloat(
+		condition: (T) -> Boolean,
+		transform: (T) -> Float
+): Float {
+	var sum = 0.0f
+	var count = 0
+	forEach {
+		if (condition(it)) {
+			sum += transform(it)
+			count++
+		}
+	}
+	return sum / count.toFloat()
+}
+
+/**
+ * Calculates average from [transform] function applied to items in collection that
+ * pass the condition function..
+ *
+ * @param transform Transform function
+ * @return Average of transformed items
+ */
+inline fun <T> Collection<T>.averageIfDouble(
+		condition: (T) -> Boolean,
+		transform: (T) -> Double
+): Double {
 	var sum = 0.0
 	var count = 0
 	forEach {
-		sum += transform(it)
-		count++
+		if (condition(it)) {
+			sum += transform(it)
+			count++
+		}
 	}
 	return sum / count.toDouble()
 }
