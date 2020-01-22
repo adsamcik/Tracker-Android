@@ -21,14 +21,14 @@ object Dependencies {
 		internal const val work = "2.3.0-rc01"
 		internal const val lifecycle = "2.2.0-rc03"
 		internal const val preference = "1.1.0"
-		internal const val material = "1.1.0-rc01"
+		internal const val material = "1.1.0-rc02"
 		internal const val coroutines = "1.3.3"
 
 		internal const val requery = "3.30.1"
 		internal const val room = "2.2.3"
 
 		internal const val maps = "17.0.0"
-		internal const val firebaseCore = "17.2.1"
+		internal const val firebaseCore = "17.2.2"
 		internal const val recyclerView = "1.1.0"
 		internal const val paging = "2.1.0"
 
@@ -46,7 +46,7 @@ object Dependencies {
 		internal const val dialogs = "3.1.1"
 		internal const val sectionedRecyclerViewAdapter = "3.1.0"
 
-		internal const val componentsRecycler = "0.7.4"
+		internal const val componentsRecycler = "0.8.0"
 		internal const val componentsDraggable = "0.14.1"
 
 		/**
