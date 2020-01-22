@@ -183,8 +183,6 @@ class StatsDetailActivity : DetailActivity() {
 			registerType(StatisticDisplayType.LineChart, LineChartViewHolderCreator())
 			//todo add Wi-Fi and Cell
 
-			//addBasicStats(session, this)
-			//addLocationStats(session, this@apply)
 			addStats(session, this)
 		}
 
@@ -289,100 +287,6 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 
-	private fun addBasicStats(session: TrackerSession, adapter: StatsDetailAdapter) {
-		val resources = resources
-		val lengthSystem = Preferences.getLengthSystem(this)
-
-
-		val data = mutableListOf(
-				InformationStatisticsData(
-						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_directions_24px,
-						R.string.stats_distance_total,
-						resources.formatDistance(session.distanceInM, 2, lengthSystem)
-				),
-				InformationStatisticsData(
-						com.adsamcik.tracker.shared.base.R.drawable.ic_directions_walk_white,
-						R.string.stats_distance_on_foot,
-						resources.formatDistance(session.distanceOnFootInM, 2, lengthSystem)
-				),
-				InformationStatisticsData(
-						com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
-						R.string.stats_steps, session.steps.formatReadable()
-				),
-				InformationStatisticsData(
-						com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_commute,
-						R.string.stats_distance_in_vehicle,
-						resources.formatDistance(session.distanceInVehicleInM, 2, lengthSystem)
-				)
-		)
-
-		adapter.addAllWrap(data.map {
-			PrioritySortAdapter.PriorityWrap.create<StatisticDetailData>(it)
-		})
-	}
-
-	private fun addLocationStats(session: TrackerSession, adapter: StatsDetailAdapter) {
-		launch(Dispatchers.Default) {
-			val database = AppDatabase.database(this@StatsDetailActivity)
-			val locations = database.locationDao().getAllBetween(session.start, session.end)
-
-			if (locations.size >= 2) {
-
-				/*val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
-				val simplifiedLocations = simplify.simplify(
-						locations.map { it.location }.toTypedArray(),
-						POSITION_TOLERANCE,
-						false
-				)
-
-				addLocationMap(simplifiedLocations, adapter)
-				launch(Dispatchers.Default) { addElevationStats(simplifiedLocations, adapter) }
-				launch(Dispatchers.Default) { addSpeedStats(locations, adapter) }*/
-			}
-		}
-	}
-
-	private fun addLocationMap(locations: Array<Location>, adapter: StatsDetailAdapter) {
-		val locationData = PrioritySortAdapter.PriorityWrap.create<StatisticDetailData>(
-				MapStatisticsData(locations),
-				AppendPriority(AppendBehavior.Start)
-		)
-		launch(Dispatchers.Main) {
-			adapter.addWrap(locationData)
-		}
-	}
-
-	private fun getSpeed(previous: Location, current: Location, secondsElapsed: Double): Double {
-		val recordedSpeed = current.speed
-		return if (recordedSpeed != null) {
-			recordedSpeed.toDouble()
-		} else {
-			val previousAltitude = previous.altitude
-			val currentAltitude = current.altitude
-			val distance = if (currentAltitude != null && previousAltitude != null) {
-				Location.distance(
-						previous.latitude,
-						previous.longitude,
-						previousAltitude,
-						current.latitude,
-						current.longitude,
-						currentAltitude,
-						LengthUnit.Meter
-				)
-			} else {
-				Location.distance(
-						previous.latitude,
-						previous.longitude,
-						current.latitude,
-						current.longitude,
-						LengthUnit.Meter
-				)
-			}
-
-			distance / secondsElapsed
-		}
-	}
-
 	private data class SpeedStats(val avgSpeed: Double, val maxSpeed: Double)
 
 	private fun calculateSpeedStats(locations: List<DatabaseLocation>): SpeedStats {
@@ -410,30 +314,6 @@ class StatsDetailActivity : DetailActivity() {
 		val avgSpeed = speedSum / speedCount
 
 		return SpeedStats(avgSpeed, maxSpeed)
-	}
-
-	private fun addSpeedStats(locations: List<DatabaseLocation>, adapter: StatsDetailAdapter) {
-		if (locations.isEmpty()) return
-
-		val speedStats = calculateSpeedStats(locations)
-
-		val lengthSystem = Preferences.getLengthSystem(this)
-		val speedFormat = Preferences.getSpeedFormat(this)
-		val dataList = listOf(
-				InformationStatisticsData(
-						com.adsamcik.tracker.shared.base.R.drawable.ic_speedometer,
-						R.string.stats_max_speed,
-						resources.formatSpeed(speedStats.maxSpeed, 1, lengthSystem, speedFormat)
-				),
-
-				InformationStatisticsData(
-						com.adsamcik.tracker.shared.base.R.drawable.ic_speedometer,
-						R.string.stats_avg_speed,
-						resources.formatSpeed(speedStats.avgSpeed, 1, lengthSystem, speedFormat)
-				)
-		)
-
-		addStatisticsData(adapter, dataList, AppendPriority(AppendBehavior.Any))
 	}
 
 	private fun addStatisticsData(
@@ -469,6 +349,9 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	companion object {
+		/**
+		 * Session id argument identifier
+		 */
 		const val ARG_SESSION_ID = "session_id"
 		private const val HEADER_ROOT_PADDING = 16
 		private const val MAX_SECONDS_ELAPSED_FOR_CONTINUOUS_PATH = 70.0
