@@ -12,20 +12,20 @@ object Dependencies {
 	 */
 	object Versions {
 		internal const val constraintLayout = "2.0.0-beta4"
-		internal const val coreKtx = "1.2.0-rc01"
+		internal const val coreKtx = "1.2.0"
 		internal const val appcompat = "1.1.0"
-		internal const val fragment = "1.2.0-rc05"
+		internal const val fragment = "1.2.2"
 		const val kotlin: String = "1.3.61"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.9.2"
-		internal const val work = "2.3.0-rc01"
-		internal const val lifecycle = "2.2.0-rc03"
+		internal const val work = "2.3.2"
+		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.0"
-		internal const val material = "1.1.0-rc02"
+		internal const val material = "1.1.0"
 		internal const val coroutines = "1.3.3"
 
-		internal const val requery = "3.30.1"
-		internal const val room = "2.2.3"
+		internal const val requery = "3.31.0"
+		internal const val room = "2.2.4"
 
 		internal const val maps = "17.0.0"
 		internal const val firebaseCore = "17.2.2"
@@ -35,15 +35,15 @@ object Dependencies {
 		internal const val crashlytics = "2.10.1"
 
 		internal const val playServicesBase = "17.1.0"
-		internal const val playCore = "1.6.4"
+		internal const val playCore = "1.6.5"
 		internal const val playLocation = "17.0.0"
 
 		internal const val stax = "1.0.1"
-		internal const val jpx = "1.6.1"
+		internal const val jpx = "1.7.0"
 		internal const val xml = "1.2.2"
 
 		internal const val spotlight = "2.2.2"
-		internal const val dialogs = "3.1.1"
+		internal const val dialogs = "3.3.0"
 		internal const val sectionedRecyclerViewAdapter = "3.1.0"
 
 		internal const val componentsRecycler = "0.8.0"

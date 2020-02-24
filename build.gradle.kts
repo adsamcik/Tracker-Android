@@ -5,7 +5,7 @@ buildscript {
 		maven("https://maven.fabric.io/public")
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:3.5.0")
+		classpath("com.android.tools.build:gradle:3.6.0")
 		classpath("com.google.gms:google-services:4.3.3")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.1")
 		classpath("io.fabric.tools:gradle:1.31.2")
@@ -17,7 +17,7 @@ buildscript {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.27.0")
+	id("com.github.ben-manes.versions") version ("0.28.0")
 }
 
 allprojects {
