@@ -60,6 +60,8 @@ android {
 }
 
 dependencies {
+	compileOnly("com.github.pengrad:jdk9-deps:1.0")
+
 	Dependencies.core(this)
 	Dependencies.moshi(this)
 	Dependencies.database(this)
