@@ -4,9 +4,9 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.DateRange
+import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 
 @Dao
 interface LocationDataDao : BaseDao<DatabaseLocation> {
@@ -27,7 +27,7 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 
 	@Query(
 			"""
-		SELECT lon, lat, hor_acc as weight
+		SELECT time, lon, lat, hor_acc as weight
 		FROM location_data
 		where
 			lat >= :bottomLatitude and
@@ -41,7 +41,7 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 			rightLongitude: Double,
 			bottomLatitude: Double,
 			leftLongitude: Double
-	): List<Database2DLocationWeightedMinimal>
+	): List<TimeLocation2DWeighted>
 
 	@Query(
 			"""
@@ -67,7 +67,7 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 
 	@Query(
 			"""
-		SELECT lon, lat, hor_acc as weight
+		SELECT time, lon, lat, hor_acc as weight
 		FROM location_data
 		where
 			time >= :from and
@@ -85,7 +85,7 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 			rightLongitude: Double,
 			bottomLatitude: Double,
 			leftLongitude: Double
-	): List<Database2DLocationWeightedMinimal>
+	): List<TimeLocation2DWeighted>
 
 	@Query("SELECT COUNT(*) FROM location_data")
 	fun count(): Long

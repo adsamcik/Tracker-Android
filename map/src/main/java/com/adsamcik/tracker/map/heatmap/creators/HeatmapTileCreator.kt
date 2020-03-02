@@ -1,13 +1,17 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
-import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.tracker.shared.base.extension.isPowerOfTwo
-import com.adsamcik.tracker.shared.map.CoordinateBounds
-import com.adsamcik.tracker.map.heatmap.AlphaMergeFunction
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
-import com.adsamcik.tracker.map.heatmap.WeightMergeFunction
+import com.adsamcik.tracker.map.heatmap.implementation.AlphaMergeFunction
+import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
+import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
+import com.adsamcik.tracker.shared.base.extension.isPowerOfTwo
+import com.adsamcik.tracker.shared.map.CoordinateBounds
+import com.adsamcik.tracker.shared.utils.debug.assertLess
+import com.adsamcik.tracker.shared.utils.debug.assertMore
+import com.adsamcik.tracker.shared.utils.debug.assertTrue
+import kotlin.math.floor
 
 typealias InsideAndBetween = (
 		from: Long,
@@ -16,14 +20,14 @@ typealias InsideAndBetween = (
 		rightLongitude: Double,
 		bottomLatitude: Double,
 		leftLongitude: Double
-) -> List<Database2DLocationWeightedMinimal>
+) -> List<TimeLocation2DWeighted>
 
 typealias Inside = (
 		topLatitude: Double,
 		rightLongitude: Double,
 		bottomLatitude: Double,
 		leftLongitude: Double
-) -> List<Database2DLocationWeightedMinimal>
+) -> List<TimeLocation2DWeighted>
 
 internal interface HeatmapTileCreator {
 	val getAllInsideAndBetween: InsideAndBetween
@@ -57,15 +61,17 @@ internal interface HeatmapTileCreator {
 			data: HeatmapTileData,
 			getLocations: Inside
 	): HeatmapTile {
-		assert(data.heatmapSize.isPowerOfTwo())
-		assert(data.area.left < data.area.right)
-		assert(data.area.bottom < data.area.top)
+		assertTrue(data.heatmapSize.isPowerOfTwo())
+		assertLess(data.area.left, data.area.right)
+		assertLess(data.area.bottom, data.area.top)
 
-		val extendLatitude = data.area.height * (data.stamp.height.toDouble() / data.heatmapSize.toDouble())
-		val extendLongitude = data.area.width * (data.stamp.width.toDouble() / data.heatmapSize.toDouble())
+		val halfWidth = floor(data.stamp.width.toDouble() / 2.0)
+		val halfHeight = floor(data.stamp.height.toDouble() / 2.0)
+		val extendLatitude = data.area.height * (halfHeight / data.heatmapSize.toDouble())
+		val extendLongitude = data.area.width * (halfWidth / data.heatmapSize.toDouble())
 
-		assert(extendLatitude > 0)
-		assert(extendLongitude > 0)
+		assertMore(extendLatitude, 0.0)
+		assertMore(extendLongitude, 0.0)
 
 		val allInside = getLocations.invoke(
 				data.area.top + extendLatitude,

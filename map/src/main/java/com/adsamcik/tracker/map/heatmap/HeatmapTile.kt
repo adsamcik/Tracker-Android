@@ -2,19 +2,22 @@ package com.adsamcik.tracker.map.heatmap
 
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
-import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
-import com.adsamcik.tracker.shared.base.extension.toByteArray
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
+import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
+import com.adsamcik.tracker.shared.base.extension.toByteArray
 import kotlin.math.roundToInt
 
 @ExperimentalUnsignedTypes
 internal class HeatmapTile(
 		val data: HeatmapTileData
 ) {
-	private val heatmap = WeightedHeatmap(
+	private val heatmap = AgeWeightedHeatmap(
 			data.heatmapSize,
 			data.heatmapSize,
+			15 * Time.MINUTE_IN_SECONDS.toInt(),
 			data.config.maxHeat,
 			data.config.dynamicHeat
 	)
@@ -27,18 +30,29 @@ internal class HeatmapTile(
 			heatmap.maxHeat = value
 		}
 
-	fun addAll(list: List<Database2DLocationWeightedMinimal>) {
-		list.forEach { add(it) }
+	fun addAll(list: List<TimeLocation2DWeighted>) {
+		if (list.isEmpty()) return
+
+		val minTime = requireNotNull(list.minBy { it.time }).time
+		list.forEach { add(it, minTime) }
 	}
 
-	fun add(location: Database2DLocationWeightedMinimal) {
+	fun add(location: TimeLocation2DWeighted, minTime: Long) {
 		val tx = MapFunctions.toTileX(location.longitude, tileCount)
 		val ty = MapFunctions.toTileY(location.latitude, tileCount)
 		val x = ((tx - data.x) * data.heatmapSize).roundToInt()
 		val y = ((ty - data.y) * data.heatmapSize).roundToInt()
+
+		val ageInSeconds = ((location.time - minTime) / Time.SECOND_IN_MILLISECONDS).toInt()
+
 		heatmap.addPoint(
-				x, y, data.stamp, location.normalizedWeight.toFloat(),
-				data.config.weightMergeFunction
+				x,
+				y,
+				ageInSeconds,
+				location.normalizedWeight.toFloat(),
+				data.stamp,
+				data.config.weightMergeFunction,
+				data.config.alphaMergeFunction
 		)
 	}
 

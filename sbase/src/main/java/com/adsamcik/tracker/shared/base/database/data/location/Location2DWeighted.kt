@@ -1,11 +1,13 @@
-package com.adsamcik.tracker.shared.base.database.data
+package com.adsamcik.tracker.shared.base.database.data.location
 
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import kotlin.math.max
 
-
-data class Database2DLocationWeightedMinimal(
+/**
+ * Utility class for getting 2D location from database
+ */
+data class Location2DWeighted(
 		@ColumnInfo(name = "lat")
 		val latitude: Double,
 		@ColumnInfo(name = "lon")
@@ -17,6 +19,11 @@ data class Database2DLocationWeightedMinimal(
 	var normalizedWeight: Double = weight
 		private set
 
+	/**
+	 * Calculates and saves normalized weight.
+	 * Needs to be called manually because maxValue has to be supplied.
+	 * Cached in normalizedWeight variable.
+	 */
 	fun normalize(maxValue: Double) {
 		normalizedWeight = max(1 - (weight / maxValue), 0.0)
 	}

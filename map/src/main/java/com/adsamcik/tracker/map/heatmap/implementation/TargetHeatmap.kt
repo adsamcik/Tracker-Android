@@ -1,8 +1,8 @@
-package com.adsamcik.tracker.map.heatmap
+package com.adsamcik.tracker.map.heatmap.implementation
 
-import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.shared.base.Time
-import kotlin.math.max
+import android.graphics.Color
+import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
+import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -32,44 +32,42 @@ import kotlin.math.roundToInt
  * https://github.com/lucasb-eyer/heatmap/
  */
 
-internal class AgeWeightedHeatmap(
+internal class TargetHeatmap(
 		val width: Int,
 		val height: Int = width,
-		val ageThreshold: Int = Time.MINUTE_IN_SECONDS.toInt(),
 		var maxHeat: Float = 0f,
 		var dynamicHeat: Boolean = true
 ) {
-	private val alphaArray: UByteArray = UByteArray(width * height)
-	private val weightArray: FloatArray = FloatArray(width * height)
-	private val ageArray: IntArray = IntArray(width * height)
+	var pointCount: Int = 0
 
-	private var pointCount = 0
+	val data: FloatArray = FloatArray(width * height)
+	val weightData: FloatArray = FloatArray(width * height)
 
-	@Suppress("unused_parameter")
-	private fun mergeWeightDefault(
-			current: Float,
-			currentAlpha: Int,
-			stampValue: Float,
-			value: Float
-	): Float {
-		return current + stampValue * value
-	}
+	fun addPoint(x: Int, y: Int) = addPointWithStamp(x, y,
+	                                                 HeatmapStamp.default9x9
+	)
 
-	@Suppress("unused_parameter")
-	private fun mergeAlphaDefault(value: Int, stampValue: Float, weight: Float): UByte {
-		return max(value, (stampValue * UByte.MAX_VALUE.toFloat()).toInt()).toUByte()
-	}
+	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(
+			x, y, weight,
+			HeatmapStamp.default9x9
+	)
 
-	// Suppressed because at the time of writing, this function is considered readable
-	@Suppress("ComplexMethod", "LongParameterList", "NestedBlockDepth")
-	fun addPoint(
+	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) =
+			addWeightedPointWithStamp(x, y, stamp, 1f) { original, input, _ ->
+				original + input
+			}
+
+	fun addWeightedPointWithStamp(x: Int, y: Int, weightValue: Float, stamp: HeatmapStamp) =
+			addWeightedPointWithStamp(x, y, stamp, weightValue) { original, input, weight ->
+				original + input * weight
+			}
+
+	fun addWeightedPointWithStamp(
 			x: Int,
 			y: Int,
-			ageInSeconds: Int,
-			weight: Float = 1f,
-			stamp: HeatmapStamp = HeatmapStamp.default9x9,
-			weightMergeFunction: WeightMergeFunction = this::mergeWeightDefault,
-			alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
+			stamp: HeatmapStamp,
+			weight: Float,
+			mergeFunction: (current: Float, input: Float, weight: Float) -> Float
 	) {
 		//todo validate that odd numbers don't cause some weird artifacts
 		val halfStampHeight = stamp.height / 2
@@ -96,27 +94,15 @@ internal class AgeWeightedHeatmap(
 			assert(stampIndex >= 0f)
 
 			for (itX in x0 until x1) {
-				if (ageInSeconds > ageArray[heatIndex] - ageThreshold) {
-					val stampValue = stamp.stampData[stampIndex]
-					val alphaValue = alphaArray[heatIndex].toInt()
-
-					val newWeightValue = weightMergeFunction(
-							weightArray[heatIndex],
-							alphaValue,
-							stampValue,
-							weight
-					)
-					weightArray[heatIndex] = newWeightValue
-
-					val newAlphaValue = alphaMergeFunction(alphaValue, stampValue, newWeightValue)
-					alphaArray[heatIndex] = newAlphaValue
-
-					if (dynamicHeat && newWeightValue > maxHeat) {
-						maxHeat = newWeightValue
-					}
-
-					assert(newWeightValue >= 0f)
+				val heatValue = data[heatIndex]
+				val newHeatValue = mergeFunction(heatValue, stamp.stampData[stampIndex], weight)
+				data[heatIndex] = newHeatValue
+				weightData[heatIndex] = mergeFunction(weightData[heatIndex], weight, 1f)
+				if (dynamicHeat && newHeatValue > maxHeat) {
+					maxHeat = newHeatValue
 				}
+
+				assert(heatValue >= 0f)
 
 				heatIndex++
 				stampIndex++
@@ -126,6 +112,9 @@ internal class AgeWeightedHeatmap(
 
 	fun renderDefaultTo(): IntArray = renderTo(HeatmapColorScheme.default)
 
+	/* TODO: Time whether it makes a noticeable difference to inline that code
+     * here and drop the saturation step.
+     */
 	/* If the heatmap is empty, h->max (and thus the saturation value) is 0.0, resulting in a 0-by-0 division.
 	 * In that case, we should set the saturation to anything but 0, since we want the result of the division to be 0.
 	 * Also, a comparison to exact 0.0f (as opposed to 1e-14) is OK, since we only do division.
@@ -158,9 +147,12 @@ internal class AgeWeightedHeatmap(
 			var index = itY * width
 
 			for (itX in 0 until width) {
-				val value = weightArray[index]
+				val value = data[index]
 				val normalizedValue = normalizedValueModifierFunction(
-						min(value, saturation) / saturation
+						min(
+								value,
+								saturation
+						) / saturation
 				)
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
@@ -168,10 +160,7 @@ internal class AgeWeightedHeatmap(
 				assert(normalizedValue >= 0)
 				assert(colorId < colorScheme.colors.size)
 
-				buffer[index] = ColorUtils.setAlphaComponent(
-						colorScheme.colors[colorId],
-						alphaArray[index].toInt()
-				)
+				buffer[index] = if (weightData[index] == 0f) Color.TRANSPARENT else colorScheme.colors[colorId]
 				index++
 			}
 		}

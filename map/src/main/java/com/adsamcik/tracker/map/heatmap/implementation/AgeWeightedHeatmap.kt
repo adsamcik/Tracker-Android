@@ -1,6 +1,12 @@
-package com.adsamcik.tracker.map.heatmap
+package com.adsamcik.tracker.map.heatmap.implementation
 
 import androidx.core.graphics.ColorUtils
+import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
+import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.utils.debug.assertLess
+import com.adsamcik.tracker.shared.utils.debug.assertMore
+import com.adsamcik.tracker.shared.utils.debug.assertMoreOrEqual
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -31,18 +37,16 @@ import kotlin.math.roundToInt
  * https://github.com/lucasb-eyer/heatmap/
  */
 
-typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) -> UByte
-
-typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
-
-internal class WeightedHeatmap(
+internal class AgeWeightedHeatmap(
 		val width: Int,
 		val height: Int = width,
+		val ageThreshold: Int = Time.MINUTE_IN_SECONDS.toInt(),
 		var maxHeat: Float = 0f,
 		var dynamicHeat: Boolean = true
 ) {
 	private val alphaArray: UByteArray = UByteArray(width * height)
 	private val weightArray: FloatArray = FloatArray(width * height)
+	private val ageArray: IntArray = IntArray(width * height) { Int.MIN_VALUE }
 
 	private var pointCount = 0
 
@@ -61,12 +65,14 @@ internal class WeightedHeatmap(
 		return max(value, (stampValue * UByte.MAX_VALUE.toFloat()).toInt()).toUByte()
 	}
 
-	@Suppress("ComplexMethod", "LongParameterList")
+	// Suppressed because at the time of writing, this function is considered readable
+	@Suppress("ComplexMethod", "LongParameterList", "NestedBlockDepth")
 	fun addPoint(
 			x: Int,
 			y: Int,
-			stamp: HeatmapStamp = HeatmapStamp.default9x9,
+			ageInSeconds: Int,
 			weight: Float = 1f,
+			stamp: HeatmapStamp = HeatmapStamp.default9x9,
 			weightMergeFunction: WeightMergeFunction = this::mergeWeightDefault,
 			alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
 	) {
@@ -74,10 +80,13 @@ internal class WeightedHeatmap(
 		val halfStampHeight = stamp.height / 2
 		val halfStampWidth = stamp.width / 2
 
-		assert(x - halfStampWidth / 2 < width)
-		assert(y - halfStampHeight < height)
-		assert(x - halfStampHeight >= 0)
-		assert(y + halfStampWidth / 2 >= 0)
+		// Assert point will have anything to draw
+		// There are points that do not get drawn but it seems to be a little more complicated than some mistake.
+		// This is not that big of an issue, since it causes no problems and performance impact is quite low.
+		/*assertLess(x - halfStampWidth / 2, width + 1)
+		assertLess(y - halfStampHeight, height + 1)
+		assertMoreOrEqual(x - halfStampHeight, -1)
+		assertMoreOrEqual(y + halfStampWidth / 2, -1)*/
 
 		pointCount++
 
@@ -92,7 +101,7 @@ internal class WeightedHeatmap(
 		for (itY in y0 until y1) {
 			var heatIndex = (y + itY - halfStampHeight) * width + (x + x0) - halfStampWidth
 			var stampIndex = itY * stamp.width + x0
-			assert(stampIndex >= 0f)
+			assertMoreOrEqual(stampIndex, 0)
 
 			for (itX in x0 until x1) {
 				val stampValue = stamp.stampData[stampIndex]
@@ -104,16 +113,20 @@ internal class WeightedHeatmap(
 						stampValue,
 						weight
 				)
-				weightArray[heatIndex] = newWeightValue
 
 				val newAlphaValue = alphaMergeFunction(alphaValue, stampValue, newWeightValue)
 				alphaArray[heatIndex] = newAlphaValue
 
-				if (dynamicHeat && newWeightValue > maxHeat) {
-					maxHeat = newWeightValue
-				}
+				if (ageInSeconds - ageThreshold > ageArray[heatIndex]) {
+					weightArray[heatIndex] = newWeightValue
+					ageArray[heatIndex] = ageInSeconds
 
-				assert(newWeightValue >= 0f)
+					if (dynamicHeat && newWeightValue > maxHeat) {
+						maxHeat = newWeightValue
+					}
+
+					assertMoreOrEqual(newWeightValue, 0f)
+				}
 
 				heatIndex++
 				stampIndex++
@@ -145,7 +158,7 @@ internal class WeightedHeatmap(
 			saturation: Float,
 			normalizedValueModifierFunction: (Float) -> Float
 	): IntArray {
-		assert(saturation > 0f)
+		assertMore(saturation, 0f)
 
 		val buffer = IntArray(width * height)
 
@@ -162,8 +175,8 @@ internal class WeightedHeatmap(
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
 
-				assert(normalizedValue >= 0)
-				assert(colorId < colorScheme.colors.size)
+				assertMoreOrEqual(normalizedValue, 0f)
+				assertLess(colorId, colorScheme.colors.size)
 
 				buffer[index] = ColorUtils.setAlphaComponent(
 						colorScheme.colors[colorId],

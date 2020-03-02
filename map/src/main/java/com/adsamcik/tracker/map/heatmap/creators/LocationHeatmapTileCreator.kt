@@ -2,14 +2,14 @@ package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-
-import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.math.ceil
+import kotlin.math.max
 import kotlin.math.pow
 
 @Suppress("MagicNumber")
@@ -25,10 +25,10 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 				HeatmapColorScheme.fromArray(heatmapColors, 100),
 				maxHeat,
 				false,
-				{ current, _, stampValue, weight ->
-					current + stampValue * weight
-				}) { current, stampValue, weight ->
-			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
+				{ current, _, stampValue, _ ->
+					current + stampValue
+				}) { current, stampValue, _ ->
+			max(current, (stampValue * 255f).toInt()).toUByte()
 		}
 	}
 
@@ -60,7 +60,7 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 	override val getAllInside = dao::getAllInside
 
 	companion object {
-		private const val BASE_HEAT_SIZE_IN_METERS = 20f
+		private const val BASE_HEAT_SIZE_IN_METERS = 40f
 		private const val HEATMAP_ZOOM_SCALE = 1.4f
 	}
 }

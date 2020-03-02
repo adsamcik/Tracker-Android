@@ -5,9 +5,10 @@ import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Transaction
 import androidx.sqlite.db.SupportSQLiteQuery
-import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.tracker.shared.base.database.data.location.Location2DWeighted
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 import com.adsamcik.tracker.shared.base.database.data.DateRange
+import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 
 @Dao
 interface WifiDataDao : BaseDao<DatabaseWifiData> {
@@ -67,7 +68,7 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 
 	@Query(
 			"""
-		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
+		SELECT last_seen as time, latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
 		WHERE latitude >= :bottomLatitude and latitude <= :topLatitude
 			and longitude >= :leftLongitude  and longitude <= :rightLongitude
 		GROUP BY lat, lon
@@ -78,11 +79,11 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 			rightLongitude: Double,
 			bottomLatitude: Double,
 			leftLongitude: Double
-	): List<Database2DLocationWeightedMinimal>
+	): List<TimeLocation2DWeighted>
 
 	@Query(
 			"""
-		SELECT latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
+		SELECT last_seen as time, latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
 		WHERE last_seen >= :from and last_seen <= :to
 			and latitude >= :bottomLatitude and longitude >= :leftLongitude
 			and latitude <= :topLatitude and longitude <= :rightLongitude
@@ -96,7 +97,7 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 			rightLongitude: Double,
 			bottomLatitude: Double,
 			leftLongitude: Double
-	): List<Database2DLocationWeightedMinimal>
+	): List<TimeLocation2DWeighted>
 
 	@Query("SELECT COUNT(*) from wifi_data")
 	fun count(): Long

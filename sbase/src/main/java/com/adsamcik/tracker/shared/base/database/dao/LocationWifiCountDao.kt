@@ -2,9 +2,10 @@ package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
-import com.adsamcik.tracker.shared.base.database.data.Database2DLocationWeightedMinimal
+import com.adsamcik.tracker.shared.base.database.data.location.Location2DWeighted
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.DateRange
+import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 
 /**
  * Wi-Fi location data access object.
@@ -24,7 +25,7 @@ interface LocationWifiCountDao : BaseDao<DatabaseLocationWifiCount> {
 	 */
 	@Query(
 			"""
-		SELECT lon, lat, count as weight
+		SELECT time, lon, lat, count as weight
 		FROM location_wifi_count
 		where
 			lat >= :bottomLatitude and
@@ -38,7 +39,7 @@ interface LocationWifiCountDao : BaseDao<DatabaseLocationWifiCount> {
 			rightLongitude: Double,
 			bottomLatitude: Double,
 			leftLongitude: Double
-	): List<Database2DLocationWeightedMinimal>
+	): List<TimeLocation2DWeighted>
 
 	/**
 	 * Get number of Wi-Fi networks inside bounds grouped by location.
@@ -87,7 +88,7 @@ interface LocationWifiCountDao : BaseDao<DatabaseLocationWifiCount> {
 	 */
 	@Query(
 			"""
-		SELECT lon, lat, count as weight
+		SELECT time, lon, lat, count as weight
 		FROM location_wifi_count
 		where
 			time >= :from and
@@ -105,7 +106,7 @@ interface LocationWifiCountDao : BaseDao<DatabaseLocationWifiCount> {
 			rightLongitude: Double,
 			bottomLatitude: Double,
 			leftLongitude: Double
-	): List<Database2DLocationWeightedMinimal>
+	): List<TimeLocation2DWeighted>
 
 
 	/**
@@ -119,7 +120,7 @@ interface LocationWifiCountDao : BaseDao<DatabaseLocationWifiCount> {
 	 */
 	@Query(
 			"""
-		SELECT lon, lat, count as weight
+		SELECT time, lon, lat, count as weight
 		FROM location_wifi_count
 		where
 			time >= :from and
@@ -129,7 +130,7 @@ interface LocationWifiCountDao : BaseDao<DatabaseLocationWifiCount> {
 	fun getAllBetween(
 			from: Long,
 			to: Long
-	): List<Database2DLocationWeightedMinimal>
+	): List<TimeLocation2DWeighted>
 
 	/**
 	 * Counts all Wi-Fi networks in database.

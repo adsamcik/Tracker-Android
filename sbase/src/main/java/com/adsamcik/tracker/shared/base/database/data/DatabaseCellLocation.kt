@@ -8,6 +8,9 @@ import androidx.room.PrimaryKey
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.CellType
 
+/**
+ * Data class containing information about cell data at specific location.
+ */
 @Entity(
 		tableName = "cell_location",
 		indices = [Index(value = ["mcc", "mnc", "cell_id"]), Index("time")]
