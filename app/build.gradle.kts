@@ -26,6 +26,15 @@ android {
 		versionName = "2019.1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		resConfigs("en", "cs")
+
+		with(javaCompileOptions) {
+			with(annotationProcessorOptions) {
+				arguments = mapOf(
+						"room.incremental" to "true",
+						"room.expandProjection" to "true"
+				)
+			}
+		}
 	}
 
 	with(compileOptions) {
@@ -34,7 +43,7 @@ android {
 	}
 
 	tasks.withType<KotlinCompile> {
-			with(kotlinOptions) {
+		with(kotlinOptions) {
 			jvmTarget = "1.8"
 			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes")
 		}
