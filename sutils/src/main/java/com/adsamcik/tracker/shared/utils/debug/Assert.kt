@@ -30,6 +30,18 @@ fun assertEqual(expect: Any, actual: Any) {
 	}
 }
 
+/**
+ * Assert value is more than threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
+fun assertMore(value: Long, threshold: Long) {
+	if (value <= threshold) {
+		assertMoreError(value.toString(), threshold.toString())
+	}
+}
 
 /**
  * Assert value is more than threshold.
@@ -38,9 +50,52 @@ fun assertEqual(expect: Any, actual: Any) {
  * @param threshold Threshold.
  *
  */
-fun assertIsMore(value: Float, threshold: Float) {
+fun assertMore(value: Int, threshold: Int) {
 	if (value <= threshold) {
-		Reporter.report("Assertion failed. $value ≤ $threshold.")
+		assertMoreError(value.toString(), threshold.toString())
+	}
+}
+
+/**
+ * Assert value is more than threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
+fun assertMore(value: Double, threshold: Double) {
+	if (value <= threshold) {
+		assertMoreError(value.toString(), threshold.toString())
+	}
+}
+
+/**
+ * Assert value is more than threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
+fun assertMore(value: Float, threshold: Float) {
+	if (value <= threshold) {
+		assertMoreError(value.toString(), threshold.toString())
+	}
+}
+
+private fun assertMoreError(value: String, threshold: String) {
+	Reporter.report("Assertion failed. $value ≤ $threshold.")
+}
+
+/**
+ * Assert value is more or equal to threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
+fun assertMoreOrEqual(value: Int, threshold: Int) {
+	if (value < threshold) {
+		assertMoreOrEqualError(value.toString(), threshold.toString())
 	}
 }
 
@@ -51,9 +106,9 @@ fun assertIsMore(value: Float, threshold: Float) {
  * @param threshold Threshold.
  *
  */
-fun assertIsMoreOrEqual(value: Int, threshold: Int) {
+fun assertMoreOrEqual(value: Long, threshold: Long) {
 	if (value < threshold) {
-		assertIsMoreOrEqualError(value.toString(), threshold.toString())
+		assertMoreOrEqualError(value.toString(), threshold.toString())
 	}
 }
 
@@ -64,9 +119,9 @@ fun assertIsMoreOrEqual(value: Int, threshold: Int) {
  * @param threshold Threshold.
  *
  */
-fun assertIsMoreOrEqual(value: Long, threshold: Long) {
+fun assertMoreOrEqual(value: Double, threshold: Double) {
 	if (value < threshold) {
-		assertIsMoreOrEqualError(value.toString(), threshold.toString())
+		assertMoreOrEqualError(value.toString(), threshold.toString())
 	}
 }
 
@@ -77,26 +132,13 @@ fun assertIsMoreOrEqual(value: Long, threshold: Long) {
  * @param threshold Threshold.
  *
  */
-fun assertIsMoreOrEqual(value: Double, threshold: Double) {
+fun assertMoreOrEqual(value: Float, threshold: Float) {
 	if (value < threshold) {
-		assertIsMoreOrEqualError(value.toString(), threshold.toString())
+		assertMoreOrEqualError(value.toString(), threshold.toString())
 	}
 }
 
-/**
- * Assert value is more or equal to threshold.
- *
- * @param value Value.
- * @param threshold Threshold.
- *
- */
-fun assertIsMoreOrEqual(value: Float, threshold: Float) {
-	if (value < threshold) {
-		assertIsMoreOrEqualError(value.toString(), threshold.toString())
-	}
-}
-
-private fun assertIsMoreOrEqualError(value: String, threshold: String) {
+private fun assertMoreOrEqualError(value: String, threshold: String) {
 	Reporter.report("Assertion failed. $value < $threshold.")
 }
 
@@ -107,9 +149,9 @@ private fun assertIsMoreOrEqualError(value: String, threshold: String) {
  * @param threshold Threshold.
  *
  */
-fun assertIsLess(value: Long, threshold: Long) {
+fun assertLess(value: Long, threshold: Long) {
 	if (value >= threshold) {
-		assertIsLessError(value.toString(), threshold.toString())
+		assertLessError(value.toString(), threshold.toString())
 	}
 }
 
@@ -120,9 +162,9 @@ fun assertIsLess(value: Long, threshold: Long) {
  * @param threshold Threshold.
  *
  */
-fun assertIsLess(value: Int, threshold: Int) {
+fun assertLess(value: Int, threshold: Int) {
 	if (value >= threshold) {
-		assertIsLessError(value.toString(), threshold.toString())
+		assertLessError(value.toString(), threshold.toString())
 	}
 }
 
@@ -133,9 +175,9 @@ fun assertIsLess(value: Int, threshold: Int) {
  * @param threshold Threshold.
  *
  */
-fun assertIsLess(value: Double, threshold: Double) {
+fun assertLess(value: Double, threshold: Double) {
 	if (value >= threshold) {
-		assertIsLessError(value.toString(), threshold.toString())
+		assertLessError(value.toString(), threshold.toString())
 	}
 }
 
@@ -146,13 +188,13 @@ fun assertIsLess(value: Double, threshold: Double) {
  * @param threshold Threshold.
  *
  */
-fun assertIsLess(value: Float, threshold: Float) {
+fun assertLess(value: Float, threshold: Float) {
 	if (value >= threshold) {
-		assertIsLessError(value.toString(), threshold.toString())
+		assertLessError(value.toString(), threshold.toString())
 	}
 }
 
-private fun assertIsLessError(value: String, threshold: String) {
+private fun assertLessError(value: String, threshold: String) {
 	Reporter.report("Assertion failed. $value ≥ $threshold.")
 }
 
@@ -164,7 +206,7 @@ private fun assertIsLessError(value: String, threshold: String) {
  * @param threshold Threshold.
  *
  */
-fun assertIsLessOrEqual(value: Float, threshold: Float) {
+fun assertLessOrEqual(value: Float, threshold: Float) {
 	if (value > threshold) {
 		Reporter.report("Assertion failed. $value > $threshold.")
 	}

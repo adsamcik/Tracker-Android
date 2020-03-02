@@ -6,19 +6,22 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.base.exception.NotFoundException
 import com.adsamcik.tracker.shared.base.extension.sortByVertexes
 import com.adsamcik.tracker.shared.base.graph.Edge
 import com.adsamcik.tracker.shared.base.graph.Graph
 import com.adsamcik.tracker.shared.base.graph.Vertex
 import com.adsamcik.tracker.shared.base.graph.topSort
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 
 //todo UNIQUE constraint can fail the import -> using autoincrement could break foreign keys
 //todo Add import using ROOM for cases where it is old database and could be brought up to date with migrations
 // keep normal import intact to ensure any database with proper structure can be imported
+/**
+ * Imports data from database file.
+ */
 class DatabaseImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
 

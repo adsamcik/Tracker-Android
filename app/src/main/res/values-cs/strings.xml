@@ -21,6 +21,7 @@
     </plurals>
     <string name="import_notification_importing">Importuji %s …</string>
     <string name="import_notification_progress">Probíhá import …</string>
+    <string name="import_notification_error_failed_open_database">Nepodařilo se otevřít databázový soubor %s</string>
 
     <string-array name="lorem_ipsum_facts">
         <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>

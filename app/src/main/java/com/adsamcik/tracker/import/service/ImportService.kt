@@ -3,26 +3,32 @@ package com.adsamcik.tracker.import.service
 import android.app.Notification
 import android.app.Service
 import android.content.Intent
+import android.database.sqlite.SQLiteCantOpenDatabaseException
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
-import com.adsamcik.tracker.shared.base.extension.notificationManager
-import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.import.DataImport
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
 import com.adsamcik.tracker.import.file.FileImport
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
+import com.adsamcik.tracker.shared.base.extension.notificationManager
+import com.adsamcik.tracker.shared.base.service.CoreService
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.launch
 import java.io.File
 
+/**
+ * Data import service.
+ */
 class ImportService : CoreService() {
 	private val import = DataImport()
 	private lateinit var database: AppDatabase
+
+	var errorCount = 0
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		if (intent == null) {
@@ -80,6 +86,14 @@ class ImportService : CoreService() {
 		}
 	}
 
+	@AnyThread
+	private fun showErrorNotification(text: String) {
+		tryWithReport {
+			val notification = createNotification(text, false)
+			notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
+		}
+	}
+
 	@WorkerThread
 	private fun extract(file: File, extractor: ArchiveExtractor): Int {
 		showNotification(
@@ -133,8 +147,18 @@ class ImportService : CoreService() {
 		)
 
 		return tryWithResultAndReport({ 0 }) {
-			import.import(this, database, file)
-			1
+			try {
+				import.import(this, database, file)
+				1
+			} catch (e: SQLiteCantOpenDatabaseException) {
+				showErrorNotification(
+						getString(
+								R.string.import_notification_error_failed_open_database,
+								file.name
+						)
+				)
+				0
+			}
 		}
 	}
 
@@ -152,6 +176,7 @@ class ImportService : CoreService() {
 
 	companion object {
 		const val NOTIFICATION_ID: Int = 98784
+		const val NOTIFICATION_ERROR_BASE_ID: Int = 98785
 		const val ARG_FILE_PATH: String = "filePath"
 	}
 }
