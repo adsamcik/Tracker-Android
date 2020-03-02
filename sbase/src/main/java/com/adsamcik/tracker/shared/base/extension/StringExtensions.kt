@@ -9,9 +9,14 @@ import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
-
+/**
+ * Formats double to more readable string format.
+ */
 fun Double.format(digits: Int): String = java.lang.String.format("%.${digits}f", this)
 
+/**
+ * Formats float to more readable string format.
+ */
 fun Float.format(digits: Int): String = java.lang.String.format("%.${digits}f", this)
 
 fun Long.formatAsDate(): String {
@@ -112,31 +117,3 @@ fun Long.formatAsShortDateTime(): String {
 	return SimpleDateFormat.getDateTimeInstance(SimpleDateFormat.SHORT, SimpleDateFormat.SHORT)
 			.format(date)
 }
-
-fun Resources.formatMetric(meters: Double, digits: Int): String {
-	return if (meters >= LengthConstants.METERS_IN_KILOMETER) {
-		val kilometers = meters / LengthConstants.METERS_IN_KILOMETER
-		getString(R.string.kilometer_abbr, kilometers.formatReadable(digits))
-	} else {
-		getString(R.string.meter_abbr, meters.formatReadable(digits))
-	}
-}
-
-fun Resources.formatImperial(feet: Double, digits: Int): String {
-	return if (feet >= LengthConstants.FEET_IN_MILE) {
-		val miles = feet / LengthConstants.FEET_IN_MILE
-		getString(R.string.mile_abbr, miles.formatReadable(digits))
-	} else {
-		getString(R.string.feet_abbr, feet.formatReadable(digits))
-	}
-}
-
-fun Resources.formatAncientRome(passus: Double, digits: Int): String {
-	return if (passus >= LengthConstants.PASSUS_IN_MILE_PASSUS) {
-		val millepassus = passus / LengthConstants.PASSUS_IN_MILE_PASSUS
-		getString(R.string.millepassus, millepassus.formatReadable(digits))
-	} else {
-		getString(R.string.passus, passus.formatReadable(digits))
-	}
-}
-

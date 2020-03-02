@@ -60,6 +60,8 @@ android {
 }
 
 dependencies {
+	implementation(project(":sbase"))
+
 	Dependencies.core(this)
 	Dependencies.database(this)
 	Dependencies.preference(this)

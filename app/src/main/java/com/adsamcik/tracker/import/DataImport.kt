@@ -2,14 +2,14 @@ package com.adsamcik.tracker.import
 
 import android.content.Context
 import android.os.Build
-import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
-import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
 import com.adsamcik.tracker.import.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.import.file.DatabaseImport
 import com.adsamcik.tracker.import.file.FileImport
 import com.adsamcik.tracker.import.file.GpxImport
 import com.adsamcik.tracker.import.service.ImportService
+import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
+import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.FileFilter
 import com.afollestad.materialdialogs.files.fileChooser
@@ -52,6 +52,7 @@ class DataImport {
 			}
 
 			fileChooser(
+					context = context,
 					filter = filter,
 					waitForPositiveButton = true,
 					allowFolderCreation = false

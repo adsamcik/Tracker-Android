@@ -43,33 +43,19 @@
     <string name="error_missing_permission">Aplikace nemá dostatečná oprávnění</string>
     <string name="error_play_services_not_available">Služby Play nejsou dostupné</string>
 
-    <string name="feet_abbr">%s ft</string>
 
     <string name="hour_short">%d h</string>
-
-    <string name="kilometer_abbr">%s km</string>
 
     <string name="location">Lokace</string>
 
     <string name="map_date_range_all">Vše</string>
 
-    <string name="meter_abbr">%s m</string>
-
-    <string name="mile_abbr">%s mi</string>
-
-    <string name="millepassus">%s římských mil</string>
 
     <string name="minute_short">%d m</string>
 
     <string name="next_part">pokračovat</string>
 
     <string name="no">Ne</string>
-
-    <string name="passus">%s dvojkroků</string>
-
-    <string name="per_hour_abbr">%s/h</string>
-    <string name="per_minute_abbr">%s/m</string>
-    <string name="per_second_abbr">%s/s</string>
 
     <string name="second_short">%d s</string>
 

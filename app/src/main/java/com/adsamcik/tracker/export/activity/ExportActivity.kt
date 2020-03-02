@@ -10,6 +10,8 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.FileProvider
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.export.ExportResult
+import com.adsamcik.tracker.export.Exporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.cloneCalendar
@@ -17,8 +19,6 @@ import com.adsamcik.tracker.shared.base.extension.createCalendarWithTime
 import com.adsamcik.tracker.shared.base.extension.hasExternalStorageReadPermission
 import com.adsamcik.tracker.shared.base.extension.hasExternalStorageWritePermission
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
-import com.adsamcik.tracker.export.ExportResult
-import com.adsamcik.tracker.export.Exporter
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.afollestad.materialdialogs.MaterialDialog
@@ -156,7 +156,11 @@ class ExportActivity : DetailActivity() {
 
 	private fun exportClick() {
 		MaterialDialog(this).show {
-			folderChooser(waitForPositiveButton = true, allowFolderCreation = true) { _, file ->
+			folderChooser(
+					context = this@ExportActivity,
+					waitForPositiveButton = true,
+					allowFolderCreation = true
+			) { _, file ->
 				export(file)
 			}
 		}
