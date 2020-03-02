@@ -65,6 +65,7 @@ object Dependencies {
 	private fun DependencyHandler.kapt(name: String) = add("kapt", name)
 	private fun DependencyHandler.androidTestImplementation(name: String) =
 			add("androidTestImplementation", name)
+	private fun DependencyHandler.compileOnly(name: String) = add("compileOnly", name)
 
 	fun moshi(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
@@ -86,6 +87,9 @@ object Dependencies {
 
 	fun core(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
+			// Fix for compile error caused by missing annotation in JDK9+
+			compileOnly("com.github.pengrad:jdk9-deps:1.0")
+
 			implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
 			implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
 			implementation("androidx.core:core-ktx:${Versions.coreKtx}")
