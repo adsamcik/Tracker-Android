@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions")
 package com.adsamcik.tracker.shared.utils.debug
 
 /**
@@ -208,6 +209,49 @@ private fun assertLessError(value: String, threshold: String) {
  */
 fun assertLessOrEqual(value: Float, threshold: Float) {
 	if (value > threshold) {
-		Reporter.report("Assertion failed. $value > $threshold.")
+		assertLessOrEqualError(value.toString(), threshold.toString())
 	}
+}
+
+/**
+ * Assert value is less or equal to threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
+fun assertLessOrEqual(value: Double, threshold: Double) {
+	if (value > threshold) {
+		assertLessOrEqualError(value.toString(), threshold.toString())
+	}
+}
+
+/**
+ * Assert value is less or equal to threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
+fun assertLessOrEqual(value: Int, threshold: Int) {
+	if (value > threshold) {
+		assertLessOrEqualError(value.toString(), threshold.toString())
+	}
+}
+
+/**
+ * Assert value is less or equal to threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
+fun assertLessOrEqual(value: Long, threshold: Long) {
+	if (value > threshold) {
+		assertLessOrEqualError(value.toString(), threshold.toString())
+	}
+}
+
+private fun assertLessOrEqualError(value: String, threshold: String) {
+	Reporter.report("Assertion failed. $value > $threshold.")
 }
