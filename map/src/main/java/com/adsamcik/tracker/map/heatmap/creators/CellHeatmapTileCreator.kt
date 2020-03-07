@@ -36,7 +36,7 @@ internal class CellHeatmapTileCreator(
 					max(weight, original)
 				}) { original, stampValue, _ ->
 			val newAlpha = (stampValue * UByte.MAX_VALUE.toFloat()).toInt()
-			max(original, newAlpha).toUByte()
+			max(original, newAlpha)
 		}
 	}
 

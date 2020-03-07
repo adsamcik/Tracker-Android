@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.heatmap.implementation
 
+import androidx.annotation.IntRange
 import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
@@ -33,7 +34,7 @@ import kotlin.math.roundToInt
  * https://github.com/lucasb-eyer/heatmap/
  */
 
-typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) -> UByte
+typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) -> Int
 
 typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
 
@@ -59,8 +60,8 @@ internal class WeightedHeatmap(
 	}
 
 	@Suppress("unused_parameter")
-	private fun mergeAlphaDefault(value: Int, stampValue: Float, weight: Float): UByte {
-		return max(value, (stampValue * UByte.MAX_VALUE.toFloat()).toInt()).toUByte()
+	private fun mergeAlphaDefault(value: Int, stampValue: Float, weight: Float): Int {
+		return max(value, (stampValue * UByte.MAX_VALUE.toFloat()).toInt())
 	}
 
 	@Suppress("ComplexMethod", "LongParameterList")
@@ -109,7 +110,7 @@ internal class WeightedHeatmap(
 				weightArray[heatIndex] = newWeightValue
 
 				val newAlphaValue = alphaMergeFunction(alphaValue, stampValue, newWeightValue)
-				alphaArray[heatIndex] = newAlphaValue
+				alphaArray[heatIndex] = newAlphaValue.toUByte()
 
 				if (dynamicHeat && newWeightValue > maxHeat) {
 					maxHeat = newWeightValue

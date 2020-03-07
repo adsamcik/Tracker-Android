@@ -26,7 +26,7 @@ internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerD
 				{ current, _, stampValue, weight ->
 					current + stampValue * weight
 				}) { current, stampValue, weight ->
-			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
+			((current.toFloat() + stampValue * weight) / 2f).toInt()
 		}
 	}
 

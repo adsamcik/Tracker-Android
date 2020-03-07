@@ -33,8 +33,9 @@ internal class HeatmapTile(
 	fun addAll(list: List<TimeLocation2DWeighted>) {
 		if (list.isEmpty()) return
 
-		val minTime = requireNotNull(list.minBy { it.time }).time
-		list.forEach { add(it, minTime) }
+		val sortedList = list.sortedBy { it.time }
+		val minTime = sortedList.first().time
+		sortedList.forEach { add(it, minTime) }
 	}
 
 	fun add(location: TimeLocation2DWeighted, minTime: Long) {

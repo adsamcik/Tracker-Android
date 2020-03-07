@@ -25,10 +25,10 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 				HeatmapColorScheme.fromArray(heatmapColors, 100),
 				maxHeat,
 				false,
-				{ current, _, stampValue, _ ->
-					current + stampValue
+				{ current, _, stampValue, weight ->
+					current + stampValue * weight
 				}) { current, stampValue, _ ->
-			max(current, (stampValue * 255f).toInt()).toUByte()
+			max(current, (stampValue * 255f).toInt())
 		}
 	}
 
