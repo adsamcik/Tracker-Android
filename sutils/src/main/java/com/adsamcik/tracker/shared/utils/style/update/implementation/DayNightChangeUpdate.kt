@@ -2,12 +2,14 @@ package com.adsamcik.tracker.shared.utils.style.update.implementation
 
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
-import java.util.*
+import java.time.Duration
+import java.time.ZonedDateTime
 
 internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 	override val nameRes: Int = R.string.settings_color_update_dn_switch_title
@@ -27,14 +29,14 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 		)
 
 	private fun calculateDay(
-			nowTime: Long,
-			sunriseTime: Long,
-			sunsetTime: Long,
+			nowTime: ZonedDateTime,
+			sunriseTime: ZonedDateTime,
+			sunsetTime: ZonedDateTime,
 			styleList: List<Int>
 	): UpdateData {
-		val nightDuration = sunriseTime - sunsetTime
-		val dayDuration = Time.DAY_IN_MILLISECONDS - nightDuration
-		val progress = (dayDuration - (sunsetTime - nowTime)) / dayDuration
+		val nightDuration = Duration.between(sunriseTime, sunsetTime)
+		val dayDuration = Duration.ofDays(1L) - nightDuration
+		val progress = (dayDuration - (Duration.between(sunsetTime, nowTime))) / dayDuration
 
 		return UpdateData(
 				styleList[DAY],
@@ -45,14 +47,14 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 	}
 
 	private fun calculateNight(
-			nowTime: Long,
-			sunriseTime: Long,
-			sunsetTime: Long,
+			nowTime: ZonedDateTime,
+			sunriseTime: ZonedDateTime,
+			sunsetTime: ZonedDateTime,
 			styleList: List<Int>
 	): UpdateData {
-		val dayDuration = sunsetTime - sunriseTime
-		val nightDuration = Time.DAY_IN_MILLISECONDS - dayDuration
-		val progress = (nightDuration - (sunriseTime - nowTime)) / nightDuration
+		val dayDuration = Duration.between(sunsetTime, sunriseTime)
+		val nightDuration = Duration.ofDays(1L) - dayDuration
+		val progress = (nightDuration - Duration.between(sunsetTime, nowTime)).dividedBy(nightDuration);
 
 		return UpdateData(
 				styleList[NIGHT],
@@ -64,7 +66,7 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 
 	@Suppress("ComplexMethod")
 	override fun getUpdateData(styleList: List<Int>, sunSetRise: SunSetRise): UpdateData {
-		val time = Calendar.getInstance()
+		val time = Time.now.toZonedDateTime()
 		val sunData = sunSetRise.sunDataFor(time)
 		val sunset = sunData.set
 		val sunrise = sunData.rise
@@ -78,14 +80,10 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 		require(sunset != null)
 		require(sunrise != null)
 
-		val nowTime = time.timeInMillis
-		val sunsetTime = sunset.time
-		val sunriseTime = sunrise.time
-
-		return if (sunriseTime < sunsetTime) {
-			calculateNight(nowTime, sunriseTime, sunsetTime, styleList)
+		return if (sunrise < sunset) {
+			calculateNight(time, sunrise, sunset, styleList)
 		} else {
-			calculateDay(nowTime, sunriseTime, sunsetTime, styleList)
+			calculateDay(time, sunrise, sunset, styleList)
 		}
 	}
 

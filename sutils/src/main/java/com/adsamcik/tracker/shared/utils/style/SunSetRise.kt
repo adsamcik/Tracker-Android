@@ -6,15 +6,16 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.extension.toCalendar
 import com.adsamcik.tracker.shared.base.extension.toDate
+import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import org.shredzone.commons.suncalc.SunTimes
-import org.shredzone.commons.suncalc.param.TimeResultParameter
+import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -48,21 +49,19 @@ class SunSetRise {
 	 *
 	 * @return Time of the nearest sunrise within 24 hours or null if there won't be one
 	 */
-	fun sunriseForToday(): Calendar? = sunriseFor(Time.now)
+	fun sunriseForToday(): ZonedDateTime? = sunriseFor(Time.now.toZonedDateTime())
 
 	/**
 	 * Finds nearest sunrise within 24 hours from given date.
 	 *
 	 * @return Time of the nearest sunrise within 24 hours or null if there won't be one
 	 */
-	fun sunriseFor(calendar: Calendar): Calendar? {
+	fun sunriseFor(dateTime: ZonedDateTime): ZonedDateTime? {
 		val location = location
 		return if (location != null) {
-			return getSunrise(location, calendar)
+			getSunrise(location, dateTime)
 		} else {
-			val dateCalendar = calendar.toDate()
-			dateCalendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNRISE)
-			dateCalendar
+			dateTime.withHour(DEFAULT_SUNRISE)
 		}
 	}
 
@@ -71,21 +70,19 @@ class SunSetRise {
 	 *
 	 * @return Time of the nearest sunset within 24 hours or null if there won't be one
 	 */
-	fun sunsetForToday(): Calendar? = sunsetFor(Time.now)
+	fun sunsetForToday(): ZonedDateTime? = sunsetFor(Time.now.toZonedDateTime())
 
 	/**
 	 * Finds nearest sunset within 24 hours from given date.
 	 *
 	 * @return Time of the nearest sunset within 24 hours or null if there won't be one
 	 */
-	fun sunsetFor(calendar: Calendar): Calendar? {
+	fun sunsetFor(dateTime: ZonedDateTime): ZonedDateTime? {
 		val location = location
 		return if (location != null) {
-			return getSunset(location, calendar)
+			getSunset(location, dateTime)
 		} else {
-			val dateCalendar = calendar.toDate()
-			dateCalendar.set(Calendar.HOUR_OF_DAY, DEFAULT_SUNSET)
-			dateCalendar
+			dateTime.withHour(DEFAULT_SUNSET)
 		}
 	}
 
@@ -94,10 +91,10 @@ class SunSetRise {
 	 *
 	 * @return Sun data
 	 */
-	fun sunDataFor(calendar: Calendar): SunTimes {
+	fun sunDataFor(dateTime: ZonedDateTime): SunTimes {
 		val location = location
 		return if (location != null) {
-			return getCalculator(location, calendar)
+			return getCalculator(location, dateTime)
 		} else {
 			SunTimes.compute().execute()
 		}
@@ -178,34 +175,34 @@ class SunSetRise {
 		}
 	}
 
-	private fun getCalculator(location: BaseLocation, calendar: Calendar): SunTimes {
+	private fun getCalculator(location: BaseLocation, dateTime: ZonedDateTime): SunTimes {
+		val truncated = dateTime.truncatedTo(ChronoUnit.MINUTES);
 		return SunTimes
 				.compute().apply {
 					if (location.isValid) {
 						at(location.latitude, location.longitude)
 					}
-					on(calendar)
+					on(truncated)
 					oneDay()
-					truncatedTo(TimeResultParameter.Unit.MINUTES)
 					twilight(SunTimes.Twilight.VISUAL)
 				}
 				.execute()
 	}
 
-	private fun getSunset(calculator: SunTimes): Calendar? {
-		return calculator.set?.toCalendar()
+	private fun getSunset(calculator: SunTimes): ZonedDateTime? {
+		return calculator.set
 	}
 
-	private fun getSunset(location: BaseLocation, calendar: Calendar): Calendar? {
-		return getSunset(getCalculator(location, calendar))
+	private fun getSunset(location: BaseLocation, dateTime: ZonedDateTime): ZonedDateTime? {
+		return getSunset(getCalculator(location, dateTime))
 	}
 
-	private fun getSunrise(calculator: SunTimes): Calendar? {
-		return calculator.rise?.toCalendar()
+	private fun getSunrise(calculator: SunTimes): ZonedDateTime? {
+		return calculator.rise
 	}
 
-	private fun getSunrise(location: BaseLocation, calendar: Calendar): Calendar? {
-		return getSunrise(getCalculator(location, calendar))
+	private fun getSunrise(location: BaseLocation, dateTime: ZonedDateTime): ZonedDateTime? {
+		return getSunrise(getCalculator(location, dateTime))
 	}
 
 	companion object {

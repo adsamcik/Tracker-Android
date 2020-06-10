@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.utils.style.update.implementation
 
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
@@ -41,7 +42,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			"Expected list of size ${requiredColorData.list.size} but got ${styleList.size}"
 		}
 
-		val time = Time.now
+		val time = Time.now.toZonedDateTime()
 
 		val sunData = sunSetRise.sunDataFor(time)
 		val sunset = sunData.set
@@ -53,7 +54,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			return UpdateData(styleList[MIDNIGHT], styleList[MIDNIGHT], Long.MAX_VALUE, 0L)
 		}
 
-		val localUpdateData = calculateProgress(time.timeInMillis, sunrise.time, sunset.time)
+		val localUpdateData = calculateProgress(time.timeInMillis, sunrise, sunset)
 
 		return UpdateData(
 				styleList[localUpdateData.fromColor],

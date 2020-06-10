@@ -38,6 +38,7 @@ android {
 	}
 
 	with(compileOptions) {
+		coreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}
@@ -100,6 +101,7 @@ dependencies {
 	Dependencies.core(this)
 	//1st party dependencies
 	implementation("com.adsamcik.android-components:slider:0.8.0")
+	coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.0.4")
 	Dependencies.draggable(this)
 
 	Dependencies.introduction(this)

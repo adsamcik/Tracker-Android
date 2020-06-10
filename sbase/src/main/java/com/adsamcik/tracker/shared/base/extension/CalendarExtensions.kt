@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.base.extension
 
 import android.os.Build
 import com.adsamcik.tracker.shared.base.Time
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.*
 
 fun createCalendarWithDate(year: Int, monthOfYear: Int, dayOfMonth: Int): Calendar {
@@ -58,6 +60,13 @@ fun Calendar.toDateUTC(): Calendar {
 	calendar.timeZone = TimeZone.getTimeZone("UTC")
 	calendar.roundToDate()
 	return calendar
+}
+
+/**
+ * Converts calendar to [ZonedDateTime].
+ */
+fun Calendar.toZonedDateTime(): ZonedDateTime {
+	return ZonedDateTime.ofInstant(toInstant(), ZoneId.systemDefault());
 }
 
 /**
