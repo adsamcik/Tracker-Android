@@ -3,8 +3,8 @@
  */
 object Android {
 	const val min: Int = 21
-	const val compile: String = "android-29"
-	const val target: String = "29"
+	const val compile: String = "android-R"
+	const val target: String = "android-R"
 
-	const val buildTools: String = "29.0.2"
+	const val buildTools: String = "30.0.0-rc4"
 }
