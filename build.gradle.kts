@@ -5,10 +5,10 @@ buildscript {
 		maven("https://maven.fabric.io/public")
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:4.0.0-beta01")
+		classpath("com.android.tools.build:gradle:4.0.0")
 		classpath("com.google.gms:google-services:4.3.3")
-		classpath("com.google.android.gms:oss-licenses-plugin:0.10.1")
-		classpath("io.fabric.tools:gradle:1.31.2")
+		classpath("com.google.android.gms:oss-licenses-plugin:0.10.2")
+		classpath("com.google.firebase:firebase-crashlytics-gradle:2.1.1")
 
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))

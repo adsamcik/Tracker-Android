@@ -6,7 +6,7 @@ plugins {
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
-	id("io.fabric")
+	id("com.google.firebase.crashlytics")
 	Dependencies.corePlugins(this)
 }
 

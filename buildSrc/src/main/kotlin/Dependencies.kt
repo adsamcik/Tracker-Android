@@ -15,27 +15,27 @@ object Dependencies {
 		internal const val coreKtx = "1.2.0"
 		internal const val appcompat = "1.1.0"
 		internal const val fragment = "1.2.2"
-		const val kotlin: String = "1.3.61"
+		const val kotlin: String = "1.3.70"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.9.2"
 		internal const val work = "2.3.2"
 		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.0"
 		internal const val material = "1.1.0"
-		internal const val coroutines = "1.3.3"
+		internal const val coroutines = "1.3.5"
 
 		internal const val requery = "3.31.0"
-		internal const val room = "2.2.4"
+		internal const val room = "2.2.5"
 
 		internal const val maps = "17.0.0"
-		internal const val firebaseCore = "17.2.2"
+		internal const val firebaseCore = "17.2.3"
 		internal const val recyclerView = "1.1.0"
 		internal const val paging = "2.1.0"
 
-		internal const val crashlytics = "2.10.1"
+		internal const val crashlytics = "17.0.1"
 
-		internal const val playServicesBase = "17.1.0"
-		internal const val playCore = "1.6.5"
+		internal const val playServicesBase = "17.2.0"
+		internal const val playCore = "1.7.1"
 		internal const val playLocation = "17.0.0"
 
 		internal const val stax = "1.0.1"
@@ -56,7 +56,7 @@ object Dependencies {
 			internal const val androidxTest: String = "1.2.0"
 			internal const val espresso: String = "3.2.0"
 			internal const val coreTesting: String = "2.1.0"
-			internal const val testingKtx: String = "1.1.1"
+			internal const val testingKtx: String = "1.1.2"
 		}
 	}
 
@@ -147,7 +147,7 @@ object Dependencies {
 	fun crashlytics(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.google.firebase:firebase-core:${Versions.firebaseCore}")
-			implementation("com.crashlytics.sdk.android:crashlytics:${Versions.crashlytics}")
+			implementation("com.google.firebase:firebase-crashlytics:${Versions.crashlytics}")
 		}
 	}
 
