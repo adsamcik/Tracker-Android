@@ -62,7 +62,7 @@ android {
 dependencies {
     implementation(project(":sbase"))
 	implementation(project(":spreferences"))
-    implementation("org.shredzone.commons:commons-suncalc:2.6")
+    implementation("org.shredzone.commons:commons-suncalc:3.1")
 
     Dependencies.core(this)
     Dependencies.moshi(this)
