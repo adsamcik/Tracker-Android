@@ -5,9 +5,7 @@ import androidx.lifecycle.Observer
 import com.adsamcik.tracker.shared.base.BuildConfig
 import com.adsamcik.tracker.shared.base.isEmulator
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
-import com.crashlytics.android.Crashlytics
-import io.fabric.sdk.android.Fabric
-import java.lang.ref.WeakReference
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 
 /**
  * Object that handles reporting of any message, error or exception that is passed to it.
@@ -15,16 +13,11 @@ import java.lang.ref.WeakReference
 object Reporter {
 	private var isInitialized = false
 	private var isEnabled = false
+	private val crashlytics = FirebaseCrashlytics.getInstance();
 
-	private var context: WeakReference<Context>? = null
-
-	//todo remove this and just call initialize in settings so context can be removed too
 	private val loggingObserver = Observer<Boolean> {
 		isEnabled = it
-		val context = context?.get()
-		if (it && context != null) {
-			Fabric.with(context, Crashlytics())
-		}
+		crashlytics.setCrashlyticsCollectionEnabled(it);
 	}
 
 	/**
@@ -37,10 +30,6 @@ object Reporter {
 		}
 
 		if (isEmulator) return
-
-		if (Reporter.context?.get() == null) {
-			Reporter.context = WeakReference(context.applicationContext)
-		}
 
 		PreferenceObserver.observe(
 				context,
@@ -61,7 +50,7 @@ object Reporter {
 		if (BuildConfig.DEBUG) throw Exception(exception)
 
 		checkInitialized()
-		if (isEnabled) Crashlytics.logException(exception)
+		if (isEnabled) crashlytics.recordException(exception)
 	}
 
 	/**
@@ -74,7 +63,7 @@ object Reporter {
 		if (BuildConfig.DEBUG) throw Exception(message)
 
 		checkInitialized()
-		if (isEnabled) Crashlytics.logException(Throwable(message))
+		if (isEnabled) crashlytics.recordException(Throwable(message))
 	}
 
 	/**
@@ -87,7 +76,7 @@ object Reporter {
 		if (BuildConfig.DEBUG) throw Exception(message)
 
 		checkInitialized()
-		if (isEnabled) Crashlytics.log(message)
+		if (isEnabled) crashlytics.log(message)
 	}
 }
 
