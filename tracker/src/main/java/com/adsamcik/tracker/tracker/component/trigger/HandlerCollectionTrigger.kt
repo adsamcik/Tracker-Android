@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
@@ -23,9 +24,9 @@ internal class HandlerCollectionTrigger : CollectionTriggerComponent {
 	private var repeatEveryMs: Long = -1L
 
 	init {
-		Looper.prepare()
+		Assist.ensureLooper()
 	}
-	
+
 	private val handler = Handler(requireNotNull(Looper.myLooper()))
 
 	private var receiver: TrackerTimerReceiver? = null
