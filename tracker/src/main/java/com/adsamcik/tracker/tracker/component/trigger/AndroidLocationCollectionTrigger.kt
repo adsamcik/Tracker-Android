@@ -33,15 +33,16 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger() {
 
 		override fun onStatusChanged(p0: String?, p1: Int, p2: Bundle?) = Unit
 
-		override fun onProviderEnabled(p0: String?) = Unit
+		override fun onProviderEnabled(provider: String) = Unit
 
-		override fun onProviderDisabled(p0: String?) {
+		override fun onProviderDisabled(provider: String) {
 			val errorData = TrackerTimerErrorData(
 					TrackerTimerErrorSeverity.NOTIFY_USER,
 					R.string.notification_looking_for_gps
 			)
 			receiver?.onError(errorData)
 		}
+
 	}
 
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
