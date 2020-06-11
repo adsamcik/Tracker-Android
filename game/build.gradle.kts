@@ -18,7 +18,8 @@ android {
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
 
-	with(compileOptions) {
+	compileOptions {
+		coreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}

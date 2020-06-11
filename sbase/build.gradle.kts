@@ -28,7 +28,8 @@ android {
 		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
 	}
 
-	with(compileOptions) {
+	compileOptions {
+		coreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}

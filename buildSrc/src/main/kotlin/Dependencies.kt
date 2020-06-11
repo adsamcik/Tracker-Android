@@ -65,7 +65,10 @@ object Dependencies {
 	private fun DependencyHandler.kapt(name: String) = add("kapt", name)
 	private fun DependencyHandler.androidTestImplementation(name: String) =
 			add("androidTestImplementation", name)
+
 	private fun DependencyHandler.compileOnly(name: String) = add("compileOnly", name)
+	private fun DependencyHandler.coreLibraryDesugaring(dependencyNotation: Any) =
+			add("coreLibraryDesugaring", dependencyNotation)
 
 	fun moshi(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
@@ -89,6 +92,7 @@ object Dependencies {
 		with(dependencyHandler) {
 			// Fix for compile error caused by missing annotation in JDK9+
 			compileOnly("com.github.pengrad:jdk9-deps:1.0")
+			coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.0.4")
 
 			implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
 			implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
