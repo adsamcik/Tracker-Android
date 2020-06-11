@@ -25,7 +25,7 @@ class AvgSpeedConsumer : StatDataSpeedConsumer {
 	override fun getSpeed(context: Context, data: StatDataMap): Double {
 		val locationData = data.requireData<List<Location>>(LocationDataProducer::class)
 		val average = locationData.averageIfFloat({ it.speed != null }) { requireNotNull(it.speed) }
-		return average.toDouble() ?: 0.0
+		return average.toDouble()
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

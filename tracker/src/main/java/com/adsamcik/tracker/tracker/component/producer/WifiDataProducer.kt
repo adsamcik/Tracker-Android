@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.extension.wifiManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
@@ -78,7 +79,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
-		wifiManager = context.getSystemServiceTyped(Context.WIFI_SERVICE)
+		wifiManager = context.wifiManager
 
 		//Let's not waste precious scan requests onDataUpdated Pie and newer
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {

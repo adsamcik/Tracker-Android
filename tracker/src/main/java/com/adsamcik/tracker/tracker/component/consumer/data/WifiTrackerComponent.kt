@@ -2,8 +2,10 @@ package com.adsamcik.tracker.tracker.component.consumer.data
 
 import android.content.Context
 import android.location.Location
+import android.net.wifi.WifiManager
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.extension.LocationExtensions
+import com.adsamcik.tracker.shared.base.extension.wifiManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
@@ -11,6 +13,8 @@ import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import kotlin.math.abs
 
 internal class WifiTrackerComponent : DataTrackerComponent {
+
+	private var wifiManager: WifiManager? = null;
 
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
 			TrackerComponentRequirement.WIFI
@@ -49,7 +53,12 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 	}
 
 	private fun setWifi(scanData: WifiScanData, collectionData: MutableCollectionData) {
-		collectionData.setWifi(null, scanData.timeMillis, scanData.data)
+		collectionData.setWifi(
+				null,
+				scanData.timeMillis,
+				scanData.data,
+				requireNotNull(wifiManager)
+		)
 	}
 
 	private fun setWifi(
@@ -67,13 +76,22 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 					firstLocation,
 					secondLocation, timeDelta
 			)
-			collectionData.setWifi(interpolatedLocation, scanData.timeMillis, scanData.data)
+			collectionData.setWifi(
+					interpolatedLocation,
+					scanData.timeMillis,
+					scanData.data,
+					requireNotNull(wifiManager)
+			)
 		}
 	}
 
-	override suspend fun onEnable(context: Context) = Unit
+	override suspend fun onEnable(context: Context) {
+		wifiManager = context.wifiManager
+	}
 
-	override suspend fun onDisable(context: Context) = Unit
+	override suspend fun onDisable(context: Context) {
+		wifiManager = null
+	}
 
 
 	companion object {

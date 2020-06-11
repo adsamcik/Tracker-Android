@@ -9,6 +9,9 @@ import com.adsamcik.tracker.shared.base.extension.windowManager
 import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 
+/**
+ * Utility object providing display methods.
+ */
 object DisplayAssist {
 	/**
 	 * Returns orientation of the device as one of the following constants

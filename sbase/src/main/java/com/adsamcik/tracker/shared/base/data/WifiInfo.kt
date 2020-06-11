@@ -81,7 +81,7 @@ data class WifiInfo(
 	constructor() : this("", "", "")
 
 	@Suppress("MagicNumber")
-	constructor(sr: ScanResult) : this() {
+	constructor(sr: ScanResult, wifiManager: WifiManager) : this() {
 		this.bssid = sr.BSSID
 		this.ssid = sr.SSID
 		this.capabilities = sr.capabilities
@@ -102,11 +102,11 @@ data class WifiInfo(
 		}
 		this.frequency = sr.frequency
 		this.level = sr.level
-		this.bar = WifiManager.calculateSignalLevel(sr.level, MAX_SIGNAL_BAR)
-	}
-
-	companion object {
-		private const val MAX_SIGNAL_BAR = 10
+		@Suppress("DEPRECATION")
+		this.bar = when {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> wifiManager.calculateSignalLevel(sr.level)
+			else -> WifiManager.calculateSignalLevel(sr.level, wifiManager.maxSignalLevel)
+		}
 	}
 }
 

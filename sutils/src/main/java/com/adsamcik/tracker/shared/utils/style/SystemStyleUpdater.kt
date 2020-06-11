@@ -1,15 +1,43 @@
 package com.adsamcik.tracker.shared.utils.style
 
-import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Build
 import android.view.View
+import android.view.WindowInsetsController
+import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
 
 internal class SystemStyleUpdater {
+	@RequiresApi(Build.VERSION_CODES.R)
 	private fun updateUiVisibility(view: View, luminance: Int) {
-		assert(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-		@SuppressLint("InlinedApi")
+		val insetsController = requireNotNull(view.windowInsetsController);
+
+		val statusBarAppearance: Int
+		val navBarAppearance: Int
+
+		if (luminance > 0) {
+			statusBarAppearance = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+			navBarAppearance = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+		} else {
+			statusBarAppearance = 0;
+			navBarAppearance = 0;
+		}
+
+		insetsController.setSystemBarsAppearance(
+				statusBarAppearance,
+				WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+		);
+
+		insetsController.setSystemBarsAppearance(
+				navBarAppearance,
+				WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+		);
+	}
+
+	@RequiresApi(Build.VERSION_CODES.M)
+	private fun updateUiVisibilityMQ(view: View, luminance: Int) {
+		require(Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+		@Suppress("DEPRECATION")
 		view.systemUiVisibility = if (luminance > 0) {
 			view.systemUiVisibility or
 					View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.data
 
 import android.net.wifi.ScanResult
+import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Parcelable
 import kotlinx.android.parcel.Parcelize
@@ -114,9 +115,14 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 	 * @param time time of collection
 	 * @return this
 	 */
-	fun setWifi(location: android.location.Location?, time: Long, data: Array<ScanResult>?) {
+	fun setWifi(
+			location: android.location.Location?,
+			time: Long,
+			data: Array<ScanResult>?,
+			wifiManager: WifiManager
+	) {
 		if (data != null && time > 0) {
-			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult) }
+			val scannedWifi = data.map { scanResult -> WifiInfo(scanResult, wifiManager) }
 			val wifiLocation = if (location != null) Location(location) else null
 			this.wifi = WifiData(wifiLocation, time, scannedWifi)
 		}

@@ -1,14 +1,14 @@
 package com.adsamcik.tracker.activity.service
 
-import android.app.IntentService
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.core.app.JobIntentService
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.utils.debug.LogData
@@ -25,8 +25,8 @@ import com.google.android.gms.tasks.Task
  * Intent service that receives all activity updates.
  * Handles logging if it is enabled.
  */
-internal class ActivityService : IntentService(this::class.java.simpleName) {
-	override fun onHandleIntent(intent: Intent?) {
+internal class ActivityService : JobIntentService() {
+	override fun onHandleWork(intent: Intent) {
 		if (ActivityRecognitionResult.hasResult(intent)) {
 			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
 			onActivityResult(result)

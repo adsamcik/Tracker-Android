@@ -14,6 +14,7 @@ import android.hardware.SensorManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -230,6 +231,11 @@ inline val Context.powerManager: PowerManager get() = getSystemServiceTyped(Cont
  * Shortcut to get [JobScheduler]. This property does not cache the service.
  */
 inline val Context.alarmManager: AlarmManager get() = getSystemServiceTyped(Context.ALARM_SERVICE)
+
+/**
+ * Shortcut to get [WifiManager]. This property does not cache the service.
+ */
+inline val Context.wifiManager: WifiManager get() = getSystemServiceTyped(Context.WIFI_SERVICE)
 
 /**
  * Shortcut to get [ShortcutManager]. This property does not cache the service.
