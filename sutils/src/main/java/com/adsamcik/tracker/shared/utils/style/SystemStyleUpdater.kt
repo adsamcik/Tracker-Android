@@ -5,11 +5,20 @@ import android.os.Build
 import android.view.View
 import android.view.WindowInsetsController
 import androidx.annotation.RequiresApi
+import com.adsamcik.tracker.shared.utils.BuildConfig
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
 
 internal class SystemStyleUpdater {
-	@RequiresApi(Build.VERSION_CODES.R)
 	private fun updateUiVisibility(view: View, luminance: Int) {
+		when {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> updateUiVisibilityR(view, luminance)
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> updateUiVisibilityMQ(view, luminance)
+			else -> throw IllegalStateException()
+		}
+	}
+
+	@RequiresApi(Build.VERSION_CODES.R)
+	private fun updateUiVisibilityR(view: View, luminance: Int) {
 		val insetsController = requireNotNull(view.windowInsetsController);
 
 		val statusBarAppearance: Int
