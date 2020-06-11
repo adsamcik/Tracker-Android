@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUp
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
+import org.shredzone.commons.suncalc.SunTimes
+import java.time.Duration
+import java.time.ZonedDateTime
 
 internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	override val nameRes: Int = R.string.settings_color_update_mden_trans_title
@@ -54,7 +57,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			return UpdateData(styleList[MIDNIGHT], styleList[MIDNIGHT], Long.MAX_VALUE, 0L)
 		}
 
-		val localUpdateData = calculateProgress(time.timeInMillis, sunrise, sunset)
+		val localUpdateData = calculateProgress(time, sunData)
 
 		return UpdateData(
 				styleList[localUpdateData.fromColor],
@@ -64,68 +67,71 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		)
 	}
 
-	private fun calculateMidTime(first: Long, second: Long): Long {
-		require(first < second)
-		return (second - first) / 2L + first
+	private fun betweenMidnightAndSunrise(
+			now: ZonedDateTime,
+			sunrise: ZonedDateTime,
+			midnight: ZonedDateTime
+	): UpdateData {
+		require(now.isAfter(midnight))
+		require(sunrise.isAfter(midnight))
+		require(now.isBefore(sunrise))
+		return UpdateData(
+				fromColor = MIDNIGHT,
+				toColor = SUNRISE,
+				duration = Duration.between(midnight, sunrise).toMillis(),
+				progress = Duration.between(midnight, now).toMillis()
+		)
 	}
 
-	private fun betweenMidnightAndSunrise(
-			now: Long,
-			midnight: Long,
-			sunrise: Long
-	): UpdateData =
-			UpdateData(
-					fromColor = MIDNIGHT,
-					toColor = SUNRISE,
-					duration = sunrise - midnight,
-					progress = now - midnight
-			)
-
 	private fun betweenSunsetAndMidnight(
-			now: Long,
-			sunset: Long,
-			midnight: Long
-	): UpdateData =
-			UpdateData(
-					fromColor = SUNSET,
-					toColor = MIDNIGHT,
-					duration = midnight - sunset,
-					progress = now - sunset
-			)
+			now: ZonedDateTime,
+			sunset: ZonedDateTime,
+			midnight: ZonedDateTime
+	): UpdateData {
+		require(now.isAfter(sunset))
+		require(midnight.isAfter(sunset))
+		require(now.isBefore(midnight))
+		return UpdateData(
+				fromColor = SUNSET,
+				toColor = MIDNIGHT,
+				duration = Duration.between(sunset, midnight).toMillis(),
+				progress = Duration.between(sunset, now).toMillis()
+		)
+	}
 
 	private fun betweenSunsetAndSunrise(
-			now: Long,
-			sunrise: Long,
-			sunset: Long
+			now: ZonedDateTime,
+			sunTimes: SunTimes
 	): UpdateData {
-		val approximateLastSunset = sunset - Time.DAY_IN_MILLISECONDS
-		val dstToSunrise = sunrise - now
-		val dstToSunset = now - approximateLastSunset
+		val sunrise = requireNotNull(sunTimes.rise)
+		val sunset = requireNotNull(sunTimes.set)
+		val approximateLastSunset = sunset.minusDays(1)
+		val dstToSunrise = Duration.between(now, sunrise)
+		val dstToSunset = Duration.between(approximateLastSunset, now)
 
-		require(dstToSunrise >= 0) { "Sunrise is in the past $dstToSunrise (sunrise: $sunrise, now: $now)" }
-		require(dstToSunset >= 0) {
+		require(!dstToSunrise.isNegative) { "Sunrise is in the past $dstToSunrise (sunrise: $sunrise, now: $now)" }
+		require(!dstToSunset.isNegative) {
 			"Sunset is in the past $dstToSunset (sunset: $sunset, lastSunset: $approximateLastSunset, now: $now)"
 		}
 
 		return if (dstToSunrise < dstToSunset) {
-			beforeSunrise(now, sunrise, approximateLastSunset)
+			beforeSunrise(now, sunTimes)
 		} else {
-			afterSunset(now, sunrise, approximateLastSunset)
+			afterSunset(now, sunTimes)
 		}
 	}
 
 	private fun afterSunset(
-			now: Long,
-			sunrise: Long,
-			sunset: Long
+			now: ZonedDateTime,
+			sunTimes: SunTimes
 	): UpdateData {
 //the max difference between days is approximately under 5 minutes, so it should be fine
-		val tomorrowSunrise = sunrise + Time.DAY_IN_MILLISECONDS
-		val midnight = calculateMidTime(sunset, tomorrowSunrise)
+		val tomorrowSunrise = requireNotNull(sunTimes.rise)
+		val midnight = requireNotNull(sunTimes.nadir)
 		return when {
 			now < midnight -> betweenSunsetAndMidnight(
 					now,
-					sunset,
+					requireNotNull(sunTimes.set),
 					midnight
 			)
 			now <= tomorrowSunrise -> betweenMidnightAndSunrise(
@@ -138,65 +144,72 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	}
 
 	private fun betweenNoonAndSunset(
-			now: Long,
-			noon: Long,
-			sunset: Long
-	): UpdateData =
-			UpdateData(
-					fromColor = NOON,
-					toColor = SUNSET,
-					duration = sunset - noon,
-					progress = now - noon
-			)
+			now: ZonedDateTime,
+			sunset: ZonedDateTime,
+			noon: ZonedDateTime
+	): UpdateData {
+		require(now.isAfter(noon))
+		require(sunset.isAfter(noon))
+		require(now.isBefore(sunset))
+		return UpdateData(
+				fromColor = NOON,
+				toColor = SUNSET,
+				duration = Duration.between(noon, sunset).toMillis(),
+				progress = Duration.between(noon, now).toMillis()
+		)
+	}
 
 	private fun betweenSunriseAndNoon(
-			now: Long,
-			sunrise: Long,
-			noon: Long
-	): UpdateData =
-			UpdateData(
-					fromColor = SUNRISE,
-					toColor = NOON,
-					duration = noon - sunrise,
-					progress = now - sunrise
-			)
+			now: ZonedDateTime,
+			sunrise: ZonedDateTime,
+			noon: ZonedDateTime
+	): UpdateData {
+		require(now.isAfter(sunrise))
+		require(noon.isAfter(sunrise))
+		require(now.isBefore(noon))
+		return UpdateData(
+				fromColor = SUNRISE,
+				toColor = NOON,
+				duration = Duration.between(sunrise, noon).toMillis(),
+				progress = Duration.between(sunrise, now).toMillis()
+		)
+	}
 
 	private fun betweenSunriseAndSunset(
-			now: Long,
-			sunrise: Long,
-			sunset: Long
+			now: ZonedDateTime,
+			sunTimes: SunTimes
 	): UpdateData {
-		val approximateLastSunrise = sunrise - Time.DAY_IN_MILLISECONDS
-		val noonInMillis = calculateMidTime(approximateLastSunrise, sunset)
+		val sunrise = requireNotNull(sunTimes.rise)
+		val noon = requireNotNull(sunTimes.noon)
+		val sunset = requireNotNull(sunTimes.set)
 		return when {
-			now >= noonInMillis -> betweenNoonAndSunset(
+			noon.isAfter(sunset) -> betweenNoonAndSunset(
 					now,
-					noonInMillis,
-					sunset
+					sunset,
+					noon.minusDays(1)
 			)
-			now >= approximateLastSunrise -> betweenSunriseAndNoon(
+			sunrise.isAfter(noon) -> betweenSunriseAndNoon(
 					now,
-					approximateLastSunrise,
-					noonInMillis
+					sunrise.minusDays(1),
+					noon
 			)
 			else -> throw IllegalStateException()
 		}
 	}
 
 	private fun beforeSunrise(
-			now: Long,
-			sunrise: Long,
-			sunset: Long
+			now: ZonedDateTime,
+			sunTimes: SunTimes
 	): UpdateData {
 		//the max difference between days is approximately under 5 minutes, so it should be fine
-		val yesterdayApproxSunset = sunset - Time.DAY_IN_MILLISECONDS
-		val midnight = calculateMidTime(yesterdayApproxSunset, sunrise)
+		val yesterdayApproxSunset = requireNotNull(sunTimes.set).minusDays(1)
+		val midnight = requireNotNull(sunTimes.nadir);
 
 		return when {
 			now >= midnight -> betweenMidnightAndSunrise(
 					now,
-					midnight,
-					sunrise
+					requireNotNull(sunTimes.rise),
+					midnight
 			)
 			now >= yesterdayApproxSunset -> betweenSunsetAndMidnight(
 					now,
@@ -208,14 +221,13 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	}
 
 	private fun calculateProgress(
-			now: Long,
-			sunrise: Long,
-			sunset: Long
+			now: ZonedDateTime,
+			sunTimes: SunTimes
 	): UpdateData {
-		return if (sunset < sunrise) {
-			betweenSunriseAndSunset(now, sunrise, sunset)
+		return if (sunTimes.set?.isAfter(sunTimes.rise) == false) {
+			betweenSunriseAndSunset(now, sunTimes)
 		} else {
-			betweenSunsetAndSunrise(now, sunrise, sunset)
+			betweenSunsetAndSunrise(now, sunTimes)
 		}
 	}
 

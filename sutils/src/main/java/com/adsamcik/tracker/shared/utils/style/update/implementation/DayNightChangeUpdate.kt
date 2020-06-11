@@ -36,12 +36,15 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 	): UpdateData {
 		val nightDuration = Duration.between(sunriseTime, sunsetTime)
 		val dayDuration = Duration.ofDays(1L) - nightDuration
-		val progress = (dayDuration - (Duration.between(sunsetTime, nowTime))) / dayDuration
+		val progress = (dayDuration - (Duration.between(
+				sunsetTime,
+				nowTime
+		))).toMillis() / dayDuration.toMillis()
 
 		return UpdateData(
 				styleList[DAY],
 				styleList[NIGHT],
-				dayDuration,
+				dayDuration.toMillis(),
 				progress
 		)
 	}
@@ -54,12 +57,12 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 	): UpdateData {
 		val dayDuration = Duration.between(sunsetTime, sunriseTime)
 		val nightDuration = Duration.ofDays(1L) - dayDuration
-		val progress = (nightDuration - Duration.between(sunsetTime, nowTime)).dividedBy(nightDuration);
+		val progress = (nightDuration - Duration.between(sunsetTime, nowTime)).toMillis() / nightDuration.toMillis()
 
 		return UpdateData(
 				styleList[NIGHT],
 				styleList[DAY],
-				nightDuration,
+				nightDuration.toMillis(),
 				progress
 		)
 	}
