@@ -9,6 +9,9 @@ import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
 
+/**
+ * Adapter for session summary
+ */
 class SessionSummaryAdapter
 	: RecyclerView.Adapter<SessionSummaryAdapter.ViewHolder>(), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null

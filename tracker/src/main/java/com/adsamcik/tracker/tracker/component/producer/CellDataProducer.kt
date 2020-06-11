@@ -18,10 +18,10 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
@@ -119,7 +119,17 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 	): CellScanData? {
 		val cellInfo = telephonyManager.allCellInfo ?: return null
 
-		val phoneCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) telephonyManager.phoneCount else 1
+		val phoneCount = when {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+				telephonyManager.activeModemCount
+			}
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+				telephonyManager.phoneCount
+			}
+			else -> {
+				1
+			}
+		}
 		val registeredCells = ArrayList<CellInfo>(phoneCount)
 
 		cellInfo.forEach {
