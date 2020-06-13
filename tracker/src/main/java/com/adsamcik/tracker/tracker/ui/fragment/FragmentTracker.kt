@@ -158,7 +158,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		super.onResume()
 		val context = requireContext()
 
-		val orientation = DisplayAssist.orientation(context)
+		val orientation = DisplayAssist.getOrientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
 			requireView().findViewById<View>(R.id.tracker_recycler).setPadding(
 					RECYCLER_HORIZONTAL_PADDING.dp,

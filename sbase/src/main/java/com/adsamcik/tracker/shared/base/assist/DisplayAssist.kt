@@ -12,7 +12,13 @@ import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 /**
  * Utility object providing display methods.
  */
+@Suppress("unused")
 object DisplayAssist {
+	private fun getDisplay(context: Context) = when {
+		Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> requireNotNull(context.display)
+		else -> @Suppress("DEPRECATION") context.windowManager.defaultDisplay
+	}
+
 	/**
 	 * Returns orientation of the device as one of the following constants
 	 * [Surface.ROTATION_0], [Surface.ROTATION_90], [Surface.ROTATION_180], [Surface.ROTATION_270].
@@ -20,34 +26,39 @@ object DisplayAssist {
 	 * @return One of the following [Surface.ROTATION_0], [Surface.ROTATION_90],
 	 * [Surface.ROTATION_180], [Surface.ROTATION_270]
 	 */
-	fun orientation(context: Context): Int {
-		return context.windowManager.defaultDisplay.rotation
+	fun getOrientation(context: Context): Int {
+		return getDisplay(context).rotation
 	}
 
 	fun getRealArea(context: Context): Int2 {
-		val display = context.windowManager.defaultDisplay
-		val realScreenSize = Point()
+		val display = getDisplay(context)
 
+		val realScreenSize = Point()
 		display.getRealSize(realScreenSize)
 		return Int2(realScreenSize.x, realScreenSize.y)
 	}
 
 	fun getUsableArea(context: Context): Int2 {
-		val display = context.windowManager.defaultDisplay
-		val appUsableSize = Point()
+		return when {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+				val windowMetrics = context.windowManager.currentWindowMetrics
+				val bounds = windowMetrics.bounds
 
-		display.getSize(appUsableSize)
-		return Int2(appUsableSize.x, appUsableSize.y)
+				Int2(bounds.width(), bounds.height())
+			}
+			else -> @Suppress("DEPRECATION") {
+				val display = context.windowManager.defaultDisplay
+				val appUsableSize = Point()
+				display.getSize(appUsableSize)
+
+				Int2(appUsableSize.x, appUsableSize.y)
+			}
+		}
 	}
 
 	fun getDisplayOffsets(context: Context): Int2 {
-		val display = context.windowManager.defaultDisplay
-
-		val appUsableSize = Point()
-		val realScreenSize = Point()
-
-		display.getRealSize(realScreenSize)
-		display.getSize(appUsableSize)
+		val appUsableSize = getUsableArea(context)
+		val realScreenSize = getRealArea(context)
 
 		return Int2(realScreenSize.x - appUsableSize.x, realScreenSize.y - appUsableSize.y)
 	}
@@ -60,14 +71,10 @@ object DisplayAssist {
 	 * @return (Position, Size)
 	 */
 	fun getNavigationBarSize(context: Context): Pair<NavBarPosition, Int2> {
-		val display = context.windowManager.defaultDisplay
+		val appUsableSize = getUsableArea(context)
+		val realScreenSize = getRealArea(context)
 
-		val appUsableSize = Point()
-		val realScreenSize = Point()
-
-		display.getRealSize(realScreenSize)
-		display.getSize(appUsableSize)
-		val rotation = display.rotation
+		val rotation = getOrientation(context)
 
 		// navigation bar on the right
 		if (appUsableSize.x < realScreenSize.x) {
