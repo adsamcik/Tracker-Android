@@ -11,13 +11,13 @@ object Dependencies {
 	 * Dependencies that are not project are required to be internal.
 	 */
 	object Versions {
-		internal const val constraintLayout = "2.0.0-beta6"
+		internal const val constraintLayout = "2.0.0-beta7"
 		internal const val coreKtx = "1.3.0"
 		internal const val appcompat = "1.2.0-rc01"
 		internal const val fragment = "1.2.4"
 		const val kotlin: String = "1.3.72"
 		const val dokka: String = "0.9.18"
-		internal const val moshi = "1.9.2"
+		internal const val moshi = "1.9.3"
 		internal const val work = "2.3.4"
 		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.1"
