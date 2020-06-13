@@ -164,6 +164,9 @@ class StyleController : CoroutineScope {
 		}
 	}
 
+	/**
+	 * Enables automatic style updates for the navigation bar
+	 */
 	fun watchNavigationBar(styleView: SystemBarStyleView) {
 		val validatedStyleView = ensureValidNavigationStyle(styleView)
 
@@ -186,6 +189,9 @@ class StyleController : CoroutineScope {
 		}
 	}
 
+	/**
+	 * Enables automatic style updates for the notification bar
+	 */
 	fun watchNotificationBar(styleView: SystemBarStyleView) {
 
 		val validatedStyleView = ensureValidNotificationStyle(styleView)
@@ -257,6 +263,9 @@ class StyleController : CoroutineScope {
 		stopWatching(viewList, predicate)
 	}
 
+	/**
+	 * Disables automatic style updates for the notification bar
+	 */
 	fun stopWatchingNotificationBar() {
 		notificationStyleView = null
 	}
@@ -354,6 +363,9 @@ class StyleController : CoroutineScope {
 		}
 	}
 
+	/**
+	 * Updates [styleView] only once.
+	 */
 	fun updateOnce(styleView: StyleView, allowRecycler: Boolean) {
 		launch {
 			val styleData = styleData
