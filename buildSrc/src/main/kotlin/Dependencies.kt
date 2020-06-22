@@ -12,7 +12,7 @@ object Dependencies {
 	 */
 	object Versions {
 		internal const val constraintLayout = "2.0.0-beta7"
-		internal const val coreKtx = "1.3.0"
+		internal const val coreKtx = "1.5.0-alpha01"
 		internal const val appcompat = "1.2.0-rc01"
 		internal const val fragment = "1.2.4"
 		const val kotlin: String = "1.3.72"
@@ -25,14 +25,15 @@ object Dependencies {
 		internal const val coroutines = "1.3.7"
 
 		internal const val requery = "3.31.0"
-		internal const val room = "2.2.5"
+		internal const val room = "2.3.0-alpha01"
 
 		internal const val maps = "17.0.0"
 		internal const val firebaseCore = "17.4.3"
 		internal const val recyclerView = "1.1.0"
-		internal const val paging = "2.1.0"
+		internal const val paging = "3.0.0-alpha01"
 
-		internal const val crashlytics = "17.0.1"
+		internal const val crashlytics = "17.1.0"
+		const val crashlyticsGradle = "2.2.0"
 
 		internal const val playServicesBase = "17.3.0"
 		internal const val playCore = "1.7.3"
@@ -102,7 +103,7 @@ object Dependencies {
 			//Recycler
 			implementation("com.adsamcik.android-components:recycler:${Versions.componentsRecycler}")
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
-			implementation("android.arch.paging:runtime:${Versions.paging}")
+			implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
 
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")

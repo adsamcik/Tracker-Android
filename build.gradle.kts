@@ -7,7 +7,7 @@ buildscript {
 		classpath("com.android.tools.build:gradle:4.0.0")
 		classpath("com.google.gms:google-services:4.3.3")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.2")
-		classpath("com.google.firebase:firebase-crashlytics-gradle:2.1.1")
+		classpath("com.google.firebase:firebase-crashlytics-gradle:${Dependencies.Versions.crashlyticsGradle}")
 
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
