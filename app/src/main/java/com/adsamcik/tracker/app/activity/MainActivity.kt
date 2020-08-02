@@ -19,6 +19,9 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.HomeIntroduction
+import com.adsamcik.tracker.module.AppFirstRun
+import com.adsamcik.tracker.module.Module
+import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.extension.dp
@@ -26,9 +29,6 @@ import com.adsamcik.tracker.shared.base.extension.guidelineEnd
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
-import com.adsamcik.tracker.module.AppFirstRun
-import com.adsamcik.tracker.module.Module
-import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
@@ -220,11 +220,8 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun initializeButtons() {
-		val display = windowManager.defaultDisplay
-		val realSize = Point()
-		val size = Point()
-		display.getRealSize(realSize)
-		display.getSize(size)
+		val realSize = DisplayAssist.getRealArea(this).toPoint()
+		val size = DisplayAssist.getUsableArea(this).toPoint()
 
 		val splitInstallManager = SplitInstallManagerFactory.create(this)
 		val installedModules = splitInstallManager.installedModules

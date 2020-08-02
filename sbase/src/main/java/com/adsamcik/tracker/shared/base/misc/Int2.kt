@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.shared.base.misc
 
+import android.graphics.Point
+
 /**
  * Based on [android.renderscript.Int2]
  * Improved Kotlin support
@@ -266,6 +268,11 @@ data class Int2(var x: Int = 0, var y: Int = 0) {
 	override fun toString(): String {
 		return "Int2(x=$x, y=$y)"
 	}
+
+	/**
+	 * Converts [Int2] to [Point]
+	 */
+	fun toPoint(): Point = Point(x, y)
 
 	companion object {
 
