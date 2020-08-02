@@ -48,6 +48,7 @@ internal class AgeWeightedHeatmap(
 	private val alphaArray: UByteArray = UByteArray(width * height)
 	private val weightArray: FloatArray = FloatArray(width * height)
 	private val ageArray: IntArray = IntArray(width * height) { -ageThreshold }
+	private val lastValueArray: FloatArray = FloatArray(width * height)
 
 	private var pointCount = 0
 
@@ -113,51 +114,42 @@ internal class AgeWeightedHeatmap(
 					val alphaValue = alphaArray[heatIndex].toInt()
 					val weightValue = weightArray[heatIndex]
 					val valueAge = ageArray[heatIndex]
-					val alphaPercentage = (255 - alphaValue).toFloat() / 255f
+					val alphaPercentage = (alphaValue).toFloat() / 255f
 
 					assertMoreOrEqual(alphaPercentage, 0f)
 					assertLessOrEqual(alphaPercentage, 1f)
 
-					val newAlphaPercentage = max(alphaValue.toFloat() / 255f, stampValue)
+					val newAlphaPercentage = max(alphaPercentage, stampValue)
 					val newAlphaValue = (newAlphaPercentage * 255f).toInt()
 
 					assertMoreOrEqual(newAlphaValue, 0)
 					assertLessOrEqual(newAlphaValue, 255)
 
-					var agePercentage =
-							((ageInSeconds - valueAge).toFloat() / ageThresholdFloat)
 
-					if (agePercentage >= 1f) {
-						agePercentage = 1f
+					if (ageInSeconds - valueAge < ageThresholdFloat) {
+						val previousCurrent = weightValue - lastValueArray[heatIndex]
+						val newWeightValue = weightMergeFunction(
+								previousCurrent,
+								alphaValue,
+								stampValue,
+								weight
+						)
+
+						if (weightValue < newWeightValue) {
+							weightArray[heatIndex] = newWeightValue
+							lastValueArray[heatIndex] = newWeightValue - previousCurrent
+						}
 					} else {
-						agePercentage *= (alphaPercentage + newAlphaPercentage) / 2f
+						val newWeightValue = weightMergeFunction(
+								weightValue,
+								alphaValue,
+								stampValue,
+								weight
+						)
+
+						weightArray[heatIndex] = newWeightValue
+						lastValueArray[heatIndex] = newWeightValue - weightValue
 					}
-
-					assertMoreOrEqual(agePercentage, 0f)
-
-					val agedStamp = stampValue * agePercentage
-
-					val newWeightValue = weightValue + weight * agedStamp
-					assertMoreOrEqual(newWeightValue, 0f)
-
-					weightArray[heatIndex] = newWeightValue
-
-					if (dynamicHeat && newWeightValue > maxHeat) {
-						maxHeat = newWeightValue
-					}
-					/*if (ageInSeconds - ageThreshold > ageArray[heatIndex]) {
-					/*newWeightValue = weightMergeFunction(
-							weightArray[heatIndex],
-							alphaValue,
-							stampValue,
-							weight
-					)*/
-
-
-				} else {
-					newWeightValue = weightArray[heatIndex]
-				}*/
-
 
 					alphaArray[heatIndex] = newAlphaValue.toUByte()
 					ageArray[heatIndex] = ageInSeconds
