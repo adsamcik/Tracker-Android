@@ -11,21 +11,21 @@ object Dependencies {
 	 * Dependencies that are not project are required to be internal.
 	 */
 	object Versions {
-		internal const val constraintLayout = "2.0.0-beta8"
+		internal const val constraintLayout = "2.0.0-rc1"
 		internal const val coreKtx = "1.5.0-alpha01"
-		internal const val appcompat = "1.2.0-rc01"
+		internal const val appcompat = "1.2.0-rc02"
 		internal const val fragment = "1.2.4"
 		const val kotlin: String = "1.3.72"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.9.3"
-		internal const val work = "2.4.0-rc01"
+		internal const val work = "2.4.0"
 		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.1"
 		internal const val material = "1.2.0-beta01"
 		internal const val coroutines = "1.3.7"
 
 		internal const val requery = "3.32.2"
-		internal const val room = "2.3.0-alpha01"
+		internal const val room = "2.2.5"
 
 		internal const val maps = "17.0.0"
 		internal const val firebaseCore = "17.4.4"
@@ -36,7 +36,7 @@ object Dependencies {
 		const val crashlyticsGradle = "2.2.0"
 
 		internal const val playServicesBase = "17.3.0"
-		internal const val playCore = "1.7.3"
+		internal const val playCore = "1.8.0"
 		internal const val playLocation = "17.0.0"
 
 		internal const val stax = "1.0.1"
@@ -55,7 +55,7 @@ object Dependencies {
 		 */
 		internal object Test {
 			internal const val androidxTest: String = "1.3.0-rc01"
-			internal const val espresso: String = "3.3.0-rc01"
+			internal const val espresso: String = "3.3.0-rc02"
 			internal const val coreTesting: String = "2.1.0"
 			internal const val testingKtx: String = "1.1.2"
 		}
@@ -103,7 +103,7 @@ object Dependencies {
 			//Recycler
 			implementation("com.adsamcik.android-components:recycler:${Versions.componentsRecycler}")
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
-			implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
+			//implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
 
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
