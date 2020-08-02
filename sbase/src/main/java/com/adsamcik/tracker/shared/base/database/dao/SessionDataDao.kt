@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.lifecycle.LiveData
-import androidx.paging.DataSource
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
@@ -29,8 +28,8 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	@Query("SELECT * from tracker_session where `end` >= :from and start <= :to")
 	fun getAllBetween(from: Long, to: Long): List<TrackerSession>
 
-	@Query("SELECT * FROM tracker_session ORDER BY start DESC")
-	fun getAllPaged(): DataSource.Factory<Int, TrackerSession>
+	/*@Query("SELECT * FROM tracker_session ORDER BY start DESC")
+	fun getAllPaged(): DataSource.Factory<Int, TrackerSession>*/
 
 	@Query(
 			"""
