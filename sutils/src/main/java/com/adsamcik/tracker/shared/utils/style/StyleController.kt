@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.utils.style
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.AdapterView
 import androidx.annotation.AnyThread
@@ -145,6 +146,11 @@ class StyleController : CoroutineScope {
 		clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_FULLSCREEN
 
 		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			// Crashes, seems to be android R bug
+			window.insetsController?.hide(WindowInsets.Type.systemBars())
+		}
 
 		window.addFlags(addFlags)
 		window.clearFlags(clearFlags)

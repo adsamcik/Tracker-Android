@@ -17,7 +17,7 @@ internal class HeatmapTile(
 	private val heatmap = AgeWeightedHeatmap(
 			data.heatmapSize,
 			data.heatmapSize,
-			15 * Time.MINUTE_IN_SECONDS.toInt(),
+			data.config.ageThreshold,
 			data.config.maxHeat,
 			data.config.dynamicHeat
 	)

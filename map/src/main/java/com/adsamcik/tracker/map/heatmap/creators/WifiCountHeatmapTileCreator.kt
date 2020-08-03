@@ -1,10 +1,11 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
+import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
+import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.map.MapLayerData
-import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
-import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.ceil
 import kotlin.math.log10
 import kotlin.math.max
@@ -12,7 +13,7 @@ import kotlin.math.max
 @Suppress("MagicNumber")
 internal class WifiCountHeatmapTileCreator(context: Context, val layerData: MapLayerData) :
 		HeatmapTileCreator {
-	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
+	override fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig {
 		val colorList = layerData.colorList
 		val colorListSize = colorList.size.toDouble()
 		val heatmapColors = layerData.colorList.mapIndexed { index, color ->
@@ -21,8 +22,9 @@ internal class WifiCountHeatmapTileCreator(context: Context, val layerData: MapL
 
 		return HeatmapConfig(
 				HeatmapColorScheme.fromArray(heatmapColors, 100),
-				60f,
+				MAX_WIFI_HEAT,
 				false,
+				dataUser.ageThreshold,
 				{ current, _, stampValue, weight ->
 					current + stampValue * weight
 				}) { current, stampValue, weight ->
@@ -52,10 +54,4 @@ internal class WifiCountHeatmapTileCreator(context: Context, val layerData: MapL
 	override val getAllInsideAndBetween get() = dao::getAllInsideAndBetween
 	override val getAllInside get() = dao::getAllInside
 
-	companion object {
-		private const val NORMALIZER = 58.6273f
-		private const val LOSS_EXPONENT = 3f
-		private const val APPROXIMATE_DISTANCE_IN_METERS = 90f
-		private const val VISUAL_SCALE = 2.5f
-	}
 }

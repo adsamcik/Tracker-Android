@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
 import com.adsamcik.tracker.map.heatmap.implementation.AlphaMergeFunction
@@ -38,7 +39,7 @@ internal interface HeatmapTileCreator {
 
 	val weightNormalizationValue: Double
 
-	fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig
+	fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig
 
 	fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp
 
@@ -99,6 +100,7 @@ internal data class HeatmapConfig(
 		val colorScheme: HeatmapColorScheme,
 		val maxHeat: Float,
 		val dynamicHeat: Boolean = false,
+		val ageThreshold: Int,
 		val weightMergeFunction: WeightMergeFunction,
 		val alphaMergeFunction: AlphaMergeFunction
 )

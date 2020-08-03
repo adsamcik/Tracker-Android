@@ -5,7 +5,6 @@ import android.os.Build
 import android.view.View
 import android.view.WindowInsetsController
 import androidx.annotation.RequiresApi
-import com.adsamcik.tracker.shared.utils.BuildConfig
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
 
 internal class SystemStyleUpdater {
@@ -101,7 +100,9 @@ internal class SystemStyleUpdater {
 					updateUiVisibility(styleView.view, perceivedLuminance)
 					styleView.window.statusBarColor = Color.TRANSPARENT
 				}
-				SystemBarStyle.Translucent, SystemBarStyle.Default -> Unit
+				SystemBarStyle.Translucent, SystemBarStyle.Default -> {
+					styleView.window.statusBarColor = Color.argb(128, 255, 255, 255)
+				}
 			}
 		}
 	}
