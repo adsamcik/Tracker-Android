@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Point
 import android.os.Build
 import android.view.Surface
+import android.view.View
+import android.view.WindowInsets
+import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.windowManager
 import com.adsamcik.tracker.shared.base.misc.Int2
@@ -42,9 +45,13 @@ object DisplayAssist {
 		return when {
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
 				val windowMetrics = context.windowManager.currentWindowMetrics
-				val bounds = windowMetrics.bounds
+				val bounds = windowMetrics.windowInsets.getInsets(WindowInsets.Type.systemBars())
+				val realSize = getRealArea(context)
 
-				Int2(bounds.width(), bounds.height())
+				Int2(
+						realSize.x - bounds.left - bounds.right,
+						realSize.y - bounds.top - bounds.bottom
+				)
 			}
 			else -> @Suppress("DEPRECATION") {
 				val display = context.windowManager.defaultDisplay
@@ -57,10 +64,24 @@ object DisplayAssist {
 	}
 
 	fun getDisplayOffsets(context: Context): Int2 {
-		val appUsableSize = getUsableArea(context)
-		val realScreenSize = getRealArea(context)
+		return when {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+				val windowMetrics = context.windowManager.currentWindowMetrics
+				val bounds = windowMetrics.windowInsets.getInsets(WindowInsets.Type.systemBars())
 
-		return Int2(realScreenSize.x - appUsableSize.x, realScreenSize.y - appUsableSize.y)
+				Int2(
+						bounds.top + bounds.bottom,
+						bounds.right + bounds.left
+				)
+			}
+			else -> @Suppress("DEPRECATION") {
+				val appUsableSize = getUsableArea(context)
+				val realScreenSize = getRealArea(context)
+
+				Int2(realScreenSize.x - appUsableSize.x, realScreenSize.y - appUsableSize.y)
+			}
+		}
+
 	}
 
 	/**

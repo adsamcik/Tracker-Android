@@ -94,68 +94,6 @@ class StyleController : CoroutineScope {
 		styleUpdater.updateSingle(styleView, styleData, isAnimationAllowed = false)
 	}
 
-	@Suppress("ComplexMethod", "ComplexCondition")
-	private fun updateFlags(
-			notificationStyleView: SystemBarStyleView?,
-			navigationStyleView: SystemBarStyleView?
-	) {
-		require(notificationStyleView != null || navigationStyleView != null)
-		val navigationStyle = navigationStyleView?.style ?: SystemBarStyle.Translucent
-		val notificationStyle = notificationStyleView?.style ?: SystemBarStyle.Translucent
-		var addFlags = 0
-		var clearFlags = 0
-
-		when (navigationStyle) {
-			SystemBarStyle.Translucent -> {
-				addFlags = addFlags or
-						WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
-			}
-			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
-			}
-			SystemBarStyle.Default -> Unit
-		}
-
-		when (notificationStyle) {
-			SystemBarStyle.Translucent -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-			}
-			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-			}
-			SystemBarStyle.Default -> {
-				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-			}
-		}
-
-		if (notificationStyle.isBackgroundHandledBySystem && navigationStyle.isBackgroundHandledBySystem) {
-			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-			//clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-		}
-
-		if ((notificationStyle == SystemBarStyle.Transparent && navigationStyle != SystemBarStyle.Translucent) ||
-				(navigationStyle == SystemBarStyle.Transparent && notificationStyle != SystemBarStyle.Translucent)) {
-			addFlags = addFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-		} else {
-			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-		}
-
-		addFlags = addFlags or WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN
-		clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_FULLSCREEN
-
-		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
-
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			// Crashes, seems to be android R bug
-			window.insetsController?.hide(WindowInsets.Type.systemBars())
-		}
-
-		window.addFlags(addFlags)
-		window.clearFlags(clearFlags)
-	}
-
 	private fun ensureValidNavigationStyle(styleView: SystemBarStyleView): SystemBarStyleView {
 		return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
 			val style = when (styleView.style) {
@@ -177,7 +115,7 @@ class StyleController : CoroutineScope {
 		val validatedStyleView = ensureValidNavigationStyle(styleView)
 
 		navigationBarStyleView = validatedStyleView
-		updateFlags(notificationStyleView, validatedStyleView)
+		systemStyleUpdater.updateSystemBarStyle(notificationStyleView, validatedStyleView)
 		systemStyleUpdater.updateNavigationBar(validatedStyleView, styleData)
 	}
 
@@ -203,7 +141,7 @@ class StyleController : CoroutineScope {
 		val validatedStyleView = ensureValidNotificationStyle(styleView)
 
 		notificationStyleView = validatedStyleView
-		updateFlags(validatedStyleView, navigationBarStyleView)
+		systemStyleUpdater.updateSystemBarStyle(validatedStyleView, navigationBarStyleView)
 		systemStyleUpdater.updateNotificationBar(validatedStyleView, styleData)
 	}
 
