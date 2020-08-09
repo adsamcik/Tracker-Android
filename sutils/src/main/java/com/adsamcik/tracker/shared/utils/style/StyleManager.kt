@@ -4,11 +4,11 @@ import android.content.Context
 import android.graphics.Color
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
-import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
+import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.preferences.BuildConfig
-import com.adsamcik.tracker.shared.preferences.R
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.R
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.StyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.implementation.DayNightChangeUpdate
@@ -84,8 +84,8 @@ object StyleManager {
 	 */
 	fun createController(): StyleController {
 		if (darkTextColor == 0) {
-			lightTextColor = ColorUtils.setAlphaComponent(Color.WHITE, TEXT_ALPHA)
-			darkTextColor = ColorUtils.setAlphaComponent(Color.BLACK, TEXT_ALPHA)
+			lightTextColor = Color.WHITE.withAlpha(TEXT_ALPHA)
+			darkTextColor = Color.BLACK.withAlpha(TEXT_ALPHA)
 		}
 
 		val colorManager = StyleController()

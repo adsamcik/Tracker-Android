@@ -4,6 +4,7 @@ import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.debug.assertLess
 import com.adsamcik.tracker.shared.utils.debug.assertLessOrEqual
 import com.adsamcik.tracker.shared.utils.debug.assertMore
@@ -207,10 +208,7 @@ internal class AgeWeightedHeatmap(
 
 				val alpha = alphaArray[index].toInt().coerceIn(0, 255)
 
-				buffer[index] = ColorUtils.setAlphaComponent(
-						colorScheme.colors[colorId],
-						alpha
-				)
+				buffer[index] = colorScheme.colors[colorId].withAlpha(alpha)
 				index++
 			}
 		}

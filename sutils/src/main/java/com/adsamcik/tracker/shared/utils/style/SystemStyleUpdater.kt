@@ -1,12 +1,14 @@
 package com.adsamcik.tracker.shared.utils.style
 
-import android.graphics.Color
+import android.annotation.SuppressLint
 import android.os.Build
 import android.view.View
-import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
+import com.adsamcik.tracker.shared.base.extension.withAlpha
+import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.QUARTER_COMPONENT
+import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.TRANSPARENT
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
 
 internal class SystemStyleUpdater {
@@ -44,6 +46,7 @@ internal class SystemStyleUpdater {
 		);
 	}
 
+	@SuppressLint("InlinedApi")
 	@RequiresApi(Build.VERSION_CODES.M)
 	private fun updateUiVisibilityMQ(view: View, luminance: Int) {
 		require(Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
@@ -59,53 +62,57 @@ internal class SystemStyleUpdater {
 		}
 	}
 
-	internal fun updateNavigationBar(styleView: SystemBarStyleView, styleData: StyleData) {
-		styleView.view.post {
-			when (styleView.style) {
-				SystemBarStyle.LayerColor -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					val backgroundColor = styleData.backgroundColorFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
+	private fun getSystemBarColor(
+			styleView: SystemBarStyleView,
+			styleData: StyleData,
+			perceivedLuminance: Int = styleData.perceivedLuminanceFor(styleView)
+	): Int? {
+		return when (styleView.style) {
+			SystemBarStyle.LayerColor -> {
+				val backgroundColor = styleData.backgroundColorFor(styleView)
 
-					styleView.window.navigationBarColor = ColorFunctions.getBackgroundLayerColor(
-							backgroundColor,
-							perceivedLuminance,
-							styleView.layer
-					)
-				}
-				SystemBarStyle.Transparent -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
-					styleView.window.navigationBarColor = Color.TRANSPARENT
-				}
-				SystemBarStyle.Translucent, SystemBarStyle.Default -> Unit
+				ColorFunctions.getBackgroundLayerColor(
+						backgroundColor,
+						perceivedLuminance,
+						styleView.layer
+				)
 			}
+			SystemBarStyle.Transparent -> {
+				updateUiVisibility(styleView.view, perceivedLuminance)
+				TRANSPARENT
+			}
+			SystemBarStyle.Translucent -> {
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+					styleData
+							.backgroundColor(isInverted = perceivedLuminance > 0)
+							.withAlpha(QUARTER_COMPONENT)
+				} else {
+					null
+				}
+			}
+			SystemBarStyle.Default -> null
 		}
 	}
 
-	internal fun updateNotificationBar(styleView: SystemBarStyleView, styleData: StyleData) {
+	internal fun updateNavigationBar(styleView: SystemBarStyleView, styleData: StyleData) {
+		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
 		styleView.view.post {
-			when (styleView.style) {
-				SystemBarStyle.LayerColor -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					val backgroundColor = styleData.backgroundColorFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
-
-					styleView.window.statusBarColor = ColorFunctions.getBackgroundLayerColor(
-							backgroundColor,
-							perceivedLuminance,
-							styleView.layer
-					)
-				}
-				SystemBarStyle.Transparent -> {
-					val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
-					updateUiVisibility(styleView.view, perceivedLuminance)
-					styleView.window.statusBarColor = Color.TRANSPARENT
-				}
-				SystemBarStyle.Translucent, SystemBarStyle.Default -> {
-					styleView.window.statusBarColor = Color.argb(128, 255, 255, 255)
-				}
+			if (color != null) {
+				styleView.window.navigationBarColor = color
 			}
+			updateUiVisibility(styleView.view, perceivedLuminance)
+		}
+	}
+
+	internal fun updateStatusBar(styleView: SystemBarStyleView, styleData: StyleData) {
+		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
+		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
+		styleView.view.post {
+			if (color != null) {
+				styleView.window.statusBarColor = color
+			}
+			updateUiVisibility(styleView.view, perceivedLuminance)
 		}
 	}
 
@@ -114,40 +121,53 @@ internal class SystemStyleUpdater {
 			navigationStyleView: SystemBarStyleView?
 	) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			updateSystemBarStyleR(notificationStyleView, navigationStyleView)
+			updateFlagsR(notificationStyleView, navigationStyleView)
 		} else {
 			updateFlags(notificationStyleView, navigationStyleView)
 		}
 	}
 
+	@Suppress("ComplexMethod", "ComplexCondition")
 	@RequiresApi(Build.VERSION_CODES.R)
-	private fun updateSystemBarStyleR(
+	private fun updateFlagsR(
 			notificationStyleView: SystemBarStyleView?,
 			navigationStyleView: SystemBarStyleView?
 	) {
 		require(notificationStyleView != null || navigationStyleView != null)
-		val view = navigationStyleView?.view ?: requireNotNull(notificationStyleView).view
 		val navigationStyle = navigationStyleView?.style ?: SystemBarStyle.Translucent
 		val notificationStyle = notificationStyleView?.style ?: SystemBarStyle.Translucent
+		var addFlags = 0
+		var clearFlags = 0
 
-		val insetController = requireNotNull(view.windowInsetsController)
-
-
-		/*when (navigationStyle) {
-			SystemBarStyle.Translucent -> {
-				insetController.setSystemBarsAppearance(
-						android.view.WindowInsetsController.APPEARANCE_OPAQUE_STATUS_BARS,
-						WindowInsetsController.APPEARANCE_OPAQUE_STATUS_BARS
-				)
-				addFlags = addFlags or
-						WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
-			}
+		when (navigationStyle) {
 			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
 				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
 			}
-			SystemBarStyle.Default -> Unit
-		}*/
+			else -> Unit
+		}
+
+		when (notificationStyle) {
+			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
+				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+			}
+			else -> Unit
+		}
+
+		if (notificationStyle.isBackgroundHandledBySystem && navigationStyle.isBackgroundHandledBySystem) {
+			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+		}
+
+		if ((notificationStyle == SystemBarStyle.Transparent && navigationStyle != SystemBarStyle.Translucent) ||
+				(navigationStyle == SystemBarStyle.Transparent && notificationStyle != SystemBarStyle.Translucent)) {
+			addFlags = addFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+		} else {
+			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+		}
+
+		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
+
+		window.addFlags(addFlags)
+		window.clearFlags(clearFlags)
 	}
 
 
@@ -203,11 +223,6 @@ internal class SystemStyleUpdater {
 		clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_FULLSCREEN
 
 		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
-
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			// Crashes, seems to be android R bug
-			window.insetsController?.hide(WindowInsets.Type.systemBars())
-		}
 
 		window.addFlags(addFlags)
 		window.clearFlags(clearFlags)

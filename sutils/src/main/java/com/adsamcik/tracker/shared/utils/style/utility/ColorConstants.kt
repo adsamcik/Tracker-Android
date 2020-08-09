@@ -2,6 +2,9 @@ package com.adsamcik.tracker.shared.utils.style.utility
 
 import android.graphics.Color
 
+/**
+ * Additional constants for colors. They should be preferred over standard [Color] constants.
+ */
 object ColorConstants {
 	const val TRANSPARENT: Int = Color.TRANSPARENT
 	const val RED: Int = Color.RED
@@ -15,4 +18,8 @@ object ColorConstants {
 
 	const val ALMOST_WHITE: Int = -328966
 	const val ALMOST_BLACK: Int = -14606047
+
+	const val FULL_COMPONENT: Int = 255
+	const val HALF_COMPONENT: Int = 127
+	const val QUARTER_COMPONENT: Int = 63
 }

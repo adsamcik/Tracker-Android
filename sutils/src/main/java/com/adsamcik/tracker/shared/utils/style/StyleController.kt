@@ -3,8 +3,6 @@ package com.adsamcik.tracker.shared.utils.style
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
-import android.view.WindowManager
 import android.widget.AdapterView
 import androidx.annotation.AnyThread
 import androidx.annotation.IdRes
@@ -142,7 +140,7 @@ class StyleController : CoroutineScope {
 
 		notificationStyleView = validatedStyleView
 		systemStyleUpdater.updateSystemBarStyle(validatedStyleView, navigationBarStyleView)
-		systemStyleUpdater.updateNotificationBar(validatedStyleView, styleData)
+		systemStyleUpdater.updateStatusBar(validatedStyleView, styleData)
 	}
 
 	/**
@@ -354,7 +352,7 @@ class StyleController : CoroutineScope {
 		}
 
 		notificationStyleView?.let { styleView ->
-			systemStyleUpdater.updateNotificationBar(styleView, styleData)
+			systemStyleUpdater.updateStatusBar(styleView, styleData)
 		}
 
 		navigationBarStyleView?.let { styleView ->

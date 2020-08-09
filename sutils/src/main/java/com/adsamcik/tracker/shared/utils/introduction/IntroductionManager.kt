@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.FragmentActivity
+import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager.showIntroduction
@@ -43,7 +44,7 @@ object IntroductionManager {
 				if (targets.isNotEmpty()) {
 					Spotlight.with(activity)
 							.setTargets(targets)
-							.setOverlayColor(ColorUtils.setAlphaComponent(Color.BLACK, 230))
+							.setOverlayColor(Color.BLACK.withAlpha(230))
 							.setAnimation(AccelerateDecelerateInterpolator())
 							.setOnSpotlightEndedListener {
 								Preferences.getPref(activity)

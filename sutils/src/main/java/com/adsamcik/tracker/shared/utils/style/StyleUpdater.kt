@@ -23,14 +23,15 @@ import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
 import androidx.appcompat.widget.AppCompatTextView
-import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.alpha
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
+import androidx.core.widget.TextViewCompat
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.firstParent
+import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawable
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
@@ -191,7 +192,7 @@ internal class StyleUpdater {
 		}
 
 		if (!isAnyStyleable) {
-			view.supportCompoundDrawablesTintList = colorStateList
+			TextViewCompat.setCompoundDrawableTintList(view, colorStateList)
 			//view.supportCompoundDrawablesTintMode = PorterDuff.Mode.SRC_ATOP
 		}
 
@@ -226,10 +227,7 @@ internal class StyleUpdater {
 	private fun updateStyleForeground(view: ProgressBar, updateStyleData: UpdateStyleData) {
 		view.progressTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 		view.progressBackgroundTintList = ColorStateList.valueOf(
-				ColorUtils.setAlphaComponent(
-						updateStyleData.baseForegroundColor,
-						DISABLED_ALPHA
-				)
+				updateStyleData.baseForegroundColor.withAlpha(DISABLED_ALPHA)
 		)
 	}
 
@@ -243,15 +241,9 @@ internal class StyleUpdater {
 						intArrayOf(state_pressed)
 				),
 				intArrayOf(
-						ColorUtils.setAlphaComponent(
-								updateStyleData.baseForegroundColor,
-								DISABLED_ALPHA
-						),
+						updateStyleData.baseForegroundColor.withAlpha(DISABLED_ALPHA),
 						updateStyleData.baseForegroundColor,
-						ColorUtils.setAlphaComponent(
-								updateStyleData.baseForegroundColor,
-								SEEKBAR_PRESSED_ALPHA
-						)
+						updateStyleData.baseForegroundColor.withAlpha(SEEKBAR_PRESSED_ALPHA)
 				)
 		)
 	}
@@ -381,8 +373,8 @@ internal class StyleUpdater {
 			return ColorStateList(
 					stateArray,
 					intArrayOf(
-							ColorUtils.setAlphaComponent(baseForegroundColor, alpha),
-							ColorUtils.setAlphaComponent(baseForegroundColor, DISABLED_ALPHA)
+							baseForegroundColor.withAlpha(alpha),
+							baseForegroundColor.withAlpha(DISABLED_ALPHA)
 					)
 			)
 		}

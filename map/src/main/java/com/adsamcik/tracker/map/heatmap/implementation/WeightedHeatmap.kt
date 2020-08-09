@@ -1,9 +1,8 @@
 package com.adsamcik.tracker.map.heatmap.implementation
 
-import androidx.annotation.IntRange
-import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.shared.base.extension.withAlpha
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -168,10 +167,7 @@ internal class WeightedHeatmap(
 				assert(normalizedValue >= 0)
 				assert(colorId < colorScheme.colors.size)
 
-				buffer[index] = ColorUtils.setAlphaComponent(
-						colorScheme.colors[colorId],
-						alphaArray[index].toInt()
-				)
+				buffer[index] = colorScheme.colors[colorId].withAlpha(alphaArray[index].toInt())
 				index++
 			}
 		}

@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.util.AttributeSet
 import androidx.appcompat.widget.AppCompatImageView
-import androidx.core.graphics.ColorUtils
+import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
 
@@ -16,8 +16,8 @@ class ImageSwitchImageView : AppCompatImageView,
 		val foregroundColor = styleData.foregroundColor(false)
 		if (foregroundColor == lastColor) return
 
-		val selectedColor = ColorUtils.setAlphaComponent(foregroundColor, SELECTED_ALPHA)
-		val notSelectedColor = ColorUtils.setAlphaComponent(foregroundColor, NOT_SELECTED_ALPHA)
+		val selectedColor = foregroundColor.withAlpha(SELECTED_ALPHA)
+		val notSelectedColor = foregroundColor.withAlpha(NOT_SELECTED_ALPHA)
 
 		imageTintList = ColorStateList(
 				arrayOf(
