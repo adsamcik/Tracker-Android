@@ -10,6 +10,7 @@ import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.notification.NotificationManagementActivity
@@ -102,6 +103,8 @@ class TrackerPreferencePage : PreferencePage {
 			val selectedIndex = values.indexOfFirst { it.first == selectedKey }
 			if (selectedIndex >= 0) {
 				setValueIndex(selectedIndex)
+			} else {
+				Reporter.report("Key $selectedKey was not found in ${entries.joinToString { it }}")
 			}
 		}
 	}
