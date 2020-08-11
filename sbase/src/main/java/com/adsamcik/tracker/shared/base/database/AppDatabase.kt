@@ -41,18 +41,46 @@ import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 @TypeConverters(CellTypeConverter::class, DetectedActivityTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
+	/**
+	 * Provides access to location data
+	 */
 	abstract fun locationDao(): LocationDataDao
 
+	/**
+	 * Provides access to session data
+	 */
 	abstract fun sessionDao(): SessionDataDao
 
+	/**
+	 * Provides access to Wi-Fi data
+	 */
 	abstract fun wifiDao(): WifiDataDao
+
+	/**
+	 * Provides access to Wi-Fi count location data
+	 */
 	abstract fun wifiLocationCountDao(): LocationWifiCountDao
 
+
+	/**
+	 * Provides access to cell network operator data.
+	 */
 	abstract fun cellOperatorDao(): CellOperatorDao
+
+	/**
+	 * Provides access to cell location quality data.
+	 */
 	abstract fun cellLocationDao(): CellLocationDao
 
+	/**
+	 * Provides access to activity data.
+	 */
 	abstract fun activityDao(): ActivityDao
 
+	/**
+	 * Provides access to general utility methods.
+	 * These should be used only when absolutely needed.
+	 */
 	abstract fun generalDao(): GeneralDao
 
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {

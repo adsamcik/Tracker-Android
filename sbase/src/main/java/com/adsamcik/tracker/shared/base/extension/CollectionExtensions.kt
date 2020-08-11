@@ -1,4 +1,5 @@
 @file:Suppress("TooManyFunctions")
+
 package com.adsamcik.tracker.shared.base.extension
 
 import androidx.annotation.FloatRange
@@ -176,6 +177,9 @@ inline fun <T, R> Iterable<T>.mapIf(condition: (T) -> Boolean, action: (T) -> R)
 	return collection
 }
 
+/**
+ * Converts double array to int array. [Double.toInt] is used for the conversion.
+ */
 fun DoubleArray.toIntArray(): IntArray {
 	val intArray = IntArray(size)
 	for (i in 0 until size) {
@@ -184,6 +188,9 @@ fun DoubleArray.toIntArray(): IntArray {
 	return intArray
 }
 
+/**
+ * Rounds [DoubleArray] to [IntArray] using [Double.roundToInt].
+ */
 fun DoubleArray.roundToIntArray(): IntArray {
 	val intArray = IntArray(size)
 	for (i in 0 until size) {
@@ -192,20 +199,34 @@ fun DoubleArray.roundToIntArray(): IntArray {
 	return intArray
 }
 
+/**
+ * Sorts an array using an array of the same size that contains order (indexes)
+ * by which the array is sorted.
+ * Each index refers to an item and its position determines the position of that item
+ * in the final sorted array.
+ *
+ * @param indexList List of indexes used for sorting
+ * @return Sorted array by [indexList]
+ */
 fun <T> List<T>.sortByIndexes(indexList: Collection<Int>): List<T> {
-	assert(indexList.size == size)
+	require(indexList.size == size)
 
 	val sortedList = ArrayList<T>(size)
 	indexList.forEach { sortedList.add(get(it)) }
 	return sortedList
 }
 
+/**
+ * Sorts an array using an array of the same size that contains order (vertexes)
+ * by which the array is sorted.
+ * Each vertex refers to an item and its position determines the position of that item
+ * in the final sorted array.
+ *
+ * @param vertexList List of indexes used for sorting
+ * @return Sorted array by [vertexList]
+ */
 fun <T> List<T>.sortByVertexes(vertexList: Collection<Vertex>): List<T> {
-	assert(vertexList.size == size)
-
-	val sortedList = ArrayList<T>(size)
-	vertexList.forEach { sortedList.add(get(it.value)) }
-	return sortedList
+	return sortByIndexes(vertexList.map { it.value })
 }
 
 /**
