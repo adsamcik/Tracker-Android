@@ -59,7 +59,7 @@ internal class HeatmapTile(
 
 
 	fun toByteArray(bitmapSize: Int): ByteArray {
-		val array = heatmap.renderSaturatedTo(data.config.colorScheme, heatmap.maxHeat) { it }
+		val array = heatmap.renderSaturated(data.config.colorScheme, heatmap.maxHeat) { it }
 		val bitmap = Bitmap.createBitmap(
 				array,
 				data.heatmapSize,

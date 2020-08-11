@@ -1,14 +1,15 @@
 package com.adsamcik.tracker.map.heatmap.implementation
 
-import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.debug.assertLess
-import com.adsamcik.tracker.shared.utils.debug.assertLessOrEqual
 import com.adsamcik.tracker.shared.utils.debug.assertMore
 import com.adsamcik.tracker.shared.utils.debug.assertMoreOrEqual
+import com.adsamcik.tracker.shared.utils.debug.assertWithin
+import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.EMPTY_COMPONENT
+import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.FULL_COMPONENT
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -39,13 +40,21 @@ import kotlin.math.roundToInt
  * https://github.com/lucasb-eyer/heatmap/
  */
 
+typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) -> Int
+
+typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
+
+const val AGE_THRESHOLD_MINUTES = 15
+
+@Suppress("MemberVisibilityCanBePrivate")
 internal class AgeWeightedHeatmap(
 		val width: Int,
 		val height: Int = width,
-		val ageThreshold: Int = 15 * Time.MINUTE_IN_SECONDS.toInt(),
+		val ageThreshold: Int = AGE_THRESHOLD_MINUTES * Time.MINUTE_IN_SECONDS.toInt(),
 		var maxHeat: Float = 0f,
 		var dynamicHeat: Boolean = true
 ) {
+	// width * height * (1+4+4+4 = 13 bytes) total array size ~= 0.85MB for 256*256 tiles
 	private val alphaArray: UByteArray = UByteArray(width * height)
 	private val weightArray: FloatArray = FloatArray(width * height)
 	private val ageArray: IntArray = IntArray(width * height) { -ageThreshold }
@@ -117,16 +126,14 @@ internal class AgeWeightedHeatmap(
 					val valueAge = ageArray[heatIndex]
 					val alphaPercentage = (alphaValue).toFloat() / 255f
 
-					assertMoreOrEqual(alphaPercentage, 0f)
-					assertLessOrEqual(alphaPercentage, 1f)
+					assertWithin(alphaPercentage, 0f, 1f)
 
 					val newAlphaPercentage = max(alphaPercentage, stampValue)
-					val newAlphaValue = (newAlphaPercentage * 255f).toInt()
+					val newAlphaValue = (newAlphaPercentage * FULL_COMPONENT).toInt()
 
-					assertMoreOrEqual(newAlphaValue, 0)
-					assertLessOrEqual(newAlphaValue, 255)
+					assertWithin(newAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
 
-
+					// Check if older than threshold
 					if (ageInSeconds - valueAge < ageThresholdFloat) {
 						val previousCurrent = weightValue - lastValueArray[heatIndex]
 						val newWeightValue = weightMergeFunction(
@@ -162,26 +169,40 @@ internal class AgeWeightedHeatmap(
 		}
 	}
 
-	fun renderDefaultTo(): IntArray = renderTo(HeatmapColorScheme.default)
+	fun renderDefaultTo(): IntArray = render(HeatmapColorScheme.default)
 
 	/* If the heatmap is empty, h->max (and thus the saturation value) is 0.0, resulting in a 0-by-0 division.
 	 * In that case, we should set the saturation to anything but 0, since we want the result of the division to be 0.
 	 * Also, a comparison to exact 0.0f (as opposed to 1e-14) is OK, since we only do division.
 	 */
-	fun renderTo(colorScheme: HeatmapColorScheme): IntArray {
+	/**
+	 * Render heatmap to IntArray with [colorScheme].
+	 *
+	 * @param colorScheme Color scheme
+	 */
+	fun render(colorScheme: HeatmapColorScheme): IntArray {
 		val saturation = if (maxHeat > 0f) maxHeat else 1.0f
-		return renderSaturatedTo(colorScheme, saturation)
+		return renderSaturated(colorScheme, saturation)
 	}
 
-	fun renderSaturatedTo(
+	/**
+	 * Render heatmap to IntArray with [colorScheme] and [saturation]
+	 */
+	fun renderSaturated(
 			colorScheme: HeatmapColorScheme,
 			saturation: Float
-	): IntArray = renderSaturatedTo(
+	): IntArray = renderSaturated(
 			colorScheme,
 			saturation
 	) { it }
 
-	inline fun renderSaturatedTo(
+	/**
+	 * Render heatmap to IntArray with [colorScheme], [saturation].
+	 * @param colorScheme Color scheme
+	 * @param saturation Saturation
+	 * @param normalizedValueModifierFunction Normalization function for values.
+	 */
+	inline fun renderSaturated(
 			colorScheme: HeatmapColorScheme,
 			saturation: Float,
 			normalizedValueModifierFunction: (Float) -> Float
@@ -206,7 +227,7 @@ internal class AgeWeightedHeatmap(
 				assertMoreOrEqual(normalizedValue, 0f)
 				assertLess(colorId, colorScheme.colors.size)
 
-				val alpha = alphaArray[index].toInt().coerceIn(0, 255)
+				val alpha = alphaArray[index].toInt().coerceIn(EMPTY_COMPONENT, FULL_COMPONENT)
 
 				buffer[index] = colorScheme.colors[colorId].withAlpha(alpha)
 				index++

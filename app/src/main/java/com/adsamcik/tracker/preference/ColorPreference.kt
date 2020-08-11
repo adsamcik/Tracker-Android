@@ -26,6 +26,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Preference for custom color setting.
+ */
 class ColorPreference : Preference, CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -57,15 +60,21 @@ class ColorPreference : Preference, CoroutineScope {
 
 	private var colorImageView: AppCompatImageView? = null
 
+	/**
+	 * Set current color and its position within style.
+	 */
 	fun setColor(position: Int, activeColorData: ActiveColorData) {
 		this.recyclerColorData = StylePage.RecyclerColorData(activeColorData)
 		this.position = position
 		notifyChanged()
 	}
 
-	fun setDefault() {
+	/**
+	 * Restore default value and remove preference.
+	 */
+	fun restoreDefault() {
 		val colorData = requireNotNull(recyclerColorData) { "First set color data by calling ${this::setColor.name}" }
-		val defaultColor = colorData.aDefault.defaultColor
+		val defaultColor = colorData.default.defaultColor
 
 		Preferences.getPref(context).edit {
 			val key = context.getString(
@@ -85,7 +94,7 @@ class ColorPreference : Preference, CoroutineScope {
 		colorView.apply {
 			(drawable as StyleColorDrawable).apply {
 				drawable.setColor(color)
-				invalidateDrawable(this)
+				invalidateSelf()
 			}
 		}
 	}
@@ -132,7 +141,7 @@ class ColorPreference : Preference, CoroutineScope {
 			initialColor: Int
 	) {
 		dialog.show {
-			title(requireNotNull(recyclerColorData).aDefault.nameRes)
+			title(requireNotNull(recyclerColorData).default.nameRes)
 			colorChooser(
 					colors = colorList,
 					subColors = subColorList,
@@ -177,7 +186,7 @@ class ColorPreference : Preference, CoroutineScope {
 		val colorData = requireNotNull(recyclerColorData)
 
 		(holder.findViewById(R.id.title) as AppCompatTextView).apply {
-			setText(colorData.aDefault.nameRes)
+			setText(colorData.default.nameRes)
 		}
 
 		val colorView = (holder.findViewById(R.id.color) as AppCompatImageView)

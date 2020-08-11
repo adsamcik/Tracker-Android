@@ -22,4 +22,5 @@ object ColorConstants {
 	const val FULL_COMPONENT: Int = 255
 	const val HALF_COMPONENT: Int = 127
 	const val QUARTER_COMPONENT: Int = 63
+	const val EMPTY_COMPONENT: Int = 0
 }

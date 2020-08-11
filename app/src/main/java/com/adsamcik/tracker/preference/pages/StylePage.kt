@@ -11,6 +11,9 @@ import com.adsamcik.tracker.preference.ColorPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 
+/**
+ * Preference page for style.
+ */
 class StylePage : PreferencePage {
 
 	private val colorPreferenceList = mutableListOf<ColorPreference>()
@@ -56,7 +59,7 @@ class StylePage : PreferencePage {
 	}
 
 	private fun clearColorPreferences() {
-		colorPreferenceList.forEach { it.setDefault() }
+		colorPreferenceList.forEach { it.restoreDefault() }
 	}
 
 	private fun updateColorPreferences(colorList: List<ActiveColorData>) {
@@ -101,7 +104,7 @@ class StylePage : PreferencePage {
 
 	override fun onExit(caller: PreferenceFragmentCompat) = Unit
 
-	data class RecyclerColorData(var color: Int, val aDefault: DefaultColorData) {
+	data class RecyclerColorData(var color: Int, val default: DefaultColorData) {
 		constructor(activeColorData: ActiveColorData) : this(
 				activeColorData.active,
 				activeColorData.default

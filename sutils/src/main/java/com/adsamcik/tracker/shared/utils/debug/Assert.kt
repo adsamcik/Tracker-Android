@@ -283,3 +283,84 @@ fun assertLessOrEqual(value: Long, threshold: Long) {
 private fun assertLessOrEqualError(value: String, threshold: String) {
 	Reporter.report("Assertion failed. $value > $threshold.")
 }
+
+
+/**
+ * Assert value is within bounds.
+ *
+ * @param value Value.
+ * @param lowerBoundInclusive Lower inclusive bound.
+ * @param upperBoundInclusive Upper inclusive bound.
+ *
+ */
+fun assertWithin(value: Int, lowerBoundInclusive: Int, upperBoundInclusive: Int) {
+	if (value in lowerBoundInclusive..upperBoundInclusive) {
+		assertWithinError(
+				value.toString(),
+				lowerBoundInclusive.toString(),
+				upperBoundInclusive.toString()
+		)
+	}
+}
+
+/**
+ * Assert value is within bounds.
+ *
+ * @param value Value.
+ * @param lowerBoundInclusive Lower inclusive bound.
+ * @param upperBoundInclusive Upper inclusive bound.
+ *
+ */
+fun assertWithin(value: Long, lowerBoundInclusive: Long, upperBoundInclusive: Long) {
+	if (value in lowerBoundInclusive..upperBoundInclusive) {
+		assertWithinError(
+				value.toString(),
+				lowerBoundInclusive.toString(),
+				upperBoundInclusive.toString()
+		)
+	}
+}
+
+/**
+ * Assert value is within bounds.
+ *
+ * @param value Value.
+ * @param lowerBoundInclusive Lower inclusive bound.
+ * @param upperBoundInclusive Upper inclusive bound.
+ *
+ */
+fun assertWithin(value: Double, lowerBoundInclusive: Double, upperBoundInclusive: Double) {
+	if (value in lowerBoundInclusive..upperBoundInclusive) {
+		assertWithinError(
+				value.toString(),
+				lowerBoundInclusive.toString(),
+				upperBoundInclusive.toString()
+		)
+	}
+}
+
+/**
+ * Assert value is within bounds.
+ *
+ * @param value Value.
+ * @param lowerBoundInclusive Lower inclusive bound.
+ * @param upperBoundInclusive Upper inclusive bound.
+ *
+ */
+fun assertWithin(value: Float, lowerBoundInclusive: Float, upperBoundInclusive: Float) {
+	if (value in lowerBoundInclusive..upperBoundInclusive) {
+		assertWithinError(
+				value.toString(),
+				lowerBoundInclusive.toString(),
+				upperBoundInclusive.toString()
+		)
+	}
+}
+
+private fun assertWithinError(
+		value: String,
+		lowerBoundInclusive: String,
+		upperBoundInclusive: String
+) {
+	Reporter.report("Assertion failed. $value is not within bounds ($lowerBoundInclusive..$upperBoundInclusive).")
+}
