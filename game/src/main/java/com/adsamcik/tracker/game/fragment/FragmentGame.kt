@@ -8,7 +8,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.ChallengeManager
@@ -18,7 +17,6 @@ import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType
 import com.adsamcik.tracker.game.fragment.recycler.creator.ChallengeRecyclerCreator
 import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
-import com.adsamcik.tracker.game.fragment.recycler.data.ListRecyclerData
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter

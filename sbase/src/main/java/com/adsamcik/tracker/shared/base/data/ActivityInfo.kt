@@ -51,6 +51,7 @@ data class ActivityInfo(
 
 	companion object {
 		val UNKNOWN: ActivityInfo get() = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+
 		/**
 		 * Returns resolved activity string. String is localized.
 		 */

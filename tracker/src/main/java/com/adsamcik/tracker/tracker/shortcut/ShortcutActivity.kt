@@ -30,10 +30,10 @@ class ShortcutActivity : AppCompatActivity() {
 
 	private fun onActionReceived(action: ShortcutAction) {
 		when (action) {
-			Shortcuts.ShortcutAction.START_COLLECTION -> {
+			ShortcutAction.START_COLLECTION -> {
 				TrackerServiceApi.startService(this, true)
 			}
-			Shortcuts.ShortcutAction.STOP_COLLECTION -> {
+			ShortcutAction.STOP_COLLECTION -> {
 				TrackerServiceApi.stopService(this)
 			}
 		}

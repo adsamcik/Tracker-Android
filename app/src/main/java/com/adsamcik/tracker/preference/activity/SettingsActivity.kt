@@ -20,6 +20,7 @@ import com.adsamcik.tracker.preference.pages.StylePage
 import com.adsamcik.tracker.preference.pages.TrackerPreferencePage
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import java.util.*
 
 /**
  * Settings Activity contains local settings and hosts debugging features
@@ -66,7 +67,7 @@ class SettingsActivity : DetailActivity(),
 		modules.forEach {
 			try {
 				val tClass = it.module.loadClass<ModuleSettings>(
-						"preference.${it.module.moduleName.capitalize()}Settings"
+						"preference.${it.module.moduleName.capitalize(Locale.ROOT)}Settings"
 				)
 				val instance = tClass.newInstance()
 				moduleSettingsList[it.module] = instance

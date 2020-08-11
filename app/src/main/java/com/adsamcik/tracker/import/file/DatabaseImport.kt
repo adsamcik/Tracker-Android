@@ -69,8 +69,10 @@ class DatabaseImport : FileImport {
 
 		val column = requiredColumns.find { it.columnName == thisTableColumn }
 				?: throw NotFoundException(
-						"Expected column with name $thisTableColumn but had only ${requiredColumns.joinToString(
-								transform = { it.columnName })}"
+						"Expected column with name $thisTableColumn but had only ${
+							requiredColumns.joinToString(
+									transform = { it.columnName })
+						}"
 				)
 
 		column.foreignKeyTable = ImportTable(
@@ -186,8 +188,10 @@ class DatabaseImport : FileImport {
 		val matchingColumns = getMatchingColumns(from, to, tableName)
 
 		from.query(
-				"SELECT ${matchingColumns.joinToString(separator = ",",
-				                                       transform = { it.columnName })} FROM $tableName"
+				"SELECT ${
+					matchingColumns.joinToString(separator = ",",
+					                             transform = { it.columnName })
+				} FROM $tableName"
 		).use {
 			val columnsJoined = it.columnNames.joinToString(separator = ",")
 			while (it.moveToNext()) {

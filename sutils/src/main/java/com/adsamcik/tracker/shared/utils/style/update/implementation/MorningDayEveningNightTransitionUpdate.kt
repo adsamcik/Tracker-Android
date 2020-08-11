@@ -204,7 +204,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	): UpdateData {
 		//the max difference between days is approximately under 5 minutes, so it should be fine
 		val yesterdayApproxSunset = requireNotNull(sunTimes.set).minusDays(1)
-		val midnight = requireNotNull(sunTimes.nadir);
+		val midnight = requireNotNull(sunTimes.nadir)
 
 		return when {
 			now.isAfter(midnight) -> betweenMidnightAndSunrise(

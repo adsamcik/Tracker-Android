@@ -15,7 +15,6 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.observe
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -182,7 +181,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_gnss_not_enabled,
 			                                             priority = SnackMaker.SnackbarPriority.IMPORTANT,
 			                                             actionRes = R.string.enable,
-			                                             onActionClick = View.OnClickListener {
+			                                             onActionClick = {
 				                                             val locationOptionsIntent = Intent(
 						                                             Settings.ACTION_LOCATION_SOURCE_SETTINGS
 				                                             )
@@ -274,7 +273,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 	private fun initializeColorElements() {
 		val view = requireView()
 		styleController.apply {
-			watchView(StyleView(view.findViewById<View>(R.id.top_panel_root), layer = 1))
+			watchView(StyleView(view.findViewById(R.id.top_panel_root), layer = 1))
 			watchRecyclerView(
 					RecyclerStyleView(
 							view.findViewById(R.id.tracker_recycler),

@@ -29,9 +29,11 @@ object StatsFormat {
 
 		return if (start.dayOfYear == end.dayOfYear && start.year == end.year) {
 			val timeFormat = SimpleDateFormat.getTimeInstance(SimpleDateFormat.SHORT, locale)
-			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${timeFormat.format(
-					endDate
-			)}"
+			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${
+				timeFormat.format(
+						endDate
+				)
+			}"
 		} else {
 			val timeFormat = SimpleDateFormat.getDateTimeInstance(
 					SimpleDateFormat.SHORT, SimpleDateFormat.SHORT,
@@ -61,7 +63,8 @@ object StatsFormat {
 		val startHour = start[Calendar.HOUR_OF_DAY]
 		val endHour = end[Calendar.HOUR_OF_DAY]
 
-		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start.time).capitalize()
+		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start.time)
+				.capitalize(Locale.getDefault())
 		val timeOfDayStringRes = if (startHour >= 22 && endHour <= 2) {
 			R.string.stats_midnight
 		} else if ((startHour in 22..24 || startHour in 0..6) && (endHour in 22..24 || endHour in 0..6)) {

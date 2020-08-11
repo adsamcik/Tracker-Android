@@ -19,6 +19,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application), 
 	override val coroutineContext: CoroutineContext = Dispatchers.Default
 
 	val adapter: SectionedRecyclerAdapter = SectionedRecyclerAdapter()
+
 	//todo update to paged list (Seems like a bit of work with sections)
 	val sessionLiveData: LiveData<Collection<TrackerSession>> get() = mutableSessionData
 

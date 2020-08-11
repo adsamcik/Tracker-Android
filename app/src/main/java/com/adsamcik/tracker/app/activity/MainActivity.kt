@@ -33,12 +33,14 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
+import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
+import java.util.*
 
 
 /**
@@ -51,11 +53,11 @@ class MainActivity : CoreUIActivity() {
 
 	private lateinit var trackerFragment: androidx.fragment.app.Fragment
 
-	private val root: ViewGroup by lazy { findViewById<ViewGroup>(R.id.root) }
+	private val root: ViewGroup by lazy { findViewById(R.id.root) }
 
-	private val buttonStats: DraggableImageButton by lazy { findViewById<DraggableImageButton>(R.id.button_stats) }
-	private val buttonGame: DraggableImageButton by lazy { findViewById<DraggableImageButton>(R.id.button_game) }
-	private val buttonMap: DraggableImageButton by lazy { findViewById<DraggableImageButton>(R.id.button_map) }
+	private val buttonStats: DraggableImageButton by lazy { findViewById(R.id.button_stats) }
+	private val buttonGame: DraggableImageButton by lazy { findViewById(R.id.button_game) }
+	private val buttonMap: DraggableImageButton by lazy { findViewById(R.id.button_map) }
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		setTheme(R.style.AppTheme_Translucent)
@@ -88,6 +90,7 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun firstRun() {
+		val locale = Locale.getDefault()
 		FirstRunDialogBuilder().apply {
 			val modules = ModuleClassLoader.getEnabledModuleNames(this@MainActivity)
 			addData(AppFirstRun())
@@ -95,7 +98,7 @@ class MainActivity : CoreUIActivity() {
 				try {
 					val firstRunClass = ModuleClassLoader.loadModuleClass<FirstRun>(
 							it,
-							"${it.capitalize()}FirstRun"
+							"${it.capitalize(locale)}FirstRun"
 					)
 					addData(firstRunClass.newInstance())
 				} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {

@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.observe
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
@@ -19,7 +18,6 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.startActivity
@@ -148,7 +146,10 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		return fragmentView
 	}
 
-	private fun showSummaryDialog(statDataCollection: Collection<CacheStatData>, @StringRes titleRes: Int) {
+	private fun showSummaryDialog(
+			statDataCollection: Collection<CacheStatData>,
+			@StringRes titleRes: Int
+	) {
 		val activity = requireActivity()
 		val adapter = SessionSummaryAdapter()//.apply { addAll(statDataCollection) }
 
@@ -286,11 +287,11 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					resources.formatDistance(session.distanceInVehicleInM, 1, lengthSystem)
 			)
 
-			table.addButton(resources.getString(R.string.stats_details), View.OnClickListener {
+			table.addButton(resources.getString(R.string.stats_details)) {
 				startActivity<StatsDetailActivity> {
 					putExtra(StatsDetailActivity.ARG_SESSION_ID, session.id)
 				}
-			})
+			}
 
 			tableList.add(PrioritySortAdapter.PriorityWrap.create(table, priority))
 		}

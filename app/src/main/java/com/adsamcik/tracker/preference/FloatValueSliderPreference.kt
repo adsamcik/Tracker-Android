@@ -51,6 +51,7 @@ class FloatValueSliderPreference : Preference {
 	}
 
 	private var mTextViewString = "%.2f"
+
 	@IntegerRes
 	private var mValuesResource: Int? = null
 	private var mInitialValue: Float = 0f

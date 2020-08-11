@@ -38,7 +38,7 @@ class MapIntroduction : Introduction() {
 					.setDescription(getString(R.string.tips_map_sheet_description))
 					.build()
 
-			target = findViewById<View>(R.id.map_search_parent)
+			target = findViewById(R.id.map_search_parent)
 			val searchTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_search_title))
@@ -46,7 +46,7 @@ class MapIntroduction : Introduction() {
 					.setShape(RoundedRectangle(target, dp8, dp8))
 					.setDescription(getString(R.string.tips_map_search_description)).build()
 
-			target = findViewById<View>(R.id.button_map_my_location)
+			target = findViewById(R.id.button_map_my_location)
 			val myLocationButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_my_location_title))
@@ -55,7 +55,7 @@ class MapIntroduction : Introduction() {
 					.setDescription(getString(R.string.tips_map_my_location_description))
 					.build()
 
-			target = findViewById<View>(R.id.button_map_date_range)
+			target = findViewById(R.id.button_map_date_range)
 			val dateRangeTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_date_range_title))

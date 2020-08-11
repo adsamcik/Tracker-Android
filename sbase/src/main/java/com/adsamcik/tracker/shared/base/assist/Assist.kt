@@ -112,6 +112,7 @@ object Assist {
 
 
 	private const val PLAY_SERVICES_REQUEST_ID = 9000
+
 	/**
 	 * Checks if play services are available
 	 *

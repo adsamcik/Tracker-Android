@@ -111,7 +111,7 @@ class SessionActivityActivity : ManageActivity() {
 								AppDatabase.database(context).activityDao().delete(item.id)
 							}
 						},
-						onActionClick = View.OnClickListener {
+						onActionClick = {
 							adapter.add(item)
 						})
 		)

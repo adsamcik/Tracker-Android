@@ -13,7 +13,6 @@ import androidx.core.view.updatePadding
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.observe
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -58,7 +57,7 @@ typealias StatsDetailAdapter = StyleSortMultiTypeAdapter<StatisticDisplayType, S
 class StatsDetailActivity : DetailActivity() {
 	private lateinit var viewModel: ViewModel
 
-	val recycler: RecyclerView by lazy { findViewById<RecyclerView>(R.id.recycler) }
+	val recycler: RecyclerView by lazy { findViewById(R.id.recycler) }
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.elevation = 0
@@ -104,7 +103,7 @@ class StatsDetailActivity : DetailActivity() {
 
 		addAction(com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
 		          R.string.edit_session,
-		          View.OnClickListener {
+		          {
 			          val addItemLayout = findViewById<View>(R.id.add_item_layout)
 			          val headerRoot = findViewById<ViewGroup>(R.id.header_root)
 			          if (addItemLayout.isVisible) {
@@ -252,9 +251,11 @@ class StatsDetailActivity : DetailActivity() {
 		launch(Dispatchers.Default) {
 			val sessionActivity = when {
 				activityId == null -> null
-				activityId < -1 -> NativeSessionActivity.values().find { it.id == activityId }?.getSessionActivity(
-						this@StatsDetailActivity
-				)
+				activityId < -1 -> NativeSessionActivity.values()
+						.find { it.id == activityId }
+						?.getSessionActivity(
+								this@StatsDetailActivity
+						)
 				else -> if (activityId == 0L || activityId == -1L) {
 					null
 				} else {

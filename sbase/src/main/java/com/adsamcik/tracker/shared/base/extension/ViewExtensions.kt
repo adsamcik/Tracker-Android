@@ -150,20 +150,35 @@ var Guideline.guidelineEnd: Int
 	get() = (layoutParams as ConstraintLayout.LayoutParams).guideEnd
 	set(value) = setGuidelineEnd(value)
 
+/**
+ * Detaches view from its parent.
+ */
 fun View.detach() {
 	val parent = parent as? ViewGroup
 	parent?.removeView(this)
 }
 
+/**
+ * Finds first parent of specific type. Useful when looking for specific ViewGroup.
+ *
+ * @return First parent of specific type or null, if not found.
+ */
 inline fun <reified T> View.firstParent(maxDistance: Int = Int.MAX_VALUE): T? {
 	return firstParent(T::class.java, maxDistance)
 }
 
+/**
+ * Require parent of specific type. Throws exception if not found.
+ */
 inline fun <reified T : Any> View.requireParent(maxDistance: Int = Int.MAX_VALUE): T {
 	return requireNotNull(firstParent(T::class.java, maxDistance))
 }
 
-
+/**
+ * Finds first parent of specific type. Useful when looking for specific ViewGroup.
+ *
+ * @return First parent of specific type or null, if not found.
+ */
 fun <T> View.firstParent(iClass: Class<T>, maxDistance: Int = Int.MAX_VALUE): T? {
 	var parent = parent
 	var distance = 0
@@ -179,9 +194,16 @@ fun <T> View.firstParent(iClass: Class<T>, maxDistance: Int = Int.MAX_VALUE): T?
 	return null
 }
 
+/**
+ * Utility method for findChildrenOfType(class)
+ */
 inline fun <reified T : View> ViewGroup.findChildrenOfType() =
 		findChildrenOfType(T::class.java)
 
+/**
+ * Find children of type [iClass].
+ * Can be used for lookup of views of specific type.
+ */
 fun <T : View> ViewGroup.findChildrenOfType(
 		iClass: Class<T>
 ): Collection<T> {
@@ -201,13 +223,20 @@ fun <T : View> ViewGroup.findChildrenOfType(
 		}
 	}
 
-	assert(queue.isEmpty())
+	require(queue.isEmpty())
 	return found
 }
 
+/**
+ * Utility inline function for findChildOfType(class)
+ */
 inline fun <reified T : View> ViewGroup.findChildOfType() =
 		findChildOfType(T::class.java)
 
+/**
+ * Find child of type [iClass].
+ * Can be used for lookup of unmarked views of unique type.
+ */
 fun <T : View> ViewGroup.findChildOfType(
 		iClass: Class<T>
 ): T {

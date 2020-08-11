@@ -10,14 +10,13 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.tracker.R
-
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
 import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants
 import com.adsamcik.tracker.shared.utils.style.utility.ColorGenerator
 import com.adsamcik.tracker.shared.utils.style.utility.brightenColor
-import com.adsamcik.tracker.preference.pages.StylePage
-import com.adsamcik.tracker.shared.preferences.Preferences
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.color.colorChooser
 import kotlinx.coroutines.CoroutineScope
@@ -55,7 +54,7 @@ class ColorPreference : Preference, CoroutineScope {
 		layoutResource = R.layout.layout_color_picker
 	}
 
-	private var recyclerColorData: StylePage.RecyclerColorData? = null
+	private var recyclerColorData: RecyclerColorData? = null
 	private var position: Int = -1
 
 	private var colorImageView: AppCompatImageView? = null
@@ -64,7 +63,7 @@ class ColorPreference : Preference, CoroutineScope {
 	 * Set current color and its position within style.
 	 */
 	fun setColor(position: Int, activeColorData: ActiveColorData) {
-		this.recyclerColorData = StylePage.RecyclerColorData(activeColorData)
+		this.recyclerColorData = RecyclerColorData(activeColorData)
 		this.position = position
 		notifyChanged()
 	}
@@ -202,6 +201,13 @@ class ColorPreference : Preference, CoroutineScope {
 		updateColor(colorView, colorData.color)
 
 		holder.itemView.setOnClickListener { showDialog() }
+	}
+
+	private data class RecyclerColorData(var color: Int, val default: DefaultColorData) {
+		constructor(activeColorData: ActiveColorData) : this(
+				activeColorData.active,
+				activeColorData.default
+		)
 	}
 
 	companion object {

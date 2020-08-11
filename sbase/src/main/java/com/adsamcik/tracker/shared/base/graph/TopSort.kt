@@ -55,9 +55,12 @@ fun Graph.topSort(): List<Vertex> {
 						"Edges ${this.edgeList.joinToString()}"
 		)
 	} else {
-		assert(sortedList.size == this.vertexList.size)
+		require(sortedList.size == this.vertexList.size)
 		return sortedList
 	}
 }
 
+/**
+ * Top sort vertex
+ */
 data class TopSortVertex(val vertex: Vertex, var incomingEdges: Int = 0)

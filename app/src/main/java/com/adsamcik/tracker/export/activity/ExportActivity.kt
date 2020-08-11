@@ -40,8 +40,8 @@ class ExportActivity : DetailActivity() {
 
 	private lateinit var exporter: Exporter
 
-	private val dataRangeFrom: AppCompatEditText by lazy { findViewById<AppCompatEditText>(R.id.edittext_date_range_from) }
-	private val dataRangeTo: AppCompatEditText by lazy { findViewById<AppCompatEditText>(R.id.edittext_date_range_to) }
+	private val dataRangeFrom: AppCompatEditText by lazy { findViewById(R.id.edittext_date_range_from) }
+	private val dataRangeTo: AppCompatEditText by lazy { findViewById(R.id.edittext_date_range_to) }
 
 	private var range: ClosedRange<Calendar> = createDefaultRange()
 		set(value) {

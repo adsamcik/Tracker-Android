@@ -39,8 +39,8 @@ abstract class DetailActivity : CoreUIActivity() {
 	 */
 	open fun onConfigure(configuration: Configuration) = Unit
 
-	private val topPanelRoot: ViewGroup by lazy { findViewById<ViewGroup>(R.id.top_panel_root) }
-	private val contentDetailRoot: ViewGroup by lazy { findViewById<ViewGroup>(R.id.content_detail_root) }
+	private val topPanelRoot: ViewGroup by lazy { findViewById(R.id.top_panel_root) }
+	private val contentDetailRoot: ViewGroup by lazy { findViewById(R.id.content_detail_root) }
 
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,7 +89,7 @@ abstract class DetailActivity : CoreUIActivity() {
 			findViewById<ViewGroup>(R.id.detail_root).fitsSystemWindows = true
 			styleController.watchView(
 					StyleView(
-							findViewById<View>(R.id.detail_root),
+							findViewById(R.id.detail_root),
 							0,
 							maxDepth = 0
 					)

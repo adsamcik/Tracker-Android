@@ -5,7 +5,6 @@ import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Transaction
 import androidx.sqlite.db.SupportSQLiteQuery
-import com.adsamcik.tracker.shared.base.database.data.location.Location2DWeighted
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 import com.adsamcik.tracker.shared.base.database.data.DateRange
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted

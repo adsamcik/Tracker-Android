@@ -24,7 +24,7 @@ class OptimizedLocationDataProducer : StatDataProducer {
 		val mappedLocations = locations.map { it.location }.toTypedArray()
 		if (locations.size <= 2) return mappedLocations
 
-		val simplify = Simplify3D<Location>(emptyArray(), LocationExtractor())
+		val simplify = Simplify3D(emptyArray(), LocationExtractor())
 		return simplify.simplify(
 				mappedLocations,
 				POSITION_TOLERANCE,

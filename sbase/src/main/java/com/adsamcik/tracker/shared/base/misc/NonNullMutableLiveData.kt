@@ -11,7 +11,7 @@ abstract class NonNullLiveData<T>(defaultValue: T) : LiveData<T>(defaultValue) {
 	}
 
 	fun observe(owner: LifecycleOwner, body: (T) -> Unit) {
-		observe(owner, Observer<T> { t: T? ->
+		observe(owner, Observer { t: T? ->
 			body(t ?: throw NullPointerException("Value was null. This should NEVER happen!"))
 		})
 	}

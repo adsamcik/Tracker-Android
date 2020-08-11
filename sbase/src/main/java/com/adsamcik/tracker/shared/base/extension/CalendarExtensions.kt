@@ -66,7 +66,7 @@ fun Calendar.toDateUTC(): Calendar {
  * Converts calendar to [ZonedDateTime].
  */
 fun Calendar.toZonedDateTime(): ZonedDateTime {
-	return ZonedDateTime.ofInstant(toInstant(), ZoneId.systemDefault());
+	return ZonedDateTime.ofInstant(toInstant(), ZoneId.systemDefault())
 }
 
 /**

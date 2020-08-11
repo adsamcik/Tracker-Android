@@ -49,6 +49,7 @@ class IntValueSliderPreference : Preference {
 	}
 
 	private var mTextViewString = "%d"
+
 	@ArrayRes
 	private var mValuesResource: Int = 0
 	private var mInitialValue: Int = 0

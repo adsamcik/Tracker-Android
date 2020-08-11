@@ -124,7 +124,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 				telephonyManager.activeModemCount
 			}
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-				@Suppress("DEPRECATION")  telephonyManager.phoneCount
+				@Suppress("DEPRECATION") telephonyManager.phoneCount
 			}
 			else -> {
 				1

@@ -45,15 +45,15 @@ open class StyleMultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<Da
 	 *
 	 * @throws AlreadyRegisteredException Thrown when type was previously registered
 	 */
-	@Throws(BaseMultiTypeAdapter.AlreadyRegisteredException::class)
+	@Throws(AlreadyRegisteredException::class)
 	fun registerType(
 			typeValue: DataTypeEnum,
 			creator: MultiTypeViewHolderCreator<Data, StyleMultiTypeViewHolder<Data>>
 	) {
 		try {
 			registerType(typeValue.ordinal, creator)
-		} catch (e: BaseMultiTypeAdapter.AlreadyRegisteredException) {
-			throw BaseMultiTypeAdapter.AlreadyRegisteredException(
+		} catch (e: AlreadyRegisteredException) {
+			throw AlreadyRegisteredException(
 					"Type $typeValue already registered",
 					e
 			)

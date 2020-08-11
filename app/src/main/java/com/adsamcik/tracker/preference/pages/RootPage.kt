@@ -157,9 +157,10 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		if (modules.isEmpty()) {
 			preferenceParent.isVisible = false
 		} else {
+			val locale = Locale.getDefault()
 			modules.forEach {
 				val preferenceScreen = preferenceManager.createPreferenceScreen(context)
-				preferenceScreen.title = context.getString(it.key.titleRes).capitalize()
+				preferenceScreen.title = context.getString(it.key.titleRes).capitalize(locale)
 				preferenceScreen.key = "module-${it.key.moduleName}"
 				preferenceScreen.setIcon(it.value.iconRes)
 				it.value.onCreatePreferenceScreen(preferenceScreen)

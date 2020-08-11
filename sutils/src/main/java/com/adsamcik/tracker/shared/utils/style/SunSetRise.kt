@@ -174,7 +174,7 @@ class SunSetRise {
 	}
 
 	private fun getCalculator(location: BaseLocation, dateTime: ZonedDateTime): SunTimes {
-		val truncated = dateTime.truncatedTo(ChronoUnit.MINUTES);
+		val truncated = dateTime.truncatedTo(ChronoUnit.MINUTES)
 		return SunTimes
 				.compute().apply {
 					if (location.isValid) {

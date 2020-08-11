@@ -14,7 +14,7 @@ import kotlin.math.abs
 
 internal class WifiTrackerComponent : DataTrackerComponent {
 
-	private var wifiManager: WifiManager? = null;
+	private var wifiManager: WifiManager? = null
 
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf(
 			TrackerComponentRequirement.WIFI

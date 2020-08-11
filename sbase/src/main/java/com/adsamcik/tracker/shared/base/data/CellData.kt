@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.data
 
 import android.os.Parcelable
-import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize
 

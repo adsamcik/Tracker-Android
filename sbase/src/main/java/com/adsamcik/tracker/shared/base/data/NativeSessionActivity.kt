@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.base.data
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.R
-import com.adsamcik.tracker.shared.base.data.SessionActivity
 
 @Suppress("unused")
 enum class NativeSessionActivity(val id: Long) {
@@ -34,6 +33,7 @@ enum class NativeSessionActivity(val id: Long) {
 		override val nameRes: Int = R.string.activity_volleyball
 		override val iconName: String = R.drawable::volleyball.name
 	},
+
 	//SOCCER
 	FOOTBALL(-9) {
 		override val nameRes: Int = R.string.activity_football

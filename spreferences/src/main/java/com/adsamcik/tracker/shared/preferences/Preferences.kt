@@ -91,7 +91,11 @@ open class Preferences {
 		return sharedPreferences.getBoolean(key, default)
 	}
 
-	fun getColorRes(@StringRes keyRes: Int, @ColorRes defaultRes: Int, theme: Resources.Theme? = null): Int {
+	fun getColorRes(
+			@StringRes keyRes: Int,
+			@ColorRes defaultRes: Int,
+			theme: Resources.Theme? = null
+	): Int {
 		val key = getKey(keyRes)
 		val color = ResourcesCompat.getColor(resources, defaultRes, theme)
 		return getInt(key, color)

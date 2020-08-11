@@ -12,14 +12,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.module.Module
+import com.adsamcik.tracker.module.ModuleInfo
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
-import com.adsamcik.tracker.module.Module
-import com.adsamcik.tracker.module.ModuleInfo
-import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.google.android.play.core.splitinstall.SplitInstallManager
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import com.google.android.play.core.splitinstall.SplitInstallRequest
@@ -27,13 +27,16 @@ import com.google.android.play.core.splitinstall.SplitInstallSessionState
 import com.google.android.play.core.splitinstall.SplitInstallStateUpdatedListener
 import com.google.android.play.core.splitinstall.model.SplitInstallSessionStatus
 
+/**
+ * Module activity for managing modules.
+ */
 class ModuleActivity : DetailActivity() {
 	private lateinit var manager: SplitInstallManager
 
 	private lateinit var adapter: ModuleAdapter
 
 	private val listener = SplitInstallStateUpdatedListener { state ->
-		val langsInstall = state.languages().isNotEmpty()
+		val hasLanguages = state.languages().isNotEmpty()
 
 		when (state.status()) {
 			SplitInstallSessionStatus.DOWNLOADING -> {
@@ -55,7 +58,7 @@ class ModuleActivity : DetailActivity() {
 				manager.startConfirmationDialogForResult(state, this, CONFIRMATION_REQUEST_CODE)
 			}
 			SplitInstallSessionStatus.INSTALLED -> {
-				if (langsInstall) {
+				if (hasLanguages) {
 					//onSuccessfulLanguageLoad(names)
 				} else {
 					onLoadSuccess()
@@ -71,6 +74,7 @@ class ModuleActivity : DetailActivity() {
 			SplitInstallSessionStatus.FAILED -> {
 				toast(getString(R.string.module_error, state.moduleNames(), state.errorCode()))
 			}
+			else -> Unit
 		}
 	}
 

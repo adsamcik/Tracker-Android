@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.launch
@@ -108,7 +109,7 @@ class ImportService : CoreService() {
 
 	@WorkerThread
 	private fun importAllRecursively(directory: File): Int {
-		assert(directory.isDirectory)
+		assertTrue(directory.isDirectory)
 
 		var importedCount = 0
 		directory.listFiles()?.forEach {

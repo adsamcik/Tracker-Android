@@ -4,7 +4,6 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.misc.Double2
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
-import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataDistanceConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedAltitudeProducer

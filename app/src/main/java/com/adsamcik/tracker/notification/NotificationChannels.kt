@@ -40,7 +40,10 @@ object NotificationChannels {
 	}
 
 	private fun createChannel(
-			context: Context, @StringRes idId: Int, @StringRes nameId: Int, @StringRes descriptionId: Int,
+			context: Context,
+			@StringRes idId: Int,
+			@StringRes nameId: Int,
+			@StringRes descriptionId: Int,
 			useVibration: Boolean,
 			importance: Int
 	) {

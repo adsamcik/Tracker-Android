@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
-import com.adsamcik.tracker.shared.base.database.data.location.Location2DWeighted
 import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.shared.base.database.data.DateRange
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted

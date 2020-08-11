@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.statistics.data
 
-import com.adsamcik.tracker.statistics.database.data.CacheStatData
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 
 /**

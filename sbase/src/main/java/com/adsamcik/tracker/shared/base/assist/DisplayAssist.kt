@@ -4,9 +4,7 @@ import android.content.Context
 import android.graphics.Point
 import android.os.Build
 import android.view.Surface
-import android.view.View
 import android.view.WindowInsets
-import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.windowManager
 import com.adsamcik.tracker.shared.base.misc.Int2

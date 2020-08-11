@@ -65,7 +65,11 @@ class SnackMaker(view: View) : CoroutineScope {
 	 * @param messageRes Message resource
 	 * @param duration Duration that has to be one of [SnackDuration] values
 	 */
-	fun addMessage(@StringRes messageRes: Int, @SnackDuration duration: Int = LENGTH_LONG, priority: SnackbarPriority = SnackbarPriority.QUEUE) {
+	fun addMessage(
+			@StringRes messageRes: Int,
+			@SnackDuration duration: Int = LENGTH_LONG,
+			priority: SnackbarPriority = SnackbarPriority.QUEUE
+	) {
 		val message = resources.getString(messageRes)
 		addSnackbar(SnackbarRecipe(message, duration, priority))
 	}

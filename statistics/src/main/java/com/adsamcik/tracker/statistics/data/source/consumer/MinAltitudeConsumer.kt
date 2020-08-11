@@ -4,7 +4,6 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.misc.Double2
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
-import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataDistanceConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedAltitudeProducer
@@ -25,7 +24,7 @@ class MinAltitudeConsumer : StatDataDistanceConsumer {
 
 	override fun getDistance(context: Context, data: StatDataMap): Double {
 		val locationData = data.requireData<List<Double2>>(OptimizedAltitudeProducer::class)
-		return locationData.minBy { it.y }?.y ?: 0.0
+		return locationData.minOf { it.y }
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

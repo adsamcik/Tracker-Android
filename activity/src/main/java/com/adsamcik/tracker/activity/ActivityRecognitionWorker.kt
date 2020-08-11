@@ -51,7 +51,7 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 
 		if (results.isEmpty()) return@coroutineScope Result.success()
 
-		val activityRecognitionResult = results.maxBy {
+		val activityRecognitionResult = results.maxByOrNull {
 			it.first.precisionConfidence * it.second.confidence
 		} ?: throw NullPointerException()
 

@@ -21,7 +21,7 @@ internal class SystemStyleUpdater {
 
 	@RequiresApi(Build.VERSION_CODES.R)
 	private fun updateUiVisibilityR(view: View, luminance: Int) {
-		val insetsController = requireNotNull(view.windowInsetsController);
+		val insetsController = requireNotNull(view.windowInsetsController)
 
 		val statusBarAppearance: Int
 		val navBarAppearance: Int
@@ -30,19 +30,19 @@ internal class SystemStyleUpdater {
 			statusBarAppearance = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
 			navBarAppearance = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
 		} else {
-			statusBarAppearance = 0;
-			navBarAppearance = 0;
+			statusBarAppearance = 0
+			navBarAppearance = 0
 		}
 
 		insetsController.setSystemBarsAppearance(
 				statusBarAppearance,
 				WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-		);
+		)
 
 		insetsController.setSystemBarsAppearance(
 				navBarAppearance,
 				WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-		);
+		)
 	}
 
 	@SuppressLint("InlinedApi")
