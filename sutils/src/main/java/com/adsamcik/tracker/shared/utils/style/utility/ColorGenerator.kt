@@ -12,6 +12,7 @@ object ColorGenerator {
 	private const val GOLDEN_RATIO_CONJUGATE: Double = 1.0 / GOLDEN_RATIO
 	private const val CIRCLE_DEGREES = 360.0
 	private const val GOLDEN_RATIO_DEGREES: Double = GOLDEN_RATIO_CONJUGATE * CIRCLE_DEGREES
+
 	/**
 	 * Generates distinct colors
 	 * Based on https://martin.ankerl.com/2009/12/09/how-to-create-random-colors-programmatically/
@@ -45,6 +46,7 @@ object ColorGenerator {
 		require((startHue < 1.0) and (startHue > 0.0))
 
 		var hue = startHue * CIRCLE_DEGREES
+
 		@Suppress("MagicNumber")
 		val hsv = floatArrayOf(0.0f, 0.984f, 0.769f)
 		val colorList = ArrayList<Int>(count)

@@ -4,7 +4,6 @@ import android.graphics.Color
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
-import com.adsamcik.tracker.shared.base.extension.observe
 import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.google.android.material.datepicker.CalendarConstraints
