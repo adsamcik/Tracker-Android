@@ -67,10 +67,10 @@ internal class Heatmap(
 		val halfStampHeight = stamp.height / 2
 		val halfStampWidth = stamp.width / 2
 
-		assert(x - halfStampWidth / 2 < width)
-		assert(y - halfStampHeight < height)
-		assert(x - halfStampHeight >= 0)
-		assert(y + halfStampWidth / 2 >= 0)
+		require(x - halfStampWidth / 2 < width)
+		require(y - halfStampHeight < height)
+		require(x - halfStampHeight >= 0)
+		require(y + halfStampWidth / 2 >= 0)
 
 		pointCount++
 
@@ -85,7 +85,7 @@ internal class Heatmap(
 		for (itY in y0 until y1) {
 			var heatIndex = (y + itY - halfStampHeight) * width + (x + x0) - halfStampWidth
 			var stampIndex = itY * stamp.width + x0
-			assert(stampIndex >= 0f)
+			require(stampIndex >= 0f)
 
 			for (itX in x0 until x1) {
 				val heatValue = data[heatIndex]
@@ -95,7 +95,7 @@ internal class Heatmap(
 					maxHeat = newHeatValue
 				}
 
-				assert(heatValue >= 0f)
+				require(heatValue >= 0f)
 
 				heatIndex++
 				stampIndex++
@@ -130,7 +130,7 @@ internal class Heatmap(
 			saturation: Float,
 			normalizedValueModifierFunction: (Float) -> Float
 	): IntArray {
-		assert(saturation > 0f)
+		require(saturation > 0f)
 
 		val buffer = IntArray(width * height)
 
@@ -150,8 +150,8 @@ internal class Heatmap(
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
 
-				assert(normalizedValue >= 0)
-				assert(colorId < colorScheme.colors.size)
+				require(normalizedValue >= 0)
+				require(colorId < colorScheme.colors.size)
 
 				buffer[index] = colorScheme.colors[colorId]
 				index++

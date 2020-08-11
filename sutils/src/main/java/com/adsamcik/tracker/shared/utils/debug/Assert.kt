@@ -1,4 +1,5 @@
 @file:Suppress("TooManyFunctions")
+
 package com.adsamcik.tracker.shared.utils.debug
 
 /**
@@ -12,10 +13,24 @@ fun assertTrue(value: Boolean) {
 
 /**
  * Assert value is true
+ *
+ * @param value Boolean value
  */
 fun assertFalse(value: Boolean) {
 	if (value) {
 		Reporter.report("Assertion failed. Expected false but got true.")
+	}
+}
+
+/**
+ * Assert value is true
+ *
+ * @param value Boolean value
+ * @param message Message
+ */
+fun assertFalse(value: Boolean, message: () -> String) {
+	if (value) {
+		Reporter.report("Assertion failed. Expected false but got true. $message()")
 	}
 }
 
@@ -28,6 +43,19 @@ fun assertFalse(value: Boolean) {
 fun assertEqual(expect: Any, actual: Any) {
 	if (expect != actual) {
 		Reporter.report("Assertion failed. Expected not equal to actual. Expected: $expect. Actual: $actual.")
+	}
+}
+
+/**
+ * Assert value is true.
+ *
+ * @param expect Expected value.
+ * @param actual Actual value.
+ * @param message message
+ */
+fun assertEqual(expect: Any, actual: Any, message: () -> String) {
+	if (expect != actual) {
+		Reporter.report("Assertion failed. Expected not equal to actual. Expected: $expect. Actual: $actual. $message()")
 	}
 }
 

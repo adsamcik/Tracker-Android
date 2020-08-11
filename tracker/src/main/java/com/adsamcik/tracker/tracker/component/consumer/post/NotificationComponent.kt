@@ -125,7 +125,7 @@ internal class NotificationComponent :
 		val trackingSessionInfo = TrackerService.sessionInfo.value
 
 		if (trackingSessionInfo != null) {
-
+			//trackingSessionInfo.
 		}
 
 		return builder

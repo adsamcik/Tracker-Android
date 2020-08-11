@@ -3,6 +3,9 @@ package com.adsamcik.tracker.shared.utils.style.update.implementation
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
+import com.adsamcik.tracker.shared.utils.debug.assertEqual
+import com.adsamcik.tracker.shared.utils.debug.assertFalse
+import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
@@ -41,9 +44,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			styleList: List<Int>,
 			sunSetRise: SunSetRise
 	): UpdateData {
-		require(styleList.size == requiredColorData.list.size) {
-			"Expected list of size ${requiredColorData.list.size} but got ${styleList.size}"
-		}
+		assertEqual(styleList.size, requiredColorData.list.size)
 
 		val time = Time.now.toZonedDateTime()
 
@@ -72,9 +73,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunrise: ZonedDateTime,
 			midnight: ZonedDateTime
 	): UpdateData {
-		require(now.isAfter(midnight))
-		require(sunrise.isAfter(midnight))
-		require(now.isBefore(sunrise))
+		assertTrue(now.isAfter(midnight))
+		assertTrue(sunrise.isAfter(midnight))
+		assertTrue(now.isBefore(sunrise))
 		return UpdateData(
 				fromColor = MIDNIGHT,
 				toColor = SUNRISE,
@@ -88,9 +89,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: ZonedDateTime,
 			midnight: ZonedDateTime
 	): UpdateData {
-		require(now.isAfter(sunset))
-		require(midnight.isAfter(sunset))
-		require(now.isBefore(midnight))
+		assertTrue(now.isAfter(sunset))
+		assertTrue(midnight.isAfter(sunset))
+		assertTrue(now.isBefore(midnight))
 		return UpdateData(
 				fromColor = SUNSET,
 				toColor = MIDNIGHT,
@@ -109,8 +110,8 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val dstToSunrise = Duration.between(now, sunrise)
 		val dstToSunset = Duration.between(approximateLastSunset, now)
 
-		require(!dstToSunrise.isNegative) { "Sunrise is in the past $dstToSunrise (sunrise: $sunrise, now: $now)" }
-		require(!dstToSunset.isNegative) {
+		assertFalse(dstToSunrise.isNegative) { "Sunrise is in the past $dstToSunrise (sunrise: $sunrise, now: $now)" }
+		assertFalse(dstToSunset.isNegative) {
 			"Sunset is in the past $dstToSunset (sunset: $sunset, lastSunset: $approximateLastSunset, now: $now)"
 		}
 
@@ -129,12 +130,12 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val tomorrowSunrise = requireNotNull(sunTimes.rise)
 		val midnight = requireNotNull(sunTimes.nadir)
 		return when {
-			now < midnight -> betweenSunsetAndMidnight(
+			now.isBefore(midnight) -> betweenSunsetAndMidnight(
 					now,
 					requireNotNull(sunTimes.set),
 					midnight
 			)
-			now <= tomorrowSunrise -> betweenMidnightAndSunrise(
+			now.isBefore(tomorrowSunrise) -> betweenMidnightAndSunrise(
 					now,
 					midnight,
 					tomorrowSunrise
@@ -148,9 +149,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: ZonedDateTime,
 			noon: ZonedDateTime
 	): UpdateData {
-		require(now.isAfter(noon))
-		require(sunset.isAfter(noon))
-		require(now.isBefore(sunset))
+		assertTrue(now.isAfter(noon))
+		assertTrue(sunset.isAfter(noon))
+		assertTrue(now.isBefore(sunset))
 		return UpdateData(
 				fromColor = NOON,
 				toColor = SUNSET,
@@ -164,9 +165,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunrise: ZonedDateTime,
 			noon: ZonedDateTime
 	): UpdateData {
-		require(now.isAfter(sunrise))
-		require(noon.isAfter(sunrise))
-		require(now.isBefore(noon))
+		assertTrue(now.isAfter(sunrise))
+		assertTrue(noon.isAfter(sunrise))
+		assertTrue(now.isBefore(noon))
 		return UpdateData(
 				fromColor = SUNRISE,
 				toColor = NOON,
@@ -206,12 +207,12 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val midnight = requireNotNull(sunTimes.nadir);
 
 		return when {
-			now >= midnight -> betweenMidnightAndSunrise(
+			now.isAfter(midnight) -> betweenMidnightAndSunrise(
 					now,
 					requireNotNull(sunTimes.rise),
 					midnight
 			)
-			now >= yesterdayApproxSunset -> betweenSunsetAndMidnight(
+			now.isAfter(yesterdayApproxSunset) -> betweenSunsetAndMidnight(
 					now,
 					yesterdayApproxSunset,
 					midnight
