@@ -16,7 +16,6 @@ internal class SystemStyleUpdater {
 		when {
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> updateUiVisibilityR(view, luminance)
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> updateUiVisibilityMQ(view, luminance)
-			else -> throw IllegalStateException()
 		}
 	}
 
