@@ -6,6 +6,10 @@ import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticsDetailData
 import com.google.android.gms.maps.model.LatLng
 
+/**
+ * Data for map statistics.
+ * Contains all data required to draw line data on a map.
+ */
 class MapStatisticsData(
 		val locations: Collection<LatLng>,
 		val bounds: CoordinateBounds

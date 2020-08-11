@@ -5,6 +5,11 @@ import com.adsamcik.tracker.shared.base.fragment.CoreFragment
 import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 
+/**
+ * Abstract fragment class containing UI specific extensions to [CoreFragment].
+ * This class should be used for every UI fragment as it provides convenient
+ * lifecycle management of styleController.
+ */
 abstract class CoreUIFragment : CoreFragment() {
 	protected val styleController: StyleController = StyleManager.createController()
 
