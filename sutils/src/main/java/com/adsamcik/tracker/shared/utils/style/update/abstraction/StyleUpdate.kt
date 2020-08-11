@@ -2,14 +2,14 @@ package com.adsamcik.tracker.shared.utils.style.update.abstraction
 
 import android.content.Context
 import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 internal abstract class StyleUpdate {
 	abstract val nameRes: Int
-	abstract val requiredColorData: RequiredColors
+	abstract val defaultColors: DefaultColors
 
 	val colorList: List<Int> get() = _colorList
 
@@ -34,10 +34,10 @@ internal abstract class StyleUpdate {
 			this.configData = configData
 
 			if (configData.preferenceColorList.isNotEmpty() &&
-					configData.preferenceColorList.size == requiredColorData.list.size) {
+					configData.preferenceColorList.size == defaultColors.list.size) {
 				_colorList.addAll(configData.preferenceColorList)
 			} else {
-				_colorList.addAll(requiredColorData.list.map { it.defaultColor })
+				_colorList.addAll(defaultColors.list.map { it.defaultColor })
 			}
 
 			onPostEnable(context, configData)

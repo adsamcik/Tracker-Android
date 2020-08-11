@@ -8,8 +8,8 @@ import com.adsamcik.tracker.shared.utils.debug.assertFalse
 import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
 import org.shredzone.commons.suncalc.SunTimes
 import java.time.Duration
@@ -18,22 +18,22 @@ import java.time.ZonedDateTime
 internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	override val nameRes: Int = R.string.settings_color_update_mden_trans_title
 
-	override val requiredColorData: RequiredColors
-		get() = RequiredColors(
+	override val defaultColors: DefaultColors
+		get() = DefaultColors(
 				listOf(
-						RequiredColorData(
+						DefaultColorData(
 								defaultColor = -32512,
 								nameRes = R.string.settings_color_morning_title
 						),
-						RequiredColorData(
+						DefaultColorData(
 								defaultColor = -2031888,
 								nameRes = R.string.settings_color_day_title
 						),
-						RequiredColorData(
+						DefaultColorData(
 								defaultColor = -13033421,
 								nameRes = R.string.settings_color_evening_title
 						),
-						RequiredColorData(
+						DefaultColorData(
 								defaultColor = -16315596,
 								nameRes = R.string.settings_color_night_title
 						)
@@ -44,7 +44,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			styleList: List<Int>,
 			sunSetRise: SunSetRise
 	): UpdateData {
-		assertEqual(styleList.size, requiredColorData.list.size)
+		assertEqual(styleList.size, defaultColors.list.size)
 
 		val time = Time.now.toZonedDateTime()
 

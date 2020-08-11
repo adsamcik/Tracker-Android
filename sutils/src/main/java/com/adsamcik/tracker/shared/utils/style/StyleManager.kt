@@ -59,8 +59,8 @@ object StyleManager {
 		get() = StyleUpdateInfo(update)
 
 	val activeColorList: List<ActiveColorData>
-		get() = update.colorList.zip(update.requiredColorData.list) { a, r ->
-			ActiveColorData(active = a, required = r)
+		get() = update.colorList.zip(update.defaultColors.list) { a, r ->
+			ActiveColorData(active = a, default = r)
 		}
 
 	private const val TEXT_ALPHA = 222
@@ -68,7 +68,7 @@ object StyleManager {
 	init {
 		if (BuildConfig.DEBUG) {
 			enabledUpdateList.forEach { styleUpdate ->
-				styleUpdate.requiredColorData.list.forEachIndexed { index, colorData ->
+				styleUpdate.defaultColors.list.forEachIndexed { index, colorData ->
 					val default = colorData.defaultColor
 					require(default.alpha == 255) {
 						"Default color #${default.toString(16)} at index $index " +
@@ -128,7 +128,7 @@ object StyleManager {
 
 	private fun enableUpdateWithPreference(context: Context) {
 		val preferences = Preferences.getPref(context)
-		val requiredColorList = update.requiredColorData.list
+		val requiredColorList = update.defaultColors.list
 		val format = context.getString(R.string.settings_color_key)
 		val list = ArrayList<Int>(requiredColorList.size)
 

@@ -4,8 +4,8 @@ import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.LightStyleUpdate
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
 import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
 import kotlin.math.min
 
@@ -18,14 +18,14 @@ internal class LightDayNightTransitionUpdate : LightStyleUpdate() {
 
 	override val nameRes: Int = R.string.settings_color_update_light_transition_title
 
-	override val requiredColorData: RequiredColors
-		get() = RequiredColors(
+	override val defaultColors: DefaultColors
+		get() = DefaultColors(
 				listOf(
-						RequiredColorData(
+						DefaultColorData(
 								defaultColor = -2031888,
 								nameRes = R.string.settings_color_day_title
 						),
-						RequiredColorData(
+						DefaultColorData(
 								defaultColor = -16315596,
 								nameRes = R.string.settings_color_night_title
 						)

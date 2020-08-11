@@ -65,7 +65,7 @@ class ColorPreference : Preference, CoroutineScope {
 
 	fun setDefault() {
 		val colorData = requireNotNull(recyclerColorData) { "First set color data by calling ${this::setColor.name}" }
-		val defaultColor = colorData.required.defaultColor
+		val defaultColor = colorData.aDefault.defaultColor
 
 		Preferences.getPref(context).edit {
 			val key = context.getString(
@@ -132,7 +132,7 @@ class ColorPreference : Preference, CoroutineScope {
 			initialColor: Int
 	) {
 		dialog.show {
-			title(requireNotNull(recyclerColorData).required.nameRes)
+			title(requireNotNull(recyclerColorData).aDefault.nameRes)
 			colorChooser(
 					colors = colorList,
 					subColors = subColorList,
@@ -177,7 +177,7 @@ class ColorPreference : Preference, CoroutineScope {
 		val colorData = requireNotNull(recyclerColorData)
 
 		(holder.findViewById(R.id.title) as AppCompatTextView).apply {
-			setText(colorData.required.nameRes)
+			setText(colorData.aDefault.nameRes)
 		}
 
 		val colorView = (holder.findViewById(R.id.color) as AppCompatImageView)

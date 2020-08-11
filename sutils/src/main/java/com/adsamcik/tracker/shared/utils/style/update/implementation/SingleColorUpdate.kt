@@ -3,18 +3,18 @@ package com.adsamcik.tracker.shared.utils.style.update.implementation
 import android.content.Context
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.StyleUpdate
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColors
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 
 internal class SingleColorUpdate : StyleUpdate() {
 	override val nameRes: Int
 		get() = R.string.settings_color_update_single_title
 
-	override val requiredColorData: RequiredColors
-		get() = RequiredColors(
+	override val defaultColors: DefaultColors
+		get() = DefaultColors(
 				listOf(
-						RequiredColorData(
+						DefaultColorData(
 								defaultColor = -16619100,
 								nameRes = R.string.settings_color_static_title
 						)

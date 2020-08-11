@@ -6,7 +6,7 @@ import androidx.preference.PreferenceGroup
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.utils.style.update.data.RequiredColorData
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
 import com.adsamcik.tracker.preference.ColorPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
@@ -101,10 +101,10 @@ class StylePage : PreferencePage {
 
 	override fun onExit(caller: PreferenceFragmentCompat) = Unit
 
-	data class RecyclerColorData(var color: Int, val required: RequiredColorData) {
+	data class RecyclerColorData(var color: Int, val aDefault: DefaultColorData) {
 		constructor(activeColorData: ActiveColorData) : this(
 				activeColorData.active,
-				activeColorData.required
+				activeColorData.default
 		)
 	}
 }
