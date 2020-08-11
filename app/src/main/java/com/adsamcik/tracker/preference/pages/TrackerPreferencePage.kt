@@ -6,10 +6,10 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.extension.startActivity
-import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
+import com.adsamcik.tracker.shared.base.extension.startActivity
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.notification.NotificationManagementActivity
@@ -100,7 +100,9 @@ class TrackerPreferencePage : PreferencePage {
 			entryValues = values.map { it.first }.toTypedArray()
 			val selectedKey = TrackerTimerManager.getSelectedKey(context)
 			val selectedIndex = values.indexOfFirst { it.first == selectedKey }
-			setValueIndex(selectedIndex)
+			if (selectedIndex >= 0) {
+				setValueIndex(selectedIndex)
+			}
 		}
 	}
 

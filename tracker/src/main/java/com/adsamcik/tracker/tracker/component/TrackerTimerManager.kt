@@ -8,6 +8,9 @@ import com.adsamcik.tracker.tracker.component.trigger.AndroidLocationCollectionT
 import com.adsamcik.tracker.tracker.component.trigger.FusedLocationCollectionTrigger
 import com.adsamcik.tracker.tracker.component.trigger.HandlerCollectionTrigger
 
+/**
+ * Tracker timer manager - provides simple access to tracker timers.
+ */
 object TrackerTimerManager {
 	internal val availableTimers: List<CollectionTriggerComponent>
 		get() = listOf(
@@ -28,7 +31,9 @@ object TrackerTimerManager {
 	}
 
 	fun getSelectedKey(context: Context): String {
-		return Preferences.getPref(context).getStringRes(R.string.settings_tracker_timer_key)
+		return Preferences
+				.getPref(context)
+				.getStringRes(R.string.settings_tracker_timer_key)
 				?: getKey(availableTimers[0])
 	}
 }
