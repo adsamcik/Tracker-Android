@@ -15,14 +15,15 @@ object Dependencies {
 		internal const val coreKtx = "1.5.0-alpha01"
 		internal const val appcompat = "1.2.0"
 		internal const val fragment = "1.2.4"
-		const val kotlin: String = "1.4.0-rc"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.9.3"
 		internal const val work = "2.4.0"
 		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.1"
 		internal const val material = "1.2.0"
-		internal const val coroutines = "1.3.7"
+
+		const val kotlin: String = "1.4.0-rc"
+		internal const val coroutines = "1.3.8"
 
 		internal const val requery = "3.32.2"
 		internal const val room = "2.2.5"
