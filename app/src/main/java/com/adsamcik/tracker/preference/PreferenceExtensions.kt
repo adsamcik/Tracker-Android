@@ -61,6 +61,9 @@ fun PreferenceFragmentCompat.findPreference(@StringRes titleId: Int): Preference
 	return findPreferenceTyped(titleId)
 }
 
+/**
+ * Sets on click [listener] on [Preference] with key of value [key].
+ */
 fun PreferenceFragmentCompat.setOnClickListener(
 		@StringRes key: Int,
 		listener: (Preference) -> Unit
@@ -87,6 +90,9 @@ fun PreferenceGroup.findDirectPreferenceByTitle(title: CharSequence): Preference
 	return null
 }
 
+/**
+ * Exception indicating that preference was not found.
+ */
 class PreferenceNotFoundException : Exception {
 	constructor() : super()
 	constructor(message: String?) : super(message)

@@ -12,24 +12,23 @@ import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.base.exception.PermissionException
-import com.adsamcik.tracker.shared.base.extension.forEachIf
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.base.service.CoreService
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
-import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
@@ -105,19 +104,25 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		val collectionData = MutableCollectionData(tempData.timeMillis)
 
-		dataComponentList.forEachIf({ it.requirementsMet(tempData) }) {
-			tryWithReport {
-				it.onDataUpdated(tempData, collectionData)
-			}
-		}
+		dataComponentList
+				.asSequence()
+				.filter { it.requirementsMet(tempData) }
+				.forEach {
+					tryWithReport {
+						it.onDataUpdated(tempData, collectionData)
+					}
+				}
 
 		requireNotNull(sessionComponent).onDataUpdated(tempData, collectionData)
 
-		postComponentList.forEachIf({ it.requirementsMet(tempData) }) {
-			tryWithReport {
-				it.onNewData(this, session, collectionData, tempData)
-			}
-		}
+		postComponentList
+				.asSequence()
+				.filter { it.requirementsMet(tempData) }
+				.forEach {
+					tryWithReport {
+						it.onNewData(this, session, collectionData, tempData)
+					}
+				}
 
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 

@@ -12,7 +12,6 @@ import kotlinx.coroutines.runBlocking
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-
 /**
  * Find if collection contains any item satisfying [func]
  *
@@ -154,27 +153,6 @@ inline fun <T> MutableList<T>.remove(condition: (T) -> Boolean): Boolean {
  */
 fun <T> MutableList<T>.removeAllByIndexes(indexCollection: Collection<Int>) {
 	indexCollection.sortedDescending().toSet().forEach { removeAt(it) }
-}
-
-/**
- * Iterates over all items in array that meet passed [condition].
- *
- * @param condition Condition that returns true if item should be iterated on.
- * @param action Action that is called when item met the condition.
- */
-inline fun <T> Iterable<T>.forEachIf(condition: (T) -> Boolean, action: (T) -> Unit) {
-	forEach {
-		if (condition(it)) action(it)
-	}
-}
-
-inline fun <T, R> Iterable<T>.mapIf(condition: (T) -> Boolean, action: (T) -> R): List<R> {
-	val size = if (this is Collection<*>) this.size else 10
-	val collection = ArrayList<R>(size)
-	forEachIf(condition) {
-		collection.add(action(it))
-	}
-	return collection
 }
 
 /**

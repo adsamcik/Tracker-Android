@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawabl
 /**
  * Drawable for legend color. Implements [StyleableForegroundDrawable].
  */
+@Suppress("TooManyFunctions")
 class LegendColorDrawable(drawable: GradientDrawable) : Drawable(), Drawable.Callback,
 		StyleableForegroundDrawable {
 

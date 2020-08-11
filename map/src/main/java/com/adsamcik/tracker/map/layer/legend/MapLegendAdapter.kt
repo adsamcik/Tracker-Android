@@ -7,27 +7,35 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
-import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
-import com.adsamcik.tracker.shared.map.MapLegendValue
 import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.shared.map.MapLegendValue
+import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 
+/**
+ * Recycler adapter for [MapLegendValue].with support for [IViewChange].
+ */
 class MapLegendAdapter : BaseRecyclerAdapter<MapLegendValue, MapLegendAdapter.ViewHolder>(),
 		IViewChange {
 
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
+	/**
+	 * Map Legend View Holder.
+	 */
 	class ViewHolder(val textView: TextView) : RecyclerView.ViewHolder(textView)
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-		val inflater = LayoutInflater.from(parent.context)
+		val context = parent.context
+		val inflater = LayoutInflater.from(context)
 		val rootView = inflater.inflate(R.layout.map_sheet_legend_item, parent, false)
 		val textView = rootView as TextView
 		textView.setCompoundDrawablesWithIntrinsicBounds(
 				LegendColorDrawable(
 						requireNotNull(
-								parent.context.getDrawable(R.drawable.legend_color)
+								ContextCompat.getDrawable(context, R.drawable.legend_color)
 						) as GradientDrawable
 				),
 				null,
