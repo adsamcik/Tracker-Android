@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.utils.introduction
 
 import android.graphics.Color
 import android.view.animation.AccelerateDecelerateInterpolator
-import androidx.core.graphics.ColorUtils
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.preferences.Preferences
