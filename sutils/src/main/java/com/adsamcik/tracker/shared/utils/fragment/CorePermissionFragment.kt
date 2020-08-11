@@ -6,6 +6,10 @@ import com.adsamcik.tracker.shared.utils.permission.PermissionCallback
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
 import com.adsamcik.tracker.shared.utils.permission.PermissionResult
 
+/**
+ * Fragment extending [CoreUIFragment] with permission utility.
+ * Supports callbacks for permission requests.
+ */
 abstract class CorePermissionFragment : CoreUIFragment() {
 	private val permissionRequestList = mutableListOf<Pair<Int, PermissionRequest>>()
 	private var lastPermissionRequestId = 1000

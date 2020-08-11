@@ -9,6 +9,9 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.MapView
 
+/**
+ * Creates view holder for map statistics.
+ */
 class MapViewHolderCreator : StatisticsViewHolderCreator {
 	override fun createViewHolder(parent: ViewGroup): StyleMultiTypeViewHolder<StatisticsDetailData> {
 		val options = GoogleMapOptions().apply {
@@ -21,7 +24,7 @@ class MapViewHolderCreator : StatisticsViewHolderCreator {
 		val mapView = MapView(parent.context, options).apply {
 			layoutParams = ViewGroup.LayoutParams(
 					ViewGroup.LayoutParams.MATCH_PARENT,
-					200.dp
+					HEIGHT.dp
 			)
 
 			isClickable = false
@@ -30,4 +33,7 @@ class MapViewHolderCreator : StatisticsViewHolderCreator {
 		return MapViewHolder(mapView) as StyleMultiTypeViewHolder<StatisticsDetailData>
 	}
 
+	companion object {
+		private const val HEIGHT = 200
+	}
 }
