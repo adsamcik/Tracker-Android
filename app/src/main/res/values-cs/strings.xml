@@ -116,4 +116,9 @@
     <string name="settings_language_summary">Aktuální jazyk: %s</string>
     <string name="settings_language_title">Jazyk aplikace</string>
     <string name="settings_log_games_title">Logování her</string>
+    <string-array name="settings_speed_format_names">
+        <item>V sekundách</item>
+        <item>V minutách</item>
+        <item>V hodinách</item>
+    </string-array>
 </resources>
