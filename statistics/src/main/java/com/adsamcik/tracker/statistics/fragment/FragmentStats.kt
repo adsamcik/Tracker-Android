@@ -69,15 +69,15 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		adapter.removeAllSections()
 
 		SummarySection().apply {
-			addData(R.string.stats_sum_title) {
+			addButton(R.string.stats_sum_title) {
 				showSummary()
 			}
 
-			addData(R.string.stats_weekly_title) {
+			addButton(R.string.stats_weekly_title) {
 				showLastSevenDays()
 			}
 
-			addData(R.string.wifilist_title) {
+			addButton(R.string.wifilist_title) {
 				startActivity<WifiBrowseActivity> { }
 			}
 		}.also { adapter.addSection(it) }
