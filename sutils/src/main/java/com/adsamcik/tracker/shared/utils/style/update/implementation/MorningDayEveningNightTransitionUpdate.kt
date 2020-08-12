@@ -89,7 +89,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			midnight: ZonedDateTime
 	): UpdateData {
 		assertTrue(now.isAfter(midnight))
-		assertTrue(sunrise.isAfter(midnight))
+		assertTrue(midnight.isBefore(sunrise))
 		assertTrue(now.isBefore(sunrise))
 		return UpdateData(
 				fromColor = MIDNIGHT,
@@ -105,7 +105,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			midnight: ZonedDateTime
 	): UpdateData {
 		assertTrue(now.isAfter(sunset))
-		assertTrue(midnight.isAfter(sunset))
+		assertTrue(sunset.isBefore(midnight))
 		assertTrue(now.isBefore(midnight))
 		return UpdateData(
 				fromColor = SUNSET,
@@ -165,7 +165,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			noon: ZonedDateTime
 	): UpdateData {
 		assertTrue(now.isAfter(noon))
-		assertTrue(sunset.isAfter(noon))
+		assertTrue(noon.isBefore(sunset))
 		assertTrue(now.isBefore(sunset))
 		return UpdateData(
 				fromColor = NOON,
@@ -181,7 +181,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			noon: ZonedDateTime
 	): UpdateData {
 		assertTrue(now.isAfter(sunrise))
-		assertTrue(noon.isAfter(sunrise))
+		assertTrue(sunrise.isBefore(noon))
 		assertTrue(now.isBefore(noon))
 		return UpdateData(
 				fromColor = SUNRISE,
