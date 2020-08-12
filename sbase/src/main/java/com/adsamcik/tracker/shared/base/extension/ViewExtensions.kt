@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.extension
 import android.content.res.Resources
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import androidx.appcompat.widget.LinearLayoutCompat
@@ -23,6 +24,7 @@ fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {
 		is ConstraintLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
 		is LinearLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
 		is CoordinatorLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
+		is FrameLayout.LayoutParams -> layoutParams.setMargins(left, top, right, bottom)
 	}
 	requestLayout()
 }
@@ -45,7 +47,8 @@ var View.marginLeft: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.leftMargin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.leftMargin
 			is CoordinatorLayout.LayoutParams -> layoutParams.leftMargin
-			else -> throw ViewGroupNotSupportedException()
+			is FrameLayout.LayoutParams -> layoutParams.leftMargin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 	}
 	set(margin) {
@@ -53,7 +56,8 @@ var View.marginLeft: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.leftMargin = margin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.leftMargin = margin
 			is CoordinatorLayout.LayoutParams -> layoutParams.leftMargin = margin
-			else -> throw ViewGroupNotSupportedException()
+			is FrameLayout.LayoutParams -> layoutParams.leftMargin = margin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 		requestLayout()
 	}
@@ -69,7 +73,8 @@ var View.marginTop: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.topMargin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.topMargin
 			is CoordinatorLayout.LayoutParams -> layoutParams.topMargin
-			else -> throw ViewGroupNotSupportedException()
+			is FrameLayout.LayoutParams -> layoutParams.topMargin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 	}
 	set(margin) {
@@ -77,7 +82,8 @@ var View.marginTop: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.topMargin = margin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.topMargin = margin
 			is CoordinatorLayout.LayoutParams -> layoutParams.topMargin = margin
-			else -> throw ViewGroupNotSupportedException()
+			is FrameLayout.LayoutParams -> layoutParams.topMargin = margin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 		requestLayout()
 	}
@@ -93,7 +99,8 @@ var View.marginRight: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.rightMargin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.rightMargin
 			is CoordinatorLayout.LayoutParams -> layoutParams.rightMargin
-			else -> throw ViewGroupNotSupportedException()
+			is FrameLayout.LayoutParams -> layoutParams.rightMargin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 	}
 	set(margin) {
@@ -101,7 +108,8 @@ var View.marginRight: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.rightMargin = margin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.rightMargin = margin
 			is CoordinatorLayout.LayoutParams -> layoutParams.rightMargin = margin
-			else -> throw ViewGroupNotSupportedException()
+			is FrameLayout.LayoutParams -> layoutParams.rightMargin = margin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 		requestLayout()
 	}
@@ -117,7 +125,8 @@ var View.marginBottom: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.bottomMargin
 			is CoordinatorLayout.LayoutParams -> layoutParams.bottomMargin
-			else -> throw ViewGroupNotSupportedException("Layout params")
+			is FrameLayout.LayoutParams -> layoutParams.bottomMargin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 	}
 	set(margin) {
@@ -125,7 +134,8 @@ var View.marginBottom: Int
 			is ConstraintLayout.LayoutParams -> layoutParams.bottomMargin = margin
 			is LinearLayoutCompat.LayoutParams -> layoutParams.bottomMargin = margin
 			is CoordinatorLayout.LayoutParams -> layoutParams.bottomMargin = margin
-			else -> throw ViewGroupNotSupportedException()
+			is FrameLayout.LayoutParams -> layoutParams.bottomMargin = margin
+			else -> throw ViewGroupNotSupportedException(layoutParams.javaClass.name)
 		}
 		requestLayout()
 	}
