@@ -33,7 +33,6 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
-import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle

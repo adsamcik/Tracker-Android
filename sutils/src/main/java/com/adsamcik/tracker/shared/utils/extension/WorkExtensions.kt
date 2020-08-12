@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.extension
 
 import androidx.work.Data
-import com.adsamcik.tracker.shared.base.extension.getLong
+import com.adsamcik.tracker.shared.base.extension.tryGetLong
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 
 fun Data.getPositiveLongReportNull(key: String): Long? {
@@ -19,7 +19,7 @@ fun Data.getPositiveLongReportNull(key: String): Long? {
 }
 
 fun Data.getLongReportNull(key: String): Long? {
-	val value = getLong(key)
+	val value = tryGetLong(key)
 	if (value == null) Reporter.report(IllegalArgumentException("Argument $key was not specified"))
 	return value
 }

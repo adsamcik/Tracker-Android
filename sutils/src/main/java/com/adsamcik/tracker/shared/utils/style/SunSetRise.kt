@@ -25,6 +25,7 @@ typealias SunSetRiseChangeListener = (SunSetRise) -> Unit
  * Class used for calculation of next sunset and sunrise.
  */
 //todo add central location API to better manage passive location updates in the future
+@Suppress("MemberVisibilityCanBePrivate")
 class SunSetRise {
 	private val locationLock = ReentrantLock()
 	private var location: BaseLocation? = null
