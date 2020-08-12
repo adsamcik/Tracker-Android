@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.shared.base.misc.BlendFunctions
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
@@ -105,7 +106,11 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 						sunsetRise
 				)
 
-				require(data.duration >= 0) { "Duration was negative while using ${this::class.java.simpleName}" }
+				if (data.duration < 0) {
+					Reporter.report("Duration was negative while using ${this::class.java.simpleName}")
+					return@withLock
+				}
+
 				timerLock.withLock {
 					timerActive = true
 					val timer = Timer("ColorUpdate", true)

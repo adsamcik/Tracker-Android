@@ -9,17 +9,36 @@ import java.util.*
  * Centralized access to time.
  * This ensures that time is taken from a single source and is therefore comparable.
  */
+@Suppress("MemberVisibilityCanBePrivate")
 object Time {
+	/**
+	 * Current date time in milliseconds since epoch
+	 */
 	val nowMillis: Long get() = System.currentTimeMillis()
 
+	/**
+	 * Current date time as calendar
+	 */
 	val now: Calendar get() = Calendar.getInstance()
 
+	/**
+	 * Elapsed time in milliseconds since boot.
+	 */
 	val elapsedRealtimeMillis: Long get() = SystemClock.elapsedRealtime()
 
+	/**
+	 * Elapsed time in nano seconds since boot.
+	 */
 	val elapsedRealtimeNanos: Long get() = SystemClock.elapsedRealtimeNanos()
 
+	/**
+	 * Today's date in milliseconds since epoch.
+	 */
 	val todayMillis: Long get() = roundToDate(nowMillis)
 
+	/**
+	 * Today's date as calendar
+	 */
 	val today: Calendar
 		get() {
 			val now = now
@@ -27,6 +46,9 @@ object Time {
 			return now
 		}
 
+	/**
+	 * Round date time in milliseconds to date in milliseconds
+	 */
 	fun roundToDate(time: Long): Long {
 		return Date(time).toCalendar().apply {
 			roundToDate()
@@ -40,9 +62,9 @@ object Time {
 
 	const val HOUR_IN_SECONDS: Long = HOUR_IN_MINUTES * MINUTE_IN_SECONDS
 
-	const val MILISECONDS_IN_NANOSECONDS: Long = 1000000L
+	const val MILLISECONDS_IN_NANOSECONDS: Long = 1000000L
 	const val SECOND_IN_MILLISECONDS: Long = 1000L
-	const val SECOND_IN_NANOSECONDS: Long = SECOND_IN_MILLISECONDS * MILISECONDS_IN_NANOSECONDS
+	const val SECOND_IN_NANOSECONDS: Long = SECOND_IN_MILLISECONDS * MILLISECONDS_IN_NANOSECONDS
 	const val MINUTE_IN_MILLISECONDS: Long = MINUTE_IN_SECONDS * SECOND_IN_MILLISECONDS
 	const val HOUR_IN_MILLISECONDS: Long = HOUR_IN_MINUTES * MINUTE_IN_MILLISECONDS
 	const val DAY_IN_MILLISECONDS: Long = DAY_IN_HOURS * HOUR_IN_MILLISECONDS

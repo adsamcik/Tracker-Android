@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions")
+@file:Suppress("TooManyFunctions", "unused")
 
 package com.adsamcik.tracker.shared.utils.debug
 
@@ -79,6 +79,19 @@ fun assertMore(value: Long, threshold: Long) {
  * @param threshold Threshold.
  *
  */
+fun assertMore(value: Long, threshold: Long, message: () -> String) {
+	if (value <= threshold) {
+		assertMoreError(value.toString(), threshold.toString(), message)
+	}
+}
+
+/**
+ * Assert value is more than threshold.
+ *
+ * @param value Value.
+ * @param threshold Threshold.
+ *
+ */
 fun assertMore(value: Int, threshold: Int) {
 	if (value <= threshold) {
 		assertMoreError(value.toString(), threshold.toString())
@@ -113,6 +126,10 @@ fun assertMore(value: Float, threshold: Float) {
 
 private fun assertMoreError(value: String, threshold: String) {
 	Reporter.report("Assertion failed. $value ≤ $threshold.")
+}
+
+private fun assertMoreError(value: String, threshold: String, message: () -> String) {
+	Reporter.report("Assertion failed. $value ≤ $threshold. $message()")
 }
 
 /**

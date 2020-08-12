@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.utils.debug.assertEqual
 import com.adsamcik.tracker.shared.utils.debug.assertFalse
+import com.adsamcik.tracker.shared.utils.debug.assertMore
 import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
@@ -53,12 +54,26 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		val sunrise = sunData.rise
 
 		if (sunData.isAlwaysUp || sunset == null) {
-			return UpdateData(styleList[NOON], styleList[NOON], Long.MAX_VALUE, 0L)
+			return UpdateData(
+					styleList[NOON],
+					styleList[NOON],
+					Time.DAY_IN_MILLISECONDS,
+					0L
+			)
 		} else if (sunData.isAlwaysDown || sunrise == null) {
-			return UpdateData(styleList[MIDNIGHT], styleList[MIDNIGHT], Long.MAX_VALUE, 0L)
+			return UpdateData(
+					styleList[MIDNIGHT],
+					styleList[MIDNIGHT],
+					Time.DAY_IN_MILLISECONDS,
+					0L
+			)
 		}
 
 		val localUpdateData = calculateProgress(time, sunData)
+
+		assertMore(localUpdateData.duration, 0) {
+			"Duration was negative with sunrise of $sunrise, sunset of $sunset and current time $time"
+		}
 
 		return UpdateData(
 				styleList[localUpdateData.fromColor],
