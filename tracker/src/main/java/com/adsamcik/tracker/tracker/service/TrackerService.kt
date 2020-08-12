@@ -183,7 +183,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(CellTrackerComponent())
 			add(LocationTrackerComponent())
 			add(WifiTrackerComponent())
-		}
+		}.forEach { it.onEnable(this) }
 
 		// todo add only components that can actually be used
 		postComponentList.apply {
