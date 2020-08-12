@@ -10,21 +10,24 @@ import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivity
-import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.shared.base.extension.startActivity
-import com.adsamcik.tracker.shared.utils.introduction.Introduction
-import com.adsamcik.tracker.shared.utils.language.LocaleManager
-import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.license.LicenseActivity
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.activity.ModuleActivity
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.preference.setOnClickListener
+import com.adsamcik.tracker.shared.base.extension.startActivity
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.introduction.Introduction
+import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import java.util.*
 
+/**
+ * Root preference page
+ */
 class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePage {
 	private var clickCount = 0
 
