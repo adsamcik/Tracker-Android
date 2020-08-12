@@ -6,6 +6,9 @@ import android.os.Bundle
 import android.os.Parcelable
 import kotlinx.android.parcel.Parcelize
 
+/**
+ * Immutable collection data interface.
+ */
 interface CollectionData : Parcelable {
 	/**
 	 * Time of collection in milliseconds since midnight, January 1, 1970 UTC (UNIX time)
@@ -38,6 +41,7 @@ interface CollectionData : Parcelable {
  * Data in here might have been reordered to different objects
  * but they have not been modified in any way.
  */
+@Suppress("MemberVisibilityCanBePrivate")
 @Parcelize
 class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 
@@ -66,36 +70,57 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 		set(value) = set(WIFI, value)
 
 
+	/**
+	 * Retrieve long value with key.
+	 */
 	fun get(key: String): Long {
 		return bundle.getLong(key)
 	}
 
+	/**
+	 * Retrieve parcelable value with key.
+	 *
+	 * Throws an [IllegalArgumentException] if the value is null.
+	 */
 	fun <T : Parcelable> get(key: String): T {
 		return requireNotNull(bundle.getParcelable(key))
 	}
 
+	/**
+	 * Try retrieve parcelable value with key.
+	 *
+	 * @return Value or null if the value is not available
+	 */
 	fun <T : Parcelable> tryGet(key: String): T? {
-		return bundle.getParcelable(key) as? T
+		return bundle.getParcelable(key)
 	}
 
+	/**
+	 * Set parcelable value with key.
+	 *
+	 * @param key Key
+	 * @param value Value (Removes existing value if null)
+	 */
 	fun set(key: String, value: Parcelable?) {
 		if (value == null) {
 			bundle.remove(key)
 		} else {
-			setNonNullable(key, value)
+			bundle.putParcelable(key, value)
 		}
 	}
 
+	/**
+	 * Set long value with key.
+	 *
+	 * @param key Key
+	 * @param value Value (Removes existing value if null)
+	 */
 	fun set(key: String, value: Long?) {
 		if (value == null) {
 			bundle.remove(key)
 		} else {
 			bundle.putLong(key, value)
 		}
-	}
-
-	private fun setNonNullable(key: String, value: Parcelable) {
-		bundle.putParcelable(key, value)
 	}
 
 	/**

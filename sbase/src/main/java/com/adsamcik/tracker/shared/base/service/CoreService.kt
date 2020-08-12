@@ -6,6 +6,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * A Service that is [androidx.lifecycle.LifecycleOwner] and has a [CoroutineScope].
+ */
 abstract class CoreService : LifecycleService(), CoroutineScope {
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext

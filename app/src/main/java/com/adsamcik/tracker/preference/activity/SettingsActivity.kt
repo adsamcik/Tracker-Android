@@ -5,10 +5,6 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.utils.debug.Reporter
-import com.adsamcik.tracker.shared.base.extension.dp
-import com.adsamcik.tracker.shared.base.extension.transaction
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings
 import com.adsamcik.tracker.preference.pages.DataPage
@@ -18,8 +14,12 @@ import com.adsamcik.tracker.preference.pages.PreferencePage
 import com.adsamcik.tracker.preference.pages.RootPage
 import com.adsamcik.tracker.preference.pages.StylePage
 import com.adsamcik.tracker.preference.pages.TrackerPreferencePage
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import java.util.*
 
 /**
@@ -52,7 +52,7 @@ class SettingsActivity : DetailActivity(),
 		initializeModuleSettingsList()
 
 		supportFragmentManager.transaction {
-			replace(CONTENT_ID, fragment, FragmentSettings.TAG)
+			replace(CONTENT_ID, fragment, TAG)
 			runOnCommit {
 				styleController.watchRecyclerView(RecyclerStyleView(fragment.listView, 0))
 				setPage(fragment, RootPage(moduleSettingsList))
@@ -165,6 +165,10 @@ class SettingsActivity : DetailActivity(),
 
 			page.onRequestPermissionsResult(this, requestCode, collection)
 		}
+	}
+
+	companion object {
+		const val TAG: String = "FragmentSettings"
 	}
 }
 
