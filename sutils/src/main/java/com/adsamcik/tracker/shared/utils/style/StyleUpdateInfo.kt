@@ -14,6 +14,6 @@ data class StyleUpdateInfo(
 	internal constructor(update: StyleUpdate) : this(
 			update.id,
 			update.nameRes,
-			update.defaultColorsF
+			update.defaultColors
 	)
 }
