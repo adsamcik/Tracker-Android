@@ -23,7 +23,7 @@ class MaxSpeedConsumer : StatDataSpeedConsumer {
 
 	override fun getSpeed(context: Context, data: StatDataMap): Double {
 		val locationData = data.requireData<List<Location>>(LocationDataProducer::class)
-		return locationData.maxOf { it.speed ?: 0.0f }.toDouble() ?: 0.0
+		return locationData.maxOfOrNull { it.speed ?: 0.0f }?.toDouble() ?: 0.0
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

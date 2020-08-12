@@ -24,7 +24,7 @@ class MinAltitudeConsumer : StatDataDistanceConsumer {
 
 	override fun getDistance(context: Context, data: StatDataMap): Double {
 		val locationData = data.requireData<List<Double2>>(OptimizedAltitudeProducer::class)
-		return locationData.minOf { it.y }
+		return locationData.minOfOrNull { it.y } ?: 0.0
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>

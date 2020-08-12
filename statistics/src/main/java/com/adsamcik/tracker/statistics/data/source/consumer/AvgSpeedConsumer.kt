@@ -2,7 +2,6 @@ package com.adsamcik.tracker.statistics.data.source.consumer
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.extension.averageIfFloat
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
@@ -24,8 +23,7 @@ class AvgSpeedConsumer : StatDataSpeedConsumer {
 
 	override fun getSpeed(context: Context, data: StatDataMap): Double {
 		val locationData = data.requireData<List<Location>>(LocationDataProducer::class)
-		val average = locationData.averageIfFloat({ it.speed != null }) { requireNotNull(it.speed) }
-		return average.toDouble()
+		return locationData.asSequence().mapNotNull { it.speed }.average()
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>
