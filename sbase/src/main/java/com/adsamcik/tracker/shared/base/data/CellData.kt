@@ -4,6 +4,10 @@ import android.os.Parcelable
 import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize
 
+/**
+ * Data class containing information about registered cells
+ * (only cells with any reliable information) and total count.
+ */
 @JsonClass(generateAdapter = false)
 @Parcelize
 data class CellData(

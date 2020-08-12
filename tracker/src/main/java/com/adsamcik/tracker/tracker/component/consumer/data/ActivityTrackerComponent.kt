@@ -40,20 +40,26 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 				activity.activityType == DetectedActivity.STILL
 	}
 
-	@Suppress("MagicNumber")
+	@Suppress("MagicNumber", "ComplexMethod")
 	//todo add confidence calculation
 	private fun determineActivityBySpeed(speed: Float, activity: ActivityInfo): ActivityInfo {
-		return if (speed > MAX_RUN_SPEED_METERS_PER_SECOND && isOnFoot(activity)) {
-			ActivityInfo(DetectedActivity.IN_VEHICLE, 90)
-		} else if (speed > MAX_ON_FOOT_SPEED && isUnknownOnFootActivity(activity)) {
-			ActivityInfo(DetectedActivity.IN_VEHICLE, 75)
-		} else if (speed > MAX_WALK_SPEED_METERS_PER_SECOND &&
-				(isNotConfidentWalk(activity) || isUnknownOnFootActivity(activity))) {
-			ActivityInfo(DetectedActivity.RUNNING, 80)
-		} else if (speed > DEFINITELY_VEHICLE_SPEED && isUnknown(activity)) {
-			ActivityInfo(DetectedActivity.IN_VEHICLE, 75)
-		} else {
-			activity
+		return when {
+			speed > MAX_RUN_SPEED_METERS_PER_SECOND && isOnFoot(activity) -> {
+				ActivityInfo(DetectedActivity.IN_VEHICLE, 90)
+			}
+			speed > MAX_ON_FOOT_SPEED && isUnknownOnFootActivity(activity) -> {
+				ActivityInfo(DetectedActivity.IN_VEHICLE, 75)
+			}
+			speed > MAX_WALK_SPEED_METERS_PER_SECOND &&
+					(isNotConfidentWalk(activity) || isUnknownOnFootActivity(activity)) -> {
+				ActivityInfo(DetectedActivity.RUNNING, 80)
+			}
+			speed > DEFINITELY_VEHICLE_SPEED && isUnknown(activity) -> {
+				ActivityInfo(DetectedActivity.IN_VEHICLE, 75)
+			}
+			else -> {
+				activity
+			}
 		}
 	}
 
