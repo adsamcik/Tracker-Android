@@ -21,12 +21,12 @@ class OptimizedLocationDataProducer : StatDataProducer {
 	override fun produce(rawDataMap: RawDataMap, dataMap: StatDataMap): Any {
 		val locations = rawDataMap.requireData<List<DatabaseLocation>>(StatDataSource.LOCATION)
 
-		val mappedLocations = locations.map { it.location }.toTypedArray()
+		val mappedLocations = locations.map { it.location }
 		if (locations.size <= 2) return mappedLocations
 
 		val simplify = Simplify3D(emptyArray(), LocationExtractor())
 		return simplify.simplify(
-				mappedLocations,
+				mappedLocations.toTypedArray(),
 				POSITION_TOLERANCE,
 				false
 		).toList()
