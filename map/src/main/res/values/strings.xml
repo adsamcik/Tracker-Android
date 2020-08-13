@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="map_drag_content_description">Drag or tap to change map bottom sheet visibility.</string>
+
     <string name="map_search">Search…</string>
     <string name="map_search_no_geocoder">Search disabled, no geocoder found.</string>
 
