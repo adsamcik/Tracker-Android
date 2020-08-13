@@ -155,6 +155,12 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	fun count(): Long
 
 	/**
+	 * Counts all sessions in the database.
+	 */
+	@Query("SELECT COUNT(*) FROM tracker_session WHERE :to >= start OR :from <= `end`")
+	fun count(from: Long, to: Long): Long
+
+	/**
 	 * Creates range from start of the first session and end of the last session.
 	 */
 	@Query("SELECT MIN(start) as start, MAX(`end`) as endInclusive from tracker_session")

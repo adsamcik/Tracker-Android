@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.startActivity
@@ -28,8 +29,9 @@ import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.database.data.CacheStatData
+import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
+import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 import com.adsamcik.tracker.statistics.list.recycler.SectionedDividerDecoration
 import com.adsamcik.tracker.statistics.list.recycler.SessionSection
 import com.adsamcik.tracker.statistics.list.recycler.SessionSummaryAdapter
@@ -147,11 +149,11 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	}
 
 	private fun showSummaryDialog(
-			statDataCollection: Collection<CacheStatData>,
+			statDataCollection: Collection<Stat>,
 			@StringRes titleRes: Int
 	) {
 		val activity = requireActivity()
-		val adapter = SessionSummaryAdapter()//.apply { addAll(statDataCollection) }
+		val adapter = SessionSummaryAdapter().apply { addAll(statDataCollection) }
 
 
 		launch(Dispatchers.Main) {
@@ -176,45 +178,82 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val sessionDao = database.sessionDao()
 			val sumSessionData = sessionDao.getSummary()
 
-			/*val statList = listOf(
-					CacheStatData(
-							resources.getString(R.string.stats_time),
+			val statList = listOf(
+					Stat(
+							R.string.stats_time,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							sumSessionData.duration.formatAsDuration(activity)
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_collections),
+					Stat(
+							R.string.stats_collections,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							sumSessionData.collections.formatReadable()
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_distance_total),
+					Stat(
+							R.string.stats_distance_total,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							resources.formatDistance(
-									sumSessionData.distanceInM, 1,
+									sumSessionData.distanceInM,
+									SUMMARY_DECIMAL_PLACES,
 									Preferences.getLengthSystem(activity)
 							)
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_location_count),
+					Stat(
+							R.string.stats_distance_on_foot,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
+							resources.formatDistance(
+									sumSessionData.distanceOnFootInM,
+									SUMMARY_DECIMAL_PLACES,
+									Preferences.getLengthSystem(activity)
+							)
+					),
+					Stat(
+							R.string.stats_distance_in_vehicle,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
+							resources.formatDistance(
+									sumSessionData.distanceInVehicleInM,
+									SUMMARY_DECIMAL_PLACES,
+									Preferences.getLengthSystem(activity)
+							)
+					),
+					Stat(
+							R.string.stats_location_count,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							locationDao.count().formatReadable()
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_wifi_count),
+					Stat(
+							R.string.stats_wifi_count,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							wifiDao.count().formatReadable()
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_cell_count),
+					Stat(
+							R.string.stats_cell_count,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							cellDao.uniqueCount().formatReadable()
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_session_count),
+					Stat(
+							R.string.stats_session_count,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							sessionDao.count().formatReadable()
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_steps),
+					Stat(
+							R.string.stats_steps,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							sumSessionData.steps.formatReadable()
 					)
-			)*/
+			)
 
-			//showSummaryDialog(statList, R.string.stats_sum_title)
+			showSummaryDialog(statList, R.string.stats_sum_title)
 
 		}
 	}
@@ -230,32 +269,68 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val database = AppDatabase.database(activity)
 			val sessionDao = database.sessionDao()
 			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
-			/*val statDataList = listOf(
-					CacheStatData(
-							resources.getString(R.string.stats_time),
+			val statDataList = listOf(
+					Stat(
+							R.string.stats_time,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							lastWeekSummary.duration.formatAsDuration(activity)
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_distance_total),
+					Stat(
+							R.string.stats_distance_total,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							resources.formatDistance(
-									lastWeekSummary.distanceInM, 1,
+									lastWeekSummary.distanceInM,
+									SUMMARY_DECIMAL_PLACES,
 									Preferences.getLengthSystem(activity)
 							)
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_collections),
+					Stat(
+							R.string.stats_distance_on_foot,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
+							resources.formatDistance(
+									lastWeekSummary.distanceOnFootInM,
+									SUMMARY_DECIMAL_PLACES,
+									Preferences.getLengthSystem(activity)
+							)
+					),
+
+					Stat(
+							R.string.stats_distance_in_vehicle,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
+							resources.formatDistance(
+									lastWeekSummary.distanceInVehicleInM,
+									SUMMARY_DECIMAL_PLACES,
+									Preferences.getLengthSystem(activity)
+							)
+					),
+					Stat(
+							R.string.stats_collections,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							lastWeekSummary.collections.formatReadable()
 					),
-					CacheStatData(
-							resources.getString(R.string.stats_steps),
+					Stat(
+							R.string.stats_steps,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
 							lastWeekSummary.steps.formatReadable()
-					)
+					),
+					Stat(
+							R.string.stats_session_count,
+							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+							displayType = StatisticDisplayType.Information,
+							sessionDao.count(weekAgo, now).formatReadable()
+					),
 					/*StatData(resources.getString(R.string.stats_location_count), locationDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_wifi_count), wifiDao.count().formatReadable()),
 					StatData(resources.getString(R.string.stats_cell_count), cellDao.count().formatReadable())*/
-			)*/
+			)
 
-			//showSummaryDialog(statDataList, R.string.stats_weekly_title)
+			showSummaryDialog(statDataList, R.string.stats_weekly_title)
 		}
 	}
 
@@ -317,6 +392,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 	companion object {
 		const val DIALOG_LAYER = 2
+		private const val SUMMARY_DECIMAL_PLACES = 1
 	}
 }
 

@@ -8,6 +8,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
+import com.adsamcik.tracker.statistics.database.data.CacheStatData
 
 /**
  * Adapter for session summary
@@ -18,9 +19,9 @@ class SessionSummaryAdapter
 
 	private val list = mutableListOf<Stat>()
 
-	/*fun addAll(list: Collection<StatData>) {
+	fun addAll(list: Collection<Stat>) {
 		this.list.addAll(list)
-	}*/
+	}
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 		val inflater = LayoutInflater.from(parent.context)
@@ -36,8 +37,9 @@ class SessionSummaryAdapter
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
 		val item = list[position]
-		/*holder.title.text = item.id
-		holder.value.text = item.value*/
+		val resources = holder.itemView.resources
+		holder.title.text = resources.getString(item.nameRes)
+		holder.value.text = item.data.toString()
 	}
 
 	override fun onViewAttachedToWindow(holder: ViewHolder) {
