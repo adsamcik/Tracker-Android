@@ -102,6 +102,6 @@
     <string name="settings_tracker_timer_location">Android lokalizace</string>
     <string name="settings_tracker_timer_summary">Aktuálně aktivní: %s. Komponenta využívání pro aktualizace - inicializuje jednotlivé sběry</string>
     <string name="settings_tracker_timer_title">Časovače</string>
-    <string name="settings_wifi_location_count_enabled_title">Počet Wi-Fi na jednotlivých polohách</string>
-    <string name="settings_wifi_network_enabled_title">Informace o jednotlivých Wi-Fi vysílačích</string>
+    <string name="settings_wifi_location_count_enabled_title">Počet Wi-Fi na lokacích</string>
+    <string name="settings_wifi_network_enabled_title">Informace o Wi-Fi vysílačích</string>
 </resources>
