@@ -17,7 +17,7 @@ import kotlin.reflect.KClass
  */
 class ElevationChartConsumer : StatDataConsumer {
 	override val nameRes: Int
-		get() = R.string.stats_ascended
+		get() = R.string.stats_elevation
 	override val iconRes: Int
 		get() = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_terrain
 
