@@ -27,7 +27,7 @@ class StepCountConsumer : StatDataConsumer {
 
 	override fun getData(context: Context, data: StatDataMap): Any {
 		val session = data.requireData<TrackerSession>(TrackerSessionProducer::class)
-		return session.steps.toDouble()
+		return session.steps
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>
