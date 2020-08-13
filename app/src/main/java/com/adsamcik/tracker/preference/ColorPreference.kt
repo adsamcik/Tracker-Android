@@ -13,11 +13,11 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
 import com.adsamcik.tracker.shared.utils.style.color.brightenColor
 import com.adsamcik.tracker.shared.utils.style.implementations.StyleColorDrawable
+import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.color.colorChooser
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +29,7 @@ import kotlin.coroutines.CoroutineContext
 /**
  * Preference for custom color setting.
  */
+@Suppress("unused")
 class ColorPreference : Preference, CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -195,7 +196,12 @@ class ColorPreference : Preference, CoroutineScope {
 
 		colorView.drawable.let {
 			if (it !is StyleColorDrawable) {
-				colorView.setImageDrawable(StyleColorDrawable(it.mutate() as GradientDrawable))
+				colorView.setImageDrawable(
+						StyleColorDrawable(
+								it.mutate() as GradientDrawable,
+								StyleColorDrawable.BASE_STROKE_WIDTH
+						)
+				)
 			}
 		}
 

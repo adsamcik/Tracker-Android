@@ -122,7 +122,7 @@ internal class SystemStyleUpdater {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
 			updateFlagsR(notificationStyleView, navigationStyleView)
 		} else {
-			updateFlags(notificationStyleView, navigationStyleView)
+			updateFlagsPreR(notificationStyleView, navigationStyleView)
 		}
 	}
 
@@ -170,8 +170,8 @@ internal class SystemStyleUpdater {
 	}
 
 
-	@Suppress("ComplexMethod", "ComplexCondition")
-	private fun updateFlags(
+	@Suppress("ComplexMethod", "ComplexCondition", "Deprecation")
+	private fun updateFlagsPreR(
 			notificationStyleView: SystemBarStyleView?,
 			navigationStyleView: SystemBarStyleView?
 	) {
@@ -208,7 +208,6 @@ internal class SystemStyleUpdater {
 
 		if (notificationStyle.isBackgroundHandledBySystem && navigationStyle.isBackgroundHandledBySystem) {
 			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-			//clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 		}
 
 		if ((notificationStyle == SystemBarStyle.Transparent && navigationStyle != SystemBarStyle.Translucent) ||
