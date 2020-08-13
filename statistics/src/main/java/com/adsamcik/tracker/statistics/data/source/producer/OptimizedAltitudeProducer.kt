@@ -17,6 +17,9 @@ class OptimizedAltitudeProducer : StatDataProducer {
 
 	override fun produce(rawDataMap: RawDataMap, dataMap: StatDataMap): Any {
 		val optimizedLocation = dataMap.requireData<List<Location>>(OptimizedLocationDataProducer::class)
+
+		if (optimizedLocation.isEmpty()) return emptyList<Double2>()
+
 		val firstTime = optimizedLocation.first().time
 		return optimizedLocation
 				.mapNotNull {
