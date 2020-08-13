@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.utils.style.utility
+package com.adsamcik.tracker.shared.utils.style.color
 
 import android.graphics.Color
 import androidx.annotation.ColorInt
@@ -7,7 +7,7 @@ import androidx.core.graphics.alpha
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
-import com.adsamcik.tracker.shared.utils.style.utility.palette.LabConstants
+import com.adsamcik.tracker.shared.utils.style.color.palette.LabConstants
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.pow

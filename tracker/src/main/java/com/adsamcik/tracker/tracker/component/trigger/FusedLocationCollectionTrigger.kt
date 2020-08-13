@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.trigger
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
@@ -69,6 +70,8 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger() {
 			priority = LocationRequest.PRIORITY_HIGH_ACCURACY
 		}
 
+		// checked by component manager
+		@Suppress("MissingPermission")
 		client.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
 	}
 

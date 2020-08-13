@@ -34,7 +34,7 @@ import com.adsamcik.tracker.shared.base.extension.firstParent
 import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawable
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
-import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
+import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout

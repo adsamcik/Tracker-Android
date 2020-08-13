@@ -1,8 +1,8 @@
-package com.adsamcik.tracker.shared.utils.style.utility
+package com.adsamcik.tracker.shared.utils.style.color
 
 import android.graphics.Color
 import androidx.annotation.FloatRange
-import com.adsamcik.tracker.shared.utils.style.utility.palette.PaletteGenerator
+import com.adsamcik.tracker.shared.utils.style.color.palette.PaletteGenerator
 import kotlin.random.Random
 
 

@@ -7,9 +7,9 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.shared.base.extension.withAlpha
-import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.QUARTER_COMPONENT
-import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.TRANSPARENT
-import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
+import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.QUARTER_COMPONENT
+import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.TRANSPARENT
+import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 
 internal class SystemStyleUpdater {
 	private fun updateUiVisibility(view: View, luminance: Int) {

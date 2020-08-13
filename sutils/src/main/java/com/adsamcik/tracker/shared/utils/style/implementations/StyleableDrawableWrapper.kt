@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.layer.legend
+package com.adsamcik.tracker.shared.utils.style.implementations
 
 import android.content.res.ColorStateList
 import android.graphics.Canvas
@@ -11,19 +11,17 @@ import android.graphics.drawable.GradientDrawable
 import androidx.core.graphics.drawable.DrawableCompat
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawable
 
+
 /**
  * Drawable for legend color. Implements [StyleableForegroundDrawable].
  */
 @Suppress("TooManyFunctions")
-class LegendColorDrawable(drawable: GradientDrawable) : Drawable(), Drawable.Callback,
+abstract class StyleableDrawableWrapper(drawable: GradientDrawable) : Drawable(), Drawable.Callback,
 		StyleableForegroundDrawable {
 
 	var drawable: GradientDrawable = drawable
 		private set
 
-	override fun onForegroundStyleChanged(foregroundColor: ColorStateList) {
-		drawable.setStroke(4, foregroundColor)
-	}
 
 	override fun draw(canvas: Canvas) {
 		drawable.draw(canvas)

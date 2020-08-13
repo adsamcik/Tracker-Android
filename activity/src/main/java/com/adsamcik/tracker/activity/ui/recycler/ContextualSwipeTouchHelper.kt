@@ -11,7 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
+import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 
 class ContextualSwipeTouchHelper(
 		context: Context,

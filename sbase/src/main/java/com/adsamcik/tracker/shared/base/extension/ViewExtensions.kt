@@ -265,6 +265,6 @@ fun <T : View> ViewGroup.findChildOfType(
 		}
 	}
 
-	assert(queue.isEmpty())
+	require(queue.isEmpty())
 	throw NotFoundException("Child of type ${iClass.name} not found")
 }

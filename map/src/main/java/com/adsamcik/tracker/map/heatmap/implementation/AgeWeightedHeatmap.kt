@@ -8,8 +8,8 @@ import com.adsamcik.tracker.shared.utils.debug.assertLess
 import com.adsamcik.tracker.shared.utils.debug.assertMore
 import com.adsamcik.tracker.shared.utils.debug.assertMoreOrEqual
 import com.adsamcik.tracker.shared.utils.debug.assertWithin
-import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.EMPTY_COMPONENT
-import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants.FULL_COMPONENT
+import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.EMPTY_COMPONENT
+import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.FULL_COMPONENT
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt

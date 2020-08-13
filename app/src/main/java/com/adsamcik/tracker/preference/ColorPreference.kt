@@ -14,9 +14,10 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
-import com.adsamcik.tracker.shared.utils.style.utility.ColorConstants
-import com.adsamcik.tracker.shared.utils.style.utility.ColorGenerator
-import com.adsamcik.tracker.shared.utils.style.utility.brightenColor
+import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
+import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
+import com.adsamcik.tracker.shared.utils.style.color.brightenColor
+import com.adsamcik.tracker.shared.utils.style.implementations.StyleColorDrawable
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.color.colorChooser
 import kotlinx.coroutines.CoroutineScope

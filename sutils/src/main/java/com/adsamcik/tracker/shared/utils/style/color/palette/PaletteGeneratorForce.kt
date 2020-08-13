@@ -1,7 +1,7 @@
-package com.adsamcik.tracker.shared.utils.style.utility.palette
+package com.adsamcik.tracker.shared.utils.style.color.palette
 
-import com.adsamcik.tracker.shared.utils.style.utility.ColorDistanceCalculator
-import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
+import com.adsamcik.tracker.shared.utils.style.color.ColorDistanceCalculator
+import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt

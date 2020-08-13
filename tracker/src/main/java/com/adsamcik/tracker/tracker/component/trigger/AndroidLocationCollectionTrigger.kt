@@ -60,7 +60,7 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger() {
 
 		val locationManager = context.locationManager
 		//It is checked by the component system
-		@Suppress("missing_permission")
+		@Suppress("MissingPermission")
 		locationManager.requestLocationUpdates(
 				LocationManager.GPS_PROVIDER,
 				minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS,

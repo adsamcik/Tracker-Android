@@ -11,7 +11,9 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.shared.utils.style.implementations.StyleColorDrawable
 import com.adsamcik.tracker.shared.map.MapLegendValue
+import com.adsamcik.tracker.shared.utils.style.implementations.StyleableDrawableWrapper
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 
 /**
@@ -33,10 +35,11 @@ class MapLegendAdapter : BaseRecyclerAdapter<MapLegendValue, MapLegendAdapter.Vi
 		val rootView = inflater.inflate(R.layout.map_sheet_legend_item, parent, false)
 		val textView = rootView as TextView
 		textView.setCompoundDrawablesWithIntrinsicBounds(
-				LegendColorDrawable(
+				StyleColorDrawable(
 						requireNotNull(
 								ContextCompat.getDrawable(context, R.drawable.legend_color)
-						) as GradientDrawable
+						) as GradientDrawable,
+						StyleColorDrawable.EXTENDED_STROKE_WIDTH
 				),
 				null,
 				null,
@@ -46,7 +49,7 @@ class MapLegendAdapter : BaseRecyclerAdapter<MapLegendValue, MapLegendAdapter.Vi
 	}
 
 	private fun updateCompoundDrawable(drawable: Drawable?, color: Int) {
-		(drawable as? LegendColorDrawable)?.let { drawableWrapper ->
+		(drawable as? StyleColorDrawable)?.let { drawableWrapper ->
 			drawableWrapper.drawable.color = ColorStateList.valueOf(color)
 		}
 	}

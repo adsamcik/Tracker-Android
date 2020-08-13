@@ -1,7 +1,7 @@
-package com.adsamcik.tracker.shared.utils.style.utility.palette
+package com.adsamcik.tracker.shared.utils.style.color.palette
 
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.shared.utils.style.utility.ColorDistanceCalculator
+import com.adsamcik.tracker.shared.utils.style.color.ColorDistanceCalculator
 import kotlin.random.Random
 
 /**

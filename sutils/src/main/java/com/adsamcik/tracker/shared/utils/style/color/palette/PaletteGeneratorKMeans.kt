@@ -1,8 +1,8 @@
-package com.adsamcik.tracker.shared.utils.style.utility.palette
+package com.adsamcik.tracker.shared.utils.style.color.palette
 
 import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.shared.base.extension.remove
-import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions.validateLab
+import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions.validateLab
 import kotlin.random.Random
 
 class PaletteGeneratorKMeans {

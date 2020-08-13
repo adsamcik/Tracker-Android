@@ -6,7 +6,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.LightStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
-import com.adsamcik.tracker.shared.utils.style.utility.ColorFunctions
+import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import kotlin.math.min
 
 internal class LightDayNightTransitionUpdate : LightStyleUpdate() {

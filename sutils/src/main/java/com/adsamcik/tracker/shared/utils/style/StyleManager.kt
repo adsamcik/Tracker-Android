@@ -17,7 +17,7 @@ import com.adsamcik.tracker.shared.utils.style.update.implementation.LightDayNig
 import com.adsamcik.tracker.shared.utils.style.update.implementation.MorningDayEveningNightTransitionUpdate
 import com.adsamcik.tracker.shared.utils.style.update.implementation.NoChangeUpdate
 import com.adsamcik.tracker.shared.utils.style.update.implementation.SingleColorUpdate
-import com.adsamcik.tracker.shared.utils.style.utility.perceivedRelLuminance
+import com.adsamcik.tracker.shared.utils.style.color.perceivedRelLuminance
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 

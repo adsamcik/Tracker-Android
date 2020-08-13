@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.utils.style.utility
+package com.adsamcik.tracker.shared.utils.style.color
 
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.blue

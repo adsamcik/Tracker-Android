@@ -101,6 +101,9 @@ internal class MapSensorController(
 		targetZoom = cameraPosition.zoom
 	}
 
+	/**
+	 * Subscribes [MapSensorController] to receive location updates.
+	 */
 	fun subscribeToLocationUpdates(context: Context, moveToCurrentLocation: Boolean = false) {
 		if (!isSubscribed && context.hasLocationPermission) {
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
