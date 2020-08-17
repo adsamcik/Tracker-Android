@@ -12,15 +12,21 @@ import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.TRANSPARENT
 import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 
 internal class SystemStyleUpdater {
-	private fun updateUiVisibility(view: View, luminance: Int) {
+	private fun updateSystemBarAppearance(view: View, luminance: Int) {
 		when {
-			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> updateUiVisibilityR(view, luminance)
-			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> updateUiVisibilityMQ(view, luminance)
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> updateSystemBarAppearanceR(
+					view,
+					luminance
+			)
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> updateSystemBarAppearanceMQ(
+					view,
+					luminance
+			)
 		}
 	}
 
 	@RequiresApi(Build.VERSION_CODES.R)
-	private fun updateUiVisibilityR(view: View, luminance: Int) {
+	private fun updateSystemBarAppearanceR(view: View, luminance: Int) {
 		val insetsController = requireNotNull(view.windowInsetsController)
 
 		val statusBarAppearance: Int
@@ -47,7 +53,7 @@ internal class SystemStyleUpdater {
 
 	@SuppressLint("InlinedApi")
 	@RequiresApi(Build.VERSION_CODES.M)
-	private fun updateUiVisibilityMQ(view: View, luminance: Int) {
+	private fun updateSystemBarAppearanceMQ(view: View, luminance: Int) {
 		require(Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
 
 		view.post {
@@ -80,7 +86,7 @@ internal class SystemStyleUpdater {
 				)
 			}
 			SystemBarStyle.Transparent -> {
-				updateUiVisibility(styleView.view, perceivedLuminance)
+				updateSystemBarAppearance(styleView.view, perceivedLuminance)
 				TRANSPARENT
 			}
 			SystemBarStyle.Translucent -> {
@@ -103,7 +109,7 @@ internal class SystemStyleUpdater {
 			if (color != null) {
 				styleView.window.navigationBarColor = color
 			}
-			updateUiVisibility(styleView.view, perceivedLuminance)
+			updateSystemBarAppearance(styleView.view, perceivedLuminance)
 		}
 	}
 
@@ -114,7 +120,7 @@ internal class SystemStyleUpdater {
 			if (color != null) {
 				styleView.window.statusBarColor = color
 			}
-			updateUiVisibility(styleView.view, perceivedLuminance)
+			updateSystemBarAppearance(styleView.view, perceivedLuminance)
 		}
 	}
 
