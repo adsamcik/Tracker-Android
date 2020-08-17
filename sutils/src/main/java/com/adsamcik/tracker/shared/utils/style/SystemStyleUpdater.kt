@@ -49,15 +49,18 @@ internal class SystemStyleUpdater {
 	@RequiresApi(Build.VERSION_CODES.M)
 	private fun updateUiVisibilityMQ(view: View, luminance: Int) {
 		require(Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
-		@Suppress("DEPRECATION")
-		view.systemUiVisibility = if (luminance > 0) {
-			view.systemUiVisibility or
-					View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-					View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-		} else {
-			view.systemUiVisibility and
-					(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-							View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR).inv()
+
+		view.post {
+			@Suppress("DEPRECATION")
+			view.systemUiVisibility = if (luminance > 0) {
+				view.systemUiVisibility or
+						View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+						View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+			} else {
+				view.systemUiVisibility and
+						(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+								View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR).inv()
+			}
 		}
 	}
 
