@@ -22,18 +22,18 @@ object Dependencies {
 		internal const val preference = "1.1.1"
 		internal const val material = "1.2.0"
 
-		const val kotlin: String = "1.4.0-rc"
-		internal const val coroutines = "1.3.8"
+		const val kotlin: String = "1.4.0"
+		internal const val coroutines = "1.3.9"
 
 		internal const val requery = "3.32.2"
 		internal const val room = "2.2.5"
 
 		internal const val maps = "17.0.0"
-		internal const val firebaseCore = "17.4.4"
 		internal const val recyclerView = "1.1.0"
 		internal const val paging = "3.0.0-alpha02"
 
-		internal const val crashlytics = "17.1.1"
+		internal const val firebaseCore = "17.5.0"
+		internal const val crashlytics = "17.2.1"
 		const val crashlyticsGradle = "2.2.0"
 
 		internal const val playServicesBase = "17.3.0"
