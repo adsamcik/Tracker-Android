@@ -29,12 +29,14 @@ import androidx.core.view.children
 import androidx.core.widget.TextViewCompat
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.slider.abstracts.FluidSlider
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.firstParent
 import com.adsamcik.tracker.shared.base.extension.withAlpha
+import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
+import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawable
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
-import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -182,6 +184,17 @@ internal class StyleUpdater {
 	}
 
 	@MainThread
+	private fun updateStyleForeground(view: FluidSlider, updateStyleData: UpdateStyleData) {
+		val foreground = updateStyleData.baseForegroundColor.withAlpha(ColorConstants.FULL_COMPONENT)
+		val background = updateStyleData.baseBackgroundColor
+		view.colorBarText = background
+		view.colorBubbleText = foreground
+		view.descriptionPaint.color = background
+		view.colorBubble = background
+		view.colorBar = foreground
+	}
+
+	@MainThread
 	private fun updateStyleForeground(view: AppCompatTextView, colorStateList: ColorStateList) {
 		var isAnyStyleable = false
 		view.compoundDrawables.forEach {
@@ -280,6 +293,7 @@ internal class StyleUpdater {
 			is TextView -> updateStyleForeground(view, updateStyleData)
 			is SeekBar -> updateStyleForeground(view, updateStyleData)
 			is ProgressBar -> updateStyleForeground(view, updateStyleData)
+			is FluidSlider -> updateStyleForeground(view, updateStyleData)
 		}
 	}
 

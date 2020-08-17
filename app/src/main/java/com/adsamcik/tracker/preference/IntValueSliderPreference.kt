@@ -13,6 +13,7 @@ import com.adsamcik.slider.extensions.FloatSliderSharedPreferencesExtension
 import com.adsamcik.slider.extensions.IntSliderSharedPreferencesExtension
 import com.adsamcik.slider.implementations.IntValueSlider
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.extension.dp
 
 /**
  * Custom Preference implementation of the IntValueSlider from Slider library.
@@ -89,6 +90,9 @@ class IntValueSliderPreference : Preference {
 
 		slider.setItems(context.resources.getIntArray(mValuesResource).toTypedArray())
 		//slider.setPadding(8.dpAsPx)
+
+		//slider.setPadding(8.dp, 0, 8.dp, 0)
+		slider.setLabelFormatter { mTextViewString.format(it) }
 
 		slider.addExtension(
 				IntSliderSharedPreferencesExtension(

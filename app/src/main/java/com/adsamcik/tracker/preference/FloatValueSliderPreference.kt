@@ -3,7 +3,6 @@ package com.adsamcik.tracker.preference
 import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
-import android.widget.TextView
 import androidx.annotation.IntegerRes
 import androidx.core.content.res.getStringOrThrow
 import androidx.preference.Preference
@@ -13,6 +12,9 @@ import com.adsamcik.slider.abstracts.SliderExtension
 import com.adsamcik.slider.extensions.FloatSliderSharedPreferencesExtension
 import com.adsamcik.slider.implementations.FloatValueSlider
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.utils.style.StyleData
+import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
 
 /**
  * Custom Preference implementation of the FloatValueSlider from Slider library.
@@ -93,11 +95,11 @@ class FloatValueSliderPreference : Preference {
 
 		val stringArray = context.resources.getStringArray(valuesResource)
 
+		//slider.setPadding(16.dp, 0, 16.dp, 0)
 		slider.setItems(stringArray.map { it.toFloat() }.toTypedArray())
 
+		slider.setLabelFormatter { mTextViewString.format(it) }
 
-		//slider.setPadding(8.dpAsPx)
-		//slider.setTextView(textView) { mTextViewString.format(it) }
 		slider.addExtension(
 				FloatSliderSharedPreferencesExtension(
 						sharedPreferences,

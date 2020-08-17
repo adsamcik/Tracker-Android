@@ -66,6 +66,7 @@ dependencies {
 	implementation("org.shredzone.commons:commons-suncalc:3.3")
 
 	Dependencies.core(this)
+	Dependencies.slider(this)
 	Dependencies.moshi(this)
 	Dependencies.database(this)
 	Dependencies.crashlytics(this)
