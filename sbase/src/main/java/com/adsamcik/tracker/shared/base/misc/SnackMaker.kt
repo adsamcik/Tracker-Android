@@ -114,7 +114,7 @@ class SnackMaker(view: View) : CoroutineScope {
 	}
 
 	private fun interrupt() {
-		var current: Snackbar? = null
+		var current: Snackbar?
 
 		lock.withLock {
 			current = this.current

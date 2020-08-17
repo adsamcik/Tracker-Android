@@ -100,7 +100,7 @@ dependencies {
 
 	Dependencies.core(this)
 	//1st party dependencies
-	implementation("com.adsamcik.android-components:slider:0.8.0")
+	Dependencies.slider(this)
 	Dependencies.draggable(this)
 
 	Dependencies.introduction(this)

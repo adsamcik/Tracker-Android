@@ -7,8 +7,8 @@ import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.work.WorkManager
-import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 
 /**
@@ -20,6 +20,7 @@ class StatusActivity : DetailActivity() {
 		configuration.useColorControllerForContent = false
 	}
 
+	@Suppress("UNUSED_VALUE")
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val layout = createScrollableContentParent(

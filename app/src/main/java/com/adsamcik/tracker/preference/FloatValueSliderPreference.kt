@@ -8,6 +8,9 @@ import androidx.annotation.IntegerRes
 import androidx.core.content.res.getStringOrThrow
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
+import com.adsamcik.slider.abstracts.Slider
+import com.adsamcik.slider.abstracts.SliderExtension
+import com.adsamcik.slider.extensions.FloatSliderSharedPreferencesExtension
 import com.adsamcik.slider.implementations.FloatValueSlider
 import com.adsamcik.tracker.R
 
@@ -84,7 +87,6 @@ class FloatValueSliderPreference : Preference {
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {
 		super.onBindViewHolder(holder)
 		val slider = holder.findViewById(R.id.slider) as FloatValueSlider
-		val textView = holder.findViewById(R.id.slider_value) as TextView
 
 		val valuesResource = mValuesResource
 				?: throw NullPointerException("Value resource must be set!")
@@ -92,14 +94,33 @@ class FloatValueSliderPreference : Preference {
 		val stringArray = context.resources.getStringArray(valuesResource)
 
 		slider.setItems(stringArray.map { it.toFloat() }.toTypedArray())
+
+
 		//slider.setPadding(8.dpAsPx)
-		slider.setTextView(textView) { mTextViewString.format(it) }
+		//slider.setTextView(textView) { mTextViewString.format(it) }
+		slider.addExtension(
+				FloatSliderSharedPreferencesExtension(
+						sharedPreferences,
+						key,
+						mInitialValue
+				)
+		)
 
-		slider.setPreferences(sharedPreferences, key, mInitialValue)
-
-		slider.setOnValueChangeListener { value, fromUser ->
-			if (fromUser) onPreferenceChangeListener?.onPreferenceChange(this, value)
-		}
+		slider.addExtension(object : SliderExtension<Float> {
+			override fun onValueChanged(
+					slider: Slider<Float>,
+					value: Float,
+					position: Float,
+					isFromUser: Boolean
+			) {
+				if (isFromUser) {
+					onPreferenceChangeListener?.onPreferenceChange(
+							this@FloatValueSliderPreference,
+							value
+					)
+				}
+			}
+		})
 
 		this.slider = slider
 	}

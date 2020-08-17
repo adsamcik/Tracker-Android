@@ -50,6 +50,7 @@ object Dependencies {
 
 		internal const val componentsRecycler = "0.8.0"
 		internal const val componentsDraggable = "0.14.1"
+		internal const val componentSlider = "2.0.0-alpha01"
 
 		/**
 		 * Testing specific dependencies
@@ -160,6 +161,12 @@ object Dependencies {
 	fun draggable(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.adsamcik.android-components:draggable:${Versions.componentsDraggable}")
+		}
+	}
+
+	fun slider(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.adsamcik.android-components:slider:${Versions.componentSlider}")
 		}
 	}
 

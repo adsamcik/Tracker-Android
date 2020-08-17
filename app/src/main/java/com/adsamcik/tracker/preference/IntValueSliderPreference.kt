@@ -7,6 +7,10 @@ import android.widget.TextView
 import androidx.annotation.ArrayRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
+import com.adsamcik.slider.abstracts.Slider
+import com.adsamcik.slider.abstracts.SliderExtension
+import com.adsamcik.slider.extensions.FloatSliderSharedPreferencesExtension
+import com.adsamcik.slider.extensions.IntSliderSharedPreferencesExtension
 import com.adsamcik.slider.implementations.IntValueSlider
 import com.adsamcik.tracker.R
 
@@ -82,17 +86,33 @@ class IntValueSliderPreference : Preference {
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {
 		super.onBindViewHolder(holder)
 		val slider = holder.findViewById(R.id.slider) as IntValueSlider
-		val textView = holder.findViewById(R.id.slider_value) as TextView
 
 		slider.setItems(context.resources.getIntArray(mValuesResource).toTypedArray())
 		//slider.setPadding(8.dpAsPx)
-		slider.setTextView(textView) { String.format(mTextViewString, it) }
 
-		slider.setPreferences(sharedPreferences, key, mInitialValue)
+		slider.addExtension(
+				IntSliderSharedPreferencesExtension(
+						sharedPreferences,
+						key,
+						mInitialValue
+				)
+		)
 
-		slider.setOnValueChangeListener { value, fromUser ->
-			if (fromUser) onPreferenceChangeListener?.onPreferenceChange(this, value)
-		}
+		slider.addExtension(object : SliderExtension<Int> {
+			override fun onValueChanged(
+					slider: Slider<Int>,
+					value: Int,
+					position: Float,
+					isFromUser: Boolean
+			) {
+				if (isFromUser) {
+					onPreferenceChangeListener?.onPreferenceChange(
+							this@IntValueSliderPreference,
+							value
+					)
+				}
+			}
+		})
 
 		this.slider = slider
 	}
