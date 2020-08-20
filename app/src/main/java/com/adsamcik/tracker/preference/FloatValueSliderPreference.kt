@@ -62,11 +62,18 @@ class FloatValueSliderPreference : Preference {
 
 	var slider: FloatValueSlider? = null
 
-	//todo reflect properly changes after bind
+	/**
+	 * Sets string format.
+	 * Value is not updated in view if ViewHolder was already bound.
+	 */
 	fun setStringFormat(format: String) {
 		mTextViewString = format
 	}
 
+	/**
+	 * Sets value resource.
+	 * Value is not updated in view if ViewHolder was already bound.
+	 */
 	fun setValuesResource(resource: Int) {
 		mValuesResource = resource
 	}
@@ -94,7 +101,6 @@ class FloatValueSliderPreference : Preference {
 
 		val stringArray = context.resources.getStringArray(valuesResource)
 
-		//slider.setPadding(16.dp, 0, 16.dp, 0)
 		slider.setItems(stringArray.map { it.toFloat() }.toTypedArray())
 
 		slider.setLabelFormatter { mTextViewString.format(it) }

@@ -63,10 +63,18 @@ class IntValueSliderPreference : Preference {
 		layoutResource = R.layout.layout_settings_int_slider
 	}
 
+	/**
+	 * Sets string format.
+	 * Value is not updated in view if ViewHolder was already bound.
+	 */
 	fun setStringFormat(format: String) {
 		mTextViewString = format
 	}
 
+	/**
+	 * Sets value resource.
+	 * Value is not updated in view if ViewHolder was already bound.
+	 */
 	fun setValuesResource(resource: Int) {
 		mValuesResource = resource
 	}
@@ -87,14 +95,10 @@ class IntValueSliderPreference : Preference {
 		val slider = holder.findViewById(R.id.slider) as IntValueSlider
 
 		slider.setItems(context.resources.getIntArray(mValuesResource).toTypedArray())
-		//slider.setPadding(8.dpAsPx)
 
-		//slider.setPadding(8.dp, 0, 8.dp, 0)
 		slider.setLabelFormatter { mTextViewString.format(it) }
 
-		this.summary?.let { summary ->
-			slider.description = summary
-		}
+		this.summary?.let { summary -> slider.description = summary }
 
 		slider.addExtension(
 				IntSliderSharedPreferencesExtension(
