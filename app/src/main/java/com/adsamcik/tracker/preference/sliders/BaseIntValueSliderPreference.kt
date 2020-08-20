@@ -2,6 +2,8 @@ package com.adsamcik.tracker.preference.sliders
 
 import android.content.Context
 import android.content.res.TypedArray
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.util.AttributeSet
 import androidx.annotation.ArrayRes
 import androidx.core.content.res.use
@@ -73,6 +75,8 @@ open class BaseIntValueSliderPreference : Preference {
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {
 		super.onBindViewHolder(holder)
 		val slider = holder.findViewById(R.id.slider) as IntValueSlider
+
+		slider.background = ColorDrawable(Color.TRANSPARENT)
 
 		slider.setItems(context.resources.getIntArray(valuesResource).toTypedArray())
 

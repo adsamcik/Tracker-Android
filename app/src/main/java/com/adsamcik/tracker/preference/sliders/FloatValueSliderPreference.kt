@@ -2,6 +2,8 @@ package com.adsamcik.tracker.preference.sliders
 
 import android.content.Context
 import android.content.res.TypedArray
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.util.AttributeSet
 import androidx.annotation.IntegerRes
 import androidx.core.content.res.getStringOrThrow
@@ -100,6 +102,8 @@ class FloatValueSliderPreference : Preference {
 		val stringArray = context.resources.getStringArray(valuesResource)
 
 		slider.setItems(stringArray.map { it.toFloat() }.toTypedArray())
+
+		slider.background = ColorDrawable(Color.TRANSPARENT)
 
 		slider.setLabelFormatter { mTextViewString.format(it) }
 
