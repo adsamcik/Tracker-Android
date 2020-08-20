@@ -11,14 +11,12 @@
     <attr name="items" format="reference" />
     <attr name="stringFormat" format="string" />
 
-
-    <declare-styleable name="IntValueSliderPreference">
+    <declare-styleable name="BaseIntValueSliderPreference">
         <attr name="items" />
-        <attr name="stringFormat" />
     </declare-styleable>
 
-    <declare-styleable name="DistanceValueSliderPreference">
-        <attr name="items" />
+    <declare-styleable name="IntValueSliderPreference">
+        <attr name="stringFormat" />
     </declare-styleable>
 
     <declare-styleable name="FloatValueSliderPreference">

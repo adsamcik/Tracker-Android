@@ -57,5 +57,4 @@
     </integer-array>
     <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
     <string name="settings_map_visit_threshold_summary">Heatmap will heat up only with visits with larger difference than threshold.</string>
-    <string name="settings_map_visit_threshold_format">%d minutes</string>
 </resources>

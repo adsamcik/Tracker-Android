@@ -1,9 +1,10 @@
-package com.adsamcik.tracker.preference
+package com.adsamcik.tracker.preference.sliders
 
 import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
 import androidx.annotation.ArrayRes
+import androidx.core.content.res.use
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.slider.abstracts.Slider
@@ -11,13 +12,12 @@ import com.adsamcik.slider.abstracts.SliderExtension
 import com.adsamcik.slider.extensions.IntSliderSharedPreferencesExtension
 import com.adsamcik.slider.implementations.IntValueSlider
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.extension.sp
 
 /**
  * Custom Preference implementation of the IntValueSlider from Slider library.
  * It allows Slider to be used as preference.
  */
-class IntValueSliderPreference : Preference {
+open class BaseIntValueSliderPreference : Preference {
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
 			context, attrs,
 			defStyleAttr, defStyleRes
@@ -40,43 +40,23 @@ class IntValueSliderPreference : Preference {
 	constructor(context: Context) : super(context)
 
 	private fun initAttributes(context: Context, attrs: AttributeSet) {
-		val attributes = context.obtainStyledAttributes(attrs, R.styleable.IntValueSliderPreference)
-		mValuesResource = attributes.getResourceId(R.styleable.IntValueSliderPreference_items, 0)
-
-		val stringFormat = attributes.getString(R.styleable.IntValueSliderPreference_stringFormat)
-		if (stringFormat != null) {
-			mTextViewString = stringFormat
+		context.obtainStyledAttributes(
+				attrs,
+				R.styleable.BaseIntValueSliderPreference
+		).use {
+			valuesResource = it.getResourceId(R.styleable.BaseIntValueSliderPreference_items, 0)
 		}
-
-		attributes.recycle()
 	}
 
-	private var mTextViewString = "%d"
-
 	@ArrayRes
-	private var mValuesResource: Int = 0
-	private var mInitialValue: Int = 0
+	var valuesResource: Int = 0
+	private var initialValue: Int = 0
 
 	var slider: IntValueSlider? = null
+		private set
 
 	init {
 		layoutResource = R.layout.layout_settings_int_slider
-	}
-
-	/**
-	 * Sets string format.
-	 * Value is not updated in view if ViewHolder was already bound.
-	 */
-	fun setStringFormat(format: String) {
-		mTextViewString = format
-	}
-
-	/**
-	 * Sets value resource.
-	 * Value is not updated in view if ViewHolder was already bound.
-	 */
-	fun setValuesResource(resource: Int) {
-		mValuesResource = resource
 	}
 
 	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
@@ -86,7 +66,7 @@ class IntValueSliderPreference : Preference {
 
 	override fun onSetInitialValue(defaultValue: Any?) {
 		if (defaultValue != null) {
-			mInitialValue = defaultValue as Int
+			initialValue = defaultValue as Int
 		}
 	}
 
@@ -94,9 +74,7 @@ class IntValueSliderPreference : Preference {
 		super.onBindViewHolder(holder)
 		val slider = holder.findViewById(R.id.slider) as IntValueSlider
 
-		slider.setItems(context.resources.getIntArray(mValuesResource).toTypedArray())
-
-		slider.setLabelFormatter { mTextViewString.format(it) }
+		slider.setItems(context.resources.getIntArray(valuesResource).toTypedArray())
 
 		this.summary?.let { summary -> slider.description = summary }
 
@@ -104,7 +82,7 @@ class IntValueSliderPreference : Preference {
 				IntSliderSharedPreferencesExtension(
 						sharedPreferences,
 						key,
-						mInitialValue
+						initialValue
 				)
 		)
 
@@ -117,7 +95,7 @@ class IntValueSliderPreference : Preference {
 			) {
 				if (isFromUser) {
 					onPreferenceChangeListener?.onPreferenceChange(
-							this@IntValueSliderPreference,
+							this@BaseIntValueSliderPreference,
 							value
 					)
 				}

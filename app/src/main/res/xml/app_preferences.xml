@@ -39,13 +39,12 @@
                 android:title="@string/settings_activity_watcher_title"
                 app:icon="@drawable/ic_outline_remove_red_eye_24px" />
 
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DurationValueSliderPreference
                 android:defaultValue="@string/settings_activity_freq_default"
                 android:dependency="@string/settings_activity_watcher_key"
                 android:key="@string/settings_activity_freq_key"
                 android:title="@string/settings_activity_freq_title"
-                app:items="@array/activity_watching_interval"
-                app:stringFormat="%1$d s" />
+                app:items="@array/activity_watching_interval" />
 
             <androidx.preference.SwitchPreferenceCompat
                 android:defaultValue="@string/settings_disabled_recharge_default"
@@ -75,7 +74,7 @@
         </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory>
-            <com.adsamcik.tracker.preference.DistanceValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DistanceValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_min_distance_default"
                 app:dependency="@string/settings_location_enabled_key"
                 app:icon="@drawable/ic_outline_directions_run_24px"
@@ -83,17 +82,16 @@
                 app:key="@string/settings_tracking_min_distance_key"
                 app:title="@string/settings_tracking_min_distance_title" />
 
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DurationValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_min_time_default"
                 app:icon="@drawable/ic_outline_access_time_24px"
                 app:items="@array/settings_tracking_min_time_values"
                 app:key="@string/settings_tracking_min_time_key"
-                app:stringFormat="%1$d s"
                 app:summary="@string/settings_tracking_min_time_summary"
                 app:title="@string/settings_tracking_min_time_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
-            <com.adsamcik.tracker.preference.DistanceValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DistanceValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_required_accuracy_default"
                 app:icon="@drawable/ic_gps_fixed_black_24dp"
                 app:items="@array/settings_tracking_required_accuracy"
