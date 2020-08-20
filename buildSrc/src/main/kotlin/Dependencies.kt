@@ -12,7 +12,7 @@ object Dependencies {
 	 */
 	object Versions {
 		internal const val constraintLayout = "2.0.0-rc1"
-		internal const val coreKtx = "1.5.0-alpha01"
+		internal const val coreKtx = "1.5.0-alpha02"
 		internal const val appcompat = "1.2.0"
 		internal const val fragment = "1.2.4"
 		const val dokka: String = "0.9.18"
@@ -36,7 +36,7 @@ object Dependencies {
 		internal const val crashlytics = "17.2.1"
 		const val crashlyticsGradle = "2.2.0"
 
-		internal const val playServicesBase = "17.3.0"
+		internal const val playServicesBase = "17.4.0"
 		internal const val playCore = "1.8.0"
 		internal const val playLocation = "17.0.0"
 
@@ -50,7 +50,7 @@ object Dependencies {
 
 		internal const val componentsRecycler = "0.8.0"
 		internal const val componentsDraggable = "0.14.1"
-		internal const val componentSlider = "2.0.0-alpha03"
+		internal const val componentSlider = "2.0.0-alpha04"
 
 		/**
 		 * Testing specific dependencies
