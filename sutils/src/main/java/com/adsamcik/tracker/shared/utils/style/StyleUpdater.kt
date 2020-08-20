@@ -189,7 +189,7 @@ internal class StyleUpdater {
 		val background = updateStyleData.baseBackgroundColor
 		view.colorBarText = background
 		view.colorBubbleText = foreground
-		view.descriptionPaint.color = background
+		view.descriptionPaint.color = updateStyleData.baseForegroundColor.withAlpha(ColorConstants.MEDIUM_EMPHASIS_ALPHA)
 		view.colorBubble = background
 		view.colorBar = foreground
 	}

@@ -29,6 +29,7 @@
     <string name="settings_tracker_timer_summary">Currently active: %s. Component that serves as update - triggers collection</string>
     <string name="settings_tracker_timer_title">Timers</string>
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
+    <string name="settings_tracking_min_distance_summary">Minimum distance between collections in meters. </string>
     <integer-array name="settings_tracking_min_distance_values">
         <item>5</item>
         <item>10</item>
@@ -41,6 +42,7 @@
         <item>100</item>
     </integer-array>
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
+    <string name="settings_tracking_min_time_summary">Collections will not trigger faster than this.</string>
     <integer-array name="settings_tracking_min_time_values">
         <item>0</item>
         <item>1</item>
@@ -70,6 +72,7 @@
         <item>1000</item>
     </integer-array>
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
+    <string name="settings_tracking_required_accuracy_summary">Locations will need to be at least this accurate to trigger a collection.</string>
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
     <string name="settings_wifi_location_count_enabled_title">Wi-Fi count at location tracking</string>

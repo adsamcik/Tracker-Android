@@ -13,6 +13,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.children
 import com.adsamcik.tracker.shared.base.exception.NotFoundException
 import java.util.*
+import kotlin.math.roundToInt
 
 /**
  * Sets all margins. Does not work with null layout params.
@@ -32,7 +33,19 @@ fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {
 /**
  * Converts density independent pixels to pixels. Round to whole pixels.
  */
-val Int.dp: Int get() = (this * Resources.getSystem().displayMetrics.density).toInt()
+val Int.dp: Int get() = (this * Resources.getSystem().displayMetrics.density).roundToInt()
+
+/**
+ * Converts Scale-independent pixels to pixels. Rounds to whole pixels.
+ */
+val Int.sp: Int
+	get() = (this * Resources.getSystem().displayMetrics.scaledDensity).roundToInt();
+
+/**
+ * Converts Scale-independent pixels to pixels.
+ */
+val Float.sp: Float
+	get() = this * Resources.getSystem().displayMetrics.scaledDensity;
 
 private class ViewGroupNotSupportedException(message: String? = null) : Exception(message)
 

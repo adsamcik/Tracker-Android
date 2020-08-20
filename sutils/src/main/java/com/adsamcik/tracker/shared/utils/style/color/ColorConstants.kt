@@ -20,7 +20,12 @@ object ColorConstants {
 	const val ALMOST_BLACK: Int = -14606047
 
 	const val FULL_COMPONENT: Int = 255
+	const val THREE_QUARTERS_COMPONENT: Int = 191
 	const val HALF_COMPONENT: Int = 127
 	const val QUARTER_COMPONENT: Int = 63
 	const val EMPTY_COMPONENT: Int = 0
+
+	const val HIGH_EMPHASIS_ALPHA = 222
+	const val MEDIUM_EMPHASIS_ALPHA = 153
+	const val DISABLED_ALPHA = 97
 }

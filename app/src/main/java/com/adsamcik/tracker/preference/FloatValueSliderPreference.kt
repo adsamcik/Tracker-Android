@@ -13,8 +13,7 @@ import com.adsamcik.slider.extensions.FloatSliderSharedPreferencesExtension
 import com.adsamcik.slider.implementations.FloatValueSlider
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.extension.dp
-import com.adsamcik.tracker.shared.utils.style.StyleData
-import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
+import com.adsamcik.tracker.shared.base.extension.sp
 
 /**
  * Custom Preference implementation of the FloatValueSlider from Slider library.
@@ -99,6 +98,8 @@ class FloatValueSliderPreference : Preference {
 		slider.setItems(stringArray.map { it.toFloat() }.toTypedArray())
 
 		slider.setLabelFormatter { mTextViewString.format(it) }
+
+		this.summary?.let { summary -> slider.description = summary }
 
 		slider.addExtension(
 				FloatSliderSharedPreferencesExtension(

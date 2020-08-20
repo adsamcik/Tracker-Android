@@ -3,17 +3,15 @@ package com.adsamcik.tracker.preference
 import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
-import android.widget.TextView
 import androidx.annotation.ArrayRes
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.slider.abstracts.Slider
 import com.adsamcik.slider.abstracts.SliderExtension
-import com.adsamcik.slider.extensions.FloatSliderSharedPreferencesExtension
 import com.adsamcik.slider.extensions.IntSliderSharedPreferencesExtension
 import com.adsamcik.slider.implementations.IntValueSlider
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.sp
 
 /**
  * Custom Preference implementation of the IntValueSlider from Slider library.
@@ -93,6 +91,10 @@ class IntValueSliderPreference : Preference {
 
 		//slider.setPadding(8.dp, 0, 8.dp, 0)
 		slider.setLabelFormatter { mTextViewString.format(it) }
+
+		this.summary?.let { summary ->
+			slider.description = summary
+		}
 
 		slider.addExtension(
 				IntSliderSharedPreferencesExtension(

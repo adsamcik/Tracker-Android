@@ -90,6 +90,7 @@
                 app:items="@array/settings_tracking_min_time_values"
                 app:key="@string/settings_tracking_min_time_key"
                 app:stringFormat="%1$d s"
+                app:summary="@string/settings_tracking_min_time_summary"
                 app:title="@string/settings_tracking_min_time_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
@@ -99,6 +100,7 @@
                 app:items="@array/settings_tracking_required_accuracy"
                 app:key="@string/settings_tracking_required_accuracy_key"
                 app:stringFormat="%1$d m"
+                app:summary="@string/settings_tracking_required_accuracy_summary"
                 app:title="@string/settings_tracking_required_accuracy_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory android:title="@string/settings_enable_category_title">

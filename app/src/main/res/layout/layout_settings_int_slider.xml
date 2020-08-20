@@ -42,7 +42,7 @@
             android:id="@+id/slider"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:size="small" />
+            app:size="normal" />
     </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

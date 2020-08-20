@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.preferences.BuildConfig
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.R
+import com.adsamcik.tracker.shared.utils.style.color.perceivedRelLuminance
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.StyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.implementation.DayNightChangeUpdate
@@ -17,7 +18,6 @@ import com.adsamcik.tracker.shared.utils.style.update.implementation.LightDayNig
 import com.adsamcik.tracker.shared.utils.style.update.implementation.MorningDayEveningNightTransitionUpdate
 import com.adsamcik.tracker.shared.utils.style.update.implementation.NoChangeUpdate
 import com.adsamcik.tracker.shared.utils.style.update.implementation.SingleColorUpdate
-import com.adsamcik.tracker.shared.utils.style.color.perceivedRelLuminance
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -213,7 +213,9 @@ object StyleManager {
 	 */
 	fun updateColorAt(context: Context, index: Int, @ColorInt color: Int) {
 		disableUpdate(context)
-		enableUpdateWithPreference(context)
+		val colorList = update.colorList.toMutableList()
+		colorList[index] = color
+		enableUpdate(context, colorList)
 	}
 }
 
