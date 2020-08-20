@@ -13,6 +13,15 @@ fun assertTrue(value: Boolean) {
 
 /**
  * Assert value is true
+ */
+fun assertTrue(value: Boolean, message: () -> String) {
+	if (!value) {
+		Reporter.report("Assertion failed. Expected true but got false. $message()")
+	}
+}
+
+/**
+ * Assert value is true
  *
  * @param value Boolean value
  */

@@ -182,7 +182,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	): UpdateData {
 		assertTrue(now.isAfter(sunrise))
 		assertTrue(sunrise.isBefore(noon))
-		assertTrue(now.isBefore(noon))
+		assertTrue(now.isBefore(noon)) {
+			"Now: ${now.toEpochSecond()} Noon: ${noon.toEpochSecond()} Sunrise: ${sunrise.toEpochSecond()}"
+		}
 		return UpdateData(
 				fromColor = SUNRISE,
 				toColor = NOON,
