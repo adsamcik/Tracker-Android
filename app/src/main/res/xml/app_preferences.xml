@@ -75,13 +75,12 @@
         </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory>
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.DistanceValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_min_distance_default"
                 app:dependency="@string/settings_location_enabled_key"
                 app:icon="@drawable/ic_outline_directions_run_24px"
                 app:items="@array/settings_tracking_min_distance_values"
                 app:key="@string/settings_tracking_min_distance_key"
-                app:stringFormat="%1$d m"
                 app:title="@string/settings_tracking_min_distance_title" />
 
             <com.adsamcik.tracker.preference.IntValueSliderPreference
@@ -94,12 +93,11 @@
                 app:title="@string/settings_tracking_min_time_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.DistanceValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_required_accuracy_default"
                 app:icon="@drawable/ic_gps_fixed_black_24dp"
                 app:items="@array/settings_tracking_required_accuracy"
                 app:key="@string/settings_tracking_required_accuracy_key"
-                app:stringFormat="%1$d m"
                 app:summary="@string/settings_tracking_required_accuracy_summary"
                 app:title="@string/settings_tracking_required_accuracy_title" />
         </androidx.preference.PreferenceCategory>
