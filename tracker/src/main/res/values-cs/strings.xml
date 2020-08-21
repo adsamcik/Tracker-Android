@@ -104,4 +104,7 @@
     <string name="settings_tracker_timer_title">Časovače</string>
     <string name="settings_wifi_location_count_enabled_title">Počet Wi-Fi na lokacích</string>
     <string name="settings_wifi_network_enabled_title">Informace o Wi-Fi vysílačích</string>
+    <string name="settings_tracking_min_distance_summary">Minimální vzdálenost mezi sběry.</string>
+    <string name="settings_tracking_min_time_summary">Ke sběrům nebude docházeji častěji než tato hodnota.</string>
+    <string name="settings_tracking_required_accuracy_summary">Poloha musí být alespoň takto přesná, aby došlo ke sběru.</string>
 </resources>

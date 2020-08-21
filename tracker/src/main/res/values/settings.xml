@@ -29,7 +29,7 @@
     <string name="settings_tracker_timer_summary">Currently active: %s. Component that serves as update - triggers collection</string>
     <string name="settings_tracker_timer_title">Timers</string>
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
-    <string name="settings_tracking_min_distance_summary">Minimum distance between collections in meters. </string>
+    <string name="settings_tracking_min_distance_summary">"Minimum distance between collections. "</string>
     <integer-array name="settings_tracking_min_distance_values">
         <item>5</item>
         <item>10</item>
@@ -40,6 +40,10 @@
         <item>50</item>
         <item>80</item>
         <item>100</item>
+        <item>250</item>
+        <item>500</item>
+        <item>1000</item>
+        <item>2000</item>
     </integer-array>
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
     <string name="settings_tracking_min_time_summary">Collections will not trigger faster than this.</string>
@@ -47,14 +51,15 @@
         <item>0</item>
         <item>1</item>
         <item>2</item>
-        <item>3</item>
-        <item>4</item>
         <item>5</item>
-        <item>7</item>
         <item>10</item>
         <item>20</item>
         <item>40</item>
         <item>60</item>
+        <item>120</item>
+        <item>300</item>
+        <item>600</item>
+        <item>900</item>
     </integer-array>
     <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
     <string name="settings_tracking_notice_title">Notice</string>
@@ -70,6 +75,7 @@
         <item>200</item>
         <item>500</item>
         <item>1000</item>
+        <item>10000</item>
     </integer-array>
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
     <string name="settings_tracking_required_accuracy_summary">Locations will need to be at least this accurate to trigger a collection.</string>
