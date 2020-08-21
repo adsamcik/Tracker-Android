@@ -59,10 +59,10 @@
 
     <string name="second_short">%d s</string>
 
-    <string name="settings_color_day_title">Denní</string>
-    <string name="settings_color_evening_title">Večerní</string>
-    <string name="settings_color_morning_title">Ranní</string>
-    <string name="settings_color_night_title">Noční</string>
+    <string name="settings_color_day_title">Den</string>
+    <string name="settings_color_evening_title">Večer</string>
+    <string name="settings_color_morning_title">Ráno</string>
+    <string name="settings_color_night_title">Noc</string>
     <string name="settings_color_update_dn_switch_title">Den/noc přepínač</string>
     <string name="settings_color_update_mden_trans_title">Ráno/den/večer/noc přechod</string>
 
