@@ -12,6 +12,9 @@ import androidx.annotation.RequiresApi
 import androidx.room.Entity
 import kotlinx.android.parcel.Parcelize
 
+/**
+ * Information about cell network operator.
+ */
 @Entity(tableName = "network_operator", primaryKeys = ["mcc", "mnc"])
 @Parcelize
 data class NetworkOperator(
@@ -27,9 +30,12 @@ data class NetworkOperator(
 		val name: String?
 ) : Parcelable {
 
+	/**
+	 * Checks if LTE (4G) cell belongs to network operator.
+	 */
 	fun sameNetwork(info: CellInfoLte): Boolean {
 		val identity = info.cellIdentity
-		return if (Build.VERSION.SDK_INT >= 28) {
+		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
 			identity.mncString == mnc && identity.mccString == mcc
 		} else {
 			@Suppress("deprecation")
@@ -37,14 +43,20 @@ data class NetworkOperator(
 		}
 	}
 
+	/**
+	 * Always returns false, because CDMA (2G) uses different identification than everything else.
+	 */
 	fun sameNetwork(info: CellInfoCdma): Boolean {
-		//todo add cdma network matching (can be done if only 1 cell is registered)
 		return false
 	}
 
+
+	/**
+	 * Checks if GSM (2G) cell belongs to network operator.
+	 */
 	fun sameNetwork(info: CellInfoGsm): Boolean {
 		val identity = info.cellIdentity
-		return if (Build.VERSION.SDK_INT >= 28) {
+		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
 			identity.mncString == mnc && identity.mccString == mcc
 		} else {
 			@Suppress("deprecation")
@@ -52,9 +64,12 @@ data class NetworkOperator(
 		}
 	}
 
+	/**
+	 * Checks if WCDMA (3G) cell belongs to network operator.
+	 */
 	fun sameNetwork(info: CellInfoWcdma): Boolean {
 		val identity = info.cellIdentity
-		return if (Build.VERSION.SDK_INT >= 28) {
+		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
 			identity.mncString == mnc && identity.mccString == mcc
 		} else {
 			@Suppress("deprecation")
@@ -62,6 +77,9 @@ data class NetworkOperator(
 		}
 	}
 
+	/**
+	 * Checks if NR (5G) cell belongs to network operator.
+	 */
 	@RequiresApi(29)
 	fun sameNetwork(info: CellInfoNr): Boolean {
 		val identity = info.cellIdentity as CellIdentityNr
