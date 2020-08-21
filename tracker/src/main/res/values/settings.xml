@@ -3,11 +3,11 @@
     <string name="hint_customize_notification_show_in_content">Show in notification content</string>
     <string name="hint_customize_notification_show_in_title">Show in notification title</string>
 
-    <string name="settings_activity_enabled_title">Activity tracking</string>
+    <string name="settings_activity_enabled_title">Activity</string>
     <string name="settings_auto_tracking_category">Automatic tracking</string>
     <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
     <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
-    <string name="settings_cell_enabled_title">Cell tracking</string>
+    <string name="settings_cell_enabled_title">Cell</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
     <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
@@ -15,7 +15,7 @@
     <string name="settings_disabled_time_default" translatable="false">0</string>
     <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_enable_category_title">What to track</string>
-    <string name="settings_location_enabled_title">Location tracking</string>
+    <string name="settings_location_enabled_title">Location</string>
     <string name="settings_notification_category">Notifications</string>
     <string name="settings_notification_customize_key" translatable="false">customize_notification</string>
     <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
@@ -80,7 +80,7 @@
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
     <string name="settings_tracking_required_accuracy_summary">Locations will need to be at least this accurate to trigger a collection.</string>
     <string name="settings_tracking_title">Tracking</string>
-    <string name="settings_wifi_enabled_title">Wi-Fi tracking</string>
+    <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="settings_wifi_location_count_enabled_title">Wi-Fi count at location tracking</string>
     <string name="settings_wifi_network_enabled_title">Wi-Fi network tracking</string>
 

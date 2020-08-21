@@ -4,7 +4,7 @@
     <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
     <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
     <string name="settings_tracking_title">Sběr dat</string>
-    <string name="settings_wifi_enabled_title">Sběr Wi-Fi</string>
+    <string name="settings_wifi_enabled_title">Wi-Fi</string>
 
     <string name="shortcut_start_tracking">Spustit záznam</string>
     <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>
@@ -16,7 +16,7 @@
         <item>V pohybu</item>
     </string-array>
     <string name="settings_auto_tracking_category">Automatický sběr dat</string>
-    <string name="settings_cell_enabled_title">Sběr mobilních sítí</string>
+    <string name="settings_cell_enabled_title">Mobilní sítě</string>
 
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_stop">Zastavit</string>
@@ -27,8 +27,8 @@
 
     <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
-    <string name="settings_location_enabled_title">Záznam polohy</string>
-    <string name="settings_activity_enabled_title">Sběr aktivity</string>
+    <string name="settings_location_enabled_title">Polohu</string>
+    <string name="settings_activity_enabled_title">Aktivita</string>
 
     <string name="error_nothing_to_track">Musíte zaznamenávat víc než jen čas</string>
 
