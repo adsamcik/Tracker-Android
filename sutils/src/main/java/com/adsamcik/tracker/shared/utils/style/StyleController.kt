@@ -333,6 +333,7 @@ class StyleController : CoroutineScope {
 	/**
 	 * Internal update function which should be called only by StyleManager
 	 */
+	@AnyThread
 	internal fun update(styleData: StyleData) {
 		if (isSuspended) {
 			updateRequestedWhileSuspended = true

@@ -34,6 +34,7 @@ import com.adsamcik.slider.abstracts.FluidSlider
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.firstParent
 import com.adsamcik.tracker.shared.base.extension.withAlpha
+import com.adsamcik.tracker.shared.utils.extension.runOnUiThread
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawable
@@ -85,8 +86,7 @@ internal class StyleUpdater {
 				isAnimationAllowed
 		)
 
-		//styleView.view.post {
-		if (Assist.isMainThread()) {
+		styleView.view.runOnUiThread {
 			@Suppress("WrongThread")
 			updateSingle(
 					updateData,
@@ -94,18 +94,7 @@ internal class StyleUpdater {
 					styleView.layer,
 					styleView.maxDepth
 			)
-		} else {
-			styleView.view.post {
-				updateSingle(
-						updateData,
-						styleView.view,
-						styleView.layer,
-						styleView.maxDepth
-				)
-			}
 		}
-
-		//}
 	}
 
 	@MainThread

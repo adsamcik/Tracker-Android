@@ -5,12 +5,15 @@ import android.os.Build
 import android.view.View
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import androidx.annotation.AnyThread
 import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.shared.base.extension.withAlpha
+import com.adsamcik.tracker.shared.utils.extension.runOnUiThread
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.QUARTER_COMPONENT
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.TRANSPARENT
 import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 
+@AnyThread
 internal class SystemStyleUpdater {
 	private fun updateSystemBarAppearance(view: View, luminance: Int) {
 		when {
@@ -102,20 +105,26 @@ internal class SystemStyleUpdater {
 		}
 	}
 
+	@AnyThread
 	internal fun updateNavigationBar(styleView: SystemBarStyleView, styleData: StyleData) {
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
 		if (color != null) {
-			styleView.window.navigationBarColor = color
+			styleView.view.runOnUiThread {
+				styleView.window.navigationBarColor = color
+			}
 		}
 		updateSystemBarAppearance(styleView.view, perceivedLuminance)
 	}
 
+	@AnyThread
 	internal fun updateStatusBar(styleView: SystemBarStyleView, styleData: StyleData) {
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
 		if (color != null) {
-			styleView.window.statusBarColor = color
+			styleView.view.runOnUiThread {
+				styleView.window.statusBarColor = color
+			}
 		}
 		updateSystemBarAppearance(styleView.view, perceivedLuminance)
 	}
