@@ -50,7 +50,7 @@ object Dependencies {
 
 		internal const val componentsRecycler = "0.8.0"
 		internal const val componentsDraggable = "0.14.1"
-		internal const val componentSlider = "2.0.0-alpha04"
+		internal const val componentSlider = "2.0.0-beta01"
 
 		/**
 		 * Testing specific dependencies
