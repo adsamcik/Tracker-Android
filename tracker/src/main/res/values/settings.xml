@@ -21,7 +21,7 @@
     <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
     <string name="settings_notification_customize_title">Customize notification</string>
     <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
-    <string name="settings_notification_styled_title">Stylize notification</string>
+    <string name="settings_notification_styled_title">Colored notifications</string>
     <string name="settings_tracker_timer_clock">Timer</string>
     <string name="settings_tracker_timer_fused">Google Play location</string>
     <string name="settings_tracker_timer_key" translatable="false">trackerTicker</string>

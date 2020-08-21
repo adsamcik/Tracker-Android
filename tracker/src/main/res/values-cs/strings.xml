@@ -96,7 +96,7 @@
     <string name="longitude_value_west">%s z. d.</string>
     <string name="settings_enable_category_title">Co trackovat</string>
     <string name="settings_notification_styled_summary">Využívat barvu vzhledu aplikace také pro notifikace?</string>
-    <string name="settings_notification_styled_title">Stylovat vzhled</string>
+    <string name="settings_notification_styled_title">Barevné notifikace</string>
     <string name="settings_tracker_timer_clock">Časovač</string>
     <string name="settings_tracker_timer_fused">Google Play lokalizace</string>
     <string name="settings_tracker_timer_location">Android lokalizace</string>
