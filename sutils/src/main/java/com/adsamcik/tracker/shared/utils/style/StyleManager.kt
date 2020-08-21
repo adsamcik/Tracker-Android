@@ -212,10 +212,15 @@ object StyleManager {
 	 * It is intended mainly to be used for easy color switching when preference is changed.
 	 */
 	fun updateColorAt(context: Context, index: Int, @ColorInt color: Int) {
+		val colorList = update.colorList
+		// ignore changes if not right
+		// this may hide bugs, but is better alternative to controlled propagation on mode change
+		if (index >= colorList.size) return
+
+		val mutableColorList = colorList.toMutableList()
 		disableUpdate(context)
-		val colorList = update.colorList.toMutableList()
-		colorList[index] = color
-		enableUpdate(context, colorList)
+		mutableColorList[index] = color
+		enableUpdate(context, mutableColorList)
 	}
 }
 

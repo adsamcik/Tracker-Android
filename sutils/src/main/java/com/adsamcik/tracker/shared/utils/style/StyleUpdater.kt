@@ -20,6 +20,7 @@ import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
 import androidx.appcompat.widget.AppCompatTextView
@@ -38,10 +39,12 @@ import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawable
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
 @Suppress("TooManyFunctions")
+@AnyThread
 internal class StyleUpdater {
 	internal fun updateSingle(
 			styleView: RecyclerStyleView,
@@ -82,14 +85,27 @@ internal class StyleUpdater {
 				isAnimationAllowed
 		)
 
-		styleView.view.post {
+		//styleView.view.post {
+		if (Assist.isMainThread()) {
+			@Suppress("WrongThread")
 			updateSingle(
 					updateData,
 					styleView.view,
 					styleView.layer,
 					styleView.maxDepth
 			)
+		} else {
+			styleView.view.post {
+				updateSingle(
+						updateData,
+						styleView.view,
+						styleView.layer,
+						styleView.maxDepth
+				)
+			}
 		}
+
+		//}
 	}
 
 	@MainThread
@@ -297,6 +313,7 @@ internal class StyleUpdater {
 		}
 	}
 
+	@MainThread
 	private fun updateBackgroundColorDrawable(
 			drawable: ColorDrawable,
 			@ColorInt bgColor: Int,
@@ -335,6 +352,12 @@ internal class StyleUpdater {
 				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
 				view.rippleColor = ColorStateList.valueOf(nextLevel)
 				view.setBackgroundColor(bgColor)
+			}
+			view is FloatingActionButton -> {
+				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
+				view.rippleColor = nextLevel
+				//view.setBackgroundColor(bgColor)
+				view.backgroundTintList = ColorStateList.valueOf(bgColor)
 			}
 			background?.isVisible == true -> {
 				if (background.alpha == 0) return false

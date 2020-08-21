@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.utils.activity
 
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -21,6 +22,7 @@ import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
@@ -46,6 +48,7 @@ abstract class DetailActivity : CoreUIActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		val configuration = Configuration()
 		onConfigure(configuration)
+		super.onCreate(savedInstanceState)
 
 		styleController.watchNotificationBar(
 				SystemBarStyleView(
@@ -68,8 +71,9 @@ abstract class DetailActivity : CoreUIActivity() {
 		styleController.watchNavigationBar(navigationBarStyleView)
 
 
-		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_content_detail)
+		window.decorView.background = ColorDrawable(StyleManager.styleData.backgroundColor())
+		//styleController.updateOnce(StyleView(contentDetailRoot, 0), allowRecycler = false)
 
 		findViewById<View>(R.id.back_button).setOnClickListener { onBackPressed() }
 

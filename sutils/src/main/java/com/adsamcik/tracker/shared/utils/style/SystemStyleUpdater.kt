@@ -105,23 +105,19 @@ internal class SystemStyleUpdater {
 	internal fun updateNavigationBar(styleView: SystemBarStyleView, styleData: StyleData) {
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
-		styleView.view.post {
-			if (color != null) {
-				styleView.window.navigationBarColor = color
-			}
-			updateSystemBarAppearance(styleView.view, perceivedLuminance)
+		if (color != null) {
+			styleView.window.navigationBarColor = color
 		}
+		updateSystemBarAppearance(styleView.view, perceivedLuminance)
 	}
 
 	internal fun updateStatusBar(styleView: SystemBarStyleView, styleData: StyleData) {
 		val perceivedLuminance = styleData.perceivedLuminanceFor(styleView)
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
-		styleView.view.post {
-			if (color != null) {
-				styleView.window.statusBarColor = color
-			}
-			updateSystemBarAppearance(styleView.view, perceivedLuminance)
+		if (color != null) {
+			styleView.window.statusBarColor = color
 		}
+		updateSystemBarAppearance(styleView.view, perceivedLuminance)
 	}
 
 	fun updateSystemBarStyle(

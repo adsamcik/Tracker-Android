@@ -5,14 +5,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:id="@+id/detail_root"
-    android:background="#FFFFFFFF"
+    android:background="#ff000000"
     android:orientation="vertical">
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:id="@+id/top_panel_root"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:background="#FFF0F0F0"
+        android:background="#FF3a3a3a"
         android:elevation="4dp"
         android:gravity="bottom"
         android:orientation="horizontal"
@@ -46,7 +46,7 @@
         android:id="@+id/content_detail_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#FFFFFFFF"
+        android:background="#FF000000"
         android:orientation="vertical" />
 
 </androidx.appcompat.widget.LinearLayoutCompat>

@@ -15,6 +15,7 @@ import android.widget.LinearLayout
 import androidx.annotation.CallSuper
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.children
 import androidx.core.view.forEach
 import androidx.core.view.updateLayoutParams
@@ -32,6 +33,9 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
+/**
+ * Activity for managing various things.
+ */
 @Suppress("TooManyFunctions")
 abstract class ManageActivity : DetailActivity() {
 	protected lateinit var keyboardManager: KeyboardManager
@@ -114,7 +118,13 @@ abstract class ManageActivity : DetailActivity() {
 		fab = rootView.findViewById<FloatingActionButton>(R.id.fab).apply {
 			onCreateEdit()
 			setOnClickListener(this@ManageActivity::onFabClick)
-			setImageDrawable(resources.getDrawable(manageConfiguration.dialogFabIcon, theme))
+			setImageDrawable(
+					ResourcesCompat.getDrawable(
+							resources,
+							manageConfiguration.dialogFabIcon,
+							theme
+					)
+			)
 		}
 
 		initializeColorController()
@@ -334,6 +344,9 @@ abstract class ManageActivity : DetailActivity() {
 		styleController.watchView(StyleView(findViewById(R.id.add_item_layout), 2))
 	}
 
+	/**
+	 * Manage activity configuration data
+	 */
 	data class ManageConfiguration(
 			var isHorizontallyScrollable: Boolean = false,
 			@DrawableRes var dialogFabIcon: Int = R.drawable.ic_outline_add,
@@ -342,6 +355,9 @@ abstract class ManageActivity : DetailActivity() {
 			var isRecyclerMarginEnabled: Boolean = true
 	)
 
+	/**
+	 * Manage activity edit data for RecyclerView
+	 */
 	data class EditData(
 			val id: String,
 			val type: EditType,
