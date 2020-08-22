@@ -13,7 +13,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 object Reporter {
 	private var isInitialized = false
 	private var isEnabled = false
-	private val crashlytics = FirebaseCrashlytics.getInstance()
+	private val crashlytics by lazy { FirebaseCrashlytics.getInstance() }
 
 	private val loggingObserver = Observer<Boolean> {
 		isEnabled = it
