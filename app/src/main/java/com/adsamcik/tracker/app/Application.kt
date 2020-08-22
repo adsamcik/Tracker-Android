@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.base.module.ModuleInitializer
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
+import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,7 @@ class Application : SplitCompatApplication() {
 	private fun initializeImportantSingletons() {
 		Reporter.initialize(this)
 		Logger.initialize(this)
+		ActivityWatcherService.poke(this)
 	}
 
 	@WorkerThread
