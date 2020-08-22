@@ -84,29 +84,34 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			subscriptionManager: SubscriptionManager
 	): CellScanData? {
 		val list = mutableListOf<NetworkOperator>()
-		subscriptionManager.activeSubscriptionInfoList.forEach {
-			val mcc: String?
-			val mnc: String?
-
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-				mcc = it.mccString
-				mnc = it.mncString
-			} else {
-				@Suppress("deprecation")
-				mcc = it.mcc.toString()
-				@Suppress("deprecation")
-				mnc = it.mnc.toString()
-			}
-
-			if (mcc != null && mnc != null) {
-				list.add(NetworkOperator(mcc, mnc, it.carrierName.toString()))
-			}
-		}
-
-		return if (list.isNotEmpty()) {
-			getScanData(telephonyManager, list)
+		val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
+		if (activeSubscriptions == null) {
+			return getScanData(telephonyManager)
 		} else {
-			null
+			activeSubscriptions.forEach {
+				val mcc: String?
+				val mnc: String?
+
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+					mcc = it.mccString
+					mnc = it.mncString
+				} else {
+					@Suppress("deprecation")
+					mcc = it.mcc.toString()
+					@Suppress("deprecation")
+					mnc = it.mnc.toString()
+				}
+
+				if (mcc != null && mnc != null) {
+					list.add(NetworkOperator(mcc, mnc, it.carrierName.toString()))
+				}
+			}
+
+			return if (list.isNotEmpty()) {
+				getScanData(telephonyManager, list)
+			} else {
+				null
+			}
 		}
 	}
 
