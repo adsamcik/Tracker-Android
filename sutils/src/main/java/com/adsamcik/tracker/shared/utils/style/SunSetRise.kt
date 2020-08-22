@@ -91,12 +91,7 @@ class SunSetRise {
 	 * @return Sun data
 	 */
 	fun sunDataFor(dateTime: ZonedDateTime): SunTimes {
-		val location = location
-		return if (location != null) {
-			return getCalculator(location, dateTime)
-		} else {
-			SunTimes.compute().execute()
-		}
+		return getCalculator(dateTime, location)
 	}
 
 	private fun requestLocationUpdates(context: Context) {
@@ -174,15 +169,15 @@ class SunSetRise {
 		}
 	}
 
-	private fun getCalculator(location: BaseLocation, dateTime: ZonedDateTime): SunTimes {
+	private fun getCalculator(dateTime: ZonedDateTime, location: BaseLocation? = null): SunTimes {
 		val truncated = dateTime.truncatedTo(ChronoUnit.MINUTES)
 		return SunTimes
-				.compute().apply {
-					if (location.isValid) {
+				.compute()
+				.apply {
+					if (location?.isValid == true) {
 						at(location.latitude, location.longitude)
 					}
 					on(truncated)
-					oneDay()
 					twilight(SunTimes.Twilight.VISUAL)
 				}
 				.execute()
@@ -193,7 +188,7 @@ class SunSetRise {
 	}
 
 	private fun getSunset(location: BaseLocation, dateTime: ZonedDateTime): ZonedDateTime? {
-		return getSunset(getCalculator(location, dateTime))
+		return getSunset(getCalculator(dateTime, location))
 	}
 
 	private fun getSunrise(calculator: SunTimes): ZonedDateTime? {
@@ -201,7 +196,7 @@ class SunSetRise {
 	}
 
 	private fun getSunrise(location: BaseLocation, dateTime: ZonedDateTime): ZonedDateTime? {
-		return getSunrise(getCalculator(location, dateTime))
+		return getSunrise(getCalculator(dateTime, location))
 	}
 
 	companion object {
