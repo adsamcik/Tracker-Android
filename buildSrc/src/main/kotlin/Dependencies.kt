@@ -11,7 +11,7 @@ object Dependencies {
 	 * Dependencies that are not project are required to be internal.
 	 */
 	object Versions {
-		internal const val constraintLayout = "2.0.0-rc1"
+		internal const val constraintLayout = "2.0.0"
 		internal const val coreKtx = "1.5.0-alpha02"
 		internal const val appcompat = "1.2.0"
 		internal const val fragment = "1.2.4"
