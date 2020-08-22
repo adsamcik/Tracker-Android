@@ -125,7 +125,7 @@ object Assist {
 		val resultCode = api.isGooglePlayServicesAvailable(activity)
 		if (resultCode != ConnectionResult.SUCCESS) {
 			if (api.isUserResolvableError(resultCode)) {
-				api.getErrorDialog(activity, resultCode, playServicesResolutionRequest).show()
+				api.getErrorDialog(activity, resultCode, playServicesResolutionRequest)?.show()
 			}
 
 			return false
