@@ -11,9 +11,5 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity android:name=".ui.ActivityDebugActivity" />
-
-        <service
-            android:name="com.adsamcik.tracker.activity.service.ActivityService"
-            android:exported="false" />
     </application>
 </manifest>

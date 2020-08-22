@@ -1,9 +1,10 @@
 package com.adsamcik.tracker.activity.service
 
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.core.app.JobIntentService
+import android.content.IntentFilter
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.activity.logActivity
@@ -25,20 +26,20 @@ import com.google.android.gms.tasks.Task
  * Intent service that receives all activity updates.
  * Handles logging if it is enabled.
  */
-internal class ActivityService : JobIntentService() {
-	override fun onHandleWork(intent: Intent) {
+internal class ActivityReceiver : BroadcastReceiver() {
+	override fun onReceive(context: Context, intent: Intent?) {
 		if (ActivityRecognitionResult.hasResult(intent)) {
 			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
-			onActivityResult(result)
+			onActivityResult(context, result)
 		}
 
 		if (ActivityTransitionResult.hasResult(intent)) {
 			val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
-			onActivityTransitionResult(result)
+			onActivityTransitionResult(context, result)
 		}
 	}
 
-	private fun onActivityResult(result: ActivityRecognitionResult) {
+	private fun onActivityResult(context: Context, result: ActivityRecognitionResult) {
 		val detectedActivity = ActivityInfo(result.mostProbableActivity)
 		val elapsedTimeMillis = Time.elapsedRealtimeMillis
 
@@ -47,15 +48,15 @@ internal class ActivityService : JobIntentService() {
 
 		logActivity(LogData(message = "new activity", data = detectedActivity))
 
-		ActivityRequestManager.onActivityUpdate(this, detectedActivity, elapsedTimeMillis)
+		ActivityRequestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
 	}
 
-	private fun onActivityTransitionResult(result: ActivityTransitionResult) {
+	private fun onActivityTransitionResult(context: Context, result: ActivityTransitionResult) {
 		result.transitionEvents.forEach {
 			logActivity(LogData(message = "new transition", data = it))
 		}
 
-		ActivityRequestManager.onActivityTransition(this, result)
+		ActivityRequestManager.onActivityTransition(context, result)
 	}
 
 
@@ -64,6 +65,7 @@ internal class ActivityService : JobIntentService() {
 	 */
 	companion object {
 		private const val REQUEST_CODE_PENDING_INTENT = 4561201
+		private const val ACTIVITY_INTENT = "com.adsamcik.tracker.ACTIVITY_RESULT"
 
 		private var recognitionClientTask: Task<*>? = null
 		private var transitionClientTask: Task<*>? = null
@@ -79,7 +81,18 @@ internal class ActivityService : JobIntentService() {
 		var lastActivityElapsedTimeMillis: Long = 0L
 			private set
 
+		private val receiver: BroadcastReceiver by lazy { ActivityReceiver() }
 
+
+		/**
+		 * Start activity recognition
+		 *
+		 * @param context Context
+		 * @param delayInS Delay between collections in seconds
+		 * @param requestedTransitions Transitions to subscribe to
+		 *
+		 * @return true if successfully started
+		 */
 		@Synchronized
 		fun startActivityRecognition(
 				context: Context,
@@ -97,6 +110,8 @@ internal class ActivityService : JobIntentService() {
 								data = "delay $delayInS s and transitions $requestedTransitions"
 						)
 				)
+
+				context.registerReceiver(receiver, IntentFilter(ACTIVITY_INTENT))
 
 				if (delayInS > 0) {
 					requestActivityRecognition(client, intent, delayInS)
@@ -123,7 +138,8 @@ internal class ActivityService : JobIntentService() {
 				delayInS: Int
 		) {
 			recognitionClientTask = client.requestActivityUpdates(
-					delayInS * Time.SECOND_IN_MILLISECONDS, intent
+					delayInS * Time.SECOND_IN_MILLISECONDS,
+					intent
 			)
 					.apply {
 						addOnFailureListener { Reporter.report(it) }
@@ -170,7 +186,12 @@ internal class ActivityService : JobIntentService() {
 		}
 
 
+		/**
+		 * Stop activity recognition
+		 */
 		fun stopActivityRecognition(context: Context) {
+			context.unregisterReceiver(receiver)
+
 			ActivityRecognition.getClient(context).run {
 				val intent = getActivityDetectionPendingIntent(context)
 				removeActivityUpdates(intent)
@@ -182,11 +203,13 @@ internal class ActivityService : JobIntentService() {
 		 * Gets a PendingIntent to be sent for each activity detection.
 		 */
 		private fun getActivityDetectionPendingIntent(context: Context): PendingIntent {
-			val intent = Intent(context.applicationContext, ActivityService::class.java)
+			val intent = Intent(ACTIVITY_INTENT)
 			// We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
 			// requestActivityUpdates() and removeActivityUpdates().
-			return PendingIntent.getService(
-					context, REQUEST_CODE_PENDING_INTENT, intent,
+			return PendingIntent.getBroadcast(
+					context,
+					REQUEST_CODE_PENDING_INTENT,
+					intent,
 					PendingIntent.FLAG_UPDATE_CURRENT
 			)
 		}

@@ -13,7 +13,7 @@ import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.activity.service.ActivityService
+import com.adsamcik.tracker.activity.service.ActivityReceiver
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.utils.debug.LogData
 import com.adsamcik.tracker.shared.utils.debug.Reporter
@@ -28,7 +28,7 @@ object ActivityRequestManager {
 	private var minInterval = Integer.MAX_VALUE
 	private var transitions: Collection<ActivityTransitionData> = mutableListOf()
 
-	val lastActivity: ActivityInfo get() = ActivityService.lastActivity
+	val lastActivity: ActivityInfo get() = ActivityReceiver.lastActivity
 
 	/**
 	 * Request activity updates
@@ -66,7 +66,7 @@ object ActivityRequestManager {
 		}
 
 		if (activeRequestArray.isEmpty()) {
-			ActivityService.stopActivityRecognition(context)
+			ActivityReceiver.stopActivityRecognition(context)
 		}
 	}
 
@@ -100,7 +100,7 @@ object ActivityRequestManager {
 		ActivityRequestManager.transitions = transitions
 
 		if (hasActivityRecognitionPermission(context)) {
-			ActivityService.startActivityRecognition(context, minInterval, transitions)
+			ActivityReceiver.startActivityRecognition(context, minInterval, transitions)
 		}
 	}
 
