@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
+import org.shredzone.commons.suncalc.SunTimes
 import java.time.ZonedDateTime
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
@@ -114,7 +115,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 				val data = getUpdateData(
 						Time.now.toZonedDateTime(),
 						colorList,
-						sunsetRise
+						sunsetRise,
 				)
 
 				if (data.duration < 0) {

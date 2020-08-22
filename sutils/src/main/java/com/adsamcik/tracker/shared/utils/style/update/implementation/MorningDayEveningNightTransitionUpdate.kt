@@ -67,7 +67,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			)
 		}
 
-		val localUpdateData = calculateProgress(time, sunData)
+		val localUpdateData = calculateProgress(time, sunData, sunSetRise)
 
 		assertMore(localUpdateData.duration, 0) {
 			"Duration was negative with sunrise of $sunrise, sunset of $sunset and current time $time"
@@ -83,8 +83,8 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 
 	private fun betweenMidnightAndSunrise(
 			now: ZonedDateTime,
-			sunrise: ZonedDateTime,
-			midnight: ZonedDateTime
+			midnight: ZonedDateTime,
+			sunrise: ZonedDateTime
 	): UpdateData {
 		assertTrue(now.isAfter(midnight))
 		assertTrue(midnight.isBefore(sunrise))
@@ -102,37 +102,22 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: ZonedDateTime,
 			midnight: ZonedDateTime
 	): UpdateData {
-		val midnightAdjusted: ZonedDateTime
-		val sunsetAdjusted: ZonedDateTime
-		if (sunset.isBefore(midnight)) {
-			midnightAdjusted = midnight
-			sunsetAdjusted = sunset
-		} else {
-			if (now.isBefore(midnight)) {
-				midnightAdjusted = midnight
-				sunsetAdjusted = sunset.minusDays(1)
-			} else {
-				midnightAdjusted = midnight.plusDays(1)
-				sunsetAdjusted = sunset
-			}
-		}
-
-		assertTrue(now.isAfter(sunsetAdjusted))
-		assertTrue(sunsetAdjusted.isBefore(midnightAdjusted))
-		assertTrue(now.isBefore(midnightAdjusted))
+		assertTrue(now.isAfter(sunset)) { "now $now, sunset $sunset, midnight $midnight" }
+		assertTrue(sunset.isBefore(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
+		assertTrue(now.isBefore(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
 
 		return UpdateData(
 				fromColor = SUNSET,
 				toColor = MIDNIGHT,
-				duration = Duration.between(sunsetAdjusted, midnightAdjusted).toMillis(),
-				progress = Duration.between(sunsetAdjusted, now).toMillis()
+				duration = Duration.between(sunset, midnight).toMillis(),
+				progress = Duration.between(sunset, now).toMillis()
 		)
 	}
 
 	private fun betweenNoonAndSunset(
 			now: ZonedDateTime,
-			sunset: ZonedDateTime,
-			noon: ZonedDateTime
+			noon: ZonedDateTime,
+			sunset: ZonedDateTime
 	): UpdateData {
 		assertTrue(now.isAfter(noon))
 		assertTrue(noon.isBefore(sunset))
@@ -172,8 +157,8 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		return when {
 			now.isAfter(noon) -> betweenNoonAndSunset(
 					now,
-					sunset,
-					noon
+					noon,
+					sunset
 			)
 			now.isAfter(sunrise) -> betweenSunriseAndNoon(
 					now,
@@ -185,23 +170,65 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 	}
 
 	private fun calculateProgress(
-			now: ZonedDateTime,
-			sunTimes: SunTimes
+			time: ZonedDateTime,
+			sunTimes: SunTimes,
+			sunSetRise: SunSetRise
 	): UpdateData {
-		val localDate = now.toLocalDate()
-		val sunrise = requireNotNull(sunTimes.rise).with(localDate)
-		val sunset = requireNotNull(sunTimes.set).with(localDate)
-		return if (now.isAfter(sunrise) && now.isBefore(sunset)) {
-			val noon = requireNotNull(sunTimes.noon).with(localDate)
-			betweenSunriseAndSunset(now, sunrise, noon, sunset)
-		} else {
-			val midnight = requireNotNull(sunTimes.nadir).with(localDate)
-			if (now.isBefore(sunrise) && now.isAfter(midnight)) {
-				betweenMidnightAndSunrise(now, sunrise, midnight)
-			} else {
-				betweenSunsetAndMidnight(now, sunset, midnight)
-			}
+		val sunrise = requireNotNull(sunTimes.rise)
+		val sunriseDist = Duration.between(time, sunrise).toMillis()
+		val sunset = requireNotNull(sunTimes.set)
+		val sunsetDist = Duration.between(time, sunset).toMillis()
+		val noon = requireNotNull(sunTimes.noon)
+		val noonDist = Duration.between(time, noon).toMillis()
+		val midnight = requireNotNull(sunTimes.nadir)
+		val midnightDist = Duration.between(time, midnight).toMillis()
+		val dayPartList = listOf(
+				DayPartData(sunrise, sunriseDist, PartOfDay.SUNRISE),
+				DayPartData(sunset, sunsetDist, PartOfDay.SUNSET),
+				DayPartData(noon, noonDist, PartOfDay.NOON),
+				DayPartData(midnight, midnightDist, PartOfDay.MIDNIGHT)
+		)
+
+		val sortedDayPartList = dayPartList.sortedBy { it.distance }
+		val first = sortedDayPartList[0]
+
+		val historicSunTimes = sunSetRise.sunDataFor(first.time.minusDays(1))
+
+		return when (first.partOfDay) {
+			PartOfDay.SUNRISE -> betweenMidnightAndSunrise(
+					time,
+					requireNotNull(historicSunTimes.nadir),
+					first.time
+			)
+			PartOfDay.NOON -> betweenSunriseAndNoon(
+					time,
+					requireNotNull(historicSunTimes.rise),
+					first.time
+			)
+			PartOfDay.SUNSET -> betweenNoonAndSunset(
+					time,
+					requireNotNull(historicSunTimes.noon),
+					first.time
+			)
+			PartOfDay.MIDNIGHT -> betweenSunsetAndMidnight(
+					time,
+					requireNotNull(historicSunTimes.set),
+					first.time
+			)
 		}
+	}
+
+	private data class DayPartData(
+			val time: ZonedDateTime,
+			val distance: Long,
+			val partOfDay: PartOfDay
+	)
+
+	private enum class PartOfDay {
+		MIDNIGHT,
+		SUNRISE,
+		NOON,
+		SUNSET
 	}
 
 	companion object {
