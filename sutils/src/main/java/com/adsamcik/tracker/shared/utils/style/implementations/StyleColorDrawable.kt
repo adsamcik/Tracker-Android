@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.utils.style.implementations
 
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
-import com.adsamcik.tracker.shared.utils.style.implementations.StyleableDrawableWrapper
 
 /**
  * Styleable color drawable

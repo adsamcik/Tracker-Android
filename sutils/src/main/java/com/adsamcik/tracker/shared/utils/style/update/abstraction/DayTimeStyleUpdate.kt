@@ -10,7 +10,6 @@ import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
-import org.shredzone.commons.suncalc.SunTimes
 import java.time.ZonedDateTime
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock

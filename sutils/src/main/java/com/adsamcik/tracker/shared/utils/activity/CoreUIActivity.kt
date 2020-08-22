@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.utils.activity
 
 import android.content.Context
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.base.activity.CoreActivity
