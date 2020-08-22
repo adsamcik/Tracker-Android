@@ -2,9 +2,7 @@ package com.adsamcik.tracker.shared.utils.style.update.implementation
 
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.utils.debug.assertEqual
-import com.adsamcik.tracker.shared.utils.debug.assertFalse
 import com.adsamcik.tracker.shared.utils.debug.assertMore
 import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
@@ -42,16 +40,16 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		)
 
 	override fun getUpdateData(
+			time: ZonedDateTime,
 			styleList: List<Int>,
 			sunSetRise: SunSetRise
 	): UpdateData {
 		assertEqual(styleList.size, defaultColors.list.size)
 
-		val time = Time.now.toZonedDateTime()
-
+		val localDate = time.toLocalDate()
 		val sunData = sunSetRise.sunDataFor(time)
-		val sunset = sunData.set
-		val sunrise = sunData.rise
+		val sunset = sunData.set?.with(localDate)
+		val sunrise = sunData.rise?.with(localDate)
 
 		if (sunData.isAlwaysUp || sunset == null) {
 			return UpdateData(
@@ -104,59 +102,31 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: ZonedDateTime,
 			midnight: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfter(sunset))
-		assertTrue(sunset.isBefore(midnight))
-		assertTrue(now.isBefore(midnight))
+		val midnightAdjusted: ZonedDateTime
+		val sunsetAdjusted: ZonedDateTime
+		if (sunset.isBefore(midnight)) {
+			midnightAdjusted = midnight
+			sunsetAdjusted = sunset
+		} else {
+			if (now.isBefore(midnight)) {
+				midnightAdjusted = midnight
+				sunsetAdjusted = sunset.minusDays(1)
+			} else {
+				midnightAdjusted = midnight.plusDays(1)
+				sunsetAdjusted = sunset
+			}
+		}
+
+		assertTrue(now.isAfter(sunsetAdjusted))
+		assertTrue(sunsetAdjusted.isBefore(midnightAdjusted))
+		assertTrue(now.isBefore(midnightAdjusted))
+
 		return UpdateData(
 				fromColor = SUNSET,
 				toColor = MIDNIGHT,
-				duration = Duration.between(sunset, midnight).toMillis(),
-				progress = Duration.between(sunset, now).toMillis()
+				duration = Duration.between(sunsetAdjusted, midnightAdjusted).toMillis(),
+				progress = Duration.between(sunsetAdjusted, now).toMillis()
 		)
-	}
-
-	private fun betweenSunsetAndSunrise(
-			now: ZonedDateTime,
-			sunTimes: SunTimes
-	): UpdateData {
-		val sunrise = requireNotNull(sunTimes.rise)
-		val sunset = requireNotNull(sunTimes.set)
-		val approximateLastSunset = sunset.minusDays(1)
-		val dstToSunrise = Duration.between(now, sunrise)
-		val dstToSunset = Duration.between(approximateLastSunset, now)
-
-		assertFalse(dstToSunrise.isNegative) { "Sunrise is in the past $dstToSunrise (sunrise: $sunrise, now: $now)" }
-		assertFalse(dstToSunset.isNegative) {
-			"Sunset is in the past $dstToSunset (sunset: $sunset, lastSunset: $approximateLastSunset, now: $now)"
-		}
-
-		return if (dstToSunrise < dstToSunset) {
-			beforeSunrise(now, sunTimes)
-		} else {
-			afterSunset(now, sunTimes)
-		}
-	}
-
-	private fun afterSunset(
-			now: ZonedDateTime,
-			sunTimes: SunTimes
-	): UpdateData {
-//the max difference between days is approximately under 5 minutes, so it should be fine
-		val tomorrowSunrise = requireNotNull(sunTimes.rise)
-		val midnight = requireNotNull(sunTimes.nadir)
-		return when {
-			now.isBefore(midnight) -> betweenSunsetAndMidnight(
-					now,
-					requireNotNull(sunTimes.set),
-					midnight
-			)
-			now.isBefore(tomorrowSunrise) -> betweenMidnightAndSunrise(
-					now,
-					midnight,
-					tomorrowSunrise
-			)
-			else -> throw IllegalStateException()
-		}
 	}
 
 	private fun betweenNoonAndSunset(
@@ -195,44 +165,20 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 
 	private fun betweenSunriseAndSunset(
 			now: ZonedDateTime,
-			sunTimes: SunTimes
+			sunrise: ZonedDateTime,
+			noon: ZonedDateTime,
+			sunset: ZonedDateTime
 	): UpdateData {
-		val sunrise = requireNotNull(sunTimes.rise)
-		val noon = requireNotNull(sunTimes.noon)
-		val sunset = requireNotNull(sunTimes.set)
 		return when {
-			noon.isAfter(sunset) -> betweenNoonAndSunset(
+			now.isAfter(noon) -> betweenNoonAndSunset(
 					now,
 					sunset,
-					noon.minusDays(1)
-			)
-			sunrise.isAfter(noon) -> betweenSunriseAndNoon(
-					now,
-					sunrise.minusDays(1),
 					noon
 			)
-			else -> throw IllegalStateException()
-		}
-	}
-
-	private fun beforeSunrise(
-			now: ZonedDateTime,
-			sunTimes: SunTimes
-	): UpdateData {
-		//the max difference between days is approximately under 5 minutes, so it should be fine
-		val yesterdayApproxSunset = requireNotNull(sunTimes.set).minusDays(1)
-		val midnight = requireNotNull(sunTimes.nadir)
-
-		return when {
-			now.isAfter(midnight) -> betweenMidnightAndSunrise(
+			now.isAfter(sunrise) -> betweenSunriseAndNoon(
 					now,
-					requireNotNull(sunTimes.rise),
-					midnight
-			)
-			now.isAfter(yesterdayApproxSunset) -> betweenSunsetAndMidnight(
-					now,
-					yesterdayApproxSunset,
-					midnight
+					sunrise,
+					noon
 			)
 			else -> throw IllegalStateException()
 		}
@@ -242,10 +188,19 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			now: ZonedDateTime,
 			sunTimes: SunTimes
 	): UpdateData {
-		return if (sunTimes.set?.isAfter(sunTimes.rise) == false) {
-			betweenSunriseAndSunset(now, sunTimes)
+		val localDate = now.toLocalDate()
+		val sunrise = requireNotNull(sunTimes.rise).with(localDate)
+		val sunset = requireNotNull(sunTimes.set).with(localDate)
+		return if (now.isAfter(sunrise) && now.isBefore(sunset)) {
+			val noon = requireNotNull(sunTimes.noon).with(localDate)
+			betweenSunriseAndSunset(now, sunrise, noon, sunset)
 		} else {
-			betweenSunsetAndSunrise(now, sunTimes)
+			val midnight = requireNotNull(sunTimes.nadir).with(localDate)
+			if (now.isBefore(sunrise) && now.isAfter(midnight)) {
+				betweenMidnightAndSunrise(now, sunrise, midnight)
+			} else {
+				betweenSunsetAndMidnight(now, sunset, midnight)
+			}
 		}
 	}
 

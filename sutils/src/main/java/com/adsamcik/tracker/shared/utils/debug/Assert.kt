@@ -16,7 +16,7 @@ fun assertTrue(value: Boolean) {
  */
 fun assertTrue(value: Boolean, message: () -> String) {
 	if (!value) {
-		Reporter.report("Assertion failed. Expected true but got false. $message()")
+		Reporter.report("Assertion failed. Expected true but got false. ${message()}")
 	}
 }
 
@@ -39,7 +39,7 @@ fun assertFalse(value: Boolean) {
  */
 fun assertFalse(value: Boolean, message: () -> String) {
 	if (value) {
-		Reporter.report("Assertion failed. Expected false but got true. $message()")
+		Reporter.report("Assertion failed. Expected false but got true. ${message()}")
 	}
 }
 
@@ -64,7 +64,7 @@ fun assertEqual(expect: Any, actual: Any) {
  */
 fun assertEqual(expect: Any, actual: Any, message: () -> String) {
 	if (expect != actual) {
-		Reporter.report("Assertion failed. Expected not equal to actual. Expected: $expect. Actual: $actual. $message()")
+		Reporter.report("Assertion failed. Expected not equal to actual. Expected: $expect. Actual: $actual. ${message()}")
 	}
 }
 
@@ -138,7 +138,7 @@ private fun assertMoreError(value: String, threshold: String) {
 }
 
 private fun assertMoreError(value: String, threshold: String, message: () -> String) {
-	Reporter.report("Assertion failed. $value ≤ $threshold. $message()")
+	Reporter.report("Assertion failed. $value ≤ $threshold. ${message()}")
 }
 
 /**

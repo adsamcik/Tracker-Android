@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.shared.utils.style.update.implementation
 
 import com.adsamcik.tracker.shared.base.R
-import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
@@ -71,8 +69,11 @@ internal class DayNightChangeUpdate : DayTimeStyleUpdate() {
 	}
 
 	@Suppress("ComplexMethod")
-	override fun getUpdateData(styleList: List<Int>, sunSetRise: SunSetRise): UpdateData {
-		val time = Time.now.toZonedDateTime()
+	override fun getUpdateData(
+			time: ZonedDateTime,
+			styleList: List<Int>,
+			sunSetRise: SunSetRise
+	): UpdateData {
 		val sunData = sunSetRise.sunDataFor(time)
 		val sunset = sunData.set
 		val sunrise = sunData.rise
