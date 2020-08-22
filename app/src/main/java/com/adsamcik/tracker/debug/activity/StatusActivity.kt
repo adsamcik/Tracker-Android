@@ -17,7 +17,7 @@ import com.adsamcik.tracker.tracker.locker.TrackerLocker
 class StatusActivity : DetailActivity() {
 
 	override fun onConfigure(configuration: Configuration) {
-		configuration.useColorControllerForContent = false
+		configuration.useColorControllerForContent = true
 	}
 
 	@Suppress("UNUSED_VALUE")
