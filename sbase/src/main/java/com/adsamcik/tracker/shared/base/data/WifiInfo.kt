@@ -102,11 +102,14 @@ data class WifiInfo(
 		}
 		this.frequency = sr.frequency
 		this.level = sr.level
-		@Suppress("DEPRECATION")
 		this.bar = when {
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> wifiManager.calculateSignalLevel(sr.level)
-			else -> WifiManager.calculateSignalLevel(sr.level, wifiManager.maxSignalLevel)
+			else -> @Suppress("DEPRECATION") WifiManager.calculateSignalLevel(sr.level, LEVELS)
 		}
+	}
+
+	companion object {
+		private const val LEVELS = 101
 	}
 }
 
