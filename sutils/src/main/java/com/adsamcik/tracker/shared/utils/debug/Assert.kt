@@ -390,3 +390,12 @@ private fun assertWithinError(
 ) {
 	Reporter.report("Assertion failed. $value is not within bounds ($lowerBoundInclusive..$upperBoundInclusive).")
 }
+
+/**
+ * Assert value is not null
+ */
+fun assertNotNull(value: Any?) {
+	if (value == null) {
+		Reporter.report("Assertion failed. Value is null.")
+	}
+}

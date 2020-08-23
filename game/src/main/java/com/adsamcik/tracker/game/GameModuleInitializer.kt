@@ -7,13 +7,15 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.module.ModuleInitializer
 import com.adsamcik.tracker.game.challenge.receiver.ChallengeSessionReceiver
 
+/**
+ * Game module initializer
+ */
 @Suppress("unused")
 class GameModuleInitializer : ModuleInitializer {
 	@WorkerThread
 	private fun initializeTrackerSessionReceivers(applicationContext: Context) {
 		val trackerSessionBroadcastFilter = IntentFilter().apply {
-			addAction(TrackerSession.ACTION_SESSION_STARTED)
-			addAction(TrackerSession.ACTION_SESSION_ENDED)
+			addAction(TrackerSession.ACTION_SESSION_FINAL)
 		}
 
 		applicationContext.registerReceiver(

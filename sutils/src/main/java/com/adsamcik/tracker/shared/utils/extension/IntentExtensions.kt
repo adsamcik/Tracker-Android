@@ -3,10 +3,16 @@ package com.adsamcik.tracker.shared.utils.extension
 import android.content.Intent
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 
-fun Intent.getLongExtra(key: String): Long? {
+/**
+ * Try get long value from Intent.
+ */
+fun Intent.tryGetLongExtra(key: String): Long? {
 	return if (hasExtra(key)) getLongExtra(key, 0) else null
 }
 
+/**
+ * Get positive long value from Intent. Reports exception if value is not valid and returns null.
+ */
 fun Intent.getPositiveLongExtraReportNull(key: String): Long? {
 	val value = getLongExtra(key, -1)
 	return if (value < 0) {
@@ -21,9 +27,11 @@ fun Intent.getPositiveLongExtraReportNull(key: String): Long? {
 	}
 }
 
-
+/**
+ * Get long from Intent and report if null.
+ */
 fun Intent.getLongExtraReportNull(key: String): Long? {
-	val value = getLongExtra(key)
+	val value = tryGetLongExtra(key)
 	if (value == null) Reporter.report(IllegalArgumentException("Argument $key was not specified"))
 	return value
 }

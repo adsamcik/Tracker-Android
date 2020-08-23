@@ -8,6 +8,9 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.module.ModuleInitializer
 
+/**
+ * Activity module initializer
+ */
 @Suppress("unused")
 class ActivityModuleInitializer : ModuleInitializer {
 	private fun initializeDatabase(context: Context) {

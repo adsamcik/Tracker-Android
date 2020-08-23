@@ -11,6 +11,9 @@ import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNull
 
+/**
+ * Session receiver for activities
+ */
 class ActivitySessionReceiver : BroadcastReceiver() {
 	private fun onSessionEnded(context: Context, intent: Intent) {
 		val id = intent.getPositiveLongExtraReportNull(ARG_ID) ?: return
@@ -24,6 +27,7 @@ class ActivitySessionReceiver : BroadcastReceiver() {
 								.setRequiresBatteryNotLow(true)
 								.build()
 				).build()
+
 
 		WorkManager.getInstance(context).enqueue(workRequest)
 	}

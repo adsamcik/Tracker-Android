@@ -6,6 +6,9 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * Readonly tracking session data
+ */
 @Entity(
 		tableName = "tracker_session", foreignKeys = [ForeignKey(
 		entity = SessionActivity::class,
@@ -15,6 +18,7 @@ import androidx.room.PrimaryKey
 		onUpdate = ForeignKey.NO_ACTION
 )], indices = [Index("session_activity_id")]
 )
+@Suppress("LongParameterList")
 open class TrackerSession(
 		id: Long = 0,
 		start: Long = 0,
@@ -65,8 +69,22 @@ open class TrackerSession(
 		protected set
 
 	companion object {
-		const val ACTION_SESSION_STARTED: String = "tracker.intent.action.SESSION_START"
-		const val ACTION_SESSION_ENDED: String = "tracker.intent.action.SESSION_END"
+		/**
+		 * Action used when new session starts. Can be called multiple times for a single session
+		 * if the session is resumed.
+		 */
+		const val ACTION_SESSION_STARTED: String = "com.adsamcik.tracker.intent.action.SESSION_START"
+
+		/**
+		 * Action used when session stops. Can be called multiple times for a single session
+		 * if the session is resumed.
+		 */
+		const val ACTION_SESSION_ENDED: String = "com.adsamcik.tracker.intent.action.SESSION_END"
+
+		/**
+		 * Action used when session is final. Session can no longer be resumed.
+		 */
+		const val ACTION_SESSION_FINAL: String = "com.adsamcik.tracker.intent.action.SESSION_FINAL"
 		const val RECEIVER_SESSION_ID: String = "id"
 		const val RECEIVER_SESSION_IS_NEW: String = "isNew"
 		const val RECEIVER_SESSION_RESUME_TIMEOUT: String = "resumeTimeout"
@@ -74,6 +92,10 @@ open class TrackerSession(
 	}
 }
 
+/**
+ * Mutable tracker session data
+ */
+@Suppress("LongParameterList")
 class MutableTrackerSession(
 		id: Long = 0,
 		start: Long,
