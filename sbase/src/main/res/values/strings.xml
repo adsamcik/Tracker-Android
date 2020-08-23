@@ -18,7 +18,7 @@
     <string name="activity_hiking">hiking</string>
     <string name="activity_hockey">hockey</string>
     <string name="activity_horseride">horse ride</string>
-    <string name="activity_idle">Idle</string>
+    <string name="activity_still">Still</string>
     <string name="activity_in_vehicle">In vehicle</string>
     <string name="activity_kayak">kayak</string>
     <string name="activity_martial_arts">martial arts</string>

@@ -57,7 +57,7 @@ data class ActivityInfo(
 		 */
 		fun getGroupedActivityName(context: Context, resolvedActivity: GroupedActivity): String =
 				when (resolvedActivity) {
-					GroupedActivity.STILL -> context.getString(R.string.activity_idle)
+					GroupedActivity.STILL -> context.getString(R.string.activity_still)
 					GroupedActivity.ON_FOOT -> context.getString(R.string.activity_on_foot)
 					GroupedActivity.IN_VEHICLE -> context.getString(R.string.activity_in_vehicle)
 					GroupedActivity.UNKNOWN -> context.getString(R.string.activity_unknown)

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
     <string name="activity_bicycle">kolo</string>
-    <string name="activity_idle">V klidu</string>
+    <string name="activity_still">V klidu</string>
     <string name="activity_in_vehicle">Ve vozidle</string>
     <string name="activity_name">Název aktivity</string>
     <string name="activity_on_foot">Pěšky</string>
