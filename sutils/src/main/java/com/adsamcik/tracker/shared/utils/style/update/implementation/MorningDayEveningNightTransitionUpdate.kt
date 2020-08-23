@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.utils.style.update.implementation
 
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.isAfterOrEqual
+import com.adsamcik.tracker.shared.base.extension.isBeforeOrEqual
 import com.adsamcik.tracker.shared.utils.debug.assertEqual
 import com.adsamcik.tracker.shared.utils.debug.assertMore
 import com.adsamcik.tracker.shared.utils.debug.assertTrue
@@ -86,9 +88,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			midnight: ZonedDateTime,
 			sunrise: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfter(midnight))
-		assertTrue(midnight.isBefore(sunrise))
-		assertTrue(now.isBefore(sunrise))
+		assertTrue(now.isAfterOrEqual(midnight))
+		assertTrue(midnight.isBeforeOrEqual(sunrise))
+		assertTrue(now.isBeforeOrEqual(sunrise))
 		return UpdateData(
 				fromColor = MIDNIGHT,
 				toColor = SUNRISE,
@@ -102,9 +104,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: ZonedDateTime,
 			midnight: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfter(sunset)) { "now $now, sunset $sunset, midnight $midnight" }
-		assertTrue(sunset.isBefore(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
-		assertTrue(now.isBefore(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
+		assertTrue(now.isAfterOrEqual(sunset)) { "now $now, sunset $sunset, midnight $midnight" }
+		assertTrue(sunset.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
+		assertTrue(now.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
 
 		return UpdateData(
 				fromColor = SUNSET,
@@ -119,9 +121,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			noon: ZonedDateTime,
 			sunset: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfter(noon))
-		assertTrue(noon.isBefore(sunset))
-		assertTrue(now.isBefore(sunset))
+		assertTrue(now.isAfterOrEqual(noon))
+		assertTrue(noon.isBeforeOrEqual(sunset))
+		assertTrue(now.isBeforeOrEqual(sunset))
 		return UpdateData(
 				fromColor = NOON,
 				toColor = SUNSET,
@@ -135,10 +137,10 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunrise: ZonedDateTime,
 			noon: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfter(sunrise))
-		assertTrue(sunrise.isBefore(noon))
-		assertTrue(now.isBefore(noon)) {
-			"Now: ${now.toEpochSecond()} Noon: ${noon.toEpochSecond()} Sunrise: ${sunrise.toEpochSecond()}"
+		assertTrue(now.isAfterOrEqual(sunrise))
+		assertTrue(sunrise.isBeforeOrEqual(noon))
+		assertTrue(now.isBeforeOrEqual(noon)) {
+			"Now: $now Noon: $noon Sunrise: $sunrise"
 		}
 		return UpdateData(
 				fromColor = SUNRISE,
@@ -146,27 +148,6 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 				duration = Duration.between(sunrise, noon).toMillis(),
 				progress = Duration.between(sunrise, now).toMillis()
 		)
-	}
-
-	private fun betweenSunriseAndSunset(
-			now: ZonedDateTime,
-			sunrise: ZonedDateTime,
-			noon: ZonedDateTime,
-			sunset: ZonedDateTime
-	): UpdateData {
-		return when {
-			now.isAfter(noon) -> betweenNoonAndSunset(
-					now,
-					noon,
-					sunset
-			)
-			now.isAfter(sunrise) -> betweenSunriseAndNoon(
-					now,
-					sunrise,
-					noon
-			)
-			else -> throw IllegalStateException()
-		}
 	}
 
 	private fun calculateProgress(
