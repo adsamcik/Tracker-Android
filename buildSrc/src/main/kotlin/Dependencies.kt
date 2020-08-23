@@ -49,7 +49,7 @@ object Dependencies {
 		internal const val sectionedRecyclerViewAdapter = "3.2.0"
 
 		internal const val componentsRecycler = "0.8.0"
-		internal const val componentsDraggable = "0.14.1"
+		internal const val componentsDraggable = "1.0.0"
 		internal const val componentSlider = "2.0.0-beta01"
 
 		/**
