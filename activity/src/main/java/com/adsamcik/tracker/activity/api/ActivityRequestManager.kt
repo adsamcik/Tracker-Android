@@ -13,7 +13,7 @@ import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.activity.service.ActivityReceiver
+import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.utils.debug.LogData
 import com.adsamcik.tracker.shared.utils.debug.Reporter

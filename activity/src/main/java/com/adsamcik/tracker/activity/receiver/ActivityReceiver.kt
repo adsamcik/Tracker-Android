@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.activity.service
+package com.adsamcik.tracker.activity.receiver
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -18,6 +18,7 @@ import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransition
+import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionRequest
 import com.google.android.gms.location.ActivityTransitionResult
 import com.google.android.gms.tasks.Task
@@ -28,7 +29,8 @@ import com.google.android.gms.tasks.Task
  */
 internal class ActivityReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent?) {
-		if (ActivityRecognitionResult.hasResult(intent)) {
+		val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
+		if (hasActivityResult) {
 			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
 			onActivityResult(context, result)
 		}
@@ -36,6 +38,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		if (ActivityTransitionResult.hasResult(intent)) {
 			val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
 			onActivityTransitionResult(context, result)
+
+			if (!hasActivityResult) {
+				setActivityResultFromTransition(result.transitionEvents.last())
+			}
 		}
 	}
 
@@ -49,6 +55,14 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		logActivity(LogData(message = "new activity", data = detectedActivity))
 
 		ActivityRequestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
+	}
+
+	private fun setActivityResultFromTransition(transition: ActivityTransitionEvent) {
+		val detectedActivity = ActivityInfo(transition.activityType, TRANSITION_ACTIVITY_CONFIDENCE)
+		lastActivity = detectedActivity
+		lastActivityElapsedTimeMillis = transition.elapsedRealTimeNanos
+
+		logActivity(LogData(message = "new activity from transition", data = detectedActivity))
 	}
 
 	private fun onActivityTransitionResult(context: Context, result: ActivityTransitionResult) {
@@ -66,6 +80,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	companion object {
 		private const val REQUEST_CODE_PENDING_INTENT = 4561201
 		private const val ACTIVITY_INTENT = "com.adsamcik.tracker.ACTIVITY_RESULT"
+		private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
 
 		private var recognitionClientTask: Task<*>? = null
 		private var transitionClientTask: Task<*>? = null
