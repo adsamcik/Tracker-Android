@@ -5,6 +5,7 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.preference.ColorPreference
+import com.adsamcik.tracker.preference.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
@@ -26,11 +27,13 @@ class StylePage : PreferencePage {
 
 		this.parent = caller.findPreferenceTyped(R.string.settings_style_color_category_key)
 
-		caller.findPreferenceTyped<ListPreference>(R.string.settings_style_mode_key).apply {
-			entries = enabledUpdateInfoList.map { context.getText(it.nameRes) }.toTypedArray()
-			entryValues = enabledUpdateInfoList.map { it.id }.toTypedArray()
+		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_style_mode_key).apply {
+			val entries = enabledUpdateInfoList.map { context.getString(it.nameRes) }
+			val keys = enabledUpdateInfoList.map { it.id }
+
+			setValues(entries, keys)
 			val selectedIndex = enabledUpdateInfoList.indexOf(StyleManager.activeUpdateInfo)
-			setValueIndex(selectedIndex)
+			setIndex(selectedIndex)
 
 			setOnPreferenceChangeListener { preference, newValue ->
 				val id = newValue.toString()

@@ -52,6 +52,14 @@ open class DialogListPreference : Preference {
 		if (titleResources != null) {
 			valueList.addAll(titleResources)
 		}
+
+		val keyResources = attributes
+				.getTextArray(R.styleable.DialogListPreference_keys)
+				?.map { it.toString() }
+		if (keyResources != null) {
+			keyList.addAll(keyResources)
+		}
+
 		attributes.recycle()
 		summaryText = summary.toString()
 	}
@@ -66,7 +74,7 @@ open class DialogListPreference : Preference {
 	}
 
 	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
-		return a.getInt(index, 0)
+		return a.getString(index) ?: ""
 	}
 
 	override fun onSetInitialValue(defaultValue: Any?) {
@@ -77,24 +85,33 @@ open class DialogListPreference : Preference {
 		setIndex(if (index >= 0) index else 0)
 	}
 
+	/**
+	 * Set currently selected index.
+	 */
 	open fun setIndex(index: Int) {
 		if (selectedValueIndex != index && index in 0..valueList.size) {
 			selectedValueIndex = index
-			persistString(keyList[index])
+			val key = keyList[index]
+			persistString(key)
 			summary = String.format(Locale.getDefault(), summaryText, valueList[index])
 			notifyChanged()
+			notifyValueChanged(key)
 		}
+	}
+
+	protected fun notifyValueChanged(newKey: String) {
+		onPreferenceChangeListener?.onPreferenceChange(this, newKey)
 	}
 
 	override fun onClick() {
 		MaterialDialog(context).show {
-			dynamicStyle()
 			listItemsSingleChoice(
 					items = valueList,
 					initialSelection = selectedValueIndex
 			) { _, index, _ ->
 				setIndex(index)
 			}
+			dynamicStyle()
 		}
 	}
 }

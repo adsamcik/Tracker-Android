@@ -13,6 +13,7 @@ import com.adsamcik.tracker.activity.ui.SessionActivityActivity
 import com.adsamcik.tracker.license.LicenseActivity
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.activity.ModuleActivity
+import com.adsamcik.tracker.preference.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.preference.setOnClickListener
@@ -122,12 +123,13 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 	).show()
 
 	private fun initializeLanguage(caller: PreferenceFragmentCompat) {
-		caller.findPreferenceTyped<ListPreference>(R.string.settings_language_key).apply {
+		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_language_key).apply {
 			val languages = LocaleManager.getLocaleList()
-			entryValues = languages.toTypedArray()
 
 			val localeList = languages.map { Locale(it) }
-			entries = localeList.map { it.getDisplayName(it) }.toTypedArray()
+			val entries = localeList.map { it.getDisplayName(it) }
+
+			setValues(entries, languages)
 
 			val currentLocale = LocaleManager.getLocale(context)
 			var indexOf = languages.indexOf(currentLocale)
@@ -139,7 +141,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			}
 
 			if (indexOf >= 0) {
-				setValueIndex(indexOf)
+				setIndex(indexOf)
 			} else {
 				Reporter.report("Could not find index for language $currentLocale")
 			}

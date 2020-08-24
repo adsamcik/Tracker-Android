@@ -70,9 +70,15 @@ class IndicesDialogListPreference : DialogListPreference {
 	override fun setIndex(index: Int) {
 		if (selectedValueIndex != index && index in 0..valueList.size) {
 			selectedValueIndex = index
-			persistInt(indices[index])
+			val key = indices[index]
+			persistInt(key)
 			summary = String.format(Locale.getDefault(), summaryText, valueList[index])
 			notifyChanged()
+			notifyValueChanged(key)
 		}
+	}
+
+	protected fun notifyValueChanged(newKey: Int) {
+		onPreferenceChangeListener?.onPreferenceChange(this, newKey)
 	}
 }

@@ -146,7 +146,7 @@
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_style_title"
         app:icon="@drawable/ic_outline_style_24px">
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.DialogListPreference
             android:key="@string/settings_style_mode_key"
             android:summary="%s"
             android:title="@string/settings_style_mode_title"
@@ -224,25 +224,25 @@
 
     <androidx.preference.PreferenceCategory android:title="@string/settings_other_title">
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.DialogListPreference
             android:defaultValue="@string/settings_length_system_default"
-            android:entries="@array/settings_length_system_names"
-            android:entryValues="@array/settings_length_system_values"
+            app:titles="@array/settings_length_system_names"
+            app:keys="@array/settings_length_system_values"
             android:key="@string/settings_length_system_key"
             android:summary="%s"
             android:title="@string/settings_length_system_title"
             app:icon="@drawable/ic_ruler" />
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.DialogListPreference
             android:defaultValue="@string/settings_speed_format_default"
-            android:entries="@array/settings_speed_format_names"
-            android:entryValues="@array/settings_speed_format_values"
+            app:titles="@array/settings_speed_format_names"
+            app:keys="@array/settings_speed_format_values"
             android:key="@string/settings_speed_format_key"
             android:summary="%s"
             android:title="@string/settings_speed_format_title"
             app:icon="@drawable/ic_speedometer" />
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.DialogListPreference
             android:key="@string/settings_language_key"
             android:summary="@string/settings_language_summary"
             android:title="@string/settings_language_title"
