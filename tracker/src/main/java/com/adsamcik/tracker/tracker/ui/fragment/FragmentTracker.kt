@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.ui.fragment
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
@@ -45,6 +46,7 @@ import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
@@ -208,23 +210,13 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		val isActive = TrackerServiceApi.isActive
 		if (isActive == enable) return
 
-		val missingPermissions = Assist.checkTrackingPermissions(activity)
-
-		fun internalToggleCollecting() {
-			if (!isActive) {
-				startTracking(activity)
-			} else {
-				stopTracking(activity)
-			}
-		}
-
-		if (missingPermissions.isEmpty()) {
-			Assist.checkTrackingPermissions(activity)
-			internalToggleCollecting()
-		} else {
-			requestPermissions(missingPermissions) { response ->
-				if (response.isSuccess) {
-					internalToggleCollecting()
+		TrackerTimerManager.checkTrackingPermissions(activity, styleController) {
+			Log.d("TRACKER", "PERMISSION")
+			if (it.isSuccess) {
+				if (!isActive) {
+					startTracking(activity)
+				} else {
+					stopTracking(activity)
 				}
 			}
 		}

@@ -1,9 +1,11 @@
 package com.adsamcik.tracker.shared.utils.permission
 
+import androidx.annotation.StringRes
+
 typealias PermissionCallback = (result: PermissionResult) -> Unit
 
 data class PermissionRequest(
-		val permissionList: Array<String>,
+		val permissionList: Array<PermissionData>,
 		val callback: PermissionCallback
 ) {
 	override fun equals(other: Any?): Boolean {
@@ -24,3 +26,5 @@ data class PermissionRequest(
 		return result
 	}
 }
+
+data class PermissionData(val name: String, @StringRes val rationale: Int)

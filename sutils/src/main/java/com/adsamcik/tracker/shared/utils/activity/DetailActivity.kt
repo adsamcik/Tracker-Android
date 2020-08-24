@@ -50,6 +50,8 @@ abstract class DetailActivity : CoreUIActivity() {
 		onConfigure(configuration)
 		super.onCreate(savedInstanceState)
 
+		setContentView(R.layout.activity_content_detail)
+
 		styleController.watchNotificationBar(
 				SystemBarStyleView(
 						window,
@@ -71,7 +73,6 @@ abstract class DetailActivity : CoreUIActivity() {
 		styleController.watchNavigationBar(navigationBarStyleView)
 
 
-		setContentView(R.layout.activity_content_detail)
 		window.decorView.background = ColorDrawable(StyleManager.styleData.backgroundColor())
 		//styleController.updateOnce(StyleView(contentDetailRoot, 0), allowRecycler = false)
 

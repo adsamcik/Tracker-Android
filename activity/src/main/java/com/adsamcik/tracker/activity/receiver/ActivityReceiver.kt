@@ -57,6 +57,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		ActivityRequestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
 	}
 
+	/**
+	 * Sets last activity from transition.
+	 * Does not call callbacks as this should only update last activity for better access.
+	 */
 	private fun setActivityResultFromTransition(transition: ActivityTransitionEvent) {
 		val detectedActivity = ActivityInfo(transition.activityType, TRANSITION_ACTIVITY_CONFIDENCE)
 		lastActivity = detectedActivity
@@ -97,6 +101,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			private set
 
 		private val receiver: BroadcastReceiver by lazy { ActivityReceiver() }
+		private var isSubscribed = false
 
 
 		/**
@@ -127,6 +132,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				)
 
 				context.registerReceiver(receiver, IntentFilter(ACTIVITY_INTENT))
+				isSubscribed = true
 
 				if (delayInS > 0) {
 					requestActivityRecognition(client, intent, delayInS)
@@ -205,6 +211,8 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		 * Stop activity recognition
 		 */
 		fun stopActivityRecognition(context: Context) {
+			if (!isSubscribed) return
+
 			context.unregisterReceiver(receiver)
 
 			ActivityRecognition.getClient(context).run {

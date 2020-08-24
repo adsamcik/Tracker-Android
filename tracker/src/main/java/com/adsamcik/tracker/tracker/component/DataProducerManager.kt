@@ -34,11 +34,18 @@ internal class DataProducerManager(context: Context) : TrackerDataProducerObserv
 	private val activeProducerList = mutableListOf<TrackerDataProducerComponent>()
 
 	suspend fun onEnable() = coroutineScope {
-		producerList.forEach { it.onAttach(appContext) }
+		producerList.forEach {
+			if (it.canBeEnabled) {
+				it.onEnable(appContext)
+			}
+			it.onAttach(appContext)
+		}
 	}
 
 	override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {
-		if (component.isEnabled == shouldBeEnabled) return
+		if (component.canBeEnabled == shouldBeEnabled) return
+
+		component.canBeEnabled = shouldBeEnabled
 
 		if (shouldBeEnabled) {
 			activeProducerList.add(component)
@@ -51,7 +58,12 @@ internal class DataProducerManager(context: Context) : TrackerDataProducerObserv
 
 
 	suspend fun onDisable() = coroutineScope {
-		producerList.forEach { it.onDetach(appContext) }
+		producerList.forEach {
+			if (it.isEnabled) {
+				it.onDisable(appContext)
+			}
+			it.onDetach(appContext)
+		}
 		activeProducerList.clear()
 	}
 

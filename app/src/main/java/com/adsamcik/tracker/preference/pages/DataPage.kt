@@ -83,7 +83,7 @@ class DataPage : PreferencePage {
 	private fun requireImportPermissions(activity: Activity): Boolean {
 		return when {
 			validateImportPermissions(activity) -> true
-			Build.VERSION.SDK_INT >= 23 -> {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
 				activity.requestPermissions(
 						arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
 						PERMISSION_READ_EXTERNAL_REQUEST

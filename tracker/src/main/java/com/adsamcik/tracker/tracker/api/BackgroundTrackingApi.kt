@@ -13,6 +13,7 @@ import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
@@ -67,7 +68,9 @@ object BackgroundTrackingApi {
 		if (it == GroupedActivity.STILL.ordinal) {
 			disable(context)
 		} else {
-			enable(context)
+			if (context.hasActivityPermission) {
+				enable(context)
+			}
 		}
 	}
 
@@ -76,7 +79,8 @@ object BackgroundTrackingApi {
 		reinitializeRequest(context, it)
 	}
 
-	private var isActive = false
+	var isActive = false
+		private set
 
 	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
 			!context.powerManager.isPowerSaveMode &&

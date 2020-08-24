@@ -52,6 +52,8 @@ object Dependencies {
 		internal const val componentsDraggable = "1.0.0"
 		internal const val componentSlider = "2.0.0-beta01"
 
+		internal const val permissions = "6.2.1"
+
 		/**
 		 * Testing specific dependencies
 		 */
@@ -117,6 +119,8 @@ object Dependencies {
 
 			implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
 			//implementation("com.codezjx.library:andlinker:0.7.2")
+
+			implementation("com.karumi:dexter:${Versions.permissions}")
 
 			work(this)
 

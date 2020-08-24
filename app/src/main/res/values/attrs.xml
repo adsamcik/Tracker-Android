@@ -2,10 +2,11 @@
 <resources>
     <attr name="titleColor" format="reference|color" />
 
-    <declare-styleable name="ImageSwitchPreference">
-        <attr name="drawables" format="reference" />
+    <declare-styleable name="DialogListPreference">
         <attr name="titles" format="reference" />
+        <attr name="keys" format="reference" />
     </declare-styleable>
+
 
 
     <attr name="items" format="reference" />

@@ -2,6 +2,11 @@ package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.permission.PermissionCallback
+import com.adsamcik.tracker.shared.utils.permission.PermissionData
+import com.adsamcik.tracker.shared.utils.permission.PermissionManager
+import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
+import com.adsamcik.tracker.shared.utils.style.StyleController
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.trigger.AndroidLocationCollectionTrigger
@@ -35,5 +40,28 @@ object TrackerTimerManager {
 				.getPref(context)
 				.getStringRes(R.string.settings_tracker_timer_key)
 				?: getKey(availableTimers[0])
+	}
+
+	fun checkTrackingPermissions(
+			context: Context,
+			styleController: StyleController,
+			callback: PermissionCallback
+	) {
+		val selected = getSelected(context)
+		val requiredPermissions = selected.requiredPermissions.map {
+			PermissionData(
+					it,
+					R.string.permissions_tracker_timer_message
+			)
+		}
+
+		PermissionManager.checkPermissions(
+				context,
+				PermissionRequest(
+						requiredPermissions.toTypedArray(),
+						callback
+				),
+				styleController
+		)
 	}
 }

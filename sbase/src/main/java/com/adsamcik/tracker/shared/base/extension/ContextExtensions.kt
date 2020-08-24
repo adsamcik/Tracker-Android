@@ -174,6 +174,10 @@ inline val Context.hasLocationPermission: Boolean
 	get() =
 		hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 
+inline val Context.hasActivityPermission: Boolean
+	get() =
+		hasSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION)
+
 inline val Context.hasExternalStorageReadPermission: Boolean
 	get() =
 		hasSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)

@@ -62,6 +62,7 @@ android {
 dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 
 	Dependencies.core(this)
 	Dependencies.crashlytics(this)

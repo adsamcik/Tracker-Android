@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.utils.permission
 
 import android.content.pm.PackageManager
 import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.karumi.dexter.MultiplePermissionsReport
 
 data class PermissionResult(
 		private val grantedPermissions: List<String>,

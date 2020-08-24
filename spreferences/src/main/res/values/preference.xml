@@ -18,11 +18,12 @@
     <string name="settings_log_activity_key" translatable="false">log_activity</string>
     <string name="settings_log_games_default" translatable="false">false</string>
     <string name="settings_log_games_key" translatable="false">log_games</string>
-    <string name="settings_notification_styled_key" translatable="false">notificationStyle</string>
     <string name="settings_notification_styled_default" translatable="false">true</string>
+    <string name="settings_notification_styled_key" translatable="false">notificationStyle</string>
     <string name="settings_speed_format_default" translatable="false">Hour</string>
     <string name="settings_speed_format_key" translatable="false">speedFormat</string>
     <string name="settings_style_mode_key" translatable="false">styleMode</string>
+    <string name="settings_tracker_timer_key" translatable="false">trackerTicker</string>
     <string name="settings_tracking_activity_default" translatable="false">1</string>
     <string name="settings_tracking_activity_key" translatable="false">backgroundTracking</string>
     <integer name="settings_tracking_min_distance_default">10</integer>

@@ -7,6 +7,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Abstract Activity providing CoroutineScope.
+ */
 abstract class CoreActivity : AppCompatActivity(), CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -14,7 +17,7 @@ abstract class CoreActivity : AppCompatActivity(), CoroutineScope {
 		get() = Dispatchers.Main + job
 
 	override fun onDestroy() {
-		super.onDestroy()
 		coroutineContext.cancelChildren()
+		super.onDestroy()
 	}
 }

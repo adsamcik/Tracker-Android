@@ -46,25 +46,6 @@ object Assist {
 		)
 	}
 
-	/**
-	 * Checks if required permission are available
-	 * ACCESS_FINE_LOCATION - GPS
-	 * READ_PHONE_STATE - IMEI
-	 *
-	 * @param context context
-	 * @return permissions that app does not have, null if api is lower than 23 or all permission are acquired
-	 */
-	fun checkTrackingPermissions(context: Context): Array<String> {
-		if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1) {
-			val permissions = ArrayList<String>()
-			if (!context.hasLocationPermission) {
-				permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-			}
-
-			return permissions.toTypedArray()
-		}
-		return arrayOf()
-	}
 
 	/**
 	 * Converts coordinate to string

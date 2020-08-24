@@ -35,4 +35,6 @@
         <item quantity="one">generating 1 tile</item>
         <item quantity="other">generating %d tiles</item>
     </plurals>
+
+    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
 </resources>

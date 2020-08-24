@@ -19,7 +19,7 @@ internal class TrackerFirstRun : FirstRun() {
 		createDialog(context) {
 			title(R.string.settings_auto_tracking_category)
 			listItemsSingleChoice(
-					R.array.tracking_options_titles,
+					R.array.auto_tracking_options_values,
 					waitForPositiveButton = true,
 					selection = { dialog, index, _ ->
 						Preferences.getPref(dialog.context).edit {

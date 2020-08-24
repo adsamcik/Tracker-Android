@@ -12,18 +12,20 @@
             android:title="@string/settings_tracking_notice_title"
             app:icon="@drawable/ic_bulletin_board" />
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.DialogListPreference
             android:key="@string/settings_tracker_timer_key"
             android:summary="@string/settings_tracker_timer_summary"
             android:title="@string/settings_tracker_timer_title" />
 
         <androidx.preference.PreferenceCategory android:title="@string/settings_auto_tracking_category">
 
-            <com.adsamcik.tracker.preference.ImageSwitchPreference
+            <com.adsamcik.tracker.preference.IndicesDialogListPreference
                 android:defaultValue="@string/settings_tracking_activity_default"
                 android:key="@string/settings_tracking_activity_key"
-                app:drawables="@array/tracking_options_drawables"
-                app:titles="@array/tracking_options_titles" />
+                android:title="@string/auto_tracking_options_title"
+                app:icon="@drawable/ic_directions_walk_white"
+                app:summary="@string/auto_tracking_options_summary"
+                app:titles="@array/auto_tracking_options_values" />
 
             <androidx.preference.SwitchPreferenceCompat
                 android:defaultValue="@string/settings_auto_tracking_transition_default"
@@ -167,11 +169,11 @@
         <androidx.preference.PreferenceScreen
             android:title="@string/settings_export_title"
             app:icon="@drawable/ic_export">
-           <!--- <androidx.preference.Preference
-                android:key="@string/settings_export_json_key"
-                android:summary="@string/settings_export_json_summary"
-                android:title="@string/settings_export_json_title"
-                app:icon="@drawable/ic_json" /> -->
+            <!--- <androidx.preference.Preference
+                 android:key="@string/settings_export_json_key"
+                 android:summary="@string/settings_export_json_summary"
+                 android:title="@string/settings_export_json_title"
+                 app:icon="@drawable/ic_json" /> -->
             <androidx.preference.Preference
                 android:key="@string/settings_export_gpx_key"
                 android:summary="@string/settings_export_gpx_summary"

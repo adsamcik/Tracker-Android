@@ -24,7 +24,6 @@
     <string name="settings_notification_styled_title">Colored notifications</string>
     <string name="settings_tracker_timer_clock">Timer</string>
     <string name="settings_tracker_timer_fused">Google Play location</string>
-    <string name="settings_tracker_timer_key" translatable="false">trackerTicker</string>
     <string name="settings_tracker_timer_location">Android location</string>
     <string name="settings_tracker_timer_summary">Currently active: %s. Component that serves as update - triggers collection</string>
     <string name="settings_tracker_timer_title">Timers</string>
@@ -84,14 +83,13 @@
     <string name="settings_wifi_location_count_enabled_title">Wi-Fi count at location tracking</string>
     <string name="settings_wifi_network_enabled_title">Wi-Fi network tracking</string>
 
-    <integer-array name="tracking_options_drawables">
-        <item>@drawable/ic_close_black</item>
-        <item>@drawable/ic_directions_walk_white</item>
-        <item>@drawable/ic_directions_car_white_24dp</item>
-    </integer-array>
-    <string-array name="tracking_options_titles">
+    <string name="auto_tracking_options_title">Automatic tracking mode</string>
+    <string name="auto_tracking_options_summary">%s</string>
+    <string-array name="auto_tracking_options_values">
         <item>Disabled</item>
         <item>On foot</item>
         <item>In motion</item>
     </string-array>
+
+    <string name="permissions_tracker_timer_message">You can\'t use current timer without this permission.</string>
 </resources>

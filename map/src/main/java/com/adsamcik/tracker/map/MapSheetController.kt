@@ -20,23 +20,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.shared.base.assist.DisplayAssist
-import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
-import com.adsamcik.tracker.shared.base.extension.coerceIn
-import com.adsamcik.tracker.shared.base.extension.dp
-import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
-import com.adsamcik.tracker.shared.base.extension.marginBottom
-import com.adsamcik.tracker.shared.base.extension.requireParent
-import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
-import com.adsamcik.tracker.shared.utils.keyboard.KeyboardListener
-import com.adsamcik.tracker.shared.utils.keyboard.KeyboardManager
-import com.adsamcik.tracker.shared.base.misc.Int2
-import com.adsamcik.tracker.shared.base.misc.NavBarPosition
-import com.adsamcik.tracker.shared.base.misc.SnackMaker
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
-import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.utils.style.StyleView
-import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
 import com.adsamcik.tracker.map.introduction.MapSheetHiddenIntroduction
 import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
@@ -45,9 +28,27 @@ import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.WifiCountHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.extension.coerceIn
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.marginBottom
+import com.adsamcik.tracker.shared.base.extension.requireParent
+import com.adsamcik.tracker.shared.base.misc.Int2
+import com.adsamcik.tracker.shared.base.misc.NavBarPosition
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
+import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
+import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
+import com.adsamcik.tracker.shared.utils.keyboard.KeyboardListener
+import com.adsamcik.tracker.shared.utils.keyboard.KeyboardManager
+import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -340,7 +341,12 @@ internal class MapSheetController(
 			} else {
 				fragment.requestPermissions(
 						PermissionRequest(
-								arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+								arrayOf(
+										PermissionData(
+												Manifest.permission.ACCESS_FINE_LOCATION,
+												R.string.permission_rationale_location_map
+										)
+								)
 						) { result ->
 							if (result.isSuccess) {
 								onPositionClick(it)

@@ -2,15 +2,17 @@ package com.adsamcik.tracker.preference.pages
 
 import android.content.pm.PackageManager
 import androidx.preference.CheckBoxPreference
-import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.preference.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.notification.NotificationManagementActivity
@@ -94,19 +96,21 @@ class TrackerPreferencePage : PreferencePage {
 	}
 
 	private fun initializeTrackingTickerPreference(caller: PreferenceFragmentCompat) {
-		caller.findPreferenceTyped<ListPreference>(R.string.settings_tracker_timer_key).apply {
-			val values = TrackerTimerManager.availableTimerData
-			val resources = context.resources
-			entries = values.map { resources.getString(it.second) }.toTypedArray()
-			entryValues = values.map { it.first }.toTypedArray()
-			val selectedKey = TrackerTimerManager.getSelectedKey(context)
-			val selectedIndex = values.indexOfFirst { it.first == selectedKey }
-			if (selectedIndex >= 0) {
-				setValueIndex(selectedIndex)
-			} else {
-				Reporter.report("Key $selectedKey was not found in ${entries.joinToString { it }}")
-			}
-		}
+		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_tracker_timer_key)
+				.apply {
+					val values = TrackerTimerManager.availableTimerData
+					val resources = context.resources
+					val entries = values.map { resources.getString(it.second) }
+					val entryValues = values.map { it.first }
+					setValues(entries, entryValues)
+					val selectedKey = TrackerTimerManager.getSelectedKey(context)
+					val selectedIndex = values.indexOfFirst { it.first == selectedKey }
+					if (selectedIndex >= 0) {
+						setIndex(selectedIndex)
+					} else {
+						Reporter.report("Key $selectedKey was not found in ${entries.joinToString { it }}")
+					}
+				}
 	}
 
 	private fun initializeAutoTrackingPreferences(caller: PreferenceFragmentCompat) {
@@ -116,6 +120,18 @@ class TrackerPreferencePage : PreferencePage {
 					preference.context,
 					newValue as Int
 			)
+			val context = caller.requireContext()
+			if (newValue > 0) {
+				PermissionManager.checkActivityPermissions(context) {
+					if (!it.isSuccess) {
+						Preferences
+								.getPref(context)
+								.edit { setInt(R.string.settings_tracking_activity_key, 0) }
+					} else {
+						ActivityWatcherService.poke(context)
+					}
+				}
+			}
 			return@OnPreferenceChangeListener true
 		}
 
@@ -165,6 +181,5 @@ class TrackerPreferencePage : PreferencePage {
 		initializeNotificationPreference(caller)
 		initializeTrackingTickerPreference(caller)
 	}
-
 }
 

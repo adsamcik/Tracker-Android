@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app.activity
 
-import android.Manifest
 import android.graphics.Color
 import android.graphics.Point
 import android.graphics.Rect
@@ -19,7 +18,6 @@ import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.app.HomeIntroduction
 import com.adsamcik.tracker.module.AppFirstRun
 import com.adsamcik.tracker.module.Module
@@ -36,9 +34,12 @@ import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.module.FirstRun
+import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import java.util.*
@@ -120,16 +121,6 @@ class MainActivity : CoreUIActivity() {
 	override fun onResume() {
 		super.onResume()
 		initializeButtonsPosition()
-		//todo make this more centralized
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-				!ActivityRequestManager.hasActivityRecognitionPermission(this) &&
-				Preferences.getPref(this)
-						.getIntResString(
-								com.adsamcik.tracker.activity.R.string.settings_tracking_activity_key,
-								com.adsamcik.tracker.activity.R.string.settings_tracking_activity_default
-						) >= 0) {
-			requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 222)
-		}
 	}
 
 	@Suppress("MagicNumber")

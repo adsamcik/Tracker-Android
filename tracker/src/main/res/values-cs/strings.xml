@@ -10,7 +10,7 @@
     <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>
     <string name="shortcut_stop_tracking">Zastavit záznam</string>
     <string name="shortcut_stop_tracking_long">Zastavit záznamovou službu</string>
-    <string-array name="tracking_options_titles">
+    <string-array name="auto_tracking_options_values">
         <item>Vypnuto</item>
         <item>Pěšky</item>
         <item>V pohybu</item>
