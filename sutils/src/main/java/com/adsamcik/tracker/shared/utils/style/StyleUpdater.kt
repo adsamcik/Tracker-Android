@@ -348,7 +348,7 @@ internal class StyleUpdater {
 				//view.setBackgroundColor(bgColor)
 				view.backgroundTintList = ColorStateList.valueOf(bgColor)
 			}
-			background?.isVisible == true -> {
+			background != null -> {
 				if (background.alpha == 0) return false
 
 				background.mutate()
