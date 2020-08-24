@@ -13,7 +13,7 @@
         <item name="colorAccent">@color/color_accent</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
         <item name="md_corner_radius">@dimen/dialog_corner_radius</item>
-        <item name="android:windowBackground">@null</item>
+        <item name="android:windowBackground">@drawable/background_loading</item>
     </style>
 
     <style name="AppTheme.Translucent" parent="AppTheme">

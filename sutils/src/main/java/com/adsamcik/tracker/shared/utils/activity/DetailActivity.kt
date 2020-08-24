@@ -91,10 +91,11 @@ abstract class DetailActivity : CoreUIActivity() {
 		}
 
 		if (configuration.fitSystemWindows) {
-			findViewById<ViewGroup>(R.id.detail_root).fitsSystemWindows = true
+			val root = findViewById<ViewGroup>(R.id.detail_root)
+			root.fitsSystemWindows = true
 			styleController.watchView(
 					StyleView(
-							findViewById(R.id.detail_root),
+							root,
 							0,
 							maxDepth = 0
 					)
@@ -104,6 +105,7 @@ abstract class DetailActivity : CoreUIActivity() {
 				height += DisplayAssist.getStatusBarHeight(this@DetailActivity)
 			}
 		}
+
 	}
 
 	override fun onBackPressed() {
