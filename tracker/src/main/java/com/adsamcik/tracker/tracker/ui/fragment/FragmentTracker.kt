@@ -180,15 +180,18 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 
 	private fun startTracking(activity: FragmentActivity) {
 		if (!Assist.isGNSSEnabled(activity)) {
-			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_gnss_not_enabled,
-			                                             priority = SnackMaker.SnackbarPriority.IMPORTANT,
-			                                             actionRes = R.string.enable,
-			                                             onActionClick = {
-				                                             val locationOptionsIntent = Intent(
-						                                             Settings.ACTION_LOCATION_SOURCE_SETTINGS
-				                                             )
-				                                             startActivity(locationOptionsIntent)
-			                                             })
+			SnackMaker(rootCoordinatorLayout)
+					.addMessage(
+							messageRes = R.string.error_gnss_not_enabled,
+							priority = SnackMaker.SnackbarPriority.IMPORTANT,
+							actionRes = R.string.enable,
+							onActionClick = {
+								val locationOptionsIntent = Intent(
+										Settings.ACTION_LOCATION_SOURCE_SETTINGS
+								)
+								startActivity(locationOptionsIntent)
+							}
+					)
 		} else if (!PreferencesAssist.hasAnythingToTrack(activity)) {
 			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
 		} else {
