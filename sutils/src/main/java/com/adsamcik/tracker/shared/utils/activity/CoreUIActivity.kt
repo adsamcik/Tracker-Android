@@ -45,7 +45,6 @@ abstract class CoreUIActivity : CoreActivity() {
 	@CallSuper
 	override fun onResume() {
 		styleController.isSuspended = false
-		StyleManager.onResume(this)
 		super.onResume()
 		recreateIfLanguageChanged()
 	}
