@@ -33,6 +33,12 @@ import com.google.android.material.textfield.TextInputLayout
 
 @Suppress("unused_parameter")
 internal class ComponentStyleUpdater {
+	companion object {
+		private const val SWITCH_PRESSED_ALPHA = 255
+		private const val SWITCH_OFF_BLEND = 0.8f
+
+	}
+
 	private val edgeEffectFactory = RecyclerEdgeEffectFactory()
 
 	@MainThread
@@ -84,6 +90,7 @@ internal class ComponentStyleUpdater {
 			updateStyleData: StyleUpdater.UpdateStyleData,
 			@ColorInt bgColor: Int
 	) {
+		updateStyle(view as TextView, updateStyleData, bgColor)
 		val alpha = view.textColors.defaultColor.alpha
 		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
 
@@ -154,9 +161,13 @@ internal class ComponentStyleUpdater {
 				),
 				intArrayOf(
 						updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA),
-						ColorUtils.blendARGB(updateStyleData.baseForegroundColor, bgColor, 0.7f),
+						ColorUtils.blendARGB(
+								updateStyleData.baseForegroundColor,
+								bgColor,
+								SWITCH_OFF_BLEND
+						),
 						updateStyleData.baseForegroundColor,
-						updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.SEEKBAR_PRESSED_ALPHA),
+						updateStyleData.baseForegroundColor.withAlpha(SWITCH_PRESSED_ALPHA),
 				)
 		)
 
@@ -249,6 +260,7 @@ internal class ComponentStyleUpdater {
 			is ProgressBar -> updateStyle(view, updateStyleData, bgColor)
 			is CompoundButton -> updateStyle(view, updateStyleData, bgColor)
 			is ImageView -> updateStyle(view, updateStyleData, bgColor)
+			is AppCompatTextView -> updateStyle(view, updateStyleData, bgColor)
 			is TextView -> updateStyle(view, updateStyleData, bgColor)
 		}
 	}

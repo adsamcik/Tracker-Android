@@ -241,6 +241,9 @@ internal class StyleUpdater {
 				intArrayOf(-state_enabled)
 		)
 
+		/**
+		 * Returns base text color state list
+		 */
 		fun getBaseTextColorStateList(alpha: Int = 255): ColorStateList {
 			return ColorStateList(
 					stateArray,
@@ -253,9 +256,8 @@ internal class StyleUpdater {
 	}
 
 	companion object {
-		const val SEEKBAR_PRESSED_ALPHA = 255
-		const val DISABLED_ALPHA = 97
-		const val HINT_TEXT_ALPHA_OFFSET = 48
+		internal const val DISABLED_ALPHA = 97
+		internal const val HINT_TEXT_ALPHA_OFFSET = 48
 
 		private const val COLOR_DIST_ANIMATION_THRESHOLD = 50
 	}
