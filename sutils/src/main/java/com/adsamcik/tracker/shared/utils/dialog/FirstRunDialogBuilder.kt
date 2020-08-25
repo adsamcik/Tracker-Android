@@ -4,6 +4,9 @@ import android.content.Context
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 
+/**
+ * First Run Dialog builder
+ */
 class FirstRunDialogBuilder {
 	private val dialogDataList = mutableListOf<FirstRun>()
 

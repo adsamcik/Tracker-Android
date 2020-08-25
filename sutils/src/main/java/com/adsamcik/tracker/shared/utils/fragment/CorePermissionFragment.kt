@@ -2,7 +2,7 @@ package com.adsamcik.tracker.shared.utils.fragment
 
 import android.os.Build
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.shared.utils.permission.PermissionCallback
+import com.adsamcik.tracker.shared.utils.permission.PermissionResultCallback
 import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
@@ -27,7 +27,7 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 
 		val request = permissionRequestList.removeAt(index).second
 		val result = PermissionRequestResult.newFromResult(permissions, grantResults, request)
-		request.callback.invoke(result)
+		request.resultCallback.invoke(result)
 	}
 
 	/**
@@ -43,20 +43,5 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 			permissionRequestList.add(id to request)
 			PermissionManager.checkPermissions(request, styleController)
 		}
-	}
-
-	/**
-	 * Simplifies permission requests to allow for better callbacks.
-	 * This is convenience method for shorter syntax.
-	 * Equal to calling requestPermission(PermissionRequest).
-	 */
-	fun requestPermissions(permissions: List<PermissionData>, callback: PermissionCallback) {
-		requestPermissions(
-				PermissionRequest(
-						requireActivity(),
-						permissions,
-						callback
-				)
-		)
 	}
 }

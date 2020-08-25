@@ -45,7 +45,7 @@ object PermissionManager {
 				.withListener(
 						object : MultiplePermissionsListener {
 							override fun onPermissionsChecked(report: MultiplePermissionsReport) {
-								permissionRequest.callback(
+								permissionRequest.resultCallback(
 										PermissionRequestResult(
 												report.grantedPermissionResponses.map { granted ->
 													val data = requireNotNull(permissionRequest.permissionList.find { it.name == granted.permissionName })
@@ -122,20 +122,19 @@ object PermissionManager {
 	fun checkActivityPermissions(
 			context: Context,
 			styleController: StyleController? = null,
-			callback: PermissionCallback
+			callback: PermissionResultCallback
 	) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			@Suppress("NAME_SHADOWING")
 			checkPermissions(
-					PermissionRequest(
-							context,
-							listOf(
-									PermissionData(
-											Manifest.permission.ACTIVITY_RECOGNITION
-									) { context -> context.getString(R.string.permission_rationale_activity) }
-							),
-							callback
-					),
+					PermissionRequest.with(context)
+							.permissions(listOf(
+									PermissionData(Manifest.permission.ACTIVITY_RECOGNITION) { context ->
+										context.getString(R.string.permission_rationale_activity)
+									}
+							))
+							.onResult(callback)
+							.build(),
 					styleController
 			)
 		}

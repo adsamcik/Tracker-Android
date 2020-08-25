@@ -340,18 +340,20 @@ internal class MapSheetController(
 				onPositionClick(it)
 			} else {
 				fragment.requestPermissions(
-						PermissionRequest(
-								it.context,
-								listOf(
+						PermissionRequest
+								.with(it.context)
+								.permissions(listOf(
 										PermissionData(
 												Manifest.permission.ACCESS_FINE_LOCATION
 										) { context -> context.getString(R.string.permission_rationale_location_map) }
-								)
-						) { result ->
-							if (result.isSuccess) {
-								onPositionClick(it)
-							}
-						})
+								))
+								.onResult { result ->
+									if (result.isSuccess) {
+										onPositionClick(it)
+									}
+								}
+								.build()
+				)
 			}
 		}
 		// styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
