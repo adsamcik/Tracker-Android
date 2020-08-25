@@ -1,11 +1,13 @@
 package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.permission.PermissionCallback
 import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
+import com.adsamcik.tracker.shared.utils.permission.PermissionResult
 import com.adsamcik.tracker.shared.utils.style.StyleController
 
 import com.adsamcik.tracker.tracker.R
@@ -55,13 +57,17 @@ object TrackerTimerManager {
 			)
 		}
 
-		PermissionManager.checkPermissions(
-				context,
-				PermissionRequest(
-						requiredPermissions.toTypedArray(),
-						callback
-				),
-				styleController
-		)
+		if (requiredPermissions.isEmpty()) {
+			callback(PermissionResult(emptyList(), emptyList()))
+		} else {
+			PermissionManager.checkPermissions(
+					context,
+					PermissionRequest(
+							requiredPermissions.toTypedArray(),
+							callback
+					),
+					styleController
+			)
+		}
 	}
 }

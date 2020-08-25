@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.view.View
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.base.data.SessionActivity
@@ -13,6 +14,10 @@ import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 
+/**
+ * Contextual swipe touch helper.
+ * Provides basic swipe functionality to RecyclerView items.
+ */
 class ContextualSwipeTouchHelper(
 		context: Context,
 		val adapter: ActivityRecyclerAdapter,
@@ -21,7 +26,10 @@ class ContextualSwipeTouchHelper(
 		0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
 ) {
 	private val icon: Drawable = requireNotNull(
-			context.getDrawable(com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_remove_circle_outline)
+			ContextCompat.getDrawable(
+					context,
+					com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_remove_circle_outline
+			)
 	)
 
 	private val colorController = StyleManager.createController()
@@ -53,6 +61,9 @@ class ContextualSwipeTouchHelper(
 		icon.setTint(foregroundColor)
 	}
 
+	/**
+	 * Called before touch helper is destroyed
+	 */
 	fun onDestroy() {
 		StyleManager.recycleController(colorController)
 	}

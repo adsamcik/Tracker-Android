@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
 
 /**
  * Collection trigger component.
@@ -17,6 +18,13 @@ internal interface CollectionTriggerComponent {
 	 * List of required permission
 	 */
 	val requiredPermissions: Collection<String>
+
+	/**
+	 * Checks if component has all required permissions to run
+	 */
+	fun hasRequiredPermissions(context: Context): Boolean {
+		return context.hasSelfPermissions(requiredPermissions).all { it }
+	}
 
 	/**
 	 * Called when component is enabled.
