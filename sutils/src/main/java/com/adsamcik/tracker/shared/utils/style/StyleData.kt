@@ -8,6 +8,7 @@ import androidx.core.graphics.green
 import androidx.core.graphics.red
 import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 import com.adsamcik.tracker.shared.utils.style.color.perceivedRelLuminance
+import com.adsamcik.tracker.shared.utils.style.update.system.StyleUpdater
 
 /**
  * Style data object containing all the information about the current style
