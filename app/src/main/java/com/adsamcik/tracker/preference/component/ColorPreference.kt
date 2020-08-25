@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.preference
+package com.adsamcik.tracker.preference.component
 
 import android.content.Context
 import android.graphics.drawable.GradientDrawable

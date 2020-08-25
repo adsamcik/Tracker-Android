@@ -2,7 +2,6 @@ package com.adsamcik.tracker.preference.pages
 
 import android.content.Context
 import android.widget.Toast
-import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
@@ -13,7 +12,7 @@ import com.adsamcik.tracker.activity.ui.SessionActivityActivity
 import com.adsamcik.tracker.license.LicenseActivity
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.activity.ModuleActivity
-import com.adsamcik.tracker.preference.DialogListPreference
+import com.adsamcik.tracker.preference.component.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.preference.setOnClickListener

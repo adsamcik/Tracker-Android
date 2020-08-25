@@ -1,11 +1,10 @@
 package com.adsamcik.tracker.preference.pages
 
-import androidx.preference.ListPreference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.preference.ColorPreference
-import com.adsamcik.tracker.preference.DialogListPreference
+import com.adsamcik.tracker.preference.component.ColorPreference
+import com.adsamcik.tracker.preference.component.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData

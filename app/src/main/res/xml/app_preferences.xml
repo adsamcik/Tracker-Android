@@ -12,14 +12,14 @@
             android:title="@string/settings_tracking_notice_title"
             app:icon="@drawable/ic_bulletin_board" />
 
-        <com.adsamcik.tracker.preference.DialogListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:key="@string/settings_tracker_timer_key"
             android:summary="@string/settings_tracker_timer_summary"
             android:title="@string/settings_tracker_timer_title" />
 
         <androidx.preference.PreferenceCategory android:title="@string/settings_auto_tracking_category">
 
-            <com.adsamcik.tracker.preference.IndicesDialogListPreference
+            <com.adsamcik.tracker.preference.component.IndicesDialogListPreference
                 android:defaultValue="@string/settings_tracking_activity_default"
                 android:key="@string/settings_tracking_activity_key"
                 android:title="@string/auto_tracking_options_title"
@@ -146,7 +146,7 @@
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_style_title"
         app:icon="@drawable/ic_outline_style_24px">
-        <com.adsamcik.tracker.preference.DialogListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:key="@string/settings_style_mode_key"
             android:summary="%s"
             android:title="@string/settings_style_mode_title"
@@ -224,7 +224,7 @@
 
     <androidx.preference.PreferenceCategory android:title="@string/settings_other_title">
 
-        <com.adsamcik.tracker.preference.DialogListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:defaultValue="@string/settings_length_system_default"
             app:titles="@array/settings_length_system_names"
             app:keys="@array/settings_length_system_values"
@@ -233,7 +233,7 @@
             android:title="@string/settings_length_system_title"
             app:icon="@drawable/ic_ruler" />
 
-        <com.adsamcik.tracker.preference.DialogListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:defaultValue="@string/settings_speed_format_default"
             app:titles="@array/settings_speed_format_names"
             app:keys="@array/settings_speed_format_values"
@@ -242,7 +242,7 @@
             android:title="@string/settings_speed_format_title"
             app:icon="@drawable/ic_speedometer" />
 
-        <com.adsamcik.tracker.preference.DialogListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:key="@string/settings_language_key"
             android:summary="@string/settings_language_summary"
             android:title="@string/settings_language_title"
