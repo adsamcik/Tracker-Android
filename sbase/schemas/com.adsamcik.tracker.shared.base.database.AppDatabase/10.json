@@ -88,7 +88,7 @@
             "columnNames": [
               "lat"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_data_lat` ON `${TABLE_NAME}` (`lat`)"
+            "createSql": "CREATE  INDEX `index_location_data_lat` ON `${TABLE_NAME}` (`lat`)"
           },
           {
             "name": "index_location_data_lon",
@@ -96,7 +96,7 @@
             "columnNames": [
               "lon"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_data_lon` ON `${TABLE_NAME}` (`lon`)"
+            "createSql": "CREATE  INDEX `index_location_data_lon` ON `${TABLE_NAME}` (`lon`)"
           },
           {
             "name": "index_location_data_time",
@@ -104,7 +104,7 @@
             "columnNames": [
               "time"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_data_time` ON `${TABLE_NAME}` (`time`)"
+            "createSql": "CREATE  INDEX `index_location_data_time` ON `${TABLE_NAME}` (`time`)"
           }
         ],
         "foreignKeys": []
@@ -187,7 +187,7 @@
             "columnNames": [
               "session_activity_id"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracker_session_session_activity_id` ON `${TABLE_NAME}` (`session_activity_id`)"
+            "createSql": "CREATE  INDEX `index_tracker_session_session_activity_id` ON `${TABLE_NAME}` (`session_activity_id`)"
           }
         ],
         "foreignKeys": [
@@ -282,7 +282,7 @@
             "columnNames": [
               "longitude"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_wifi_data_longitude` ON `${TABLE_NAME}` (`longitude`)"
+            "createSql": "CREATE  INDEX `index_wifi_data_longitude` ON `${TABLE_NAME}` (`longitude`)"
           },
           {
             "name": "index_wifi_data_latitude",
@@ -290,7 +290,7 @@
             "columnNames": [
               "latitude"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_wifi_data_latitude` ON `${TABLE_NAME}` (`latitude`)"
+            "createSql": "CREATE  INDEX `index_wifi_data_latitude` ON `${TABLE_NAME}` (`latitude`)"
           },
           {
             "name": "index_wifi_data_last_seen",
@@ -298,7 +298,7 @@
             "columnNames": [
               "last_seen"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_wifi_data_last_seen` ON `${TABLE_NAME}` (`last_seen`)"
+            "createSql": "CREATE  INDEX `index_wifi_data_last_seen` ON `${TABLE_NAME}` (`last_seen`)"
           }
         ],
         "foreignKeys": []
@@ -339,7 +339,7 @@
             "columnNames": [
               "name"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_activity_name` ON `${TABLE_NAME}` (`name`)"
+            "createSql": "CREATE  INDEX `index_activity_name` ON `${TABLE_NAME}` (`name`)"
           }
         ],
         "foreignKeys": []
@@ -457,7 +457,7 @@
               "mnc",
               "cell_id"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_cell_location_mcc_mnc_cell_id` ON `${TABLE_NAME}` (`mcc`, `mnc`, `cell_id`)"
+            "createSql": "CREATE  INDEX `index_cell_location_mcc_mnc_cell_id` ON `${TABLE_NAME}` (`mcc`, `mnc`, `cell_id`)"
           },
           {
             "name": "index_cell_location_time",
@@ -465,7 +465,7 @@
             "columnNames": [
               "time"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_cell_location_time` ON `${TABLE_NAME}` (`time`)"
+            "createSql": "CREATE  INDEX `index_cell_location_time` ON `${TABLE_NAME}` (`time`)"
           }
         ],
         "foreignKeys": []
@@ -524,7 +524,7 @@
             "columnNames": [
               "lon"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_wifi_count_lon` ON `${TABLE_NAME}` (`lon`)"
+            "createSql": "CREATE  INDEX `index_location_wifi_count_lon` ON `${TABLE_NAME}` (`lon`)"
           },
           {
             "name": "index_location_wifi_count_lat",
@@ -532,7 +532,7 @@
             "columnNames": [
               "lat"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_wifi_count_lat` ON `${TABLE_NAME}` (`lat`)"
+            "createSql": "CREATE  INDEX `index_location_wifi_count_lat` ON `${TABLE_NAME}` (`lat`)"
           },
           {
             "name": "index_location_wifi_count_time",
@@ -540,7 +540,7 @@
             "columnNames": [
               "time"
             ],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_wifi_count_time` ON `${TABLE_NAME}` (`time`)"
+            "createSql": "CREATE  INDEX `index_location_wifi_count_time` ON `${TABLE_NAME}` (`time`)"
           }
         ],
         "foreignKeys": []
