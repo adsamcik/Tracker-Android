@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.service
 
-import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -12,9 +11,7 @@ import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.exception.PermissionException
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
-import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
@@ -200,12 +197,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		if (intent == null) {
 			Reporter.report(NullPointerException("Intent is null"))
-		}
-
-		if (!this.hasLocationPermission) {
-			Reporter.report(PermissionException("Tracker does not have sufficient permissions"))
-			stopSelf()
-			return Service.START_NOT_STICKY
 		}
 
 		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
