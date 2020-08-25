@@ -112,14 +112,10 @@ object StyleManager {
 			throw ConcurrentModificationException("Controller cannot be removed during an update")
 		}
 
-		//var isCollectionEmpty = false
 		controllerLock.withLock {
 			controllerCollection.remove(styleController)
 			styleController.dispose()
-			//isCollectionEmpty = controllerCollection.isEmpty()
 		}
-
-		//if (isCollectionEmpty) stopUpdate()
 	}
 
 	private fun enableUpdate(context: Context, preferenceColorList: List<Int> = listOf()) {
@@ -198,13 +194,6 @@ object StyleManager {
 
 		enableUpdateWithPreference(context)
 	}
-
-	fun onResume(context: Context) {
-		val colorList = update.colorList.toList()
-		disableUpdate(context)
-		enableUpdate(context, colorList)
-	}
-
 
 	/**
 	 * Updates specific color at given index. This function requires proper knowledge of the current colors.

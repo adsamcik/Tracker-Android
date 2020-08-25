@@ -4,12 +4,15 @@ import android.content.pm.PackageManager
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.karumi.dexter.MultiplePermissionsReport
 
+/**
+ * Results from permission request
+ */
 data class PermissionResult(
 		private val grantedPermissions: List<String>,
 		private val deniedPermissions: List<String>
 ) {
 	val isCancelled get() = grantedPermissions.isNotEmpty().and(deniedPermissions.isNotEmpty())
-	val isSuccess get() = grantedPermissions.isNotEmpty().and(deniedPermissions.isEmpty())
+	val isSuccess get() = deniedPermissions.isEmpty()
 
 	companion object {
 		internal fun newFromResult(

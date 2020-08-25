@@ -214,7 +214,6 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		if (isActive == enable) return
 
 		TrackerTimerManager.checkTrackingPermissions(activity, styleController) {
-			Log.d("TRACKER", "PERMISSION")
 			if (it.isSuccess) {
 				if (!isActive) {
 					startTracking(activity)

@@ -50,7 +50,7 @@ internal class StyleUpdater {
 				isAnimationAllowed
 		)
 
-		styleView.view.post {
+		styleView.view.runOnUiThread {
 			updateSingle(styleView, updateData, backgroundColor)
 		}
 	}
