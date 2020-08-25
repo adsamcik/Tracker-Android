@@ -35,7 +35,7 @@ import com.google.android.material.textfield.TextInputLayout
 internal class ComponentStyleUpdater {
 	companion object {
 		private const val SWITCH_PRESSED_ALPHA = 255
-		private const val SWITCH_OFF_BLEND = 0.8f
+		private const val SWITCH_OFF_BLEND = 0.35f
 
 	}
 
@@ -162,8 +162,8 @@ internal class ComponentStyleUpdater {
 				intArrayOf(
 						updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA),
 						ColorUtils.blendARGB(
+								nextLevel,
 								updateStyleData.baseForegroundColor,
-								bgColor,
 								SWITCH_OFF_BLEND
 						),
 						updateStyleData.baseForegroundColor,
