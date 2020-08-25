@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.utils.style
 
+import android.R.attr.state_checked
 import android.R.attr.state_enabled
 import android.R.attr.state_pressed
 import android.animation.ArgbEvaluator
@@ -18,12 +19,12 @@ import android.view.ViewGroup
 import android.widget.CompoundButton
 import android.widget.ImageView
 import android.widget.ProgressBar
-import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.AnyThread
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.graphics.alpha
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
@@ -33,6 +34,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.slider.abstracts.FluidSlider
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.firstParent
+import com.adsamcik.tracker.shared.base.extension.toTintList
 import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.extension.runOnUiThread
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
@@ -250,18 +252,19 @@ internal class StyleUpdater {
 	}
 
 	@MainThread
-	private fun updateStyleForeground(view: SeekBar, updateStyleData: UpdateStyleData) {
-		updateStyleForeground(view as ProgressBar, updateStyleData)
+	private fun updateStyleForeground(view: SwitchCompat, updateStyleData: UpdateStyleData) {
 		view.thumbTintList = ColorStateList(
 				arrayOf(
 						intArrayOf(-state_enabled),
+						intArrayOf(state_enabled, state_checked),
 						intArrayOf(state_enabled),
-						intArrayOf(state_pressed)
+						intArrayOf(state_pressed),
 				),
 				intArrayOf(
 						updateStyleData.baseForegroundColor.withAlpha(DISABLED_ALPHA),
+						updateStyleData.baseBackgroundColor,
 						updateStyleData.baseForegroundColor,
-						updateStyleData.baseForegroundColor.withAlpha(SEEKBAR_PRESSED_ALPHA)
+						updateStyleData.baseForegroundColor.withAlpha(SEEKBAR_PRESSED_ALPHA),
 				)
 		)
 	}
@@ -295,8 +298,8 @@ internal class StyleUpdater {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
 			is ImageView -> updateStyleForeground(view, updateStyleData)
+			is SwitchCompat -> updateStyleForeground(view, updateStyleData)
 			is TextView -> updateStyleForeground(view, updateStyleData)
-			is SeekBar -> updateStyleForeground(view, updateStyleData)
 			is ProgressBar -> updateStyleForeground(view, updateStyleData)
 			is FluidSlider -> updateStyleForeground(view, updateStyleData)
 		}
@@ -339,14 +342,18 @@ internal class StyleUpdater {
 		when {
 			view is MaterialButton -> {
 				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
-				view.rippleColor = ColorStateList.valueOf(nextLevel)
+				view.rippleColor = nextLevel.toTintList()
 				view.setBackgroundColor(bgColor)
 			}
 			view is FloatingActionButton -> {
 				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
 				view.rippleColor = nextLevel
 				//view.setBackgroundColor(bgColor)
-				view.backgroundTintList = ColorStateList.valueOf(bgColor)
+				view.backgroundTintList = bgColor.toTintList()
+			}
+			view is SwitchCompat -> {
+				val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
+				view.trackTintList = nextLevel.toTintList()
 			}
 			background != null -> {
 				if (background.alpha == 0) return false
