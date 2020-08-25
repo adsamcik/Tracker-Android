@@ -11,6 +11,9 @@ import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
 import java.util.*
 
+/**
+ * Dialog list preference
+ */
 open class DialogListPreference : Preference {
 	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
@@ -64,6 +67,9 @@ open class DialogListPreference : Preference {
 		summaryText = summary.toString()
 	}
 
+	/**
+	 * Set dialog list values
+	 */
 	open fun setValues(list: List<String>, keys: List<String>) {
 		assertEqual(list.size, keys.size)
 		valueList.clear()

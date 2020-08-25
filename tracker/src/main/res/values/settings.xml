@@ -91,5 +91,5 @@
         <item>In motion</item>
     </string-array>
 
-    <string name="permissions_tracker_timer_message">You can\'t use current timer without this permission.</string>
+    <string name="permissions_tracker_timer_message">%1$s timer needs more permissions to start tracking.</string>
 </resources>

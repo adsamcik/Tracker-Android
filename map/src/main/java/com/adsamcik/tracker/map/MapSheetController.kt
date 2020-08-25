@@ -341,11 +341,11 @@ internal class MapSheetController(
 			} else {
 				fragment.requestPermissions(
 						PermissionRequest(
-								arrayOf(
+								it.context,
+								listOf(
 										PermissionData(
-												Manifest.permission.ACCESS_FINE_LOCATION,
-												R.string.permission_rationale_location_map
-										)
+												Manifest.permission.ACCESS_FINE_LOCATION
+										) { context -> context.getString(R.string.permission_rationale_location_map) }
 								)
 						) { result ->
 							if (result.isSuccess) {

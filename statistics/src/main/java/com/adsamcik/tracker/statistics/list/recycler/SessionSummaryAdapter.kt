@@ -19,6 +19,9 @@ class SessionSummaryAdapter
 
 	private val list = mutableListOf<Stat>()
 
+	/**
+	 * Add all stats from a collection.
+	 */
 	fun addAll(list: Collection<Stat>) {
 		this.list.addAll(list)
 	}
@@ -47,6 +50,9 @@ class SessionSummaryAdapter
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 
+	/**
+	 * Session summary View Holder.
+	 */
 	class ViewHolder(
 			root: View,
 			val title: TextView,

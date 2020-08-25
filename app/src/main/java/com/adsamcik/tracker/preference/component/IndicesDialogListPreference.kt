@@ -6,6 +6,9 @@ import android.util.AttributeSet
 import com.adsamcik.tracker.shared.utils.debug.assertEqual
 import java.util.*
 
+/**
+ * Dialog list preference with indices as keys
+ */
 class IndicesDialogListPreference : DialogListPreference {
 	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
@@ -47,6 +50,9 @@ class IndicesDialogListPreference : DialogListPreference {
 		throw UnsupportedOperationException("Call setValuesIndices instead.")
 	}
 
+	/**
+	 * Set value indices
+	 */
 	fun setValuesIndices(list: List<String>, indices: List<Int>) {
 		super.setValues(list, indices.map { it.toString() })
 		assertEqual(list.size, indices.size)

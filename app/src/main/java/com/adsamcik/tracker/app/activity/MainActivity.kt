@@ -111,6 +111,7 @@ class MainActivity : CoreUIActivity() {
 				Preferences.getPref(this@MainActivity).edit {
 					setBoolean(R.string.settings_first_run_key, true)
 				}
+				PermissionManager.checkActivityPermissions(this@MainActivity) {}
 				uiIntroduction()
 			}
 		}.run {

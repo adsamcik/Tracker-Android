@@ -6,7 +6,7 @@ import com.adsamcik.tracker.shared.utils.permission.PermissionCallback
 import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
-import com.adsamcik.tracker.shared.utils.permission.PermissionResult
+import com.adsamcik.tracker.shared.utils.permission.PermissionRequestResult
 
 /**
  * Fragment extending [CoreUIFragment] with permission utility.
@@ -26,7 +26,7 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 		require(index >= 0) { "There was no permission request with this id" }
 
 		val request = permissionRequestList.removeAt(index).second
-		val result = PermissionResult.newFromResult(permissions, grantResults)
+		val result = PermissionRequestResult.newFromResult(permissions, grantResults, request)
 		request.callback.invoke(result)
 	}
 
@@ -41,7 +41,7 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 			val id = ++lastPermissionRequestId
 
 			permissionRequestList.add(id to request)
-			PermissionManager.checkPermissions(requireContext(), request, styleController)
+			PermissionManager.checkPermissions(request, styleController)
 		}
 	}
 
@@ -50,9 +50,10 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 	 * This is convenience method for shorter syntax.
 	 * Equal to calling requestPermission(PermissionRequest).
 	 */
-	fun requestPermissions(permissions: Array<PermissionData>, callback: PermissionCallback) {
+	fun requestPermissions(permissions: List<PermissionData>, callback: PermissionCallback) {
 		requestPermissions(
 				PermissionRequest(
+						requireActivity(),
 						permissions,
 						callback
 				)

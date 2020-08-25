@@ -1,30 +1,64 @@
 package com.adsamcik.tracker.shared.utils.permission
 
-import androidx.annotation.StringRes
+import android.content.Context
+import androidx.fragment.app.FragmentActivity
 
-typealias PermissionCallback = (result: PermissionResult) -> Unit
+typealias PermissionCallback = (result: PermissionRequestResult) -> Unit
+typealias RationaleCallback = (token: PermissionRequest.Token, permissionList: List<PermissionData>) -> Unit
 
+/**
+ * Permission request
+ */
 data class PermissionRequest(
-		val permissionList: Array<PermissionData>,
+		val context: Context,
+		val permissionList: List<PermissionData>,
 		val callback: PermissionCallback
 ) {
-	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (javaClass != other?.javaClass) return false
 
-		other as PermissionRequest
+	class Builder(val context: Context) {
 
-		if (!permissionList.contentEquals(other.permissionList)) return false
-		if (callback != other.callback) return false
+		private val permissions = mutableListOf<PermissionData>()
 
-		return true
+		private var onPermissionRationale: RationaleCallback? = null
+
+		fun permissions(permissions: Collection<PermissionData>): Builder {
+			this.permissions.addAll(permissions)
+			return this
+		}
+
+		fun permissions(vararg permissions: Pair<String, (context: Context) -> String>): Builder {
+			permissions(permissions.map { PermissionData(it.first, it.second) })
+			return this
+		}
+
+		fun permissionRationale(callback: RationaleCallback) {
+			onPermissionRationale = callback
+		}
+
+		fun onResult() {
+
+		}
 	}
 
-	override fun hashCode(): Int {
-		var result = permissionList.contentHashCode()
-		result = 31 * result + callback.hashCode()
-		return result
+	class Token {
+		fun resume() {
+
+		}
+
+		fun cancel() {
+
+		}
+	}
+
+	companion object {
+		fun with(activity: FragmentActivity): Builder = Builder(activity)
 	}
 }
 
-data class PermissionData(val name: String, @StringRes val rationale: Int)
+/**
+ * Permission data
+ *
+ * @param name Permission name (from manifest)
+ * @param rationaleBuilder Rationale text builder
+ */
+data class PermissionData(val name: String, val rationaleBuilder: (context: Context) -> String)

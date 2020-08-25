@@ -35,21 +35,35 @@ object PermissionManager {
 	 * If permissions is permanently denied, it will immediately return failure.
 	 */
 	fun checkPermissions(
-			context: Context,
 			permissionRequest: PermissionRequest,
 			dialog: DialogFactory,
 			styleController: StyleController? = null,
 	) {
 		Dexter
-				.withContext(context)
+				.withContext(permissionRequest.context)
 				.withPermissions(permissionRequest.permissionList.map { it.name })
 				.withListener(
 						object : MultiplePermissionsListener {
 							override fun onPermissionsChecked(report: MultiplePermissionsReport) {
 								permissionRequest.callback(
-										PermissionResult(
-												report.grantedPermissionResponses.map { it.permissionName },
-												report.deniedPermissionResponses.map { it.permissionName })
+										PermissionRequestResult(
+												report.grantedPermissionResponses.map { granted ->
+													val data = requireNotNull(permissionRequest.permissionList.find { it.name == granted.permissionName })
+													PermissionResult(
+															data,
+															isSuccess = true,
+															isForeverDenied = false
+													)
+												},
+												report.deniedPermissionResponses.map { denied ->
+													val data = requireNotNull(permissionRequest.permissionList.find { it.name == denied.permissionName })
+													PermissionResult(
+															data,
+															isSuccess = false,
+															isForeverDenied = denied.isPermanentlyDenied
+													)
+												}
+										)
 								)
 							}
 
@@ -63,13 +77,17 @@ object PermissionManager {
 											requests.contains { request -> request.name == permissionRequest.name }
 										}
 
-								dialog(context, token, rationalePermissions).apply {
+								dialog(
+										permissionRequest.context,
+										token,
+										rationalePermissions
+								).apply {
 									if (styleController != null) {
 										dynamicStyle(styleController, DIALOG_LAYER)
 									} else {
 										dynamicStyle(DIALOG_LAYER)
 									}
-								}
+								}.show()
 							}
 						}
 				)
@@ -82,9 +100,8 @@ object PermissionManager {
 			token: PermissionToken,
 			rationalePermissions: Sequence<PermissionData>
 	): MaterialDialog {
-		val resources = context.resources
 		return MaterialDialog(context).apply {
-			message(text = rationalePermissions.joinToString { resources.getString(it.rationale) })
+			message(text = rationalePermissions.joinToString { it.rationaleBuilder(context) })
 			title(res = R.string.permission_rationale_title)
 			positiveButton(res = R.string.permission_rationale_understood) {
 				token.continuePermissionRequest()
@@ -96,11 +113,10 @@ object PermissionManager {
 	}
 
 	fun checkPermissions(
-			context: Context,
 			permissionRequest: PermissionRequest,
 			styleController: StyleController? = null
 	) {
-		checkPermissions(context, permissionRequest, this::defaultDialog, styleController)
+		checkPermissions(permissionRequest, this::defaultDialog, styleController)
 	}
 
 	fun checkActivityPermissions(
@@ -109,14 +125,14 @@ object PermissionManager {
 			callback: PermissionCallback
 	) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			@Suppress("NAME_SHADOWING")
 			checkPermissions(
-					context,
 					PermissionRequest(
-							arrayOf(
+							context,
+							listOf(
 									PermissionData(
-											Manifest.permission.ACTIVITY_RECOGNITION,
-											R.string.permission_rationale_activity
-									)
+											Manifest.permission.ACTIVITY_RECOGNITION
+									) { context -> context.getString(R.string.permission_rationale_activity) }
 							),
 							callback
 					),
