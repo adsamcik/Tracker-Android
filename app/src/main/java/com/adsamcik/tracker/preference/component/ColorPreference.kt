@@ -9,10 +9,10 @@ import androidx.appcompat.widget.AppCompatImageView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.extension.findChildOfType
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.dynamicBaseStyle
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -24,6 +24,8 @@ import com.adsamcik.tracker.shared.utils.style.color.brightenColor
 import com.adsamcik.tracker.shared.utils.style.implementations.StyleColorDrawable
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
 import com.afollestad.materialdialogs.MaterialDialog
+import com.afollestad.materialdialogs.WhichButton
+import com.afollestad.materialdialogs.actions.getActionButton
 import com.afollestad.materialdialogs.color.colorChooser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -158,10 +160,10 @@ class ColorPreference : Preference, CoroutineScope {
 			) { _, color ->
 				saveColor(color)
 			}
-			dynamicStyle {
-				it.watchView(StyleView(view, 0))
+			// This won't work well because ColorDialog currently hijacks button colors.
+			/*dynamicStyle {
 				it.watchRecyclerView(RecyclerStyleView(view.findChildOfType()))
-			}
+			}*/
 		}
 	}
 

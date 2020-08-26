@@ -10,19 +10,38 @@ import com.adsamcik.tracker.import.file.GpxImport
 import com.adsamcik.tracker.import.service.ImportService
 import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
 import com.adsamcik.tracker.shared.base.extension.startForegroundService
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.FileFilter
 import com.afollestad.materialdialogs.files.fileChooser
 
-//todo notify progress
-//todo import in service or a job, it can take quite awhile
+/**
+ * Takes care of data importing.
+ */
 class DataImport {
+	/**
+	 * List of active file importers
+	 */
 	val activeImporterList: Collection<FileImport>
+
+	/**
+	 * List of active archive extractors.
+	 */
 	val activeArchiveExtractorList: Collection<ArchiveExtractor>
 
+	/**
+	 * List of supported extensions.
+	 */
 	val supportedImporterExtensions get() = activeImporterList.flatMap { it.supportedExtensions }
+
+	/**
+	 * List of supported archive extensions.
+	 */
 	val supportedArchiveExtractorExtensions get() = activeArchiveExtractorList.flatMap { it.supportedExtensions }
 
+	/**
+	 * List of all supported extensions (import + archive).
+	 */
 	val supportedExtensions: Collection<String>
 		get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions)
 
@@ -43,6 +62,9 @@ class DataImport {
 	}
 
 
+	/**
+	 * Show import dialog
+	 */
 	fun showImportDialog(context: Context) {
 		MaterialDialog(context).show {
 			val supportedExtensions = supportedExtensions
@@ -55,12 +77,16 @@ class DataImport {
 					context = context,
 					filter = filter,
 					waitForPositiveButton = true,
-					allowFolderCreation = false
+					allowFolderCreation = false,
+					initialDirectory = context.getExternalFilesDir(null)
 			) { _, file ->
 				context.startForegroundService<ImportService> {
 					putExtra(ImportService.ARG_FILE_PATH, file.path)
 				}
 			}
+
+			// Dynamic style is more complicated for file selection
+			//dynamicStyle()
 		}
 	}
 }

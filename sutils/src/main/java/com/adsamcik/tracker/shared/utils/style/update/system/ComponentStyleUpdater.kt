@@ -9,7 +9,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
-import androidx.appcompat.widget.AppCompatImageView
+import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.graphics.ColorUtils
@@ -231,11 +231,23 @@ internal class ComponentStyleUpdater {
 
 	@MainThread
 	private fun updateStyle(
-			view: MaterialButton,
+			view: AppCompatButton,
 			updateStyleData: StyleUpdater.UpdateStyleData,
 			@ColorInt backgroundColor: Int
 	) {
 		updateStyle(view as TextView, updateStyleData, backgroundColor)
+
+		view.setBackgroundColor(backgroundColor)
+	}
+
+
+	@MainThread
+	private fun updateStyle(
+			view: MaterialButton,
+			updateStyleData: StyleUpdater.UpdateStyleData,
+			@ColorInt backgroundColor: Int
+	) {
+		updateStyle(view as AppCompatButton, updateStyleData, backgroundColor)
 
 		val nextLevel = ColorFunctions.getBackgroundLayerColor(
 				backgroundColor,
@@ -243,7 +255,6 @@ internal class ComponentStyleUpdater {
 				1
 		)
 		view.rippleColor = nextLevel.toTintList()
-		view.setBackgroundColor(backgroundColor)
 		val alpha = view.textColors.defaultColor.alpha
 		view.iconTint = updateStyleData.getBaseTextColorStateList(alpha)
 	}
@@ -259,6 +270,7 @@ internal class ComponentStyleUpdater {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
 			is MaterialButton -> updateStyle(view, updateStyleData, backgroundColor)
+			is AppCompatButton -> updateStyle(view, updateStyleData, backgroundColor)
 			is FloatingActionButton -> updateStyle(view, updateStyleData, backgroundColor)
 			is FluidSlider -> updateStyle(view, updateStyleData, backgroundColor)
 			is SwitchCompat -> updateStyle(view, updateStyleData, backgroundColor)
