@@ -9,6 +9,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
+import androidx.appcompat.widget.AppCompatImageView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.graphics.ColorUtils
@@ -187,6 +188,7 @@ internal class ComponentStyleUpdater {
 			drawable.onForegroundStyleChanged(colorStateList)
 		} else {
 			view.imageTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+			view.foregroundTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 		}
 	}
 

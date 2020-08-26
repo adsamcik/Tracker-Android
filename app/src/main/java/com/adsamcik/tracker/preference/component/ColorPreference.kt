@@ -9,10 +9,15 @@ import androidx.appcompat.widget.AppCompatImageView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
+import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.extension.findChildOfType
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
 import com.adsamcik.tracker.shared.utils.style.color.brightenColor
@@ -148,9 +153,14 @@ class ColorPreference : Preference, CoroutineScope {
 					subColors = subColorList,
 					initialSelection = initialColor,
 					allowCustomArgb = true,
-					showAlphaSelector = false
+					showAlphaSelector = false,
+					changeActionButtonsColor = true
 			) { _, color ->
 				saveColor(color)
+			}
+			dynamicStyle {
+				it.watchView(StyleView(view, 0))
+				it.watchRecyclerView(RecyclerStyleView(view.findChildOfType()))
 			}
 		}
 	}

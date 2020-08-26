@@ -39,6 +39,19 @@ fun MaterialDialog.dynamicStyle(styleController: StyleController, layer: Int = 1
  * Automatically removes dialog when closed.
  */
 fun MaterialDialog.dynamicStyle(layer: Int = 1): MaterialDialog {
+	return dynamicStyle(layer) { styleController ->
+		styleController.watchView(StyleView(view, layer))
+	}
+}
+
+/**
+ * Creates new [StyleController] for the dialog and manages it's lifecycle.
+ * Automatically removes dialog when closed.
+ */
+fun MaterialDialog.dynamicStyle(
+		layer: Int = 1,
+		applyStyle: (StyleController) -> Unit
+): MaterialDialog {
 	val styleController = StyleManager.createController()
 	try {
 		val recycler = getRecyclerView()
@@ -47,7 +60,7 @@ fun MaterialDialog.dynamicStyle(layer: Int = 1): MaterialDialog {
 		//it's fine, just don't add it to recycler
 	}
 
-	styleController.watchView(StyleView(view, layer))
+	applyStyle(styleController)
 
 	onDismiss {
 		StyleManager.recycleController(styleController)
