@@ -61,7 +61,7 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: CompoundButton,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		val alpha = view.textColors.defaultColor.alpha
 		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
@@ -73,7 +73,7 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: FluidSlider,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		val foreground = updateStyleData.baseForegroundColor.withAlpha(ColorConstants.FULL_COMPONENT)
 		val background = updateStyleData.baseBackgroundColor
@@ -88,9 +88,9 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: AppCompatTextView,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
-		updateStyle(view as TextView, updateStyleData, bgColor)
+		updateStyle(view as TextView, updateStyleData, backgroundColor)
 		val alpha = view.textColors.defaultColor.alpha
 		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
 
@@ -113,7 +113,7 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: TextView,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		val alpha = view.textColors.defaultColor.alpha
 		val colorStateList = updateStyleData.getBaseTextColorStateList(alpha)
@@ -136,7 +136,7 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: ProgressBar,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		view.progressTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 		view.progressBackgroundTintList = ColorStateList.valueOf(
@@ -148,10 +148,10 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: SwitchCompat,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		val luminance = updateStyleData.backgroundLuminance
-		val nextLevel = ColorFunctions.getBackgroundLayerColor(bgColor, luminance, 1)
+		val nextLevel = ColorFunctions.getBackgroundLayerColor(backgroundColor, luminance, 1)
 		view.thumbTintList = ColorStateList(
 				arrayOf(
 						intArrayOf(-android.R.attr.state_enabled),
@@ -178,7 +178,7 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: ImageView,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		val drawable = view.drawable
 		if (drawable is StyleableForegroundDrawable) {
@@ -194,7 +194,7 @@ internal class ComponentStyleUpdater {
 	fun updateStyle(
 			view: RecyclerView,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		edgeEffectFactory.color = updateStyleData.baseForegroundColor
 
@@ -214,31 +214,33 @@ internal class ComponentStyleUpdater {
 	private fun updateStyle(
 			view: FloatingActionButton,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		val nextLevel = ColorFunctions.getBackgroundLayerColor(
-				bgColor,
+				backgroundColor,
 				updateStyleData.backgroundLuminance,
 				1
 		)
 		view.rippleColor = nextLevel
-		//view.setBackgroundColor(bgColor)
-		view.backgroundTintList = bgColor.toTintList()
+		//view.setBackgroundColor(backgroundColor)
+		view.backgroundTintList = backgroundColor.toTintList()
 	}
 
 	@MainThread
 	private fun updateStyle(
 			view: MaterialButton,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
+		updateStyle(view as TextView, updateStyleData, backgroundColor)
+
 		val nextLevel = ColorFunctions.getBackgroundLayerColor(
-				bgColor,
+				backgroundColor,
 				updateStyleData.backgroundLuminance,
 				1
 		)
 		view.rippleColor = nextLevel.toTintList()
-		view.setBackgroundColor(bgColor)
+		view.setBackgroundColor(backgroundColor)
 		val alpha = view.textColors.defaultColor.alpha
 		view.iconTint = updateStyleData.getBaseTextColorStateList(alpha)
 	}
@@ -249,19 +251,19 @@ internal class ComponentStyleUpdater {
 	fun updateStyle(
 			view: View,
 			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt bgColor: Int
+			@ColorInt backgroundColor: Int
 	) {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
-			is MaterialButton -> updateStyle(view, updateStyleData, bgColor)
-			is FloatingActionButton -> updateStyle(view, updateStyleData, bgColor)
-			is FluidSlider -> updateStyle(view, updateStyleData, bgColor)
-			is SwitchCompat -> updateStyle(view, updateStyleData, bgColor)
-			is ProgressBar -> updateStyle(view, updateStyleData, bgColor)
-			is CompoundButton -> updateStyle(view, updateStyleData, bgColor)
-			is ImageView -> updateStyle(view, updateStyleData, bgColor)
-			is AppCompatTextView -> updateStyle(view, updateStyleData, bgColor)
-			is TextView -> updateStyle(view, updateStyleData, bgColor)
+			is MaterialButton -> updateStyle(view, updateStyleData, backgroundColor)
+			is FloatingActionButton -> updateStyle(view, updateStyleData, backgroundColor)
+			is FluidSlider -> updateStyle(view, updateStyleData, backgroundColor)
+			is SwitchCompat -> updateStyle(view, updateStyleData, backgroundColor)
+			is ProgressBar -> updateStyle(view, updateStyleData, backgroundColor)
+			is CompoundButton -> updateStyle(view, updateStyleData, backgroundColor)
+			is ImageView -> updateStyle(view, updateStyleData, backgroundColor)
+			is AppCompatTextView -> updateStyle(view, updateStyleData, backgroundColor)
+			is TextView -> updateStyle(view, updateStyleData, backgroundColor)
 		}
 	}
 }
