@@ -38,6 +38,8 @@ class IndicesDialogListPreference : DialogListPreference {
 	private val indices: MutableList<Int> = mutableListOf()
 
 
+	// Intentional, makes it more clear when to use it
+	@Suppress("UNUSED_PARAMETER")
 	private fun initAttributes(context: Context, attrs: AttributeSet) {
 		if (keyList.isNotEmpty()) {
 			indices.addAll(keyList.map { it.toInt() })

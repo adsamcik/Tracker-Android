@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.base.extension
 
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.Observer
 
 /**
  * LiveData observe that allows Higher order function instead of observer
@@ -12,7 +11,7 @@ import androidx.lifecycle.Observer
  * @param body Higher order function that is executed when live data changes
  */
 fun <T> LiveData<T>.observe(owner: LifecycleOwner, body: (T?) -> Unit) {
-	observe(owner, { t -> body(t) })
+	observe(owner) { t -> body(t) }
 }
 
 /**

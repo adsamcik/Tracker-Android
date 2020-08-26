@@ -82,7 +82,7 @@ class MapOwner : OnMapReadyCallback {
 	}
 
 	override fun onMapReady(map: GoogleMap) {
-		var isEnableRequested = false
+		var isEnableRequested: Boolean
 
 		initLock.withLock {
 			this.map = map

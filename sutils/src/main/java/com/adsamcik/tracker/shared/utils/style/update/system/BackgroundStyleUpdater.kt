@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 /**
  * Background style updater
  */
+@Suppress("UNUSED_PARAMETER")
 internal class BackgroundStyleUpdater {
 	companion object {
 		private const val COLOR_DIST_ANIMATION_THRESHOLD = 50

@@ -40,6 +40,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		}
 	}
 
+	@Suppress("UNUSED_PARAMETER")
 	private fun onActivityChanged(context: Context, activity: ActivityInfo, elapsedTime: Long) {
 		if (activity.confidence < ACTIVITY_CONFIDENCE_THRESHOLD) return
 
