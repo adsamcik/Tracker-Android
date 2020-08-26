@@ -29,16 +29,18 @@ android {
 
 		with(javaCompileOptions) {
 			with(annotationProcessorOptions) {
-				arguments = mapOf(
-						"room.incremental" to "true",
-						"room.expandProjection" to "true"
+				arguments(
+						mapOf(
+								"room.incremental" to "true",
+								"room.expandProjection" to "true"
+						)
 				)
 			}
 		}
 	}
 
 	compileOptions {
-		coreLibraryDesugaringEnabled = true
+		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}
