@@ -21,6 +21,7 @@ object Dependencies {
 		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.1"
 		internal const val material = "1.2.0"
+		internal const val desugar = "1.0.10"
 
 		const val kotlin: String = "1.4.0"
 		internal const val coroutines = "1.3.9"
@@ -97,7 +98,7 @@ object Dependencies {
 		with(dependencyHandler) {
 			// Fix for compile error caused by missing annotation in JDK9+
 			compileOnly("com.github.pengrad:jdk9-deps:1.0")
-			coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.0.4")
+			coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
 
 			implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
 			implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
