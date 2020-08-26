@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.utils.style.update.system
 
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.view.View
 import android.widget.CompoundButton
 import android.widget.ImageView
@@ -187,8 +188,12 @@ internal class ComponentStyleUpdater {
 			val colorStateList = updateStyleData.getBaseTextColorStateList(drawableAlpha)
 			drawable.onForegroundStyleChanged(colorStateList)
 		} else {
-			view.imageTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
-			view.foregroundTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+			val colorStateList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+			view.imageTintList = colorStateList
+
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				view.foregroundTintList = colorStateList
+			}
 		}
 	}
 
