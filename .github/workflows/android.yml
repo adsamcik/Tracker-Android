@@ -27,9 +27,9 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ~/.android/build-cache
-        key: ${{ runner.OS }}-build
+        key: ${{ runner.OS }}-android-build
         restore-keys: |
-          ${{ runner.OS }}-build-
+          ${{ runner.OS }}-android-build-
           
     - name: Prepare for build
       run: | 
