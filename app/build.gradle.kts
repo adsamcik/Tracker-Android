@@ -26,17 +26,6 @@ android {
 		versionName = "2020.1β8"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		resConfigs("en", "cs")
-
-		with(javaCompileOptions) {
-			with(annotationProcessorOptions) {
-				arguments(
-						mapOf(
-								"room.incremental" to "true",
-								"room.expandProjection" to "true"
-						)
-				)
-			}
-		}
 	}
 
 	compileOptions {

@@ -117,17 +117,7 @@ internal class NotificationComponent :
 			session: TrackerSession
 	): NotificationCompat.Builder {
 		val builder = requireTNotificationManager.createBuilder()
-
-		val resources = context.resources
-
 		buildContent(context, builder, session, data)
-
-		val trackingSessionInfo = TrackerService.sessionInfo.value
-
-		if (trackingSessionInfo != null) {
-			//trackingSessionInfo.
-		}
-
 		return builder
 	}
 

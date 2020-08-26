@@ -22,6 +22,17 @@ android {
 				this.arg("room.schemaLocation", "$projectDir/schemas")
 			}
 		}
+
+		with(javaCompileOptions) {
+			with(annotationProcessorOptions) {
+				arguments(
+						mapOf(
+								"room.incremental" to "true",
+								"room.expandProjection" to "true"
+						)
+				)
+			}
+		}
 	}
 
 	sourceSets {

@@ -16,6 +16,18 @@ android {
 		versionName = "1.0"
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+
+		with(javaCompileOptions) {
+			with(annotationProcessorOptions) {
+				arguments(
+						mapOf(
+								"room.incremental" to "true",
+								"room.expandProjection" to "true"
+						)
+				)
+			}
+		}
 	}
 
 	compileOptions {
@@ -37,6 +49,12 @@ android {
 	lintOptions {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
+	}
+
+	kapt {
+		arguments {
+			this.arg("room.schemaLocation", "$projectDir/schemas")
+		}
 	}
 }
 
