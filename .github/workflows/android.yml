@@ -25,14 +25,14 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ~/.gradle/wrapper/
-        key: ${{ runner.OS }}-wrapper}}
+        key: ${{ runner.OS }}-wrapper
         restore-keys: |
           ${{ runner.OS }}-wrapper-
     - name: Cache build
       uses: actions/cache@v2
       with:
         path: ~/.android/build-cache
-        key: ${{ runner.OS }}-build }}
+        key: ${{ runner.OS }}-build
         restore-keys: |
           ${{ runner.OS }}-build-
           
