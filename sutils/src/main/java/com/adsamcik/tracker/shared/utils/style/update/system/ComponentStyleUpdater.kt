@@ -216,6 +216,7 @@ internal class ComponentStyleUpdater {
 			updateStyleData: StyleUpdater.UpdateStyleData,
 			@ColorInt backgroundColor: Int
 	) {
+		updateStyle(view as ImageView, updateStyleData, backgroundColor)
 		val nextLevel = ColorFunctions.getBackgroundLayerColor(
 				backgroundColor,
 				updateStyleData.backgroundLuminance,
