@@ -46,7 +46,7 @@ data class NetworkOperator(
 	/**
 	 * Always returns false, because CDMA (2G) uses different identification than everything else.
 	 */
-	fun sameNetwork(info: CellInfoCdma): Boolean {
+	fun sameNetwork(@Suppress("UNUSED_PARAMETER") info: CellInfoCdma): Boolean {
 		return false
 	}
 
