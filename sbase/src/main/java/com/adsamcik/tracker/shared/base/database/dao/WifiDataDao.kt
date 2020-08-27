@@ -143,7 +143,7 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	 * Count all Wi-Fi networks in the database.
 	 */
 	@Query("SELECT COUNT(bssid) FROM wifi_data WHERE last_seen >= :from and last_seen <= :to")
-	fun countBetween(from: Long, to: Long): Long
+	fun count(from: Long, to: Long): Long
 
 	/**
 	 * Get time of the most recent and oldest Wi-Fi network record.

@@ -95,6 +95,18 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	): List<TimeLocation2DWeighted>
 
 	/**
+	 * Count all location records in database.
+	 */
+	@Query("SELECT COUNT(*) FROM location_data")
+	fun count(): Long
+
+	/**
+	 * Count all location records in database.
+	 */
+	@Query("SELECT COUNT(*) FROM location_data WHERE time >= :from and time <= :to")
+	fun count(from: Long, to: Long): Long
+
+	/**
 	 * Count all location data with area and time constraints.
 	 */
 	@Query(
@@ -118,12 +130,6 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 			bottomLatitude: Double,
 			leftLongitude: Double
 	): Int
-
-	/**
-	 * Count all location records in database.
-	 */
-	@Query("SELECT COUNT(*) FROM location_data")
-	fun count(): Long
 
 	/**
 	 * Get time of first and last record.

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.RewriteQueriesToDropUnusedColumns
 import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -27,6 +28,7 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	 *
 	 * @return Returns specific session or null if session does not exist.
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM tracker_session WHERE id = :id")
 	fun get(id: Long): TrackerSession?
 
@@ -35,18 +37,21 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	 *
 	 * @return [LiveData] for specific session.
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM tracker_session WHERE id = :id")
 	fun getLive(id: Long): LiveData<TrackerSession>
 
 	/**
 	 * Finds all sessions in database.
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM tracker_session")
 	fun getAll(): List<TrackerSession>
 
 	/**
 	 * Finds all session that were active between [from] (inclusive) and [to].(inclusive).
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * from tracker_session where `end` >= :from and start <= :to")
 	fun getAllBetween(from: Long, to: Long): List<TrackerSession>
 
@@ -115,12 +120,14 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	/**
 	 * Finds all sessions that started on a specific day.
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM tracker_session WHERE datetime(start, 'start of day') == datetime(:day, 'start of day')")
 	fun getForDay(day: Long): List<TrackerSession>
 
 	/**
 	 * Finds all sessions that started between [from] (inclusive) and [to] (inclusive).
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM tracker_session WHERE start >= :from AND start <= :to ORDER BY start DESC")
 	fun getBetween(from: Long, to: Long): List<TrackerSession>
 
@@ -129,6 +136,7 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	 *
 	 * @param count Number of session from the end to return.
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM tracker_session ORDER BY id DESC LIMIT :count")
 	fun getLast(count: Int): TrackerSession?
 
