@@ -41,7 +41,7 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 			val id = ++lastPermissionRequestId
 
 			permissionRequestList.add(id to request)
-			PermissionManager.checkPermissions(request, styleController)
+			PermissionManager.checkPermissionsWithRationaleDialog(request)
 		}
 	}
 }

@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.ui.fragment
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
@@ -78,7 +77,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 			this.adapter = adapter
 
 			val itemAnimator = itemAnimator
-			if (itemAnimator != null && itemAnimator is DefaultItemAnimator) {
+			if (itemAnimator is DefaultItemAnimator) {
 				itemAnimator.supportsChangeAnimations = false
 			} else {
 				Reporter.report(RuntimeException("Item animator was null or invalid type"))
@@ -213,7 +212,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		val isActive = TrackerServiceApi.isActive
 		if (isActive == enable) return
 
-		TrackerTimerManager.checkTrackingPermissions(activity, styleController) {
+		TrackerTimerManager.checkTrackingPermissions(activity) {
 			if (it.isSuccess) {
 				if (!isActive) {
 					startTracking(activity)

@@ -10,6 +10,7 @@ typealias RationaleCallback = (token: PermissionRequest.Token, permissionList: L
 /**
  * Permission request
  */
+@Suppress("unused")
 class PermissionRequest private constructor(
 		val context: Context,
 		val permissionList: List<PermissionData>,
@@ -81,7 +82,7 @@ class PermissionRequest private constructor(
 		/**
 		 * Resumes permission request
 		 */
-		fun resumePermissionRequest() {
+		fun continuePermissionRequest() {
 			token.continuePermissionRequest()
 		}
 
@@ -91,6 +92,7 @@ class PermissionRequest private constructor(
 		fun cancelPermissionRequest() {
 			token.cancelPermissionRequest()
 		}
+
 	}
 
 	companion object {
@@ -103,6 +105,15 @@ class PermissionRequest private constructor(
 		 * Creates permission request with [Context].
 		 */
 		fun with(context: Context): Builder = Builder(context)
+
+		/**
+		 * Creates builder from active request
+		 */
+		fun from(request: PermissionRequest): Builder = Builder(request.context).apply {
+			permissions(request.permissionList)
+			request.rationaleCallback?.let { onRationale(it) }
+			onResult(request.resultCallback)
+		}
 	}
 }
 

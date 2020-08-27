@@ -7,7 +7,6 @@ import com.adsamcik.tracker.shared.base.extension.contains
 import com.adsamcik.tracker.shared.utils.R
 import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
-import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.afollestad.materialdialogs.MaterialDialog
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.MultiplePermissionsReport
@@ -15,17 +14,9 @@ import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener
 
 /**
- * Dialog Factory type alias
- */
-typealias DialogFactory = (
-		context: Context,
-		token: PermissionToken,
-		rationalePermissions: Sequence<PermissionData>
-) -> MaterialDialog
-
-/**
  * Permission Manager, provides basic methods for managing permissions.
  */
+@Suppress("MemberVisibilityCanBePrivate", "unused")
 object PermissionManager {
 
 	const val DIALOG_LAYER = 1
@@ -35,9 +26,7 @@ object PermissionManager {
 	 * If permissions is permanently denied, it will immediately return failure.
 	 */
 	fun checkPermissions(
-			permissionRequest: PermissionRequest,
-			dialog: DialogFactory,
-			styleController: StyleController? = null,
+			permissionRequest: PermissionRequest
 	) {
 		Dexter
 				.withContext(permissionRequest.context)
@@ -71,23 +60,15 @@ object PermissionManager {
 									requests: MutableList<com.karumi.dexter.listener.PermissionRequest>,
 									token: PermissionToken
 							) {
-								val rationalePermissions = permissionRequest.permissionList
-										.asSequence()
+								val rationalePermissions = permissionRequest
+										.permissionList
 										.filter { permissionRequest ->
 											requests.contains { request -> request.name == permissionRequest.name }
 										}
-
-								dialog(
-										permissionRequest.context,
-										token,
+								permissionRequest.rationaleCallback?.invoke(
+										PermissionRequest.Token(token),
 										rationalePermissions
-								).apply {
-									if (styleController != null) {
-										dynamicStyle(styleController, DIALOG_LAYER)
-									} else {
-										dynamicStyle(DIALOG_LAYER)
-									}
-								}.show()
+								)
 							}
 						}
 				)
@@ -97,8 +78,8 @@ object PermissionManager {
 
 	private fun defaultDialog(
 			context: Context,
-			token: PermissionToken,
-			rationalePermissions: Sequence<PermissionData>
+			token: PermissionRequest.Token,
+			rationalePermissions: Collection<PermissionData>
 	): MaterialDialog {
 		return MaterialDialog(context).apply {
 			message(text = rationalePermissions.joinToString { it.rationaleBuilder(context) })
@@ -109,24 +90,40 @@ object PermissionManager {
 			negativeButton(res = R.string.permission_rationale_denied) {
 				token.cancelPermissionRequest()
 			}
+			dynamicStyle(DIALOG_LAYER)
 		}
 	}
 
-	fun checkPermissions(
-			permissionRequest: PermissionRequest,
-			styleController: StyleController? = null
+	/**
+	 * Check if permission is granted and shows dialog if not.
+	 * If permissions is permanently denied, it will immediately return failure.
+	 */
+	fun checkPermissionsWithRationaleDialog(
+			permissionRequest: PermissionRequest
 	) {
-		checkPermissions(permissionRequest, this::defaultDialog, styleController)
+		val context = permissionRequest.context
+		val builder = PermissionRequest.from(permissionRequest)
+		builder.onRationale { token, permissionList ->
+			defaultDialog(context, token, permissionList).show()
+			permissionRequest.rationaleCallback?.invoke(token, permissionList)
+		}
+		checkPermissions(builder.build())
 	}
 
+	/**
+	 * Check if activity permission is granted and shows dialog if not.
+	 * If permissions is permanently denied, it will immediately return failure.
+	 *
+	 * @param context Context
+	 * @param callback Callback called when request is finished either successfully or unsuccessfully.
+	 */
 	fun checkActivityPermissions(
 			context: Context,
-			styleController: StyleController? = null,
 			callback: PermissionResultCallback
 	) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 			@Suppress("NAME_SHADOWING")
-			checkPermissions(
+			(checkPermissionsWithRationaleDialog(
 					PermissionRequest.with(context)
 							.permissions(listOf(
 									PermissionData(Manifest.permission.ACTIVITY_RECOGNITION) { context ->
@@ -134,9 +131,8 @@ object PermissionManager {
 									}
 							))
 							.onResult(callback)
-							.build(),
-					styleController
-			)
+							.build()
+			))
 		}
 	}
 }

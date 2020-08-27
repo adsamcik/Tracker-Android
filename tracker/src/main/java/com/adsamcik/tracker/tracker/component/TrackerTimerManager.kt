@@ -7,7 +7,6 @@ import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequestResult
 import com.adsamcik.tracker.shared.utils.permission.PermissionResultCallback
-import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.trigger.AndroidLocationCollectionTrigger
 import com.adsamcik.tracker.tracker.component.trigger.FusedLocationCollectionTrigger
@@ -44,7 +43,6 @@ object TrackerTimerManager {
 
 	fun checkTrackingPermissions(
 			context: Context,
-			styleController: StyleController,
 			callback: PermissionResultCallback
 	) {
 		val selected = getSelected(context)
@@ -60,13 +58,12 @@ object TrackerTimerManager {
 		if (requiredPermissions.isEmpty()) {
 			callback(PermissionRequestResult(emptyList(), emptyList()))
 		} else {
-			PermissionManager.checkPermissions(
+			PermissionManager.checkPermissionsWithRationaleDialog(
 					PermissionRequest
 							.with(context)
 							.permissions(requiredPermissions)
 							.onResult(callback)
-							.build(),
-					styleController
+							.build()
 			)
 		}
 	}
