@@ -9,18 +9,28 @@ import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 import com.adsamcik.tracker.shared.base.database.data.DateRange
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 
+/**
+ * Data access object for base Wi-Fi network data.
+ */
 @Dao
 interface WifiDataDao : BaseDao<DatabaseWifiData> {
+	/**
+	 * Delete all Wi-Fi networks from database.
+	 */
 	@Query("DELETE FROM tracker_session")
 	fun deleteAll()
 
+	/**
+	 * Update signal data (longitude, latitude, altitude, strength) for single Wi-Fi network.
+	 * Data is only updated if the signal strength (level) is higher than last recorded.
+	 */
 	@Query(
 			"""
 		UPDATE wifi_data
 		SET longitude = :longitude, latitude = :latitude, altitude = :altitude, level = :level
 		WHERE bssid = :bssid AND level < :level"""
 	)
-	fun updateSignalStrength(
+	fun updateSignalDataIfCloser(
 			bssid: String,
 			longitude: Double,
 			latitude: Double,
@@ -28,6 +38,9 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 			level: Int
 	)
 
+	/**
+	 * Update Wi-Fi network data.
+	 */
 	@Query(
 			"""
 		UPDATE wifi_data
@@ -43,6 +56,9 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 			lastSeen: Long
 	)
 
+	/**
+	 * Upsert (Update if exists, insert otherwise) Wi-Fi network data.
+	 */
 	@Transaction
 	fun upsert(objList: Collection<DatabaseWifiData>) {
 		val insertResult = insert(objList)
@@ -50,21 +66,33 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 
 		updateList.forEach {
 			if (it.longitude != null && it.latitude != null) {
-				updateSignalStrength(it.bssid, it.longitude, it.latitude, it.altitude, it.level)
+				updateSignalDataIfCloser(it.bssid, it.longitude, it.latitude, it.altitude, it.level)
 			}
 			updateData(it.bssid, it.ssid, it.capabilities, it.frequency, it.lastSeen)
 		}
 	}
 
+	/**
+	 * Get all Wi-Fi networks in the database.
+	 */
 	@Query("SELECT * from wifi_data")
 	fun getAll(): List<DatabaseWifiData>
 
+	/**
+	 * Get Wi-Fi networks from database but at mouse [count].
+	 */
 	@Query("SELECT * from wifi_data LIMIT :count")
 	fun getAll(count: Long): List<DatabaseWifiData>
 
+	/**
+	 * Get all Wi-Fi networks from database using raw query.
+	 */
 	@RawQuery
 	fun getAll(query: SupportSQLiteQuery): List<DatabaseWifiData>
 
+	/**
+	 * Get all Wi-Fi networks from database that are inside latitude and longitude constraints.
+	 */
 	@Query(
 			"""
 		SELECT last_seen as time, latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
@@ -80,6 +108,10 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 			leftLongitude: Double
 	): List<TimeLocation2DWeighted>
 
+
+	/**
+	 * Get all Wi-Fi networks from database that are inside latitude, longitude and time constraints.
+	 */
 	@Query(
 			"""
 		SELECT last_seen as time, latitude as lat, longitude as lon, COUNT(*) as weight FROM wifi_data
@@ -98,9 +130,15 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 			leftLongitude: Double
 	): List<TimeLocation2DWeighted>
 
+	/**
+	 * Count all Wi-Fi networks in the database.
+	 */
 	@Query("SELECT COUNT(*) from wifi_data")
 	fun count(): Long
 
+	/**
+	 * Get time of the most recent and oldest Wi-Fi network record.
+	 */
 	@Query("SELECT MIN(last_seen) as start, MAX(last_seen) as endInclusive from wifi_data")
 	fun range(): DateRange
 }
