@@ -27,7 +27,7 @@ object Dependencies {
 		internal const val coroutines = "1.3.9"
 
 		internal const val requery = "3.32.2"
-		internal const val room = "2.2.5"
+		internal const val room = "2.3.0-alpha02"
 
 		internal const val maps = "17.0.0"
 		internal const val recyclerView = "1.1.0"

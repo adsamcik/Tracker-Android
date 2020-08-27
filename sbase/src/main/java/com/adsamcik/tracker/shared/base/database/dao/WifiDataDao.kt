@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.RawQuery
+import androidx.room.RewriteQueriesToDropUnusedColumns
 import androidx.room.Transaction
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
@@ -75,12 +76,14 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	/**
 	 * Get all Wi-Fi networks in the database.
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * from wifi_data")
 	fun getAll(): List<DatabaseWifiData>
 
 	/**
 	 * Get Wi-Fi networks from database but at mouse [count].
 	 */
+	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * from wifi_data LIMIT :count")
 	fun getAll(count: Long): List<DatabaseWifiData>
 
@@ -133,8 +136,14 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	/**
 	 * Count all Wi-Fi networks in the database.
 	 */
-	@Query("SELECT COUNT(*) from wifi_data")
+	@Query("SELECT COUNT(bssid) from wifi_data")
 	fun count(): Long
+
+	/**
+	 * Count all Wi-Fi networks in the database.
+	 */
+	@Query("SELECT COUNT(bssid) FROM wifi_data WHERE last_seen >= :from and last_seen <= :to")
+	fun countBetween(from: Long, to: Long): Long
 
 	/**
 	 * Get time of the most recent and oldest Wi-Fi network record.
