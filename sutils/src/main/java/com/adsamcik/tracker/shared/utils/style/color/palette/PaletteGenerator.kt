@@ -25,11 +25,25 @@ section 4, provided you include this license notice and a URL
 through which recipients can access the Corresponding Source.
  */
 class PaletteGenerator {
+	/**
+	 * Palette generator mode.
+	 */
 	enum class Mode {
 		KMeans,
 		Force
 	}
 
+	/**
+	 * Generate color palette.
+	 *
+	 * @param colorsCount Number of colors to generate
+	 * @param checkColor Color validation function
+	 * @param mode Generator mode
+	 * @param quality Quality
+	 * @param ultraPrecision Increased precision at the cost of more computation
+	 * @param distanceType How will the distance be calculated
+	 * @param seed Random generator seed
+	 */
 	@Suppress("LongParameterList")
 	fun generate(
 			colorsCount: Int = 8,
@@ -59,68 +73,20 @@ class PaletteGenerator {
 			)
 		}.map { LabColor(it) }
 	}
-
-	fun diffSort(
-			inputColors: List<Int>,
-			distanceType: ColorDistanceCalculator.DistanceType
-	): IntArray {
-		// Sort
-		val distanceCalculator = ColorDistanceCalculator()
-		val colorsToSort = inputColors.toMutableList()
-		val diffColors = mutableListOf(colorsToSort.removeAt(0))
-		while (colorsToSort.isNotEmpty()) {
-			var index = -1
-			var maxDistance = -1.0
-			for (candidate_index in 0 until colorsToSort.size) {
-				var d = Double.POSITIVE_INFINITY
-				for (i in diffColors.size - 1 downTo 0) {
-					val colorA = DoubleArray(3)
-					ColorUtils.colorToLAB(colorsToSort[candidate_index], colorA)
-
-					val colorB = DoubleArray(3)
-					ColorUtils.colorToLAB(colorsToSort[i], colorA)
-					//I seriously have no idea what was this supposed to do
-					//it was written like going through the array but throwing away everything but
-					//last iteration
-					d = distanceCalculator.getColorDistance(colorA, colorB, distanceType)
-					if (d < Double.POSITIVE_INFINITY) break
-				}
-				if (d > maxDistance) {
-					maxDistance = d
-					index = candidate_index
-				}
-			}
-			val color = colorsToSort[index]
-			diffColors.add(color)
-
-			colorsToSort.removeAt(index)
-			//colorsToSort = colorsToSort.filter(fun(c, i) { return i != index; });
-		}
-		return diffColors.toIntArray()
-	}
 }
 
-data class LabColor(var l: Double, var a: Double, var b: Double) {
+/**
+ * Data about LAB color
+ */
+data class LabColor(val l: Double, val a: Double, val b: Double) {
 
 	constructor(labColor: DoubleArray) : this(labColor[0], labColor[1], labColor[2]) {
 		@Suppress("MagicNumber")
 		require(labColor.size == 3)
 	}
 
+	/**
+	 * Convert LAB color to RGB
+	 */
 	fun toRgb(): Int = ColorUtils.LABToColor(l, a, b)
-}
-
-object LabConstants {
-	// Corresponds roughly to RGB brighter/darker
-	const val Kn = 18
-
-	// D65 standard referent
-	const val Xn = 0.950470
-	const val Yn = 1.0
-	const val Zn = 1.088830
-
-	const val t0 = 0.137931034  // 4 / 29
-	const val t1 = 0.206896552  // 6 / 29
-	const val t2 = 0.12841855   // 3 * t1 * t1
-	const val t3 = 0.008856452   // t1 * t1 * t1
 }

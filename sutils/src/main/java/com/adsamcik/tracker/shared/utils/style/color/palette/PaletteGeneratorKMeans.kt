@@ -5,8 +5,20 @@ import com.adsamcik.tracker.shared.base.extension.remove
 import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions.validateLab
 import kotlin.random.Random
 
-class PaletteGeneratorKMeans {
+/**
+ * Palette generator that uses K-Means.
+ */
+internal class PaletteGeneratorKMeans {
 
+	/**
+	 * Generate color palette.
+	 *
+	 * @param colorsCount Number of colors to generate
+	 * @param checkColor Color validation function
+	 * @param quality Quality
+	 * @param ultraPrecision Increased precision at the cost of more computation
+	 * @param random Random instance
+	 */
 	@Suppress("MagicNumber")
 	fun generate(
 			colorsCount: Int,

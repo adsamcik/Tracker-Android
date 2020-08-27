@@ -7,10 +7,22 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.random.Random
 
+/**
+ * Palette generator using force
+ */
 @Suppress("MagicNumber")
-class PaletteGeneratorForce {
+internal class PaletteGeneratorForce {
 	private val distanceCalculator = ColorDistanceCalculator()
 
+	/**
+	 * Generate color palette.
+	 *
+	 * @param colorsCount Number of colors to generate
+	 * @param checkColor Color validation function
+	 * @param quality Quality
+	 * @param distanceType How will the distance be calculated
+	 * @param random Random instance
+	 */
 	fun generate(
 			colorsCount: Int = 8,
 			checkColor: (DoubleArray) -> Boolean,

@@ -11,6 +11,10 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sqrt
 
+/**
+ * Calculator for distances between colors.
+ * Supports various distance (norm) functions.
+ */
 @Suppress("MagicNumber")
 class ColorDistanceCalculator {
 	private val simulateCache = mutableMapOf<String, DoubleArray>()
@@ -36,6 +40,13 @@ class ColorDistanceCalculator {
 			)
 	)
 
+	/**
+	 * Calculates distance between two LAB colors.
+	 *
+	 * @param lab1 First color
+	 * @param lab2 Second color
+	 * @param type Distance function (norm)
+	 */
 	fun getColorDistance(
 			lab1: DoubleArray,
 			lab2: DoubleArray,
@@ -230,6 +241,9 @@ class ColorDistanceCalculator {
 
 	private data class ConfusionData(val x: Double, val y: Double, val m: Double, val yint: Double)
 
+	/**
+	 * Distance type
+	 */
 	enum class DistanceType {
 		Default,
 		Euclidean,
