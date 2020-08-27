@@ -437,7 +437,7 @@ internal class MapSheetController(
 			val locationListener = locationListener
 			if (addresses?.isNotEmpty() == true) {
 				val address = addresses.first()
-				locationListener.stopUsingUserPosition(rootLayout.button_map_my_location, true)
+				locationListener.stopUsingUserPosition(rootLayout.button_map_my_location)
 				locationListener.animateToPositionZoom(
 						LatLng(address.latitude, address.longitude),
 						ANIMATE_TO_ZOOM

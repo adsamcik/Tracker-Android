@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -31,7 +32,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "MemberVisibilityCanBePrivate")
 internal class MapSensorController(
 		context: Context,
 		private val map: GoogleMap,
@@ -114,6 +115,7 @@ internal class MapSensorController(
 
 			Assist.ensureLooper()
 
+			@Suppress("MissingPermission")
 			locationClient.requestLocationUpdates(
 					locationRequest,
 					locationCallback,
@@ -178,9 +180,8 @@ internal class MapSensorController(
 	/**
 	 * Call to stop updating camera position to look at user's position.
 	 *
-	 * @param returnToDefault True if you want to return any tilt to default orientation
 	 */
-	fun stopUsingUserPosition(button: AppCompatImageButton, returnToDefault: Boolean) {
+	fun stopUsingUserPosition(button: AppCompatImageButton) {
 		if (followMyPosition) {
 			this.followMyPosition = false
 			button.setImageResource(com.adsamcik.tracker.shared.base.R.drawable.ic_gps_not_fixed_black_24dp)
@@ -247,7 +248,7 @@ internal class MapSensorController(
 
 	fun onMyPositionButtonClick(button: AppCompatImageButton) {
 		if (followMyPosition) {
-			stopUsingUserPosition(button, false)
+			stopUsingUserPosition(button)
 		} else {
 			button.setImageResource(com.adsamcik.tracker.shared.base.R.drawable.ic_gps_fixed_black_24dp)
 			this.followMyPosition = true
@@ -258,7 +259,7 @@ internal class MapSensorController(
 
 			onCameraMoveStartedListener = GoogleMap.OnCameraMoveStartedListener {
 				if (it == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-					stopUsingUserPosition(button, true)
+					stopUsingUserPosition(button)
 				}
 			}.also {
 				eventListener += it

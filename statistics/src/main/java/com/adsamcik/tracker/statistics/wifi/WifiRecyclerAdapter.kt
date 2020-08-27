@@ -17,6 +17,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Wi-Fi Recycler adapter
+ */
 class WifiRecyclerAdapter
 	: BaseSortAdapter<DatabaseWifiData, RecyclerView.ViewHolder>(DatabaseWifiData::class.java),
 		IViewChange,
@@ -77,7 +80,7 @@ class WifiRecyclerAdapter
 		}
 	}
 
-	private fun bindSummaryViewHolder(holder: RecyclerSummaryViewHolder, position: Int) {
+	private fun bindSummaryViewHolder(holder: RecyclerSummaryViewHolder) {
 		val resources = holder.itemView.resources
 		holder.apply {
 			count.text = resources.getString(R.string.wifilist_count, super.getItemCount())
@@ -87,7 +90,7 @@ class WifiRecyclerAdapter
 	override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 		when (val type = getItemViewType(position)) {
 			NORMAL_TYPE -> bindNormalViewHolder(holder as RecyclerWifiViewHolder, position)
-			SUMMARY_TYPE -> bindSummaryViewHolder(holder as RecyclerSummaryViewHolder, position)
+			SUMMARY_TYPE -> bindSummaryViewHolder(holder as RecyclerSummaryViewHolder)
 			else -> throw IllegalStateException("Unknown view type with value $type")
 		}
 	}
@@ -152,6 +155,10 @@ class WifiRecyclerAdapter
 	}
 }
 
+/**
+ * Recycler Wi-Fi View Holder.
+ */
+@Suppress("LongParameterList")
 class RecyclerWifiViewHolder(
 		root: View,
 		val bssid: TextView,
@@ -162,6 +169,9 @@ class RecyclerWifiViewHolder(
 		val lastSeen: TextView
 ) : RecyclerView.ViewHolder(root)
 
+/**
+ * Recycler Summary View Holder.
+ */
 class RecyclerSummaryViewHolder(
 		root: View,
 		val count: TextView
