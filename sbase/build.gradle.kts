@@ -27,8 +27,7 @@ android {
 			with(annotationProcessorOptions) {
 				arguments(
 						mapOf(
-								"room.incremental" to "true",
-								"room.expandProjection" to "true"
+								"room.incremental" to "true"
 						)
 				)
 			}

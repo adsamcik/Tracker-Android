@@ -84,7 +84,6 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 			TrackerNotificationProvider.updatePreferences(this@NotificationManagementActivity)
 			val activeComponentList = TrackerNotificationProvider.internalActiveList
 
-			// todo add this to initialization
 			val collection = activeComponentList.sortedBy { it.preference.order }
 			collection.forEachIndexed { index, trackerNotificationComponent ->
 				trackerNotificationComponent.preference = trackerNotificationComponent.preference.copy(

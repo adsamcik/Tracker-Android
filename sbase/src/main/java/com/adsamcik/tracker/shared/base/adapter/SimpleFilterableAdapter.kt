@@ -8,6 +8,9 @@ import android.widget.TextView
 import androidx.annotation.LayoutRes
 import androidx.recyclerview.widget.RecyclerView
 
+/**
+ * Simple adapter with filtering support.
+ */
 abstract class SimpleFilterableAdapter<DataType, FilterType>(
 		context: Context,
 		@LayoutRes private val resource: Int,
@@ -19,10 +22,16 @@ abstract class SimpleFilterableAdapter<DataType, FilterType>(
 				initialCollection
 		) {
 
+	/**
+	 * Simple filterable adapters View Holder.
+	 */
 	class ViewHolder(view: View, val titleView: TextView) : RecyclerView.ViewHolder(view)
 
 	protected val mInflater: LayoutInflater = LayoutInflater.from(context)
 
+	/**
+	 * Get title view
+	 */
 	abstract fun getTitleView(root: View): TextView
 
 	override fun onBindViewHolder(holder: ViewHolder, position: Int) {
