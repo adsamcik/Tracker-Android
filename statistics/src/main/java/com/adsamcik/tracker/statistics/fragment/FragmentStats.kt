@@ -104,9 +104,6 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		val activity = requireActivity()
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 
-		//weeklyStats.addToViewGroup(view.findViewById(R.id.statsLayout), hasRecentUpload ? 1 : 0, false, 0);
-
-		//todo unify this in some way so it can be easily reused for any recycler currently also in FragmentGame
 		val contentPadding = activity.resources.getDimension(
 				com.adsamcik.tracker.shared.base.R.dimen.content_padding
 		)
@@ -385,7 +382,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
 
 	companion object {
-		const val DIALOG_LAYER = 2
+		private const val DIALOG_LAYER = 2
 		private const val SUMMARY_DECIMAL_PLACES = 1
 	}
 }
