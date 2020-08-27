@@ -38,8 +38,6 @@ import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
-import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
-import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import java.util.*
