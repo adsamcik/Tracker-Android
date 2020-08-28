@@ -212,6 +212,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		 */
 		fun stopActivityRecognition(context: Context) {
 			if (!isSubscribed) return
+			isSubscribed = false
 
 			context.unregisterReceiver(receiver)
 
