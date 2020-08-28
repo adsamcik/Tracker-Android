@@ -320,7 +320,7 @@ private fun assertLessOrEqualError(value: String, threshold: String) {
  *
  */
 fun assertWithin(value: Int, lowerBoundInclusive: Int, upperBoundInclusive: Int) {
-	if (value in lowerBoundInclusive..upperBoundInclusive) {
+	if (value !in lowerBoundInclusive..upperBoundInclusive) {
 		assertWithinError(
 				value.toString(),
 				lowerBoundInclusive.toString(),
@@ -338,7 +338,7 @@ fun assertWithin(value: Int, lowerBoundInclusive: Int, upperBoundInclusive: Int)
  *
  */
 fun assertWithin(value: Long, lowerBoundInclusive: Long, upperBoundInclusive: Long) {
-	if (value in lowerBoundInclusive..upperBoundInclusive) {
+	if (value !in lowerBoundInclusive..upperBoundInclusive) {
 		assertWithinError(
 				value.toString(),
 				lowerBoundInclusive.toString(),
@@ -356,7 +356,7 @@ fun assertWithin(value: Long, lowerBoundInclusive: Long, upperBoundInclusive: Lo
  *
  */
 fun assertWithin(value: Double, lowerBoundInclusive: Double, upperBoundInclusive: Double) {
-	if (value in lowerBoundInclusive..upperBoundInclusive) {
+	if (value !in lowerBoundInclusive..upperBoundInclusive) {
 		assertWithinError(
 				value.toString(),
 				lowerBoundInclusive.toString(),
@@ -374,7 +374,7 @@ fun assertWithin(value: Double, lowerBoundInclusive: Double, upperBoundInclusive
  *
  */
 fun assertWithin(value: Float, lowerBoundInclusive: Float, upperBoundInclusive: Float) {
-	if (value in lowerBoundInclusive..upperBoundInclusive) {
+	if (value !in lowerBoundInclusive..upperBoundInclusive) {
 		assertWithinError(
 				value.toString(),
 				lowerBoundInclusive.toString(),
