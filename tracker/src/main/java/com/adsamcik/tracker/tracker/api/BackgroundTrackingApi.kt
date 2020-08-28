@@ -18,6 +18,8 @@ import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.utils.debug.assertFalse
+import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
@@ -28,6 +30,9 @@ import com.adsamcik.tracker.tracker.service.TrackerService
  */
 @Suppress("TooManyFunctions")
 object BackgroundTrackingApi {
+	var isActive = false
+		private set
+
 	//todo add option for this in settings
 	private const val REQUIRED_CONFIDENCE = 75
 	private var appContext: Context? = null
@@ -76,11 +81,10 @@ object BackgroundTrackingApi {
 
 	private val transitionObserver: Observer<Boolean> = Observer {
 		val context = requireNotNull(appContext)
-		reinitializeRequest(context, it)
+		if (isActive) {
+			reinitializeRequest(context, it)
+		}
 	}
-
-	var isActive = false
-		private set
 
 	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
 			!context.powerManager.isPowerSaveMode &&
@@ -193,7 +197,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
-		if (!isActive) return
+		assertTrue(isActive)
 
 		val requestData = if (useTransitionApi) {
 			ActivityRequestData(this::class, transitionData = getTransitions(context))
@@ -206,7 +210,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun enable(context: Context) {
-		if (isActive) return
+		assertFalse(isActive)
 		isActive = true
 
 		val useTransitionApi = Preferences.getPref(context)
@@ -218,7 +222,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun disable(context: Context) {
-		if (!isActive) return
+		assertTrue(isActive)
 
 		ActivityRequestManager.removeActivityRequest(context, this::class)
 		ActivityWatcherService.poke(context)
@@ -237,16 +241,16 @@ object BackgroundTrackingApi {
 
 		PreferenceObserver.observe(
 				context,
-				R.string.settings_auto_tracking_transition_key,
-				R.string.settings_auto_tracking_transition_default,
-				transitionObserver
+				R.string.settings_tracking_activity_key,
+				R.string.settings_tracking_activity_default,
+				observer
 		)
 
 		PreferenceObserver.observe(
 				context,
-				R.string.settings_tracking_activity_key,
-				R.string.settings_tracking_activity_default,
-				observer
+				R.string.settings_auto_tracking_transition_key,
+				R.string.settings_auto_tracking_transition_default,
+				transitionObserver
 		)
 	}
 }

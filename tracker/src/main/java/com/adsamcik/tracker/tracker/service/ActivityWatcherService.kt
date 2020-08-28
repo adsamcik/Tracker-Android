@@ -46,6 +46,7 @@ class ActivityWatcherService : CoreService() {
 		notificationManager = (this as Context).notificationManager
 
 		BackgroundTrackingApi.initialize(this)
+		poke(this)
 
 		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS) {
 			val newActivityInfo = ActivityRequestManager.lastActivity
@@ -127,14 +128,23 @@ class ActivityWatcherService : CoreService() {
 				R.string.settings_activity_freq_key, R.string.settings_activity_freq_default
 		)
 
+		/**
+		 * Called when watcher preference is changed.
+		 */
 		fun onWatcherPreferenceChange(context: Context, value: Boolean) {
 			poke(context, watcherPreference = value)
 		}
 
+		/**
+		 * Called when auto tracking preference is changed.
+		 */
 		fun onAutoTrackingPreferenceChange(context: Context, value: Int) {
 			poke(context, autoTracking = value)
 		}
 
+		/**
+		 * Called when activity interval preference is changed.
+		 */
 		fun onActivityIntervalPreferenceChange(context: Context, value: Int) {
 			poke(context, updateInterval = value)
 		}

@@ -9,6 +9,9 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import com.adsamcik.tracker.shared.preferences.Preferences
 
+/**
+ * Preference observer observes changes on preferences and invokes proper listeners.
+ */
 @Suppress("WeakerAccess", "Unused", "TooManyFunctions")
 @MainThread
 object PreferenceObserver {

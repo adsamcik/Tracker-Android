@@ -61,7 +61,7 @@ object ActivityRequestManager {
 				onRequestChange(context)
 			}
 		} else {
-			Reporter.report(Throwable("Trying to remove class that is not subscribed (" + tClass.java.name + ")"))
+			Reporter.report("Trying to remove class that is not subscribed (" + tClass.java.name + ")")
 		}
 
 		if (activeRequestArray.isEmpty()) {

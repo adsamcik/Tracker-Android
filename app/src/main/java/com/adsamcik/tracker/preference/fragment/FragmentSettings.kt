@@ -3,6 +3,7 @@ package com.adsamcik.tracker.preference.fragment
 import android.os.Bundle
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 
 
