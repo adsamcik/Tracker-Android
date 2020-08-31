@@ -29,8 +29,6 @@ internal class ButtonStyleUpdater {
 			updateStyleData: StyleUpdater.UpdateStyleData,
 			@ColorInt backgroundColor: Int
 	) {
-		view.setBackgroundColor(backgroundColor)
-
 		when (view) {
 			is AppCompatButton -> updateStyle(view, updateStyleData, backgroundColor)
 			is CompoundButton -> updateStyle(view, updateStyleData, backgroundColor)
