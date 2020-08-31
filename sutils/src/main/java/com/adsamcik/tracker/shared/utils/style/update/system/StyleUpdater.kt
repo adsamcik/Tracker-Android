@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
+import com.adsamcik.tracker.shared.utils.style.update.system.component.ComponentStyleUpdater
 
 @AnyThread
 internal class StyleUpdater {
