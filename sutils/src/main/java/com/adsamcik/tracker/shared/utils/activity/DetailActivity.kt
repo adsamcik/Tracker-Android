@@ -105,7 +105,6 @@ abstract class DetailActivity : CoreUIActivity() {
 				height += DisplayAssist.getStatusBarHeight(this@DetailActivity)
 			}
 		}
-
 	}
 
 	override fun onBackPressed() {
@@ -143,7 +142,7 @@ abstract class DetailActivity : CoreUIActivity() {
 			onClickListener: View.OnClickListener
 	) {
 		val button = AppCompatImageButton(this).apply {
-			layoutParams = ViewGroup.LayoutParams(48.dp, 48.dp)
+			layoutParams = ViewGroup.LayoutParams(ACTION_IMAGE_SIZE.dp, ACTION_IMAGE_SIZE.dp)
 			contentDescription = getString(description)
 			setImageResource(iconRes)
 			scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -288,6 +287,7 @@ abstract class DetailActivity : CoreUIActivity() {
 	companion object {
 		const val CONTENT_ID: Int = 2668368
 		const val DEFAULT_TITLE_BAR_ELEVATION = 4
+		private const val ACTION_IMAGE_SIZE = 48
 	}
 
 	/**

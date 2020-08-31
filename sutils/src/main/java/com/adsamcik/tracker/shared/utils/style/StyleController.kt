@@ -332,6 +332,13 @@ class StyleController : CoroutineScope {
 	}
 
 	/**
+	 * Forces update to be called
+	 */
+	fun forceUpdate() {
+		update(styleData)
+	}
+
+	/**
 	 * Internal update function which should be called only by StyleManager
 	 */
 	@AnyThread

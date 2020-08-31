@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.extension.toCalendar
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.multitype.StyleSortMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
@@ -101,23 +102,26 @@ class StatsDetailActivity : DetailActivity() {
 
 
 
-		addAction(com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
-		          R.string.edit_session,
-		          {
-			          val addItemLayout = findViewById<View>(R.id.add_item_layout)
-			          val headerRoot = findViewById<ViewGroup>(R.id.header_root)
-			          if (addItemLayout.isVisible) {
-				          addItemLayout.visibility = View.GONE
-				          headerRoot.updatePadding(top = 0)
-			          } else {
-				          addItemLayout.visibility = View.VISIBLE
-				          headerRoot.updatePadding(top = HEADER_ROOT_PADDING.dp)
-				          findViewById<View>(
-						          R.id.button_change_activity
-				          ).setOnClickListener { showActivitySelectionDialog() }
-				          findViewById<View>(R.id.button_remove_session).setOnClickListener { showDeleteConfirmDialog() }
-			          }
-		          })
+		addAction(
+				com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
+				R.string.edit_session
+		) {
+			val addItemLayout = findViewById<View>(R.id.add_item_layout)
+			val headerRoot = findViewById<ViewGroup>(R.id.header_root)
+			if (addItemLayout.isVisible) {
+				addItemLayout.visibility = View.GONE
+				headerRoot.updatePadding(top = 0)
+			} else {
+				addItemLayout.visibility = View.VISIBLE
+				headerRoot.updatePadding(top = HEADER_ROOT_PADDING.dp)
+				findViewById<View>(
+						R.id.button_change_activity
+				).setOnClickListener { showActivitySelectionDialog() }
+				findViewById<View>(R.id.button_remove_session).setOnClickListener { showDeleteConfirmDialog() }
+			}
+		}
+
+		styleController.forceUpdate()
 	}
 
 	private fun showDeleteConfirmDialog() {
