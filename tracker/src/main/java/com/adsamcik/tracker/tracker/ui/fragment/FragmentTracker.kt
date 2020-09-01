@@ -212,7 +212,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		val isActive = TrackerServiceApi.isActive
 		if (isActive == enable) return
 
-		TrackerTimerManager.checkTrackingPermissions(activity) {
+		TrackerTimerManager.checkTimerPermissions(activity) {
 			if (it.isSuccess) {
 				if (!isActive) {
 					startTracking(activity)

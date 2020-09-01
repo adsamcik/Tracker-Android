@@ -13,15 +13,17 @@ import com.adsamcik.tracker.tracker.component.trigger.FusedLocationCollectionTri
 import com.adsamcik.tracker.tracker.component.trigger.HandlerCollectionTrigger
 
 /**
- * Tracker timer manager - provides simple access to tracker timers.
+ * Provides simple access to tracker timers.
  */
 object TrackerTimerManager {
-	internal val availableTimers: List<CollectionTriggerComponent>
+	private val availableTimers: List<CollectionTriggerComponent>
 		get() = listOf(
 				FusedLocationCollectionTrigger(),
 				AndroidLocationCollectionTrigger(),
 				HandlerCollectionTrigger()
 		)
+
+	private val default get() = availableTimers[0]
 
 	val availableTimerData: List<Pair<String, Int>>
 		get() = availableTimers.map { getKey(it) to it.titleRes }
@@ -31,17 +33,29 @@ object TrackerTimerManager {
 
 	internal fun getSelected(context: Context): CollectionTriggerComponent {
 		val selectedKey = getSelectedKey(context)
-		return requireNotNull(availableTimers.find { getKey(it) == selectedKey })
+		return availableTimers.find { getKey(it) == selectedKey } ?: default
 	}
 
+	/**
+	 * Returns selected timer key.
+	 *
+	 * @param context Context
+	 * @return Selected timer key or default
+	 */
 	fun getSelectedKey(context: Context): String {
 		return Preferences
 				.getPref(context)
 				.getStringRes(R.string.settings_tracker_timer_key)
-				?: getKey(availableTimers[0])
+				?: getKey(default)
 	}
 
-	fun checkTrackingPermissions(
+	/**
+	 * Check if timer has all required permissions.
+	 *
+	 * @param context Context
+	 * @param callback Result callback
+	 */
+	fun checkTimerPermissions(
 			context: Context,
 			callback: PermissionResultCallback
 	) {
