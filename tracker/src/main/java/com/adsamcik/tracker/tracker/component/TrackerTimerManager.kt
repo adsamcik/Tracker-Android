@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
@@ -33,7 +34,13 @@ object TrackerTimerManager {
 
 	internal fun getSelected(context: Context): CollectionTriggerComponent {
 		val selectedKey = getSelectedKey(context)
-		return availableTimers.find { getKey(it) == selectedKey } ?: default
+		val timer = availableTimers.find { getKey(it) == selectedKey }
+		return if (timer == null) {
+			Reporter.report("Timer with key $selectedKey was not found.")
+			default
+		} else {
+			timer
+		}
 	}
 
 	/**
