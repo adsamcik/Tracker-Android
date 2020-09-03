@@ -118,27 +118,40 @@ object StyleManager {
 		}
 	}
 
-	private fun enableUpdate(context: Context, preferenceColorList: List<Int> = listOf()) {
-		update.onEnable(context, StyleConfigData(preferenceColorList, this::update))
-	}
-
-	private fun enableUpdateWithPreference(context: Context) {
-		val preferences = Preferences.getPref(context)
-		val requiredColorList = update.defaultColors.list
-		val format = context.getString(R.string.settings_color_key)
-		val list = ArrayList<Int>(requiredColorList.size)
-
-		for (i in requiredColorList.indices) {
-			val default = requiredColorList[i].defaultColor
-			val key = format.format(i)
-			val color = preferences.getInt(key, default)
-			list.add(color)
+	/**
+	 * Enables update if not already enabled.
+	 */
+	internal fun enableUpdate(context: Context, preferenceColorList: List<Int> = listOf()) {
+		if (!update.isEnabled) {
+			update.onEnable(context, StyleConfigData(preferenceColorList, this::update))
 		}
-
-		enableUpdate(context, list)
 	}
 
-	private fun disableUpdate(context: Context) {
+	/**
+	 * Enables update with preferences if not already enabled.
+	 */
+	internal fun enableUpdateWithPreference(context: Context) {
+		if (!update.isEnabled) {
+			val preferences = Preferences.getPref(context)
+			val requiredColorList = update.defaultColors.list
+			val format = context.getString(R.string.settings_color_key)
+			val list = ArrayList<Int>(requiredColorList.size)
+
+			for (i in requiredColorList.indices) {
+				val default = requiredColorList[i].defaultColor
+				val key = format.format(i)
+				val color = preferences.getInt(key, default)
+				list.add(color)
+			}
+
+			enableUpdate(context, list)
+		}
+	}
+
+	/**
+	 * Disables update if not already disabled.
+	 */
+	internal fun disableUpdate(context: Context) {
 		if (update.isEnabled) {
 			update.onDisable(context)
 		}
