@@ -67,7 +67,9 @@ internal class ComponentStyleUpdater {
 			updateStyleData: StyleUpdater.UpdateStyleData,
 			@ColorInt backgroundColor: Int
 	) {
-		view.progressTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+		val foregroundTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
+		view.progressTintList = foregroundTintList
+		view.indeterminateTintList = foregroundTintList
 		view.progressBackgroundTintList = ColorStateList.valueOf(
 				updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA)
 		)

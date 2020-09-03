@@ -4,7 +4,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.annotation.MainThread
 import androidx.recyclerview.widget.RecyclerView
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
@@ -22,8 +24,10 @@ class SessionSummaryAdapter
 	/**
 	 * Add all stats from a collection.
 	 */
+	@MainThread
 	fun addAll(list: Collection<Stat>) {
 		this.list.addAll(list)
+		notifyDataSetChanged()
 	}
 
 	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {

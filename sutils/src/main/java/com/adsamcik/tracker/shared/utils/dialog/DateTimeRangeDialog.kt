@@ -9,6 +9,9 @@ import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.google.android.material.datepicker.CalendarConstraints
 import com.google.android.material.datepicker.MaterialDatePicker
 
+/**
+ * Creates time DateTime selection dialog.
+ */
 fun FragmentActivity.createDateTimeDialog(
 		styleController: StyleController,
 		allowedRange: LongRange,

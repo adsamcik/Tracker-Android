@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -25,7 +24,6 @@ import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -34,16 +32,11 @@ import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.dialog.StatisticSummaryDialog
 import com.adsamcik.tracker.statistics.list.recycler.SectionedDividerDecoration
 import com.adsamcik.tracker.statistics.list.recycler.SessionSection
-import com.adsamcik.tracker.statistics.list.recycler.SessionSummaryAdapter
 import com.adsamcik.tracker.statistics.list.recycler.SummarySection
 import com.adsamcik.tracker.statistics.wifi.WifiBrowseActivity
-import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.list.customListAdapter
-import com.afollestad.materialdialogs.list.getRecyclerView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.util.*
 
 /**
@@ -74,11 +67,19 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 		SummarySection().apply {
 			addButton(R.string.stats_sum_title) {
-				showSummary()
+				StatisticSummaryDialog().show(
+						requireContext(),
+						R.string.stats_sum_title,
+						this@FragmentStats::buildSummary
+				)
 			}
 
 			addButton(R.string.stats_weekly_title) {
-				showLastSevenDays()
+				StatisticSummaryDialog().show(
+						requireContext(),
+						R.string.stats_weekly_title,
+						this@FragmentStats::buildSevenDaySummary
+				)
 			}
 
 			addButton(R.string.wifilist_title) {
@@ -147,26 +148,6 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		return fragmentView
 	}
 
-	private fun showSummaryDialog(
-			statDataCollection: Collection<Stat>,
-			@StringRes titleRes: Int
-	) {
-		val activity = requireActivity()
-		val adapter = SessionSummaryAdapter().apply { addAll(statDataCollection) }
-
-
-		launch(Dispatchers.Main) {
-			MaterialDialog(activity).show {
-				title(res = titleRes)
-				customListAdapter(adapter, LinearLayoutManager(activity)).getRecyclerView().apply {
-					addItemDecoration(MarginDecoration())
-				}
-
-				dynamicStyle(DIALOG_LAYER)
-			}
-		}
-	}
-
 	private fun getSessionSummaryStats(
 			context: Context,
 			sessionSummary: TrackerSessionSummary
@@ -224,105 +205,99 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		)
 	}
 
-	private fun showSummary() {
-		launch(Dispatchers.Default) {
-			val activity = requireActivity()
-			val database = AppDatabase.database(activity)
-			val wifiDao = database.wifiDao()
-			val cellDao = database.cellLocationDao()
-			val locationDao = database.locationDao()
-			val sessionDao = database.sessionDao()
-			val sumSessionData = sessionDao.getSummary()
+	private fun buildSummary(): List<Stat> {
+		val activity = requireActivity()
+		val database = AppDatabase.database(activity)
+		val wifiDao = database.wifiDao()
+		val cellDao = database.cellLocationDao()
+		val locationDao = database.locationDao()
+		val sessionDao = database.sessionDao()
+		val sumSessionData = sessionDao.getSummary()
 
-			val sessionSummaryStats = getSessionSummaryStats(activity, sumSessionData)
+		val sessionSummaryStats = getSessionSummaryStats(activity, sumSessionData)
 
-			val countList = listOf(
-					Stat(
-							R.string.stats_location_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							locationDao.count().formatReadable()
-					),
-					Stat(
-							R.string.stats_wifi_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							wifiDao.count().formatReadable()
-					),
-					Stat(
-							R.string.stats_cell_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							cellDao.uniqueCount().formatReadable()
-					),
-					Stat(
-							R.string.stats_session_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							sessionDao.count().formatReadable()
-					),
-			)
+		val countList = listOf(
+				Stat(
+						R.string.stats_location_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						locationDao.count().formatReadable()
+				),
+				Stat(
+						R.string.stats_wifi_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						wifiDao.count().formatReadable()
+				),
+				Stat(
+						R.string.stats_cell_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						cellDao.uniqueCount().formatReadable()
+				),
+				Stat(
+						R.string.stats_session_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						sessionDao.count().formatReadable()
+				),
+		)
 
-			val result = mutableListOf<Stat>()
+		val result = mutableListOf<Stat>()
 
-			result.addAll(sessionSummaryStats)
-			result.addAll(countList)
+		result.addAll(sessionSummaryStats)
+		result.addAll(countList)
 
-			showSummaryDialog(result, R.string.stats_sum_title)
-
-		}
+		return result
 	}
 
-	private fun showLastSevenDays() {
-		launch(Dispatchers.Default) {
-			val activity = requireActivity()
-			val now = Time.nowMillis
-			val weekAgo = Calendar.getInstance(Locale.getDefault()).apply {
-				add(Calendar.WEEK_OF_MONTH, -1)
-			}.timeInMillis
+	private fun buildSevenDaySummary(): List<Stat> {
+		val activity = requireActivity()
+		val now = Time.nowMillis
+		val weekAgo = Calendar.getInstance(Locale.getDefault()).apply {
+			add(Calendar.WEEK_OF_MONTH, -1)
+		}.timeInMillis
 
-			val database = AppDatabase.database(activity)
-			val sessionDao = database.sessionDao()
-			val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
-			val wifiDao = database.wifiDao()
-			val cellDao = database.cellLocationDao()
-			val locationDao = database.locationDao()
+		val database = AppDatabase.database(activity)
+		val sessionDao = database.sessionDao()
+		val lastWeekSummary = sessionDao.getSummary(weekAgo, now)
+		val wifiDao = database.wifiDao()
+		val cellDao = database.cellLocationDao()
+		val locationDao = database.locationDao()
 
-			val sessionStatData = getSessionSummaryStats(activity, lastWeekSummary)
-			val countList = listOf(
-					Stat(
-							R.string.stats_session_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							sessionDao.count(weekAgo, now).formatReadable()
-					),
-					Stat(
-							R.string.stats_location_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							locationDao.count(weekAgo, now).formatReadable()
-					),
-					Stat(
-							R.string.stats_wifi_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							wifiDao.count(weekAgo, now).formatReadable()
-					),
-					Stat(
-							R.string.stats_cell_count,
-							com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
-							displayType = StatisticDisplayType.Information,
-							cellDao.uniqueCount(weekAgo, now).formatReadable()
-					)
-			)
+		val sessionStatData = getSessionSummaryStats(activity, lastWeekSummary)
+		val countList = listOf(
+				Stat(
+						R.string.stats_session_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						sessionDao.count(weekAgo, now).formatReadable()
+				),
+				Stat(
+						R.string.stats_location_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						locationDao.count(weekAgo, now).formatReadable()
+				),
+				Stat(
+						R.string.stats_wifi_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						wifiDao.count(weekAgo, now).formatReadable()
+				),
+				Stat(
+						R.string.stats_cell_count,
+						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						displayType = StatisticDisplayType.Information,
+						cellDao.uniqueCount(weekAgo, now).formatReadable()
+				)
+		)
 
-			val result = mutableListOf<Stat>()
+		val result = mutableListOf<Stat>()
 
-			result.addAll(sessionStatData)
-			result.addAll(countList)
-
-			showSummaryDialog(result, R.string.stats_weekly_title)
-		}
+		result.addAll(sessionStatData)
+		result.addAll(countList)
+		return result
 	}
 
 	private fun addSessionData(sessionList: List<TrackerSession>, priority: AppendPriority) {
@@ -382,7 +357,6 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
 
 	companion object {
-		private const val DIALOG_LAYER = 2
 		private const val SUMMARY_DECIMAL_PLACES = 1
 	}
 }

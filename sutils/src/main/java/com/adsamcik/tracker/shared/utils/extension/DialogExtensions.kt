@@ -5,8 +5,6 @@ import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.WhichButton
-import com.afollestad.materialdialogs.actions.getActionButton
 import com.afollestad.materialdialogs.callbacks.onDismiss
 import com.afollestad.materialdialogs.list.getRecyclerView
 
@@ -14,21 +12,22 @@ import com.afollestad.materialdialogs.list.getRecyclerView
  * Creates new [StyleController] for the dialog and manages it's lifecycle.
  * Automatically removes dialog when closed.
  */
-fun MaterialDialog.dynamicStyle(
+inline fun MaterialDialog.dynamicStyle(
 		layer: Int = 1,
-		applyStyle: ((StyleController) -> Unit)? = null
+		applyStyle: (StyleController) -> Unit = {}
 ): MaterialDialog {
 	return dynamicBaseStyle(layer) { styleController ->
 		styleController.watchView(StyleView(view, layer))
-		applyStyle?.invoke(styleController)
+		applyStyle(styleController)
 	}
 }
+
 
 /**
  * Creates new [StyleController] for the dialog and manages it's lifecycle.
  * Automatically removes dialog when closed.
  */
-fun MaterialDialog.dynamicBaseStyle(
+inline fun MaterialDialog.dynamicBaseStyle(
 		layer: Int = 1,
 		applyStyle: (StyleController) -> Unit
 ): MaterialDialog {
