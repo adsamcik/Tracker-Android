@@ -20,6 +20,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Statistic summary dialog to display summary data over a period of time.
+ *
+ */
 class StatisticSummaryDialog : CoroutineScope {
 	companion object {
 		private const val DIALOG_LAYER = 2
