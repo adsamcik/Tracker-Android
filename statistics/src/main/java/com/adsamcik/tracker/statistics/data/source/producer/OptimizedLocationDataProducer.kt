@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.statistics.data.source.producer
 
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.statistics.data.LocationExtractor
 import com.adsamcik.tracker.statistics.data.source.RawDataMap

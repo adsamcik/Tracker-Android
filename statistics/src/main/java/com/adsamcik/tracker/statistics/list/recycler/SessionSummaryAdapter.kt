@@ -6,11 +6,9 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.annotation.MainThread
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
-import com.adsamcik.tracker.statistics.database.data.CacheStatData
 
 /**
  * Adapter for session summary
