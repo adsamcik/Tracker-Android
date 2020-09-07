@@ -1,11 +1,11 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
+import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
+import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.map.MapLayerData
-import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
-import com.adsamcik.tracker.map.heatmap.UserHeatmapData
-import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.ceil
 import kotlin.math.log10
 import kotlin.math.max

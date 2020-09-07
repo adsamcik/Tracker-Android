@@ -3,10 +3,10 @@ package com.adsamcik.tracker.map.introduction
 import android.graphics.PointF
 import android.view.View
 import androidx.fragment.app.FragmentActivity
+import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.introduction.Introduction
-import com.adsamcik.tracker.map.R
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Target
 import com.takusemba.spotlight.shapes.RoundedRectangle

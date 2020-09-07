@@ -4,8 +4,8 @@ import android.content.Context
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
-import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.preferences.Preferences

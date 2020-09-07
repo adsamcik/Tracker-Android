@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.map
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -12,8 +11,8 @@ import androidx.appcompat.widget.AppCompatImageButton
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.constant.GeometryConstants
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission

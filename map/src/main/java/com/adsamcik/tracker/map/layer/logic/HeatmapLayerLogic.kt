@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.map.heatmap.HeatmapTileProvider
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.shared.preferences.Preferences

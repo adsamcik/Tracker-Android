@@ -11,9 +11,8 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.shared.utils.style.implementations.StyleColorDrawable
 import com.adsamcik.tracker.shared.map.MapLegendValue
-import com.adsamcik.tracker.shared.utils.style.implementations.StyleableDrawableWrapper
+import com.adsamcik.tracker.shared.utils.style.implementations.StyleColorDrawable
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 
 /**

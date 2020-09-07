@@ -9,10 +9,6 @@ import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.tracker.shared.base.assist.Assist
-import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
-import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.map.ColorMap
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
 import com.adsamcik.tracker.map.MapOwner
@@ -20,7 +16,11 @@ import com.adsamcik.tracker.map.MapSensorController
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.introduction.MapIntroduction
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.map.ColorMap
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
+import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.SupportMapFragment

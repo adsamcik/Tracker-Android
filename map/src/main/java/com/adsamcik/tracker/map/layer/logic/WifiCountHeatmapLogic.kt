@@ -1,14 +1,14 @@
 package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
+import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
+import com.adsamcik.tracker.map.heatmap.creators.WifiCountHeatmapTileCreator
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.map.MapLayerInfo
 import com.adsamcik.tracker.shared.map.MapLegend
 import com.adsamcik.tracker.shared.map.MapLegendValue
-import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
-import com.adsamcik.tracker.map.heatmap.creators.WifiCountHeatmapTileCreator
+import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 
 internal class WifiCountHeatmapLogic : HeatmapLayerLogic() {
 	override fun getTileCreator(context: Context): HeatmapTileCreator {

@@ -38,7 +38,6 @@
     <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
 
 
-
     <string name="settings_map_visit_threshold_default" translatable="false">15</string>
     <string name="settings_map_visit_threshold_key" translatable="false">mapVisitThreshold</string>
     <integer-array name="settings_map_visit_threshold_values">

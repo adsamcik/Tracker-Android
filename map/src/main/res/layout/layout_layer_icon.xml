@@ -7,9 +7,9 @@
     android:layout_height="100dp"
     android:breakStrategy="simple"
     android:ellipsize="end"
-    android:textColor="#FF000000"
     android:gravity="center"
     android:hyphenationFrequency="none"
+    android:textColor="#FF000000"
     android:textSize="12sp"
     tools:targetApi="m"
     tools:text="Lorem ipsum dolor sit amet layer" />

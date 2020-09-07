@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
-import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.map.heatmap.implementation.AlphaMergeFunction
 import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
