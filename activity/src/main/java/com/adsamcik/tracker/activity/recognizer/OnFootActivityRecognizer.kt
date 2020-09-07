@@ -9,6 +9,7 @@ import kotlin.math.roundToInt
 internal class OnFootActivityRecognizer : ActivityRecognizer() {
 	override val precisionConfidence: Int = 75
 
+	@Suppress("ComplexMethod")
 	override fun resolve(
 			session: TrackerSession,
 			locationCollection: Collection<DatabaseLocation>

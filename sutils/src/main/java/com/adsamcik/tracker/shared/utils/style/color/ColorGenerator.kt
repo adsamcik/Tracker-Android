@@ -5,7 +5,9 @@ import androidx.annotation.FloatRange
 import com.adsamcik.tracker.shared.utils.style.color.palette.PaletteGenerator
 import kotlin.random.Random
 
-
+/**
+ * Generates random colors with various methods.
+ */
 object ColorGenerator {
 	@Suppress()
 	const val GOLDEN_RATIO: Double = 1.61803398875
@@ -25,6 +27,9 @@ object ColorGenerator {
 		)
 	}
 
+	/**
+	 * Generates color palette.
+	 */
 	fun generatePalette(count: Int): List<Int> {
 		return PaletteGenerator().generate(
 				colorsCount = count,

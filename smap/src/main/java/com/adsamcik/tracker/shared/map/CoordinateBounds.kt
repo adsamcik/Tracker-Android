@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LATITUD
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LONGITUDE
 import com.adsamcik.tracker.shared.base.data.Location
 import kotlinx.android.parcel.Parcelize
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * CoordinateBounds class allows passing of boundary information in GPS coordinates
@@ -28,39 +30,16 @@ data class CoordinateBounds(
 	val height: Double get() = topBound - bottomBound
 
 
-	fun updateBounds(collection: Iterable<Location>) {
-		if (collection.none()) return
-		val first = collection.first()
-		//todo improve this
-		if (first.latitude > topBound) topBound = first.latitude
-		if (first.latitude < bottomBound) bottomBound = first.latitude
-
-		if (first.longitude > rightBound) rightBound = first.longitude
-		if (first.longitude < leftBound) leftBound = first.longitude
-
-		collection.forEach {
-			if (it.latitude > topBound) {
-				topBound = it.latitude
-			} else if (it.latitude < bottomBound) {
-				bottomBound = it.latitude
-			}
-
-			if (it.longitude > rightBound) {
-				rightBound = it.longitude
-			} else if (it.longitude < leftBound) {
-				leftBound = it.longitude
-			}
-		}
-	}
-
 	/**
-	 * Updates bounds of the CoordinateBounds object
+	 * Update location bounds.
 	 */
-	fun updateBounds(top: Double, right: Double, bottom: Double, left: Double) {
-		this.topBound = top
-		this.rightBound = right
-		this.bottomBound = bottom
-		this.leftBound = left
+	fun updateBounds(collection: Iterable<Location>) {
+		collection.forEach {
+			topBound = max(it.latitude, topBound)
+			bottomBound = min(it.latitude, bottomBound)
+			rightBound = max(it.longitude, rightBound)
+			leftBound = min(it.longitude, leftBound)
+		}
 	}
 }
 

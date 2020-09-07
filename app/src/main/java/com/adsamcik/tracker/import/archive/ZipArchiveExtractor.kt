@@ -8,18 +8,25 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.zip.ZipInputStream
 
+/**
+ * Extracts zip archives
+ */
 class ZipArchiveExtractor : ArchiveExtractor {
+	companion object {
+		private const val BUFFER_SIZE = 1024
+	}
+
 	override val supportedExtensions: Collection<String> = listOf("zip")
 
 	override fun extract(context: Context, file: File): File? {
-		if (file.isDirectory) throw IllegalArgumentException("Directory is not a zip file")
+		require(file.isDirectory) { "Directory is not a zip file" }
 
 		val outputDirectory = File(context.cacheDir, file.nameWithoutExtension)
 
 		outputDirectory.mkdir()
 
 		ZipInputStream(BufferedInputStream(FileInputStream(file))).use {
-			val buffer = ByteArray(1024)
+			val buffer = ByteArray(BUFFER_SIZE)
 
 			var entry = it.nextEntry
 			while (entry != null) {
@@ -37,8 +44,7 @@ class ZipArchiveExtractor : ArchiveExtractor {
 				val canonicalPath = fileOut.canonicalPath
 				if (!canonicalPath.startsWith(outputDirectory.path)) {
 					//todo report this to the user
-					//todo remove the report once out of beta
-					Reporter.report(SecurityException("File has invalid file name $filename"))
+					Reporter.report(SecurityException("File has invalid file name '$filename'"))
 					continue
 				}
 
