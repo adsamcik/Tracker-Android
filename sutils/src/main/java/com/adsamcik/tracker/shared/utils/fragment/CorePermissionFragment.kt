@@ -2,8 +2,6 @@ package com.adsamcik.tracker.shared.utils.fragment
 
 import android.os.Build
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.shared.utils.permission.PermissionResultCallback
-import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequestResult

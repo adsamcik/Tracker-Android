@@ -3,9 +3,9 @@ package com.adsamcik.tracker.common.database
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
