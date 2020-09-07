@@ -7,11 +7,11 @@ import android.os.Build
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.import.DataImport
+import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.exception.PermissionException
 import com.adsamcik.tracker.shared.base.extension.hasExternalStorageReadPermission
-import com.adsamcik.tracker.import.DataImport
-import com.adsamcik.tracker.preference.findPreference
 import com.afollestad.materialdialogs.MaterialDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope

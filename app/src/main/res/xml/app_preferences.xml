@@ -226,21 +226,21 @@
 
         <com.adsamcik.tracker.preference.component.DialogListPreference
             android:defaultValue="@string/settings_length_system_default"
-            app:titles="@array/settings_length_system_names"
-            app:keys="@array/settings_length_system_values"
             android:key="@string/settings_length_system_key"
             android:summary="%s"
             android:title="@string/settings_length_system_title"
-            app:icon="@drawable/ic_ruler" />
+            app:icon="@drawable/ic_ruler"
+            app:keys="@array/settings_length_system_values"
+            app:titles="@array/settings_length_system_names" />
 
         <com.adsamcik.tracker.preference.component.DialogListPreference
             android:defaultValue="@string/settings_speed_format_default"
-            app:titles="@array/settings_speed_format_names"
-            app:keys="@array/settings_speed_format_values"
             android:key="@string/settings_speed_format_key"
             android:summary="%s"
             android:title="@string/settings_speed_format_title"
-            app:icon="@drawable/ic_speedometer" />
+            app:icon="@drawable/ic_speedometer"
+            app:keys="@array/settings_speed_format_values"
+            app:titles="@array/settings_speed_format_names" />
 
         <com.adsamcik.tracker.preference.component.DialogListPreference
             android:key="@string/settings_language_key"

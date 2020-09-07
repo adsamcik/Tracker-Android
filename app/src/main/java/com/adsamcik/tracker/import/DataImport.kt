@@ -10,7 +10,6 @@ import com.adsamcik.tracker.import.file.GpxImport
 import com.adsamcik.tracker.import.service.ImportService
 import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
 import com.adsamcik.tracker.shared.base.extension.startForegroundService
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.files.FileFilter
 import com.afollestad.materialdialogs.files.fileChooser

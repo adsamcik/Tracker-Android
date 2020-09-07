@@ -5,7 +5,6 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.OnDoneListener
-import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.afollestad.materialdialogs.callbacks.onDismiss
 
 

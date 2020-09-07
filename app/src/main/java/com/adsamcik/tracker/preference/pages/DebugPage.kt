@@ -7,14 +7,13 @@ import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.ActivityDebugActivity
-import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.dialog.ConfirmDialog
-import com.adsamcik.tracker.shared.base.extension.startActivity
-
 import com.adsamcik.tracker.debug.activity.StatusActivity
 import com.adsamcik.tracker.notification.Notifications
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.setOnClickListener
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.dialog.ConfirmDialog
+import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.preferences.Preferences
 import java.util.*
 

@@ -5,9 +5,6 @@ import android.util.AttributeSet
 import androidx.preference.PreferenceViewHolder
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
-import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.preferences.type.LengthSystem
-import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
 /**
  * Custom Preference implementation of the IntValueSlider from Slider library.
