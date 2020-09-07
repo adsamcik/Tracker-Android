@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.game.challenge.data.definition
 
 import android.content.Context
-import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.game.challenge.data.builder.WalkDistanceChallengeBuilder
 import com.adsamcik.tracker.game.challenge.data.instance.WalkDistanceChallengeInstance
+import com.adsamcik.tracker.shared.base.Time
 
 internal class WalkDistanceChallengeDefinition : ChallengeDefinition<WalkDistanceChallengeInstance>(
 		R.string.challenge_walk_in_the_park_title, R.string.challenge_walk_in_the_park_description,

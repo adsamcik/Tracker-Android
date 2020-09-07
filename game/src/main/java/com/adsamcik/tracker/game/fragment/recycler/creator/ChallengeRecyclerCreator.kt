@@ -5,11 +5,11 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
-import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolderCreator
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.viewholder.ChallengeRecyclerViewHolder
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolderCreator
 
 class ChallengeRecyclerCreator : StyleMultiTypeViewHolderCreator<GameRecyclerData> {
 	override fun createViewHolder(parent: ViewGroup): StyleMultiTypeViewHolder<GameRecyclerData> {

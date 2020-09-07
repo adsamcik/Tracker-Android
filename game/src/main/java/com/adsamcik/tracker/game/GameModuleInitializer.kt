@@ -3,9 +3,9 @@ package com.adsamcik.tracker.game
 import android.content.Context
 import android.content.IntentFilter
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.game.challenge.receiver.ChallengeSessionReceiver
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.module.ModuleInitializer
-import com.adsamcik.tracker.game.challenge.receiver.ChallengeSessionReceiver
 
 /**
  * Game module initializer

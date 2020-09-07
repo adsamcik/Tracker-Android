@@ -3,7 +3,6 @@ package com.adsamcik.tracker.game.challenge.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
@@ -15,6 +14,7 @@ import com.adsamcik.tracker.game.challenge.database.dao.WalkDistanceChallengeDao
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
+import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 
 @Database(
 		entities = [

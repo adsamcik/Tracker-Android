@@ -22,7 +22,6 @@ import kotlin.coroutines.CoroutineContext
 
 /**
  * Statistic summary dialog to display summary data over a period of time.
- *
  */
 class StatisticSummaryDialog : CoroutineScope {
 	companion object {
