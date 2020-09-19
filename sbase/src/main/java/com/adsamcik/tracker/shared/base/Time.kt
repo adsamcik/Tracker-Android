@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.extension.roundToDate
 import com.adsamcik.tracker.shared.base.extension.toCalendar
+import java.time.ZonedDateTime
 import java.util.*
 
 /**
@@ -35,6 +36,22 @@ object Time {
 	 * Today's date in milliseconds since epoch.
 	 */
 	val todayMillis: Long get() = roundToDate(nowMillis)
+
+	/**
+	 * Tomorrow date
+	 */
+	val tomorrow: ZonedDateTime
+		get() = ZonedDateTime.now()
+				.withHour(0)
+				.withMinute(0)
+				.withSecond(0)
+				.withNano(0)
+				.plusDays(1)
+
+	/**
+	 * Tomorrow date in milliseconds since epoch.
+	 */
+	val tomorrowMillis: Long get() = roundToDate(nowMillis + DAY_IN_MILLISECONDS)
 
 	/**
 	 * Today's date as calendar

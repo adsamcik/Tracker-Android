@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.location.Geocoder
 import android.view.View
 import android.view.ViewGroup
@@ -28,6 +29,7 @@ import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.adsamcik.tracker.map.layer.logic.WifiCountHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.extension.coerceIn
 import com.adsamcik.tracker.shared.base.extension.dp
@@ -40,6 +42,7 @@ import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.keyboard.KeyboardListener
@@ -49,9 +52,13 @@ import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
+import com.afollestad.materialdialogs.MaterialDialog
+import com.afollestad.materialdialogs.customview.customView
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import kotlinx.android.synthetic.main.layout_map_bottom_sheet_peek.view.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +70,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.math.roundToInt
 
 internal class MapSheetController(
-		activity: FragmentActivity,
+		private val activity: FragmentActivity,
 		fragment: CorePermissionFragment,
 		private val map: GoogleMap,
 		mapOwner: MapOwner,
@@ -80,10 +87,11 @@ internal class MapSheetController(
 	private val navbarDim: Int2
 	private val navbarPosition: NavBarPosition
 
-	private val geocoder: Geocoder? = if (Geocoder.isPresent()) Geocoder(
-			activity,
-			Locale.getDefault()
-	) else null
+	private val geocoder: Geocoder? = if (Geocoder.isPresent()) {
+		Geocoder(activity, Locale.getDefault())
+	} else {
+		null
+	}
 
 	private val styleController = StyleManager.createController().also { styleController ->
 		styleController.watchView(StyleView(rootLayout, layer = 0))
@@ -213,6 +221,7 @@ internal class MapSheetController(
 	}
 
 	private var stateBeforeKeyboard: Int = sheetBehavior.state
+	private var isKeyboardOpen: Boolean = false
 
 	/**
 	 * Keyboard listener
@@ -223,8 +232,8 @@ internal class MapSheetController(
 		// but it seems to be quite rare so checking for null is probably OK atm
 		// check payloads
 		updateIconList(isOpen)
-		when (isOpen) {
-			true -> {
+		when {
+			isOpen && !isKeyboardOpen -> {
 				stateBeforeKeyboard = when (val state = sheetBehavior.state) {
 					BottomSheetBehavior.STATE_COLLAPSED,
 					BottomSheetBehavior.STATE_HALF_EXPANDED,
@@ -232,17 +241,20 @@ internal class MapSheetController(
 					else -> BottomSheetBehavior.STATE_COLLAPSED
 				}
 
+				isKeyboardOpen = true
+
 				sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
 			}
-			false -> {
+			!isOpen && isKeyboardOpen -> {
 				sheetBehavior.state = stateBeforeKeyboard
+				isKeyboardOpen = false
 				rootLayout.edittext_map_search.clearFocus()
 			}
 		}
 	}
 
 	private val keyboardManager = KeyboardManager(rootLayout).apply {
-		//addKeyboardListener(keyboardListener)
+		addKeyboardListener(keyboardListener)
 	}
 
 	override fun onMapClick(p0: LatLng?) {
@@ -294,42 +306,82 @@ internal class MapSheetController(
 		}
 	}
 
+	private fun makeChip(context: Context) = Chip(context).apply {
+		setTextColor(Color.WHITE)
+	}
+
+	@Suppress("UNUSED_PARAMETER")
+	private fun showRangeSelectionDialog(view: View) {
+		launch(Dispatchers.Default) {
+			val availableRange = mapController.availableDateRange
+
+			if (availableRange.isEmpty()) {
+				SnackMaker(rootLayout).addMessage(R.string.map_layer_no_data)
+				return@launch
+			}
+
+			val selectedRange = mapController.dateRange.coerceIn(availableRange)
+
+			launch(Dispatchers.Main) {
+				val context = activity
+				MaterialDialog(context).show {
+					customView(R.layout.layout_map_date_range_selection)
+					val chipGroup = this.view.contentLayout.findViewById<ChipGroup>(R.id.map_date_range_chip_group)
+
+					@Suppress("MagicNumber")
+					val chipDays = listOf(7, 14, 30, 60, 90, 180, 365)
+					val daysText = context.getString(R.string.date_range_selector_x_days)
+					chipDays.forEach { days ->
+						val chip = makeChip(context).apply {
+							text = daysText.format(Locale.getDefault(), days)
+							setOnClickListener {
+								// Add day and remove day to make the intent clear.
+								val tomorrow = Time.nowMillis + Time.DAY_IN_MILLISECONDS
+								mapController.dateRange = LongRange(
+										tomorrow - (days - 1) * Time.DAY_IN_MILLISECONDS,
+										tomorrow
+								)
+								this@show.dismiss()
+							}
+						}
+						chipGroup.addView(chip)
+					}
+
+					chipGroup.addView(makeChip(context).apply {
+						text = context.getString(R.string.date_range_selector_all_days)
+						setOnClickListener {
+							mapController.dateRange = LongRange(0, Long.MAX_VALUE)
+							this@show.dismiss()
+						}
+					})
+
+					chipGroup.addView(makeChip(context).apply {
+						text = context.getString(R.string.date_range_selector_custom_days)
+						setOnClickListener {
+							activity.createDateTimeDialog(
+									styleController,
+									availableRange,
+									selectedRange
+							) {
+								mapController.dateRange = selectedRange
+							}
+							this@show.dismiss()
+						}
+					})
+
+					dynamicStyle()
+
+				}
+			}
+		}
+	}
+
 	/**
 	 * Initializes UI elements and colors
 	 */
 	init {
-		rootLayout.findViewById<View>(R.id.button_map_date_range).setOnClickListener {
-			launch(Dispatchers.Default) {
-				val availableRange = mapController.availableDateRange
-
-				if (availableRange.isEmpty()) {
-					SnackMaker(rootLayout).addMessage(R.string.map_layer_no_data)
-					return@launch
-				}
-
-				val selectedRange = mapController.dateRange.coerceIn(availableRange)
-				//val rangeFrom = createCalendarWithTime(availableRange.first)
-				//val rangeTo = createCalendarWithTime(availableRange.last)
-
-				launch(Dispatchers.Main) {
-					if (availableRange.last <= availableRange.first) {
-						SnackMaker(it.requireParent<CoordinatorLayout>()).addMessage(
-								R.string.map_layer_no_data
-						)
-					} else {
-
-						activity.createDateTimeDialog(
-								styleController,
-								availableRange,
-								selectedRange
-						) {
-							mapController.dateRange = it
-						}
-
-					}
-				}
-			}
-		}
+		rootLayout.findViewById<View>(R.id.button_map_date_range)
+				.setOnClickListener(this::showRangeSelectionDialog)
 		rootLayout.button_map_my_location.setOnClickListener {
 			fun onPositionClick(button: AppCompatImageButton) {
 				locationListener.onMyPositionButtonClick(button)
