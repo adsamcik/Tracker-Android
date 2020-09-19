@@ -107,4 +107,7 @@
     <string name="settings_tracking_min_distance_summary">Minimální vzdálenost mezi sběry.</string>
     <string name="settings_tracking_min_time_summary">Ke sběrům nebude docházeji častěji než tato hodnota.</string>
     <string name="settings_tracking_required_accuracy_summary">Poloha musí být alespoň takto přesná, aby došlo ke sběru.</string>
+    <string name="auto_tracking_options_title">Režim automatického sběru</string>
+    <string name="auto_tracking_options_summary">%s</string>
+    <string name="permissions_tracker_timer_message">%1$s časovač potřebuje více oprávnění pro svoji funkci.</string>
 </resources>

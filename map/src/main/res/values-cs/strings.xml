@@ -49,4 +49,8 @@
     <string name="settings_map_visit_threshold_title">Časový práh pro návštěvu polohy</string>
     <string name="settings_map_visit_threshold_summary">Teplotní mapa bude počítat pouze s návštěvami s alespoň tímto rozdílem.</string>
     <string name="map_drag_content_description">Tažením nebo klepnutím změníte viditelnost spodního listu mapy.</string>
+    <string name="permission_rationale_location_map">Přesná poloha je vyžadována.</string>
+    <string name="date_range_selector_x_days">Posledních %d dní</string>
+    <string name="date_range_selector_all_days">Vše</string>
+    <string name="date_range_selector_custom_days">Vlastní</string>
 </resources>
