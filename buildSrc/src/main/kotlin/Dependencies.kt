@@ -12,7 +12,7 @@ object Dependencies {
 	 */
 	object Versions {
 		internal const val constraintLayout = "2.0.1"
-		internal const val coreKtx = "1.5.0-alpha02"
+		internal const val coreKtx = "1.5.0-alpha03"
 		internal const val appcompat = "1.2.0"
 		internal const val fragment = "1.2.5"
 		const val dokka: String = "0.9.18"
@@ -20,10 +20,10 @@ object Dependencies {
 		internal const val work = "2.4.0"
 		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.1"
-		internal const val material = "1.2.0"
+		internal const val material = "1.2.1"
 		internal const val desugar = "1.0.10"
 
-		const val kotlin: String = "1.4.0"
+		const val kotlin: String = "1.4.10"
 		internal const val coroutines = "1.3.9"
 
 		internal const val requery = "3.32.2"
@@ -35,7 +35,7 @@ object Dependencies {
 
 		internal const val firebaseCore = "17.5.0"
 		internal const val crashlytics = "17.2.1"
-		const val crashlyticsGradle = "2.2.1"
+		const val crashlyticsGradle = "2.3.0"
 
 		internal const val playServicesBase = "17.4.0"
 		internal const val playCore = "1.8.0"
