@@ -5,12 +5,6 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.activity.DetailActivity
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.transaction
-import com.adsamcik.tracker.common.preference.ModuleSettings
-import com.adsamcik.tracker.common.style.RecyclerStyleView
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings
 import com.adsamcik.tracker.preference.pages.DataPage
@@ -20,6 +14,13 @@ import com.adsamcik.tracker.preference.pages.PreferencePage
 import com.adsamcik.tracker.preference.pages.RootPage
 import com.adsamcik.tracker.preference.pages.StylePage
 import com.adsamcik.tracker.preference.pages.TrackerPreferencePage
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.transaction
+import com.adsamcik.tracker.shared.preferences.ModuleSettings
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import java.util.*
 
 /**
  * Settings Activity contains local settings and hosts debugging features
@@ -51,7 +52,7 @@ class SettingsActivity : DetailActivity(),
 		initializeModuleSettingsList()
 
 		supportFragmentManager.transaction {
-			replace(CONTENT_ID, fragment, FragmentSettings.TAG)
+			replace(CONTENT_ID, fragment, TAG)
 			runOnCommit {
 				styleController.watchRecyclerView(RecyclerStyleView(fragment.listView, 0))
 				setPage(fragment, RootPage(moduleSettingsList))
@@ -66,7 +67,7 @@ class SettingsActivity : DetailActivity(),
 		modules.forEach {
 			try {
 				val tClass = it.module.loadClass<ModuleSettings>(
-						"preference.${it.module.moduleName.capitalize()}Settings"
+						"preference.${it.module.moduleName.capitalize(Locale.ROOT)}Settings"
 				)
 				val instance = tClass.newInstance()
 				moduleSettingsList[it.module] = instance
@@ -164,6 +165,10 @@ class SettingsActivity : DetailActivity(),
 
 			page.onRequestPermissionsResult(this, requestCode, collection)
 		}
+	}
+
+	companion object {
+		const val TAG: String = "FragmentSettings"
 	}
 }
 

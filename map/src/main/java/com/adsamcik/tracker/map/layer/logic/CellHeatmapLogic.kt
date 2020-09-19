@@ -1,16 +1,16 @@
 package com.adsamcik.tracker.map.layer.logic
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.CellType
-import com.adsamcik.tracker.common.style.utility.ColorGenerator
-import com.adsamcik.tracker.commonmap.MapLayerData
-import com.adsamcik.tracker.commonmap.MapLayerInfo
-import com.adsamcik.tracker.commonmap.MapLayerLogic
-import com.adsamcik.tracker.commonmap.MapLegend
-import com.adsamcik.tracker.commonmap.MapLegendValue
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.creators.CellHeatmapTileCreator
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
+import com.adsamcik.tracker.shared.base.data.CellType
+import com.adsamcik.tracker.shared.map.MapLayerData
+import com.adsamcik.tracker.shared.map.MapLayerInfo
+import com.adsamcik.tracker.shared.map.MapLayerLogic
+import com.adsamcik.tracker.shared.map.MapLegend
+import com.adsamcik.tracker.shared.map.MapLegendValue
+import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
 
 internal class CellHeatmapLogic : HeatmapLayerLogic() {
 	override fun getTileCreator(context: Context): HeatmapTileCreator {

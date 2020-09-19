@@ -12,7 +12,7 @@
         android:id="@+id/top_panel_root"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:background="#555555"
+        android:background="#ccaacc"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:elevation="4dp"

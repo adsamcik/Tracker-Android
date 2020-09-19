@@ -2,10 +2,11 @@ package com.adsamcik.tracker.tracker.ui.recycler.data
 
 import android.text.format.DateUtils
 import android.text.format.DateUtils.MINUTE_IN_MILLIS
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.extension.formatDistance
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
+
 import com.adsamcik.tracker.tracker.R
 
 class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURCE) {

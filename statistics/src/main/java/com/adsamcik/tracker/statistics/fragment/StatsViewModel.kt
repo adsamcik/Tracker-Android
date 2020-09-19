@@ -4,10 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.extension.cloneCalendar
-import com.adsamcik.tracker.common.extension.roundToDate
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.extension.cloneCalendar
+import com.adsamcik.tracker.shared.base.extension.roundToDate
 import com.adsamcik.tracker.statistics.list.recycler.SectionedRecyclerAdapter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +19,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application), 
 	override val coroutineContext: CoroutineContext = Dispatchers.Default
 
 	val adapter: SectionedRecyclerAdapter = SectionedRecyclerAdapter()
+
 	//todo update to paged list (Seems like a bit of work with sections)
 	val sessionLiveData: LiveData<Collection<TrackerSession>> get() = mutableSessionData
 

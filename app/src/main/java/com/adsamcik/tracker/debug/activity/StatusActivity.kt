@@ -7,9 +7,8 @@ import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.work.WorkManager
-import com.adsamcik.tracker.common.activity.DetailActivity
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.requireValue
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 
 /**
@@ -18,9 +17,10 @@ import com.adsamcik.tracker.tracker.locker.TrackerLocker
 class StatusActivity : DetailActivity() {
 
 	override fun onConfigure(configuration: Configuration) {
-		configuration.useColorControllerForContent = false
+		configuration.useColorControllerForContent = true
 	}
 
+	@Suppress("UNUSED_VALUE")
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val layout = createScrollableContentParent(
@@ -48,7 +48,7 @@ class StatusActivity : DetailActivity() {
 
 		lastId = createPair(
 				"Is locked",
-				TrackerLocker.isLocked.requireValue.toString(),
+				TrackerLocker.isLocked.value.toString(),
 				layout,
 				lastId
 		)
@@ -62,7 +62,7 @@ class StatusActivity : DetailActivity() {
 	}
 
 	@Suppress("MagicNumber")
-	fun createPair(
+	private fun createPair(
 			titleString: String,
 			valueString: String,
 			parent: ViewGroup,

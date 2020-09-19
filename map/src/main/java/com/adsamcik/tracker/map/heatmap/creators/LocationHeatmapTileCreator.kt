@@ -2,19 +2,21 @@ package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.map.MapLayerData
+import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.math.ceil
+import kotlin.math.max
 import kotlin.math.pow
 
 @Suppress("MagicNumber")
 internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLayerData) :
 		HeatmapTileCreator {
-	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
+	override fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig {
 		val colorList = layerData.colorList
 		val colorListSize = colorList.size.toDouble()
 		val heatmapColors = layerData.colorList.mapIndexed { index, color ->
@@ -22,12 +24,13 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 		}
 		return HeatmapConfig(
 				HeatmapColorScheme.fromArray(heatmapColors, 100),
-				maxHeat,
+				dataUser.maxHeat,
 				false,
+				dataUser.ageThreshold,
 				{ current, _, stampValue, weight ->
 					current + stampValue * weight
-				}) { current, stampValue, weight ->
-			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
+				}) { current, stampValue, _ ->
+			max(current, (stampValue * 255f).toInt())
 		}
 	}
 
@@ -59,7 +62,7 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 	override val getAllInside = dao::getAllInside
 
 	companion object {
-		private const val BASE_HEAT_SIZE_IN_METERS = 20f
+		private const val BASE_HEAT_SIZE_IN_METERS = 40f
 		private const val HEATMAP_ZOOM_SCALE = 1.4f
 	}
 }

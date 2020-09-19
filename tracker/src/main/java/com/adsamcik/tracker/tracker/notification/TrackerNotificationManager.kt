@@ -7,15 +7,18 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.extension.notificationManager
-import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.notificationManager
+import com.adsamcik.tracker.shared.preferences.Preferences
+
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
 
-
+/**
+ * Notification manager for tracker service and related modules.
+ */
 class TrackerNotificationManager(
 		private val context: Context,
 		private val isUserInitiatedSession: Boolean
@@ -109,7 +112,7 @@ class TrackerNotificationManager(
 			val intent = requireNotNull(context.packageManager.getLaunchIntentForPackage(context.packageName))
 			return NotificationCompat.Builder(
 					context,
-					resources.getString(com.adsamcik.tracker.common.R.string.channel_track_id)
+					resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
 			)
 					.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 					.setSmallIcon(R.drawable.ic_signals)  // the done icon

@@ -1,16 +1,18 @@
 package com.adsamcik.tracker.preference.pages
 
-import androidx.preference.ListPreference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.style.ActiveColorData
-import com.adsamcik.tracker.common.style.StyleManager
-import com.adsamcik.tracker.common.style.update.data.RequiredColorData
-import com.adsamcik.tracker.preference.ColorPreference
+import com.adsamcik.tracker.preference.component.ColorPreference
+import com.adsamcik.tracker.preference.component.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
+import com.adsamcik.tracker.shared.utils.style.ActiveColorData
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 
+/**
+ * Preference page for style.
+ */
 class StylePage : PreferencePage {
 
 	private val colorPreferenceList = mutableListOf<ColorPreference>()
@@ -24,11 +26,13 @@ class StylePage : PreferencePage {
 
 		this.parent = caller.findPreferenceTyped(R.string.settings_style_color_category_key)
 
-		caller.findPreferenceTyped<ListPreference>(R.string.settings_style_mode_key).apply {
-			entries = enabledUpdateInfoList.map { context.getText(it.nameRes) }.toTypedArray()
-			entryValues = enabledUpdateInfoList.map { it.id }.toTypedArray()
+		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_style_mode_key).apply {
+			val entries = enabledUpdateInfoList.map { context.getString(it.nameRes) }
+			val keys = enabledUpdateInfoList.map { it.id }
+
+			setValues(entries, keys)
 			val selectedIndex = enabledUpdateInfoList.indexOf(StyleManager.activeUpdateInfo)
-			setValueIndex(selectedIndex)
+			setIndex(selectedIndex)
 
 			setOnPreferenceChangeListener { preference, newValue ->
 				val id = newValue.toString()
@@ -56,7 +60,7 @@ class StylePage : PreferencePage {
 	}
 
 	private fun clearColorPreferences() {
-		colorPreferenceList.forEach { it.setDefault() }
+		colorPreferenceList.forEach { it.restoreDefault() }
 	}
 
 	private fun updateColorPreferences(colorList: List<ActiveColorData>) {
@@ -100,12 +104,5 @@ class StylePage : PreferencePage {
 	}
 
 	override fun onExit(caller: PreferenceFragmentCompat) = Unit
-
-	data class RecyclerColorData(var color: Int, val required: RequiredColorData) {
-		constructor(activeColorData: ActiveColorData) : this(
-				activeColorData.active,
-				activeColorData.required
-		)
-	}
 }
 

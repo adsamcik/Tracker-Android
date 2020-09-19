@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.game
 
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.common.debug.LogData
-import com.adsamcik.tracker.common.debug.Logger
+import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.shared.utils.debug.Logger
 
 internal fun logGame(data: LogData) = Logger.logWithPreference(
 		data,

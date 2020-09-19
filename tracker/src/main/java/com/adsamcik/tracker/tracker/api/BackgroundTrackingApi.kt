@@ -11,19 +11,28 @@ import com.adsamcik.tracker.activity.ActivityTransitionRequestCallback
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.data.DetectedActivity
-import com.adsamcik.tracker.common.data.GroupedActivity
-import com.adsamcik.tracker.common.extension.powerManager
-import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.preference.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.extension.powerManager
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.PreferencesAssist
+import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.utils.debug.assertFalse
+import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.service.TrackerService
 
+/**
+ * Exposed methods for background tracking
+ */
 @Suppress("TooManyFunctions")
 object BackgroundTrackingApi {
+	var isActive = false
+		private set
+
 	//todo add option for this in settings
 	private const val REQUIRED_CONFIDENCE = 75
 	private var appContext: Context? = null
@@ -64,20 +73,22 @@ object BackgroundTrackingApi {
 		if (it == GroupedActivity.STILL.ordinal) {
 			disable(context)
 		} else {
-			enable(context)
+			if (context.hasActivityPermission) {
+				enable(context)
+			}
 		}
 	}
 
 	private val transitionObserver: Observer<Boolean> = Observer {
 		val context = requireNotNull(appContext)
-		reinitializeRequest(context, it)
+		if (isActive) {
+			reinitializeRequest(context, it)
+		}
 	}
-
-	private var isActive = false
 
 	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
 			!context.powerManager.isPowerSaveMode &&
-			Assist.hasAnythingToTrack(context)
+			PreferencesAssist.hasAnythingToTrack(context)
 
 	/**
 	 * Checks if background tracking can be activated
@@ -87,7 +98,7 @@ object BackgroundTrackingApi {
 	 */
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 		val preferences = Preferences.getPref(context)
-		if (groupedActivity.isIdleOrUnknown ||
+		if (groupedActivity.isStillOrUnknown ||
 				TrackerService.isServiceRunning.value ||
 				preferences.getBooleanRes(
 						R.string.settings_disabled_recharge_key,
@@ -186,7 +197,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
-		if (!isActive) return
+		assertTrue(isActive)
 
 		val requestData = if (useTransitionApi) {
 			ActivityRequestData(this::class, transitionData = getTransitions(context))
@@ -199,7 +210,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun enable(context: Context) {
-		if (isActive) return
+		assertFalse(isActive)
 		isActive = true
 
 		val useTransitionApi = Preferences.getPref(context)
@@ -211,7 +222,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun disable(context: Context) {
-		if (!isActive) return
+		assertTrue(isActive)
 
 		ActivityRequestManager.removeActivityRequest(context, this::class)
 		ActivityWatcherService.poke(context)
@@ -219,6 +230,9 @@ object BackgroundTrackingApi {
 		isActive = false
 	}
 
+	/**
+	 * Initializes background tracking api.
+	 */
 	@MainThread
 	fun initialize(context: Context) {
 		if (appContext != null) return
@@ -226,13 +240,17 @@ object BackgroundTrackingApi {
 		appContext = context.applicationContext
 
 		PreferenceObserver.observe(
-				context, R.string.settings_auto_tracking_transition_key,
-				R.string.settings_auto_tracking_transition_default, transitionObserver
+				context,
+				R.string.settings_tracking_activity_key,
+				R.string.settings_tracking_activity_default,
+				observer
 		)
 
 		PreferenceObserver.observe(
-				context, R.string.settings_tracking_activity_key,
-				R.string.settings_tracking_activity_default, observer
+				context,
+				R.string.settings_auto_tracking_transition_key,
+				R.string.settings_auto_tracking_transition_default,
+				transitionObserver
 		)
 	}
 }

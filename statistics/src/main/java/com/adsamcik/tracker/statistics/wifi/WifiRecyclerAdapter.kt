@@ -8,15 +8,18 @@ import androidx.annotation.LayoutRes
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.sort.BaseSortAdapter
 import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
-import com.adsamcik.tracker.common.database.data.DatabaseWifiData
-import com.adsamcik.tracker.common.extension.formatAsShortDateTime
-import com.adsamcik.tracker.common.style.marker.IViewChange
+import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
+import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Wi-Fi Recycler adapter
+ */
 class WifiRecyclerAdapter
 	: BaseSortAdapter<DatabaseWifiData, RecyclerView.ViewHolder>(DatabaseWifiData::class.java),
 		IViewChange,
@@ -77,7 +80,7 @@ class WifiRecyclerAdapter
 		}
 	}
 
-	private fun bindSummaryViewHolder(holder: RecyclerSummaryViewHolder, position: Int) {
+	private fun bindSummaryViewHolder(holder: RecyclerSummaryViewHolder) {
 		val resources = holder.itemView.resources
 		holder.apply {
 			count.text = resources.getString(R.string.wifilist_count, super.getItemCount())
@@ -87,7 +90,7 @@ class WifiRecyclerAdapter
 	override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 		when (val type = getItemViewType(position)) {
 			NORMAL_TYPE -> bindNormalViewHolder(holder as RecyclerWifiViewHolder, position)
-			SUMMARY_TYPE -> bindSummaryViewHolder(holder as RecyclerSummaryViewHolder, position)
+			SUMMARY_TYPE -> bindSummaryViewHolder(holder as RecyclerSummaryViewHolder)
 			else -> throw IllegalStateException("Unknown view type with value $type")
 		}
 	}
@@ -152,6 +155,10 @@ class WifiRecyclerAdapter
 	}
 }
 
+/**
+ * Recycler Wi-Fi View Holder.
+ */
+@Suppress("LongParameterList")
 class RecyclerWifiViewHolder(
 		root: View,
 		val bssid: TextView,
@@ -162,6 +169,9 @@ class RecyclerWifiViewHolder(
 		val lastSeen: TextView
 ) : RecyclerView.ViewHolder(root)
 
+/**
+ * Recycler Summary View Holder.
+ */
 class RecyclerSummaryViewHolder(
 		root: View,
 		val count: TextView

@@ -8,14 +8,13 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.data.GroupedActivity
-import com.adsamcik.tracker.common.extension.notificationManager
-import com.adsamcik.tracker.common.extension.startForegroundService
-import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.common.service.CoreService
-import com.adsamcik.tracker.common.style.StyleManager
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.extension.notificationManager
+import com.adsamcik.tracker.shared.base.extension.startForegroundService
+
+import com.adsamcik.tracker.shared.base.service.CoreService
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import java.util.*
@@ -47,6 +46,7 @@ class ActivityWatcherService : CoreService() {
 		notificationManager = (this as Context).notificationManager
 
 		BackgroundTrackingApi.initialize(this)
+		poke(this)
 
 		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS) {
 			val newActivityInfo = ActivityRequestManager.lastActivity
@@ -128,14 +128,23 @@ class ActivityWatcherService : CoreService() {
 				R.string.settings_activity_freq_key, R.string.settings_activity_freq_default
 		)
 
+		/**
+		 * Called when watcher preference is changed.
+		 */
 		fun onWatcherPreferenceChange(context: Context, value: Boolean) {
 			poke(context, watcherPreference = value)
 		}
 
+		/**
+		 * Called when auto tracking preference is changed.
+		 */
 		fun onAutoTrackingPreferenceChange(context: Context, value: Int) {
 			poke(context, autoTracking = value)
 		}
 
+		/**
+		 * Called when activity interval preference is changed.
+		 */
 		fun onActivityIntervalPreferenceChange(context: Context, value: Int) {
 			poke(context, updateInterval = value)
 		}

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.export
 
 import android.content.Context
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import java.io.File
 
 interface Exporter {

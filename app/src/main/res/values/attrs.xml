@@ -2,17 +2,20 @@
 <resources>
     <attr name="titleColor" format="reference|color" />
 
-    <declare-styleable name="ImageSwitchPreference">
-        <attr name="drawables" format="reference" />
+    <declare-styleable name="DialogListPreference">
         <attr name="titles" format="reference" />
+        <attr name="keys" format="reference" />
     </declare-styleable>
 
 
     <attr name="items" format="reference" />
     <attr name="stringFormat" format="string" />
 
-    <declare-styleable name="IntValueSliderPreference">
+    <declare-styleable name="BaseIntValueSliderPreference">
         <attr name="items" />
+    </declare-styleable>
+
+    <declare-styleable name="IntValueSliderPreference">
         <attr name="stringFormat" />
     </declare-styleable>
 

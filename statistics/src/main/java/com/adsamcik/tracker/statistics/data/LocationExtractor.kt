@@ -1,8 +1,11 @@
 package com.adsamcik.tracker.statistics.data
 
-import com.adsamcik.tracker.common.data.Location
+import com.adsamcik.tracker.shared.base.data.Location
 import com.goebl.simplify.Point3DExtractor
 
+/**
+ * Extracts X, Y and Z coordinates from location.
+ */
 class LocationExtractor : Point3DExtractor<Location> {
 	override fun getX(point: Location): Double {
 		return point.longitude * MULTIPLICATION_CONSTANT

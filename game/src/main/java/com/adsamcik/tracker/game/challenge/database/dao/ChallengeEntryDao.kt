@@ -3,8 +3,8 @@ package com.adsamcik.tracker.game.challenge.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
-import com.adsamcik.tracker.common.database.dao.BaseDao
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
+import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 
 @Dao
 interface ChallengeEntryDao : BaseDao<ChallengeEntry> {

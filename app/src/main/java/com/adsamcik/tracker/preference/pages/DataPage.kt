@@ -7,11 +7,11 @@ import android.os.Build
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.exception.PermissionException
-import com.adsamcik.tracker.common.extension.hasExternalStorageReadPermission
 import com.adsamcik.tracker.import.DataImport
 import com.adsamcik.tracker.preference.findPreference
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.exception.PermissionException
+import com.adsamcik.tracker.shared.base.extension.hasExternalStorageReadPermission
 import com.afollestad.materialdialogs.MaterialDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -83,7 +83,7 @@ class DataPage : PreferencePage {
 	private fun requireImportPermissions(activity: Activity): Boolean {
 		return when {
 			validateImportPermissions(activity) -> true
-			Build.VERSION.SDK_INT >= 23 -> {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
 				activity.requestPermissions(
 						arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
 						PERMISSION_READ_EXTERNAL_REQUEST

@@ -9,6 +9,7 @@ import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
+import android.widget.ImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.updateLayoutParams
@@ -19,40 +20,43 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.data.CellData
-import com.adsamcik.tracker.common.data.CellInfo
-import com.adsamcik.tracker.common.data.CellType
-import com.adsamcik.tracker.common.data.Location
-import com.adsamcik.tracker.common.data.MutableCollectionData
-import com.adsamcik.tracker.common.data.NetworkOperator
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.data.WifiData
-import com.adsamcik.tracker.common.data.WifiInfo
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.observe
-import com.adsamcik.tracker.common.extension.requireParent
-import com.adsamcik.tracker.common.extension.startActivity
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleView
-import com.adsamcik.tracker.common.useMock
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.CellData
+import com.adsamcik.tracker.shared.base.data.CellInfo
+import com.adsamcik.tracker.shared.base.data.CellType
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.data.MutableCollectionData
+import com.adsamcik.tracker.shared.base.data.NetworkOperator
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.data.WifiData
+import com.adsamcik.tracker.shared.base.data.WifiInfo
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.requireParent
+import com.adsamcik.tracker.shared.base.extension.startActivity
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
+import com.adsamcik.tracker.shared.base.useMock
+import com.adsamcik.tracker.shared.preferences.PreferencesAssist
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
 import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
-import kotlinx.android.synthetic.main.fragment_tracker.*
 import kotlinx.android.synthetic.main.fragment_tracker.view.*
 
-class FragmentTracker : CoreUIFragment(), LifecycleObserver {
+/**
+ * Fragment that displays current tracking information
+ */
+class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 	private lateinit var adapter: TrackerInfoAdapter
 
 	override fun onCreateView(
@@ -73,7 +77,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 			this.adapter = adapter
 
 			val itemAnimator = itemAnimator
-			if (itemAnimator != null && itemAnimator is DefaultItemAnimator) {
+			if (itemAnimator is DefaultItemAnimator) {
 				itemAnimator.supportsChangeAnimations = false
 			} else {
 				Reporter.report(RuntimeException("Item animator was null or invalid type"))
@@ -101,12 +105,13 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	override fun onStart() {
 		super.onStart()
 
-		button_settings.setOnClickListener {
+		val view = requireView()
+		view.findViewById<View>(R.id.button_settings).setOnClickListener {
 			val context = it.context
 			context.startActivity("com.adsamcik.tracker.preference.activity.SettingsActivity")
 		}
 
-		button_tracking.setOnClickListener {
+		view.findViewById<View>(R.id.button_tracking).setOnClickListener {
 			val activity = requireActivity()
 			if (TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
 				TrackerLocker.lockTimeLock(
@@ -124,14 +129,15 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 			}
 		}
 
-		button_tracking_lock.setOnClickListener {
+		val buttonTrackingLock = view.findViewById<View>(R.id.button_tracking_lock)
+		buttonTrackingLock.setOnClickListener {
 			val context = requireContext()
 			TrackerLocker.unlockTimeLock(context)
 			TrackerLocker.unlockRechargeLock(context)
 		}
 
 		TrackerLocker.isLocked.observeGetCurrent(this) {
-			button_tracking_lock.visibility = if (it) VISIBLE else GONE
+			buttonTrackingLock.visibility = if (it) VISIBLE else GONE
 		}
 
 		initializeColorElements()
@@ -141,7 +147,7 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		}
 
 		TrackerService.lastCollectionData.observe(this) {
-			if (it != null && it.session.start > 0) {
+			if (it.session.start > 0) {
 				updateData(it)
 			}
 		}
@@ -152,9 +158,9 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		super.onResume()
 		val context = requireContext()
 
-		val orientation = DisplayAssist.orientation(context)
+		val orientation = DisplayAssist.getOrientation(context)
 		if (orientation == Surface.ROTATION_90 || orientation == Surface.ROTATION_270) {
-			tracker_recycler.setPadding(
+			requireView().findViewById<View>(R.id.tracker_recycler).setPadding(
 					RECYCLER_HORIZONTAL_PADDING.dp,
 					0,
 					RECYCLER_HORIZONTAL_PADDING.dp,
@@ -173,16 +179,19 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 
 	private fun startTracking(activity: FragmentActivity) {
 		if (!Assist.isGNSSEnabled(activity)) {
-			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_gnss_not_enabled,
-			                                             priority = SnackMaker.SnackbarPriority.IMPORTANT,
-			                                             actionRes = R.string.enable,
-			                                             onActionClick = View.OnClickListener {
-				                                             val locationOptionsIntent = Intent(
-						                                             Settings.ACTION_LOCATION_SOURCE_SETTINGS
-				                                             )
-				                                             startActivity(locationOptionsIntent)
-			                                             })
-		} else if (!Assist.hasAnythingToTrack(activity)) {
+			SnackMaker(rootCoordinatorLayout)
+					.addMessage(
+							messageRes = R.string.error_gnss_not_enabled,
+							priority = SnackMaker.SnackbarPriority.IMPORTANT,
+							actionRes = R.string.enable,
+							onActionClick = {
+								val locationOptionsIntent = Intent(
+										Settings.ACTION_LOCATION_SOURCE_SETTINGS
+								)
+								startActivity(locationOptionsIntent)
+							}
+					)
+		} else if (!PreferencesAssist.hasAnythingToTrack(activity)) {
 			SnackMaker(rootCoordinatorLayout).addMessage(R.string.error_nothing_to_track)
 		} else {
 			TrackerServiceApi.startService(activity, isUserInitiated = true)
@@ -203,23 +212,12 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 		val isActive = TrackerServiceApi.isActive
 		if (isActive == enable) return
 
-		val missingPermissions = Assist.checkTrackingPermissions(activity)
-
-		fun internalToggleCollecting() {
-			if (!isActive) {
-				startTracking(activity)
-			} else {
-				stopTracking(activity)
-			}
-		}
-
-		if (missingPermissions.isEmpty()) {
-			Assist.checkTrackingPermissions(activity)
-			internalToggleCollecting()
-		} else {
-			requestPermissions(missingPermissions) { response ->
-				if (response.isSuccess) {
-					internalToggleCollecting()
+		TrackerTimerManager.checkTimerPermissions(activity) {
+			if (it.isSuccess) {
+				if (!isActive) {
+					startTracking(activity)
+				} else {
+					stopTracking(activity)
 				}
 			}
 		}
@@ -266,19 +264,27 @@ class FragmentTracker : CoreUIFragment(), LifecycleObserver {
 	}
 
 	private fun initializeColorElements() {
+		val view = requireView()
 		styleController.apply {
-			watchView(StyleView(top_panel_root, layer = 1))
-			watchRecyclerView(RecyclerStyleView(tracker_recycler, layer = 0, childrenLayer = 1))
+			watchView(StyleView(view.findViewById(R.id.top_panel_root), layer = 1))
+			watchRecyclerView(
+					RecyclerStyleView(
+							view.findViewById(R.id.tracker_recycler),
+							layer = 0,
+							childrenLayer = 1
+					)
+			)
 		}
 	}
 
 	private fun updateTrackerButton(state: Boolean) {
+		val buttonTracking = requireView().findViewById<ImageButton>(R.id.button_tracking)
 		if (state) {
-			button_tracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
-			button_tracking.contentDescription = getString(R.string.description_tracking_stop)
+			buttonTracking.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp)
+			buttonTracking.contentDescription = getString(R.string.description_tracking_stop)
 		} else {
-			button_tracking.setImageResource(R.drawable.ic_play_circle_filled_black_24dp)
-			button_tracking.contentDescription = getString(R.string.description_tracking_start)
+			buttonTracking.setImageResource(R.drawable.ic_play_circle_filled_black_24dp)
+			buttonTracking.contentDescription = getString(R.string.description_tracking_start)
 		}
 	}
 

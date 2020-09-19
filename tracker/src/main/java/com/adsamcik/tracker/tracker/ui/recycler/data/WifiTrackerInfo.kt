@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.ui.recycler.data
 
-import com.adsamcik.tracker.common.data.WifiData
+import com.adsamcik.tracker.shared.base.data.WifiData
 import com.adsamcik.tracker.tracker.R
 
 class WifiTrackerInfo(var wifiData: WifiData) : TrackerInfo(NAME_RESOURCE) {

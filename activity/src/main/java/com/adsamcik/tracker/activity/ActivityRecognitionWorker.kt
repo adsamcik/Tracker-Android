@@ -6,10 +6,10 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.activity.recognizer.ActivityRecognitionResult
 import com.adsamcik.tracker.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
-import com.adsamcik.tracker.common.data.MutableTrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.extension.tryWithResultAndReport
+import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -51,7 +51,7 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 
 		if (results.isEmpty()) return@coroutineScope Result.success()
 
-		val activityRecognitionResult = results.maxBy {
+		val activityRecognitionResult = results.maxByOrNull {
 			it.first.precisionConfidence * it.second.confidence
 		} ?: throw NullPointerException()
 

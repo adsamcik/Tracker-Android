@@ -3,15 +3,15 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
-import com.adsamcik.tracker.common.data.CollectionData
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.extension.requireValue
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.extension.requireValue
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
+import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
 import com.adsamcik.tracker.tracker.service.TrackerService
 import kotlinx.coroutines.Dispatchers
@@ -117,17 +117,7 @@ internal class NotificationComponent :
 			session: TrackerSession
 	): NotificationCompat.Builder {
 		val builder = requireTNotificationManager.createBuilder()
-
-		val resources = context.resources
-
 		buildContent(context, builder, session, data)
-
-		val trackingSessionInfo = TrackerService.sessionInfo.value
-
-		if (trackingSessionInfo != null) {
-
-		}
-
 		return builder
 	}
 

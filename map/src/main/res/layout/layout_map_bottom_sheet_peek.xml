@@ -7,6 +7,7 @@
         android:id="@+id/map_sheet_drag_area"
         android:layout_width="match_parent"
         android:layout_height="32dp"
+        android:contentDescription="@string/map_drag_content_description"
         android:elevation="4dp"
         android:scaleType="centerInside"
         android:src="@drawable/ic_pill" />

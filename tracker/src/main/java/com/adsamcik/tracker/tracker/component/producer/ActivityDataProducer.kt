@@ -4,10 +4,11 @@ import android.content.Context
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.data.GroupedActivity
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.preferences.Preferences
+
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
@@ -39,6 +40,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		}
 	}
 
+	@Suppress("UNUSED_PARAMETER")
 	private fun onActivityChanged(context: Context, activity: ActivityInfo, elapsedTime: Long) {
 		if (activity.confidence < ACTIVITY_CONFIDENCE_THRESHOLD) return
 

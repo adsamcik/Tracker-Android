@@ -3,11 +3,12 @@ package com.adsamcik.tracker.map.layer.logic
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.MutableLiveData
-import com.adsamcik.tracker.common.preference.Preferences
-import com.adsamcik.tracker.commonmap.MapLayerLogic
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.heatmap.HeatmapTileProvider
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
+import com.adsamcik.tracker.shared.map.MapLayerLogic
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.TileOverlay
 import com.google.android.gms.maps.model.TileOverlayOptions
@@ -64,11 +65,23 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 			availableRange = tileCreator.availableRange
 		}
 
-		val maxHeat = Preferences.getPref(context).getIntResString(
+		val preferences = Preferences.getPref(context)
+		val maxHeat = preferences.getIntResString(
 				R.string.settings_map_max_heat_key,
 				R.string.settings_map_max_heat_default
 		).toFloat()
-		val tileProvider = HeatmapTileProvider(tileCreator, maxHeat, quality)
+		val visitThreshold = preferences.getIntResString(
+				R.string.settings_map_visit_threshold_key,
+				R.string.settings_map_visit_threshold_default
+		)
+		val tileProvider = HeatmapTileProvider(
+				tileCreator,
+				UserHeatmapData(
+						maxHeat,
+						visitThreshold,
+						quality
+				)
+		)
 
 		tileProvider.tileRequestCountListener = { tileCountInGeneration.postValue(it) }
 

@@ -4,8 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.extension.appVersion
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.shared.base.extension.appVersion
+import com.adsamcik.tracker.shared.preferences.Preferences
+
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 
 /**

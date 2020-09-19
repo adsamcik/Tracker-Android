@@ -2,9 +2,9 @@ package com.adsamcik.tracker.map.introduction
 
 import android.view.View
 import androidx.fragment.app.FragmentActivity
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.introduction.Introduction
 import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.shapes.Circle
 import com.takusemba.spotlight.shapes.RoundedRectangle
@@ -15,7 +15,7 @@ class MapIntroduction : Introduction() {
 	override fun getTargets(activity: FragmentActivity): Collection<com.takusemba.spotlight.Target> {
 		activity.run {
 			val buttonData = SimpleTarget.ButtonData(
-					getString(com.adsamcik.tracker.common.R.string.next_part)
+					getString(com.adsamcik.tracker.shared.base.R.string.next_part)
 			) { _, spotlight ->
 				spotlight.next()
 			}
@@ -29,7 +29,7 @@ class MapIntroduction : Introduction() {
 					.addButtonData(buttonData)
 					.addButtonData(SimpleTarget.ButtonData(
 							resources.getString(
-									com.adsamcik.tracker.common.R.string.skip_introduction
+									com.adsamcik.tracker.shared.base.R.string.skip_introduction
 							)
 					) { _, spotlight ->
 						spotlight.finishSpotlight()
@@ -38,7 +38,7 @@ class MapIntroduction : Introduction() {
 					.setDescription(getString(R.string.tips_map_sheet_description))
 					.build()
 
-			target = findViewById<View>(R.id.map_search_parent)
+			target = findViewById(R.id.map_search_parent)
 			val searchTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_search_title))
@@ -46,7 +46,7 @@ class MapIntroduction : Introduction() {
 					.setShape(RoundedRectangle(target, dp8, dp8))
 					.setDescription(getString(R.string.tips_map_search_description)).build()
 
-			target = findViewById<View>(R.id.button_map_my_location)
+			target = findViewById(R.id.button_map_my_location)
 			val myLocationButtonTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_my_location_title))
@@ -55,7 +55,7 @@ class MapIntroduction : Introduction() {
 					.setDescription(getString(R.string.tips_map_my_location_description))
 					.build()
 
-			target = findViewById<View>(R.id.button_map_date_range)
+			target = findViewById(R.id.button_map_date_range)
 			val dateRangeTarget = SimpleTarget.Builder(this)
 					.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 					.setTitle(getString(R.string.tips_map_date_range_title))

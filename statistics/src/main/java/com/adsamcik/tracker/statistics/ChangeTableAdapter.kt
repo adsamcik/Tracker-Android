@@ -5,7 +5,7 @@ import androidx.annotation.StyleRes
 import com.adsamcik.recycler.adapter.implementation.card.CardListAdapter
 import com.adsamcik.recycler.adapter.implementation.card.table.TableCard
 import com.adsamcik.recycler.adapter.implementation.card.table.TableCardCreator
-import com.adsamcik.tracker.common.style.marker.IViewChange
+import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 
 /**
  * ChangeTableAdapter was created to extend TableAdapter with IViewChange interface for proper color updating

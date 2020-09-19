@@ -3,10 +3,10 @@ package com.adsamcik.tracker.map.introduction
 import android.graphics.PointF
 import android.view.View
 import androidx.fragment.app.FragmentActivity
-import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.introduction.Introduction
 import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.takusemba.spotlight.SimpleTarget
 import com.takusemba.spotlight.Target
 import com.takusemba.spotlight.shapes.RoundedRectangle
@@ -17,7 +17,7 @@ class MapSheetHiddenIntroduction : Introduction() {
 	override fun getTargets(activity: FragmentActivity): Collection<Target> {
 		activity.run {
 			val buttonData = SimpleTarget.ButtonData(
-					getString(com.adsamcik.tracker.common.R.string.next_part)
+					getString(com.adsamcik.tracker.shared.base.R.string.next_part)
 			) { _, spotlight ->
 				spotlight.next()
 			}

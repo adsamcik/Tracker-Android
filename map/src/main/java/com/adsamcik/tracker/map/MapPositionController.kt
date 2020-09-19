@@ -6,9 +6,9 @@ import android.graphics.Canvas
 import androidx.annotation.MainThread
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
-import com.adsamcik.tracker.common.data.GroupedActivity
-import com.adsamcik.tracker.common.extension.dp
-import com.adsamcik.tracker.common.extension.toDegrees
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.toDegrees
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory

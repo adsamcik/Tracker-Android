@@ -7,6 +7,7 @@ plugins {
 
 android {
 	compileSdkVersion(Android.compile)
+	buildToolsVersion(Android.buildTools)
 
 	defaultConfig {
 		minSdkVersion(Android.min)
@@ -15,19 +16,14 @@ android {
 		versionName = "1.0"
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-		kapt {
-			arguments {
-				this.arg("room.schemaLocation", "$projectDir/schemas")
-			}
-		}
 	}
 
 	sourceSets {
 		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
 	}
 
-	with(compileOptions) {
+	compileOptions {
+		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}
@@ -58,8 +54,10 @@ android {
 }
 
 dependencies {
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 	implementation(project(":activity"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 
 	Dependencies.core(this)
 	Dependencies.database(this)

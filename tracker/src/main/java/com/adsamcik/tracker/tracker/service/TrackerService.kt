@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.service
 
-import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -9,27 +8,25 @@ import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.MutableCollectionData
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.exception.PermissionException
-import com.adsamcik.tracker.common.extension.forEachIf
-import com.adsamcik.tracker.common.extension.getSystemServiceTyped
-import com.adsamcik.tracker.common.extension.hasLocationPermission
-import com.adsamcik.tracker.common.extension.hasSelfPermissions
-import com.adsamcik.tracker.common.extension.tryWithReport
-import com.adsamcik.tracker.common.extension.tryWithResultAndReport
-import com.adsamcik.tracker.common.misc.NonNullLiveData
-import com.adsamcik.tracker.common.misc.NonNullLiveMutableData
-import com.adsamcik.tracker.common.service.CoreService
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.MutableCollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
+import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
+import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
+import com.adsamcik.tracker.shared.base.service.CoreService
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.broadcast.SessionBroadcaster
+import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
-import com.adsamcik.tracker.tracker.component.TrackerTimerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
@@ -60,14 +57,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-//todo move TrackerService to it's own process
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
 
 	private val componentMutex = Mutex()
 
-	private var timerComponent: TrackerTimerComponent = NoTimer()
+	private var timerComponent: CollectionTriggerComponent = NoTimer()
 
 	private val notificationComponent: NotificationComponent = NotificationComponent()
 
@@ -92,7 +88,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		//if we don't know the accuracy the location is worthless
 		if (!preComponentList.all {
 					if (it.requirementsMet(tempData)) {
-						tryWithResultAndReport({ true }) {
+						tryWithResultAndReport(
+								{ true }) {
 							it.onNewData(tempData)
 						}
 					} else {
@@ -104,19 +101,25 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		val collectionData = MutableCollectionData(tempData.timeMillis)
 
-		dataComponentList.forEachIf({ it.requirementsMet(tempData) }) {
-			tryWithReport {
-				it.onDataUpdated(tempData, collectionData)
-			}
-		}
+		dataComponentList
+				.asSequence()
+				.filter { it.requirementsMet(tempData) }
+				.forEach {
+					tryWithReport {
+						it.onDataUpdated(tempData, collectionData)
+					}
+				}
 
 		requireNotNull(sessionComponent).onDataUpdated(tempData, collectionData)
 
-		postComponentList.forEachIf({ it.requirementsMet(tempData) }) {
-			tryWithReport {
-				it.onNewData(this, session, collectionData, tempData)
-			}
-		}
+		postComponentList
+				.asSequence()
+				.filter { it.requirementsMet(tempData) }
+				.forEach {
+					tryWithReport {
+						it.onNewData(this, session, collectionData, tempData)
+					}
+				}
 
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 
@@ -177,7 +180,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(CellTrackerComponent())
 			add(LocationTrackerComponent())
 			add(WifiTrackerComponent())
-		}
+		}.forEach { it.onEnable(this) }
 
 		// todo add only components that can actually be used
 		postComponentList.apply {
@@ -194,12 +197,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		if (intent == null) {
 			Reporter.report(NullPointerException("Intent is null"))
-		}
-
-		if (!this.hasLocationPermission) {
-			Reporter.report(PermissionException("Tracker does not have sufficient permissions"))
-			stopSelf()
-			return Service.START_NOT_STICKY
 		}
 
 		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
@@ -239,26 +236,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private fun sendSessionStartBroadcast() {
 		val sessionComponent = requireNotNull(sessionComponent)
-		val session = sessionComponent.session
 
-		val sessionStartIntent = Intent(TrackerSession.ACTION_SESSION_STARTED).apply {
-			putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
-			putExtra(TrackerSession.RECEIVER_SESSION_IS_NEW, sessionComponent.isNewSession)
-		}
-
-		sendBroadcast(sessionStartIntent, TrackerSession.BROADCAST_PERMISSION)
-	}
-
-	private fun sendSessionEndBroadcast() {
-		val session = session
-		val resumeTimeout = if (session.isUserInitiated) 0L else SessionTrackerComponent.SESSION_RESUME_TIMEOUT
-
-		val sessionEndIntent = Intent(TrackerSession.ACTION_SESSION_ENDED).apply {
-			putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
-			putExtra(TrackerSession.RECEIVER_SESSION_RESUME_TIMEOUT, resumeTimeout)
-			`package` = this@TrackerService.packageName
-		}
-		sendBroadcast(sessionEndIntent, TrackerSession.BROADCAST_PERMISSION)
+		SessionBroadcaster.broadcastSessionStart(
+				this,
+				sessionComponent.session,
+				sessionComponent.isNewSession
+		)
 	}
 
 	private fun initializeTimer() {
@@ -303,8 +286,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		postComponentList.forEach { it.onDisable(context) }
 
 		//Can be null if TrackerServices is immediately stopped after start
+		val sessionComponent = sessionComponent
 		if (sessionComponent != null) {
-			sendSessionEndBroadcast()
+			SessionBroadcaster.broadcastSessionEnd(context, sessionComponent.session)
 		}
 	}
 
@@ -369,20 +353,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val lastCollectionData: LiveData<CollectionDataEcho> get() = lastCollectionDataMutable
 
 
-		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo> = MutableLiveData()
+		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo?> = MutableLiveData()
 
 		/**
 		 * Current information about session.
 		 * Null when no session is active.
 		 */
-		val sessionInfo: LiveData<TrackerSessionInfo> get() = sessionInfoMutable
+		val sessionInfo: LiveData<TrackerSessionInfo?> get() = sessionInfoMutable
 
 
 		const val ARG_IS_USER_INITIATED = "userInitiated"
 		private const val DEFAULT_IS_USER_INITIATED = false
-
-		const val ARG_TRACKER_DATA = "trackerData"
-		private const val MESSAGE_TRACKER_UPDATE = 115
 	}
 }
 

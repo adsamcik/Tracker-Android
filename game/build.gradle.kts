@@ -7,6 +7,7 @@ plugins {
 
 android {
 	compileSdkVersion(Android.compile)
+	buildToolsVersion(Android.buildTools)
 
 	defaultConfig {
 		minSdkVersion(Android.min)
@@ -15,9 +16,21 @@ android {
 		versionName = "1.0"
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+
+		with(javaCompileOptions) {
+			with(annotationProcessorOptions) {
+				arguments(
+						mapOf(
+								"room.incremental" to "true"
+						)
+				)
+			}
+		}
 	}
 
-	with(compileOptions) {
+	compileOptions {
+		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}
@@ -36,6 +49,12 @@ android {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
 	}
+
+	kapt {
+		arguments {
+			this.arg("room.schemaLocation", "$projectDir/schemas")
+		}
+	}
 }
 
 dependencies {
@@ -46,5 +65,7 @@ dependencies {
 	Dependencies.test(this)
 
 	implementation(project(":app"))
-	implementation(project(":common"))
+	implementation(project(":sbase"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 }

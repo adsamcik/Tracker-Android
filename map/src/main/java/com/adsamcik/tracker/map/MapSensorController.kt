@@ -11,12 +11,12 @@ import androidx.appcompat.widget.AppCompatImageButton
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.constant.GeometryConstants
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.extension.hasLocationPermission
-import com.adsamcik.tracker.common.extension.sensorManager
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.constant.GeometryConstants
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -31,7 +31,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "MemberVisibilityCanBePrivate")
 internal class MapSensorController(
 		context: Context,
 		private val map: GoogleMap,
@@ -101,6 +101,9 @@ internal class MapSensorController(
 		targetZoom = cameraPosition.zoom
 	}
 
+	/**
+	 * Subscribes [MapSensorController] to receive location updates.
+	 */
 	fun subscribeToLocationUpdates(context: Context, moveToCurrentLocation: Boolean = false) {
 		if (!isSubscribed && context.hasLocationPermission) {
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
@@ -111,6 +114,7 @@ internal class MapSensorController(
 
 			Assist.ensureLooper()
 
+			@Suppress("MissingPermission")
 			locationClient.requestLocationUpdates(
 					locationRequest,
 					locationCallback,
@@ -175,12 +179,11 @@ internal class MapSensorController(
 	/**
 	 * Call to stop updating camera position to look at user's position.
 	 *
-	 * @param returnToDefault True if you want to return any tilt to default orientation
 	 */
-	fun stopUsingUserPosition(button: AppCompatImageButton, returnToDefault: Boolean) {
+	fun stopUsingUserPosition(button: AppCompatImageButton) {
 		if (followMyPosition) {
 			this.followMyPosition = false
-			button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_gps_not_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.tracker.shared.base.R.drawable.ic_gps_not_fixed_black_24dp)
 		}
 
 		onCameraMoveStartedListener?.run {
@@ -244,9 +247,9 @@ internal class MapSensorController(
 
 	fun onMyPositionButtonClick(button: AppCompatImageButton) {
 		if (followMyPosition) {
-			stopUsingUserPosition(button, false)
+			stopUsingUserPosition(button)
 		} else {
-			button.setImageResource(com.adsamcik.tracker.common.R.drawable.ic_gps_fixed_black_24dp)
+			button.setImageResource(com.adsamcik.tracker.shared.base.R.drawable.ic_gps_fixed_black_24dp)
 			this.followMyPosition = true
 
 			if (lastUserPos != null) {
@@ -255,7 +258,7 @@ internal class MapSensorController(
 
 			onCameraMoveStartedListener = GoogleMap.OnCameraMoveStartedListener {
 				if (it == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-					stopUsingUserPosition(button, true)
+					stopUsingUserPosition(button)
 				}
 			}.also {
 				eventListener += it

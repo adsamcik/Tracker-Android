@@ -1,14 +1,14 @@
 package com.adsamcik.tracker.game.challenge.data.builder
 
 import android.content.Context
-import com.adsamcik.tracker.common.extension.additiveInverse
-import com.adsamcik.tracker.common.extension.rescale
 import com.adsamcik.tracker.game.challenge.data.ChallengeBuilder
 import com.adsamcik.tracker.game.challenge.data.definition.ExplorerChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.instance.ExplorerChallengeInstance
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
+import com.adsamcik.tracker.shared.base.extension.additiveInverse
+import com.adsamcik.tracker.shared.base.extension.rescale
 
 class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefinition) :
 		ChallengeBuilder<ExplorerChallengeInstance>(

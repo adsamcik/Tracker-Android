@@ -4,13 +4,15 @@ import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
-import com.adsamcik.tracker.common.debug.Logger
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.language.LocaleManager
-import com.adsamcik.tracker.common.module.ModuleClassLoader
-import com.adsamcik.tracker.common.module.ModuleInitializer
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
+import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
+import com.adsamcik.tracker.shared.base.module.ModuleInitializer
+import com.adsamcik.tracker.shared.utils.debug.Logger
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
+import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
 import kotlinx.coroutines.Dispatchers
@@ -18,9 +20,14 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.*
 
+/**
+ * Main application
+ */
 @Suppress("unused")
 @ExperimentalStdlibApi
 class Application : SplitCompatApplication() {
+
+	private val styleObserver = StyleLifecycleObserver(this)
 
 	@SuppressLint("DefaultLocale")
 	@WorkerThread
@@ -55,6 +62,7 @@ class Application : SplitCompatApplication() {
 	private fun initializeImportantSingletons() {
 		Reporter.initialize(this)
 		Logger.initialize(this)
+		ActivityWatcherService.poke(this)
 	}
 
 	@WorkerThread
@@ -71,6 +79,12 @@ class Application : SplitCompatApplication() {
 			initializeModules()
 			initializeDatabaseMaintenance()
 		}
+
+		setupLifecycleListener()
+	}
+
+	private fun setupLifecycleListener() {
+		ProcessLifecycleOwner.get().lifecycle.addObserver(styleObserver)
 	}
 
 }

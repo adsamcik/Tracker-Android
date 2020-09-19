@@ -10,14 +10,17 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.common.activity.DetailActivity
-import com.adsamcik.tracker.common.debug.DebugDatabase
-import com.adsamcik.tracker.common.debug.LogData
-import com.adsamcik.tracker.common.extension.formatAsDateTime
-import com.adsamcik.tracker.common.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
+import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.debug.DebugDatabase
+import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+/**
+ * Activity for activity recognition debugging
+ */
 class ActivityDebugActivity : DetailActivity() {
 
 	override fun onConfigure(configuration: Configuration) {

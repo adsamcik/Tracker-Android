@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker
 import android.content.Context
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.tracker.common.Time
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.jraska.livedata.test
 import org.junit.Assert

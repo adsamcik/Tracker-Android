@@ -1,11 +1,8 @@
 package com.adsamcik.tracker.game.challenge.database
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.adsamcik.tracker.common.database.ObjectBaseDatabase
 import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
@@ -17,9 +14,7 @@ import com.adsamcik.tracker.game.challenge.database.dao.WalkDistanceChallengeDao
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
-import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
-import io.requery.android.database.sqlite.SQLiteDatabase
-import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
+import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 
 @Database(
 		entities = [

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.activity
 
-import com.adsamcik.tracker.common.debug.LogData
-import com.adsamcik.tracker.common.debug.Logger
+import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.shared.utils.debug.Logger
 
 internal fun logActivity(data: LogData) = Logger.logWithPreference(
 		data,

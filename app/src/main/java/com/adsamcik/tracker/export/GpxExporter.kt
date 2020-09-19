@@ -4,9 +4,9 @@ import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.common.database.data.DatabaseLocation
-import com.adsamcik.tracker.common.extension.applicationName
-import com.adsamcik.tracker.common.extension.formatAsDateTime
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.extension.applicationName
+import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.WayPoint
 import java.io.File

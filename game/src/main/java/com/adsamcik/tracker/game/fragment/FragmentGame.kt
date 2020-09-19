@@ -8,13 +8,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.recycler.adapter.implementation.sort.AppendPriority
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.common.assist.DisplayAssist
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.recycler.multitype.StyleMultiTypeAdapter
-import com.adsamcik.tracker.common.style.RecyclerStyleView
-import com.adsamcik.tracker.common.style.StyleView
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.adapter.ChallengeAdapter
@@ -23,6 +17,11 @@ import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType
 import com.adsamcik.tracker.game.fragment.recycler.creator.ChallengeRecyclerCreator
 import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
+import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
+import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
+import com.adsamcik.tracker.shared.utils.style.StyleView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -41,14 +40,16 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		//updateChallenges()
 
 		val context = requireContext()
-		val adapter = GameAdapter(styleController).apply {
+		val adapter = GameAdapter(
+				styleController
+		).apply {
 			registerType(GameRecyclerType.List, ChallengeRecyclerCreator())
 		}.also { recycler.adapter = it }
 		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
 		recycler.layoutManager = LinearLayoutManager(context)
 
 
-		val contentPadding = context.resources.getDimension(com.adsamcik.tracker.common.R.dimen.content_padding)
+		val contentPadding = context.resources.getDimension(com.adsamcik.tracker.shared.base.R.dimen.content_padding)
 				.toInt()
 		val statusBarHeight = DisplayAssist.getStatusBarHeight(context)
 		val navBarSize = DisplayAssist.getNavigationBarSize(context)
@@ -71,10 +72,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		)
 
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
-		adapter.add(
-				ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter),
-				AppendPriority.Any
-		)
+		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter))
 
 		ChallengeManager.activeChallenges.observe(this) { updateChallenges(challengeAdapter, it) }
 

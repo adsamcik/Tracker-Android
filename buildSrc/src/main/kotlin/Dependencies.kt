@@ -1,55 +1,80 @@
 import org.gradle.api.artifacts.dsl.DependencyHandler
 import org.gradle.kotlin.dsl.kotlin
 
-@Suppress("TooManyFunctions")
+/**
+ * Object with common dependency groups for easy and central dependency management.
+ */
+@Suppress("TooManyFunctions", "SpellCheckingInspection")
 object Dependencies {
+	/**
+	 * Object containing versions for various dependencies.
+	 * Dependencies that are not project are required to be internal.
+	 */
 	object Versions {
-		internal const val constraintLayout = "2.0.0-beta3"
-		internal const val coreKtx = "1.2.0-beta02"
-		internal const val appcompat = "1.1.0"
-		internal const val fragment = "1.2.0-rc02"
-		const val kotlin: String = "1.3.50"
+		internal const val constraintLayout = "2.0.1"
+		internal const val coreKtx = "1.5.0-alpha03"
+		internal const val appcompat = "1.2.0"
+		internal const val fragment = "1.2.5"
 		const val dokka: String = "0.9.18"
-		internal const val moshi = "1.9.1"
-		internal const val work = "2.2.0"
-		internal const val lifecycle = "2.2.0-rc02"
-		internal const val preference = "1.1.0"
-		internal const val material = "1.1.0-beta02"
-		internal const val coroutines = "1.3.2"
+		internal const val moshi = "1.10.0"
+		internal const val work = "2.4.0"
+		internal const val lifecycle = "2.2.0"
+		internal const val preference = "1.1.1"
+		internal const val material = "1.2.1"
+		internal const val desugar = "1.0.10"
 
-		internal const val requery = "3.30.1"
-		internal const val room = "2.2.1"
+		const val kotlin: String = "1.4.10"
+		internal const val coroutines = "1.3.9"
+
+		internal const val requery = "3.32.2"
+		internal const val room = "2.3.0-alpha02"
 
 		internal const val maps = "17.0.0"
-		internal const val firebaseCore = "17.2.1"
-		internal const val recyclerView = "1.1.0-rc01"
-		internal const val paging = "2.1.0"
+		internal const val recyclerView = "1.1.0"
+		internal const val paging = "3.0.0-alpha02"
 
-		internal const val crashlytics = "2.10.1"
+		internal const val firebaseCore = "17.5.0"
+		internal const val crashlytics = "17.2.1"
+		const val crashlyticsGradle = "2.3.0"
 
-		internal const val playServicesBase = "17.1.0"
-		internal const val playCore = "1.6.4"
+		internal const val playServicesBase = "17.4.0"
+		internal const val playCore = "1.8.0"
 		internal const val playLocation = "17.0.0"
 
+		internal const val stax = "1.0.1"
+		internal const val jpx = "2.0.0"
+		internal const val xml = "1.2.2"
+
 		internal const val spotlight = "2.2.2"
-		internal const val dialogs = "3.1.1"
-		internal const val sectionedRecyclerViewAdapter = "3.0.0"
+		internal const val dialogs = "3.3.0"
+		internal const val sectionedRecyclerViewAdapter = "3.2.0"
 
-		internal const val componentsRecycler = "0.7.4"
+		internal const val componentsRecycler = "0.8.0"
+		internal const val componentsDraggable = "1.0.0"
+		internal const val componentSlider = "2.0.0-beta01"
 
-		object Test {
-			const val androidxTest: String = "1.2.0"
-			const val espresso: String = "3.2.0"
+		internal const val permissions = "6.2.1"
+
+		/**
+		 * Testing specific dependencies
+		 */
+		internal object Test {
+			internal const val androidxTest: String = "1.3.0"
+			internal const val espresso: String = "3.3.0"
+			internal const val coreTesting: String = "2.1.0"
+			internal const val testingKtx: String = "1.1.2"
 		}
 	}
 
 	private fun DependencyHandler.api(name: String) = add("api", name)
 	private fun DependencyHandler.implementation(name: String) = add("implementation", name)
 	private fun DependencyHandler.kapt(name: String) = add("kapt", name)
-	private fun DependencyHandler.androidTestImplementation(name: String) = add(
-			"androidTestImplementation",
-			name
-	)
+	private fun DependencyHandler.androidTestImplementation(name: String) =
+			add("androidTestImplementation", name)
+
+	private fun DependencyHandler.compileOnly(name: String) = add("compileOnly", name)
+	private fun DependencyHandler.coreLibraryDesugaring(dependencyNotation: Any) =
+			add("coreLibraryDesugaring", dependencyNotation)
 
 	fun moshi(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
@@ -71,6 +96,10 @@ object Dependencies {
 
 	fun core(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
+			// Fix for compile error caused by missing annotation in JDK9+
+			compileOnly("com.github.pengrad:jdk9-deps:1.0")
+			coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
+
 			implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
 			implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
 			implementation("androidx.core:core-ktx:${Versions.coreKtx}")
@@ -79,7 +108,7 @@ object Dependencies {
 			//Recycler
 			implementation("com.adsamcik.android-components:recycler:${Versions.componentsRecycler}")
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
-			implementation("android.arch.paging:runtime:${Versions.paging}")
+			//implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
 
 			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
@@ -91,6 +120,8 @@ object Dependencies {
 
 			implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
 			//implementation("com.codezjx.library:andlinker:0.7.2")
+
+			implementation("com.karumi:dexter:${Versions.permissions}")
 
 			work(this)
 
@@ -128,13 +159,19 @@ object Dependencies {
 	fun crashlytics(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.google.firebase:firebase-core:${Versions.firebaseCore}")
-			implementation("com.crashlytics.sdk.android:crashlytics:${Versions.crashlytics}")
+			implementation("com.google.firebase:firebase-crashlytics:${Versions.crashlytics}")
 		}
 	}
 
 	fun draggable(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.adsamcik.android-components:draggable:0.14.1")
+			implementation("com.adsamcik.android-components:draggable:${Versions.componentsDraggable}")
+		}
+	}
+
+	fun slider(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.adsamcik.android-components:slider:${Versions.componentSlider}")
 		}
 	}
 
@@ -158,9 +195,9 @@ object Dependencies {
 
 	fun gpx(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("stax:stax-api:1.0.1")
-			implementation("com.fasterxml:aalto-xml:1.2.2")
-			implementation("io.jenetics:jpx:1.6.0")
+			implementation("stax:stax-api:${Versions.stax}")
+			implementation("com.fasterxml:aalto-xml:${Versions.xml}")
+			implementation("io.jenetics:jpx:${Versions.jpx}")
 		}
 	}
 
@@ -183,8 +220,8 @@ object Dependencies {
 			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
 			androidTestImplementation("androidx.test.ext:junit:1.1.1")
-			androidTestImplementation("androidx.arch.core:core-testing:2.1.0")
-			androidTestImplementation("com.jraska.livedata:testing-ktx:1.1.0")
+			androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.coreTesting}")
+			androidTestImplementation("com.jraska.livedata:testing-ktx:${Versions.Test.testingKtx}")
 			androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
 			androidTestImplementation("androidx.test.espresso:espresso-contrib:${Versions.Test.espresso}")
 		}

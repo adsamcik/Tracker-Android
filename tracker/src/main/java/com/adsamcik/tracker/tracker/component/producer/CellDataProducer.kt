@@ -14,14 +14,14 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.data.CellInfo
-import com.adsamcik.tracker.common.data.CellType
-import com.adsamcik.tracker.common.data.NetworkOperator
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.extension.getSystemServiceTyped
-import com.adsamcik.tracker.common.extension.hasReadPhonePermission
-import com.adsamcik.tracker.common.extension.telephonyManager
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.data.CellInfo
+import com.adsamcik.tracker.shared.base.data.CellType
+import com.adsamcik.tracker.shared.base.data.NetworkOperator
+import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
+import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
+import com.adsamcik.tracker.shared.base.extension.telephonyManager
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
@@ -41,19 +41,16 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
 	private var context: Context? = null
 
-	@SuppressLint("MissingPermission")
 	override fun onDataRequest(tempData: MutableCollectionTempData) {
-		val context = context
-		checkNotNull(context)
+		val context = requireNotNull(context)
 		if (!Assist.isAirplaneModeEnabled(context)) {
-			val telephonyManager = telephonyManager
-			checkNotNull(telephonyManager)
+			val telephonyManager = requireNotNull(telephonyManager)
 
 			val scanData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && context.hasReadPhonePermission) {
-				val subscriptionManager = subscriptionManager
-				checkNotNull(subscriptionManager)
+				val subscriptionManager = requireNotNull(subscriptionManager)
 
 				//Requires suppress missing permission because lint does not properly work with context.hasReadPhonePermission
+				@Suppress("MissingPermission")
 				getScanData(telephonyManager, subscriptionManager)
 			} else {
 				getScanData(telephonyManager)
@@ -87,29 +84,46 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			subscriptionManager: SubscriptionManager
 	): CellScanData? {
 		val list = mutableListOf<NetworkOperator>()
-		subscriptionManager.activeSubscriptionInfoList.forEach {
-			val mcc: String?
-			val mnc: String?
+		val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
+		if (activeSubscriptions == null) {
+			return getScanData(telephonyManager)
+		} else {
+			activeSubscriptions.forEach {
+				val mcc: String?
+				val mnc: String?
 
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-				mcc = it.mccString
-				mnc = it.mncString
-			} else {
-				@Suppress("deprecation")
-				mcc = it.mcc.toString()
-				@Suppress("deprecation")
-				mnc = it.mnc.toString()
+				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+					mcc = it.mccString
+					mnc = it.mncString
+				} else {
+					@Suppress("deprecation")
+					mcc = it.mcc.toString()
+					@Suppress("deprecation")
+					mnc = it.mnc.toString()
+				}
+
+				if (mcc != null && mnc != null) {
+					list.add(NetworkOperator(mcc, mnc, it.carrierName.toString()))
+				}
 			}
 
-			if (mcc != null && mnc != null) {
-				list.add(NetworkOperator(mcc, mnc, it.carrierName.toString()))
+			return if (list.isNotEmpty()) {
+				getScanData(telephonyManager, list)
+			} else {
+				null
 			}
 		}
+	}
 
-		return if (list.isNotEmpty()) {
-			getScanData(telephonyManager, list)
-		} else {
-			null
+	private fun getPhoneCount(telephonyManager: TelephonyManager) = when {
+		Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+			telephonyManager.activeModemCount
+		}
+		Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+			@Suppress("DEPRECATION") telephonyManager.phoneCount
+		}
+		else -> {
+			1
 		}
 	}
 
@@ -117,9 +131,10 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			telephonyManager: TelephonyManager,
 			registeredOperators: List<NetworkOperator>
 	): CellScanData? {
+		@SuppressLint("MissingPermission")
 		val cellInfo = telephonyManager.allCellInfo ?: return null
 
-		val phoneCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) telephonyManager.phoneCount else 1
+		val phoneCount = getPhoneCount(telephonyManager)
 		val registeredCells = ArrayList<CellInfo>(phoneCount)
 
 		cellInfo.forEach {
@@ -155,33 +170,40 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			cellInfo: android.telephony.CellInfo,
 			registeredOperator: List<NetworkOperator>
 	): CellInfo? {
-		return if (cellInfo is CellInfoLte) {
-			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+		return when {
+			cellInfo is CellInfoLte -> {
+				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+				}
 			}
-		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr) {
-			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-				CellInfo(
-						cellInfo.cellIdentity as CellIdentityNr,
-						cellInfo.cellSignalStrength as CellSignalStrengthNr,
-						it
-				)
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr -> {
+				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+					CellInfo(
+							cellInfo.cellIdentity as CellIdentityNr,
+							cellInfo.cellSignalStrength as CellSignalStrengthNr,
+							it
+					)
+				}
 			}
-		} else if (cellInfo is CellInfoGsm) {
-			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+			cellInfo is CellInfoGsm -> {
+				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+				}
 			}
-		} else if (cellInfo is CellInfoWcdma) {
-			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+			cellInfo is CellInfoWcdma -> {
+				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+				}
 			}
-		} else if (cellInfo is CellInfoCdma) {
-			registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-				CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+			cellInfo is CellInfoCdma -> {
+				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+				}
 			}
-		} else {
-			Reporter.report(Throwable("UNKNOWN CELL TYPE ${cellInfo.javaClass.simpleName}"))
-			null
+			else -> {
+				Reporter.report(Throwable("Unknown cell type ${cellInfo.javaClass.simpleName}"))
+				null
+			}
 		}
 	}
 

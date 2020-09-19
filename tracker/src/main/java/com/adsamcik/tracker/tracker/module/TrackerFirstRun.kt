@@ -1,15 +1,16 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
-import com.adsamcik.tracker.common.module.FirstRun
-import com.adsamcik.tracker.common.module.OnDoneListener
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.module.FirstRun
+import com.adsamcik.tracker.shared.utils.module.OnDoneListener
+
 import com.adsamcik.tracker.tracker.R
 import com.afollestad.materialdialogs.list.listItemsMultiChoice
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
 
 @Suppress("unused")
-class TrackerFirstRun : FirstRun() {
+internal class TrackerFirstRun : FirstRun() {
 	override fun onFirstRun(context: Context, onDoneListener: OnDoneListener) {
 		autoTrackingOptions(context, onDoneListener)
 	}
@@ -18,12 +19,12 @@ class TrackerFirstRun : FirstRun() {
 		createDialog(context) {
 			title(R.string.settings_auto_tracking_category)
 			listItemsSingleChoice(
-					R.array.tracking_options_titles,
+					R.array.auto_tracking_options_values,
 					waitForPositiveButton = true,
 					selection = { dialog, index, _ ->
 						Preferences.getPref(dialog.context).edit {
 							setInt(
-									com.adsamcik.tracker.common.R.string.settings_tracking_activity_key,
+									com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
 									index
 							)
 						}

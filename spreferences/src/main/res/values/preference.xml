@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="settings_activity_enabled_default" translatable="false">true</string>
+    <string name="settings_activity_enabled_key" translatable="false">trackingActivityEnabled</string>
+    <string name="settings_auto_tracking_transition_default" translatable="false">true</string>
+    <string name="settings_auto_tracking_transition_key" translatable="false">transitionApiEnabled</string>
+    <string name="settings_cell_enabled_default" translatable="false">false</string>
+    <string name="settings_cell_enabled_key" translatable="false">trackingCellEnabled</string>
+    <string name="settings_color_key" translatable="false">styleColor%d</string>
+    <string name="settings_error_reporting_default" translatable="false">false</string>
+    <string name="settings_error_reporting_key" translatable="false">errorReporting</string>
+    <string name="settings_language_key" translatable="false">language</string>
+    <string name="settings_length_system_default" translatable="false">Metric</string>
+    <string name="settings_length_system_key" translatable="false">lengthSystem</string>
+    <string name="settings_location_enabled_default" translatable="false">true</string>
+    <string name="settings_location_enabled_key" translatable="false">trackingLocationEnabled</string>
+    <string name="settings_log_activity_default" translatable="false">false</string>
+    <string name="settings_log_activity_key" translatable="false">log_activity</string>
+    <string name="settings_log_games_default" translatable="false">false</string>
+    <string name="settings_log_games_key" translatable="false">log_games</string>
+    <string name="settings_notification_styled_default" translatable="false">true</string>
+    <string name="settings_notification_styled_key" translatable="false">notificationStyle</string>
+    <string name="settings_speed_format_default" translatable="false">Hour</string>
+    <string name="settings_speed_format_key" translatable="false">speedFormat</string>
+    <string name="settings_style_mode_key" translatable="false">styleMode</string>
+    <string name="settings_tracker_timer_key" translatable="false">trackerTicker</string>
+    <string name="settings_tracking_activity_default" translatable="false">1</string>
+    <string name="settings_tracking_activity_key" translatable="false">backgroundTracking</string>
+    <integer name="settings_tracking_min_distance_default">10</integer>
+    <string name="settings_tracking_min_distance_key" translatable="false">minTrackingDistance</string>
+    <integer name="settings_tracking_min_time_default">2</integer>
+    <string name="settings_tracking_min_time_key" translatable="false">minTrackingTimeDifference</string>
+    <integer name="settings_tracking_required_accuracy_default">50</integer>
+    <string name="settings_tracking_required_accuracy_key" translatable="false">requiredTrackingAccuracy</string>
+    <string name="settings_wifi_enabled_default" translatable="false">false</string>
+    <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
+    <string name="settings_wifi_location_count_enabled_default" translatable="false">false</string>
+    <string name="settings_wifi_location_count_enabled_key" translatable="false">trackingWifiLocationCountEnabled</string>
+    <string name="settings_wifi_network_enabled_default" translatable="false">false</string>
+    <string name="settings_wifi_network_enabled_key" translatable="false">trackingWifiNetworkEnabled</string>
+
+    <string name="show_tips_default" translatable="false">true</string>
+    <string name="show_tips_key" translatable="false">tipsEnabled</string>
+</resources>

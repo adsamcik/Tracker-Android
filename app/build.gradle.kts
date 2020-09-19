@@ -6,7 +6,7 @@ plugins {
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
-	id("io.fabric")
+	id("com.google.firebase.crashlytics")
 	Dependencies.corePlugins(this)
 }
 
@@ -22,19 +22,20 @@ android {
 		applicationId = "com.adsamcik.tracker"
 		minSdkVersion(Android.min)
 		targetSdkVersion(Android.target)
-		versionCode = 342
-		versionName = "2019.1"
+		versionCode = 354
+		versionName = "2020.1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		resConfigs("en", "cs")
 	}
 
-	with(compileOptions) {
+	compileOptions {
+		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}
 
 	tasks.withType<KotlinCompile> {
-			with(kotlinOptions) {
+		with(kotlinOptions) {
 			jvmTarget = "1.8"
 			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes")
 		}
@@ -82,13 +83,15 @@ tasks.withType<DokkaTask> {
 }
 
 dependencies {
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 
 	Dependencies.core(this)
 	//1st party dependencies
-	implementation("com.adsamcik.android-components:slider:0.8.0")
+	Dependencies.slider(this)
 	Dependencies.draggable(this)
 
 	Dependencies.introduction(this)
@@ -121,7 +124,7 @@ dependencies {
 
 	Dependencies.test(this)
 	//workaround  Multiple APKs packaging the same library can cause runtime errors.
-	implementation(project(":commonmap"))
+	implementation(project(":smap"))
 	Dependencies.map(this)
 }
 apply {

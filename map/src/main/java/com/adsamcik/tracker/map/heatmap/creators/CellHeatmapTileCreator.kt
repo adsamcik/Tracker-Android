@@ -1,17 +1,18 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.map.MapLayerData
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.pow
 
 internal class CellHeatmapTileCreator(
 		context: Context,
-		val data: MapLayerData
+		val layerData: MapLayerData
 ) : HeatmapTileCreator {
 	private val dao = AppDatabase.database(context).cellLocationDao()
 
@@ -26,17 +27,18 @@ internal class CellHeatmapTileCreator(
 	override val getAllInsideAndBetween get() = dao::getAllInsideAndBetween
 	override val getAllInside get() = dao::getAllInside
 
-	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
-		val colorMap = data.colorList
+	override fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig {
+		val colorMap = layerData.colorList
 		return HeatmapConfig(
 				HeatmapColorScheme.fromArray(colorMap, 0),
 				(colorMap.size - 1).toFloat(),
 				false,
+				dataUser.ageThreshold,
 				{ original, _, _, weight ->
 					max(weight, original)
 				}) { original, stampValue, _ ->
 			val newAlpha = (stampValue * UByte.MAX_VALUE.toFloat()).toInt()
-			max(original, newAlpha).toUByte()
+			max(original, newAlpha)
 		}
 	}
 

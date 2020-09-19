@@ -1,10 +1,11 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.commonmap.MapLayerData
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.map.heatmap.UserHeatmapData
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.map.MapLayerData
 import kotlin.math.ceil
 import kotlin.math.log10
 import kotlin.math.max
@@ -12,7 +13,7 @@ import kotlin.math.max
 @Suppress("MagicNumber")
 internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerData) :
 		HeatmapTileCreator {
-	override fun createHeatmapConfig(heatmapSize: Int, maxHeat: Float): HeatmapConfig {
+	override fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig {
 		val colorList = layerData.colorList
 		val colorListSize = colorList.size.toDouble()
 		val heatmapColors = layerData.colorList.mapIndexed { index, color ->
@@ -21,12 +22,13 @@ internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerD
 
 		return HeatmapConfig(
 				HeatmapColorScheme.fromArray(heatmapColors, 100),
-				50f,
+				MAX_WIFI_HEAT,
 				false,
+				dataUser.ageThreshold,
 				{ current, _, stampValue, weight ->
 					current + stampValue * weight
 				}) { current, stampValue, weight ->
-			((current.toFloat() + stampValue * weight) / 2f).toInt().toUByte()
+			((current.toFloat() + stampValue * weight) / 2f).toInt()
 		}
 	}
 
@@ -51,21 +53,4 @@ internal class WifiHeatmapTileCreator(context: Context, val layerData: MapLayerD
 
 	override val getAllInsideAndBetween get() = dao::getAllInsideAndBetween
 	override val getAllInside get() = dao::getAllInside
-
-	companion object {
-		/**
-		 * This essentially makes many variables in the formula meaningless,
-		 * but they are kept there for readability
-		 */
-		private const val NORMALIZER = 58.6273f
-
-		// , path loss can be represented by the path loss exponent, whose value is normally in the range of 2 to 4
-		// (where 2 is for propagation in free space, 4 is for relatively lossy environments and for the case of
-		// full specular reflection from the earth surface—the so-called flat earth model).
-		private const val LOSS_EXPONENT = 3f
-
-		private const val APPROXIMATE_DISTANCE_IN_METERS = 90f
-
-		private const val VISUAL_SCALE = 2f
-	}
 }

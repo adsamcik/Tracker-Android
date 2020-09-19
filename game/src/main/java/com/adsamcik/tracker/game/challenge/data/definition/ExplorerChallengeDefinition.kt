@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.game.challenge.data.definition
 
 import android.content.Context
-import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.game.challenge.data.builder.ExplorerChallengeBuilder
 import com.adsamcik.tracker.game.challenge.data.instance.ExplorerChallengeInstance
+import com.adsamcik.tracker.shared.base.Time
 
 class ExplorerChallengeDefinition : ChallengeDefinition<ExplorerChallengeInstance>(
 		R.string.challenge_explorer_title,

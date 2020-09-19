@@ -5,7 +5,7 @@ import com.adsamcik.tracker.game.challenge.data.ChallengePersistence
 import com.adsamcik.tracker.game.challenge.data.definition.WalkDistanceChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.instance.WalkDistanceChallengeInstance
 
-class WalkDistanceChallengePersistence : ChallengePersistence<WalkDistanceChallengeInstance> {
+internal class WalkDistanceChallengePersistence : ChallengePersistence<WalkDistanceChallengeInstance> {
 	override fun load(context: Context, entryId: Long): WalkDistanceChallengeInstance {
 		val database = getDatabase(context)
 		val entry = database.entryDao.get(entryId)

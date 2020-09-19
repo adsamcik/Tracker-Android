@@ -3,11 +3,11 @@ package com.adsamcik.tracker.map.layer.logic
 import android.content.Context
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.adsamcik.tracker.commonmap.MapLayerData
-import com.adsamcik.tracker.commonmap.MapLayerInfo
-import com.adsamcik.tracker.commonmap.MapLayerLogic
-import com.adsamcik.tracker.commonmap.MapLegend
 import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.shared.map.MapLayerData
+import com.adsamcik.tracker.shared.map.MapLayerInfo
+import com.adsamcik.tracker.shared.map.MapLayerLogic
+import com.adsamcik.tracker.shared.map.MapLegend
 import com.google.android.gms.maps.GoogleMap
 
 internal class NoMapLayerLogic : MapLayerLogic {

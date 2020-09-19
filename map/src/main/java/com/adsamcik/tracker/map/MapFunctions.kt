@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.map
 
 import android.renderscript.Double2
-import com.adsamcik.tracker.common.constant.GeometryConstants.CIRCLE_IN_DEGREES
-import com.adsamcik.tracker.common.constant.GeometryConstants.CIRCLE_IN_RADIANS
-import com.adsamcik.tracker.common.constant.GeometryConstants.HALF_CIRCLE_IN_DEGREES
-import com.adsamcik.tracker.common.constant.GeometryConstants.HALF_CIRCLE_IN_RADIANS
-import com.adsamcik.tracker.common.extension.LocationExtensions.EARTH_CIRCUMFERENCE
-import com.adsamcik.tracker.common.extension.toRadians
+import com.adsamcik.tracker.shared.base.constant.GeometryConstants.CIRCLE_IN_DEGREES
+import com.adsamcik.tracker.shared.base.constant.GeometryConstants.CIRCLE_IN_RADIANS
+import com.adsamcik.tracker.shared.base.constant.GeometryConstants.HALF_CIRCLE_IN_DEGREES
+import com.adsamcik.tracker.shared.base.constant.GeometryConstants.HALF_CIRCLE_IN_RADIANS
+import com.adsamcik.tracker.shared.base.extension.LocationExtensions.EARTH_CIRCUMFERENCE
+import com.adsamcik.tracker.shared.base.extension.toRadians
 import kotlin.math.PI
 import kotlin.math.atan
 import kotlin.math.cos

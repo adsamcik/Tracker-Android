@@ -3,14 +3,15 @@ package com.adsamcik.tracker.tracker.component.consumer
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.Observer
-import com.adsamcik.tracker.common.Time
-import com.adsamcik.tracker.common.data.GroupedActivity
-import com.adsamcik.tracker.common.data.MutableCollectionData
-import com.adsamcik.tracker.common.data.MutableTrackerSession
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.database.dao.SessionDataDao
-import com.adsamcik.tracker.common.preference.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.data.MutableCollectionData
+import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement

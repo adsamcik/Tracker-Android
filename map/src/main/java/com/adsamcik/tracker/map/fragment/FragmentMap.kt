@@ -9,11 +9,6 @@ import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.tracker.common.assist.Assist
-import com.adsamcik.tracker.common.fragment.CoreUIFragment
-import com.adsamcik.tracker.common.introduction.IntroductionManager
-import com.adsamcik.tracker.common.style.StyleManager
-import com.adsamcik.tracker.commonmap.ColorMap
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
 import com.adsamcik.tracker.map.MapOwner
@@ -21,13 +16,20 @@ import com.adsamcik.tracker.map.MapSensorController
 import com.adsamcik.tracker.map.MapSheetController
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.introduction.MapIntroduction
+import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.map.ColorMap
+import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
+import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
+import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.SupportMapFragment
-import kotlinx.android.synthetic.main.fragment_map.*
 
+/**
+ * Fragment containing primary map with overlays, user location and more.
+ */
 @Suppress("unused")
-class FragmentMap : CoreUIFragment(), IOnDemandView {
+class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	private var locationListener: MapSensorController? = null
 	private var mapController: MapController? = null
 	private var mapSheetController: MapSheetController? = null
@@ -97,7 +99,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 					false
 			)
 
-			val textRes = com.adsamcik.tracker.common.R.string.error_play_services_not_available
+			val textRes = com.adsamcik.tracker.shared.base.R.string.error_play_services_not_available
 
 			fragmentView.findViewById<AppCompatTextView>(R.id.activity_error_text)
 					.setText(textRes)
@@ -135,12 +137,14 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 		this.mapController = mapController
 		this.locationListener = locationListener
 
+		val mapUiParent = activity.findViewById<ViewGroup>(R.id.map_ui_parent)
+
 		mapSheetController = MapSheetController(
 				activity,
 				this,
 				map,
 				mapOwner,
-				map_ui_parent,
+				mapUiParent,
 				mapController,
 				locationListener,
 				mapEventListener
@@ -148,7 +152,7 @@ class FragmentMap : CoreUIFragment(), IOnDemandView {
 
 		ColorMap.addListener(activity, map)
 
-		map_ui_parent.post {
+		mapUiParent.post {
 			IntroductionManager.showIntroduction(requireActivity(), MapIntroduction())
 		}
 	}

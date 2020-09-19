@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="map_drag_content_description">Drag or tap to change map bottom sheet visibility.</string>
+
     <string name="map_search">Search…</string>
     <string name="map_search_no_geocoder">Search disabled, no geocoder found.</string>
 
@@ -29,5 +31,14 @@
     <string name="description_my_location">Current location button</string>
     <string name="description_map_search">Search button</string>
 
-    <string name="generating_tile_count">generating %d tiles</string>
+    <plurals name="generating_tile_count">
+        <item quantity="one">generating 1 tile</item>
+        <item quantity="other">generating %d tiles</item>
+    </plurals>
+
+    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
+
+    <string name="date_range_selector_x_days">Last %d days</string>
+    <string name="date_range_selector_all_days">All</string>
+    <string name="date_range_selector_custom_days">Custom</string>
 </resources>

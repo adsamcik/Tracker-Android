@@ -8,6 +8,7 @@ plugins {
 
 android {
 	compileSdkVersion(Android.compile)
+	buildToolsVersion(Android.buildTools)
 
 	defaultConfig {
 		minSdkVersion(Android.min)
@@ -19,7 +20,8 @@ android {
 	}
 
 
-	with(compileOptions) {
+	compileOptions {
+		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = JavaVersion.VERSION_1_8
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}
@@ -42,7 +44,7 @@ android {
 }
 
 dependencies {
-	implementation(project(":commonmap"))
+	implementation(project(":smap"))
 	Dependencies.core(this)
 	Dependencies.draggable(this)
 	Dependencies.map(this)
@@ -52,6 +54,8 @@ dependencies {
 	Dependencies.introduction(this)
 
 	implementation(project(":app"))
-	implementation(project(":common"))
+	implementation(project(":sbase"))
 	implementation(project(":activity"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
 }

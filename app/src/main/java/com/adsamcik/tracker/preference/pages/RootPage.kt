@@ -2,7 +2,6 @@ package com.adsamcik.tracker.preference.pages
 
 import android.content.Context
 import android.widget.Toast
-import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
@@ -10,21 +9,25 @@ import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivity
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.extension.startActivity
-import com.adsamcik.tracker.common.introduction.Introduction
-import com.adsamcik.tracker.common.language.LocaleManager
-import com.adsamcik.tracker.common.misc.SnackMaker
-import com.adsamcik.tracker.common.preference.ModuleSettings
-import com.adsamcik.tracker.common.preference.Preferences
 import com.adsamcik.tracker.license.LicenseActivity
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.activity.ModuleActivity
+import com.adsamcik.tracker.preference.component.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.preference.setOnClickListener
+import com.adsamcik.tracker.shared.base.extension.startActivity
+import com.adsamcik.tracker.shared.base.misc.SnackMaker
+import com.adsamcik.tracker.shared.preferences.ModuleSettings
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.shared.utils.introduction.Introduction
+import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import java.util.*
 
+/**
+ * Root preference page
+ */
 class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePage {
 	private var clickCount = 0
 
@@ -119,12 +122,13 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 	).show()
 
 	private fun initializeLanguage(caller: PreferenceFragmentCompat) {
-		caller.findPreferenceTyped<ListPreference>(R.string.settings_language_key).apply {
+		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_language_key).apply {
 			val languages = LocaleManager.getLocaleList()
-			entryValues = languages.toTypedArray()
 
 			val localeList = languages.map { Locale(it) }
-			entries = localeList.map { it.getDisplayName(it) }.toTypedArray()
+			val entries = localeList.map { it.getDisplayName(it) }
+
+			setValues(entries, languages)
 
 			val currentLocale = LocaleManager.getLocale(context)
 			var indexOf = languages.indexOf(currentLocale)
@@ -136,7 +140,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			}
 
 			if (indexOf >= 0) {
-				setValueIndex(indexOf)
+				setIndex(indexOf)
 			} else {
 				Reporter.report("Could not find index for language $currentLocale")
 			}
@@ -157,9 +161,10 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		if (modules.isEmpty()) {
 			preferenceParent.isVisible = false
 		} else {
+			val locale = Locale.getDefault()
 			modules.forEach {
 				val preferenceScreen = preferenceManager.createPreferenceScreen(context)
-				preferenceScreen.title = context.getString(it.key.titleRes).capitalize()
+				preferenceScreen.title = context.getString(it.key.titleRes).capitalize(locale)
 				preferenceScreen.key = "module-${it.key.moduleName}"
 				preferenceScreen.setIcon(it.value.iconRes)
 				it.value.onCreatePreferenceScreen(preferenceScreen)

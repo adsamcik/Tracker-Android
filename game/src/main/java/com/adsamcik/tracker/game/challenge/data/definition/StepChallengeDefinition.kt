@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.game.challenge.data.definition
 
 import android.content.Context
-import com.adsamcik.tracker.common.Time
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.game.challenge.data.builder.StepChallengeBuilder
 import com.adsamcik.tracker.game.challenge.data.instance.StepChallengeInstance
+import com.adsamcik.tracker.shared.base.Time
 
 class StepChallengeDefinition : ChallengeDefinition<StepChallengeInstance>(
 		R.string.challenge_step_title,

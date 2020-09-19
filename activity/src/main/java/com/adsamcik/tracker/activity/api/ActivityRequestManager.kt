@@ -1,11 +1,7 @@
 package com.adsamcik.tracker.activity.api
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.SparseArray
-import androidx.core.content.ContextCompat
 import androidx.core.util.forEach
 import androidx.core.util.isEmpty
 import androidx.core.util.isNotEmpty
@@ -13,22 +9,25 @@ import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.activity.service.ActivityService
-import com.adsamcik.tracker.common.data.ActivityInfo
-import com.adsamcik.tracker.common.debug.LogData
-import com.adsamcik.tracker.common.debug.Reporter
+import com.adsamcik.tracker.activity.receiver.ActivityReceiver
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
 import kotlin.reflect.KClass
 
-
+/**
+ * Activity manager that takes care of managing activity requests.
+ */
 object ActivityRequestManager {
 	private val activeRequestArray = SparseArray<ActivityRequestData>()
 
 	private var minInterval = Integer.MAX_VALUE
 	private var transitions: Collection<ActivityTransitionData> = mutableListOf()
 
-	val lastActivity: ActivityInfo get() = ActivityService.lastActivity
+	val lastActivity: ActivityInfo get() = ActivityReceiver.lastActivity
 
 	/**
 	 * Request activity updates
@@ -62,11 +61,11 @@ object ActivityRequestManager {
 				onRequestChange(context)
 			}
 		} else {
-			Reporter.report(Throwable("Trying to remove class that is not subscribed (" + tClass.java.name + ")"))
+			Reporter.report("Trying to remove class that is not subscribed (" + tClass.java.name + ")")
 		}
 
 		if (activeRequestArray.isEmpty()) {
-			ActivityService.stopActivityRecognition(context)
+			ActivityReceiver.stopActivityRecognition(context)
 		}
 	}
 
@@ -99,13 +98,18 @@ object ActivityRequestManager {
 		minInterval = interval
 		ActivityRequestManager.transitions = transitions
 
-		if (hasActivityRecognitionPermission(context)) {
-			ActivityService.startActivityRecognition(context, minInterval, transitions)
+		if (context.hasActivityPermission) {
+			ActivityReceiver.startActivityRecognition(
+					context,
+					minInterval,
+					transitions
+			)
 		}
 	}
 
 	private fun getMinInterval(): Int {
 		var min = Integer.MAX_VALUE
+
 		activeRequestArray.forEach { _, value ->
 			val detectionInterval = value.changeData?.detectionIntervalS ?: return@forEach
 			if (detectionInterval < min) min = detectionInterval
@@ -139,19 +143,6 @@ object ActivityRequestManager {
 		val reversedEvents = result.transitionEvents.reversed()
 		activeRequestArray.forEach { _, value ->
 			value.transitionData?.let { onActivityTransition(context, it, reversedEvents) }
-		}
-	}
-
-	fun hasActivityRecognitionPermission(context: Context): Boolean {
-		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-			val permissionState = ContextCompat.checkSelfPermission(
-					context,
-					Manifest.permission.ACTIVITY_RECOGNITION
-			)
-
-			permissionState == PackageManager.PERMISSION_GRANTED
-		} else {
-			true
 		}
 	}
 }

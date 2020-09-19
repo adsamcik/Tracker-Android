@@ -1,11 +1,12 @@
 package com.adsamcik.tracker.tracker.notification.component
 
 import android.content.Context
-import com.adsamcik.tracker.common.data.CollectionData
-import com.adsamcik.tracker.common.data.TrackerSession
-import com.adsamcik.tracker.common.database.data.NotificationPreference
-import com.adsamcik.tracker.common.extension.formatDistance
-import com.adsamcik.tracker.common.preference.Preferences
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
+
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 

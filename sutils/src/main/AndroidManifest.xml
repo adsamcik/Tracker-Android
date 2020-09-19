@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.adsamcik.tracker.shared.utils">
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+</manifest>

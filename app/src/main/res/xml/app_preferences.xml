@@ -12,18 +12,20 @@
             android:title="@string/settings_tracking_notice_title"
             app:icon="@drawable/ic_bulletin_board" />
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:key="@string/settings_tracker_timer_key"
             android:summary="@string/settings_tracker_timer_summary"
             android:title="@string/settings_tracker_timer_title" />
 
         <androidx.preference.PreferenceCategory android:title="@string/settings_auto_tracking_category">
 
-            <com.adsamcik.tracker.preference.ImageSwitchPreference
+            <com.adsamcik.tracker.preference.component.IndicesDialogListPreference
                 android:defaultValue="@string/settings_tracking_activity_default"
                 android:key="@string/settings_tracking_activity_key"
-                app:drawables="@array/tracking_options_drawables"
-                app:titles="@array/tracking_options_titles" />
+                android:title="@string/auto_tracking_options_title"
+                app:icon="@drawable/ic_directions_walk_white"
+                app:summary="@string/auto_tracking_options_summary"
+                app:titles="@array/auto_tracking_options_values" />
 
             <androidx.preference.SwitchPreferenceCompat
                 android:defaultValue="@string/settings_auto_tracking_transition_default"
@@ -39,13 +41,12 @@
                 android:title="@string/settings_activity_watcher_title"
                 app:icon="@drawable/ic_outline_remove_red_eye_24px" />
 
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DurationValueSliderPreference
                 android:defaultValue="@string/settings_activity_freq_default"
                 android:dependency="@string/settings_activity_watcher_key"
                 android:key="@string/settings_activity_freq_key"
                 android:title="@string/settings_activity_freq_title"
-                app:items="@array/activity_watching_interval"
-                app:stringFormat="%1$d s" />
+                app:items="@array/activity_watching_interval" />
 
             <androidx.preference.SwitchPreferenceCompat
                 android:defaultValue="@string/settings_disabled_recharge_default"
@@ -75,30 +76,29 @@
         </androidx.preference.PreferenceCategory>
 
         <androidx.preference.PreferenceCategory>
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DistanceValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_min_distance_default"
                 app:dependency="@string/settings_location_enabled_key"
                 app:icon="@drawable/ic_outline_directions_run_24px"
                 app:items="@array/settings_tracking_min_distance_values"
                 app:key="@string/settings_tracking_min_distance_key"
-                app:stringFormat="%1$d m"
                 app:title="@string/settings_tracking_min_distance_title" />
 
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DurationValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_min_time_default"
                 app:icon="@drawable/ic_outline_access_time_24px"
                 app:items="@array/settings_tracking_min_time_values"
                 app:key="@string/settings_tracking_min_time_key"
-                app:stringFormat="%1$d s"
+                app:summary="@string/settings_tracking_min_time_summary"
                 app:title="@string/settings_tracking_min_time_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory>
-            <com.adsamcik.tracker.preference.IntValueSliderPreference
+            <com.adsamcik.tracker.preference.sliders.DistanceValueSliderPreference
                 app:defaultValue="@integer/settings_tracking_required_accuracy_default"
                 app:icon="@drawable/ic_gps_fixed_black_24dp"
                 app:items="@array/settings_tracking_required_accuracy"
                 app:key="@string/settings_tracking_required_accuracy_key"
-                app:stringFormat="%1$d m"
+                app:summary="@string/settings_tracking_required_accuracy_summary"
                 app:title="@string/settings_tracking_required_accuracy_title" />
         </androidx.preference.PreferenceCategory>
         <androidx.preference.PreferenceCategory android:title="@string/settings_enable_category_title">
@@ -146,7 +146,7 @@
     <androidx.preference.PreferenceScreen
         android:title="@string/settings_style_title"
         app:icon="@drawable/ic_outline_style_24px">
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:key="@string/settings_style_mode_key"
             android:summary="%s"
             android:title="@string/settings_style_mode_title"
@@ -169,11 +169,11 @@
         <androidx.preference.PreferenceScreen
             android:title="@string/settings_export_title"
             app:icon="@drawable/ic_export">
-           <!--- <androidx.preference.Preference
-                android:key="@string/settings_export_json_key"
-                android:summary="@string/settings_export_json_summary"
-                android:title="@string/settings_export_json_title"
-                app:icon="@drawable/ic_json" /> -->
+            <!--- <androidx.preference.Preference
+                 android:key="@string/settings_export_json_key"
+                 android:summary="@string/settings_export_json_summary"
+                 android:title="@string/settings_export_json_title"
+                 app:icon="@drawable/ic_json" /> -->
             <androidx.preference.Preference
                 android:key="@string/settings_export_gpx_key"
                 android:summary="@string/settings_export_gpx_summary"
@@ -224,25 +224,25 @@
 
     <androidx.preference.PreferenceCategory android:title="@string/settings_other_title">
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:defaultValue="@string/settings_length_system_default"
-            android:entries="@array/settings_length_system_names"
-            android:entryValues="@array/settings_length_system_values"
             android:key="@string/settings_length_system_key"
             android:summary="%s"
             android:title="@string/settings_length_system_title"
-            app:icon="@drawable/ic_ruler" />
+            app:icon="@drawable/ic_ruler"
+            app:keys="@array/settings_length_system_values"
+            app:titles="@array/settings_length_system_names" />
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:defaultValue="@string/settings_speed_format_default"
-            android:entries="@array/settings_speed_format_names"
-            android:entryValues="@array/settings_speed_format_values"
             android:key="@string/settings_speed_format_key"
             android:summary="%s"
             android:title="@string/settings_speed_format_title"
-            app:icon="@drawable/ic_speedometer" />
+            app:icon="@drawable/ic_speedometer"
+            app:keys="@array/settings_speed_format_values"
+            app:titles="@array/settings_speed_format_names" />
 
-        <androidx.preference.ListPreference
+        <com.adsamcik.tracker.preference.component.DialogListPreference
             android:key="@string/settings_language_key"
             android:summary="@string/settings_language_summary"
             android:title="@string/settings_language_title"

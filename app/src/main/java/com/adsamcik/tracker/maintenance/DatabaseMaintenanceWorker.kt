@@ -6,8 +6,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.common.database.AppDatabase
-import com.adsamcik.tracker.common.extension.tryWithReport
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import java.util.concurrent.TimeUnit
 
 class DatabaseMaintenanceWorker(

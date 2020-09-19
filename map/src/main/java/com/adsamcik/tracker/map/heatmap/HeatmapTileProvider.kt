@@ -1,15 +1,16 @@
 package com.adsamcik.tracker.map.heatmap
 
-import com.adsamcik.tracker.common.debug.Reporter
-import com.adsamcik.tracker.common.extension.LocationExtensions
-import com.adsamcik.tracker.common.misc.ConditionVariableInt
-import com.adsamcik.tracker.common.misc.Int2
-import com.adsamcik.tracker.commonmap.CoordinateBounds
+import android.util.Log
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
+import com.adsamcik.tracker.shared.base.extension.LocationExtensions
+import com.adsamcik.tracker.shared.base.misc.ConditionVariableInt
+import com.adsamcik.tracker.shared.base.misc.Int2
+import com.adsamcik.tracker.shared.map.CoordinateBounds
+import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import java.util.concurrent.atomic.AtomicBoolean
@@ -24,8 +25,7 @@ import kotlin.math.roundToInt
 //todo refactor
 internal class HeatmapTileProvider(
 		private val tileCreator: HeatmapTileCreator,
-		private var initMaxHeat: Float,
-		quality: Float
+		private var dataUser: UserHeatmapData
 ) : TileProvider {
 	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
 
@@ -47,7 +47,7 @@ internal class HeatmapTileProvider(
 
 	private var heatmapSize: Int = 0
 
-	private var maxHeat: Float = initMaxHeat
+	private var maxHeat: Float = dataUser.maxHeat
 
 	private var config: HeatmapConfig? = null
 	private var stamp: HeatmapStamp? = null
@@ -60,7 +60,7 @@ internal class HeatmapTileProvider(
 		}
 
 	init {
-		updateQuality(quality)
+		updateQuality(dataUser.quality)
 		resetMaxHeat()
 	}
 
@@ -70,7 +70,7 @@ internal class HeatmapTileProvider(
 		this.quality = quality
 		heatmapSize = (quality * HeatmapTile.BASE_HEATMAP_SIZE).roundToInt()
 
-		config = tileCreator.createHeatmapConfig(heatmapSize, maxHeat)
+		config = tileCreator.createHeatmapConfig(dataUser)
 
 		if (lastZoom > 0) {
 			reinitializeHeatmapData(lastZoom)
@@ -90,7 +90,7 @@ internal class HeatmapTileProvider(
 
 	private fun resetMaxHeat() {
 		heatLock.withLock {
-			maxHeat = initMaxHeat
+			maxHeat = dataUser.maxHeat
 
 			// todo make this smarter so it actually takes nearest neighbour
 			maxHeat *= max(1f, 2f.pow(MAX_HEAT_ZOOM - lastZoom))
@@ -183,6 +183,7 @@ internal class HeatmapTileProvider(
 					heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize))
 			)
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+			Log.e(TAG, e.localizedMessage, e)
 			Reporter.report(e)
 			return Tile(0, 0, byteArrayOf())
 		} finally {
@@ -192,8 +193,11 @@ internal class HeatmapTileProvider(
 	}
 
 	companion object {
-		private const val MIN_TILE_SIZE: Int = 256
 		private const val MAX_HEAT_ZOOM = MapController.MAX_ZOOM
+
+		private const val MIN_TILE_SIZE: Int = 256
+
+		private const val TAG: String = "AdventionTile"
 	}
 }
 
