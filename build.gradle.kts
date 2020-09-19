@@ -16,7 +16,7 @@ buildscript {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.29.0")
+	id("com.github.ben-manes.versions") version ("0.33.0")
 }
 
 allprojects {
@@ -38,4 +38,41 @@ allprojects {
 
 tasks.register("clean", Delete::class) {
 	delete(rootProject.buildDir)
+}
+
+fun isNonStable(version: String): Boolean {
+	val stableKeyword = listOf("RELEASE", "FINAL", "GA", "RC").any {
+		version.toUpperCase()
+				.contains(it)
+	}
+	val regex = "^[0-9,.v-]+(-r)?$".toRegex()
+	val isStable = stableKeyword || regex.matches(version)
+	return isStable.not()
+}
+
+
+tasks.named(
+		"dependencyUpdates",
+		com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask::class.java
+).configure {
+	// Example 1: reject all non stable versions
+	rejectVersionIf {
+		isNonStable(candidate.version)
+	}
+
+	// Example 2: disallow release candidates as upgradable versions from stable versions
+	rejectVersionIf {
+		isNonStable(candidate.version) && !isNonStable(currentVersion)
+	}
+
+	// Example 3: using the full syntax
+	resolutionStrategy {
+		componentSelection {
+			all {
+				if (isNonStable(candidate.version) && !isNonStable(currentVersion)) {
+					reject("Release candidate")
+				}
+			}
+		}
+	}
 }
