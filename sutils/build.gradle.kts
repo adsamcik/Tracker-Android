@@ -63,7 +63,7 @@ android {
 dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":spreferences"))
-	implementation("org.shredzone.commons:commons-suncalc:3.3")
+
 
 	Dependencies.core(this)
 	Dependencies.slider(this)
@@ -73,6 +73,7 @@ dependencies {
 	Dependencies.location(this)
 	Dependencies.preference(this)
 	Dependencies.introduction(this)
+	Dependencies.sunCalculator(this)
 
 	Dependencies.test(this)
 }
