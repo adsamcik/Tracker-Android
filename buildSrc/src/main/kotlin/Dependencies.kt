@@ -12,28 +12,28 @@ object Dependencies {
 	 */
 	object Versions {
 		internal const val constraintLayout = "2.0.4"
-		internal const val coreKtx = "1.5.0-alpha05"
+		internal const val coreKtx = "1.5.0-beta01"
 		internal const val appcompat = "1.2.0"
-		internal const val fragment = "1.2.5"
+		internal const val fragment = "1.3.0-rc01"
 		const val dokka: String = "0.9.18"
 		internal const val moshi = "1.11.0"
-		internal const val work = "2.4.0"
+		internal const val work = "2.5.0-rc01"
 		internal const val lifecycle = "2.2.0"
 		internal const val preference = "1.1.1"
-		internal const val material = "1.2.1"
+		internal const val material = "1.3.0-rc01"
 		internal const val desugar = "1.0.10"
 
-		const val kotlin: String = "1.4.21"
+		const val kotlin: String = "1.4.30-RC"
 		internal const val coroutines = "1.4.2"
 
-		internal const val sqlite = "3.33.0"
-		internal const val room = "2.3.0-alpha03"
+		internal const val sqlite = "3.34.0"
+		internal const val room = "2.3.0-alpha04"
 
 		internal const val maps = "17.0.0"
 		internal const val recyclerView = "1.1.0"
 		internal const val paging = "3.0.0-alpha02"
 
-		internal const val firebaseCore = "18.0.0"
+		internal const val firebaseCore = "18.0.1"
 		internal const val crashlytics = "17.3.0"
 		const val crashlyticsGradle = "2.4.1"
 
@@ -134,7 +134,7 @@ object Dependencies {
 	fun corePlugins(scope: org.gradle.plugin.use.PluginDependenciesSpec) {
 		with(scope) {
 			kotlin("android")
-			kotlin("android.extensions")
+			id("org.jetbrains.kotlin.plugin.parcelize")
 			kotlin("kapt")
 		}
 	}

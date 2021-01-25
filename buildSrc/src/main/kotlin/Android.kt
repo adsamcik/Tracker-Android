@@ -6,5 +6,5 @@ object Android {
 	const val compile: String = "android-30"
 	const val target: String = "30"
 
-	const val buildTools: String = "30.0.2"
+	const val buildTools: String = "30.0.3"
 }
