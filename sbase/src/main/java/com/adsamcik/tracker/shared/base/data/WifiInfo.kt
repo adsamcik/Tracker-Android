@@ -11,7 +11,7 @@ import android.os.Build
 import android.os.Parcelable
 import androidx.room.Ignore
 import com.squareup.moshi.JsonClass
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 
 /**
  * Class containing Wi-Fi information.

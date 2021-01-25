@@ -51,7 +51,6 @@ import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
 import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
-import kotlinx.android.synthetic.main.fragment_tracker.view.*
 
 /**
  * Fragment that displays current tracking information
@@ -67,11 +66,12 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		if (container == null) return null
 
 		val view = inflater.inflate(R.layout.fragment_tracker, container, false)
-		view.top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-			height += DisplayAssist.getStatusBarHeight(container.context)
-		}
+		view.findViewById<LinearLayoutCompat>(R.id.top_panel_root)
+				.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+					height += DisplayAssist.getStatusBarHeight(container.context)
+				}
 
-		view.tracker_recycler.apply {
+		view.findViewById<RecyclerView>(R.id.tracker_recycler).apply {
 			val adapter = TrackerInfoAdapter()
 			this@FragmentTracker.adapter = adapter
 			this.adapter = adapter

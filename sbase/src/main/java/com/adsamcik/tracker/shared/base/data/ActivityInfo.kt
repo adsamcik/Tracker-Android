@@ -6,8 +6,8 @@ import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.adsamcik.tracker.shared.base.R
-import kotlinx.android.parcel.IgnoredOnParcel
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.IgnoredOnParcel
+import kotlinx.parcelize.Parcelize
 
 /**
  * Class containing information about activity.

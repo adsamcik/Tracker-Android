@@ -16,7 +16,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Ignore
 import com.adsamcik.tracker.shared.base.R
 import com.squareup.moshi.JsonClass
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 
 /**
  * Data class that contains all the information about Cell.

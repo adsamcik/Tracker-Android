@@ -4,7 +4,7 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Parcelable
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 
 /**
  * Immutable collection data interface.

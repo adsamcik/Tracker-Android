@@ -6,7 +6,7 @@ import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MAX_LONGITU
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LATITUDE
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LONGITUDE
 import com.adsamcik.tracker.shared.base.data.Location
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 import kotlin.math.max
 import kotlin.math.min
 

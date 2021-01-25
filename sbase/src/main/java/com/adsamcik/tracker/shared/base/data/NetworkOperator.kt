@@ -10,7 +10,7 @@ import android.telephony.CellInfoNr
 import android.telephony.CellInfoWcdma
 import androidx.annotation.RequiresApi
 import androidx.room.Entity
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 
 /**
  * Information about cell network operator.

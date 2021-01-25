@@ -13,7 +13,6 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.toIntPercent
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
-import kotlinx.android.synthetic.main.layout_challenge_list_item.view.*
 import java.util.*
 
 class ChallengeAdapter(
@@ -46,12 +45,12 @@ class ChallengeAdapter(
 		val view = mInflater.inflate(R.layout.layout_challenge_list_item, parent, false)
 		return ViewHolder(
 				view,
-				view.challenge_title,
-				view.challenge_description,
-				view.challenge_difficulty,
-				view.challenge_time_left,
-				view.challenge_progress,
-				view.challenge_progress_text
+				view.findViewById(R.id.challenge_title),
+				view.findViewById(R.id.challenge_description),
+				view.findViewById(R.id.challenge_difficulty),
+				view.findViewById(R.id.challenge_time_left),
+				view.findViewById(R.id.challenge_progress),
+				view.findViewById(R.id.challenge_progress_text)
 		)
 	}
 

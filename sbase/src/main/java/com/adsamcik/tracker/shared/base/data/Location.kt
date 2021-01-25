@@ -10,7 +10,7 @@ import com.adsamcik.tracker.shared.base.extension.round
 import com.adsamcik.tracker.shared.base.extension.toRadians
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 import kotlin.math.sqrt
 
 /**

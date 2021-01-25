@@ -3,7 +3,7 @@ package com.adsamcik.tracker.shared.map
 import android.os.Parcelable
 import androidx.annotation.ColorInt
 import androidx.annotation.FloatRange
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class MapColor(
