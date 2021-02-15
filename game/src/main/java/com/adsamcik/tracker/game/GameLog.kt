@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.game
 
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
 
 internal fun logGame(data: com.adsamcik.tracker.logger.LogData) =
 		com.adsamcik.tracker.logger.Logger.logWithPreference(
@@ -10,3 +8,6 @@ internal fun logGame(data: com.adsamcik.tracker.logger.LogData) =
 				R.string.settings_log_games_key,
 				R.string.settings_log_games_default
 		)
+
+internal const val GAME_LOG_SOURCE = "game"
+internal const val CHALLENGE_LOG_SOURCE = "challenge"

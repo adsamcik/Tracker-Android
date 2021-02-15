@@ -5,15 +5,15 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.activity.logActivity
+import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Reporter
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -53,9 +53,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		lastActivityElapsedTimeMillis = elapsedTimeMillis
 
 		logActivity(
-				com.adsamcik.tracker.logger.LogData(
+				LogData(
 						message = "new activity",
-						data = detectedActivity
+						data = detectedActivity,
+						source = ACTIVITY_LOG_SOURCE
 				)
 		)
 
@@ -72,16 +73,23 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		lastActivityElapsedTimeMillis = transition.elapsedRealTimeNanos
 
 		logActivity(
-				com.adsamcik.tracker.logger.LogData(
+				LogData(
 						message = "new activity from transition",
-						data = detectedActivity
+						data = detectedActivity,
+						source = ACTIVITY_LOG_SOURCE
 				)
 		)
 	}
 
 	private fun onActivityTransitionResult(context: Context, result: ActivityTransitionResult) {
 		result.transitionEvents.forEach {
-			logActivity(com.adsamcik.tracker.logger.LogData(message = "new transition", data = it))
+			logActivity(
+					LogData(
+							message = "new transition",
+							data = it,
+							source = ACTIVITY_LOG_SOURCE
+					)
+			)
 		}
 
 		ActivityRequestManager.onActivityTransition(context, result)
@@ -135,9 +143,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				val intent = getActivityDetectionPendingIntent(context)
 
 				logActivity(
-						com.adsamcik.tracker.logger.LogData(
+						LogData(
 								message = "requested activity",
-								data = "delay $delayInS s and transitions $requestedTransitions"
+								data = "delay $delayInS s and transitions $requestedTransitions",
+								source = ACTIVITY_LOG_SOURCE
 						)
 				)
 
@@ -176,9 +185,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 						addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
 						addOnSuccessListener {
 							logActivity(
-									com.adsamcik.tracker.logger.LogData(
+									LogData(
 											message = "started activity updates",
-											data = "delay $delayInS s"
+											data = "delay $delayInS s",
+											source = ACTIVITY_LOG_SOURCE
 									)
 							)
 						}
@@ -196,9 +206,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
 				addOnSuccessListener {
 					logActivity(
-							com.adsamcik.tracker.logger.LogData(
+							LogData(
 									message = "started transition updates",
-									data = requestedTransitions.toString()
+									data = requestedTransitions.toString(),
+									source = ACTIVITY_LOG_SOURCE
 							)
 					)
 				}

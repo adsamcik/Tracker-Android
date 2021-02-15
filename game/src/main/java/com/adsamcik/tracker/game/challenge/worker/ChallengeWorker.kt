@@ -5,12 +5,13 @@ import androidx.core.app.NotificationCompat
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.logGame
+import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.notificationManager
-import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 
 internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
@@ -21,7 +22,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 	override fun doWork(): Result {
 		val applicationContext = applicationContext
 
-		logGame(com.adsamcik.tracker.logger.LogData(message = "Started Challenge Worker"))
+		logGame(LogData(message = "Started Challenge Worker", source = CHALLENGE_LOG_SOURCE))
 
 		val sessionId = inputData.getPositiveLongReportNull(ARG_SESSION_ID)
 				?: return Result.failure()
@@ -41,7 +42,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 
 		ChallengeManager.processSession(applicationContext, trackerSession) {
 			val title = "Completed challenge ${it.getTitle(applicationContext)}"
-			logGame(com.adsamcik.tracker.logger.LogData(message = title))
+			logGame(LogData(message = title, source = CHALLENGE_LOG_SOURCE))
 			notificationManager.notify(
 					NOTIFICATION_ID,
 					NotificationCompat.Builder(
@@ -57,7 +58,12 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		challengeSession.isChallengeProcessed = true
 		sessionDao.update(challengeSession)
 
-		logGame(com.adsamcik.tracker.logger.LogData(message = "Successfully finished Challenge Worker"))
+		logGame(
+				LogData(
+						message = "Successfully finished Challenge Worker",
+						source = CHALLENGE_LOG_SOURCE
+				)
+		)
 		return Result.success()
 	}
 

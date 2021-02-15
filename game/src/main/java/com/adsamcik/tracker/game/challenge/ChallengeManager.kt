@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.challenge
 import android.content.Context
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.challenge.data.definition.ExplorerChallengeDefinition
@@ -12,12 +13,12 @@ import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.ChallengeLoader
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.game.logGame
+import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
-import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -125,7 +126,12 @@ object ChallengeManager {
 	private fun scheduleNextChallengeExpiredWork(context: Context) {
 		val nextExpiry = mutableActiveChallengeList_.minOf { it.endTime }
 		ChallengeExpiredWorker.schedule(context, nextExpiry)
-		logGame(com.adsamcik.tracker.logger.LogData(message = "Scheduled next expiry worker to run at ${nextExpiry.formatAsDateTime()}"))
+		logGame(
+				LogData(
+						message = "Scheduled next expiry worker to run at ${nextExpiry.formatAsDateTime()}",
+						source = CHALLENGE_LOG_SOURCE
+				)
+		)
 	}
 
 	internal fun checkExpiredChallenges(context: Context) {
@@ -143,8 +149,9 @@ object ChallengeManager {
 	private fun logNewChallenge(context: Context, instance: ChallengeInstance<*, *>) {
 		val title = context.getString(instance.definition.titleRes)
 		logGame(
-				com.adsamcik.tracker.logger.LogData(
-						message = "Created new random challenge $title with expiration on ${instance.endTime.formatAsDateTime()}"
+				LogData(
+						message = "Created new random challenge $title with expiration on ${instance.endTime.formatAsDateTime()}",
+						source = CHALLENGE_LOG_SOURCE
 				)
 		)
 	}

@@ -13,7 +13,7 @@ data class LogData(
 		val timeStamp: Long = Time.nowMillis,
 		val message: String,
 		val data: String = "",
-		val source: String = ""
+		val source: String
 ) {
 	@PrimaryKey(autoGenerate = true)
 	var id: Long = 0L
@@ -21,6 +21,7 @@ data class LogData(
 	constructor(
 			timeStamp: Long = Time.nowMillis,
 			message: String,
-			data: Any
-	) : this(timeStamp, message, data.toString())
+			data: Any,
+			source: String
+	) : this(timeStamp, message, data.toString(), source)
 }
