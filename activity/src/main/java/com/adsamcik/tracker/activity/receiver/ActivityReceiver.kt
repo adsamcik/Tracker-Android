@@ -12,8 +12,8 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.utils.debug.LogData
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Reporter
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -52,7 +52,12 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		lastActivity = detectedActivity
 		lastActivityElapsedTimeMillis = elapsedTimeMillis
 
-		logActivity(LogData(message = "new activity", data = detectedActivity))
+		logActivity(
+				com.adsamcik.tracker.logger.LogData(
+						message = "new activity",
+						data = detectedActivity
+				)
+		)
 
 		ActivityRequestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
 	}
@@ -66,12 +71,17 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		lastActivity = detectedActivity
 		lastActivityElapsedTimeMillis = transition.elapsedRealTimeNanos
 
-		logActivity(LogData(message = "new activity from transition", data = detectedActivity))
+		logActivity(
+				com.adsamcik.tracker.logger.LogData(
+						message = "new activity from transition",
+						data = detectedActivity
+				)
+		)
 	}
 
 	private fun onActivityTransitionResult(context: Context, result: ActivityTransitionResult) {
 		result.transitionEvents.forEach {
-			logActivity(LogData(message = "new transition", data = it))
+			logActivity(com.adsamcik.tracker.logger.LogData(message = "new transition", data = it))
 		}
 
 		ActivityRequestManager.onActivityTransition(context, result)
@@ -125,7 +135,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				val intent = getActivityDetectionPendingIntent(context)
 
 				logActivity(
-						LogData(
+						com.adsamcik.tracker.logger.LogData(
 								message = "requested activity",
 								data = "delay $delayInS s and transitions $requestedTransitions"
 						)
@@ -148,7 +158,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 
 				true
 			} else {
-				Reporter.report(Throwable("Unavailable play services"))
+				com.adsamcik.tracker.logger.Reporter.report(Throwable("Unavailable play services"))
 				false
 			}
 		}
@@ -163,10 +173,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 					intent
 			)
 					.apply {
-						addOnFailureListener { Reporter.report(it) }
+						addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
 						addOnSuccessListener {
 							logActivity(
-									LogData(
+									com.adsamcik.tracker.logger.LogData(
 											message = "started activity updates",
 											data = "delay $delayInS s"
 									)
@@ -183,10 +193,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			val transitions = buildTransitions(requestedTransitions)
 			val request = ActivityTransitionRequest(transitions)
 			transitionClientTask = client.requestActivityTransitionUpdates(request, intent).apply {
-				addOnFailureListener { Reporter.report(it) }
+				addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
 				addOnSuccessListener {
 					logActivity(
-							LogData(
+							com.adsamcik.tracker.logger.LogData(
 									message = "started transition updates",
 									data = requestedTransitions.toString()
 							)

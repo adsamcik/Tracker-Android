@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.import.archive
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -44,7 +44,7 @@ class ZipArchiveExtractor : ArchiveExtractor {
 				val canonicalPath = fileOut.canonicalPath
 				if (!canonicalPath.startsWith(outputDirectory.path)) {
 					//todo report this to the user
-					Reporter.report(SecurityException("File has invalid file name '$filename'"))
+					com.adsamcik.tracker.logger.Reporter.report(SecurityException("File has invalid file name '$filename'"))
 					continue
 				}
 

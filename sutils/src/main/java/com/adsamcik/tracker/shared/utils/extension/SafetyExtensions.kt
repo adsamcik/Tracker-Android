@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.shared.utils.extension
 
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 
 /**
  * Tries to call [func] and if exception occurs it logs it.
@@ -13,7 +13,7 @@ inline fun tryWithReport(func: () -> Unit): Boolean {
 		func()
 		true
 	} catch (e: Exception) {
-		Reporter.report(e)
+		com.adsamcik.tracker.logger.Reporter.report(e)
 		false
 	}
 }
@@ -28,7 +28,7 @@ inline fun <T> tryWithResultAndReport(default: () -> T, func: () -> T): T {
 	return try {
 		func()
 	} catch (e: Exception) {
-		Reporter.report(e)
+		com.adsamcik.tracker.logger.Reporter.report(e)
 		default()
 	}
 }

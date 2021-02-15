@@ -89,6 +89,7 @@ dependencies {
 	implementation(project(":points"))
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
+	implementation(project(":logger"))
 
 	Dependencies.core(this)
 	//1st party dependencies

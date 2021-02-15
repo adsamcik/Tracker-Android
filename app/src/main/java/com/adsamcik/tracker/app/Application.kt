@@ -10,8 +10,8 @@ import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.points.PointsInitializer
 import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.base.module.ModuleInitializer
-import com.adsamcik.tracker.shared.utils.debug.Logger
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
@@ -61,8 +61,8 @@ class Application : SplitCompatApplication() {
 
 	@MainThread
 	private fun initializeImportantSingletons() {
-		Reporter.initialize(this)
-		Logger.initialize(this)
+		com.adsamcik.tracker.logger.Reporter.initialize(this)
+		com.adsamcik.tracker.logger.Logger.initialize(this)
 	}
 
 	@WorkerThread

@@ -6,7 +6,7 @@ import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntryExtra
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.logger.LogData
 
 abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : ChallengeInstance<ExtraData, Instance>>(
 		val data: ChallengeEntry,
@@ -50,7 +50,7 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : Cha
 		val startProgress = progress
 		processSession(context, session)
 
-		logGame(LogData(message = "Processed ${getTitle(context)} and progressed from $startProgress to $progress"))
+		logGame(com.adsamcik.tracker.logger.LogData(message = "Processed ${getTitle(context)} and progressed from $startProgress to $progress"))
 		if (checkCompletionConditions()) {
 			extra.isCompleted = true
 			@Suppress("UNCHECKED_CAST")

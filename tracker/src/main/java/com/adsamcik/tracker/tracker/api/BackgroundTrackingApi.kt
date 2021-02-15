@@ -18,8 +18,8 @@ import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
-import com.adsamcik.tracker.shared.utils.debug.assertFalse
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
+import com.adsamcik.tracker.logger.assertFalse
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
@@ -197,7 +197,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
-		assertTrue(isActive)
+		com.adsamcik.tracker.logger.assertTrue(isActive)
 
 		val requestData = if (useTransitionApi) {
 			ActivityRequestData(this::class, transitionData = getTransitions(context))
@@ -210,7 +210,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun enable(context: Context) {
-		assertFalse(isActive)
+		com.adsamcik.tracker.logger.assertFalse(isActive)
 		isActive = true
 
 		val useTransitionApi = Preferences.getPref(context)
@@ -222,7 +222,7 @@ object BackgroundTrackingApi {
 	}
 
 	private fun disable(context: Context) {
-		assertTrue(isActive)
+		com.adsamcik.tracker.logger.assertTrue(isActive)
 
 		ActivityRequestManager.removeActivityRequest(context, this::class)
 		ActivityWatcherService.poke(context)

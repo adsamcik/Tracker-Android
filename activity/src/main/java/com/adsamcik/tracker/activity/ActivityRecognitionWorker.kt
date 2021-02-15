@@ -8,7 +8,7 @@ import com.adsamcik.tracker.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -65,7 +65,7 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 	}
 
 	private fun fail(message: String): Result {
-		Reporter.report(Throwable(message))
+		com.adsamcik.tracker.logger.Reporter.report(Throwable(message))
 		return Result.failure()
 	}
 

@@ -12,7 +12,7 @@ import com.adsamcik.tracker.shared.base.graph.Edge
 import com.adsamcik.tracker.shared.base.graph.Graph
 import com.adsamcik.tracker.shared.base.graph.Vertex
 import com.adsamcik.tracker.shared.base.graph.topSort
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 
@@ -170,7 +170,7 @@ class DatabaseImport : FileImport {
 			if (tableName == "activity") {
 				return
 			} else {
-				Reporter.report(
+				com.adsamcik.tracker.logger.Reporter.report(
 						Exception(
 								"Foreign key issue on table $tableName with values ${values.joinToString()}",
 								e

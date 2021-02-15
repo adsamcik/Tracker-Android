@@ -10,10 +10,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.base.BaseRecyclerAdapter
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.activity.R
-import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.debug.DebugDatabase
-import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.logger.LogDatabase
+import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,7 +20,7 @@ import kotlinx.coroutines.launch
 /**
  * Activity for activity recognition debugging
  */
-class ActivityDebugActivity : DetailActivity() {
+class LogViewerActivity : DetailActivity() {
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.useColorControllerForContent = true
@@ -34,12 +33,12 @@ class ActivityDebugActivity : DetailActivity() {
 		val rootView = createFrameContentLayout(false)
 
 		val recyclerView = RecyclerView(this).apply {
-			layoutManager = LinearLayoutManager(this@ActivityDebugActivity)
+			layoutManager = LinearLayoutManager(this@LogViewerActivity)
 			addItemDecoration(MarginDecoration())
 			adapter = Adapter().also { adapter ->
 				launch(Dispatchers.Default) {
-					val data = DebugDatabase
-							.getInstance(this@ActivityDebugActivity)
+					val data = LogDatabase
+							.database(this@LogViewerActivity)
 							.genericLogDao()
 							.getLastOrderedDesc(1000)
 
@@ -54,7 +53,7 @@ class ActivityDebugActivity : DetailActivity() {
 		styleController.watchRecyclerView(RecyclerStyleView(recyclerView))
 	}
 
-	class Adapter : BaseRecyclerAdapter<LogData, Adapter.ViewHolder>() {
+	class Adapter : BaseRecyclerAdapter<com.adsamcik.tracker.logger.LogData, Adapter.ViewHolder>() {
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 			val inflater = LayoutInflater.from(parent.context)
 			val rootView = inflater.inflate(R.layout.layout_debug_activity_item, parent, false)

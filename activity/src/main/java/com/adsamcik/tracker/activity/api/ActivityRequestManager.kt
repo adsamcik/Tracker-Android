@@ -12,8 +12,8 @@ import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
-import com.adsamcik.tracker.shared.utils.debug.LogData
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Reporter
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
 import kotlin.reflect.KClass
@@ -39,7 +39,12 @@ object ActivityRequestManager {
 	fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
 		require(requestData.transitionData != null || requestData.changeData != null)
 
-		logActivity(LogData(message = "new activity request", data = requestData))
+		logActivity(
+				com.adsamcik.tracker.logger.LogData(
+						message = "new activity request",
+						data = requestData
+				)
+		)
 
 		val hash = requestData.key.hashCode()
 		activeRequestArray.put(hash, requestData)
@@ -55,13 +60,13 @@ object ActivityRequestManager {
 		if (index >= 0) {
 			activeRequestArray.removeAt(index)
 
-			logActivity(LogData(message = "removed request for ${tClass.java.name}"))
+			logActivity(com.adsamcik.tracker.logger.LogData(message = "removed request for ${tClass.java.name}"))
 
 			if (activeRequestArray.isNotEmpty()) {
 				onRequestChange(context)
 			}
 		} else {
-			Reporter.report("Trying to remove class that is not subscribed (" + tClass.java.name + ")")
+			com.adsamcik.tracker.logger.Reporter.report("Trying to remove class that is not subscribed (" + tClass.java.name + ")")
 		}
 
 		if (activeRequestArray.isEmpty()) {

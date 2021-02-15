@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.dialog
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 
 /**
@@ -18,7 +18,7 @@ class FirstRunDialogBuilder {
 
 	fun addData(data: FirstRun) {
 		if (isLocked) {
-			Reporter.report("Trying to add data after builder was locked.")
+			com.adsamcik.tracker.logger.Reporter.report("Trying to add data after builder was locked.")
 		} else {
 			dialogDataList.add(data)
 		}

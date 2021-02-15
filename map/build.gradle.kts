@@ -45,6 +45,13 @@ android {
 
 dependencies {
 	implementation(project(":smap"))
+	implementation(project(":app"))
+	implementation(project(":sbase"))
+	implementation(project(":activity"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
+	implementation(project(":logger"))
+
 	Dependencies.core(this)
 	Dependencies.draggable(this)
 	Dependencies.map(this)
@@ -52,10 +59,4 @@ dependencies {
 	Dependencies.preference(this)
 	Dependencies.test(this)
 	Dependencies.introduction(this)
-
-	implementation(project(":app"))
-	implementation(project(":sbase"))
-	implementation(project(":activity"))
-	implementation(project(":sutils"))
-	implementation(project(":spreferences"))
 }

@@ -10,7 +10,7 @@ import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.notificationManager
-import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 
 internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
@@ -21,7 +21,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 	override fun doWork(): Result {
 		val applicationContext = applicationContext
 
-		logGame(LogData(message = "Started Challenge Worker"))
+		logGame(com.adsamcik.tracker.logger.LogData(message = "Started Challenge Worker"))
 
 		val sessionId = inputData.getPositiveLongReportNull(ARG_SESSION_ID)
 				?: return Result.failure()
@@ -41,7 +41,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 
 		ChallengeManager.processSession(applicationContext, trackerSession) {
 			val title = "Completed challenge ${it.getTitle(applicationContext)}"
-			logGame(LogData(message = title))
+			logGame(com.adsamcik.tracker.logger.LogData(message = title))
 			notificationManager.notify(
 					NOTIFICATION_ID,
 					NotificationCompat.Builder(
@@ -57,7 +57,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		challengeSession.isChallengeProcessed = true
 		sessionDao.update(challengeSession)
 
-		logGame(LogData(message = "Successfully finished Challenge Worker"))
+		logGame(com.adsamcik.tracker.logger.LogData(message = "Successfully finished Challenge Worker"))
 		return Result.success()
 	}
 

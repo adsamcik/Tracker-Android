@@ -9,9 +9,9 @@ import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 import com.adsamcik.tracker.shared.base.extension.isPowerOfTwo
 import com.adsamcik.tracker.shared.map.CoordinateBounds
-import com.adsamcik.tracker.shared.utils.debug.assertLess
-import com.adsamcik.tracker.shared.utils.debug.assertMore
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
+import com.adsamcik.tracker.logger.assertLess
+import com.adsamcik.tracker.logger.assertMore
+import com.adsamcik.tracker.logger.assertTrue
 import kotlin.math.floor
 
 typealias InsideAndBetween = (
@@ -62,17 +62,17 @@ internal interface HeatmapTileCreator {
 			data: HeatmapTileData,
 			getLocations: Inside
 	): HeatmapTile {
-		assertTrue(data.heatmapSize.isPowerOfTwo())
-		assertLess(data.area.left, data.area.right)
-		assertLess(data.area.bottom, data.area.top)
+		com.adsamcik.tracker.logger.assertTrue(data.heatmapSize.isPowerOfTwo())
+		com.adsamcik.tracker.logger.assertLess(data.area.left, data.area.right)
+		com.adsamcik.tracker.logger.assertLess(data.area.bottom, data.area.top)
 
 		val halfWidth = floor(data.stamp.width.toDouble() / 2.0)
 		val halfHeight = floor(data.stamp.height.toDouble() / 2.0)
 		val extendLatitude = data.area.height * (halfHeight / data.heatmapSize.toDouble())
 		val extendLongitude = data.area.width * (halfWidth / data.heatmapSize.toDouble())
 
-		assertMore(extendLatitude, 0.0)
-		assertMore(extendLongitude, 0.0)
+		com.adsamcik.tracker.logger.assertMore(extendLatitude, 0.0)
+		com.adsamcik.tracker.logger.assertMore(extendLongitude, 0.0)
 
 		val allInside = getLocations.invoke(
 				data.area.top + extendLatitude,

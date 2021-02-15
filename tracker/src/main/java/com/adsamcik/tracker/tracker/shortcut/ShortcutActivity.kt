@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.shortcut
 import android.os.Bundle
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts.ShortcutAction
 
@@ -19,7 +19,7 @@ class ShortcutActivity : AppCompatActivity() {
 			if (it.action == Shortcuts.ACTION) {
 				val value = it.getIntExtra(Shortcuts.ACTION_STRING, -1)
 				if (value < 0 || value >= ShortcutAction.values().size) {
-					Reporter.report(Throwable("Invalid value $value"))
+					com.adsamcik.tracker.logger.Reporter.report(Throwable("Invalid value $value"))
 				} else {
 					onActionReceived(ShortcutAction.values()[value])
 				}

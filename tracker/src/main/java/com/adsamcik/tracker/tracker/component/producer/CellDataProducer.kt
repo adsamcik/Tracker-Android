@@ -21,7 +21,7 @@ import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
@@ -201,7 +201,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 				}
 			}
 			else -> {
-				Reporter.report(Throwable("Unknown cell type ${cellInfo.javaClass.simpleName}"))
+				com.adsamcik.tracker.logger.Reporter.report(Throwable("Unknown cell type ${cellInfo.javaClass.simpleName}"))
 				null
 			}
 		}

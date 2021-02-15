@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.extension
 
 import android.content.Intent
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 
 /**
  * Try get long value from Intent.
@@ -17,9 +17,9 @@ fun Intent.getPositiveLongExtraReportNull(key: String): Long? {
 	val value = getLongExtra(key, -1)
 	return if (value < 0) {
 		if (hasExtra(key)) {
-			Reporter.report(IllegalArgumentException("Argument $key had invalid negative value of $value"))
+			com.adsamcik.tracker.logger.Reporter.report(IllegalArgumentException("Argument $key had invalid negative value of $value"))
 		} else {
-			Reporter.report(IllegalArgumentException("Argument $key was not specified"))
+			com.adsamcik.tracker.logger.Reporter.report(IllegalArgumentException("Argument $key was not specified"))
 		}
 		null
 	} else {
@@ -32,6 +32,6 @@ fun Intent.getPositiveLongExtraReportNull(key: String): Long? {
  */
 fun Intent.getLongExtraReportNull(key: String): Long? {
 	val value = tryGetLongExtra(key)
-	if (value == null) Reporter.report(IllegalArgumentException("Argument $key was not specified"))
+	if (value == null) com.adsamcik.tracker.logger.Reporter.report(IllegalArgumentException("Argument $key was not specified"))
 	return value
 }

@@ -6,7 +6,7 @@ import android.view.ViewTreeObserver
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getNavigationBarSize
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.inputMethodManager
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 
 
 typealias KeyboardListener = (state: Boolean, keyboardHeight: Int) -> Unit
@@ -64,7 +64,7 @@ class KeyboardManager(private val rootView: View) {
 			onDisplaySizeChanged()
 			rootView.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
 		} else {
-			Reporter.report("Called when not enabled")
+			com.adsamcik.tracker.logger.Reporter.report("Called when not enabled")
 		}
 	}
 
@@ -72,7 +72,7 @@ class KeyboardManager(private val rootView: View) {
 		if (isEnabled) {
 			rootView.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
 		} else {
-			Reporter.report("Called when not enabled")
+			com.adsamcik.tracker.logger.Reporter.report("Called when not enabled")
 		}
 	}
 

@@ -8,7 +8,7 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import io.github.luizgrp.sectionedrecyclerviewadapter.SectionedRecyclerViewAdapter
 import kotlin.math.roundToInt
 
@@ -42,7 +42,7 @@ class SectionedDividerDecoration(
 		val a = context.obtainStyledAttributes(ATTRS)
 		mDivider = a.getDrawable(0)
 		if (mDivider == null) {
-			Reporter.report(
+			com.adsamcik.tracker.logger.Reporter.report(
 					"""
 				@android:attr/listDivider was not set in the
 				theme used for this DividerItemDecoration.

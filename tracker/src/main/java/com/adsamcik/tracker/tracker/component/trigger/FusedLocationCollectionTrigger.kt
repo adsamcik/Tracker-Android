@@ -5,7 +5,7 @@ import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
@@ -29,7 +29,7 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger() {
 	private val locationCallback: LocationCallback = object : LocationCallback() {
 		override fun onLocationResult(result: LocationResult) {
 			if (receiver == null) {
-				Reporter.report("Received location update with null callback")
+				com.adsamcik.tracker.logger.Reporter.report("Received location update with null callback")
 				return
 			}
 

@@ -5,7 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
-import com.adsamcik.tracker.shared.utils.debug.assertEqual
+import com.adsamcik.tracker.logger.assertEqual
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
@@ -46,8 +46,8 @@ class MorningDayEveningNightTransitionUpdateTest {
 		val afterSunrise = sunrise.plusHours(1)
 		val data = update(afterSunrise)
 
-		assertEqual(colorList[0], data.fromColor)
-		assertEqual(colorList[1], data.toColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[0], data.fromColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[1], data.toColor)
 	}
 
 	@Test
@@ -58,8 +58,8 @@ class MorningDayEveningNightTransitionUpdateTest {
 		val afterSunrise = sunrise.plusHours(1)
 		val data = update(afterSunrise)
 
-		assertEqual(colorList[1], data.fromColor)
-		assertEqual(colorList[2], data.toColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[1], data.fromColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[2], data.toColor)
 	}
 
 	@Test
@@ -70,8 +70,8 @@ class MorningDayEveningNightTransitionUpdateTest {
 		val afterSunset = sunset.plusHours(1)
 		val data = update(afterSunset)
 
-		assertEqual(colorList[2], data.fromColor)
-		assertEqual(colorList[3], data.toColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[2], data.fromColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[3], data.toColor)
 	}
 
 	@Test
@@ -82,8 +82,8 @@ class MorningDayEveningNightTransitionUpdateTest {
 		val afterSunrise = sunrise.minusHours(1)
 		val data = update(afterSunrise)
 
-		assertEqual(colorList[3], data.fromColor)
-		assertEqual(colorList[0], data.toColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[3], data.fromColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[0], data.toColor)
 	}
 
 	@Test
@@ -94,8 +94,8 @@ class MorningDayEveningNightTransitionUpdateTest {
 		val beforeMidnight = sunrise.minusMinutes(15)
 		val data = update(beforeMidnight)
 
-		assertEqual(colorList[2], data.fromColor)
-		assertEqual(colorList[3], data.toColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[2], data.fromColor)
+		com.adsamcik.tracker.logger.assertEqual(colorList[3], data.toColor)
 	}
 }
 

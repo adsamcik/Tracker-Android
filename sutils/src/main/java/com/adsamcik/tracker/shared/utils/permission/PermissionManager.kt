@@ -5,7 +5,7 @@ import android.content.Context
 import android.os.Build
 import com.adsamcik.tracker.shared.base.extension.contains
 import com.adsamcik.tracker.shared.utils.R
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.karumi.dexter.Dexter
@@ -72,7 +72,7 @@ object PermissionManager {
 							}
 						}
 				)
-				.withErrorListener { Reporter.report("Dexter error ${it.name}") }
+				.withErrorListener { com.adsamcik.tracker.logger.Reporter.report("Dexter error ${it.name}") }
 				.check()
 	}
 

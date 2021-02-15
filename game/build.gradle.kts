@@ -58,14 +58,15 @@ android {
 }
 
 dependencies {
+	implementation(project(":app"))
+	implementation(project(":sbase"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
+	implementation(project(":logger"))
+
 	Dependencies.core(this)
 	Dependencies.draggable(this)
 	Dependencies.database(this)
 	Dependencies.preference(this)
 	Dependencies.test(this)
-
-	implementation(project(":app"))
-	implementation(project(":sbase"))
-	implementation(project(":sutils"))
-	implementation(project(":spreferences"))
 }

@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.utils.debug
+package com.adsamcik.tracker.logger
 
 import android.content.Context
 import androidx.lifecycle.Observer

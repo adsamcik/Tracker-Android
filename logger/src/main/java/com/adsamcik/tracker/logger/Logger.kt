@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.utils.debug
+package com.adsamcik.tracker.logger
 
 import android.content.Context
 import androidx.annotation.AnyThread
@@ -30,7 +30,7 @@ object Logger : CoroutineScope {
 		}
 
 		preferences = Preferences.getPref(context)
-		genericDao = DebugDatabase.getInstance(context).genericLogDao()
+		genericDao = LogDatabase.database(context).genericLogDao()
 	}
 
 	@AnyThread

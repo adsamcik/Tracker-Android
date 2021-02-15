@@ -59,6 +59,12 @@ android {
 
 dependencies {
 	implementation(project(":smap"))
+	implementation(project(":app"))
+	implementation(project(":sbase"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
+	implementation(project(":logger"))
+	
 	Dependencies.core(this)
 	Dependencies.draggable(this)
 	Dependencies.database(this)
@@ -68,10 +74,4 @@ dependencies {
 
 	implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
 	implementation("com.goebl:simplify:1.0.0")
-
-	implementation(fileTree("libs").include("*.jar"))
-	implementation(project(":app"))
-	implementation(project(":sbase"))
-	implementation(project(":sutils"))
-	implementation(project(":spreferences"))
 }

@@ -5,7 +5,7 @@ import android.content.res.TypedArray
 import android.util.AttributeSet
 import androidx.preference.Preference
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.utils.debug.assertEqual
+import com.adsamcik.tracker.logger.assertEqual
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
@@ -71,7 +71,7 @@ open class DialogListPreference : Preference {
 	 * Set dialog list values
 	 */
 	open fun setValues(list: List<String>, keys: List<String>) {
-		assertEqual(list.size, keys.size)
+		com.adsamcik.tracker.logger.assertEqual(list.size, keys.size)
 		valueList.clear()
 		this.keyList.clear()
 

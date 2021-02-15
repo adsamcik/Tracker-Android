@@ -15,7 +15,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -111,7 +111,7 @@ class LicenseActivity : DetailActivity() {
 				adapter.addLicense(license)
 			}
 		} catch (e: IOException) {
-			Reporter.report(e)
+			com.adsamcik.tracker.logger.Reporter.report(e)
 		}
 
 		adapter.notifyDataSetChanged()

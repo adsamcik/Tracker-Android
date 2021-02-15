@@ -17,7 +17,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
-import com.adsamcik.tracker.shared.utils.debug.LogData
+import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -125,7 +125,7 @@ object ChallengeManager {
 	private fun scheduleNextChallengeExpiredWork(context: Context) {
 		val nextExpiry = mutableActiveChallengeList_.minOf { it.endTime }
 		ChallengeExpiredWorker.schedule(context, nextExpiry)
-		logGame(LogData(message = "Scheduled next expiry worker to run at ${nextExpiry.formatAsDateTime()}"))
+		logGame(com.adsamcik.tracker.logger.LogData(message = "Scheduled next expiry worker to run at ${nextExpiry.formatAsDateTime()}"))
 	}
 
 	internal fun checkExpiredChallenges(context: Context) {
@@ -143,7 +143,7 @@ object ChallengeManager {
 	private fun logNewChallenge(context: Context, instance: ChallengeInstance<*, *>) {
 		val title = context.getString(instance.definition.titleRes)
 		logGame(
-				LogData(
+				com.adsamcik.tracker.logger.LogData(
 						message = "Created new random challenge $title with expiration on ${instance.endTime.formatAsDateTime()}"
 				)
 		)

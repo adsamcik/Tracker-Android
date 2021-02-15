@@ -57,6 +57,7 @@ android {
 dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))
+	implementation(project(":logger"))
 
 	Dependencies.core(this)
 	Dependencies.crashlytics(this)

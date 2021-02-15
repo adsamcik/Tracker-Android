@@ -57,6 +57,7 @@ dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
+	implementation(project(":logger"))
 
 	Dependencies.core(this)
 	Dependencies.crashlytics(this)

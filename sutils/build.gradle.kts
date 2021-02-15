@@ -63,6 +63,7 @@ android {
 dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":spreferences"))
+	implementation(project(":logger"))
 
 
 	Dependencies.core(this)

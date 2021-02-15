@@ -18,7 +18,7 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import java.util.*
 
@@ -75,13 +75,13 @@ class SettingsActivity : DetailActivity(),
 				//e.printStackTrace()
 				//this exception is ok, just don't add anything
 			} catch (e: InstantiationException) {
-				Reporter.report(e)
+				com.adsamcik.tracker.logger.Reporter.report(e)
 				e.printStackTrace()
 			} catch (e: IllegalAccessException) {
-				Reporter.report(e)
+				com.adsamcik.tracker.logger.Reporter.report(e)
 				e.printStackTrace()
 			} catch (e: ClassCastException) {
-				Reporter.report(e)
+				com.adsamcik.tracker.logger.Reporter.report(e)
 				e.printStackTrace()
 			}
 		}

@@ -4,9 +4,9 @@ import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.isAfterOrEqual
 import com.adsamcik.tracker.shared.base.extension.isBeforeOrEqual
-import com.adsamcik.tracker.shared.utils.debug.assertEqual
-import com.adsamcik.tracker.shared.utils.debug.assertMore
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
+import com.adsamcik.tracker.logger.assertEqual
+import com.adsamcik.tracker.logger.assertMore
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
@@ -46,7 +46,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			styleList: List<Int>,
 			sunSetRise: SunSetRise
 	): UpdateData {
-		assertEqual(styleList.size, defaultColors.list.size)
+		com.adsamcik.tracker.logger.assertEqual(styleList.size, defaultColors.list.size)
 
 		val localDate = time.toLocalDate()
 		val sunData = sunSetRise.sunDataFor(time)
@@ -71,7 +71,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 
 		val localUpdateData = calculateProgress(time, sunData, sunSetRise)
 
-		assertMore(localUpdateData.duration, 0) {
+		com.adsamcik.tracker.logger.assertMore(localUpdateData.duration, 0) {
 			"Duration was negative with sunrise of $sunrise, sunset of $sunset and current time $time"
 		}
 
@@ -88,9 +88,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			midnight: ZonedDateTime,
 			sunrise: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfterOrEqual(midnight))
-		assertTrue(midnight.isBeforeOrEqual(sunrise))
-		assertTrue(now.isBeforeOrEqual(sunrise))
+		com.adsamcik.tracker.logger.assertTrue(now.isAfterOrEqual(midnight))
+		com.adsamcik.tracker.logger.assertTrue(midnight.isBeforeOrEqual(sunrise))
+		com.adsamcik.tracker.logger.assertTrue(now.isBeforeOrEqual(sunrise))
 		return UpdateData(
 				fromColor = MIDNIGHT,
 				toColor = SUNRISE,
@@ -104,9 +104,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunset: ZonedDateTime,
 			midnight: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfterOrEqual(sunset)) { "now $now, sunset $sunset, midnight $midnight" }
-		assertTrue(sunset.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
-		assertTrue(now.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
+		com.adsamcik.tracker.logger.assertTrue(now.isAfterOrEqual(sunset)) { "now $now, sunset $sunset, midnight $midnight" }
+		com.adsamcik.tracker.logger.assertTrue(sunset.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
+		com.adsamcik.tracker.logger.assertTrue(now.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
 
 		return UpdateData(
 				fromColor = SUNSET,
@@ -121,9 +121,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			noon: ZonedDateTime,
 			sunset: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfterOrEqual(noon))
-		assertTrue(noon.isBeforeOrEqual(sunset))
-		assertTrue(now.isBeforeOrEqual(sunset))
+		com.adsamcik.tracker.logger.assertTrue(now.isAfterOrEqual(noon))
+		com.adsamcik.tracker.logger.assertTrue(noon.isBeforeOrEqual(sunset))
+		com.adsamcik.tracker.logger.assertTrue(now.isBeforeOrEqual(sunset))
 		return UpdateData(
 				fromColor = NOON,
 				toColor = SUNSET,
@@ -137,9 +137,9 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			sunrise: ZonedDateTime,
 			noon: ZonedDateTime
 	): UpdateData {
-		assertTrue(now.isAfterOrEqual(sunrise))
-		assertTrue(sunrise.isBeforeOrEqual(noon))
-		assertTrue(now.isBeforeOrEqual(noon)) {
+		com.adsamcik.tracker.logger.assertTrue(now.isAfterOrEqual(sunrise))
+		com.adsamcik.tracker.logger.assertTrue(sunrise.isBeforeOrEqual(noon))
+		com.adsamcik.tracker.logger.assertTrue(now.isBeforeOrEqual(noon)) {
 			"Now: $now Noon: $noon Sunrise: $sunrise"
 		}
 		return UpdateData(

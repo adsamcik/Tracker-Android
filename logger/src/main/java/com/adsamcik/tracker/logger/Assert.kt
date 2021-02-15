@@ -1,6 +1,6 @@
 @file:Suppress("TooManyFunctions", "unused")
 
-package com.adsamcik.tracker.shared.utils.debug
+package com.adsamcik.tracker.logger
 
 /**
  * Assert value is true

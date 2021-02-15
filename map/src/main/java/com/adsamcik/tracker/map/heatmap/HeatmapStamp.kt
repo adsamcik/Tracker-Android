@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.map.heatmap
 
-import com.adsamcik.tracker.shared.utils.debug.assertMore
+import com.adsamcik.tracker.logger.assertMore
 import kotlin.math.sqrt
 
 internal data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
 	companion object {
 		fun generateNonlinear(radius: Int, distFunction: (Float) -> Float): HeatmapStamp {
-			assertMore(radius, 0)
+			com.adsamcik.tracker.logger.assertMore(radius, 0)
 
 			val diameter = radius * 2 + 1
 			val stampData = FloatArray(diameter * diameter)

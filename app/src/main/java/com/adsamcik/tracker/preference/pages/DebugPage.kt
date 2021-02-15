@@ -6,7 +6,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.activity.ui.ActivityDebugActivity
+import com.adsamcik.tracker.activity.ui.LogViewerActivity
 import com.adsamcik.tracker.debug.activity.StatusActivity
 import com.adsamcik.tracker.notification.Notifications
 import com.adsamcik.tracker.preference.findPreference
@@ -67,7 +67,7 @@ class DebugPage : PreferencePage {
 
 			caller.findPreference(R.string.settings_log_list_activity_key)
 					.setOnPreferenceClickListener {
-						startActivity<ActivityDebugActivity> { }
+						startActivity<LogViewerActivity> { }
 						false
 					}
 		}

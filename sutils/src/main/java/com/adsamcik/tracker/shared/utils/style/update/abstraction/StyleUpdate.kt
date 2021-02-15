@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.style.update.abstraction
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import java.util.concurrent.locks.ReentrantLock
@@ -28,7 +28,7 @@ internal abstract class StyleUpdate {
 	fun requireConfigData(): StyleConfigData = requireNotNull(configData)
 
 	fun onEnable(context: Context, configData: StyleConfigData) {
-		if (isEnabled) Reporter.report("Style update is already in enabled state.")
+		if (isEnabled) com.adsamcik.tracker.logger.Reporter.report("Style update is already in enabled state.")
 
 		updateLock.withLock {
 			this.configData = configData
@@ -46,7 +46,7 @@ internal abstract class StyleUpdate {
 	}
 
 	fun onDisable(context: Context) {
-		if (!isEnabled) Reporter.report("Style update is already in disabled state.")
+		if (!isEnabled) com.adsamcik.tracker.logger.Reporter.report("Style update is already in disabled state.")
 
 		onPreDisable(context)
 

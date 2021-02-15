@@ -10,6 +10,6 @@
             android:name="com.adsamcik.tracker.activity.ui.SessionActivityActivity"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity android:name=".ui.ActivityDebugActivity" />
+        <activity android:name=".ui.LogViewerActivity" />
     </application>
 </manifest>

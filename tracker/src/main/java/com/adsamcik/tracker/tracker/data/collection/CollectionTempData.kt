@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.data.collection
 import android.location.Location
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LocationData
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataConsumerComponent
 
@@ -68,7 +68,7 @@ internal abstract class CollectionTempData(val timeMillis: Long, val elapsedReal
 			component: TrackerDataConsumerComponent,
 			required: TrackerComponentRequirement
 	) {
-		assertTrue(component.requiredData.contains(required))
+		com.adsamcik.tracker.logger.assertTrue(component.requiredData.contains(required))
 	}
 
 	fun getActivity(component: TrackerDataConsumerComponent): ActivityInfo {

@@ -3,7 +3,7 @@ package com.adsamcik.tracker.preference.component
 import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
-import com.adsamcik.tracker.shared.utils.debug.assertEqual
+import com.adsamcik.tracker.logger.assertEqual
 import java.util.*
 
 /**
@@ -57,7 +57,7 @@ class IndicesDialogListPreference : DialogListPreference {
 	 */
 	fun setValuesIndices(list: List<String>, indices: List<Int>) {
 		super.setValues(list, indices.map { it.toString() })
-		assertEqual(list.size, indices.size)
+		com.adsamcik.tracker.logger.assertEqual(list.size, indices.size)
 
 		this.indices.clear()
 		this.indices.addAll(indices)

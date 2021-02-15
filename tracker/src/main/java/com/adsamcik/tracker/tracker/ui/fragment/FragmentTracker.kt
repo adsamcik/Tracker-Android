@@ -39,7 +39,7 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.base.useMock
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -80,7 +80,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 			if (itemAnimator is DefaultItemAnimator) {
 				itemAnimator.supportsChangeAnimations = false
 			} else {
-				Reporter.report(RuntimeException("Item animator was null or invalid type"))
+				com.adsamcik.tracker.logger.Reporter.report(RuntimeException("Item animator was null or invalid type"))
 			}
 
 			post { initializeTrackerRecycler() }

@@ -20,7 +20,7 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import java.util.*
@@ -142,7 +142,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			if (indexOf >= 0) {
 				setIndex(indexOf)
 			} else {
-				Reporter.report("Could not find index for language $currentLocale")
+				com.adsamcik.tracker.logger.Reporter.report("Could not find index for language $currentLocale")
 			}
 
 			setOnPreferenceChangeListener { _, _ ->
