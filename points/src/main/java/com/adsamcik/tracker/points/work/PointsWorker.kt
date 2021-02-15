@@ -5,6 +5,7 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.points.POINTS_LOG_SOURCE
 import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
@@ -29,10 +30,15 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		val awardPoints = PointsAwarded(
 				Time.now.toZonedDateTime(),
 				Points(points),
-				AwardSource.Session
+				AwardSource.SESSION
 		)
 
-		Logger.log(LogData(message = "Awarded $awardPoints", source = "points"))
+		Logger.log(
+				LogData(
+						message = "Awarded ${awardPoints.value.value} from ${awardPoints.source.value}",
+						source = POINTS_LOG_SOURCE
+				)
+		)
 
 		PointsDatabase
 				.database(applicationContext)

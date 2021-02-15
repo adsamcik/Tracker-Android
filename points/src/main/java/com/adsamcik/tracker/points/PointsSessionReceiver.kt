@@ -44,7 +44,7 @@ class PointsSessionReceiver : BroadcastReceiver(), CoroutineScope {
 
 		workManager.enqueue(workRequest)
 
-		Logger.log(LogData(message = "Scheduled points work", source = "points"))
+		Logger.log(LogData(message = "Scheduled points work", source = POINTS_LOG_SOURCE))
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {

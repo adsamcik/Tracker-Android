@@ -25,8 +25,9 @@ data class PointsAwarded(
 /**
  * Source of awarded points
  */
-enum class AwardSource {
-	Unknown,
-	Session,
-	Challenge
+inline class AwardSource(val value: String) {
+	companion object {
+		val SESSION = AwardSource("session")
+		val CHALLENGE = AwardSource("challenge")
+	}
 }
