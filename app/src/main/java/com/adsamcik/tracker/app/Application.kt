@@ -61,8 +61,8 @@ class Application : SplitCompatApplication() {
 
 	@MainThread
 	private fun initializeImportantSingletons() {
-		com.adsamcik.tracker.logger.Reporter.initialize(this)
-		com.adsamcik.tracker.logger.Logger.initialize(this)
+		Reporter.initialize(this)
+		Logger.initialize(this)
 	}
 
 	@WorkerThread
@@ -87,6 +87,7 @@ class Application : SplitCompatApplication() {
 			initializeClasses()
 			initializeModules()
 			initializeDatabaseMaintenance()
+			initializeFeatures()
 		}
 
 		setupLifecycleListener()
