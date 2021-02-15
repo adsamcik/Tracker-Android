@@ -21,9 +21,9 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 				val keyLastVersion = context.getString(R.string.key_last_app_version)
 				val lastVersion = getLong(keyLastVersion)
 
-				if (lastVersion < 317) {
+				if (lastVersion < 355) {
 					//ActivityRecognitionApi.rerunRecognitionForAll(context)
-					context.getDatabasePath("challenge_database").delete()
+					context.getDatabasePath("DebugDatabase").delete()
 				}
 
 				val version = context.appVersion()
