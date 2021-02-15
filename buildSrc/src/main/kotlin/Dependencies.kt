@@ -112,7 +112,9 @@ object Dependencies {
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
 			//implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
 
-			implementation("androidx.lifecycle:lifecycle-extensions:${Versions.lifecycle}")
+			implementation("androidx.lifecycle:lifecycle-runtime-ktx:${Versions.lifecycle}")
+			implementation("androidx.lifecycle:lifecycle-service:${Versions.lifecycle}")
+			implementation("androidx.lifecycle:lifecycle-process:${Versions.lifecycle}")
 			implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
 			implementation("androidx.fragment:fragment:${Versions.fragment}")
 			implementation("androidx.fragment:fragment-ktx:${Versions.fragment}")
