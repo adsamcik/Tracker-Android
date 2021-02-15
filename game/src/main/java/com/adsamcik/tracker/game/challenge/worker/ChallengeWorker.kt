@@ -69,7 +69,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 
 	companion object {
 		const val UNIQUE_WORK_NAME = "ChallengeSessionProcessing"
-		const val ARG_SESSION_ID = "SessId"
+		const val ARG_SESSION_ID = "SessionId"
 		private const val NOTIFICATION_ID = 24255737
 	}
 
