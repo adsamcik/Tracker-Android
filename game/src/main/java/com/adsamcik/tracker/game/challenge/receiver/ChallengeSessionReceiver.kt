@@ -8,10 +8,13 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.worker.ChallengeWorker
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNull
@@ -60,6 +63,12 @@ class ChallengeSessionReceiver : BroadcastReceiver(), CoroutineScope {
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {
+		Logger.log(
+				LogData(
+						message = "Received event ${intent.action}",
+						source = CHALLENGE_LOG_SOURCE
+				)
+		)
 		//The receiver might be subscribed even though the challenges are disabled. Subscribing on demand could be really complicated.
 		if (Preferences.getPref(context).getBooleanRes(
 						R.string.settings_game_challenge_enable_key,
@@ -73,7 +82,6 @@ class ChallengeSessionReceiver : BroadcastReceiver(), CoroutineScope {
 
 	companion object {
 		const val WORK_TAG = "Challenge"
-		private const val ARG_IS_NEW_SESSION = TrackerSession.RECEIVER_SESSION_IS_NEW
 		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
 	}
 }
