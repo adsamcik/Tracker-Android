@@ -196,7 +196,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		super.onStartCommand(intent, flags, startId)
 
 		if (intent == null) {
-			com.adsamcik.tracker.logger.Reporter.report(NullPointerException("Intent is null"))
+			Reporter.report(NullPointerException("Intent is null"))
 		}
 
 		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
@@ -227,7 +227,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				timerComponent.onEnable(this@TrackerService, this@TrackerService)
 			} else {
 				stopSelf()
-				com.adsamcik.tracker.logger.Reporter.report("Missing permissions for ${timerComponent.javaClass}")
+				Reporter.report("Missing permissions for ${timerComponent.javaClass}")
 			}
 		}
 
@@ -260,7 +260,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		try {
 			updateData(tempData)
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			com.adsamcik.tracker.logger.Reporter.report(e)
+			Reporter.report(e)
 		} finally {
 			wakeLock.release()
 			componentMutex.unlock()
@@ -270,12 +270,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	override fun onError(errorData: TrackerTimerErrorData) {
 		when (errorData.severity) {
 			TrackerTimerErrorSeverity.STOP_SERVICE -> stopSelf()
-			TrackerTimerErrorSeverity.REPORT -> com.adsamcik.tracker.logger.Reporter.report(errorData.internalMessage)
+			TrackerTimerErrorSeverity.REPORT -> Reporter.report(errorData.internalMessage)
 			TrackerTimerErrorSeverity.NOTIFY_USER -> notificationComponent.onError(
 					this,
 					errorData.messageRes
 			)
-			TrackerTimerErrorSeverity.WARNING -> com.adsamcik.tracker.logger.Reporter.log(errorData.internalMessage)
+			TrackerTimerErrorSeverity.WARNING -> Reporter.log(errorData.internalMessage)
 		}
 	}
 

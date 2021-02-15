@@ -87,7 +87,7 @@
             android:parentActivityName="com.adsamcik.tracker.app.activity.MainActivity" />
 
         <activity
-            android:name="com.adsamcik.tracker.debug.activity.StatusActivity"
+            android:name="com.adsamcik.tracker.app.activity.debug.StatusActivity"
             android:exported="true" />
 
         <receiver android:name="com.adsamcik.tracker.app.receiver.BootReceiver">

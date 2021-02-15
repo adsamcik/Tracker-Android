@@ -6,8 +6,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.activity.ui.LogViewerActivity
-import com.adsamcik.tracker.debug.activity.StatusActivity
+import com.adsamcik.tracker.app.activity.debug.LogViewerActivity
+import com.adsamcik.tracker.app.activity.debug.StatusActivity
 import com.adsamcik.tracker.notification.Notifications
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.setOnClickListener

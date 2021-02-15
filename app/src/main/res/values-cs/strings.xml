@@ -82,8 +82,8 @@
     </string-array>
     <string name="settings_length_system_title">Délkový systém</string>
     <string name="settings_licenses_title">Otevřené licence</string>
-    <string name="settings_log_activity_title">Zaznamenávat změny aktivity</string>
-    <string name="settings_log_list_activity_title">Záznamy změn aktivity</string>
+    <string name="settings_log_activity_title">Logovat aktivity</string>
+    <string name="settings_log_list_activity_title">Zobrazit logy</string>
     <string name="settings_module_enable_title">Moduly</string>
     <string name="settings_module_group_title">Nastavení modulů</string>
     <string name="settings_other_title">Ostatní</string>

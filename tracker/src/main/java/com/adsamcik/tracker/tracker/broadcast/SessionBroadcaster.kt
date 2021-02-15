@@ -8,6 +8,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
@@ -19,6 +21,7 @@ import java.util.concurrent.TimeUnit
 internal object SessionBroadcaster {
 	private const val PARAM_SESSION_END = "endSession"
 	private const val SESSION_FINAL_WORK_TAG = "finalSession"
+	private const val SESSION_BROADCAST_LOG_SOURCE = "session"
 
 	private fun createBaseIntent(context: Context, action: String, session: TrackerSession) =
 			Intent(action).apply {
@@ -44,6 +47,7 @@ internal object SessionBroadcaster {
 		sendBroadcast(context, intent)
 
 		cancelSessionFinal(context, session)
+		Logger.log(LogData(message = "Session started", source = SESSION_BROADCAST_LOG_SOURCE))
 	}
 
 	/**
@@ -56,6 +60,8 @@ internal object SessionBroadcaster {
 				session
 		)
 		sendBroadcast(context, intent)
+
+		Logger.log(LogData(message = "Session ended", source = SESSION_BROADCAST_LOG_SOURCE))
 
 		scheduleBroadcastSessionFinal(context, session)
 	}
@@ -70,6 +76,7 @@ internal object SessionBroadcaster {
 				session
 		)
 		sendBroadcast(context, intent)
+		Logger.log(LogData(message = "Session finalized", source = SESSION_BROADCAST_LOG_SOURCE))
 	}
 
 	private fun getScheduleFinalId(session: TrackerSession) = "${session.id}$SESSION_FINAL_WORK_TAG"

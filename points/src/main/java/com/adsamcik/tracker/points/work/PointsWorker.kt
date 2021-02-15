@@ -3,6 +3,8 @@ package com.adsamcik.tracker.points.work
 import android.content.Context
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
@@ -29,6 +31,8 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 				Points(points),
 				AwardSource.Session
 		)
+
+		Logger.log(LogData(message = "Awarded $awardPoints", source = "points"))
 
 		PointsDatabase
 				.database(applicationContext)

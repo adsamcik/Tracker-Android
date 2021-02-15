@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.debug.activity
+package com.adsamcik.tracker.app.activity.debug
 
 import android.graphics.Color
 import android.os.Bundle

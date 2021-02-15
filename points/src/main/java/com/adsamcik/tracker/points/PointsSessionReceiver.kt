@@ -7,6 +7,8 @@ import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.points.work.PointsWorker
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNull
@@ -41,6 +43,8 @@ class PointsSessionReceiver : BroadcastReceiver(), CoroutineScope {
 				).build()
 
 		workManager.enqueue(workRequest)
+
+		Logger.log(LogData(message = "Scheduled points work", source = "points"))
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {

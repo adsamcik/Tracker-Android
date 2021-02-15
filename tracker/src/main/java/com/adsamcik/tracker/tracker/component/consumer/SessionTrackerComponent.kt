@@ -166,7 +166,7 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	companion object {
-		const val SESSION_RESUME_TIMEOUT = 15 * Time.MINUTE_IN_MILLISECONDS
+		const val SESSION_RESUME_TIMEOUT = 0 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
 
