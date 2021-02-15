@@ -63,7 +63,11 @@ internal object SessionBroadcaster {
 
 		Logger.log(LogData(message = "Session ended", source = SESSION_BROADCAST_LOG_SOURCE))
 
-		scheduleBroadcastSessionFinal(context, session)
+		if (session.isUserInitiated) {
+			broadcastSessionFinal(context, session)
+		} else {
+			scheduleBroadcastSessionFinal(context, session)
+		}
 	}
 
 	/**
@@ -86,8 +90,6 @@ internal object SessionBroadcaster {
 	}
 
 	private fun scheduleBroadcastSessionFinal(context: Context, session: TrackerSession) {
-		if (session.isUserInitiated) return
-
 		val data = Data
 				.Builder()
 				.putLong(TrackerSession.RECEIVER_SESSION_ID, session.id)
