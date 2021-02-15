@@ -86,6 +86,7 @@ dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
+	implementation(project(":points"))
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 

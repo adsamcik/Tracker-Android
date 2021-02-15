@@ -7,6 +7,7 @@ import androidx.annotation.WorkerThread
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
+import com.adsamcik.tracker.points.PointsInitializer
 import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.base.module.ModuleInitializer
 import com.adsamcik.tracker.shared.utils.debug.Logger
@@ -62,12 +63,20 @@ class Application : SplitCompatApplication() {
 	private fun initializeImportantSingletons() {
 		Reporter.initialize(this)
 		Logger.initialize(this)
-		ActivityWatcherService.poke(this)
 	}
 
 	@WorkerThread
 	private fun initializeDatabaseMaintenance() {
 		DatabaseMaintenanceWorker.schedule(this)
+	}
+
+	@WorkerThread
+	private fun initializeFeatures() {
+		// Points
+		PointsInitializer().initialize(this)
+
+		// Activities
+		ActivityWatcherService.poke(this)
 	}
 
 	override fun onCreate() {
