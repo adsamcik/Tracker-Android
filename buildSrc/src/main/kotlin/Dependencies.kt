@@ -108,7 +108,7 @@ object Dependencies {
 			implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
 
 			//Recycler
-			implementation("com.adsamcik.android-components:recycler:${Versions.componentsRecycler}")
+			implementation("com.github.adsamcik.android-components:recycler:${Versions.componentsRecycler}")
 			implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
 			//implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
 
@@ -169,13 +169,13 @@ object Dependencies {
 
 	fun draggable(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.adsamcik.android-components:draggable:${Versions.componentsDraggable}")
+			implementation("com.github.adsamcik.android-components:draggable:${Versions.componentsDraggable}")
 		}
 	}
 
 	fun slider(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.adsamcik.android-components:slider:${Versions.componentSlider}")
+			implementation("com.github.adsamcik.android-components:slider:${Versions.componentSlider}")
 		}
 	}
 
@@ -213,7 +213,7 @@ object Dependencies {
 
 	fun introduction(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.adsamcik.android-forks:spotlight:${Versions.spotlight}")
+			implementation("com.github.adsamcik.android-forks:spotlight:${Versions.spotlight}")
 		}
 	}
 
