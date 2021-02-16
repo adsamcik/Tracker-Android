@@ -23,14 +23,6 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
         restore-keys: |
           ${{ runner.os }}-gradle-
-    - name: Android cache
-      uses: actions/cache@v2
-      with:
-        path: ~/.android/build-cache
-        key: ${{ runner.OS }}-android-build
-        restore-keys: |
-          ${{ runner.OS }}-android-build-
-          
     - name: Prepare for build
       run: | 
         chmod +x gradlew
