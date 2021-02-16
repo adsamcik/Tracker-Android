@@ -50,7 +50,7 @@ object Dependencies {
 		internal const val sectionedRecyclerViewAdapter = "3.2.0"
 
 		internal const val componentsRecycler = "1.0.0"
-		internal const val componentsDraggable = "1.0.1"
+		internal const val componentsDraggable = "1.0.2"
 		internal const val componentSlider = "2.0.0"
 
 		internal const val dexter = "6.2.2"
@@ -169,7 +169,7 @@ object Dependencies {
 
 	fun draggable(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			implementation("com.github.adsamcik:draggable:${Versions.componentsDraggable}")
+			implementation("com.github.adsamcik:Draggable:${Versions.componentsDraggable}")
 		}
 	}
 
