@@ -72,7 +72,6 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		MapsInitializer.initialize(context)
-		retainInstance = false
 
 		mapOwner.addOnCreateListener(this::onMapReady)
 		mapOwner.addOnEnableListener {
