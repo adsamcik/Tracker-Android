@@ -45,13 +45,13 @@ object Dependencies {
 		internal const val jpx = "2.2.0"
 		internal const val xml = "1.2.2"
 
-		internal const val spotlight = "2.2.2"
+		internal const val spotlight = "2.2.3"
 		internal const val dialogs = "3.3.0"
 		internal const val sectionedRecyclerViewAdapter = "3.2.0"
 
-		internal const val componentsRecycler = "0.8.0"
-		internal const val componentsDraggable = "1.0.0"
-		internal const val componentSlider = "2.0.0-beta01"
+		internal const val componentsRecycler = "1.0.0"
+		internal const val componentsDraggable = "1.0.1"
+		internal const val componentSlider = "2.0.0"
 
 		internal const val dexter = "6.2.2"
 

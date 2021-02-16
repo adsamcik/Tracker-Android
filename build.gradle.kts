@@ -1,3 +1,5 @@
+import com.android.build.gradle.internal.cxx.configure.gradleLocalProperties
+
 buildscript {
 	repositories {
 		jcenter()
@@ -24,9 +26,26 @@ allprojects {
 		jcenter()
 		google()
 		maven("https://jitpack.io")
-		maven("https://dl.bintray.com/adsamcik/android-forks")
 		maven("https://kotlin.bintray.com/kotlinx/")
 		mavenCentral()
+
+		val localProperties = gradleLocalProperties(rootDir)
+		listOf(
+				"/adsamcik/recycler",
+				"/adsamcik/draggable",
+				"/adsamcik/spotlight",
+				"/adsamcik/touchdelegate",
+				"/adsamcik/slider"
+		).forEach { path ->
+			maven {
+				name = "GitHubPackages"
+				url = uri("https://maven.pkg.github.com$path")
+				credentials {
+					username = localProperties.getProperty("gpr.user", System.getenv("USERNAME"))
+					password = localProperties.getProperty("gpr.key", System.getenv("TOKEN"))
+				}
+			}
+		}
 	}
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {
