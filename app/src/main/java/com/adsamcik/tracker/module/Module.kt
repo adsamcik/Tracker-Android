@@ -38,11 +38,17 @@ enum class Module {
 	companion object {
 		private const val BASE_PATH = "com.adsamcik.tracker"
 
+		/**
+		 * Returns information about all active modules.
+		 */
 		fun getActiveModuleInfo(context: Context): List<ModuleInfo> {
 			val manager = SplitInstallManagerFactory.create(context)
 			return getActiveModuleInfo(manager)
 		}
 
+		/**
+		 * Returns information about all active modules.
+		 */
 		fun getActiveModuleInfo(manager: SplitInstallManager): List<ModuleInfo> {
 			val installedModules = manager.installedModules
 			return values()
@@ -50,21 +56,25 @@ enum class Module {
 					.filter { it.enabled }
 					.map { ModuleInfo(it) }
 					.toList()
-					.apply {
-						forEach {
-							if (installedModules.contains(it.module.moduleName)) {
-								it.isInstalled = true
-								it.shouldBeInstalled = true
-							}
+					.onEach {
+						if (installedModules.contains(it.module.moduleName)) {
+							it.isInstalled = true
+							it.shouldBeInstalled = true
 						}
 					}
 		}
 
+		/**
+		 * Returns info for a specific module.
+		 */
 		fun getModuleInfo(context: Context, module: Module): ModuleInfo {
 			val manager = SplitInstallManagerFactory.create(context)
 			return getModuleInfo(manager, module)
 		}
 
+		/**
+		 * Returns info for a specific module.
+		 */
 		fun getModuleInfo(manager: SplitInstallManager, module: Module): ModuleInfo {
 			val moduleInfo = ModuleInfo(module)
 			if (manager.installedModules.contains(module.moduleName)) {

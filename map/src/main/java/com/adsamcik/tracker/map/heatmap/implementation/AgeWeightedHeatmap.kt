@@ -1,13 +1,13 @@
 package com.adsamcik.tracker.map.heatmap.implementation
 
-import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
-import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.logger.assertLess
 import com.adsamcik.tracker.logger.assertMore
 import com.adsamcik.tracker.logger.assertMoreOrEqual
 import com.adsamcik.tracker.logger.assertWithin
+import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
+import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.EMPTY_COMPONENT
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.FULL_COMPONENT
 import kotlin.math.max
@@ -115,7 +115,7 @@ internal class AgeWeightedHeatmap(
 		for (itY in y0 until y1) {
 			var heatIndex = (y + itY - halfStampHeight) * width + (x + x0) - halfStampWidth
 			var stampIndex = itY * stamp.width + x0
-			com.adsamcik.tracker.logger.assertMoreOrEqual(stampIndex, 0)
+			assertMoreOrEqual(stampIndex, 0)
 
 			for (itX in x0 until x1) {
 				val stampValue = stamp.stampData[stampIndex]
@@ -126,12 +126,12 @@ internal class AgeWeightedHeatmap(
 					val valueAge = ageArray[heatIndex]
 					val alphaPercentage = (alphaValue).toFloat() / 255f
 
-					com.adsamcik.tracker.logger.assertWithin(alphaPercentage, 0f, 1f)
+					assertWithin(alphaPercentage, 0f, 1f)
 
 					val newAlphaPercentage = max(alphaPercentage, stampValue)
 					val newAlphaValue = (newAlphaPercentage * FULL_COMPONENT).toInt()
 
-					com.adsamcik.tracker.logger.assertWithin(
+					assertWithin(
 							newAlphaValue,
 							EMPTY_COMPONENT,
 							FULL_COMPONENT
@@ -211,7 +211,7 @@ internal class AgeWeightedHeatmap(
 			saturation: Float,
 			normalizedValueModifierFunction: (Float) -> Float
 	): IntArray {
-		com.adsamcik.tracker.logger.assertMore(saturation, 0f)
+		assertMore(saturation, 0f)
 
 		val buffer = IntArray(width * height)
 
@@ -228,8 +228,8 @@ internal class AgeWeightedHeatmap(
 
 				val colorId = ((colorScheme.colors.size - 1) * normalizedValue).roundToInt()
 
-				com.adsamcik.tracker.logger.assertMoreOrEqual(normalizedValue, 0f)
-				com.adsamcik.tracker.logger.assertLess(colorId, colorScheme.colors.size)
+				assertMoreOrEqual(normalizedValue, 0f)
+				assertLess(colorId, colorScheme.colors.size)
 
 				val alpha = alphaArray[index].toInt().coerceIn(EMPTY_COMPONENT, FULL_COMPONENT)
 

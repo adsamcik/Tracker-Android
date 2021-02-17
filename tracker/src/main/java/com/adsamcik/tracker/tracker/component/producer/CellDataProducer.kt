@@ -14,6 +14,7 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
@@ -21,7 +22,6 @@ import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
@@ -201,7 +201,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 				}
 			}
 			else -> {
-				com.adsamcik.tracker.logger.Reporter.report(Throwable("Unknown cell type ${cellInfo.javaClass.simpleName}"))
+				Reporter.report(Throwable("Unknown cell type ${cellInfo.javaClass.simpleName}"))
 				null
 			}
 		}

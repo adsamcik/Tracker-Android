@@ -71,7 +71,7 @@ open class DialogListPreference : Preference {
 	 * Set dialog list values
 	 */
 	open fun setValues(list: List<String>, keys: List<String>) {
-		com.adsamcik.tracker.logger.assertEqual(list.size, keys.size)
+		assertEqual(list.size, keys.size)
 		valueList.clear()
 		this.keyList.clear()
 

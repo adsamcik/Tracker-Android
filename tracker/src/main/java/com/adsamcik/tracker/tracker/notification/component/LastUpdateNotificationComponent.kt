@@ -24,7 +24,7 @@ internal class LastUpdateNotificationComponent : TrackerNotificationComponent() 
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData
-	): String? {
+	): String {
 		return context.getString(R.string.last_update_value, session.end.formatAsDateTime())
 	}
 }

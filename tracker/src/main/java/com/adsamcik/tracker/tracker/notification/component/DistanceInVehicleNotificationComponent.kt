@@ -26,7 +26,7 @@ internal class DistanceInVehicleNotificationComponent : TrackerNotificationCompo
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData
-	): String? {
+	): String {
 		return context.getString(
 				R.string.distance_invehicle_value,
 				context.resources.formatDistance(

@@ -18,7 +18,7 @@ class FirstRunDialogBuilder {
 
 	fun addData(data: FirstRun) {
 		if (isLocked) {
-			com.adsamcik.tracker.logger.Reporter.report("Trying to add data after builder was locked.")
+			Reporter.report("Trying to add data after builder was locked.")
 		} else {
 			dialogDataList.add(data)
 		}

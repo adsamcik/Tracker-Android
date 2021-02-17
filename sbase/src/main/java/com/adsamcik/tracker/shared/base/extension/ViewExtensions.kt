@@ -39,13 +39,13 @@ val Int.dp: Int get() = (this * Resources.getSystem().displayMetrics.density).ro
  * Converts Scale-independent pixels to pixels. Rounds to whole pixels.
  */
 val Int.sp: Int
-	get() = (this * Resources.getSystem().displayMetrics.scaledDensity).roundToInt();
+	get() = (this * Resources.getSystem().displayMetrics.scaledDensity).roundToInt()
 
 /**
  * Converts Scale-independent pixels to pixels.
  */
 val Float.sp: Float
-	get() = this * Resources.getSystem().displayMetrics.scaledDensity;
+	get() = this * Resources.getSystem().displayMetrics.scaledDensity
 
 private class ViewGroupNotSupportedException(message: String? = null) : Exception(message)
 

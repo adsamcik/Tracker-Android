@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.recycler.decoration.MarginDecoration
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
@@ -39,7 +40,6 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.base.useMock
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -80,7 +80,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 			if (itemAnimator is DefaultItemAnimator) {
 				itemAnimator.supportsChangeAnimations = false
 			} else {
-				com.adsamcik.tracker.logger.Reporter.report(RuntimeException("Item animator was null or invalid type"))
+				Reporter.report(RuntimeException("Item animator was null or invalid type"))
 			}
 
 			post { initializeTrackerRecycler() }

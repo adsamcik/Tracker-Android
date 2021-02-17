@@ -2,6 +2,7 @@ package com.adsamcik.tracker.statistics.data.source
 
 import android.content.Context
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.contains
@@ -11,7 +12,6 @@ import com.adsamcik.tracker.shared.base.graph.Edge
 import com.adsamcik.tracker.shared.base.graph.Graph
 import com.adsamcik.tracker.shared.base.graph.Vertex
 import com.adsamcik.tracker.shared.base.graph.topSort
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.data.source.abstraction.RawDataProducer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
@@ -110,7 +110,7 @@ class StatisticDataManager : CoroutineScope {
 	private fun classToProducer(producerType: KClass<out StatDataProducer>): StatDataProducer? {
 		val instance = producers.find { it::class == producerType }
 		if (instance == null) {
-			com.adsamcik.tracker.logger.Reporter.report("Required producer dependency of type $producerType not found.")
+			Reporter.report("Required producer dependency of type $producerType not found.")
 		}
 		return instance
 	}

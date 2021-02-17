@@ -28,7 +28,7 @@ internal abstract class StyleUpdate {
 	fun requireConfigData(): StyleConfigData = requireNotNull(configData)
 
 	fun onEnable(context: Context, configData: StyleConfigData) {
-		if (isEnabled) com.adsamcik.tracker.logger.Reporter.report("Style update is already in enabled state.")
+		if (isEnabled) Reporter.report("Style update is already in enabled state.")
 
 		updateLock.withLock {
 			this.configData = configData
@@ -46,7 +46,7 @@ internal abstract class StyleUpdate {
 	}
 
 	fun onDisable(context: Context) {
-		if (!isEnabled) com.adsamcik.tracker.logger.Reporter.report("Style update is already in disabled state.")
+		if (!isEnabled) Reporter.report("Style update is already in disabled state.")
 
 		onPreDisable(context)
 

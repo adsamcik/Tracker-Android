@@ -5,6 +5,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings
 import com.adsamcik.tracker.preference.pages.DataPage
@@ -18,7 +19,6 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import java.util.*
 
@@ -75,13 +75,13 @@ class SettingsActivity : DetailActivity(),
 				//e.printStackTrace()
 				//this exception is ok, just don't add anything
 			} catch (e: InstantiationException) {
-				com.adsamcik.tracker.logger.Reporter.report(e)
+				Reporter.report(e)
 				e.printStackTrace()
 			} catch (e: IllegalAccessException) {
-				com.adsamcik.tracker.logger.Reporter.report(e)
+				Reporter.report(e)
 				e.printStackTrace()
 			} catch (e: ClassCastException) {
-				com.adsamcik.tracker.logger.Reporter.report(e)
+				Reporter.report(e)
 				e.printStackTrace()
 			}
 		}

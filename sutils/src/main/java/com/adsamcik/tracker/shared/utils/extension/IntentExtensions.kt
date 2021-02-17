@@ -17,9 +17,9 @@ fun Intent.getPositiveLongExtraReportNull(key: String): Long? {
 	val value = getLongExtra(key, -1)
 	return if (value < 0) {
 		if (hasExtra(key)) {
-			com.adsamcik.tracker.logger.Reporter.report(IllegalArgumentException("Argument $key had invalid negative value of $value"))
+			Reporter.report(IllegalArgumentException("Argument $key had invalid negative value of $value"))
 		} else {
-			com.adsamcik.tracker.logger.Reporter.report(IllegalArgumentException("Argument $key was not specified"))
+			Reporter.report(IllegalArgumentException("Argument $key was not specified"))
 		}
 		null
 	} else {
@@ -32,6 +32,6 @@ fun Intent.getPositiveLongExtraReportNull(key: String): Long? {
  */
 fun Intent.getLongExtraReportNull(key: String): Long? {
 	val value = tryGetLongExtra(key)
-	if (value == null) com.adsamcik.tracker.logger.Reporter.report(IllegalArgumentException("Argument $key was not specified"))
+	if (value == null) Reporter.report(IllegalArgumentException("Argument $key was not specified"))
 	return value
 }

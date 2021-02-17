@@ -2,8 +2,6 @@ package com.adsamcik.tracker.points
 
 import android.content.Context
 import android.content.IntentFilter
-import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.module.ModuleInitializer
 

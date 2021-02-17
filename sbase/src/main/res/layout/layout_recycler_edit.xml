@@ -21,7 +21,7 @@
         android:layout_gravity="bottom|center_horizontal"
         android:layout_margin="@dimen/content_padding"
         android:visibility="invisible"
-        app:layout_behavior="com.google.android.material.transformation.FabTransformationSheetBehavior"
+        app:layout_behavior="com.google.android.material.transition.MaterialContainerTransform"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

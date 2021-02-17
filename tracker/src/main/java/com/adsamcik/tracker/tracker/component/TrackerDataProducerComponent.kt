@@ -3,8 +3,8 @@ package com.adsamcik.tracker.tracker.component
 import android.content.Context
 import androidx.annotation.CallSuper
 import androidx.lifecycle.Observer
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 import com.adsamcik.tracker.logger.assertTrue
+import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
 internal abstract class TrackerDataProducerComponent(private val changeReceiver: TrackerDataProducerObserver) {
@@ -33,13 +33,13 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 
 	@CallSuper
 	open fun onEnable(context: Context) {
-		com.adsamcik.tracker.logger.assertTrue(canBeEnabled)
+		assertTrue(canBeEnabled)
 		isEnabled = true
 	}
 
 	@CallSuper
 	open fun onDisable(context: Context) {
-		com.adsamcik.tracker.logger.assertTrue(isEnabled)
+		assertTrue(isEnabled)
 		isEnabled = false
 	}
 

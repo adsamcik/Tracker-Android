@@ -86,7 +86,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 			inflater: LayoutInflater,
 			container: ViewGroup?,
 			savedInstanceState: Bundle?
-	): View? {
+	): View {
 		val activity = requireActivity()
 		val fragmentView: View
 		if (Assist.isPlayServicesAvailable(activity) && container != null) {

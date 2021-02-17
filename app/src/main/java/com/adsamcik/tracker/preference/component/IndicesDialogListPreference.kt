@@ -9,7 +9,7 @@ import java.util.*
 /**
  * Dialog list preference with indices as keys
  */
-class IndicesDialogListPreference : DialogListPreference {
+open class IndicesDialogListPreference : DialogListPreference {
 	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
 			context, attrs,
@@ -57,7 +57,7 @@ class IndicesDialogListPreference : DialogListPreference {
 	 */
 	fun setValuesIndices(list: List<String>, indices: List<Int>) {
 		super.setValues(list, indices.map { it.toString() })
-		com.adsamcik.tracker.logger.assertEqual(list.size, indices.size)
+		assertEqual(list.size, indices.size)
 
 		this.indices.clear()
 		this.indices.addAll(indices)

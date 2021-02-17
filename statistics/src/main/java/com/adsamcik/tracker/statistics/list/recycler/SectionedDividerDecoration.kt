@@ -42,7 +42,7 @@ class SectionedDividerDecoration(
 		val a = context.obtainStyledAttributes(ATTRS)
 		mDivider = a.getDrawable(0)
 		if (mDivider == null) {
-			com.adsamcik.tracker.logger.Reporter.report(
+			Reporter.report(
 					"""
 				@android:attr/listDivider was not set in the
 				theme used for this DividerItemDecoration.

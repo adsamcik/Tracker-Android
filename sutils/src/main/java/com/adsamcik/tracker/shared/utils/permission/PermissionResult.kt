@@ -55,7 +55,7 @@ data class PermissionRequestResult(
 									isForeverDenied = true
 							)
 					)
-					else -> com.adsamcik.tracker.logger.Reporter.report("Unknown result ${grantResults[i]}")
+					else -> Reporter.report("Unknown result ${grantResults[i]}")
 				}
 			}
 			return PermissionRequestResult(granted, denied)

@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
-import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
@@ -36,7 +36,7 @@ object TrackerTimerManager {
 		val selectedKey = getSelectedKey(context)
 		val timer = availableTimers.find { getKey(it) == selectedKey }
 		return if (timer == null) {
-			com.adsamcik.tracker.logger.Reporter.report("Timer with key $selectedKey was not found.")
+			Reporter.report("Timer with key $selectedKey was not found.")
 			default
 		} else {
 			timer

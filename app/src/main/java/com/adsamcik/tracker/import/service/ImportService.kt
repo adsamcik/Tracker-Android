@@ -11,12 +11,12 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.import.DataImport
 import com.adsamcik.tracker.import.archive.ArchiveExtractor
 import com.adsamcik.tracker.import.file.FileImport
+import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
-import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.launch
@@ -33,7 +33,7 @@ class ImportService : CoreService() {
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		if (intent == null) {
-			com.adsamcik.tracker.logger.Reporter.report(NullPointerException("Service cannot be started without intent"))
+			Reporter.report(NullPointerException("Service cannot be started without intent"))
 			stopSelf()
 			return Service.START_NOT_STICKY
 		}
@@ -109,7 +109,7 @@ class ImportService : CoreService() {
 
 	@WorkerThread
 	private fun importAllRecursively(directory: File): Int {
-		com.adsamcik.tracker.logger.assertTrue(directory.isDirectory)
+		assertTrue(directory.isDirectory)
 
 		var importedCount = 0
 		directory.listFiles()?.forEach {

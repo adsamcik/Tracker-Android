@@ -12,7 +12,7 @@ class RawWifiLocationProducer : RawDataProducer {
 	override val type: StatDataSource
 		get() = StatDataSource.WIFI_LOCATION
 
-	override fun produce(context: Context, startTime: Long, endTime: Long): Any? {
+	override fun produce(context: Context, startTime: Long, endTime: Long): Any {
 		return AppDatabase
 				.database(context)
 				.wifiLocationCountDao()

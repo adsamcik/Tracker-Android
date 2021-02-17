@@ -5,6 +5,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteConstraintException
 import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.exception.NotFoundException
 import com.adsamcik.tracker.shared.base.extension.sortByVertexes
@@ -12,7 +13,6 @@ import com.adsamcik.tracker.shared.base.graph.Edge
 import com.adsamcik.tracker.shared.base.graph.Graph
 import com.adsamcik.tracker.shared.base.graph.Vertex
 import com.adsamcik.tracker.shared.base.graph.topSort
-import com.adsamcik.tracker.logger.Reporter
 import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 
@@ -170,7 +170,7 @@ class DatabaseImport : FileImport {
 			if (tableName == "activity") {
 				return
 			} else {
-				com.adsamcik.tracker.logger.Reporter.report(
+				Reporter.report(
 						Exception(
 								"Foreign key issue on table $tableName with values ${values.joinToString()}",
 								e

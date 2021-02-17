@@ -18,7 +18,7 @@ class ZipArchiveExtractor : ArchiveExtractor {
 
 	override val supportedExtensions: Collection<String> = listOf("zip")
 
-	override fun extract(context: Context, file: File): File? {
+	override fun extract(context: Context, file: File): File {
 		require(file.isDirectory) { "Directory is not a zip file" }
 
 		val outputDirectory = File(context.cacheDir, file.nameWithoutExtension)
@@ -44,7 +44,7 @@ class ZipArchiveExtractor : ArchiveExtractor {
 				val canonicalPath = fileOut.canonicalPath
 				if (!canonicalPath.startsWith(outputDirectory.path)) {
 					//todo report this to the user
-					com.adsamcik.tracker.logger.Reporter.report(SecurityException("File has invalid file name '$filename'"))
+					Reporter.report(SecurityException("File has invalid file name '$filename'"))
 					continue
 				}
 

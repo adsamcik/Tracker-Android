@@ -13,7 +13,7 @@ inline fun tryWithReport(func: () -> Unit): Boolean {
 		func()
 		true
 	} catch (e: Exception) {
-		com.adsamcik.tracker.logger.Reporter.report(e)
+		Reporter.report(e)
 		false
 	}
 }
@@ -28,7 +28,7 @@ inline fun <T> tryWithResultAndReport(default: () -> T, func: () -> T): T {
 	return try {
 		func()
 	} catch (e: Exception) {
-		com.adsamcik.tracker.logger.Reporter.report(e)
+		Reporter.report(e)
 		default()
 	}
 }

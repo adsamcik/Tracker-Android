@@ -24,7 +24,7 @@ internal class DurationNotificationComponent : TrackerNotificationComponent() {
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData
-	): String? {
+	): String {
 		val duration = session.end - session.start
 		return context.getString(R.string.duration_value, duration.formatAsDuration(context))
 	}
