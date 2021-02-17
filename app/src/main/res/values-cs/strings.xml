@@ -50,12 +50,7 @@
     <string name="settings_clear_preferences_title">Smazat preference</string>
     <string name="settings_color_default_title">Výchozí barvy</string>
     <string name="settings_data_title">Data</string>
-    <string name="settings_debug_already_available">Již máte přístup k vývojářským nástrojům</string>
-    <string name="settings_debug_available">Nyní máte přístup k vývojářským nástrojům</string>
-    <plurals name="settings_debug_available_in" tools:ignore="MissingQuantity">
-        <item quantity="other">Zbývá %d stisknutí pro přístup k vývojářským nástrojům</item>
-    </plurals>
-    <string name="settings_debug_enabled">Vývojářské nástroje povoleny</string>
+    <string name="settings_developer_enabled">Vývojářské nástroje povoleny</string>
     <string name="settings_debug_title">Vývojářské nástroje</string>
     <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
     <string name="settings_error_reporting_title">Automatické hlášení chyb</string>

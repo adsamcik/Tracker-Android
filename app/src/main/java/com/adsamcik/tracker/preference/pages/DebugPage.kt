@@ -4,7 +4,6 @@ import android.app.NotificationManager
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.startActivity
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.activity.debug.LogViewerActivity

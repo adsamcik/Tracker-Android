@@ -73,8 +73,6 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 				BuildConfig.VERSION_NAME
 		)
 
-		val resources = caller.resources
-
 		val devEnabledKeyRes = R.string.settings_debug_enabled_key
 		val devEnabledDefaultRes = R.string.settings_debug_enabled_default
 
@@ -83,43 +81,13 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 					.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
 		}
 
-		version.setOnPreferenceClickListener {
-			val context = it.context
-			val preferences = Preferences.getPref(context)
-
-			if (preferences.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)) {
-				showToast(context, resources.getString(R.string.settings_debug_already_available))
-				return@setOnPreferenceClickListener false
+		caller.findPreference(R.string.settings_debug_enabled_key).apply {
+			onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+				debugPreference.isVisible = newValue as Boolean
+				true
 			}
-
-			clickCount++
-			if (clickCount >= REQUIRED_DEV_TAP_COUNT) {
-				preferences.edit {
-					setBoolean(devEnabledKeyRes, true)
-				}
-				showToast(context, resources.getString(R.string.settings_debug_available))
-				debugPreference.isVisible = true
-				caller.findPreferenceTyped<SwitchPreferenceCompat>(devEnabledKeyRes)
-						.isChecked = true
-			} else if (clickCount >= REQUIRED_DEV_TAP_SNACK_COUNT) {
-				val remainingClickCount = REQUIRED_DEV_TAP_COUNT - clickCount
-				showToast(
-						context,
-						resources.getQuantityString(
-								R.plurals.settings_debug_available_in, remainingClickCount,
-								remainingClickCount
-						)
-				)
-			}
-			true
 		}
 	}
-
-	private fun showToast(context: Context, string: String) = Toast.makeText(
-			context,
-			string,
-			Toast.LENGTH_SHORT
-	).show()
 
 	private fun initializeLanguage(caller: PreferenceFragmentCompat) {
 		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_language_key).apply {

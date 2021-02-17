@@ -68,15 +68,9 @@
     <string name="settings_language_summary">Current language: %s</string>
 
     <!-- DEBUG -->
-    <string name="settings_debug_already_available">You already have access to developer options</string>
-    <string name="settings_debug_available">You now have access to developer options</string>
-    <string name="settings_debug_enabled">Dev options enabled</string>
+    <string name="settings_developer_enabled">Developer options enabled</string>
     <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
     <string name="settings_debug_enabled_default" translatable="false">false</string>
-    <plurals name="settings_debug_available_in">
-        <item quantity="one">%d tap left to enable developer options</item>
-        <item quantity="other">%d taps left to enable developer options</item>
-    </plurals>
 
     <string name="settings_log_activity_title">Log activity changes</string>
     <string name="settings_log_games_title">Log games</string>
