@@ -2,7 +2,9 @@ package com.adsamcik.tracker.points.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import com.adsamcik.tracker.points.data.PointsAwarded
+import com.adsamcik.tracker.points.data.PointsDataConverters
 import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 
 /**
@@ -12,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 		version = 1,
 		entities = [PointsAwarded::class]
 )
+@TypeConverters(PointsDataConverters::class)
 abstract class PointsDatabase : RoomDatabase() {
 
 	/**

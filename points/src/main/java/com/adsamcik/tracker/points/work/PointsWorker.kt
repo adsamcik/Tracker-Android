@@ -28,7 +28,7 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		val points = POINTS_PER_METER * session.distanceOnFootInM
 
 		val awardPoints = PointsAwarded(
-				Time.now.toZonedDateTime(),
+				Time.nowMillis,
 				Points(points),
 				AwardSource.SESSION
 		)
