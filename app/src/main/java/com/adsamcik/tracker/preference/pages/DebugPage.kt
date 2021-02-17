@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.startActivity
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.activity.debug.LogViewerActivity
@@ -22,24 +23,25 @@ class DebugPage : PreferencePage {
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		caller.setOnClickListener(R.string.settings_activity_status_key) {
-			startActivity<StatusActivity> { }
+			it.context.startActivity<StatusActivity> { }
 		}
 
 		caller.findPreference(R.string.settings_hello_world_key).setOnPreferenceClickListener {
 			val context = it.context
-			val helloWorld = getString(R.string.dev_notification_dummy)
+			val resources = context.resources
+			val helloWorld = context.getString(R.string.dev_notification_dummy)
 			val color = ContextCompat.getColor(context, R.color.color_primary)
 			val rng = Random(Time.nowMillis)
 			val facts = resources.getStringArray(R.array.lorem_ipsum_facts)
 			val notificationBuilder = NotificationCompat.Builder(
 					context,
-					getString(R.string.channel_other_id)
+					resources.getString(R.string.channel_other_id)
 			)
 					.setSmallIcon(R.drawable.ic_signals)
 					.setTicker(helloWorld)
 					.setColor(color)
 					.setLights(color, 2000, 5000)
-					.setContentTitle(getString(R.string.did_you_know))
+					.setContentTitle(resources.getString(R.string.did_you_know))
 					.setContentText(facts[rng.nextInt(facts.size)])
 					.setWhen(Time.nowMillis)
 			val notificationManager = it.context.getSystemService(
@@ -66,7 +68,7 @@ class DebugPage : PreferencePage {
 
 		caller.findPreference(R.string.settings_log_list_activity_key)
 				.setOnPreferenceClickListener {
-					startActivity<LogViewerActivity> { }
+					it.context.startActivity<LogViewerActivity> { }
 					false
 				}
 	}
