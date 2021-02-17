@@ -70,3 +70,4 @@ dependencies {
 	Dependencies.preference(this)
 	Dependencies.test(this)
 }
+

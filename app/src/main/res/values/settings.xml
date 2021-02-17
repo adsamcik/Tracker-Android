@@ -72,6 +72,7 @@
     <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
     <string name="settings_debug_enabled_default" translatable="false">false</string>
 
+    <string name="settings_log_enabled_title">Enable logging</string>
     <string name="settings_log_activity_title">Log activity changes</string>
     <string name="settings_log_games_title">Log games</string>
 

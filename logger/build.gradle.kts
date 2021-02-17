@@ -45,6 +45,17 @@ android {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
 	}
+
+	kapt {
+		arguments {
+			this.arg("room.schemaLocation", "$projectDir/schemas")
+		}
+	}
+	tasks.withType<KotlinCompile> {
+		with(kotlinOptions) {
+			jvmTarget = "1.8"
+		}
+	}
 }
 
 dependencies {
@@ -55,10 +66,4 @@ dependencies {
 	Dependencies.database(this)
 	Dependencies.crashlytics(this)
 	Dependencies.test(this)
-}
-
-tasks.withType<KotlinCompile> {
-	with(kotlinOptions) {
-		jvmTarget = "1.8"
-	}
 }

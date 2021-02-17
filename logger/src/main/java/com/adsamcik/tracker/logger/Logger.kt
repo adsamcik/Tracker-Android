@@ -10,6 +10,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Logs important information.
+ * Follows user preferences about logging.
+ */
 object Logger : CoroutineScope {
 	private val job = SupervisorJob()
 
@@ -36,13 +40,20 @@ object Logger : CoroutineScope {
 	@AnyThread
 	fun log(data: LogData) {
 		require(isInitialized)
-		launch {
-			requireNotNull(genericDao).insert(data)
+		if (requireNotNull(preferences).getBooleanRes(
+						R.string.settings_log_enabled_key,
+						R.string.settings_log_enabled_default
+				)) {
+			launch {
+				requireNotNull(genericDao).insert(data)
+			}
 		}
 	}
 
 	@AnyThread
 	fun logWithPreference(data: LogData, @StringRes key: Int, @StringRes default: Int) {
-		if (requireNotNull(preferences).getBooleanRes(key, default)) log(data)
+		if (requireNotNull(preferences).getBooleanRes(key, default)) {
+			log(data)
+		}
 	}
 }
