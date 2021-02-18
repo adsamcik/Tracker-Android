@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.logger
 
 import android.content.Context
+import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.StringRes
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -55,5 +56,20 @@ object Logger : CoroutineScope {
 		if (requireNotNull(preferences).getBooleanRes(key, default)) {
 			log(data)
 		}
+	}
+
+	@AnyThread
+	inline fun <R> measureTimeMillis(name: String, method: () -> R): R {
+		val result: R
+		val time = kotlin.system.measureTimeMillis {
+			result = method()
+		}
+		val message = "Measured time of $name is $time"
+		log(LogData(message = message, source = "performance"))
+		if (BuildConfig.DEBUG) {
+			Log.d("TrackerPerf", message)
+		}
+
+		return result
 	}
 }

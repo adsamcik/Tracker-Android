@@ -72,7 +72,7 @@ android {
 
 dependencies {
 	Dependencies.core(this)
-	Dependencies.moshi(this)
+	Dependencies.json(this)
 	Dependencies.database(this)
 	Dependencies.location(this)
 

@@ -68,7 +68,7 @@ dependencies {
 
 	Dependencies.core(this)
 	Dependencies.slider(this)
-	Dependencies.moshi(this)
+	Dependencies.json(this)
 	Dependencies.database(this)
 	Dependencies.crashlytics(this)
 	Dependencies.location(this)

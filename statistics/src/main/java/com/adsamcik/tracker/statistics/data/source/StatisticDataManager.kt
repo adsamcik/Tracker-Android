@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.statistics.data.source
 
 import android.content.Context
+import android.util.Log
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -36,7 +38,9 @@ import com.adsamcik.tracker.statistics.data.source.producer.raw.RawLocationDataP
 import com.adsamcik.tracker.statistics.data.source.producer.raw.RawSessionDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.raw.RawWifiLocationProducer
 import com.adsamcik.tracker.statistics.database.StatsDatabase
+import com.adsamcik.tracker.statistics.database.dao.StatsCacheDao
 import com.adsamcik.tracker.statistics.database.data.CacheStatData
+import com.squareup.moshi.Moshi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +49,8 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
+import kotlin.system.measureTimeMillis
+
 
 typealias StatDataMap = Map<KClass<out StatDataProducer>, ConcurrentCacheData<StatDataProducer>>
 typealias RawDataMap = Map<StatDataSource, ConcurrentCacheData<RawDataProducer>>
@@ -146,7 +152,6 @@ class StatisticDataManager : CoroutineScope {
 		val rawDataMap: MutableMap<StatDataSource, ConcurrentCacheData<RawDataProducer>> = mutableMapOf()
 		val statDataMap: MutableMap<KClass<out StatDataProducer>, ConcurrentCacheData<StatDataProducer>> = mutableMapOf()
 
-		// todo handle session better
 		@Suppress("UNCHECKED_CAST")
 		rawDataMap[StatDataSource.SESSION] = ConcurrentCacheData(
 				ReentrantLock(),
@@ -303,8 +308,11 @@ class StatisticDataManager : CoroutineScope {
 			session: TrackerSession,
 			cacheList: List<CacheStatData>,
 			onStatFinished: StatAddCallback
-	): List<Stat> {
-		val filteredConsumers = filterConsumers(session, cacheList)
+	): List<CacheableStat> {
+		val filteredConsumers = Logger.measureTimeMillis("Filter consumers") {
+			filterConsumers(session, cacheList)
+		}
+		Log.d("TrackerPerf", "Consumer count ${filteredConsumers.size}")
 		val (rawCacheMap, cacheMap) = prepareDataMaps(filteredConsumers, session)
 
 		val result = filteredConsumers.forEachParallel {
@@ -312,23 +320,42 @@ class StatisticDataManager : CoroutineScope {
 			if (value != null) {
 				val stat = createStat(it, value)
 				onStatFinished(stat)
-				stat
+				CacheableStat(
+						stat,
+						it
+				)
 			} else {
 				null
 			}
 		}
 
 
-		val newData = result.mapNotNull { it.await() }
-		val cachedData = cacheList.mapNotNull { cacheData ->
-			val consumer = consumers.find { it.providerId == cacheData.providerId }
-					?: return@mapNotNull null
-			createStat(consumer, cacheData.value)
-		}
-		return ArrayList<Stat>(newData.size + cachedData.size).apply {
-			addAll(newData)
-			addAll(cachedData)
-		}
+		return result.mapNotNull { it.await() }
+	}
+
+	/**
+	 * Builds moshi with all required adapters
+	 */
+	private fun buildMoshi(): Moshi {
+		val adapters = consumers.mapNotNull { it.requiredMoshiAdapter }.distinct()
+		val builder = Moshi.Builder()
+		adapters.forEach { builder.add(it) }
+		return builder.build()
+	}
+
+	private fun cacheData(
+			moshi: Moshi,
+			dao: StatsCacheDao,
+			sessionId: Long,
+			list: Collection<CacheableStat>
+	) {
+		dao.upsert(list.map {
+			CacheStatData(
+					sessionId,
+					it.consumer.providerId,
+					it.consumer.serializeData(it.value.data, moshi)
+			)
+		})
 	}
 
 	/**
@@ -342,12 +369,50 @@ class StatisticDataManager : CoroutineScope {
 	suspend fun getForSession(
 			context: Context,
 			sessionId: Long,
+			skipCache: Boolean,
 			onStatFinished: StatAddCallback
 	): List<Stat> {
-		val session = getSession(context, sessionId)
-		val cacheDao = StatsDatabase.database(context).cacheDao()
-		val cached = cacheDao.getAllForSession(sessionId)
+		return Logger.measureTimeMillis("stats generation (skip cache: $skipCache)") {
+			val session = getSession(context, sessionId)
+			val cached: List<CacheStatData>
+			var cacheDao: StatsCacheDao? = null
+			if (skipCache) {
+				cached = emptyList()
+			} else {
+				cacheDao = StatsDatabase.database(context).cacheDao()
+				cached = Logger.measureTimeMillis("Cache loading") {
+					cacheDao.getAllForSession(sessionId)
+				}
+			}
 
-		return generateStatisticData(context, session, cached, onStatFinished)
+			val newList = Logger.measureTimeMillis("Stat generation") {
+				generateStatisticData(context, session, cached, onStatFinished)
+			}
+
+			if (!skipCache) {
+				val moshi = buildMoshi()
+
+				cacheData(moshi, cacheDao!!, sessionId, newList)
+
+				val cachedStats = Logger.measureTimeMillis("Parse time") {
+					cached.mapNotNull { cacheData ->
+						val consumer = consumers.find { it.providerId == cacheData.providerId }
+								?: return@mapNotNull null
+						createStat(consumer, consumer.deserializeData(cacheData.value, moshi))
+					}.onEach {
+						onStatFinished(it)
+					}
+				}
+
+				return@measureTimeMillis ArrayList<Stat>(newList.size + cachedStats.size).apply {
+					addAll(newList.map { it.value })
+					addAll(cachedStats)
+				}
+			} else {
+				return@measureTimeMillis newList.map { it.value }
+			}
+		}
 	}
+
+	private data class CacheableStat(val value: Stat, val consumer: StatDataConsumer)
 }

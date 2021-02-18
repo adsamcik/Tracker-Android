@@ -64,11 +64,12 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
-	
+
 	Dependencies.core(this)
 	Dependencies.draggable(this)
 	Dependencies.database(this)
 	Dependencies.map(this)
+	Dependencies.json(this)
 	Dependencies.test(this)
 	Dependencies.sectionedRecyclerAdapter(this)
 

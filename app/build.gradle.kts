@@ -91,7 +91,7 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 
-	debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
+	//debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
 	Dependencies.core(this)
 	//1st party dependencies
@@ -101,7 +101,7 @@ dependencies {
 	Dependencies.introduction(this)
 
 	//3rd party dependencies
-	Dependencies.moshi(this)
+	Dependencies.json(this)
 
 	Dependencies.colorChooser(this)
 	Dependencies.fileChooser(this)

@@ -78,7 +78,7 @@ object Dependencies {
 	private fun DependencyHandler.coreLibraryDesugaring(dependencyNotation: Any) =
 			add("coreLibraryDesugaring", dependencyNotation)
 
-	fun moshi(dependencyHandler: DependencyHandler) {
+	fun json(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.squareup.moshi:moshi:${Versions.moshi}")
 			kapt("com.squareup.moshi:moshi-kotlin-codegen:${Versions.moshi}")

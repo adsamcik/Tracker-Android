@@ -2,6 +2,7 @@ package com.adsamcik.tracker.statistics.data.source.consumer
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
@@ -9,6 +10,7 @@ import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 import com.adsamcik.tracker.statistics.extension.requireData
+import com.squareup.moshi.Moshi
 import kotlin.reflect.KClass
 
 /**
@@ -26,9 +28,15 @@ class StepCountConsumer : StatDataConsumer {
 
 	override fun getData(context: Context, data: StatDataMap): Any {
 		val session = data.requireData<TrackerSession>(TrackerSessionProducer::class)
-		return session.steps
+		return session.steps.formatReadable()
 	}
 
 	override val dependsOn: List<KClass<out StatDataProducer>>
 		get() = listOf(TrackerSessionProducer::class)
+
+	override fun serializeData(data: Any, moshi: Moshi): String = data as String
+
+	override fun deserializeData(data: String, moshi: Moshi) = data
+
+	override val requiredMoshiAdapter: Any? get() = null
 }

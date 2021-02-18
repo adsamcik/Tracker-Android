@@ -3,6 +3,7 @@ package com.adsamcik.tracker.statistics.data.source.abstraction
 import android.content.Context
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.squareup.moshi.Moshi
 
 /**
  * Statistics data consumer.
@@ -36,10 +37,25 @@ interface StatDataConsumer : BaseStatDataSource {
 	val displayType: StatisticDisplayType
 
 	/**
+	 * Moshi adapter required for serialization
+	 */
+	val requiredMoshiAdapter: Any?
+
+	/**
 	 * Creates statistic instance
 	 */
 	fun getData(
 			context: Context,
 			data: StatDataMap
 	): Any
+
+	/**
+	 * Serializes data to string
+	 */
+	fun serializeData(data: Any, moshi: Moshi): String
+
+	/**
+	 * Deserializes data from String
+	 */
+	fun deserializeData(data: String, moshi: Moshi): Any
 }

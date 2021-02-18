@@ -3,7 +3,11 @@ package com.adsamcik.tracker.statistics.data.source.abstraction
 import android.content.Context
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.statistics.data.adapters.EntryJsonAdapter
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
+import com.github.mikephil.charting.data.Entry
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 
 /**
  * Consumer interface providing boiler-plate code to format speed.
@@ -19,4 +23,10 @@ interface StatDataSpeedConsumer : StatDataConsumer {
 		val speed = getSpeed(context, data)
 		return context.resources.formatSpeed(context, speed, 1)
 	}
+
+	override fun serializeData(data: Any, moshi: Moshi): String = data as String
+
+	override fun deserializeData(data: String, moshi: Moshi) = data
+
+	override val requiredMoshiAdapter: Any? get() = null
 }
