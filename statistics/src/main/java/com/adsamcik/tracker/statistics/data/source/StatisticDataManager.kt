@@ -49,7 +49,6 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.KClass
-import kotlin.system.measureTimeMillis
 
 
 typealias StatDataMap = Map<KClass<out StatDataProducer>, ConcurrentCacheData<StatDataProducer>>
@@ -385,23 +384,19 @@ class StatisticDataManager : CoroutineScope {
 				}
 			}
 
-			val newList = Logger.measureTimeMillis("Stat generation") {
-				generateStatisticData(context, session, cached, onStatFinished)
-			}
+			val newList = generateStatisticData(context, session, cached, onStatFinished)
 
 			if (!skipCache) {
 				val moshi = buildMoshi()
 
 				cacheData(moshi, cacheDao!!, sessionId, newList)
 
-				val cachedStats = Logger.measureTimeMillis("Parse time") {
-					cached.mapNotNull { cacheData ->
-						val consumer = consumers.find { it.providerId == cacheData.providerId }
-								?: return@mapNotNull null
-						createStat(consumer, consumer.deserializeData(cacheData.value, moshi))
-					}.onEach {
-						onStatFinished(it)
-					}
+				val cachedStats = cached.mapNotNull { cacheData ->
+					val consumer = consumers.find { it.providerId == cacheData.providerId }
+							?: return@mapNotNull null
+					createStat(consumer, consumer.deserializeData(cacheData.value, moshi))
+				}.onEach {
+					onStatFinished(it)
 				}
 
 				return@measureTimeMillis ArrayList<Stat>(newList.size + cachedStats.size).apply {
