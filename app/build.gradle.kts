@@ -91,6 +91,8 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 
+	debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
+
 	Dependencies.core(this)
 	//1st party dependencies
 	Dependencies.slider(this)
