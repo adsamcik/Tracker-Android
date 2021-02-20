@@ -84,8 +84,8 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
 					.map {
 						it.insertSeparators { after, before ->
 							when {
-								after == null -> null
-								before == null -> SessionUiModel.ListHeader(after.session.start)
+								before == null -> null
+								after == null -> SessionUiModel.ListHeader(before.session.start)
 								shouldSeparate(
 										before,
 										after

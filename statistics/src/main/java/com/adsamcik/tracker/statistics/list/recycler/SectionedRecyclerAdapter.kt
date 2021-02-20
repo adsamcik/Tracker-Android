@@ -84,6 +84,7 @@ class SessionSectionedRecyclerAdapter :
 		val item = getItem(position)
 		when (holder) {
 			is SessionModelViewHolder -> holder.bind(item as SessionUiModel.SessionModel)
+			is SessionListHeaderViewHolder -> holder.bind(item as SessionUiModel.ListHeader)
 			is SessionHeaderViewHolder -> holder.bind(item as SessionUiModel.SessionHeader)
 		}
 
@@ -122,8 +123,8 @@ class SessionSectionedRecyclerAdapter :
 
 	override fun getItemViewType(position: Int): Int = when (getItem(position)) {
 		is SessionUiModel.SessionModel -> R.layout.layout_section_preview_session
-		is SessionUiModel.SessionHeader -> R.layout.layout_section_header_session
 		is SessionUiModel.ListHeader -> R.layout.layout_section_header_list
+		is SessionUiModel.SessionHeader -> R.layout.layout_section_header_session
 		else -> throw IllegalStateException("Unknown view")
 	}
 

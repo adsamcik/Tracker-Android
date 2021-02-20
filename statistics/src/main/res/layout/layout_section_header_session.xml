@@ -4,10 +4,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:paddingStart="@dimen/content_padding"
-    android:paddingTop="@dimen/content_padding"
-    android:paddingEnd="@dimen/content_padding"
-    android:paddingBottom="8dp">
+    android:layout_marginStart="@dimen/content_padding"
+    android:layout_marginTop="@dimen/content_padding"
+    android:layout_marginEnd="@dimen/content_padding"
+    android:layout_marginBottom="8dp">
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/text_time"

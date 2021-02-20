@@ -77,8 +77,8 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 					MarginDecoration(
 							verticalMargin = 0,
 							horizontalMargin = 0,
-							firstLineMargin = statusBarHeight + contentPadding,
-							lastLineMargin = navBarHeight + contentPadding
+							firstLineMargin = statusBarHeight,
+							lastLineMargin = navBarHeight + contentPadding * 2
 					)
 			)
 		}
