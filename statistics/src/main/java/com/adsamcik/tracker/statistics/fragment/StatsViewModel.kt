@@ -23,13 +23,7 @@ import java.time.Instant
 import java.time.ZoneId
 
 class StatsViewModel(application: Application) : AndroidViewModel(application) {
-	//todo update to paged list (Seems like a bit of work with sections)
-	val sessionLiveData: LiveData<Collection<TrackerSession>> get() = mutableSessionData
-
-	private val mutableSessionData = MutableLiveData<Collection<TrackerSession>>()
-
-	private lateinit var pager: Pager<Int, TrackerSession>
-	lateinit var sessionFlow: Flow<PagingData<SessionUiModel>>
+	internal lateinit var sessionFlow: Flow<PagingData<SessionUiModel>>
 
 	init {
 		updateSessionData()
@@ -37,19 +31,6 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
 
 	fun updateSessionData() {
 		viewModelScope.launch {
-			/*val sessionDao = AppDatabase.database(getApplication()).sessionDao()
-			val end = Calendar.getInstance().apply {
-				roundToDate()
-				add(Calendar.DAY_OF_MONTH, 1)
-			}
-			val start = end.cloneCalendar().apply { add(Calendar.MONTH, -1) }
-			mutableSessionData.postValue(
-					sessionDao.getBetween(
-							start.timeInMillis,
-							end.timeInMillis
-					)
-			)*/
-
 			val sessionDao = AppDatabase.database(getApplication()).sessionDao()
 			val paged = sessionDao.getAllPaged()
 

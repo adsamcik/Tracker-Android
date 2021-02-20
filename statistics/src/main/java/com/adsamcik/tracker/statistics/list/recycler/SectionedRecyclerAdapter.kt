@@ -32,44 +32,10 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 
-
 /**
- * Sectioned recycler adapter
+ * Sectioned recycler adapter for sessions with paging.
  */
-/*class SectionedRecyclerAdapter<T : AdapterSection<VH>, VH : RecyclerView.ViewHolder>(
-		diffCallback: DiffUtil.ItemCallback<T>,
-		mainDispatcher: CoroutineDispatcher,
-		workerDispatcher: CoroutineDispatcher
-) : PagingDataAdapter<T, VH>(diffCallback, mainDispatcher, workerDispatcher), IViewChange {
-	override var onViewChangedListener: ((View) -> Unit)? = null
-
-	override fun onViewAttachedToWindow(holder: VH) {
-		super.onViewAttachedToWindow(holder)
-		onViewChangedListener?.invoke(holder.itemView)
-	}
-
-	override fun onBindViewHolder(holder: VH, position: Int) {
-		TODO("Not yet implemented")
-	}
-
-	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-		TODO("Not yet implemented")
-	}
-
-	override fun getItemViewType(position: Int): Int = when(getItem(position)) {
-		is
-	}
-
-}
-
-interface ViewHandler<VH : RecyclerView.ViewHolder> {
-	fun onBindHeader(holder: VH)
-	fun onCreateHeader(parent: ViewGroup): VH
-	fun onBindItem(holder: VH, position: Int)
-	fun onCreateItem(parent: ViewGroup, position: Int): VH
-}*/
-
-class SessionSectionedRecyclerAdapter :
+internal class SessionSectionedRecyclerAdapter :
 		PagingDataAdapter<SessionUiModel,
 				RecyclerView.ViewHolder>(SessionModeComparator),
 		IViewChange {
@@ -130,7 +96,7 @@ class SessionSectionedRecyclerAdapter :
 
 }
 
-class SessionModelViewHolder(
+internal class SessionModelViewHolder(
 		root: ViewGroup,
 		val time: AppCompatTextView,
 		val title: AppCompatTextView,
@@ -209,7 +175,7 @@ class SessionModelViewHolder(
 	}
 }
 
-open class SessionHeaderViewHolder(
+internal open class SessionHeaderViewHolder(
 		root: ViewGroup,
 		val time: AppCompatTextView,
 		val distance: AppCompatTextView
@@ -223,7 +189,7 @@ open class SessionHeaderViewHolder(
 	}
 }
 
-class SessionListHeaderViewHolder(
+internal class SessionListHeaderViewHolder(
 		root: ViewGroup,
 		time: AppCompatTextView,
 		distance: AppCompatTextView,
@@ -245,13 +211,32 @@ class SessionListHeaderViewHolder(
 	}
 }
 
-sealed class SessionUiModel {
+/**
+ * Session UI models
+ */
+internal sealed class SessionUiModel {
+	/**
+	 * Session data UI model.
+	 */
 	class SessionModel(val session: TrackerSession) : SessionUiModel()
+
+	/**
+	 * Session header UI model.
+	 * Groups sessions by days.
+	 */
 	open class SessionHeader(val date: Long) : SessionUiModel()
+
+	/**
+	 * List header UI model.
+	 * Shown at the top of the session list.
+	 */
 	class ListHeader(date: Long) : SessionUiModel.SessionHeader(date)
 }
 
-object SessionModeComparator : DiffUtil.ItemCallback<SessionUiModel>() {
+/**
+ * Comparator for session UI models
+ */
+internal object SessionModeComparator : DiffUtil.ItemCallback<SessionUiModel>() {
 	override fun areItemsTheSame(
 			oldItem: SessionUiModel,
 			newItem: SessionUiModel
