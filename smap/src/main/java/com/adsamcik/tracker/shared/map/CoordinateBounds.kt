@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MAX_LATITUD
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MAX_LONGITUDE
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LATITUDE
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MIN_LONGITUDE
+import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.Location
 import kotlinx.parcelize.Parcelize
 import kotlin.math.max
@@ -33,7 +34,21 @@ data class CoordinateBounds(
 	/**
 	 * Update location bounds.
 	 */
+	@JvmName("updateBoundsLocation")
 	fun updateBounds(collection: Iterable<Location>) {
+		collection.forEach {
+			topBound = max(it.latitude, topBound)
+			bottomBound = min(it.latitude, bottomBound)
+			rightBound = max(it.longitude, rightBound)
+			leftBound = min(it.longitude, leftBound)
+		}
+	}
+
+	/**
+	 * Update location bounds.
+	 */
+	@JvmName("updateBoundsBaseLocation")
+	fun updateBounds(collection: Iterable<BaseLocation>) {
 		collection.forEach {
 			topBound = max(it.latitude, topBound)
 			bottomBound = min(it.latitude, bottomBound)

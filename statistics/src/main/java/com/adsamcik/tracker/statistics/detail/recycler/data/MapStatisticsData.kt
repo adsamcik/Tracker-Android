@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.statistics.detail.recycler.data
 
+import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
@@ -16,12 +17,12 @@ class MapStatisticsData(
 ) : StatisticsDetailData {
 	override val type = StatisticDisplayType.Map
 
-	constructor(locations: List<Location>)
+	constructor(locations: List<BaseLocation>)
 			: this(locations.map {
 		LatLng(it.latitude, it.longitude)
 	}, CoordinateBounds().apply { updateBounds(locations) })
 
-	constructor(locations: Array<Location>)
+	constructor(locations: Array<BaseLocation>)
 			: this(locations.map {
 		LatLng(it.latitude, it.longitude)
 	}, CoordinateBounds().apply { updateBounds(locations.asIterable()) })

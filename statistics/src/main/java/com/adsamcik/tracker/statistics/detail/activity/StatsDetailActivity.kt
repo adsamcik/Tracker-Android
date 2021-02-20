@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
+import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.SessionActivity
@@ -289,7 +290,7 @@ class StatsDetailActivity : DetailActivity() {
 					stat.nameRes,
 					stat.data.toString()
 			)
-			StatisticDisplayType.Map -> MapStatisticsData(stat.data as List<Location>)
+			StatisticDisplayType.Map -> MapStatisticsData(stat.data as List<BaseLocation>)
 			StatisticDisplayType.LineChart -> LineChartStatisticsData(
 					stat.iconRes,
 					stat.nameRes,
