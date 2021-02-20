@@ -246,9 +246,6 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	private fun setTitle(session: TrackerSession) {
-		val startCalendar = Date(session.start).toCalendar()
-		val endCalendar = Date(session.end).toCalendar()
-
 		val activityId = session.sessionActivityId
 
 		launch(Dispatchers.Default) {
@@ -270,8 +267,8 @@ class StatsDetailActivity : DetailActivity() {
 
 			val title = StatsFormat.createTitle(
 					this@StatsDetailActivity,
-					startCalendar,
-					endCalendar,
+					session.start,
+					session.end,
 					sessionActivity
 			)
 

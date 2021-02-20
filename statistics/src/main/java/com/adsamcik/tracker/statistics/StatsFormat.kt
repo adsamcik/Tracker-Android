@@ -6,6 +6,9 @@ import com.adsamcik.tracker.shared.base.extension.dayOfYear
 import com.adsamcik.tracker.shared.base.extension.toDate
 import com.adsamcik.tracker.shared.base.extension.year
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoField
 import java.util.*
 
 
@@ -50,8 +53,8 @@ object StatsFormat {
 	@Suppress("ComplexMethod", "MagicNumber")
 	fun createTitle(
 			context: Context,
-			start: Calendar,
-			end: Calendar,
+			start: Long,
+			end: Long,
 			activity: SessionActivity
 	): String {
 		val activityName = if (activity.name.isBlank()) {
@@ -60,10 +63,10 @@ object StatsFormat {
 			activity.name
 		}
 
-		val startHour = start[Calendar.HOUR_OF_DAY]
-		val endHour = end[Calendar.HOUR_OF_DAY]
+		val startHour = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault()).hour
+		val endHour = Instant.ofEpochMilli(end).atZone(ZoneId.systemDefault()).hour
 
-		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start.time)
+		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start)
 				.capitalize(Locale.getDefault())
 		val timeOfDayStringRes = if (startHour >= 22 && endHour <= 2) {
 			R.string.stats_midnight

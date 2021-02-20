@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+
+    <HorizontalScrollView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/content_padding"
+            android:paddingEnd="@dimen/content_padding">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_stats_summary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/content_padding"
+                android:text="@string/stats_sum_title" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_stats_week"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/content_padding"
+                android:text="@string/stats_weekly_title" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_stats_wifi_list"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/wifilist_title" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+    </HorizontalScrollView>
+
+
+    <include layout="@layout/layout_section_header_session" />
+
+</androidx.appcompat.widget.LinearLayoutCompat>

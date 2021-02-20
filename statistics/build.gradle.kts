@@ -71,7 +71,7 @@ dependencies {
 	Dependencies.map(this)
 	Dependencies.json(this)
 	Dependencies.test(this)
-	Dependencies.sectionedRecyclerAdapter(this)
+	Dependencies.paging(this)
 
 	implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
 	implementation("com.goebl:simplify:1.0.0")

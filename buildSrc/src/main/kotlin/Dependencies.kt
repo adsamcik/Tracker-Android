@@ -31,7 +31,7 @@ object Dependencies {
 
 		internal const val maps = "17.0.0"
 		internal const val recyclerView = "1.1.0"
-		internal const val paging = "3.0.0-alpha02"
+		internal const val paging = "3.0.0-beta01"
 
 		internal const val firebaseCore = "18.0.2"
 		internal const val crashlytics = "17.3.1"
@@ -47,7 +47,6 @@ object Dependencies {
 
 		internal const val spotlight = "2.2.3"
 		internal const val dialogs = "3.3.0"
-		internal const val sectionedRecyclerViewAdapter = "3.2.0"
 
 		internal const val componentsRecycler = "1.0.0"
 		internal const val componentsDraggable = "1.0.2"
@@ -205,12 +204,6 @@ object Dependencies {
 		}
 	}
 
-	fun sectionedRecyclerAdapter(dependencyHandler: DependencyHandler) {
-		with(dependencyHandler) {
-			implementation("io.github.luizgrp.sectionedrecyclerviewadapter:sectionedrecyclerviewadapter:${Versions.sectionedRecyclerViewAdapter}")
-		}
-	}
-
 	fun introduction(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.github.adsamcik:spotlight:${Versions.spotlight}")
@@ -220,6 +213,12 @@ object Dependencies {
 	fun sunCalculator(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("org.shredzone.commons:commons-suncalc:${Versions.suncalc}")
+		}
+	}
+
+	fun paging(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("androidx.paging:paging-runtime:${Versions.paging}")
 		}
 	}
 

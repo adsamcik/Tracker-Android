@@ -75,6 +75,7 @@ dependencies {
 	Dependencies.json(this)
 	Dependencies.database(this)
 	Dependencies.location(this)
+	Dependencies.paging(this)
 
 	Dependencies.test(this)
 }

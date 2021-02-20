@@ -27,6 +27,9 @@ import kotlinx.coroutines.launch
 
 typealias GameAdapter = StyleMultiTypeAdapter<GameRecyclerType, GameRecyclerData>
 
+/**
+ * Root fragment for game component
+ */
 @Suppress("unused")
 class FragmentGame : CoreUIFragment(), IOnDemandView {
 	override fun onCreateView(
