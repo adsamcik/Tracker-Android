@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.utils.activity
 
+import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
 import android.view.LayoutInflater
@@ -9,7 +10,6 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.Checkable
 import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import androidx.annotation.CallSuper
@@ -22,6 +22,7 @@ import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.transition.TransitionManager
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
@@ -32,6 +33,8 @@ import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.google.android.material.transition.MaterialArcMotion
+import com.google.android.material.transition.MaterialContainerTransform
 
 /**
  * Activity for managing various things.
@@ -47,7 +50,10 @@ abstract class ManageActivity : DetailActivity() {
 	protected lateinit var fab: FloatingActionButton
 		private set
 
-	private var editContentRootLayout: ViewGroup? = null
+	private lateinit var rootView: ViewGroup
+
+	private var editContentLayout: ViewGroup? = null
+	private lateinit var addItemLayout: ViewGroup
 
 	private val editFieldList = mutableListOf<EditData>()
 
@@ -80,11 +86,15 @@ abstract class ManageActivity : DetailActivity() {
 		super.onCreate(savedInstanceState)
 
 		val rootView = inflateContent<ViewGroup>(R.layout.layout_recycler_edit)
+		this.rootView = rootView
+
 		keyboardManager = KeyboardManager(rootView)
 		snackMaker = SnackMaker(rootView.findViewById(R.id.coordinator))
 
 		val manageConfiguration = ManageConfiguration()
 		onManageConfigure(manageConfiguration)
+
+		addItemLayout = rootView.findViewById(R.id.add_item_layout)
 
 		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler).apply {
 			this.adapter = this@ManageActivity.getAdapter()
@@ -116,7 +126,6 @@ abstract class ManageActivity : DetailActivity() {
 		onCreateRecycler(recycler)
 
 		fab = rootView.findViewById<FloatingActionButton>(R.id.fab).apply {
-			onCreateEdit()
 			setOnClickListener(this@ManageActivity::onFabClick)
 			setImageDrawable(
 					ResourcesCompat.getDrawable(
@@ -127,6 +136,8 @@ abstract class ManageActivity : DetailActivity() {
 			)
 		}
 
+		onCreateEdit()
+
 		initializeColorController()
 
 		isAddEnabled = manageConfiguration.isAddEnabled
@@ -136,11 +147,10 @@ abstract class ManageActivity : DetailActivity() {
 	@Suppress("unused_parameter")
 	private fun onFabClick(view: View) {
 		if (resetOnAdd) resetDialogInput()
-		fab.isExpanded = true
+		setEditVisibility(true)
 	}
 
 	private fun inflateEdit(): ViewGroup {
-		val addItemLayout = findViewById<FrameLayout>(R.id.add_item_layout)
 		val rootView = LayoutInflater.from(this)
 				.inflate(R.layout.layout_recycler_edit_dialog, addItemLayout, true)
 
@@ -279,7 +289,7 @@ abstract class ManageActivity : DetailActivity() {
 	}
 
 	private fun resetDialogInput() {
-		requireNotNull(editContentRootLayout).forEach {
+		requireNotNull(editContentLayout).forEach {
 			when (it) {
 				is TextInputLayout -> requireNotNull(it.editText).setText("")
 				is Checkable -> it.isChecked = false
@@ -287,34 +297,65 @@ abstract class ManageActivity : DetailActivity() {
 		}
 	}
 
+	private fun setEditVisibility(visible: Boolean) {
+		val transform = MaterialContainerTransform().apply {
+			if (visible) {
+				startView = fab
+				endView = addItemLayout
+			} else {
+				startView = addItemLayout
+				endView = fab
+			}
+
+			// Ensure the container transform only runs on a single target
+			addTarget(requireNotNull(endView))
+
+			// Optionally add a curved path to the transform
+			setPathMotion(MaterialArcMotion())
+
+			scrimColor = Color.TRANSPARENT
+		}
+
+		TransitionManager.beginDelayedTransition(rootView, transform)
+
+		if (visible) {
+			fab.visibility = View.GONE
+			addItemLayout.visibility = View.VISIBLE
+		} else {
+			fab.visibility = View.VISIBLE
+			addItemLayout.visibility = View.GONE
+		}
+	}
+
 	private fun onCreateEdit() {
 		if (isEditInitialized) return
 		isEditInitialized = true
 
-		val rootView = inflateEdit()
+		val editContentRootLayout = inflateEdit()
 
-		val editContent = rootView.findViewById<ViewGroup>(R.id.edit_content)
-		editContentRootLayout = editContent
+		val editContent = editContentRootLayout.findViewById<ViewGroup>(R.id.edit_content)
+		editContentLayout = editContent
 
 		val editDataCollection = getEmptyEditData()
 
 		initializeEditFields(editContent, editDataCollection)
 
-		rootView.findViewById<Button>(R.id.button_ok).setOnClickListener {
-			fab.isExpanded = false
+		editContentRootLayout.findViewById<Button>(R.id.button_ok).setOnClickListener {
+			setEditVisibility(false)
+
 			keyboardManager.hideKeyboard()
 
 			val editDataList = getFieldValues(editContent)
 			val editDataListNonNull = editDataList.filterNotNull()
 
 			if (editDataList.size == editDataListNonNull.size) {
-				val tag = requireNotNull(editContentRootLayout).tag as? String
+				val tag = requireNotNull(editContentLayout).tag as? String
 				onDataConfirmed(tag, editDataListNonNull)
 			}
 		}
 
-		rootView.findViewById<Button>(R.id.button_cancel).setOnClickListener {
-			fab.isExpanded = false
+		editContentRootLayout.findViewById<Button>(R.id.button_cancel).setOnClickListener {
+			setEditVisibility(false)
 		}
 	}
 
@@ -324,10 +365,10 @@ abstract class ManageActivity : DetailActivity() {
 
 	protected fun edit(tag: String, data: Collection<EditDataInstance>) {
 		onCreateEdit()
-		val rootLayout = requireNotNull(editContentRootLayout)
-		rootLayout.tag = tag
-		setDefaultDataEditFields(rootLayout, data)
-		fab.isExpanded = true
+		val editContentLayout = requireNotNull(editContentLayout)
+		editContentLayout.tag = tag
+		setDefaultDataEditFields(editContentLayout, data)
+		setEditVisibility(true)
 	}
 
 
@@ -336,12 +377,15 @@ abstract class ManageActivity : DetailActivity() {
 		configuration.titleBarLayer = 1
 	}
 
+	/**
+	 * Update manage configuration with own values
+	 */
 	open fun onManageConfigure(configuration: ManageConfiguration) = Unit
 
 	private fun initializeColorController() {
 		styleController.watchRecyclerView(RecyclerStyleView(findViewById(R.id.recycler), 0))
 		styleController.watchView(StyleView(findViewById(R.id.fab), 1, isInverted = true))
-		styleController.watchView(StyleView(findViewById(R.id.add_item_layout), 2))
+		styleController.watchView(StyleView(addItemLayout, 2))
 	}
 
 	/**
@@ -365,6 +409,9 @@ abstract class ManageActivity : DetailActivity() {
 			val isRequired: Boolean = false
 	)
 
+	/**
+	 * Instance of edit data
+	 */
 	data class EditDataInstance(
 			val id: String,
 			val value: String
@@ -372,6 +419,9 @@ abstract class ManageActivity : DetailActivity() {
 		constructor(id: String, value: Any) : this(id, value.toString())
 	}
 
+	/**
+	 * Type of edit field
+	 */
 	enum class EditType {
 		EditText,
 		EditTextNumber,
