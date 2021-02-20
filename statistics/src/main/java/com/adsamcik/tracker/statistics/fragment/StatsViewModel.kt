@@ -1,10 +1,7 @@
 package com.adsamcik.tracker.statistics.fragment
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
@@ -12,9 +9,8 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.insertSeparators
 import androidx.paging.map
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.statistics.BuildConfig
 import com.adsamcik.tracker.statistics.list.recycler.SessionUiModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -58,6 +54,12 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
 				return beforeTime != afterTime
 			}
 
+			fun getEpochDay(time: Long) = Instant
+					.ofEpochMilli(time)
+					.atZone(ZoneId.systemDefault())
+					.toLocalDate()
+					.toEpochDay() * Time.DAY_IN_MILLISECONDS
+
 			sessionFlow = pager
 					.flow
 					.cachedIn(viewModelScope)
@@ -66,11 +68,13 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
 						it.insertSeparators { after, before ->
 							when {
 								before == null -> null
-								after == null -> SessionUiModel.ListHeader(before.session.start)
+								after == null -> {
+									SessionUiModel.ListHeader(getEpochDay(before.session.start))
+								}
 								shouldSeparate(
 										before,
 										after
-								) -> SessionUiModel.SessionHeader(after.session.start)
+								) -> SessionUiModel.SessionHeader(getEpochDay(before.session.start))
 								else -> null
 							}
 						}

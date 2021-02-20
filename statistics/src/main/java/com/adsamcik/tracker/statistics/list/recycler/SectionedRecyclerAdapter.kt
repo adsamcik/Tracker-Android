@@ -29,6 +29,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 
@@ -199,11 +201,6 @@ internal class SessionListHeaderViewHolder(
 ) : SessionHeaderViewHolder(root, time, distance) {
 	fun bind(header: SessionUiModel.ListHeader) {
 		super.bind(header)
-		time.text = DateUtils.getRelativeTimeSpanString(
-				header.date,
-				Time.todayMillis,
-				DateUtils.DAY_IN_MILLIS
-		)
 
 		buttonSummary.setOnClickListener { SummaryGenerator.buildSummary(it.context) }
 		buttonWeek.setOnClickListener { SummaryGenerator.buildSevenDaySummary(it.context) }
