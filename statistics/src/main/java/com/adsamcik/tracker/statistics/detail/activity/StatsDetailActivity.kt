@@ -312,6 +312,9 @@ class StatsDetailActivity : DetailActivity() {
 		 */
 		val session: LiveData<TrackerSession?> get() = sessionMutable
 
+		/**
+		 * Initializes view model
+		 */
 		@WorkerThread
 		fun initialize(context: Context, sessionId: Long) {
 			if (initialized) return

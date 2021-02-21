@@ -6,7 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -38,8 +37,6 @@ import java.util.*
 @Suppress("unused")
 class FragmentStats : CoreUIFragment(), IOnDemandView {
 	private var viewModel: StatsViewModel? = null
-
-	private var isEntered = false
 
 	private fun requireViewModel() = requireNotNull(viewModel)
 
@@ -138,21 +135,9 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 
 			tableList.add(PrioritySortAdapter.PriorityWrap.create(table, priority))
 		}
-
-		//launch(Dispatchers.Main) { adapter.addAll(tableList) }
 	}
 
-	override fun onResume() {
-		super.onResume()
-		if (isEntered) {
-			viewModel?.updateSessionData()
-		}
-	}
-
-	override fun onEnter(activity: FragmentActivity) {
-		isEntered = true
-		viewModel?.updateSessionData()
-	}
+	override fun onEnter(activity: FragmentActivity) = Unit
 
 	override fun onLeave(activity: FragmentActivity) = Unit
 
