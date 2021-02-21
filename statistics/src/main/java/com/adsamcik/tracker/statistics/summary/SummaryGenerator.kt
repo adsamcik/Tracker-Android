@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.statistics.summary
 
 import android.content.Context
+import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerSessionSummary
@@ -77,6 +78,7 @@ object SummaryGenerator {
 		)
 	}
 
+	@WorkerThread
 	fun buildSummary(context: Context): List<Stat> {
 		val database = AppDatabase.database(context)
 		val wifiDao = database.wifiDao()
@@ -122,6 +124,7 @@ object SummaryGenerator {
 		return result
 	}
 
+	@WorkerThread
 	fun buildSevenDaySummary(context: Context): List<Stat> {
 		val now = Time.nowMillis
 		val weekAgo = Calendar.getInstance(Locale.getDefault()).apply {

@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
+import com.adsamcik.tracker.statistics.dialog.StatisticSummaryDialog
 import com.adsamcik.tracker.statistics.summary.SummaryGenerator
 import com.adsamcik.tracker.statistics.wifi.WifiBrowseActivity
 import kotlinx.coroutines.CoroutineScope
@@ -29,8 +30,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.time.Instant
-import java.time.ZoneId
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 
@@ -179,8 +178,8 @@ internal class SessionModelViewHolder(
 
 internal open class SessionHeaderViewHolder(
 		root: ViewGroup,
-		val time: AppCompatTextView,
-		val distance: AppCompatTextView
+		private val time: AppCompatTextView,
+		private val distance: AppCompatTextView
 ) : RecyclerView.ViewHolder(root) {
 	fun bind(header: SessionUiModel.SessionHeader) {
 		time.text = DateUtils.getRelativeTimeSpanString(
@@ -195,15 +194,27 @@ internal class SessionListHeaderViewHolder(
 		root: ViewGroup,
 		time: AppCompatTextView,
 		distance: AppCompatTextView,
-		val buttonSummary: AppCompatButton,
-		val buttonWeek: AppCompatButton,
-		val buttonWifi: AppCompatButton
+		private val buttonSummary: AppCompatButton,
+		private val buttonWeek: AppCompatButton,
+		private val buttonWifi: AppCompatButton
 ) : SessionHeaderViewHolder(root, time, distance) {
 	fun bind(header: SessionUiModel.ListHeader) {
 		super.bind(header)
 
-		buttonSummary.setOnClickListener { SummaryGenerator.buildSummary(it.context) }
-		buttonWeek.setOnClickListener { SummaryGenerator.buildSevenDaySummary(it.context) }
+		buttonSummary.setOnClickListener {
+			StatisticSummaryDialog().show(
+					it.context,
+					R.string.stats_sum_title,
+					SummaryGenerator::buildSummary
+			)
+		}
+		buttonWeek.setOnClickListener {
+			StatisticSummaryDialog().show(
+					it.context,
+					R.string.stats_weekly_title,
+					SummaryGenerator::buildSevenDaySummary
+			)
+		}
 		buttonWifi.setOnClickListener { it.context.startActivity<WifiBrowseActivity> { } }
 	}
 }
