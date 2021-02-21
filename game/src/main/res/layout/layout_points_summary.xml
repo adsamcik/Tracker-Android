@@ -1,42 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="wrap_content">
 
     <com.google.android.material.progressindicator.CircularProgressIndicator
-        android:id="@+id/progress_circular"
-        android:layout_width="match_parent"
-        android:layout_height="256dp"
-        android:indeterminate="false"
+        android:id="@+id/progress_circular_points"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:indeterminate="true"
         android:indeterminateBehavior="repeat"
         android:max="100"
+        app:indicatorSize="200dp"
+        app:indicatorInset="0dp"
+        app:trackThickness="16dp"
+        android:progressBackgroundTint="@color/cardview_dark_background"
         android:progress="33"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"/>
+        app:layout_constraintRight_toRightOf="parent" />
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:orientation="vertical"
         android:gravity="center"
-        app:layout_constraintBottom_toBottomOf="@+id/progress_circular"
-        app:layout_constraintLeft_toLeftOf="@id/progress_circular"
-        app:layout_constraintRight_toRightOf="@id/progress_circular"
-        app:layout_constraintTop_toTopOf="@+id/progress_circular">
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="@id/progress_circular_points"
+        app:layout_constraintEnd_toEndOf="@id/progress_circular_points"
+        app:layout_constraintStart_toStartOf="@id/progress_circular_points"
+        app:layout_constraintTop_toTopOf="@id/progress_circular_points">
 
         <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/text_points"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            style="@style/TextAppearance.MaterialComponents.Headline2"
-            android:autoSizeMinTextSize="12sp"
+            android:textSize="48sp"
             android:autoSizeMaxTextSize="50sp"
-            android:text="1000" />
+            android:autoSizeMinTextSize="12sp"
+            tools:text="10000" />
 
         <androidx.appcompat.widget.AppCompatTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="points" />
+            android:text="points today" />
     </androidx.appcompat.widget.LinearLayoutCompat>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

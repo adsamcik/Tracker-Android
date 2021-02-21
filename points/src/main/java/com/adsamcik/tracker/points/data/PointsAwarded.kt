@@ -9,7 +9,7 @@ import androidx.room.TypeConverter
  */
 @Entity(tableName = "points_awarded")
 data class PointsAwarded(
-		@PrimaryKey
+		@PrimaryKey(autoGenerate = true)
 		val id: Int,
 		val time: Long,
 		val value: Points,
@@ -40,23 +40,23 @@ class PointsDataConverters {
 	 * Converts from [AwardSource] to [String]
 	 */
 	@TypeConverter
-	fun fromAwardSource(value: AwardSource) = value.value
+	fun fromAwardSource(value: AwardSource): String = value.value
 
 	/**
 	 * Converts from [String] to [AwardSource]
 	 */
 	@TypeConverter
-	fun toAwardSource(value: String) = AwardSource(value)
+	fun toAwardSource(value: String): AwardSource = AwardSource(value)
 
 	/**
 	 * Converts from [Points] to [Double]
 	 */
 	@TypeConverter
-	fun fromPoints(value: Points) = value.value
+	fun fromPoints(value: Points): Double = value.value
 
 	/**
 	 * Converts from [Double] to [Points]
 	 */
 	@TypeConverter
-	fun toPoints(value: Double) = Points(value)
+	fun toPoints(value: Double): Points = Points(value)
 }

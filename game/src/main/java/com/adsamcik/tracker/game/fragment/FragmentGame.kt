@@ -15,8 +15,12 @@ import com.adsamcik.tracker.game.challenge.adapter.ChallengeAdapter
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType
 import com.adsamcik.tracker.game.fragment.recycler.creator.ChallengeRecyclerCreator
+import com.adsamcik.tracker.game.fragment.recycler.creator.PointsRecyclerCreator
 import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
+import com.adsamcik.tracker.game.fragment.recycler.data.PointsRecyclerData
+import com.adsamcik.tracker.points.database.PointsDatabase
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
@@ -47,6 +51,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 				styleController
 		).apply {
 			registerType(GameRecyclerType.List, ChallengeRecyclerCreator())
+			registerType(GameRecyclerType.Points, PointsRecyclerCreator(layer = 1))
 		}.also { recycler.adapter = it }
 		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
 		recycler.layoutManager = LinearLayoutManager(context)
@@ -73,6 +78,16 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 						childrenLayer = 2
 				)
 		)
+		adapter.add(PointsRecyclerData(-1))
+		val pointsIndex = adapter.itemCount - 1
+		PointsDatabase
+				.database(context)
+				.pointsAwardedDao()
+				.countBetweenLive(Time.todayMillis, Time.tomorrowMillis)
+				.observe(viewLifecycleOwner) { pointsEarned ->
+					adapter.updateAt(pointsIndex, PointsRecyclerData(pointsEarned))
+				}
+
 
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
 		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter))

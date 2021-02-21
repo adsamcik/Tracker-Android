@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawabl
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
 import com.adsamcik.tracker.shared.utils.style.update.system.RecyclerEdgeEffectFactory
 import com.adsamcik.tracker.shared.utils.style.update.system.StyleUpdater
+import com.google.android.material.progressindicator.CircularProgressIndicator
 
 /**
  * Component style updater.
@@ -69,10 +70,22 @@ internal class ComponentStyleUpdater {
 	) {
 		val foregroundTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 		view.progressTintList = foregroundTintList
+		view.foregroundTintList = foregroundTintList
 		view.indeterminateTintList = foregroundTintList
+		view.secondaryProgressTintList = foregroundTintList
 		view.progressBackgroundTintList = ColorStateList.valueOf(
 				updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA)
 		)
+		view.progressDrawable.setTint(updateStyleData.baseForegroundColor)
+	}
+
+	private fun updateStyle(
+			view: CircularProgressIndicator,
+			updateStyleData: StyleUpdater.UpdateStyleData,
+			@ColorInt backgroundColor: Int
+	) {
+		view.setIndicatorColor(updateStyleData.baseForegroundColor)
+		view.trackColor = updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA)
 	}
 	//endregion
 
@@ -106,6 +119,7 @@ internal class ComponentStyleUpdater {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
 			is FluidSlider -> updateStyle(view, updateStyleData, backgroundColor)
+			is CircularProgressIndicator -> updateStyle(view, updateStyleData, backgroundColor)
 			is ProgressBar -> updateStyle(view, updateStyleData, backgroundColor)
 			is ImageView -> imageViewStyleUpdater.updateStyle(
 					view,

@@ -12,7 +12,6 @@ import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -42,7 +41,7 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		val locationData = AppDatabase.database(applicationContext)
 				.locationDao()
 				.getAllBetweenOrdered(session.start, session.end)
-				.filter { it.altitude != null && it.activityInfo.groupedActivity == GroupedActivity.ON_FOOT }
+				.filter { it.altitude != null /*&& it.activityInfo.groupedActivity == GroupedActivity.ON_FOOT*/ }
 
 		val firstLocation = locationData.firstOrNull()
 				?: return logResult(
@@ -97,6 +96,7 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 				.database(applicationContext)
 				.pointsAwardedDao()
 				.insert(awardPoints)
+
 		return logResult(
 				"Awarded ${awardPoints.value.value.format(2)} points from ${awardPoints.source.value}",
 				Result.success()
