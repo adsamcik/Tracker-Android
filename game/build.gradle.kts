@@ -63,6 +63,7 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
+	implementation(project(":points"))
 
 	Dependencies.core(this)
 	Dependencies.draggable(this)
