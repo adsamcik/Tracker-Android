@@ -18,6 +18,9 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 
+/**
+ * View model for main statistics fragment.
+ */
 class StatsViewModel(application: Application) : AndroidViewModel(application) {
 	internal lateinit var sessionFlow: Flow<PagingData<SessionUiModel>>
 
@@ -25,7 +28,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
 		updateSessionData()
 	}
 
-	fun updateSessionData() {
+	private fun updateSessionData() {
 		viewModelScope.launch {
 			val sessionDao = AppDatabase.database(getApplication()).sessionDao()
 			val paged = sessionDao.getAllPaged()
