@@ -15,12 +15,19 @@ import com.adsamcik.tracker.shared.base.extension.toIntPercent
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import java.util.*
 
+/**
+ * Adapter for challenges in Game tracker tab.
+ */
 class ChallengeAdapter(
 		mContext: Context,
 		private var mDataSource: Array<ChallengeInstance<*, *>>
 ) : RecyclerView.Adapter<ChallengeAdapter.ViewHolder>(),
 		IViewChange {
 
+	/**
+	 * Challenges view holder.
+	 */
+	@Suppress("LongParameterList")
 	class ViewHolder(
 			itemView: View,
 			val titleTextView: TextView,
@@ -34,6 +41,9 @@ class ChallengeAdapter(
 
 	private val mInflater: LayoutInflater = mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
 
+	/**
+	 * Updates data source.
+	 */
 	fun updateData(challenges: Array<ChallengeInstance<*, *>>) {
 		this.mDataSource = challenges
 		notifyDataSetChanged()

@@ -8,12 +8,18 @@ import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleController
 
+/**
+ * View Holder for list based items in Game Recycler View.
+ */
 abstract class ListRecyclerViewHolder<DataType : ListRecyclerData<*>>(
 		rootView: View,
 		private val title: TextView,
 		private val recycler: RecyclerView,
 		private val layer: Int
 ) : StyleMultiTypeViewHolder<DataType>(rootView) {
+	/**
+	 * Binds recycler view
+	 */
 	abstract fun bindRecycler(value: DataType, recycler: RecyclerView)
 
 	override fun bind(data: DataType, styleController: StyleController) {

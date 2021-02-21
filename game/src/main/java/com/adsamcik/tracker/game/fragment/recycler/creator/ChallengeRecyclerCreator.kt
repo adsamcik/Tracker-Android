@@ -11,6 +11,9 @@ import com.adsamcik.tracker.game.fragment.recycler.viewholder.ChallengeRecyclerV
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolderCreator
 
+/**
+ * Creator for challenge recycler items. Creates a nested recycler view.
+ */
 class ChallengeRecyclerCreator : StyleMultiTypeViewHolderCreator<GameRecyclerData> {
 	override fun createViewHolder(parent: ViewGroup): StyleMultiTypeViewHolder<GameRecyclerData> {
 		val context = parent.context
