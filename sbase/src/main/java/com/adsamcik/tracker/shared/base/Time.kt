@@ -2,7 +2,9 @@ package com.adsamcik.tracker.shared.base
 
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.extension.roundToDate
-import com.adsamcik.tracker.shared.base.extension.toCalendar
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
+import java.time.Instant
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.*
 
@@ -35,23 +37,19 @@ object Time {
 	/**
 	 * Today's date in milliseconds since epoch.
 	 */
-	val todayMillis: Long get() = roundToDate(nowMillis)
+	val todayMillis: Long get() = roundToDate(nowMillis).toEpochMillis()
 
 	/**
 	 * Tomorrow date
 	 */
 	val tomorrow: ZonedDateTime
-		get() = ZonedDateTime.now()
-				.withHour(0)
-				.withMinute(0)
-				.withSecond(0)
-				.withNano(0)
-				.plusDays(1)
+		get() = roundToDate(ZonedDateTime.now()).plusDays(1)
 
 	/**
 	 * Tomorrow date in milliseconds since epoch.
 	 */
-	val tomorrowMillis: Long get() = roundToDate(nowMillis + DAY_IN_MILLISECONDS)
+	val tomorrowMillis: Long
+		get() = tomorrow.toEpochMillis()
 
 	/**
 	 * Today's date as calendar
@@ -66,10 +64,19 @@ object Time {
 	/**
 	 * Round date time in milliseconds to date in milliseconds
 	 */
-	fun roundToDate(time: Long): Long {
-		return Date(time).toCalendar().apply {
-			roundToDate()
-		}.timeInMillis
+	fun roundToDate(time: Long): ZonedDateTime {
+		return roundToDate(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()))
+	}
+
+	/**
+	 * Round date time in milliseconds to date in milliseconds
+	 */
+	fun roundToDate(time: ZonedDateTime): ZonedDateTime {
+		return time
+				.withNano(0)
+				.withSecond(0)
+				.withMinute(0)
+				.withHour(0)
 	}
 
 	const val DAY_IN_HOURS: Long = 24L

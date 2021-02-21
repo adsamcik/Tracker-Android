@@ -20,3 +20,9 @@ fun ZonedDateTime.isAfterOrEqual(other: ZonedDateTime) = isAfter(other) || isEqu
 fun Instant.isTheSameDay(other: Instant) =
 		get(ChronoField.DAY_OF_YEAR) == other.get(ChronoField.DAY_OF_YEAR) &&
 				get(ChronoField.YEAR) == other.get(ChronoField.YEAR)
+
+
+/**
+ * Converts ZonedDateTime to milliseconds since epoch
+ */
+fun ZonedDateTime.toEpochMillis() = toInstant().toEpochMilli()
