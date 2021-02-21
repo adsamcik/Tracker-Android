@@ -12,6 +12,7 @@ import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -41,13 +42,16 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		val locationData = AppDatabase.database(applicationContext)
 				.locationDao()
 				.getAllBetweenOrdered(session.start, session.end)
-				.filter { it.altitude != null /*&& it.activityInfo.groupedActivity == GroupedActivity.ON_FOOT*/ }
+				.filter { it.altitude != null && it.activityInfo.groupedActivity == GroupedActivity.ON_FOOT }
 
-		val firstLocation = locationData.firstOrNull()
-				?: return logResult(
-						"No location with altitude and on foot for point calculation.",
-						Result.failure()
-				)
+		if (locationData.size <= 1) {
+			return logResult(
+					"Not enough locations with altitude and on foot for point calculation.",
+					Result.failure()
+			)
+		}
+
+		val firstLocation = locationData.first()
 		var lastAltitude = requireNotNull(firstLocation.altitude)
 		val slopeList = mutableListOf(
 				SlopeData(
@@ -60,17 +64,26 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 				)
 		)
 		var prevLocation = firstLocation.location
-		locationData.forEach {
-			val location = it.location
+		locationData.forEachIndexed { index, dbLocation ->
+			val location = dbLocation.location
 			val altitude = requireNotNull(location.altitude)
 			val diff = abs(lastAltitude - altitude)
-			if (diff > ALTITUDE_THRESHOLD) {
+			if (index + 1 == locationData.size || diff > ALTITUDE_THRESHOLD) {
 				val distance = prevLocation.distanceFlat(location, LengthUnit.Meter)
 				val speed = distance / (location.time - prevLocation.time)
 				val slope = kotlin.math.atan(diff / distance)
-				slopeList.add(SlopeData(location, it.activityInfo, diff, slope, distance, speed))
+				slopeList.add(
+						SlopeData(
+								location,
+								dbLocation.activityInfo,
+								diff,
+								slope,
+								distance,
+								speed
+						)
+				)
 
-				prevLocation = it.location
+				prevLocation = location
 				lastAltitude = altitude
 			}
 		}
