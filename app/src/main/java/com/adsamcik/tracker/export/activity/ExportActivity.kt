@@ -39,6 +39,7 @@ import com.anggrayudi.storage.callback.FolderPickerCallback
 import com.anggrayudi.storage.callback.StorageAccessCallback
 import com.anggrayudi.storage.file.StorageType
 import com.anggrayudi.storage.file.absolutePath
+import com.anggrayudi.storage.file.autoIncrementFileName
 import com.anggrayudi.storage.file.openOutputStream
 import com.anggrayudi.storage.file.storageId
 import com.google.android.material.snackbar.Snackbar
@@ -341,22 +342,33 @@ class ExportActivity : DetailActivity() {
 			Assist.ensureLooper()
 			MaterialDialog(this@ExportActivity)
 					.show {
-						message(text = "Do you want to override the existing file $fileName?")
+						message(text = "Do you want to override the existing file $fileNameWithExtension?")
 						title(text = "File already exists!")
 						positiveButton(R.string.yes) {
 							startExport(foundFile, onPick)
 						}
-						negativeButton(R.string.no)
+						negativeButton(R.string.no) {
+							val incremented = directory.autoIncrementFileName(fileNameWithExtension)
+							exportToNewFile(directory, incremented, onPick)
+						}
 						dynamicStyle()
 					}
 		} else {
-			launch(Dispatchers.Default) {
-				val trimmedName = trimName(fileNameWithExtension)
-				
-				val createdFile = directory.createFile(exporter.mimeType, trimmedName)
-						?: throw IOException("Could not access or create file $fileNameWithExtension")
-				startExport(createdFile, onPick)
-			}
+			exportToNewFile(directory, fileNameWithExtension, onPick)
+		}
+	}
+
+	private fun exportToNewFile(
+			directory: DocumentFile,
+			fileNameWithExtension: String,
+			onPick: ((ExportResult, DocumentFile) -> Unit)?
+	) {
+		launch(Dispatchers.Default) {
+			val trimmedName = trimName(fileNameWithExtension)
+
+			val createdFile = directory.createFile(exporter.mimeType, trimmedName)
+					?: throw IOException("Could not access or create file $fileNameWithExtension")
+			startExport(createdFile, onPick)
 		}
 	}
 
