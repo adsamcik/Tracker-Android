@@ -105,6 +105,7 @@ dependencies {
 
 	Dependencies.colorChooser(this)
 	Dependencies.fileChooser(this)
+	Dependencies.storage(this)
 
 	Dependencies.gpx(this)
 

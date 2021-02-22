@@ -27,7 +27,7 @@ object Dependencies {
 		internal const val coroutines = "1.4.2"
 
 		internal const val sqlite = "3.34.1"
-		internal const val room = "2.3.0-beta01"
+		internal const val room = "2.3.0-beta02"
 
 		internal const val maps = "17.0.0"
 		internal const val recyclerView = "1.1.0"
@@ -38,7 +38,7 @@ object Dependencies {
 		const val crashlyticsGradle = "2.5.0"
 
 		internal const val playServicesBase = "17.6.0"
-		internal const val playLocation = "17.1.0"
+		internal const val playLocation = "18.0.0"
 		internal const val playCore = "1.9.1"
 
 		internal const val stax = "1.0.1"
@@ -47,6 +47,7 @@ object Dependencies {
 
 		internal const val spotlight = "2.2.3"
 		internal const val dialogs = "3.3.0"
+		internal const val simpleStorage = "0.4.4"
 
 		internal const val componentsRecycler = "1.0.0"
 		internal const val componentsDraggable = "1.0.2"
@@ -219,6 +220,12 @@ object Dependencies {
 	fun paging(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("androidx.paging:paging-runtime:${Versions.paging}")
+		}
+	}
+
+	fun storage(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.anggrayudi:storage:${Versions.simpleStorage}")
 		}
 	}
 
