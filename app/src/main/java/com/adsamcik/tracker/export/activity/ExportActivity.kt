@@ -169,7 +169,7 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun checkExternalStoragePermissions(): Boolean {
-		if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			val requiredPermissions = mutableListOf<String>()
 			if (!hasExternalStorageReadPermission) {
 				requiredPermissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -187,9 +187,8 @@ class ExportActivity : DetailActivity() {
 			}
 
 			return requiredPermissions.isEmpty()
-
 		}
-		return false
+		return true
 	}
 
 	private fun getExportFileName(): String {
