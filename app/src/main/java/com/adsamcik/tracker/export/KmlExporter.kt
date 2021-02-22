@@ -2,44 +2,40 @@ package com.adsamcik.tracker.export
 
 import android.annotation.SuppressLint
 import android.content.Context
-import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.anggrayudi.storage.file.findFileLiterally
-import com.anggrayudi.storage.file.openOutputStream
+import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Exports locations to KML format.
+ */
 class KmlExporter : Exporter {
 	override val canSelectDateRange: Boolean = true
+	override val mimeType: String = "application/vnd.google-earth.kml+xml"
+	override val extension: String = "kml"
 
 	override fun export(
 			context: Context,
 			locationData: List<DatabaseLocation>,
-			destinationDirectory: DocumentFile,
-			desiredName: String
+			outputStream: OutputStream
 	): ExportResult {
-		val targetFile = destinationDirectory.findFileLiterally(desiredName)
-				?: destinationDirectory.createFile(mime, desiredName)
-				?: throw RuntimeException("Could not access or create file $desiredName")
-		serialize(context, targetFile, locationData)
+		serialize(outputStream, locationData)
 
-		return ExportResult(targetFile, mime)
+		return ExportResult(true)
 	}
 
 
 	private fun serialize(
-			context: Context,
-			file: DocumentFile,
+			stream: OutputStream,
 			locationData: List<DatabaseLocation>
 	) {
-		file.openOutputStream(context).use { outputStream ->
-			OutputStreamWriter(outputStream).use { osw ->
-				writeBeginning(osw)
-				locationData.forEach { writeLocation(osw, it.location) }
-				writeEnding(osw)
-			}
+		OutputStreamWriter(stream).use { osw ->
+			writeBeginning(osw)
+			locationData.forEach { writeLocation(osw, it.location) }
+			writeEnding(osw)
 		}
 	}
 
@@ -65,10 +61,6 @@ class KmlExporter : Exporter {
 
 	private fun writeEnding(streamWriter: OutputStreamWriter) {
 		streamWriter.write("</Document></kml>")
-	}
-
-	companion object {
-		private const val mime = "application/vnd.google-earth.kml+xml"
 	}
 }
 

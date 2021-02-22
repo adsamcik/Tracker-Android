@@ -8,7 +8,11 @@ import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.MimeTypeMap
 import android.widget.Toast
+import androidx.annotation.AnyThread
+import androidx.annotation.MainThread
+import androidx.annotation.WorkerThread
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.FileProvider
@@ -17,6 +21,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.export.ExportResult
 import com.adsamcik.tracker.export.Exporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.cloneCalendar
 import com.adsamcik.tracker.shared.base.extension.createCalendarWithTime
@@ -25,6 +30,7 @@ import com.adsamcik.tracker.shared.base.extension.hasExternalStorageWritePermiss
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.SimpleStorageHelper.Companion.REQUEST_CODE_STORAGE_ACCESS
@@ -33,11 +39,14 @@ import com.anggrayudi.storage.callback.FolderPickerCallback
 import com.anggrayudi.storage.callback.StorageAccessCallback
 import com.anggrayudi.storage.file.StorageType
 import com.anggrayudi.storage.file.absolutePath
+import com.anggrayudi.storage.file.openOutputStream
 import com.anggrayudi.storage.file.storageId
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.IOException
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -180,17 +189,20 @@ class ExportActivity : DetailActivity() {
 
 		findViewById<View>(R.id.button_share).setOnClickListener {
 			shareableDir.mkdirs()
-			export(DocumentFile.fromFile(shareableDir)) {
+			tryExport(DocumentFile.fromFile(shareableDir)) { exportResult, documentFile ->
+				if (!exportResult.isSuccess) return@tryExport
+
 				val fileUri = FileProvider.getUriForFile(
 						this@ExportActivity,
 						"com.adsamcik.tracker.fileprovider",
-						File(it.file.absolutePath)
+						File(documentFile.absolutePath)
 				)
 
-				val shareIntent = Intent()
-				shareIntent.action = Intent.ACTION_SEND
-				shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
-				shareIntent.type = it.mime
+				val shareIntent = Intent().apply {
+					action = Intent.ACTION_SEND
+					putExtra(Intent.EXTRA_STREAM, fileUri)
+					type = exporter.mimeType
+				}
 
 				val intent = Intent.createChooser(
 						shareIntent,
@@ -222,7 +234,7 @@ class ExportActivity : DetailActivity() {
 					}
 					return
 				}
-				MaterialDialog(window.context)
+				MaterialDialog(this@ExportActivity)
 						.message(
 								text = "You have no write access to this storage, thus selecting this folder is useless." +
 										"\nWould you like to grant access to this folder?"
@@ -235,7 +247,7 @@ class ExportActivity : DetailActivity() {
 
 			override fun onFolderSelected(requestCode: Int, folder: DocumentFile) {
 				//Toast.makeText(baseContext, folder.absolutePath, Toast.LENGTH_SHORT).show()
-				export(folder)
+				tryExport(folder)
 			}
 
 			override fun onCancelledByUser(requestCode: Int) {
@@ -300,34 +312,118 @@ class ExportActivity : DetailActivity() {
 		}
 	}
 
-	private fun export(directory: DocumentFile, onPick: ((ExportResult) -> Unit)? = null) {
-		val from = this.range.start
-		val to = this.range.endInclusive
+	private fun trimName(fileNameWithExtension: String): String {
+		val extension = MimeTypeMap
+				.getSingleton()
+				.getExtensionFromMimeType(exporter.mimeType)
+				.orEmpty()
 
+		return if (fileNameWithExtension.endsWith(".$extension")) {
+			fileNameWithExtension.substring(
+					0,
+					fileNameWithExtension.length - extension.length - 1
+			)
+		} else {
+			fileNameWithExtension
+		}
+	}
+
+	@MainThread
+	private fun tryExport(
+			directory: DocumentFile,
+			onPick: ((ExportResult, DocumentFile) -> Unit)? = null
+	) {
+		val fileName = getExportFileName()
+		val fileNameWithExtension = "${fileName}.${exporter.extension}"
+		val foundFile = directory.findFile(fileNameWithExtension)
+
+		if (foundFile != null) {
+			Assist.ensureLooper()
+			MaterialDialog(this@ExportActivity)
+					.show {
+						message(text = "Do you want to override the existing file $fileName?")
+						title(text = "File already exists!")
+						positiveButton(R.string.yes) {
+							startExport(foundFile, onPick)
+						}
+						negativeButton(R.string.no)
+						dynamicStyle()
+					}
+		} else {
+			launch(Dispatchers.Default) {
+				val trimmedName = trimName(fileNameWithExtension)
+				
+				val createdFile = directory.createFile(exporter.mimeType, trimmedName)
+						?: throw IOException("Could not access or create file $fileNameWithExtension")
+				startExport(createdFile, onPick)
+			}
+		}
+	}
+
+	/**
+	 * Starting point for export, when file is selected
+	 */
+	@AnyThread
+	private fun startExport(
+			file: DocumentFile,
+			onPick: ((ExportResult, DocumentFile) -> Unit)? = null
+	) {
 		launch(Dispatchers.Default) {
+			val result = exportStream(file)
+			notifyExportResult(result, file, onPick)
+		}
+	}
+
+	/**
+	 *  Handles result from export.
+	 */
+	private fun notifyExportResult(
+			result: ExportResult,
+			file: DocumentFile,
+			onPick: ((ExportResult, DocumentFile) -> Unit)? = null
+	) {
+		onPick?.invoke(result, file)
+
+		if (result.isSuccess) {
+			finish()
+		} else {
+			SnackMaker(root).addMessage(
+					requireNotNull(result.message),
+					Snackbar.LENGTH_LONG
+			)
+		}
+	}
+
+	@WorkerThread
+	private fun exportStream(
+			file: DocumentFile
+	): ExportResult {
+		val stream = file.openOutputStream(this, append = false)
+		if (stream != null) {
+			stream.use {
+				return export(it)
+			}
+		} else {
+			return ExportResult(false, "Stream to file ${file.absolutePath} could not be created.")
+		}
+	}
+
+	@WorkerThread
+	private fun export(outputStream: OutputStream): ExportResult {
+		return if (exporter.canSelectDateRange) {
 			val database = AppDatabase.database(applicationContext)
 			val locationDao = database.locationDao()
+			val from = this.range.start
+			val to = this.range.endInclusive
+			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
-			val result = if (exporter.canSelectDateRange) {
-				val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
-
-				if (locations.isEmpty()) {
-					SnackMaker(root).addMessage(
-							R.string.error_no_locations_in_interval,
-							Snackbar.LENGTH_LONG
-					)
-					return@launch
-				}
-				//todo do not pass location, make it somewhat smarter so there are no useless queries
-				exporter.export(this@ExportActivity, locations, directory, getExportFileName())
-			} else {
-				exporter.export(this@ExportActivity, listOf(), directory, getExportFileName())
+			if (locations.isEmpty()) {
+				return ExportResult(false, getString(R.string.error_no_locations_in_interval))
 			}
-
-
-			onPick?.invoke(result)
-
-			finish()
+			//todo do not pass location, make it somewhat smarter so there are no useless queries
+			exporter.export(this, locations, outputStream)
+		} else {
+			exporter.export(this, listOf(), outputStream)
 		}
 	}
 
