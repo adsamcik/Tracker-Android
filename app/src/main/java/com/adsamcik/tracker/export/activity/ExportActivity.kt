@@ -192,7 +192,7 @@ class ExportActivity : DetailActivity() {
 	}
 
 	private fun getExportFileName(): String {
-		val text = findViewById<AppCompatEditText>(R.id.edittext_date_range_from).text
+		val text = findViewById<AppCompatEditText>(R.id.edittext_filename).text
 		return if (text.isNullOrBlank()) {
 			getString(R.string.export_default_file_name)
 		} else {
