@@ -1,16 +1,14 @@
 package com.adsamcik.tracker.export
 
 import android.content.Context
-import android.os.Build
-import androidx.annotation.RequiresApi
+import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.extension.applicationName
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
+import com.anggrayudi.storage.file.openOutputStream
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.WayPoint
-import java.io.File
-import java.io.FileOutputStream
 
 class GpxExporter : Exporter {
 	override val canSelectDateRange: Boolean = true
@@ -18,16 +16,23 @@ class GpxExporter : Exporter {
 	override fun export(
 			context: Context,
 			locationData: List<DatabaseLocation>,
-			destinationDirectory: File,
+			destinationDirectory: DocumentFile,
 			desiredName: String
 	): ExportResult {
-		val targetFile = File(destinationDirectory, "$desiredName.gpx")
+		val fileName = "$desiredName.gpx"
+		val targetFile = destinationDirectory.findFile(fileName) ?: destinationDirectory.createFile(
+				mime, fileName
+		) ?: throw RuntimeException("Could not access or create file $fileName")
 		serialize(context, targetFile, locationData)
-		return ExportResult(targetFile, "application/gpx+xml")
+		return ExportResult(targetFile, mime)
 	}
 
 
-	private fun serialize(context: Context, file: File, locationData: List<DatabaseLocation>) {
+	private fun serialize(
+			context: Context,
+			file: DocumentFile,
+			locationData: List<DatabaseLocation>
+	) {
 		val gpx = GPX.builder().metadata {
 			it.author(context.applicationName)
 			it.desc(
@@ -58,9 +63,14 @@ class GpxExporter : Exporter {
 			}
 		}.build()
 
-		FileOutputStream(file, false).let { outputStream ->
+		// todo report if something is wrong
+		file.openOutputStream(context)?.use { outputStream ->
 			GPX.write(gpx, outputStream)
 		}
+	}
+
+	companion object {
+		private const val mime = "application/gpx+xml"
 	}
 }
 

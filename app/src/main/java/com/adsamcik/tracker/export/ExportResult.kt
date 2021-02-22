@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.export
 
-import java.io.File
+import androidx.documentfile.provider.DocumentFile
 
-data class ExportResult(val file: File, val mime: String)
+/**
+ * Export result data
+ */
+data class ExportResult(val file: DocumentFile, val mime: String)

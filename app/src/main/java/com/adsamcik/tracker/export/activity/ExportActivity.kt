@@ -2,15 +2,17 @@ package com.adsamcik.tracker.export.activity
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.appcompat.widget.AppCompatEditText
-import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.FileProvider
+import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.export.ExportResult
 import com.adsamcik.tracker.export.Exporter
@@ -24,7 +26,14 @@ import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.files.folderChooser
+import com.anggrayudi.storage.SimpleStorage
+import com.anggrayudi.storage.SimpleStorageHelper.Companion.REQUEST_CODE_STORAGE_ACCESS
+import com.anggrayudi.storage.SimpleStorageHelper.Companion.requestStoragePermission
+import com.anggrayudi.storage.callback.FolderPickerCallback
+import com.anggrayudi.storage.callback.StorageAccessCallback
+import com.anggrayudi.storage.file.StorageType
+import com.anggrayudi.storage.file.absolutePath
+import com.anggrayudi.storage.file.storageId
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,7 +46,7 @@ import java.util.*
  * Activity that allows user to share his collected data to other apps that support zip files
  */
 class ExportActivity : DetailActivity() {
-	private lateinit var sharableDir: File
+	private lateinit var shareableDir: File
 	private lateinit var root: ViewGroup
 
 	private lateinit var exporter: Exporter
@@ -51,6 +60,42 @@ class ExportActivity : DetailActivity() {
 			updateDateTimeText(dataRangeFrom, value.start)
 			updateDateTimeText(dataRangeTo, value.endInclusive)
 		}
+
+	private lateinit var storage: SimpleStorage
+
+	private fun setupSimpleStorage() {
+		storage = SimpleStorage(this)
+		storage.storageAccessCallback = object : StorageAccessCallback {
+			override fun onRootPathNotSelected(
+					requestCode: Int,
+					rootPath: String,
+					rootStorageType: StorageType,
+					uri: Uri
+			) {
+				MaterialDialog(this@ExportActivity)
+						.message(text = "Please select $rootPath")
+						.negativeButton(android.R.string.cancel)
+						.positiveButton {
+							storage.requestStorageAccess(
+									REQUEST_CODE_STORAGE_ACCESS,
+									rootStorageType
+							)
+						}.show()
+			}
+
+			override fun onRootPathPermissionGranted(requestCode: Int, root: DocumentFile) {
+				Toast.makeText(
+						baseContext,
+						"Storage access has been granted for ${root.storageId}",
+						Toast.LENGTH_SHORT
+				).show()
+			}
+
+			override fun onStoragePermissionDenied(requestCode: Int) {
+
+			}
+		}
+	}
 
 	//init block cannot be used with custom setter (Kotlin 1.3)
 	private fun createDefaultRange(): ClosedRange<Calendar> {
@@ -100,7 +145,7 @@ class ExportActivity : DetailActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		sharableDir = File(filesDir, SHARABLE_DIR_NAME)
+		shareableDir = File(filesDir, SHARABLE_DIR_NAME)
 
 		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
 		exporter = exporterType.newInstance() as Exporter
@@ -134,13 +179,14 @@ class ExportActivity : DetailActivity() {
 		findViewById<View>(R.id.button_export).setOnClickListener { if (checkExternalStoragePermissions()) exportClick() }
 
 		findViewById<View>(R.id.button_share).setOnClickListener {
-			sharableDir.mkdirs()
-			export(sharableDir) {
+			shareableDir.mkdirs()
+			export(DocumentFile.fromFile(shareableDir)) {
 				val fileUri = FileProvider.getUriForFile(
 						this@ExportActivity,
 						"com.adsamcik.tracker.fileprovider",
-						it.file
+						File(it.file.absolutePath)
 				)
+
 				val shareIntent = Intent()
 				shareIntent.action = Intent.ACTION_SEND
 				shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
@@ -154,10 +200,53 @@ class ExportActivity : DetailActivity() {
 			}
 		}
 		setTitle(R.string.share_button)
+
+		setupSimpleStorage()
+		setupFolderPickerCallback()
+	}
+
+	private fun setupFolderPickerCallback() {
+		storage.folderPickerCallback = object : FolderPickerCallback {
+			override fun onStoragePermissionDenied(requestCode: Int) {
+				//requestStoragePermission(this@ExportActivity)
+			}
+
+			override fun onStorageAccessDenied(
+					requestCode: Int,
+					folder: DocumentFile?,
+					storageType: StorageType?
+			) {
+				if (storageType == null) {
+					requestStoragePermission(this@ExportActivity) {
+						setupFolderPickerCallback()
+					}
+					return
+				}
+				MaterialDialog(window.context)
+						.message(
+								text = "You have no write access to this storage, thus selecting this folder is useless." +
+										"\nWould you like to grant access to this folder?"
+						)
+						.negativeButton(android.R.string.cancel)
+						.positiveButton {
+							storage.requestStorageAccess(REQUEST_CODE_STORAGE_ACCESS, storageType)
+						}.show()
+			}
+
+			override fun onFolderSelected(requestCode: Int, folder: DocumentFile) {
+				//Toast.makeText(baseContext, folder.absolutePath, Toast.LENGTH_SHORT).show()
+				export(folder)
+			}
+
+			override fun onCancelledByUser(requestCode: Int) {
+				Toast.makeText(baseContext, "Folder picker cancelled by user", Toast.LENGTH_SHORT)
+						.show()
+			}
+		}
 	}
 
 	private fun exportClick() {
-		MaterialDialog(this).show {
+		/*MaterialDialog(this).show {
 			folderChooser(
 					context = this@ExportActivity,
 					waitForPositiveButton = true,
@@ -165,7 +254,18 @@ class ExportActivity : DetailActivity() {
 			) { _, file ->
 				export(file)
 			}
-		}
+		}*/
+		storage.openFolderPicker(REQUEST_CODE_STORAGE_ACCESS)
+	}
+
+	override fun onSaveInstanceState(outState: Bundle) {
+		storage.onSaveInstanceState(outState)
+		super.onSaveInstanceState(outState)
+	}
+
+	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+		super.onRestoreInstanceState(savedInstanceState)
+		storage.onRestoreInstanceState(savedInstanceState)
 	}
 
 	private fun checkExternalStoragePermissions(): Boolean {
@@ -200,7 +300,7 @@ class ExportActivity : DetailActivity() {
 		}
 	}
 
-	private fun export(directory: File, onPick: ((ExportResult) -> Unit)? = null) {
+	private fun export(directory: DocumentFile, onPick: ((ExportResult) -> Unit)? = null) {
 		val from = this.range.start
 		val to = this.range.endInclusive
 
@@ -240,9 +340,9 @@ class ExportActivity : DetailActivity() {
 	override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
 		super.onActivityResult(requestCode, resultCode, data)
 
-		sharableDir.deleteRecursively()
+		storage.onActivityResult(requestCode, resultCode, data)
 
-		finish()
+		shareableDir.deleteRecursively()
 	}
 
 	override fun onRequestPermissionsResult(

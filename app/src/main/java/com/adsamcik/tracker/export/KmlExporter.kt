@@ -2,10 +2,11 @@ package com.adsamcik.tracker.export
 
 import android.annotation.SuppressLint
 import android.content.Context
+import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import java.io.File
-import java.io.FileOutputStream
+import com.anggrayudi.storage.file.findFileLiterally
+import com.anggrayudi.storage.file.openOutputStream
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.*
@@ -16,19 +17,24 @@ class KmlExporter : Exporter {
 	override fun export(
 			context: Context,
 			locationData: List<DatabaseLocation>,
-			destinationDirectory: File,
+			destinationDirectory: DocumentFile,
 			desiredName: String
 	): ExportResult {
-		val targetFile = File(destinationDirectory, "$desiredName.kml")
-		serialize(targetFile, locationData)
+		val targetFile = destinationDirectory.findFileLiterally(desiredName)
+				?: destinationDirectory.createFile(mime, desiredName)
+				?: throw RuntimeException("Could not access or create file $desiredName")
+		serialize(context, targetFile, locationData)
 
-		return ExportResult(targetFile, "application/vnd.google-earth.kml+xml")
+		return ExportResult(targetFile, mime)
 	}
 
 
-	private fun serialize(file: File, locationData: List<DatabaseLocation>) {
-		FileOutputStream(file, false).let { outputStream ->
-			outputStream.channel.lock()
+	private fun serialize(
+			context: Context,
+			file: DocumentFile,
+			locationData: List<DatabaseLocation>
+	) {
+		file.openOutputStream(context).use { outputStream ->
 			OutputStreamWriter(outputStream).use { osw ->
 				writeBeginning(osw)
 				locationData.forEach { writeLocation(osw, it.location) }
@@ -61,5 +67,8 @@ class KmlExporter : Exporter {
 		streamWriter.write("</Document></kml>")
 	}
 
+	companion object {
+		private const val mime = "application/vnd.google-earth.kml+xml"
+	}
 }
 
