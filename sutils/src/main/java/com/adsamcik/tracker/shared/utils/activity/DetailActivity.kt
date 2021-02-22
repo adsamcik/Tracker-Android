@@ -280,6 +280,7 @@ abstract class DetailActivity : CoreUIActivity() {
 	protected fun <RootView : View> inflateContent(@LayoutRes resource: Int): RootView {
 		val rootContentView = layoutInflater.inflate(resource, contentDetailRoot, false)
 		contentDetailRoot.addView(rootContentView)
+		styleController.forceUpdate()
 		@Suppress("unchecked_cast")
 		return rootContentView as RootView
 	}

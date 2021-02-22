@@ -8,6 +8,8 @@ import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatEditText
+import androidx.appcompat.widget.LinearLayoutCompat
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.FileProvider
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.export.ExportResult
@@ -103,8 +105,8 @@ class ExportActivity : DetailActivity() {
 		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
 		exporter = exporterType.newInstance() as Exporter
 
-		root = createLinearContentParent(false)
-		layoutInflater.inflate(R.layout.layout_data_export, root)
+		//root = createLinearContentParent(false)
+		val root = inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 
 
 		if (exporter.canSelectDateRange) {
