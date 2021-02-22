@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 import kotlin.math.abs
@@ -51,6 +52,36 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 			)
 		}
 
+		val slopeList = calculateSlope(locationData)
+
+		val points = slopeList.sumByDouble {
+			@Suppress("MagicNumber")
+			val slopePositive = max(it.slope, 0.0)
+
+			@Suppress("MagicNumber")
+			val slopeBonus = kotlin.math.sqrt(slopePositive / HALF_SLOPE) * SLOPE_MULTIPLIER
+
+			it.distance * POINTS_PER_METER_MPS * it.speedMPS * (1.0 + slopeBonus)
+		}
+
+		val awardPoints = PointsAwarded(
+				Time.nowMillis,
+				Points(points),
+				AwardSource.SESSION
+		)
+
+		PointsDatabase
+				.database(applicationContext)
+				.pointsAwardedDao()
+				.insert(awardPoints)
+
+		return logResult(
+				"Awarded ${awardPoints.value.value.format(2)} points from ${awardPoints.source.value}",
+				Result.success()
+		)
+	}
+
+	private fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> {
 		val firstLocation = locationData.first()
 		var lastAltitude = requireNotNull(firstLocation.altitude)
 		val slopeList = mutableListOf(
@@ -88,32 +119,7 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 			}
 		}
 
-		val points = slopeList.sumByDouble {
-			@Suppress("MagicNumber")
-
-			val slopePositive = max(it.slope, 0.0)
-
-			@Suppress("MagicNumber")
-			val slopeBonus = kotlin.math.sqrt(slopePositive / HALF_SLOPE) * SLOPE_MULTIPLIER
-
-			it.distance * POINTS_PER_METER_MPS * it.speedMPS * (1.0 + slopeBonus)
-		}
-
-		val awardPoints = PointsAwarded(
-				Time.nowMillis,
-				Points(points),
-				AwardSource.SESSION
-		)
-
-		PointsDatabase
-				.database(applicationContext)
-				.pointsAwardedDao()
-				.insert(awardPoints)
-
-		return logResult(
-				"Awarded ${awardPoints.value.value.format(2)} points from ${awardPoints.source.value}",
-				Result.success()
-		)
+		return slopeList
 	}
 
 	data class SlopeData(
