@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.utils.style.update.system.component
 
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.view.View
 import android.widget.ImageView
 import android.widget.ProgressBar
@@ -70,7 +71,9 @@ internal class ComponentStyleUpdater {
 	) {
 		val foregroundTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 		view.progressTintList = foregroundTintList
-		view.foregroundTintList = foregroundTintList
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+			view.foregroundTintList = foregroundTintList
+		}
 		view.indeterminateTintList = foregroundTintList
 		view.secondaryProgressTintList = foregroundTintList
 		view.progressBackgroundTintList = ColorStateList.valueOf(

@@ -85,7 +85,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 				.pointsAwardedDao()
 				.countBetweenLive(Time.todayMillis, Time.tomorrowMillis)
 				.observe(viewLifecycleOwner) { pointsEarned ->
-					adapter.updateAt(pointsIndex, PointsRecyclerData(pointsEarned))
+					adapter.updateAt(pointsIndex, PointsRecyclerData(pointsEarned ?: 0))
 				}
 
 
