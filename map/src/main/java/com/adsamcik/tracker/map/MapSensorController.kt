@@ -118,7 +118,7 @@ internal class MapSensorController(
 			locationClient.requestLocationUpdates(
 					locationRequest,
 					locationCallback,
-					Looper.myLooper()
+					requireNotNull(Looper.myLooper())
 			)
 			if (moveToCurrentLocation) {
 				locationClient.lastLocation.addOnCompleteListener {
