@@ -49,7 +49,8 @@ class KmlExporter : Exporter {
 	private fun writeLocation(streamWriter: OutputStreamWriter, location: Location) {
 		streamWriter.write("<Placemark><TimeStamp><when>${formatTime(location.time)}</when></TimeStamp>")
 		streamWriter.write(
-				"<Point><coordinates>${location.longitude},${location.latitude},${location.altitude}</coordinates></Point></Placemark>"
+				"""<Point><coordinates>${location.longitude},${location.latitude},
+					|${location.altitude}</coordinates></Point></Placemark>""".trimMargin()
 		)
 	}
 
