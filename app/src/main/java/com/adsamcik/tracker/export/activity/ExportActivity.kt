@@ -2,14 +2,11 @@ package com.adsamcik.tracker.export.activity
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
-import android.widget.Toast
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
@@ -25,23 +22,16 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.cloneCalendar
 import com.adsamcik.tracker.shared.base.extension.createCalendarWithTime
-import com.adsamcik.tracker.shared.base.extension.hasExternalStorageReadPermission
-import com.adsamcik.tracker.shared.base.extension.hasExternalStorageWritePermission
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.anggrayudi.storage.SimpleStorage
-import com.anggrayudi.storage.SimpleStorageHelper.Companion.REQUEST_CODE_STORAGE_ACCESS
-import com.anggrayudi.storage.SimpleStorageHelper.Companion.requestStoragePermission
-import com.anggrayudi.storage.callback.FolderPickerCallback
-import com.anggrayudi.storage.callback.StorageAccessCallback
-import com.anggrayudi.storage.file.StorageType
+import com.anggrayudi.storage.SimpleStorageHelper
 import com.anggrayudi.storage.file.absolutePath
 import com.anggrayudi.storage.file.autoIncrementFileName
 import com.anggrayudi.storage.file.openOutputStream
-import com.anggrayudi.storage.file.storageId
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -72,40 +62,8 @@ class ExportActivity : DetailActivity() {
 		}
 
 	private lateinit var storage: SimpleStorage
+	private lateinit var storageHelper: SimpleStorageHelper
 
-	private fun setupSimpleStorage() {
-		storage = SimpleStorage(this)
-		storage.storageAccessCallback = object : StorageAccessCallback {
-			override fun onRootPathNotSelected(
-					requestCode: Int,
-					rootPath: String,
-					rootStorageType: StorageType,
-					uri: Uri
-			) {
-				MaterialDialog(this@ExportActivity)
-						.message(text = "Please select $rootPath")
-						.negativeButton(android.R.string.cancel)
-						.positiveButton {
-							storage.requestStorageAccess(
-									REQUEST_CODE_STORAGE_ACCESS,
-									rootStorageType
-							)
-						}.show()
-			}
-
-			override fun onRootPathPermissionGranted(requestCode: Int, root: DocumentFile) {
-				Toast.makeText(
-						baseContext,
-						"Storage access has been granted for ${root.storageId}",
-						Toast.LENGTH_SHORT
-				).show()
-			}
-
-			override fun onStoragePermissionDenied(requestCode: Int) {
-
-			}
-		}
-	}
 
 	//init block cannot be used with custom setter (Kotlin 1.3)
 	private fun createDefaultRange(): ClosedRange<Calendar> {
@@ -163,6 +121,8 @@ class ExportActivity : DetailActivity() {
 		//root = createLinearContentParent(false)
 		val root = inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 
+		storageHelper = SimpleStorageHelper(this, savedInstanceState)
+		storageHelper.onFolderSelected = { _, folder -> tryExport(folder) }
 
 		if (exporter.canSelectDateRange) {
 			val now = Calendar.getInstance()
@@ -186,7 +146,7 @@ class ExportActivity : DetailActivity() {
 			findViewById<View>(R.id.imageview_from_date).visibility = View.GONE
 		}
 
-		findViewById<View>(R.id.button_export).setOnClickListener { if (checkExternalStoragePermissions()) exportClick() }
+		findViewById<View>(R.id.button_export).setOnClickListener { exportClick() }
 
 		findViewById<View>(R.id.button_share).setOnClickListener {
 			shareableDir.mkdirs()
@@ -209,99 +169,15 @@ class ExportActivity : DetailActivity() {
 						shareIntent,
 						resources.getText(R.string.share_button)
 				)
+
 				startActivityForResult(intent, SHARE_RESULT)
 			}
 		}
 		setTitle(R.string.share_button)
-
-		setupSimpleStorage()
-		setupFolderPickerCallback()
-	}
-
-	private fun setupFolderPickerCallback() {
-		storage.folderPickerCallback = object : FolderPickerCallback {
-			override fun onStoragePermissionDenied(requestCode: Int) {
-				//requestStoragePermission(this@ExportActivity)
-			}
-
-			override fun onStorageAccessDenied(
-					requestCode: Int,
-					folder: DocumentFile?,
-					storageType: StorageType?
-			) {
-				if (storageType == null) {
-					requestStoragePermission(this@ExportActivity) {
-						setupFolderPickerCallback()
-					}
-					return
-				}
-				MaterialDialog(this@ExportActivity)
-						.message(
-								text = "You have no write access to this storage, thus selecting this folder is useless." +
-										"\nWould you like to grant access to this folder?"
-						)
-						.negativeButton(android.R.string.cancel)
-						.positiveButton {
-							storage.requestStorageAccess(REQUEST_CODE_STORAGE_ACCESS, storageType)
-						}.show()
-			}
-
-			override fun onFolderSelected(requestCode: Int, folder: DocumentFile) {
-				//Toast.makeText(baseContext, folder.absolutePath, Toast.LENGTH_SHORT).show()
-				tryExport(folder)
-			}
-
-			override fun onCancelledByUser(requestCode: Int) {
-				Toast.makeText(baseContext, "Folder picker cancelled by user", Toast.LENGTH_SHORT)
-						.show()
-			}
-		}
 	}
 
 	private fun exportClick() {
-		/*MaterialDialog(this).show {
-			folderChooser(
-					context = this@ExportActivity,
-					waitForPositiveButton = true,
-					allowFolderCreation = true
-			) { _, file ->
-				export(file)
-			}
-		}*/
-		storage.openFolderPicker(REQUEST_CODE_STORAGE_ACCESS)
-	}
-
-	override fun onSaveInstanceState(outState: Bundle) {
-		storage.onSaveInstanceState(outState)
-		super.onSaveInstanceState(outState)
-	}
-
-	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
-		super.onRestoreInstanceState(savedInstanceState)
-		storage.onRestoreInstanceState(savedInstanceState)
-	}
-
-	private fun checkExternalStoragePermissions(): Boolean {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			val requiredPermissions = mutableListOf<String>()
-			if (!hasExternalStorageReadPermission) {
-				requiredPermissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-			}
-
-			if (!hasExternalStorageWritePermission) {
-				requiredPermissions.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-			}
-
-			if (requiredPermissions.isNotEmpty()) {
-				requestPermissions(
-						requiredPermissions.toTypedArray(),
-						PERMISSION_REQUEST_EXTERNAL_STORAGE
-				)
-			}
-
-			return requiredPermissions.isEmpty()
-		}
-		return true
+		storageHelper.openFolderPicker()
 	}
 
 	private fun getExportFileName(): String {
@@ -432,7 +308,6 @@ class ExportActivity : DetailActivity() {
 			if (locations.isEmpty()) {
 				return ExportResult(false, getString(R.string.error_no_locations_in_interval))
 			}
-			//todo do not pass location, make it somewhat smarter so there are no useless queries
 			exporter.export(this, locations, outputStream)
 		} else {
 			exporter.export(this, listOf(), outputStream)
@@ -448,9 +323,11 @@ class ExportActivity : DetailActivity() {
 	override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
 		super.onActivityResult(requestCode, resultCode, data)
 
-		storage.onActivityResult(requestCode, resultCode, data)
+		storageHelper.storage.onActivityResult(requestCode, resultCode, data)
 
-		shareableDir.deleteRecursively()
+		if (requestCode == SHARE_RESULT) {
+			shareableDir.deleteRecursively()
+		}
 	}
 
 	override fun onRequestPermissionsResult(
@@ -464,6 +341,16 @@ class ExportActivity : DetailActivity() {
 				grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
 			exportClick()
 		}
+	}
+
+	override fun onSaveInstanceState(outState: Bundle) {
+		storageHelper.storage.onSaveInstanceState(outState)
+		super.onSaveInstanceState(outState)
+	}
+
+	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+		super.onRestoreInstanceState(savedInstanceState)
+		storageHelper.storage.onRestoreInstanceState(savedInstanceState)
 	}
 
 	companion object {
