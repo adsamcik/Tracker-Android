@@ -12,26 +12,11 @@ import com.takusemba.spotlight.Target
 import com.takusemba.spotlight.shapes.Circle
 import com.takusemba.spotlight.shapes.RoundedRectangle
 
+/**
+ * Introduction on home screen.
+ */
 class HomeIntroduction : Introduction() {
 	override val key: String = "home_tips"
-
-	private fun createWelcomeTarget(
-			activity: Activity,
-			resources: Resources,
-			buttonData: SimpleTarget.ButtonData
-	): Target = SimpleTarget.Builder(activity)
-			.setTitle(resources.getString(R.string.tutorial_welcome_title))
-			.addButtonData(SimpleTarget.ButtonData(
-					resources.getString(
-							com.adsamcik.tracker.shared.base.R.string.skip_introduction
-					)
-			) { _, spotlight ->
-				spotlight.finishSpotlight()
-			})
-			.addButtonData(buttonData)
-			.setShape(Circle(PointF(0f, 0f), 0f))
-			.setDescription(resources.getString(R.string.tutorial_welcome_description))
-			.build()
 
 	private fun createSettingsTarget(
 			activity: Activity,
@@ -43,6 +28,13 @@ class HomeIntroduction : Introduction() {
 				.setPoint(target.x + target.pivotX, target.y + target.pivotY)
 				.setTitle(resources.getString(R.string.tutorial_settings_title))
 				.addButtonData(buttonData)
+				.addButtonData(SimpleTarget.ButtonData(
+						resources.getString(
+								com.adsamcik.tracker.shared.base.R.string.skip_introduction
+						)
+				) { _, spotlight ->
+					spotlight.finishSpotlight()
+				})
 				.setShape(Circle(target))
 				.setDescription(resources.getString(R.string.tutorial_settings_description))
 				.build()
@@ -110,7 +102,6 @@ class HomeIntroduction : Introduction() {
 		}
 
 		return listOf(
-				createWelcomeTarget(activity, resources, buttonData),
 				createSettingsTarget(activity, resources, buttonData),
 				createMapTarget(activity, resources, buttonData),
 				createStatsTarget(activity, resources, buttonData),

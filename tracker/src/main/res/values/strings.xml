@@ -98,7 +98,7 @@
     <string name="settings_tracker_timer_location">Android location</string>
     <string name="settings_tracker_timer_summary">Currently active: %s. Component that serves as update - triggers collection</string>
     <string name="settings_tracker_timer_title">Timers</string>
-    <string name="settings_tracking_min_distance_summary">"Minimum distance between collections. "</string>
+    <string name="settings_tracking_min_distance_summary">"Minimum distance between collections."</string>
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
     <integer-array name="settings_tracking_min_distance_values">
         <item>5</item>

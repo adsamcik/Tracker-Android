@@ -147,6 +147,4 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
-    <string name="tutorial_welcome_description">Open-source application for tracking Wi-Fi and Cell networks. You can disable these tips in settings.</string>
-    <string name="tutorial_welcome_title">Welcome to Advention</string>
 </resources>
