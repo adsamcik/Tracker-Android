@@ -12,14 +12,14 @@
         android:indeterminate="true"
         android:indeterminateBehavior="repeat"
         android:max="100"
-        app:indicatorSize="200dp"
-        app:indicatorInset="0dp"
-        app:trackThickness="16dp"
-        android:progressBackgroundTint="@color/cardview_dark_background"
         android:progress="33"
-        app:layout_constraintTop_toTopOf="parent"
+        android:progressBackgroundTint="@color/cardview_dark_background"
+        app:indicatorInset="0dp"
+        app:indicatorSize="200dp"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent" />
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:trackThickness="16dp" />
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="0dp"
@@ -36,14 +36,12 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="48sp"
-            android:autoSizeMaxTextSize="50sp"
-            android:autoSizeMinTextSize="12sp"
             tools:text="10000" />
 
         <androidx.appcompat.widget.AppCompatTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="points today" />
+            android:text="@string/points_earned_today" />
     </androidx.appcompat.widget.LinearLayoutCompat>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
