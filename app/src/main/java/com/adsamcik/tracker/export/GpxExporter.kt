@@ -5,6 +5,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.extension.applicationName
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
+import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.WayPoint
 import java.io.IOException
@@ -58,7 +59,8 @@ class GpxExporter : Exporter {
 		try {
 			GPX.write(gpx, outputStream)
 		} catch (e: IOException) {
-			return ExportResult(false, e.message)
+			val message = e.localizedMessage ?: e.message ?: e.javaClass.name
+			return ExportResult(false, LocalizedString(R.string.export_gpx_error, message))
 		}
 
 		return ExportResult(true)
