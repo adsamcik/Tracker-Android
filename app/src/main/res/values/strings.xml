@@ -12,7 +12,7 @@
     <string name="export_button">Export</string>
     <string name="export_default_file_name">Advention_export_data</string>
     <string name="export_file_name">File name</string>
-    <string name="export_gpx_description">Export of location data tracked using Advention between %1$s - %2$s</string>
+    <string name="export_gpx_description">Export of location data from %1$s to %2$s tracked with Advention.</string>
 
     <string name="first_run_app_description">Thank you for trying Advention. This initial setup is HIGHLY RECOMMENDED for new users. May Advention serve you well.</string>
     <string name="first_run_app_title">Welcome to Advention</string>
