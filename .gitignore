@@ -99,3 +99,4 @@ app/src/main/res/raw/third_party_licenses
 app/src/main/res/raw/third_party_license_metadata
 app/.externalNativeBuild
 *.iml
+crowdin.properties
