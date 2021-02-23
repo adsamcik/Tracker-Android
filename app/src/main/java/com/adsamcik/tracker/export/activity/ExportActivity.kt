@@ -27,7 +27,6 @@ import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
-import com.anggrayudi.storage.SimpleStorage
 import com.anggrayudi.storage.SimpleStorageHelper
 import com.anggrayudi.storage.file.absolutePath
 import com.anggrayudi.storage.file.autoIncrementFileName
@@ -61,7 +60,6 @@ class ExportActivity : DetailActivity() {
 			updateDateTimeText(dataRangeTo, value.endInclusive)
 		}
 
-	private lateinit var storage: SimpleStorage
 	private lateinit var storageHelper: SimpleStorageHelper
 
 
@@ -118,8 +116,7 @@ class ExportActivity : DetailActivity() {
 		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
 		exporter = exporterType.newInstance() as Exporter
 
-		//root = createLinearContentParent(false)
-		val root = inflateContent<ConstraintLayout>(R.layout.layout_data_export)
+		inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 
 		storageHelper = SimpleStorageHelper(this, savedInstanceState)
 		storageHelper.onFolderSelected = { _, folder -> tryExport(folder) }
@@ -128,6 +125,7 @@ class ExportActivity : DetailActivity() {
 			val now = Calendar.getInstance()
 
 			val in15minutes = now.cloneCalendar().apply {
+				@Suppress("MagicNumber")
 				add(Calendar.MINUTE, 15)
 			}
 
@@ -275,10 +273,11 @@ class ExportActivity : DetailActivity() {
 		if (result.isSuccess) {
 			finish()
 		} else {
-			SnackMaker(root).addMessage(
-					requireNotNull(result.message),
-					Snackbar.LENGTH_LONG
-			)
+			SnackMaker(root)
+					.addMessage(
+							requireNotNull(result.message),
+							Snackbar.LENGTH_LONG
+					)
 		}
 	}
 
