@@ -37,7 +37,7 @@
     <string name="description_tracking_stop">Tlačítko pro zastavení záznamu dat</string>
 
     <string name="in_range">v dosahu</string>
-    <string name="cell_current">%1$s %2$d dbm</string>
+    <string name="cell_current">%1$s %2$d dBm</string>
 
     <string name="tracker_activity_card_title">Aktivita</string>
     <string name="tracker_activity_confidence">Jistota</string>
