@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
     <string name="challenge_easy">Easy</string>
-    <string name="challenge_error_name">Please update your app to latest version.</string>
     <string name="challenge_explorer_description">Collect %1$s new locations</string>
     <string name="challenge_explorer_title">\'Cause I\'m the wanderer</string>
     <string name="challenge_hard">Hard</string>
