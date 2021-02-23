@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="shortcut_start_tracking">Start tracking</string>
-    <string name="shortcut_start_tracking_long">Start tracking service</string>
-    <string name="shortcut_stop_tracking">Stop tracking</string>
-    <string name="shortcut_stop_tracking_long">Stop tracking service</string>
-</resources>

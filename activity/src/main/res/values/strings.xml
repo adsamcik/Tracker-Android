@@ -1,12 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources>
-    <string name="settings_activity_watcher_title">Activity watcher</string>
-    <string name="settings_activity_watcher_summary">Can (greatly) improve reliability of tracking service</string>
-    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
-    <string name="settings_activity_watcher_default" translatable="false">true</string>
-
-    <string name="settings_activity_freq_title">Activity update rate</string>
-    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
-    <string name="settings_activity_freq_default" translatable="false">30</string>
     <integer-array name="activity_watching_interval">
         <item>1</item>
         <item>2</item>
@@ -19,12 +12,18 @@
         <item>60</item>
         <item>120</item>
     </integer-array>
+
     <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
     <string name="notification_activity_watcher_ticker">Activity Watcher service active</string>
 
-    <!-- ACTIVITIES -->
-    <string name="settings_activity_title">Activities</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_freq_title">Activity update rate</string>
     <string name="settings_activity_key" translatable="false">activities</string>
-
     <string name="settings_activity_snackbar_message">Removed %s</string>
+    <string name="settings_activity_title">Activities</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_summary">Can (greatly) improve reliability of tracking service</string>
+    <string name="settings_activity_watcher_title">Activity watcher</string>
 </resources>

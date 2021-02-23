@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="description_tracking_start">Start tracking button</string>
-    <string name="description_tracking_stop">Stop tracking button</string>
-    <string name="description_tracking_lock">Lock disabling button</string>
-</resources>

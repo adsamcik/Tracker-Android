@@ -1,8 +1,180 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="error_nothing_to_track">You need to track more than time</string>
+    <string name="activity_title">Activity</string>
+    <string name="activity_value">%s</string>
 
-    <string name="in_range">in range</string>
+    <string name="altitude_title">Altitude</string>
+    <string name="altitude_value">alt %s</string>
+
+    <string name="auto_tracking_options_summary">%s</string>
+    <string name="auto_tracking_options_title">Automatic tracking mode</string>
+    <string-array name="auto_tracking_options_values">
+        <item>Disabled</item>
+        <item>On foot</item>
+        <item>In motion</item>
+    </string-array>
+
+    <string name="cell_count_title">Cell count</string>
+    <string name="cell_count_value">cells %d</string>
     <string name="cell_current" tools:ignore="PluralsCandidate">%1$s %2$d dbm</string>
+    <string name="cell_current_single_value">%1$s %2$s %3$d dBm</string>
+    <string name="cell_current_title">Current cell</string>
+    <string name="cell_current_value">active cells (%s)</string>
+
+    <string name="collection_count_title">Collection count</string>
+    <string name="collection_count_value">%d collections</string>
 
     <string name="description_settings">Settings button</string>
+    <string name="description_tracking_lock">Lock disabling button</string>
+    <string name="description_tracking_start">Start tracking button</string>
+    <string name="description_tracking_stop">Stop tracking button</string>
+
+    <string name="distance_invehicle_title">Distance in vehicle</string>
+    <string name="distance_invehicle_value">in vehicle %s</string>
+    <string name="distance_onfoot_title">Distance on foot</string>
+    <string name="distance_onfoot_value">on foot %s</string>
+    <string name="distance_title">Distance</string>
+    <string name="distance_value">distance %s</string>
+
+    <string name="duration_title">Session duration</string>
+    <string name="duration_value">duration %s</string>
+
+    <string name="error_nothing_to_track">You need to track more than time</string>
+
+    <string name="hint_customize_notification_show_in_content">Show in notification content</string>
+    <string name="hint_customize_notification_show_in_title">Show in notification title</string>
+
+    <string name="horizontal_accuracy_title">Horizontal accuracy</string>
+    <string name="horizontal_accuracy_value">acc %s</string>
+
+    <string name="in_range">in range</string>
+
+    <string name="last_update_title">Last update time</string>
+    <string name="last_update_value">last %s</string>
+
+    <string name="latitude_title">Latitude</string>
+    <string name="latitude_value_north">%s N</string>
+    <string name="latitude_value_south">%s S</string>
+
+    <string name="longitude_title">Longitude</string>
+    <string name="longitude_value_east">%s E</string>
+    <string name="longitude_value_west">%s W</string>
+
+    <plurals name="notification_auto_tracking_lock">
+        <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
+        <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
+    </plurals>
+    <string name="notification_looking_for_gps">Looking for GPS</string>
+    <string name="notification_starting">Starting Tracker service</string>
+    <string name="notification_stop">Stop</string>
+    <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
+    <string name="notification_stop_til_recharge">Stop till recharge</string>
+    <string name="notification_tracker_active_ticker">Tracker is active</string>
+    <string name="notification_tracking_active">Tracking</string>
+
+    <string name="permissions_tracker_timer_message">%1$s timer needs more permissions to start tracking.</string>
+
+    <string name="settings_activity_enabled_title">Activity</string>
+    <string name="settings_auto_tracking_category">Automatic tracking</string>
+    <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
+    <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
+    <string name="settings_cell_enabled_title">Cell</string>
+    <string name="settings_disabled_recharge_default" translatable="false">false</string>
+    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
+    <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
+    <string name="settings_disabled_recharge_title">Disabled until recharge</string>
+    <string name="settings_disabled_time_default" translatable="false">0</string>
+    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
+    <string name="settings_enable_category_title">What to track</string>
+    <string name="settings_location_enabled_title">Location</string>
+    <string name="settings_notification_category">Notifications</string>
+    <string name="settings_notification_customize_key" translatable="false">customize_notification</string>
+    <string name="settings_notification_customize_summary">Change what should and in which order appear in the tracking notification.</string>
+    <string name="settings_notification_customize_title">Customize notification</string>
+    <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
+    <string name="settings_notification_styled_title">Colored notifications</string>
+    <string name="settings_tracker_timer_clock">Timer</string>
+    <string name="settings_tracker_timer_fused">Google Play location</string>
+    <string name="settings_tracker_timer_location">Android location</string>
+    <string name="settings_tracker_timer_summary">Currently active: %s. Component that serves as update - triggers collection</string>
+    <string name="settings_tracker_timer_title">Timers</string>
+    <string name="settings_tracking_min_distance_summary">"Minimum distance between collections. "</string>
+    <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
+    <integer-array name="settings_tracking_min_distance_values">
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>40</item>
+        <item>50</item>
+        <item>80</item>
+        <item>100</item>
+        <item>250</item>
+        <item>500</item>
+        <item>1000</item>
+        <item>2000</item>
+    </integer-array>
+    <string name="settings_tracking_min_time_summary">Collections will not trigger faster than this.</string>
+    <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
+    <integer-array name="settings_tracking_min_time_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>5</item>
+        <item>10</item>
+        <item>20</item>
+        <item>40</item>
+        <item>60</item>
+        <item>120</item>
+        <item>300</item>
+        <item>600</item>
+        <item>900</item>
+    </integer-array>
+    <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
+    <string name="settings_tracking_notice_title">Notice</string>
+    <integer-array name="settings_tracking_required_accuracy">
+        <item>5</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>35</item>
+        <item>50</item>
+        <item>75</item>
+        <item>100</item>
+        <item>200</item>
+        <item>500</item>
+        <item>1000</item>
+        <item>10000</item>
+    </integer-array>
+    <string name="settings_tracking_required_accuracy_summary">Locations will need to be at least this accurate to trigger a collection.</string>
+    <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
+    <string name="settings_tracking_title">Tracking</string>
+    <string name="settings_wifi_enabled_title">Wi-Fi</string>
+    <string name="settings_wifi_location_count_enabled_title">Wi-Fi count at location tracking</string>
+    <string name="settings_wifi_network_enabled_title">Wi-Fi network tracking</string>
+
+    <string name="shortcut_start_tracking">Start tracking</string>
+    <string name="shortcut_start_tracking_long">Start tracking service</string>
+    <string name="shortcut_stop_tracking">Stop tracking</string>
+    <string name="shortcut_stop_tracking_long">Stop tracking service</string>
+
+    <string name="speed_title">Speed</string>
+    <string name="speed_value">speed %s</string>
+
+    <string name="start_time_title">Session start time</string>
+    <string name="start_time_value">start %s</string>
+
+    <string name="tracker_activity_card_title">Activity</string>
+    <string name="tracker_activity_confidence">Confidence</string>
+    <string name="tracker_activity_title">Activity</string>
+    <string name="tracker_collections_title">Collections</string>
+    <string name="tracker_distance_title">Distance</string>
+    <string name="tracker_session_age">Session started</string>
+    <string name="tracker_session_card_title">Session</string>
+
+    <string name="vertical_accuracy_title">Vertical accuracy</string>
+
+    <string name="wifi_count_title">Wi-Fi count</string>
+    <string name="wifi_count_value">Wi-Fi %d</string>
 </resources>

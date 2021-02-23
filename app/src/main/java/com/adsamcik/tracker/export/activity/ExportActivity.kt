@@ -218,10 +218,10 @@ class ExportActivity : DetailActivity() {
 					.show {
 						message(text = "Do you want to override the existing file $fileNameWithExtension?")
 						title(text = "File already exists!")
-						positiveButton(R.string.yes) {
+						positiveButton(R.string.generic_yes) {
 							startExport(foundFile, onPick)
 						}
-						negativeButton(R.string.no) {
+						negativeButton(R.string.generic_no) {
 							val incremented = directory.autoIncrementFileName(fileNameWithExtension)
 							exportToNewFile(directory, incremented, onPick)
 						}

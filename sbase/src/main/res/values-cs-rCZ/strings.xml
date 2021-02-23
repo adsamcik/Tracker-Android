@@ -13,9 +13,9 @@
     <string name="alert_confirm">Jste si jistí, že chcete %1$s?</string>
     <string name="alert_confirm_generic">Jste si jistí?</string>
 
-    <string name="back">zpět</string>
+    <string name="generic_back">zpět</string>
 
-    <string name="cancel">Zrušit</string>
+    <string name="generic_cancel">Zrušit</string>
 
     <string name="cell">Mobilní síť</string>
     <string name="cell_cdma">2G (CDMA)</string>
@@ -36,7 +36,7 @@
 
     <string name="day_short">%d d</string>
 
-    <string name="enable">Povolit</string>
+    <string name="generic_enable">Povolit</string>
 
     <string name="error_general">Objevila se chyba</string>
     <string name="error_gnss_not_enabled">Satelitní lokalizace není povolena (GPS)</string>
@@ -53,9 +53,9 @@
 
     <string name="minute_short">%d m</string>
 
-    <string name="next_part">pokračovat</string>
+    <string name="generic_continue">pokračovat</string>
 
-    <string name="no">Ne</string>
+    <string name="generic_no">Ne</string>
 
     <string name="second_short">%d s</string>
 
@@ -68,11 +68,11 @@
 
     <string name="skip_introduction">přeskočit</string>
 
-    <string name="undo">vrátit</string>
+    <string name="generic_undo">vrátit</string>
 
     <string name="wifi">Wi-Fi</string>
 
-    <string name="yes">Ano</string>
+    <string name="generic_yes">Ano</string>
     <string name="accessibility_add_new">Přidat nové</string>
     <string name="activity_airballoon">horkovzdušný balón</string>
     <string name="activity_airplane">letadlo</string>
@@ -108,7 +108,7 @@
     <string name="settings_color_update_light_switch_title">Den/Noc přepnutí dle světla</string>
     <string name="settings_color_update_light_transition_title">Den/Noc přechod dle světla</string>
     <string name="settings_color_update_single_title">Statická barva</string>
-    <string name="ok">OK</string>
+    <string name="generic_ok">OK</string>
     <string name="activity_raw_still">V klidu</string>
     <string name="activity_raw_tilting">Naklánění</string>
 </resources>

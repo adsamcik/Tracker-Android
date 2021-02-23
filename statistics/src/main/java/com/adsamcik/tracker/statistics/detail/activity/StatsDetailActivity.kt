@@ -132,8 +132,8 @@ class StatsDetailActivity : DetailActivity() {
 						)
 				)
 				.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
-				.positiveButton(com.adsamcik.tracker.shared.base.R.string.yes) { removeSession() }
-				.negativeButton(com.adsamcik.tracker.shared.base.R.string.no)
+				.positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_yes) { removeSession() }
+				.negativeButton(com.adsamcik.tracker.shared.base.R.string.generic_no)
 				.show()
 	}
 

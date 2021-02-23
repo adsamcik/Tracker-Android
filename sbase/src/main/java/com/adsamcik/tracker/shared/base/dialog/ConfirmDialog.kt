@@ -9,8 +9,8 @@ object ConfirmDialog {
 	fun create(context: Context, action: String, onConfirmed: () -> Unit): AlertDialog {
 		val resources = context.resources
 		return AlertDialog.Builder(context)
-				.setPositiveButton(resources.getText(R.string.yes)) { _, _ -> onConfirmed.invoke() }
-				.setNegativeButton(resources.getText(R.string.no)) { _, _ -> }
+				.setPositiveButton(resources.getText(R.string.generic_yes)) { _, _ -> onConfirmed.invoke() }
+				.setNegativeButton(resources.getText(R.string.generic_no)) { _, _ -> }
 				.setMessage(
 						resources.getString(
 								R.string.alert_confirm,

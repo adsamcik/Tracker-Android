@@ -18,7 +18,6 @@
     <string name="activity_hiking">hiking</string>
     <string name="activity_hockey">hockey</string>
     <string name="activity_horseride">horse ride</string>
-    <string name="activity_still">Still</string>
     <string name="activity_in_vehicle">In vehicle</string>
     <string name="activity_kayak">kayak</string>
     <string name="activity_martial_arts">martial arts</string>
@@ -35,6 +34,7 @@
     <string name="activity_ski">ski</string>
     <string name="activity_snowboard">snowboard</string>
     <string name="activity_softball">softball</string>
+    <string name="activity_still">Still</string>
     <string name="activity_swim">swim</string>
     <string name="activity_tennis">tennis</string>
     <string name="activity_train">train</string>
@@ -55,12 +55,34 @@
     <string name="cell_unknown">Unknown</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
 
+    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Activity Watcher</string>
+    <string name="channel_challenges_description">Notifications related to challenges.</string>
+    <string name="channel_challenges_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_challenges_name">Challenge</string>
+    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Other</string>
+    <string name="channel_track_description">Notifications related to tracking.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Tracking</string>
+
     <string name="day_short">%d d</string>
 
     <string name="error_general">Error occurred</string>
     <string name="error_gnss_not_enabled">Satellite location not enabled (GPS)</string>
     <string name="error_missing_permission">App does not have required permission</string>
     <string name="error_play_services_not_available">Play services are not available</string>
+
+    <string name="generic_back">Back</string>
+    <string name="generic_cancel">Cancel</string>
+    <string name="generic_continue">Continue</string>
+    <string name="generic_enable">Enable</string>
+    <string name="generic_no">No</string>
+    <string name="generic_ok">OK</string>
+    <string name="generic_undo">undo</string>
+    <string name="generic_yes">Yes</string>
 
     <string name="hour_short">%d h</string>
 
@@ -73,8 +95,6 @@
     </plurals>
 
     <string name="minute_short">%d m</string>
-
-    <string name="next_part">continue</string>
 
     <string name="second_short">%d s</string>
 
@@ -90,8 +110,6 @@
     <string name="settings_color_update_single_title">Static color</string>
 
     <string name="skip_introduction">skip</string>
-
-    <string name="undo">undo</string>
 
     <string name="wifi">Wi-Fi</string>
 </resources>

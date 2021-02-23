@@ -183,7 +183,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 					.addMessage(
 							messageRes = R.string.error_gnss_not_enabled,
 							priority = SnackMaker.SnackbarPriority.IMPORTANT,
-							actionRes = R.string.enable,
+							actionRes = R.string.generic_enable,
 							onActionClick = {
 								val locationOptionsIntent = Intent(
 										Settings.ACTION_LOCATION_SOURCE_SETTINGS

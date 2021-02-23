@@ -104,7 +104,7 @@ class HomeIntroduction : Introduction() {
 	override fun getTargets(activity: FragmentActivity): Collection<Target> {
 		val resources = activity.resources
 		val buttonData = SimpleTarget.ButtonData(
-				resources.getString(com.adsamcik.tracker.shared.base.R.string.next_part)
+				resources.getString(com.adsamcik.tracker.shared.base.R.string.generic_continue)
 		) { _, spotlight ->
 			spotlight.next()
 		}

@@ -1,2 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources></resources>
+<resources>
+    <!-- PREFERENCES -->
+    <string name="settings_game_challenge_enable_default" translatable="false">true</string>
+    <string name="settings_game_challenge_enable_key" translatable="false">enableChallenges</string>
+    <string name="settings_game_challenge_enable_title">Enable challenges</string>
+
+    <!-- CHALLENGES -->
+    <string name="challenge_list_title">Challenges</string>
+    <string name="notification_challenge_unknown_title">Unknown challenge completed</string>
+
+    <string name="challenge_error_name">Please update your app to latest version.</string>
+
+    <string name="notification_challenge_done_title">%1$s challenge completed</string>
+    <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge</string>
+
+    <string name="challenge_very_easy">Very easy</string>
+    <string name="challenge_easy">Easy</string>
+    <string name="challenge_medium">Medium</string>
+    <string name="challenge_hard">Hard</string>
+    <string name="challenge_very_hard">Very hard</string>
+
+    <string name="challenge_progress">%1$d%%</string>
+
+    <string name="challenge_explorer_title">\'Cause I\'m the wanderer</string>
+    <string name="challenge_explorer_description">Collect %1$s new locations</string>
+
+    <string name="challenge_walk_in_the_park_title">Be the man who walks a thousand miles</string>
+    <string name="challenge_walk_in_the_park_description">Move %s on foot</string>
+
+    <string name="challenge_step_title">Walk on with hope in your heart</string>
+    <string name="challenge_step_description">Take %s steps</string>
+</resources>

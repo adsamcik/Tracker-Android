@@ -33,10 +33,10 @@ class AppFirstRun : FirstRun() {
 		createDialog(context) {
 			title(res = R.string.first_run_error_reporting_title)
 			message(res = R.string.first_run_error_reporting_description) {}
-			positiveButton(res = com.adsamcik.tracker.shared.base.R.string.yes) {
+			positiveButton(res = com.adsamcik.tracker.shared.base.R.string.generic_yes) {
 				setReportingPreference(it.context, true)
 			}
-			negativeButton(res = com.adsamcik.tracker.shared.base.R.string.no) {
+			negativeButton(res = com.adsamcik.tracker.shared.base.R.string.generic_no) {
 				setReportingPreference(it.context, false)
 			}
 

@@ -103,7 +103,7 @@ class SessionActivityActivity : ManageActivity() {
 				SnackMaker.SnackbarRecipe(
 						message = getString(R.string.settings_activity_snackbar_message, item.name),
 						priority = SnackMaker.SnackbarPriority.IMPORTANT,
-						action = getString(com.adsamcik.tracker.shared.base.R.string.undo),
+						action = getString(com.adsamcik.tracker.shared.base.R.string.generic_undo),
 						duration = LENGTH_LONG,
 						onDismissed = {
 							launch(Dispatchers.Default) {
