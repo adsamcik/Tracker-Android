@@ -1,39 +1,41 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <string name="dev_notification_dummy">Ahoj světe!</string>
-
     <string name="did_you_know">Věděli jste, že</string>
-
-    <string name="error_no_locations_in_interval">Nebyly nalezeny žádné záznamy pro zadaný interval</string>
-
+    <string name="error_failed_to_open_license">Nelze otevřít licenci. Pokud je automatické hlášení chyb povoleno, bylo odesláno hlášení.</string>
+    <string name="error_no_locations_in_interval">Nebyly nalezeny žádné záznamy pro zadaný interval.</string>
     <string name="export_button">Export</string>
     <string name="export_default_file_name">Advention_exportovana_data</string>
     <string name="export_file_name">Název souboru</string>
-    <string name="export_gpx_description">Export pozičních informací s pomocí aplikace Signals mezi %1$s - %2$s</string>
-
+    <string name="export_gpx_description">Export poloh zaznamenaných pomocí Advention mezi %1$s a %2$s.</string>
+    <string name="export_error_stream_failed">Nepodařilo se zapsat data do souboru %s</string>
+    <string name="export_gpx_error">GPX export failed with error: %s</string>
+    <string name="first_run_app_description">Díky, že jste dali Advention šanci. Průvodce počátečním nastavením je VYSOCE DOPORUČEN novým uživatelům. Nechť vám aplikace dobře slouží.</string>
+    <string name="first_run_app_title">Vítejte v Advention</string>
+    <string name="first_run_error_reporting_description">Přejete si povolit automatické hlášení chyb? Díky němu lze lépe a bez nutnosti hlášení z vaší strany opravit pády aplikace. Pro více informací se podívejte na <a href="%1$s">zásady o ochraně osobních údajů</a>.</string>
+    <string name="first_run_error_reporting_title">Automatické hlášení chyb</string>
+    <string name="import_notification_error_failed_open_database">Nepodařilo se otevřít databázový soubor %s</string>
     <string name="import_notification_extracting">Rozbaluji %s …</string>
     <plurals name="import_notification_finished">
         <item quantity="one">Import dokončen. Úspěšně naimportován %d soubor.</item>
         <item quantity="few">Import dokončen. Úspěšně naimportovány %d soubory.</item>
+        <item quantity="many">Import dokončen. Úspěšně naimportováno %d souborů.</item>
         <item quantity="other">Import dokončen. Úspěšně naimportováno %d souborů.</item>
     </plurals>
     <string name="import_notification_importing">Importuji %s …</string>
     <string name="import_notification_progress">Probíhá import …</string>
-    <string name="import_notification_error_failed_open_database">Nepodařilo se otevřít databázový soubor %s</string>
-
     <string-array name="lorem_ipsum_facts">
         <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>
         <item>Lorem ipsum se používá již od roku 16. století</item>
         <item>Lorem ipsum není latina, ale hatmatilka</item>
         <item>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</item>
-        <item>One morning, when Gregor Samsa woke from troubled dreams…</item>
+        <item>Lákamí vůněhulás úmyval rohlivý jednovod lek obolekno lva umí ří úmyvaleka…</item>
         <item>Far far away, behind the word mountains…</item>
         <item>But I must explain to you how all this mistaken idea…</item>
         <item>Sed ut perspiciatis unde omnis iste natus error…</item>
-        <item>Bacon ipsum dolor amet swine filet mignon boudin turducken.</item>
-        <item>Dodělat více textu, kterej nikdo neuvidí.</item>
+        <item>Oprávněné aniž i odstoupil o snadno osoby vede grafikou osobami.</item>
+        <item>Dodělat více textu, které nikdo neuvidí.</item>
     </string-array>
-
     <string name="module_download_progress">Staženo %1$s / %2$s</string>
     <string name="module_error">Selhala instalace modulu %1$s (číslo chyby %2$d)</string>
     <string name="module_game_title">hry</string>
@@ -41,24 +43,22 @@
     <string name="module_map_title">mapa</string>
     <string name="module_statistics_title">statistiky</string>
     <string name="module_success">Instalace byla úspěšně dokončena</string>
-
     <string name="open_source_licenses">Licence otevřeného softwaru</string>
-
     <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
     <string name="settings_clear_preferences_title">Smazat preference</string>
     <string name="settings_color_default_title">Výchozí barvy</string>
     <string name="settings_data_title">Data</string>
-    <string name="settings_developer_enabled">Vývojářské nástroje povoleny</string>
     <string name="settings_debug_title">Vývojářské nástroje</string>
+    <string name="settings_developer_enabled">Vývojářské nástroje povoleny</string>
     <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
     <string name="settings_error_reporting_title">Automatické hlášení chyb</string>
     <string name="settings_export_dialog_from">Od</string>
     <string name="settings_export_dialog_to">Do</string>
-    <string name="settings_export_gpx_summary">Exportujte vámi natrackované polohy do GPX souboru</string>
+    <string name="settings_export_gpx_summary">Exportujte zaznamenané polohy do GPX souboru</string>
     <string name="settings_export_gpx_title">Jako GPX soubor</string>
-    <string name="settings_export_json_summary">Exportujte vámi natrackovaná data do aplikace dle vaší volby</string>
+    <string name="settings_export_json_summary">Exportujte zaznamenaná data do JSON souboru</string>
     <string name="settings_export_json_title">Jako hrubá data</string>
-    <string name="settings_export_kml_summary">Exportujte vámi natrackované polohy do KML souboru</string>
+    <string name="settings_export_kml_summary">Exportujte zaznamenané polohy do KML souboru</string>
     <string name="settings_export_kml_title">Jako KML soubor</string>
     <string name="settings_export_no_data">Není co exportovat</string>
     <string name="settings_export_sqlite_summary">Exportovat databázový soubor ve formátu SQLite3</string>
@@ -68,6 +68,8 @@
     <string name="settings_import_no_types">bohužel, žádné typy nejsou dostupné na tomto zařízení.</string>
     <string name="settings_import_summary">Import daty z podporovaných formátů (%1$s) a archivů (%2$s)</string>
     <string name="settings_import_title">Import</string>
+    <string name="settings_language_summary">Aktuální jazyk: %s</string>
+    <string name="settings_language_title">Jazyk aplikace</string>
     <string-array name="settings_length_system_names">
         <item>Metrický</item>
         <item>Imperiální (USA)</item>
@@ -76,21 +78,25 @@
     <string name="settings_length_system_title">Délkový systém</string>
     <string name="settings_licenses_title">Otevřené licence</string>
     <string name="settings_log_activity_title">Logovat aktivity</string>
+    <string name="settings_log_enabled_title">Povolit logování</string>
+    <string name="settings_log_games_title">Logování her</string>
     <string name="settings_log_list_activity_title">Zobrazit logy</string>
     <string name="settings_module_enable_title">Moduly</string>
     <string name="settings_module_group_title">Nastavení modulů</string>
     <string name="settings_other_title">Ostatní</string>
     <string name="settings_remove_all_collected_data_summary">Odstraní nasbíraná data (Uživatelské aktivity, nastavení atd. zůstanou nedotčena)</string>
     <string name="settings_remove_all_collected_data_title">Odstranit veškerá nasbíraná data</string>
+    <string-array name="settings_speed_format_names">
+        <item>V sekundách</item>
+        <item>V minutách</item>
+        <item>V hodinách</item>
+    </string-array>
     <string name="settings_speed_format_title">Formát rychlosti</string>
     <string name="settings_style_mode_title">Režim barev</string>
     <string name="settings_style_title">Vzhled</string>
     <string name="settings_title">Nastavení</string>
-
-    <string name="share_button">Sdílet (Export)</string>
-
+    <string name="share_button">Sdílet</string>
     <string name="show_tips_title">Zobrazovat tipy</string>
-
     <string name="tutorial_game_description">Hry jsou napravo</string>
     <string name="tutorial_game_title">Hry</string>
     <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
@@ -99,19 +105,4 @@
     <string name="tutorial_settings_title">Nastavení</string>
     <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
     <string name="tutorial_stats_title">Statistiky</string>
-    <string name="tutorial_welcome_description">Aplikaci s otevřeným kódem pro trackování Wi-Fi a mobilních sítí. Tyto tipy můžete vypnout v nastavení.</string>
-    <string name="tutorial_welcome_title">Vítejte v Advention</string>
-    <string name="error_failed_to_open_license">Nelze otevřít licenci. Pokud je automatické hlášení chyb povoleno, bylo odesláno hlášení.</string>
-    <string name="first_run_app_description">Díky, že jste dali Advention šanci. Průvodce počátečním nastavením je VYSOCE DOPORUČEN novým uživatelům. Nechť vám aplikace dobře slouží.</string>
-    <string name="first_run_app_title">Vítejte v Advention</string>
-    <string name="first_run_error_reporting_description">Přejete si povolit automatické hlášení chyb? Díky němu lze lépe a bez nutnosti hlášení z vaší strany opravit pády aplikace. Pro více informací se podívejte na <a href="%1$s">zásady o ochraně osobních údajů</a>.</string>
-    <string name="first_run_error_reporting_title">Automatické hlášení chyb</string>
-    <string name="settings_language_summary">Aktuální jazyk: %s</string>
-    <string name="settings_language_title">Jazyk aplikace</string>
-    <string name="settings_log_games_title">Logování her</string>
-    <string-array name="settings_speed_format_names">
-        <item>V sekundách</item>
-        <item>V minutách</item>
-        <item>V hodinách</item>
-    </string-array>
 </resources>
