@@ -3,11 +3,8 @@ package com.adsamcik.tracker.statistics.data.source.abstraction
 import android.content.Context
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
-import com.adsamcik.tracker.statistics.data.adapters.EntryJsonAdapter
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
-import com.github.mikephil.charting.data.Entry
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.Types
 
 /**
  * Consumer interface providing boiler-plate code to format speed.

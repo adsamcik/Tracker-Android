@@ -18,7 +18,7 @@ class GpxExporter : Exporter {
 
 	override val mimeType: String = "application/gpx+xml"
 
-	override val extension: String= "gpx"
+	override val extension: String = "gpx"
 
 	override fun export(
 			context: Context,

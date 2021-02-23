@@ -2,7 +2,6 @@ package com.adsamcik.tracker.statistics.data.adapters
 
 import com.github.mikephil.charting.data.Entry
 import com.squareup.moshi.FromJson
-import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.ToJson
 
