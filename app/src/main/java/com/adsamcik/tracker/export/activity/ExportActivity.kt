@@ -17,11 +17,13 @@ import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.export.ExportResult
 import com.adsamcik.tracker.export.Exporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.cloneCalendar
 import com.adsamcik.tracker.shared.base.extension.createCalendarWithTime
+import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
@@ -273,11 +275,16 @@ class ExportActivity : DetailActivity() {
 		if (result.isSuccess) {
 			finish()
 		} else {
-			SnackMaker(root)
-					.addMessage(
-							requireNotNull(result.message),
-							Snackbar.LENGTH_LONG
-					)
+			val message = result.message?.localize(this)
+			if (message != null) {
+				SnackMaker(root)
+						.addMessage(
+								message,
+								Snackbar.LENGTH_LONG
+						)
+			} else {
+				Reporter.report("Export failed, but has no message!")
+			}
 		}
 	}
 
@@ -291,7 +298,13 @@ class ExportActivity : DetailActivity() {
 				return export(it)
 			}
 		} else {
-			return ExportResult(false, "Stream to file ${file.absolutePath} could not be created.")
+			return ExportResult(
+					false,
+					LocalizedString(
+							R.string.export_error_stream_failed,
+							file.absolutePath
+					)
+			)
 		}
 	}
 
@@ -305,7 +318,7 @@ class ExportActivity : DetailActivity() {
 			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
 
 			if (locations.isEmpty()) {
-				return ExportResult(false, getString(R.string.error_no_locations_in_interval))
+				return ExportResult(false, LocalizedString(R.string.error_no_locations_in_interval))
 			}
 			exporter.export(this, locations, outputStream)
 		} else {
