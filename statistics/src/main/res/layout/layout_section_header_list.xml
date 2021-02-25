@@ -13,7 +13,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_margin="@dimen/content_padding">
+            android:padding="@dimen/content_padding">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_stats_summary"
