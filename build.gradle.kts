@@ -42,14 +42,13 @@ tasks.register("clean", Delete::class) {
 /**
  * Returns true if version is not considered stable.
  */
-fun isNonStable(version: String): Boolean {
+fun isStable(version: String): Boolean {
 	val stableKeyword = listOf("RELEASE", "FINAL", "GA", "RC").any {
 		version.toUpperCase()
 				.contains(it)
 	}
 	val regex = "^[0-9,.v-]+(-r)?$".toRegex()
-	val isStable = stableKeyword || regex.matches(version)
-	return isStable.not()
+	return stableKeyword || regex.matches(version)
 }
 
 
@@ -57,21 +56,10 @@ tasks.named(
 		"dependencyUpdates",
 		com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask::class.java
 ).configure {
-	// Example 1: reject all non stable versions
-	rejectVersionIf {
-		isNonStable(candidate.version)
-	}
-
-	// Example 2: disallow release candidates as upgradable versions from stable versions
-	rejectVersionIf {
-		isNonStable(candidate.version) && !isNonStable(currentVersion)
-	}
-
-	// Example 3: using the full syntax
 	resolutionStrategy {
 		componentSelection {
 			all {
-				if (isNonStable(candidate.version) && !isNonStable(currentVersion)) {
+				if (!isStable(candidate.version) && isStable(currentVersion)) {
 					reject("Release candidate")
 				}
 			}
