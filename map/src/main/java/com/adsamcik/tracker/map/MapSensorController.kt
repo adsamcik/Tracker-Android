@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -121,6 +122,8 @@ internal class MapSensorController(
 					requireNotNull(Looper.myLooper())
 			)
 			if (moveToCurrentLocation) {
+				// Checked few lines above (context.hasLocationPermission)
+				@Suppress("MissingPermission")
 				locationClient.lastLocation.addOnCompleteListener {
 					if (it.isSuccessful) {
 						it.result?.let { result ->
