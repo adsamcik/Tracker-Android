@@ -31,7 +31,7 @@ Contributions to Tracker are welcome. If you want any new feature (even if it's 
 
 ### Translations
 
-Tracker uses Crowding to crowdsource translations. You can help with translating the application today at [https://crowdin.com/project/advention](https://crowdin.com/project/advention).
+Tracker uses Crowdin to crowdsource translations. You can help with translating the application today at [https://crowdin.com/project/advention](https://crowdin.com/project/advention).
 
 ## Versioning
 
