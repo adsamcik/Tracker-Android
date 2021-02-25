@@ -79,7 +79,6 @@ internal class ComponentStyleUpdater {
 		view.progressBackgroundTintList = ColorStateList.valueOf(
 				updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA)
 		)
-		view.progressDrawable.setTint(updateStyleData.baseForegroundColor)
 	}
 
 	private fun updateStyle(
