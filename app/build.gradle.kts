@@ -25,7 +25,7 @@ android {
 		versionCode = 354
 		versionName = "2020.1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		resConfigs("en", "cs")
+		resConfigs("en", "cs-rCZ")
 	}
 
 	compileOptions {
