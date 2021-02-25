@@ -12,9 +12,10 @@ import com.adsamcik.tracker.notification.Notifications
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.setOnClickListener
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.dialog.ConfirmDialog
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.dialog.alertDialog
+import com.afollestad.materialdialogs.MaterialDialog
 import java.util.*
 
 class DebugPage : PreferencePage {
@@ -56,11 +57,13 @@ class DebugPage : PreferencePage {
 		caller.findPreference(R.string.settings_clear_preferences_key)
 				.setOnPreferenceClickListener { pref ->
 					val context = pref.context
-					ConfirmDialog.create(context, pref.title.toString()) {
-						Preferences.getPref(context).edit {
-							clear()
-						}
-					}
+					MaterialDialog(context)
+							.alertDialog(pref.title.toString()) {
+								Preferences.getPref(context).edit {
+									clear()
+								}
+							}
+							.show()
 
 					false
 				}
