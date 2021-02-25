@@ -14,14 +14,14 @@ abstract class ChallengeDefinition<ChallengeInstanceType : ChallengeInstance<*, 
 
 	abstract val type: ChallengeType
 
-	open val maxDurationMultiplier = MAX_DURATION_MULTIPLIER
-	open val minDurationMultiplier = MIN_DURATION_MULTIPLIER
+	open val maxDurationMultiplier: Double = MAX_DURATION_MULTIPLIER
+	open val minDurationMultiplier: Double = MIN_DURATION_MULTIPLIER
 
 	abstract fun newInstance(context: Context, startAt: Long): ChallengeInstanceType
 
 	companion object {
-		const val MAX_DURATION_MULTIPLIER = 3.0
-		const val MIN_DURATION_MULTIPLIER = 0.25
+		const val MAX_DURATION_MULTIPLIER: Double = 3.0
+		const val MIN_DURATION_MULTIPLIER: Double = 0.25
 	}
 }
 

@@ -19,7 +19,7 @@ abstract class PreferenceDatabase : RoomDatabase() {
 	companion object : ObjectBaseDatabase<PreferenceDatabase>(PreferenceDatabase::class.java) {
 		override val databaseName: String = "preference_database"
 
-		override fun setupDatabase(database: Builder<PreferenceDatabase>) = Unit
+		override fun setupDatabase(database: Builder<PreferenceDatabase>): Unit = Unit
 
 	}
 }

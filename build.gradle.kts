@@ -39,6 +39,9 @@ tasks.register("clean", Delete::class) {
 	delete(rootProject.buildDir)
 }
 
+/**
+ * Returns true if version is not considered stable.
+ */
 fun isNonStable(version: String): Boolean {
 	val stableKeyword = listOf("RELEASE", "FINAL", "GA", "RC").any {
 		version.toUpperCase()

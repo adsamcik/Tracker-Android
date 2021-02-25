@@ -380,7 +380,7 @@ abstract class ManageActivity : DetailActivity() {
 	/**
 	 * Update manage configuration with own values
 	 */
-	open fun onManageConfigure(configuration: ManageConfiguration) = Unit
+	open fun onManageConfigure(configuration: ManageConfiguration): Unit = Unit
 
 	private fun initializeColorController() {
 		styleController.watchRecyclerView(RecyclerStyleView(findViewById(R.id.recycler), 0))

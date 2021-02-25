@@ -32,7 +32,7 @@ class ElevationChartConsumer : StatDataConsumer {
 		return altitudeList.map { Entry(it.x.toFloat(), it.y.toFloat()) }
 	}
 
-	override val requiredMoshiAdapter = EntryJsonAdapter()
+	override val requiredMoshiAdapter: EntryJsonAdapter = EntryJsonAdapter()
 
 	override fun serializeData(data: Any, moshi: Moshi): String {
 		val arrayType = Types.newParameterizedType(List::class.java, Entry::class.java)

@@ -35,7 +35,7 @@ object Dependencies {
 
 		internal const val firebaseCore = "18.0.2"
 		internal const val crashlytics = "17.3.1"
-		const val crashlyticsGradle = "2.5.0"
+		const val crashlyticsGradle: String = "2.5.0"
 
 		internal const val playServicesBase = "17.6.0"
 		internal const val playLocation = "18.0.0"

@@ -30,7 +30,7 @@ import com.adsamcik.tracker.tracker.service.TrackerService
  */
 @Suppress("TooManyFunctions")
 object BackgroundTrackingApi {
-	var isActive = false
+	var isActive: Boolean = false
 		private set
 
 	//todo add option for this in settings

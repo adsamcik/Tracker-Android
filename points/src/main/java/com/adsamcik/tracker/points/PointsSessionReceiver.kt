@@ -54,7 +54,7 @@ class PointsSessionReceiver : BroadcastReceiver(), CoroutineScope {
 	}
 
 	companion object {
-		const val WORK_TAG = "SessionPoints"
+		const val WORK_TAG: String = "SessionPoints"
 		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
 
 	}

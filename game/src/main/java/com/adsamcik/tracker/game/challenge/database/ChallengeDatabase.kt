@@ -43,7 +43,7 @@ abstract class ChallengeDatabase : RoomDatabase() {
 	abstract val stepDao: StepChallengeDao
 
 	companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
-		override fun setupDatabase(database: Builder<ChallengeDatabase>) = Unit
+		override fun setupDatabase(database: Builder<ChallengeDatabase>): Unit = Unit
 
 		override val databaseName: String get() = DATABASE_NAME
 

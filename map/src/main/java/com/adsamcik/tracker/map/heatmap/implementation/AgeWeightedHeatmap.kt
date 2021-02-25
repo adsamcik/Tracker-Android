@@ -44,7 +44,7 @@ typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) 
 
 typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
 
-const val AGE_THRESHOLD_MINUTES = 15
+const val AGE_THRESHOLD_MINUTES: Int = 15
 
 @Suppress("MemberVisibilityCanBePrivate")
 internal class AgeWeightedHeatmap(

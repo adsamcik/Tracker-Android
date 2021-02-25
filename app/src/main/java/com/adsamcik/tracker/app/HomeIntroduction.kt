@@ -2,7 +2,6 @@ package com.adsamcik.tracker.app
 
 import android.app.Activity
 import android.content.res.Resources
-import android.graphics.PointF
 import android.view.View
 import androidx.fragment.app.FragmentActivity
 import com.adsamcik.tracker.R

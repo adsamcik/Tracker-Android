@@ -28,7 +28,7 @@ class TrackerPreferencePage : PreferencePage {
 			cellEnabled: Boolean
 	) = locationEnabled.or(wifiEnabled).or(cellEnabled)
 
-	override fun onExit(caller: PreferenceFragmentCompat) = Unit
+	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
 
 	private fun initializeEnableTrackingPreferences(caller: PreferenceFragmentCompat) {

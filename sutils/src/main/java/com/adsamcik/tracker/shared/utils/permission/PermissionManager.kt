@@ -19,7 +19,7 @@ import com.karumi.dexter.listener.multi.MultiplePermissionsListener
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 object PermissionManager {
 
-	const val DIALOG_LAYER = 1
+	const val DIALOG_LAYER: Int = 1
 
 	/**
 	 * Check if permission is granted and shows dialog if not.

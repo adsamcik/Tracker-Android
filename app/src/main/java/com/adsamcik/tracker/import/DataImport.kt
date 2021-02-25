@@ -31,12 +31,12 @@ class DataImport {
 	/**
 	 * List of supported extensions.
 	 */
-	val supportedImporterExtensions get() = activeImporterList.flatMap { it.supportedExtensions }
+	val supportedImporterExtensions: List<String> get() = activeImporterList.flatMap { it.supportedExtensions }
 
 	/**
 	 * List of supported archive extensions.
 	 */
-	val supportedArchiveExtractorExtensions get() = activeArchiveExtractorList.flatMap { it.supportedExtensions }
+	val supportedArchiveExtractorExtensions: List<String> get() = activeArchiveExtractorList.flatMap { it.supportedExtensions }
 
 	/**
 	 * List of all supported extensions (import + archive).

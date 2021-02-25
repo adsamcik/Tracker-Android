@@ -11,6 +11,6 @@ data class NotificationPreference(
 		val isInContent: Boolean
 ) {
 	companion object {
-		val EMPTY = NotificationPreference("", 0, isInTitle = false, isInContent = false)
+		val EMPTY: NotificationPreference = NotificationPreference("", 0, isInTitle = false, isInContent = false)
 	}
 }

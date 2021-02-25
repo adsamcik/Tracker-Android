@@ -328,7 +328,7 @@ class StatsDetailActivity : DetailActivity() {
 		/**
 		 * Session id argument identifier
 		 */
-		const val ARG_SESSION_ID = "session_id"
+		const val ARG_SESSION_ID: String = "session_id"
 		private const val HEADER_ROOT_PADDING = 16
 	}
 }

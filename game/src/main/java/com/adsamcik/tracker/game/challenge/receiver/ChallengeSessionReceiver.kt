@@ -81,7 +81,7 @@ class ChallengeSessionReceiver : BroadcastReceiver(), CoroutineScope {
 	}
 
 	companion object {
-		const val WORK_TAG = "Challenge"
+		const val WORK_TAG: String = "Challenge"
 		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
 	}
 }

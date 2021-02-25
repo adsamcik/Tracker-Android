@@ -85,11 +85,11 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	}
 
 
-	override fun onEnter(activity: FragmentActivity) = Unit
+	override fun onEnter(activity: FragmentActivity): Unit = Unit
 
-	override fun onLeave(activity: FragmentActivity) = Unit
+	override fun onLeave(activity: FragmentActivity): Unit = Unit
 
-	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
+	override fun onPermissionResponse(requestCode: Int, success: Boolean): Unit = Unit
 }
 
 

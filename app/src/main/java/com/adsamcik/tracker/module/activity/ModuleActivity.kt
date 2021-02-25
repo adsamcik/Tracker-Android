@@ -172,8 +172,8 @@ class ModuleActivity : DetailActivity() {
 
 		private val modules = mutableListOf<ModuleInfo>()
 
-		val modulesToInstall get() = modules.filter { it.shouldBeInstalled.and(!it.isInstalled) }
-		val modulesToUninstall get() = modules.filter { (!it.shouldBeInstalled).and(it.isInstalled) }
+		val modulesToInstall: List<ModuleInfo> get() = modules.filter { it.shouldBeInstalled.and(!it.isInstalled) }
+		val modulesToUninstall: List<ModuleInfo> get() = modules.filter { (!it.shouldBeInstalled).and(it.isInstalled) }
 
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 			val view = LayoutInflater.from(parent.context)

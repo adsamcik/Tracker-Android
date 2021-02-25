@@ -29,7 +29,7 @@ class ImportService : CoreService() {
 	private val import = DataImport()
 	private lateinit var database: AppDatabase
 
-	var errorCount = 0
+	var errorCount: Int = 0
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		if (intent == null) {

@@ -25,6 +25,6 @@ abstract class PointsDatabase : RoomDatabase() {
 	companion object : ObjectBaseDatabase<PointsDatabase>(PointsDatabase::class.java) {
 		override val databaseName: String = "points_database"
 
-		override fun setupDatabase(database: Builder<PointsDatabase>) = Unit
+		override fun setupDatabase(database: Builder<PointsDatabase>): Unit = Unit
 	}
 }

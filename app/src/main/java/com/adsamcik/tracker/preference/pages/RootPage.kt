@@ -60,7 +60,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		initializeLanguage(caller)
 	}
 
-	override fun onExit(caller: PreferenceFragmentCompat) = Unit
+	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
 	private fun initializeVersion(caller: PreferenceFragmentCompat) {
 		val version = caller.findPreference(R.string.settings_app_version_key)

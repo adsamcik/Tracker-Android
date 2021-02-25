@@ -99,7 +99,7 @@ class TrackerNotificationManager(
 	}
 
 	companion object {
-		const val NOTIFICATION_ID = -7643
+		const val NOTIFICATION_ID: Int = -7643
 
 		private fun getNotificationStylePreference(context: Context): Boolean =
 				Preferences.getPref(context).getBooleanRes(

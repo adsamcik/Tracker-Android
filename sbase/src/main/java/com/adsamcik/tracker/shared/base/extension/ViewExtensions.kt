@@ -220,7 +220,7 @@ fun <T> View.firstParent(iClass: Class<T>, maxDistance: Int = Int.MAX_VALUE): T?
 /**
  * Utility method for findChildrenOfType(class)
  */
-inline fun <reified T : View> ViewGroup.findChildrenOfType() =
+inline fun <reified T : View> ViewGroup.findChildrenOfType(): Collection<T> =
 		findChildrenOfType(T::class.java)
 
 /**
@@ -253,7 +253,7 @@ fun <T : View> ViewGroup.findChildrenOfType(
 /**
  * Utility inline function for findChildOfType(class)
  */
-inline fun <reified T : View> ViewGroup.findChildOfType() =
+inline fun <reified T : View> ViewGroup.findChildOfType(): T =
 		findChildOfType(T::class.java)
 
 /**

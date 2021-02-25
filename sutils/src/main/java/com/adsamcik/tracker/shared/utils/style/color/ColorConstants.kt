@@ -25,7 +25,7 @@ object ColorConstants {
 	const val QUARTER_COMPONENT: Int = 63
 	const val EMPTY_COMPONENT: Int = 0
 
-	const val HIGH_EMPHASIS_ALPHA = 222
-	const val MEDIUM_EMPHASIS_ALPHA = 153
-	const val DISABLED_ALPHA = 97
+	const val HIGH_EMPHASIS_ALPHA: Int = 222
+	const val MEDIUM_EMPHASIS_ALPHA: Int = 153
+	const val DISABLED_ALPHA: Int = 97
 }

@@ -61,6 +61,6 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		val NAME_RESOURCE = R.string.location
+		val NAME_RESOURCE: Int = R.string.location
 	}
 }

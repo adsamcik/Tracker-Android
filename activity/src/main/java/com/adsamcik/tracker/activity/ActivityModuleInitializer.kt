@@ -31,6 +31,9 @@ class ActivityModuleInitializer : ModuleInitializer {
 		context.registerReceiver(ActivitySessionReceiver(), trackerSessionBroadcastFilter)
 	}
 
+	/**
+	 * Initializes activity module.
+	 */
 	override fun initialize(context: Context) {
 		initializeTrackerSessionReceivers(context)
 		initializeDatabase(context)

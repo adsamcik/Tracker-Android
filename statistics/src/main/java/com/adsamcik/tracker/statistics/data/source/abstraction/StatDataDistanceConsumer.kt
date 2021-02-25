@@ -18,7 +18,7 @@ interface StatDataDistanceConsumer : StatDataConsumer {
 
 	override fun serializeData(data: Any, moshi: Moshi): String = data as String
 
-	override fun deserializeData(data: String, moshi: Moshi) = data
+	override fun deserializeData(data: String, moshi: Moshi): String = data
 
 	override val requiredMoshiAdapter: Any? get() = null
 

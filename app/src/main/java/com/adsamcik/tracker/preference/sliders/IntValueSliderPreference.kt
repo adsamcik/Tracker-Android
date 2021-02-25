@@ -32,7 +32,7 @@ open class IntValueSliderPreference : BaseIntValueSliderPreference {
 
 	constructor(context: Context) : super(context)
 
-	protected var textViewString = "%d"
+	protected var textViewString: String = "%d"
 
 	private fun initAttributes(context: Context, attrs: AttributeSet) {
 		context.obtainStyledAttributes(attrs, R.styleable.IntValueSliderPreference)

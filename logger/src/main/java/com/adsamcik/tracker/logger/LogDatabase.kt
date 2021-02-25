@@ -22,6 +22,6 @@ abstract class LogDatabase : RoomDatabase() {
 		override val databaseName: String
 			get() = "debug_database"
 
-		override fun setupDatabase(database: Builder<LogDatabase>) = Unit
+		override fun setupDatabase(database: Builder<LogDatabase>): Unit = Unit
 	}
 }

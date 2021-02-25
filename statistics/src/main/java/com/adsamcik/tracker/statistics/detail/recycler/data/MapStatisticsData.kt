@@ -14,7 +14,7 @@ class MapStatisticsData(
 		val locations: Collection<LatLng>,
 		val bounds: CoordinateBounds
 ) : StatisticsDetailData {
-	override val type = StatisticDisplayType.Map
+	override val type: StatisticDisplayType = StatisticDisplayType.Map
 
 	constructor(locations: List<BaseLocation>)
 			: this(locations.map {

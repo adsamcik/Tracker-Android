@@ -10,7 +10,7 @@ data class PermissionRequestResult(
 		private val granted: List<PermissionResult>,
 		private val denied: List<PermissionResult>
 ) {
-	val isSuccess = denied.isEmpty()
+	val isSuccess: Boolean = denied.isEmpty()
 
 	companion object {
 

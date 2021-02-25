@@ -8,18 +8,18 @@ import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 
 enum class Module {
 	STATISTICS {
-		override val enabled = true
-		override val moduleName = "statistics"
+		override val enabled: Boolean = true
+		override val moduleName: String = "statistics"
 		override val titleRes: Int = R.string.module_statistics_title
 	},
 	GAME {
-		override val enabled = true
-		override val moduleName = "game"
+		override val enabled: Boolean = true
+		override val moduleName: String = "game"
 		override val titleRes: Int = R.string.module_game_title
 	},
 	MAP {
-		override val enabled = true
-		override val moduleName = "map"
+		override val enabled: Boolean = true
+		override val moduleName: String = "map"
 		override val titleRes: Int = R.string.module_map_title
 	};
 

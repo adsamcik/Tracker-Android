@@ -40,7 +40,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 
 	private var fActivity: FragmentActivity? = null
 
-	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
+	override fun onPermissionResponse(requestCode: Int, success: Boolean): Unit = Unit
 
 	override fun onLeave(activity: FragmentActivity) {
 		mapOwner.onDisable()

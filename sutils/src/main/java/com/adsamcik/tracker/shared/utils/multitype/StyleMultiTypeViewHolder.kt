@@ -14,7 +14,7 @@ abstract class StyleMultiTypeViewHolder<Data : BaseMultiTypeData>(
 	/**
 	 * Bind is not called
 	 */
-	override fun bind(data: Data) = Unit
+	override fun bind(data: Data): Unit = Unit
 
 	/**
 	 * Called instead of standard bind to allow style controller mapping.
