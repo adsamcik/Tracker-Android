@@ -28,6 +28,7 @@
     <string name="stats_midnight">midnight</string>
     <string name="stats_morning">morning</string>
     <string name="stats_night">night</string>
+    <string name="stats_no_tracker_sessions">No tracker sessions. Yet.</string>
     <string name="stats_ride">ride</string>
     <string name="stats_run">run</string>
     <string name="stats_session_count">Session count</string>

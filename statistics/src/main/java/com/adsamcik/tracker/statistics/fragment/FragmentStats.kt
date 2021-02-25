@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ViewFlipper
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.utils.extension.isEmpty
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -42,6 +44,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	): View? {
 		val activity = requireActivity()
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
+		val flipper = fragmentView as ViewFlipper
 
 		val contentPadding = activity.resources.getDimension(
 				com.adsamcik.tracker.shared.base.R.dimen.content_padding
@@ -56,6 +59,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val layoutManager = LinearLayoutManager(activity)
 			this.layoutManager = layoutManager
 
+
 			addItemDecoration(
 					MarginDecoration(
 							verticalMargin = 0,
@@ -64,6 +68,16 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 							lastLineMargin = navBarHeight + contentPadding * 2
 					)
 			)
+		}
+
+		adapter.addLoadStateListener { loadState ->
+			if (loadState.append.endOfPaginationReached && adapter.isEmpty) {
+				if (flipper.currentView == recyclerView) {
+					flipper.showNext()
+				}
+			} else if (!adapter.isEmpty && flipper.currentView != recyclerView) {
+				flipper.showPrevious()
+			}
 		}
 
 		requireViewModel().viewModelScope.launch {
@@ -79,7 +93,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 						childrenLayer = 2
 				)
 		)
-		styleController.watchView(StyleView(fragmentView, layer = 1, maxDepth = 0))
+		styleController.watchView(StyleView(fragmentView, layer = 1))
 
 		return fragmentView
 	}
