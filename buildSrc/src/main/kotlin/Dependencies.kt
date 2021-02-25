@@ -12,7 +12,7 @@ object Dependencies {
 	 */
 	object Versions {
 		internal const val constraintLayout = "2.0.4"
-		internal const val coreKtx = "1.5.0-beta01"
+		internal const val coreKtx = "1.5.0-beta02"
 		internal const val appcompat = "1.2.0"
 		internal const val fragment = "1.3.0"
 		const val dokka: String = "0.9.18"
@@ -231,11 +231,11 @@ object Dependencies {
 
 	fun test(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
-			androidTestImplementation("junit:junit:4.12")
+			androidTestImplementation("junit:junit:4.13.2")
 			androidTestImplementation("androidx.test:runner:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
 			androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
-			androidTestImplementation("androidx.test.ext:junit:1.1.1")
+			androidTestImplementation("androidx.test.ext:junit:1.1.2")
 			androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.coreTesting}")
 			androidTestImplementation("com.jraska.livedata:testing-ktx:${Versions.Test.testingKtx}")
 			androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
