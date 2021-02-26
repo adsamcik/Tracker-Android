@@ -13,7 +13,7 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
  * Preference page for exports.
  */
 internal class ExportPage : PreferencePage {
-	override fun onExit(caller: PreferenceFragmentCompat) {}
+	override fun onExit(caller: PreferenceFragmentCompat) = Unit
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {

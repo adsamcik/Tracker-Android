@@ -17,7 +17,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
-class DataPage : PreferencePage {
+/**
+ * Page with data options, such as import, export and clear.
+ */
+internal class DataPage : PreferencePage {
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
 			initializeImport(requireActivity(), findPreference(R.string.settings_import_key))
@@ -102,9 +105,7 @@ class DataPage : PreferencePage {
 		DataImport().showImportDialog(context)
 	}
 
-	override fun onExit(caller: PreferenceFragmentCompat) {
-
-	}
+	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
 	override fun onRequestPermissionsResult(
 			context: Context,

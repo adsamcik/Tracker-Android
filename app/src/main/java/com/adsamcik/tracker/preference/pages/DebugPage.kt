@@ -18,8 +18,11 @@ import com.adsamcik.tracker.shared.utils.dialog.alertDialog
 import com.afollestad.materialdialogs.MaterialDialog
 import java.util.*
 
-class DebugPage : PreferencePage {
-	override fun onExit(caller: PreferenceFragmentCompat) {}
+/**
+ * Page with debug preferences.
+ */
+internal class DebugPage : PreferencePage {
+	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		caller.setOnClickListener(R.string.settings_activity_status_key) {

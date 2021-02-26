@@ -59,7 +59,7 @@ internal class StepPreTrackerComponent : PreTrackerComponent, SensorEventListene
 		}
 	}
 
-	override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+	override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
 	companion object {
 		const val NEW_STEPS_ARG = "newSteps"
