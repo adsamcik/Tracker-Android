@@ -87,7 +87,7 @@ internal class ComponentStyleUpdater {
 			@ColorInt backgroundColor: Int
 	) {
 		view.setIndicatorColor(updateStyleData.baseForegroundColor)
-		view.trackColor = updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA)
+		view.trackColor = backgroundColor
 	}
 	//endregion
 
