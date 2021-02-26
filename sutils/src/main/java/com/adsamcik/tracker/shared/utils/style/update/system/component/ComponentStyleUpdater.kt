@@ -54,11 +54,10 @@ internal class ComponentStyleUpdater {
 			@ColorInt backgroundColor: Int
 	) {
 		val foreground = updateStyleData.baseForegroundColor.withAlpha(ColorConstants.FULL_COMPONENT)
-		val background = updateStyleData.baseBackgroundColor
-		view.colorBarText = background
+		view.colorBarText = backgroundColor
 		view.colorBubbleText = foreground
 		view.descriptionPaint.color = updateStyleData.baseForegroundColor.withAlpha(ColorConstants.MEDIUM_EMPHASIS_ALPHA)
-		view.colorBubble = background
+		view.colorBubble = backgroundColor
 		view.colorBar = foreground
 	}
 	//endregion
