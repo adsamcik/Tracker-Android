@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.requireValue
 import com.adsamcik.tracker.shared.base.extension.toCalendar
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.multitype.StyleSortMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -134,6 +135,7 @@ class StatsDetailActivity : DetailActivity() {
 				.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
 				.positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_yes) { removeSession() }
 				.negativeButton(com.adsamcik.tracker.shared.base.R.string.generic_no)
+				.dynamicStyle()
 				.show()
 	}
 
