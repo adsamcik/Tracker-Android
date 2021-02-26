@@ -32,7 +32,6 @@ allprojects {
 			options.compilerArgs = listOf("-Xlint:unchecked", "-Xlint:deprecation")
 		}
 	}
-
 }
 
 tasks.register("clean", Delete::class) {
