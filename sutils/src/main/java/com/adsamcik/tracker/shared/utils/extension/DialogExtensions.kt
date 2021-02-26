@@ -1,11 +1,9 @@
 package com.adsamcik.tracker.shared.utils.extension
 
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
-import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.callbacks.onDismiss
 import com.afollestad.materialdialogs.list.getRecyclerView
@@ -20,9 +18,12 @@ inline fun MaterialDialog.dynamicStyle(
 ): MaterialDialog {
 	return dynamicBaseStyle(layer) { styleController ->
 		styleController.watchView(StyleView(view, layer))
-		view.buttonsLayout?.actionButtons?.forEach {
-			it.background = Assist.getBackgroundDrawable(ColorConstants.WHITE)
+		styleController.addListener { styleData ->
+			view.buttonsLayout?.actionButtons?.forEach {
+				it.updateTextColor(styleData.foregroundColor())
+			}
 		}
+
 		applyStyle(styleController)
 	}
 }
