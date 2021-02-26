@@ -83,6 +83,7 @@
     <string name="generic_ok">OK</string>
     <string name="generic_undo">undo</string>
     <string name="generic_yes">Yes</string>
+    <string name="generic_done">Done</string>
 
     <string name="hour_short">%d h</string>
 

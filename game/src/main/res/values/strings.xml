@@ -20,5 +20,10 @@
 
     <string name="points_earned_today">points earned today</string>
 
+    <string name="settings_game_challenge_category_title">Challenges</string>
     <string name="settings_game_challenge_enable_title">Enable challenges</string>
+    <string name="settings_game_goals_day_steps_title">Daily step goal</string>
+    <string name="settings_game_goals_week_steps_title">Weekly step goal</string>
+    <string name="settings_game_goals_notification_enabled_title">Send notification when goal is reached</string>
+    <string name="settings_game_goals_category_title">Goals</string>
 </resources>

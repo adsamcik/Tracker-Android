@@ -191,6 +191,12 @@ object Dependencies {
 		}
 	}
 
+	fun inputDialog(dependencyHandler: DependencyHandler) {
+		with(dependencyHandler) {
+			implementation("com.afollestad.material-dialogs:input:${Versions.dialogs}")
+		}
+	}
+
 	fun colorChooser(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("com.afollestad.material-dialogs:color:${Versions.dialogs}")

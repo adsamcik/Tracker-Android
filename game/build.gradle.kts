@@ -70,5 +70,6 @@ dependencies {
 	Dependencies.database(this)
 	Dependencies.preference(this)
 	Dependencies.test(this)
+	Dependencies.inputDialog(this)
 }
 
