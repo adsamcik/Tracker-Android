@@ -20,7 +20,5 @@
 
     <string name="points_earned_today">points earned today</string>
 
-    <string name="settings_game_challenge_enable_default" translatable="false">true</string>
-    <string name="settings_game_challenge_enable_key" translatable="false">enableChallenges</string>
     <string name="settings_game_challenge_enable_title">Enable challenges</string>
 </resources>
