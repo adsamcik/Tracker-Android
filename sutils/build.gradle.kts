@@ -16,12 +16,6 @@ android {
 		versionName = "1.0"
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-		kapt {
-			arguments {
-				this.arg("room.schemaLocation", "$projectDir/schemas")
-			}
-		}
 	}
 
 	sourceSets {
@@ -69,7 +63,6 @@ dependencies {
 	Dependencies.core(this)
 	Dependencies.slider(this)
 	Dependencies.json(this)
-	Dependencies.database(this)
 	Dependencies.crashlytics(this)
 	Dependencies.location(this)
 	Dependencies.preference(this)
