@@ -3,7 +3,7 @@ package com.adsamcik.tracker.points
 import android.content.Context
 import android.content.IntentFilter
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.module.ModuleInitializer
+import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 
 /**
  * Initializes broadcast receiver for points

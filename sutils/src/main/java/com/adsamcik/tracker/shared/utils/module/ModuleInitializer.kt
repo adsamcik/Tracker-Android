@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.base.module
+package com.adsamcik.tracker.shared.utils.module
 
 import android.content.Context
 import androidx.annotation.WorkerThread

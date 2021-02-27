@@ -28,12 +28,12 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.guidelineEnd
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
-import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.module.FirstRun
+import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
@@ -90,30 +90,19 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun firstRun() {
-		val locale = Locale.getDefault()
-		FirstRunDialogBuilder().apply {
-			val modules = ModuleClassLoader.getEnabledModuleNames(this@MainActivity)
-			addData(AppFirstRun())
-			modules.forEach {
-				try {
-					val firstRunClass = ModuleClassLoader.loadModuleClass<FirstRun>(
-							it,
-							"${it.capitalize(locale)}FirstRun"
-					)
-					addData(firstRunClass.newInstance())
-				} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-					//do nothing, it's fine
-				}
+		FirstRunDialogBuilder().let { builder ->
+			builder.addData(AppFirstRun())
+			ModuleClassLoader.invokeInEachActiveModule<FirstRun>(this@MainActivity) {
+				builder.addData(it)
 			}
-			onFirstRunFinished = {
+			builder.onFirstRunFinished = {
 				Preferences.getPref(this@MainActivity).edit {
 					setBoolean(R.string.settings_first_run_key, true)
 				}
 				PermissionManager.checkActivityPermissions(this@MainActivity) {}
 				uiIntroduction()
 			}
-		}.run {
-			show(this@MainActivity)
+			builder.show(this@MainActivity)
 		}
 	}
 

@@ -2,7 +2,7 @@ package com.adsamcik.tracker.module
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
+import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 import com.google.android.play.core.splitinstall.SplitInstallManager
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 

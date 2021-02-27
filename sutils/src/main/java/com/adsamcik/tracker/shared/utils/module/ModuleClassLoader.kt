@@ -1,13 +1,37 @@
-package com.adsamcik.tracker.shared.base.module
+package com.adsamcik.tracker.shared.utils.module
 
 import android.content.Context
+import com.adsamcik.tracker.logger.Reporter
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
+import java.util.*
 
 /**
  * Class loader for modules. Automatically handles prepending paths to classes.
  */
 object ModuleClassLoader {
 	private const val BASE_PATH = "com.adsamcik.tracker"
+
+	inline fun <reified T> invokeInEachActiveModule(context: Context, func: (T) -> Unit) {
+		val activeModules = getEnabledModuleNames(context)
+
+		activeModules.forEach { moduleName ->
+			try {
+				val classDefinition = loadClass<T>(
+						moduleName = moduleName,
+						className = "${moduleName.capitalize(Locale.ROOT)}${T::class.java.simpleName}"
+				)
+				func(classDefinition.newInstance())
+			} catch (e: ClassNotFoundException) {
+				//it's fine, do nothing
+			} catch (e: InstantiationException) {
+				Reporter.report(e)
+			} catch (e: IllegalAccessException) {
+				Reporter.report(e)
+			} catch (e: ClassCastException) {
+				Reporter.report(e)
+			}
+		}
+	}
 
 	/**
 	 * Load class from module. Throws exceptions if issue occurs, see more at [Class.forName].
