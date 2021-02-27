@@ -8,6 +8,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
+import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -18,6 +19,18 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		context,
 		workerParams
 ) {
+
+	private fun getSession(database: ChallengeDatabase, id: Long): ChallengeSessionData {
+		val databaseSession = database.sessionDao.get(id)
+		return if (databaseSession == null) {
+			val newSession = ChallengeSessionData(id, false)
+			database.sessionDao.insert(newSession)
+			newSession
+		} else {
+			databaseSession
+		}
+	}
+
 	@Suppress("ReturnCount")
 	override fun doWork(): Result {
 		val applicationContext = applicationContext
@@ -28,9 +41,8 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 				?: return Result.failure()
 
 		val database = ChallengeDatabase.database(applicationContext)
-		val sessionDao = database.sessionDao
 
-		val challengeSession = sessionDao.get(sessionId) ?: return Result.failure()
+		val challengeSession = getSession(database, sessionId)
 
 		if (challengeSession.isChallengeProcessed) return Result.success()
 
@@ -56,7 +68,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		}
 
 		challengeSession.isChallengeProcessed = true
-		sessionDao.update(challengeSession)
+		database.sessionDao.update(challengeSession)
 
 		logGame(
 				LogData(

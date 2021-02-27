@@ -10,8 +10,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.R
-import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.worker.ChallengeWorker
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
@@ -21,7 +19,6 @@ import com.adsamcik.tracker.shared.utils.extension.getPositiveLongExtraReportNul
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -35,31 +32,23 @@ class ChallengeSessionReceiver : BroadcastReceiver(), CoroutineScope {
 
 	private fun onSessionFinal(context: Context, intent: Intent) {
 		val id = intent.getPositiveLongExtraReportNull(ARG_ID) ?: return
-
-		launch {
-			ChallengeDatabase
-					.database(context)
-					.sessionDao
-					.insert(ChallengeSessionData(id, false))
-
-			val workManager = WorkManager.getInstance(context)
-			val data = Data.Builder().putLong(ChallengeWorker.ARG_SESSION_ID, id).build()
-			val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()
-					.addTag(WORK_TAG)
-					.setInputData(data)
-					.setConstraints(
-							Constraints
-									.Builder()
-									.setRequiresBatteryNotLow(true)
-									.build()
-					)
-					.build()
-			workManager.enqueueUniqueWork(
-					"$id${ChallengeWorker.UNIQUE_WORK_NAME}",
-					ExistingWorkPolicy.REPLACE,
-					workRequest
-			)
-		}
+		val workManager = WorkManager.getInstance(context)
+		val data = Data.Builder().putLong(ChallengeWorker.ARG_SESSION_ID, id).build()
+		val workRequest = OneTimeWorkRequestBuilder<ChallengeWorker>()
+				.addTag(WORK_TAG)
+				.setInputData(data)
+				.setConstraints(
+						Constraints
+								.Builder()
+								.setRequiresBatteryNotLow(true)
+								.build()
+				)
+				.build()
+		workManager.enqueueUniqueWork(
+				"$id${ChallengeWorker.UNIQUE_WORK_NAME}",
+				ExistingWorkPolicy.REPLACE,
+				workRequest
+		)
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {
