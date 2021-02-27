@@ -20,9 +20,9 @@ object Time {
 	val nowMillis: Long get() = System.currentTimeMillis()
 
 	/**
-	 * Current date time as calendar
+	 * Current date time as [ZonedDateTime]
 	 */
-	val now: Calendar get() = Calendar.getInstance()
+	val now: ZonedDateTime get() = ZonedDateTime.now()
 
 	/**
 	 * Elapsed time in milliseconds since boot.
@@ -54,11 +54,9 @@ object Time {
 	/**
 	 * Today's date as calendar
 	 */
-	val today: Calendar
+	val today: ZonedDateTime
 		get() {
-			val now = now
-			now.roundToDate()
-			return now
+			return roundToDate(now)
 		}
 
 	/**

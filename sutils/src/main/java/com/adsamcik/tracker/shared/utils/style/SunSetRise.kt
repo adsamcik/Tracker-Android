@@ -48,7 +48,7 @@ class SunSetRise {
 	 *
 	 * @return Time of the nearest sunrise within 24 hours or null if there won't be one
 	 */
-	fun sunriseForToday(): ZonedDateTime? = sunriseFor(Time.now.toZonedDateTime())
+	fun sunriseForToday(): ZonedDateTime? = sunriseFor(Time.now)
 
 	/**
 	 * Finds nearest sunrise within 24 hours from given date.
@@ -69,7 +69,7 @@ class SunSetRise {
 	 *
 	 * @return Time of the nearest sunset within 24 hours or null if there won't be one
 	 */
-	fun sunsetForToday(): ZonedDateTime? = sunsetFor(Time.now.toZonedDateTime())
+	fun sunsetForToday(): ZonedDateTime? = sunsetFor(Time.now)
 
 	/**
 	 * Finds nearest sunset within 24 hours from given date.

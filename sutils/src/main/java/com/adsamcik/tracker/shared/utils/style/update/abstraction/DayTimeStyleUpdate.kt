@@ -112,7 +112,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 		updateLock.withLock {
 			if (colorList.size >= 2) {
 				val data = getUpdateData(
-						Time.now.toZonedDateTime(),
+						Time.now,
 						colorList,
 						sunsetRise,
 				)
