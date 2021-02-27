@@ -46,30 +46,7 @@
         <androidx.appcompat.widget.AppCompatTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/points_earned_today" />
+            android:text="@string/game_points_earned_today" />
     </androidx.appcompat.widget.LinearLayoutCompat>
-
-
-    <include
-        android:id="@+id/steps_goal_day"
-        layout="@layout/layout_points_goals"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/content_padding"
-        android:layout_marginRight="8dp"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toLeftOf="@id/steps_goal_week"
-        app:layout_constraintTop_toBottomOf="@id/progress_circular_points" />
-
-    <include
-        android:id="@+id/steps_goal_week"
-        layout="@layout/layout_points_goals"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="8dp"
-        android:layout_marginTop="@dimen/content_padding"
-        app:layout_constraintLeft_toRightOf="@id/steps_goal_day"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/progress_circular_points" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

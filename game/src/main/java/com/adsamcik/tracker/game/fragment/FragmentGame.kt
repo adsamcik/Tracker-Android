@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.game.fragment
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -16,12 +17,16 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
 import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType
 import com.adsamcik.tracker.game.fragment.recycler.creator.ChallengeRecyclerCreator
 import com.adsamcik.tracker.game.fragment.recycler.creator.PointsRecyclerCreator
+import com.adsamcik.tracker.game.fragment.recycler.creator.StepsCreator
 import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
-import com.adsamcik.tracker.game.fragment.recycler.data.GameRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.PointsRecyclerData
+import com.adsamcik.tracker.game.fragment.recycler.data.StepsRecyclerData
+import com.adsamcik.tracker.game.fragment.recycler.data.abstraction.GameRecyclerData
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -44,6 +49,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		val rootView = inflater.inflate(R.layout.fragment_game, container, false)
 
 		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler)
+		recycler.clipToOutline = false
 		//updateChallenges()
 
 		val context = requireContext()
@@ -52,6 +58,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		).apply {
 			registerType(GameRecyclerType.List, ChallengeRecyclerCreator())
 			registerType(GameRecyclerType.Points, PointsRecyclerCreator(layer = 1))
+			registerType(GameRecyclerType.Steps, StepsCreator(layer = 1))
 		}.also { recycler.adapter = it }
 		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
 		recycler.layoutManager = LinearLayoutManager(context)
@@ -70,6 +77,15 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 				)
 		)
 
+		initializeStyle(rootView, recycler)
+		initializePoints(context, adapter)
+		initializeSteps(context, adapter)
+		initializeChallenges(context, adapter)
+
+		return rootView
+	}
+
+	private fun initializeStyle(rootView: View, recycler: RecyclerView) {
 		styleController.watchView(StyleView(rootView, layer = 1, maxDepth = 0))
 		styleController.watchRecyclerView(
 				RecyclerStyleView(
@@ -78,6 +94,9 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 						childrenLayer = 2
 				)
 		)
+	}
+
+	private fun initializePoints(context: Context, adapter: GameAdapter) {
 		adapter.add(PointsRecyclerData(-1))
 		val pointsIndex = adapter.itemCount - 1
 		PointsDatabase
@@ -87,8 +106,32 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 				.observe(viewLifecycleOwner) { pointsEarned ->
 					adapter.updateAt(pointsIndex, PointsRecyclerData(pointsEarned ?: 0))
 				}
+	}
 
+	private fun initializeSteps(context: Context, adapter: GameAdapter) {
+		adapter.add(StepsRecyclerData(0, 0))
+		val pointsIndex = adapter.itemCount - 1
+		launch(Dispatchers.Default) {
+			val now = Time.now
+			val lastWeek = now.minusWeeks(1L)
+			val dayStartMillis = Time.todayMillis
+			val lastWeekSessions = AppDatabase
+					.database(context)
+					.sessionDao()
+					.getAllBetween(lastWeek.toEpochMillis(), now.toEpochMillis())
 
+			val weekSum = lastWeekSessions.sumBy { it.steps }
+			val todaySum = lastWeekSessions
+					.filter { it.start >= dayStartMillis }
+					.sumBy { it.steps }
+
+			launch(Dispatchers.Main) {
+				adapter.updateAt(pointsIndex, StepsRecyclerData(todaySum, weekSum))
+			}
+		}
+	}
+
+	private fun initializeChallenges(context: Context, adapter: GameAdapter) {
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
 		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter))
 
@@ -100,8 +143,6 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		} else {
 			updateChallenges(challengeAdapter, challengeList)
 		}
-
-		return rootView
 	}
 
 	private fun updateChallenges(

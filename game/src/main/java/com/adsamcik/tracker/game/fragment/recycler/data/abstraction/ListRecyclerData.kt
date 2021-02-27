@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.game.fragment.recycler.data
+package com.adsamcik.tracker.game.fragment.recycler.data.abstraction
 
 import androidx.annotation.StringRes
 import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType

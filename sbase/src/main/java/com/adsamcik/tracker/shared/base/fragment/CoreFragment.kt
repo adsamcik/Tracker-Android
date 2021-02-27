@@ -7,6 +7,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlin.coroutines.CoroutineContext
 
+/**
+ * Core fragment providing coroutine access.
+ */
 abstract class CoreFragment : Fragment(), CoroutineScope {
 	private val job = SupervisorJob()
 

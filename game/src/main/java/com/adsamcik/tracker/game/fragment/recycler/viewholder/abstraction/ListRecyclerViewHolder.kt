@@ -1,9 +1,9 @@
-package com.adsamcik.tracker.game.fragment.recycler.viewholder
+package com.adsamcik.tracker.game.fragment.recycler.viewholder.abstraction
 
 import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.tracker.game.fragment.recycler.data.ListRecyclerData
+import com.adsamcik.tracker.game.fragment.recycler.data.abstraction.ListRecyclerData
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleController

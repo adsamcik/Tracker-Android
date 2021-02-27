@@ -4,12 +4,13 @@ import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType
 import com.adsamcik.tracker.game.fragment.recycler.data.abstraction.GameRecyclerData
 
 /**
- * Recycler data for Points.
+ * Recycler data for steps.
  */
-data class PointsRecyclerData(
-		val pointsEarnedToday: Int
+data class StepsRecyclerData(
+		val stepsToday: Int,
+		val stepsThisWeek: Int
 ) : GameRecyclerData {
 	override val type: GameRecyclerType
-		get() = GameRecyclerType.Points
+		get() = GameRecyclerType.Steps
 }
 

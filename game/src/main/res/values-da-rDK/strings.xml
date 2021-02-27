@@ -16,6 +16,6 @@
     <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge</string>
     <string name="notification_challenge_done_title">%1$s challenge completed</string>
     <string name="notification_challenge_unknown_title">Unknown challenge completed</string>
-    <string name="points_earned_today">points earned today</string>
+    <string name="game_points_earned_today">points earned today</string>
     <string name="settings_game_challenge_enable_title">Enable challenges</string>
 </resources>
