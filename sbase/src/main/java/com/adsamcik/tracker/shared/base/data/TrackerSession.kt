@@ -89,6 +89,7 @@ open class TrackerSession(
 		const val RECEIVER_SESSION_IS_NEW: String = "isNew"
 		const val RECEIVER_SESSION_RESUME_TIMEOUT: String = "resumeTimeout"
 		const val BROADCAST_PERMISSION: String = "com.adsamcik.tracker.permission.TRACKER"
+		const val RECEIVER_LISTENER_REGISTRATION_CLASSNAME = "className"
 	}
 }
 
