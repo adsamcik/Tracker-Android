@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.import.file
+package com.adsamcik.tracker.dataimport.file
 
 import android.content.Context
 import android.database.Cursor

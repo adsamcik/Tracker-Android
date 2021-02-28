@@ -1,26 +1,29 @@
-package com.adsamcik.tracker.import.service
+package com.adsamcik.tracker.dataimport.service
 
 import android.app.Notification
 import android.app.Service
 import android.content.Intent
 import android.database.sqlite.SQLiteCantOpenDatabaseException
+import android.net.Uri
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
+import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.import.DataImport
-import com.adsamcik.tracker.import.archive.ArchiveExtractor
-import com.adsamcik.tracker.import.file.FileImport
+import com.adsamcik.tracker.dataimport.DataImport
+import com.adsamcik.tracker.dataimport.archive.ArchiveExtractor
+import com.adsamcik.tracker.dataimport.file.FileImport
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.extension.lowerCaseExtension
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+import com.anggrayudi.storage.file.extension
 import kotlinx.coroutines.launch
-import java.io.File
+import java.io.InputStream
+import java.util.*
 
 /**
  * Data import service.
@@ -38,10 +41,11 @@ class ImportService : CoreService() {
 			return Service.START_NOT_STICKY
 		}
 
-		val path = intent.getStringExtra(ARG_FILE_PATH)
-				?: throw NullPointerException("Argument $ARG_FILE_PATH needs to be set")
+		val uri = intent.getStringExtra(ARG_FILE_URI)
+				?: throw NullPointerException("Argument $ARG_FILE_URI needs to be set")
 
-		val file = File(path)
+		val file = DocumentFile.fromSingleUri(this, Uri.parse(uri))
+				?: throw RuntimeException("Could not get document file")
 
 		startForeground(
 				NOTIFICATION_ID, createNotification(
@@ -96,37 +100,25 @@ class ImportService : CoreService() {
 	}
 
 	@WorkerThread
-	private fun extract(file: File, extractor: ArchiveExtractor): Int {
+	private fun extract(file: DocumentFile, extractor: ArchiveExtractor): Int {
 		showNotification(
 				getString(R.string.import_notification_extracting, file.name),
 				true
 		)
 
-		val extractedFile = extractor.extract(this, file) ?: return 0
+		val extractionStream = extractor.extract(this, file) ?: return 0
 
-		return importAllRecursively(extractedFile)
+		return importAllRecursively(extractionStream)
 	}
 
 	@WorkerThread
-	private fun importAllRecursively(directory: File): Int {
-		assertTrue(directory.isDirectory)
-
-		var importedCount = 0
-		directory.listFiles()?.forEach {
-			importedCount += if (it.isDirectory) {
-				importAllRecursively(it)
-			} else {
-				tryImport(it)
-
-			}
-		}
-
-		return importedCount
+	private fun importAllRecursively(stream: Sequence<InputStream>): Int {
+		return stream.sumOf { tryImport(it) }
 	}
 
 	@WorkerThread
-	private fun tryImport(file: File): Int {
-		val extension = file.lowerCaseExtension
+	private fun tryImport(file: InputStream): Int {
+		val extension = file.extension.toLowerCase(Locale.ROOT)
 		val importer = import.activeImporterList
 				.find { it.supportedExtensions.contains(extension) }
 
@@ -139,7 +131,7 @@ class ImportService : CoreService() {
 
 	@WorkerThread
 	private fun import(
-			file: File,
+			file: InputStream,
 			import: FileImport
 	): Int {
 		showNotification(
@@ -163,8 +155,8 @@ class ImportService : CoreService() {
 		}
 	}
 
-	private fun handleFile(file: File): Int {
-		val extension = file.lowerCaseExtension
+	private fun handleFile(file: DocumentFile): Int {
+		val extension = file.extension.toLowerCase(Locale.ROOT)
 		val extractor = import.activeArchiveExtractorList
 				.find { it.supportedExtensions.contains(extension) }
 
@@ -178,7 +170,7 @@ class ImportService : CoreService() {
 	companion object {
 		const val NOTIFICATION_ID: Int = 98784
 		const val NOTIFICATION_ERROR_BASE_ID: Int = 98785
-		const val ARG_FILE_PATH: String = "filePath"
+		const val ARG_FILE_URI: String = "filePath"
 	}
 }
 

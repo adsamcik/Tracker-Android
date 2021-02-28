@@ -7,7 +7,7 @@ import android.os.Build
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.import.DataImport
+import com.adsamcik.tracker.dataimport.DataImport
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.exception.PermissionException

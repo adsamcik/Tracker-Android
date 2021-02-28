@@ -1,9 +1,14 @@
-package com.adsamcik.tracker.import.file
+package com.adsamcik.tracker.dataimport.file
 
 import android.content.Context
+import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import java.io.File
+import java.io.InputStream
 
+/**
+ * File importer interface.
+ */
 interface FileImport {
 	val supportedExtensions: Collection<String>
 
@@ -11,12 +16,12 @@ interface FileImport {
 	 * Imports given file into the database
 	 *
 	 * @param database Instance of the main database
-	 * @param file File to import
+	 * @param stream Import stream
 	 */
 	//todo add some way to handle errors
 	fun import(
 			context: Context,
 			database: AppDatabase,
-			file: File
+			stream: InputStream
 	)
 }

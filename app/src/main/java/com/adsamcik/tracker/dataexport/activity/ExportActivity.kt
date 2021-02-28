@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.export.activity
+package com.adsamcik.tracker.dataexport.activity
 
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -15,8 +15,8 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.export.ExportResult
-import com.adsamcik.tracker.export.Exporter
+import com.adsamcik.tracker.dataexport.ExportResult
+import com.adsamcik.tracker.dataexport.Exporter
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
