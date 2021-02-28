@@ -51,7 +51,7 @@ import java.util.*
 class MainActivity : CoreUIActivity() {
 	private var navigationOffset = Int.MIN_VALUE
 
-	private lateinit var trackerFragment: androidx.fragment.app.Fragment
+	private var trackerFragment: androidx.fragment.app.Fragment? = null
 
 	private val root: ViewGroup by lazy { findViewById(R.id.root) }
 
@@ -68,9 +68,16 @@ class MainActivity : CoreUIActivity() {
 		initializeButtons()
 		initializeColorElements()
 
-		trackerFragment = FragmentTracker()
-		supportFragmentManager.transaction {
-			replace(R.id.tracker_placeholder, trackerFragment)
+		trackerFragment = supportFragmentManager.findFragmentByTag(FragmentTracker::class.java.simpleName)
+		if (trackerFragment == null) {
+			trackerFragment = FragmentTracker()
+			supportFragmentManager.transaction {
+				replace(
+						R.id.tracker_placeholder,
+						requireNotNull(trackerFragment),
+						FragmentTracker::class.java.simpleName
+				)
+			}
 		}
 	}
 
@@ -267,11 +274,13 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun hideBottomLayer() {
+		val trackerFragment = requireNotNull(trackerFragment)
 		trackerFragment.view?.visibility = View.GONE
 		trackerFragment.onPause()
 	}
 
 	private fun showBottomLayer() {
+		val trackerFragment = requireNotNull(trackerFragment)
 		trackerFragment.view?.visibility = View.VISIBLE
 		trackerFragment.onResume()
 	}
