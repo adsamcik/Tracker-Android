@@ -49,5 +49,15 @@
         </receiver>
 
         <receiver android:name="com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver" />
+
+        <receiver
+            android:name="com.adsamcik.tracker.tracker.receiver.TrackerListenerRegistrationReceiver"
+            android:exported="false"
+            android:permission="com.adsamcik.tracker.permission.TRACKER">
+            <intent-filter>
+                <action android:name="com.adsamcik.tracker.listener.REGISTER" />
+                <action android:name="com.adsamcik.tracker.listener.UNREGISTER" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

@@ -10,11 +10,13 @@ import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.widget.ImageButton
+import androidx.annotation.MainThread
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -28,6 +30,7 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.CellData
 import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
+import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
@@ -46,9 +49,10 @@ import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
-import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
+import com.adsamcik.tracker.tracker.ui.TrackerViewModel
+import com.adsamcik.tracker.tracker.ui.receiver.SessionUpdateReceiver
 import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
 
@@ -57,6 +61,13 @@ import com.google.android.gms.location.DetectedActivity
  */
 class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 	private lateinit var adapter: TrackerInfoAdapter
+
+	private lateinit var viewModel: TrackerViewModel
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		viewModel = ViewModelProvider(this).get(TrackerViewModel::class.java)
+	}
 
 	override fun onCreateView(
 			inflater: LayoutInflater,
@@ -146,9 +157,15 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 			updateTrackerButton(it)
 		}
 
-		TrackerService.lastCollectionData.observe(this) {
-			if (it.session.start > 0) {
-				updateData(it)
+		SessionUpdateReceiver.sessionData.observe(this) {
+			if (it != null && it.start > 0) {
+				updateSessionData(it)
+			}
+		}
+
+		SessionUpdateReceiver.collectionData.observe(this) {
+			if (it != null) {
+				updateCollectionData(it)
 			}
 		}
 
@@ -260,7 +277,8 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 				154
 		)
 
-		updateData(CollectionDataEcho(collectionData, session))
+		updateCollectionData(collectionData)
+		updateSessionData(session)
 	}
 
 	private fun initializeColorElements() {
@@ -288,8 +306,14 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		}
 	}
 
-	private fun updateData(dataEcho: CollectionDataEcho) {
-		adapter.update(dataEcho.collectionData, dataEcho.session)
+	@MainThread
+	private fun updateCollectionData(collectionData: CollectionData) {
+		adapter.updateCollection(collectionData)
+	}
+
+	@MainThread
+	private fun updateSessionData(session: TrackerSession) {
+		adapter.updateSession(session)
 	}
 
 	companion object {
