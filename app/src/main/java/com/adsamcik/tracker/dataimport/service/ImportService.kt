@@ -11,24 +11,24 @@ import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.dataimport.DataImport
+import com.adsamcik.tracker.dataimport.FileImportStream
 import com.adsamcik.tracker.dataimport.archive.ArchiveExtractor
 import com.adsamcik.tracker.dataimport.file.FileImport
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.anggrayudi.storage.file.extension
+import com.anggrayudi.storage.file.openInputStream
 import kotlinx.coroutines.launch
-import java.io.InputStream
 import java.util.*
 
 /**
  * Data import service.
  */
-class ImportService : CoreService() {
+internal class ImportService : CoreService() {
 	private val import = DataImport()
 	private lateinit var database: AppDatabase
 
@@ -108,22 +108,22 @@ class ImportService : CoreService() {
 
 		val extractionStream = extractor.extract(this, file) ?: return 0
 
-		return importAllRecursively(extractionStream)
+		return importAll(extractionStream)
 	}
 
 	@WorkerThread
-	private fun importAllRecursively(stream: Sequence<InputStream>): Int {
+	private fun importAll(stream: Sequence<FileImportStream>): Int {
 		return stream.sumOf { tryImport(it) }
 	}
 
 	@WorkerThread
-	private fun tryImport(file: InputStream): Int {
-		val extension = file.extension.toLowerCase(Locale.ROOT)
+	private fun tryImport(stream: FileImportStream): Int {
+		val extension = stream.extension.toLowerCase(Locale.ROOT)
 		val importer = import.activeImporterList
 				.find { it.supportedExtensions.contains(extension) }
 
 		if (importer != null) {
-			return import(file, importer)
+			return import(stream, importer)
 		}
 
 		return 0
@@ -131,23 +131,23 @@ class ImportService : CoreService() {
 
 	@WorkerThread
 	private fun import(
-			file: InputStream,
+			stream: FileImportStream,
 			import: FileImport
 	): Int {
 		showNotification(
-				getString(R.string.import_notification_importing, file.name),
+				getString(R.string.import_notification_importing, stream.fileName),
 				true
 		)
 
 		return tryWithResultAndReport({ 0 }) {
 			try {
-				import.import(this, database, file)
+				import.import(this, database, stream)
 				1
 			} catch (e: SQLiteCantOpenDatabaseException) {
 				showErrorNotification(
 						getString(
 								R.string.import_notification_error_failed_open_database,
-								file.name
+								stream.fileName
 						)
 				)
 				0
@@ -163,7 +163,10 @@ class ImportService : CoreService() {
 		return if (extractor != null) {
 			extract(file, extractor)
 		} else {
-			tryImport(file)
+			val fileName = file.name ?: return 0
+			file.openInputStream(this)?.use { inputStream ->
+				tryImport(FileImportStream(inputStream, fileName))
+			} ?: 0
 		}
 	}
 

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.dataimport.file
 
 import android.content.Context
-import androidx.documentfile.provider.DocumentFile
+import com.adsamcik.tracker.dataimport.FileImportStream
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LengthUnit
@@ -12,7 +12,6 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.anggrayudi.storage.file.openInputStream
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.Speed
 import io.jenetics.jpx.TrackSegment
@@ -22,28 +21,26 @@ import java.time.ZonedDateTime
 /**
  * Imports GPX files.
  */
-class GpxImport : FileImport {
+internal class GpxImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("gpx")
 
 	override fun import(
 			context: Context,
 			database: AppDatabase,
-			file: DocumentFile
+			stream: FileImportStream
 	) {
-		file.openInputStream(context)?.use { inputStream ->
-			val gpx = GPX.read(inputStream)
-			gpx.tracks().forEach { track ->
-				val type: String? = if (track.type.isPresent) track.type.get() else null
-				val activity = if (type != null) {
-					prepareActivity(database, type)
-				} else {
-					null
-				}
+		val gpx = GPX.read(stream)
+		gpx.tracks().forEach { track ->
+			val type: String? = if (track.type.isPresent) track.type.get() else null
+			val activity = if (type != null) {
+				prepareActivity(database, type)
+			} else {
+				null
+			}
 
-				track.segments().forEach { segment ->
-					prepareSession(segment, activity)?.let { session ->
-						handleSegment(database, segment, session)
-					}
+			track.segments().forEach { segment ->
+				prepareSession(segment, activity)?.let { session ->
+					handleSegment(database, segment, session)
 				}
 			}
 		}

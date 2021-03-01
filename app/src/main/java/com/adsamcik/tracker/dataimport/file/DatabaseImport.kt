@@ -5,6 +5,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteConstraintException
 import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.adsamcik.tracker.dataimport.FileImportStream
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.exception.NotFoundException
@@ -22,26 +23,30 @@ import java.io.File
 /**
  * Imports data from database file.
  */
-class DatabaseImport : FileImport {
+internal class DatabaseImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
 
 	override fun import(
 			context: Context,
 			database: AppDatabase,
-			file: File
+			stream: FileImportStream
 	) {
-		val databaseTmpFile = File.createTempFile(file.name, null)
-		file.copyTo(databaseTmpFile, overwrite = true)
+		val databaseTmpFile = File.createTempFile(stream.fileName, null)
+		databaseTmpFile.outputStream().use {
+			stream.copyTo(it)
+		}
+		var fromDatabase: SQLiteDatabase? = null
 		try {
-			val fromDatabase = SQLiteDatabase.openDatabase(
+			fromDatabase = SQLiteDatabase.openDatabase(
 					databaseTmpFile.path,
 					null,
-					SQLiteDatabase.OPEN_READWRITE
+					SQLiteDatabase.OPEN_READONLY
 			)
 			database.runInTransaction {
 				importDatabase(fromDatabase, database.openHelper.writableDatabase)
 			}
 		} finally {
+			fromDatabase?.close()
 			databaseTmpFile.delete()
 		}
 	}

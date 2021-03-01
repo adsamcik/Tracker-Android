@@ -13,7 +13,7 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 /**
  * Takes care of data importing.
  */
-class DataImport {
+internal class DataImport {
 	/**
 	 * List of active file importers
 	 */
