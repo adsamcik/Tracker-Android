@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.preference.pages
 
-import android.content.Context
+import androidx.fragment.app.FragmentActivity
 import androidx.preference.PreferenceFragmentCompat
 
 /**
@@ -21,9 +21,14 @@ interface PreferencePage {
 	 * Called when permission request returns results.
 	 */
 	fun onRequestPermissionsResult(
-			context: Context,
+			activity: FragmentActivity,
 			code: Int,
 			result: Collection<Pair<String, Int>>
 	) {
 	}
+
+	/**
+	 * Called to register all requests
+	 */
+	fun onRegisterForResult(activity: FragmentActivity) {}
 }

@@ -41,11 +41,8 @@ internal class ImportService : CoreService() {
 			return Service.START_NOT_STICKY
 		}
 
-		val uri = intent.getStringExtra(ARG_FILE_URI)
-				?: throw NullPointerException("Argument $ARG_FILE_URI needs to be set")
-
-		val file = DocumentFile.fromSingleUri(this, Uri.parse(uri))
-				?: throw RuntimeException("Could not get document file")
+		val uri = requireNotNull(intent.getParcelableExtra(ARG_FILE_URI)) as Uri
+		val file = requireNotNull(DocumentFile.fromSingleUri(this, uri))
 
 		startForeground(
 				NOTIFICATION_ID, createNotification(
@@ -124,6 +121,13 @@ internal class ImportService : CoreService() {
 
 		if (importer != null) {
 			return import(stream, importer)
+		} else {
+			showErrorNotification(
+					getString(
+							R.string.import_notification_error_file_not_supported,
+							stream.fileName
+					)
+			)
 		}
 
 		return 0

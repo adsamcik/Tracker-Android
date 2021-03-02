@@ -36,6 +36,8 @@ class SettingsActivity : DetailActivity(),
 
 	private var activePage: PreferencePage? = null
 
+	private lateinit var pageList: Map<String, PreferencePage>
+
 	override fun onConfigure(configuration: Configuration) {
 		configuration.apply {
 			elevation = 4.dp
@@ -60,6 +62,19 @@ class SettingsActivity : DetailActivity(),
 		}
 
 		title = getString(R.string.settings_title)
+
+		val resources = resources
+		pageList = mapOf(
+				resources.getString(R.string.settings_debug_title) to DebugPage(),
+				resources.getString(R.string.settings_style_title) to StylePage(),
+				resources.getString(R.string.settings_tracking_title) to TrackerPreferencePage(),
+				resources.getString(R.string.settings_data_title) to DataPage(),
+				resources.getString(R.string.settings_export_title) to ExportPage()
+		)
+
+		pageList.forEach { (_, value) ->
+			value.onRegisterForResult(this)
+		}
 	}
 
 	private fun initializeModuleSettingsList() {
@@ -115,15 +130,7 @@ class SettingsActivity : DetailActivity(),
 
 
 	private fun initializeStartScreen(caller: PreferenceFragmentCompat, key: String) {
-		val r = resources
-		val page = when (key) {
-			r.getString(R.string.settings_debug_title) -> DebugPage()
-			r.getString(R.string.settings_style_title) -> StylePage()
-			r.getString(R.string.settings_tracking_title) -> TrackerPreferencePage()
-			r.getString(R.string.settings_data_title) -> DataPage()
-			r.getString(R.string.settings_export_title) -> ExportPage()
-			else -> return
-		}
+		val page = pageList[key] ?: return
 		setPage(caller, page)
 	}
 

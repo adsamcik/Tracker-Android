@@ -75,7 +75,6 @@
                 <data android:mimeType="application/zip" />
             </intent-filter>
         </activity>
-        <activity android:name="com.adsamcik.tracker.dataimport.activity.ImportActivity"/>
         <activity
             android:name="com.adsamcik.tracker.license.LicenseActivity"
             android:screenOrientation="portrait" />

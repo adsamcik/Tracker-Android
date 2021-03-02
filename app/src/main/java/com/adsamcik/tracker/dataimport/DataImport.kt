@@ -1,14 +1,17 @@
 package com.adsamcik.tracker.dataimport
 
-import android.content.Context
-import android.os.Build
-import com.adsamcik.tracker.dataimport.activity.ImportActivity
+import android.app.Activity
+import android.content.Intent
+import android.webkit.MimeTypeMap
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.adsamcik.tracker.dataimport.archive.ArchiveExtractor
 import com.adsamcik.tracker.dataimport.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.dataimport.file.DatabaseImport
 import com.adsamcik.tracker.dataimport.file.FileImport
 import com.adsamcik.tracker.dataimport.file.GpxImport
-import com.adsamcik.tracker.shared.base.extension.startActivity
+import com.adsamcik.tracker.dataimport.service.ImportService
+import com.adsamcik.tracker.shared.base.extension.startForegroundService
 
 /**
  * Takes care of data importing.
@@ -42,27 +45,10 @@ internal class DataImport {
 		get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions)
 
 	init {
-		val importList = mutableListOf<FileImport>()
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			importList.add(GpxImport())
-		}
-		importList.add(DatabaseImport())
-
-		this.activeImporterList = importList
-
+		this.activeImporterList = mutableListOf(GpxImport(), DatabaseImport())
 		val archiveList = mutableListOf<ArchiveExtractor>()
-
 		archiveList.add(ZipArchiveExtractor())
-
 		this.activeArchiveExtractorList = archiveList
-	}
-
-
-	/**
-	 * Show import dialog
-	 */
-	fun showImportDialog(context: Context) {
-		context.startActivity<ImportActivity>()
 	}
 }
 
