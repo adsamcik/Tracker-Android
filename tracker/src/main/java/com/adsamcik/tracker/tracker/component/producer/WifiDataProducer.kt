@@ -20,9 +20,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
-		TrackerDataProducerComponent(
-				changeReceiver
-		) {
+		TrackerDataProducerComponent(changeReceiver) {
 	override val keyRes: Int = R.string.settings_wifi_enabled_key
 	override val defaultRes: Int = R.string.settings_wifi_enabled_default
 

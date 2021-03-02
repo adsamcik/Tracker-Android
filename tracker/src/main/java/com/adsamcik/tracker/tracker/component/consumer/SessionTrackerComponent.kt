@@ -15,7 +15,7 @@ import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.component.consumer.pre.StepPreTrackerComponent
+import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +72,7 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 			collections++
 			end = Time.nowMillis
 
-			tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)?.let { newSteps ->
+			tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
 				steps += newSteps
 			}
 

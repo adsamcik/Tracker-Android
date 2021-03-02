@@ -115,6 +115,12 @@
                 app:title="@string/settings_activity_enabled_title" />
 
             <androidx.preference.CheckBoxPreference
+                app:defaultValue="@string/settings_steps_enabled_default"
+                app:icon="@drawable/ic_shoe_print"
+                app:key="@string/settings_steps_enabled_key"
+                app:title="@string/settings_steps_enabled_title" />
+
+            <androidx.preference.CheckBoxPreference
                 app:defaultValue="@string/settings_wifi_enabled_default"
                 app:disableDependentsState="false"
                 app:icon="@drawable/ic_outline_network_wifi_24px"

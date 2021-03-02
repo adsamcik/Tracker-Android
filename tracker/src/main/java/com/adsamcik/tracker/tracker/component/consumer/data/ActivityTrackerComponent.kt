@@ -8,7 +8,7 @@ import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.component.consumer.pre.StepPreTrackerComponent
+import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import com.google.android.gms.location.DetectedActivity
 
@@ -70,7 +70,7 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		//Bicycle activity is impossible to guess from position
 		if (activity.activityType == DetectedActivity.ON_BICYCLE) return activity
 
-		val stepCount = tempData.tryGet<Int>(StepPreTrackerComponent.NEW_STEPS_ARG)
+		val stepCount = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)
 
 		@Suppress("ComplexCondition")
 		if (stepCount != null &&

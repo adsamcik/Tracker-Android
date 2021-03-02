@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.tracker.component.consumer.pre
+package com.adsamcik.tracker.tracker.component.producer
 
 import android.content.Context
 import android.content.pm.PackageManager
@@ -7,31 +7,39 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
-import com.adsamcik.tracker.tracker.component.PreTrackerComponent
-import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
+import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
+import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
-internal class StepPreTrackerComponent : PreTrackerComponent, SensorEventListener {
-	override val requiredData: Collection<TrackerComponentRequirement> = listOf()
+internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
+		TrackerDataProducerComponent(changeReceiver),
+		SensorEventListener {
 	private var lastStepCount = -1
 	private var stepCountSinceLastCollection = 0
 
-	override suspend fun onNewData(data: MutableCollectionTempData): Boolean {
+	override val keyRes: Int
+		get() = R.string.settings_steps_enabled_key
+	override val defaultRes: Int
+		get() = R.string.settings_steps_enabled_default
+
+	override fun onDataRequest(tempData: MutableCollectionTempData) {
 		if (stepCountSinceLastCollection >= 0) {
 			synchronized(stepCountSinceLastCollection) {
-				data.set(NEW_STEPS_ARG, stepCountSinceLastCollection)
+				tempData.set(NEW_STEPS_ARG, stepCountSinceLastCollection)
 				stepCountSinceLastCollection = 0
 			}
 		}
-		return true
 	}
 
-	override suspend fun onDisable(context: Context) {
+	override fun onDisable(context: Context) {
+		super.onDisable(context)
 		val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
 		sensorManager.unregisterListener(this)
 	}
 
-	override suspend fun onEnable(context: Context) {
+	override fun onEnable(context: Context) {
+		super.onEnable(context)
 		val packageManager = context.packageManager
 		if (packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
 			val sensorManager = context.getSystemServiceTyped<SensorManager>(Context.SENSOR_SERVICE)
