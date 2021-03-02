@@ -80,7 +80,7 @@ class ContextualSwipeTouchHelper(
 			recyclerView: RecyclerView,
 			viewHolder: RecyclerView.ViewHolder
 	): Int {
-		return if (canSwipeCallback.invoke(adapter.getItem(viewHolder.adapterPosition))) {
+		return if (canSwipeCallback.invoke(adapter.getItem(viewHolder.bindingAdapterPosition))) {
 			super.getSwipeDirs(recyclerView, viewHolder)
 		} else {
 			0
@@ -90,7 +90,7 @@ class ContextualSwipeTouchHelper(
 	override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
 		when (direction) {
 			ItemTouchHelper.LEFT, ItemTouchHelper.RIGHT -> {
-				val position = viewHolder.adapterPosition
+				val position = viewHolder.bindingAdapterPosition
 				onSwipedCallback?.invoke(position)
 			}
 		}
