@@ -154,6 +154,9 @@ inline fun <reified T : Any> Context.newIntent(): Intent =
 		Intent(this, T::class.java)
 
 
+/**
+ * Returns app version.
+ */
 fun Context.appVersion(): Long {
 	val packageInfo = packageManager.getPackageInfo(packageName, 0)
 	return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -164,9 +167,15 @@ fun Context.appVersion(): Long {
 	}
 }
 
+/**
+ * Checks if application has given permission.
+ */
 fun Context.hasSelfPermission(permission: String): Boolean =
 		ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
+/**
+ * Checks if application has all permissions in a collection.
+ */
 fun Context.hasSelfPermissions(permissions: Collection<String>): BooleanArray =
 		permissions.map { hasSelfPermission(it) }.toBooleanArray()
 
@@ -175,16 +184,9 @@ inline val Context.hasLocationPermission: Boolean
 		hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 
 inline val Context.hasActivityPermission: Boolean
+	@RequiresApi(Build.VERSION_CODES.Q)
 	get() =
 		hasSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-
-inline val Context.hasExternalStorageReadPermission: Boolean
-	get() =
-		hasSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
-
-inline val Context.hasExternalStorageWritePermission: Boolean
-	get() =
-		hasSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
 
 inline val Context.hasReadPhonePermission: Boolean
 	get() =
@@ -262,15 +264,23 @@ inline val Context.notificationManager: NotificationManager get() = getSystemSer
  */
 inline val Context.layoutInflater: LayoutInflater get() = getSystemServiceTyped(Context.LAYOUT_INFLATER_SERVICE)
 
+/**
+ * Name of the application
+ */
 val Context.applicationName: String
 	get() {
 		val applicationInfo = applicationInfo
 		val stringId = applicationInfo.labelRes
-		return if (stringId == 0) applicationInfo.nonLocalizedLabel.toString() else getString(
-				stringId
-		)
+		return if (stringId == 0) {
+			applicationInfo.nonLocalizedLabel.toString()
+		} else {
+			getString(stringId)
+		}
 	}
 
+/**
+ * Tag for an activity.
+ */
 @Suppress("unused")
 val Activity.tag: String
 	get() = applicationName + this::class.java.simpleName
