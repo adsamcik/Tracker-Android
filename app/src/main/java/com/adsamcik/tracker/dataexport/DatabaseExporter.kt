@@ -5,7 +5,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.anggrayudi.storage.file.openInputStream
+import com.adsamcik.tracker.shared.base.extension.openInputStream
 import java.io.OutputStream
 
 /**
@@ -26,7 +26,7 @@ class DatabaseExporter : Exporter {
 
 		db.generalDao().checkpoint(SimpleSQLiteQuery("pragma wal_checkpoint(full)"))
 		db.runInTransaction {
-			dbFile.openInputStream(context)?.use { input ->
+			dbFile.uri.openInputStream(context)?.use { input ->
 				input.copyTo(outputStream)
 			}
 		}

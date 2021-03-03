@@ -47,7 +47,6 @@ object Dependencies {
 
 		internal const val spotlight = "2.2.3"
 		internal const val dialogs = "3.3.0"
-		internal const val simpleStorage = "0.4.4"
 
 		internal const val componentsRecycler = "1.0.0"
 		internal const val componentsDraggable = "1.0.2"
@@ -226,12 +225,6 @@ object Dependencies {
 	fun paging(dependencyHandler: DependencyHandler) {
 		with(dependencyHandler) {
 			implementation("androidx.paging:paging-runtime:${Versions.paging}")
-		}
-	}
-
-	fun storage(dependencyHandler: DependencyHandler) {
-		with(dependencyHandler) {
-			implementation("com.anggrayudi:storage:${Versions.simpleStorage}")
 		}
 	}
 

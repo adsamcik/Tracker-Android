@@ -1,18 +1,19 @@
 package com.adsamcik.tracker.dataexport.activity
 
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.dataexport.ExportResult
@@ -23,16 +24,13 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.cloneCalendar
 import com.adsamcik.tracker.shared.base.extension.createCalendarWithTime
+import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
-import com.anggrayudi.storage.SimpleStorageHelper
-import com.anggrayudi.storage.file.absolutePath
-import com.anggrayudi.storage.file.autoIncrementFileName
-import com.anggrayudi.storage.file.openOutputStream
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,7 +60,11 @@ class ExportActivity : DetailActivity() {
 			updateDateTimeText(dataRangeTo, value.endInclusive)
 		}
 
-	private lateinit var storageHelper: SimpleStorageHelper
+	private val exportResult: ActivityResultLauncher<Uri> = registerForActivityResult(
+			ActivityResultContracts.OpenDocumentTree()
+	) {
+		tryExport(requireNotNull(DocumentFile.fromTreeUri(this, it)), false)
+	}
 
 
 	//init block cannot be used with custom setter (Kotlin 1.3)
@@ -120,9 +122,6 @@ class ExportActivity : DetailActivity() {
 
 		inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 
-		storageHelper = SimpleStorageHelper(this, savedInstanceState)
-		storageHelper.onFolderSelected = { _, folder -> tryExport(folder) }
-
 		if (exporter.canSelectDateRange) {
 			val now = Calendar.getInstance()
 
@@ -146,22 +145,18 @@ class ExportActivity : DetailActivity() {
 			findViewById<View>(R.id.imageview_from_date).visibility = View.GONE
 		}
 
-		findViewById<View>(R.id.button_export).setOnClickListener { exportClick() }
+		findViewById<View>(R.id.button_export).setOnClickListener {
+			exportResult.launch(Uri.fromFile(filesDir))
+		}
 
 		findViewById<View>(R.id.button_share).setOnClickListener {
 			shareableDir.mkdirs()
-			tryExport(DocumentFile.fromFile(shareableDir)) { exportResult, documentFile ->
+			tryExport(DocumentFile.fromFile(shareableDir), true) { exportResult, documentFile ->
 				if (!exportResult.isSuccess) return@tryExport
-
-				val fileUri = FileProvider.getUriForFile(
-						this@ExportActivity,
-						"com.adsamcik.tracker.fileprovider",
-						File(documentFile.absolutePath)
-				)
 
 				val shareIntent = Intent().apply {
 					action = Intent.ACTION_SEND
-					putExtra(Intent.EXTRA_STREAM, fileUri)
+					putExtra(Intent.EXTRA_STREAM, documentFile.uri)
 					type = exporter.mimeType
 				}
 
@@ -170,14 +165,10 @@ class ExportActivity : DetailActivity() {
 						resources.getText(R.string.share_button)
 				)
 
-				startActivityForResult(intent, SHARE_RESULT)
+				startActivity(intent)
 			}
 		}
 		setTitle(R.string.share_button)
-	}
-
-	private fun exportClick() {
-		storageHelper.openFolderPicker()
 	}
 
 	private fun getExportFileName(): String {
@@ -208,13 +199,16 @@ class ExportActivity : DetailActivity() {
 	@MainThread
 	private fun tryExport(
 			directory: DocumentFile,
+			forceOverride: Boolean,
 			onPick: ((ExportResult, DocumentFile) -> Unit)? = null
 	) {
 		val fileName = getExportFileName()
 		val fileNameWithExtension = "${fileName}.${exporter.extension}"
+
+		require(directory.isDirectory)
 		val foundFile = directory.findFile(fileNameWithExtension)
 
-		if (foundFile != null) {
+		if (!forceOverride && foundFile != null) {
 			Assist.ensureLooper()
 			MaterialDialog(this@ExportActivity)
 					.show {
@@ -224,8 +218,8 @@ class ExportActivity : DetailActivity() {
 							startExport(foundFile, onPick)
 						}
 						negativeButton(R.string.generic_no) {
-							val incremented = directory.autoIncrementFileName(fileNameWithExtension)
-							exportToNewFile(directory, incremented, onPick)
+							/*val incremented = directory.autoIncrementFileName(fileNameWithExtension)
+							exportToNewFile(directory, incremented, onPick)*/
 						}
 						dynamicStyle()
 					}
@@ -302,7 +296,7 @@ class ExportActivity : DetailActivity() {
 					false,
 					LocalizedString(
 							R.string.export_error_stream_failed,
-							file.absolutePath
+							file.uri
 					)
 			)
 		}
@@ -331,45 +325,8 @@ class ExportActivity : DetailActivity() {
 		textView.text = SpannableStringBuilder(format.format(value.time))
 	}
 
-
-	override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-		super.onActivityResult(requestCode, resultCode, data)
-
-		storageHelper.storage.onActivityResult(requestCode, resultCode, data)
-
-		if (requestCode == SHARE_RESULT) {
-			shareableDir.deleteRecursively()
-		}
-	}
-
-	override fun onRequestPermissionsResult(
-			requestCode: Int,
-			permissions: Array<out String>,
-			grantResults: IntArray
-	) {
-		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-		if (requestCode == PERMISSION_REQUEST_EXTERNAL_STORAGE &&
-				grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-			exportClick()
-		}
-	}
-
-	override fun onSaveInstanceState(outState: Bundle) {
-		storageHelper.storage.onSaveInstanceState(outState)
-		super.onSaveInstanceState(outState)
-	}
-
-	override fun onRestoreInstanceState(savedInstanceState: Bundle) {
-		super.onRestoreInstanceState(savedInstanceState)
-		storageHelper.storage.onRestoreInstanceState(savedInstanceState)
-	}
-
 	companion object {
-		private const val SHARE_RESULT = 1
 		private const val SHARABLE_DIR_NAME = "sharable"
-
-		private const val PERMISSION_REQUEST_EXTERNAL_STORAGE = 1
 
 		const val EXPORTER_KEY: String = "exporter"
 	}

@@ -28,7 +28,7 @@ import com.google.android.gms.tasks.Task
  * Handles logging if it is enabled.
  */
 internal class ActivityReceiver : BroadcastReceiver() {
-	override fun onReceive(context: Context, intent: Intent?) {
+	override fun onReceive(context: Context, intent: Intent) {
 		val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
 		if (hasActivityResult) {
 			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))

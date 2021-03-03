@@ -1,11 +1,7 @@
 package com.adsamcik.tracker.preference.pages
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.webkit.MimeTypeMap
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,8 +13,6 @@ import com.adsamcik.tracker.dataimport.DataImport
 import com.adsamcik.tracker.dataimport.service.ImportService
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.exception.PermissionException
-import com.adsamcik.tracker.shared.base.extension.hasExternalStorageReadPermission
 import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.afollestad.materialdialogs.MaterialDialog
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +27,7 @@ internal class DataPage : PreferencePage {
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
-			initializeImport(requireActivity(), findPreference(R.string.settings_import_key))
+			initializeImport(findPreference(R.string.settings_import_key))
 
 			initializeDelete(findPreference(R.string.settings_remove_all_collected_data_key))
 		}
@@ -62,7 +56,7 @@ internal class DataPage : PreferencePage {
 		}
 	}
 
-	private fun initializeImport(activity: FragmentActivity, importPreference: Preference) {
+	private fun initializeImport(importPreference: Preference) {
 		importPreference.apply {
 			val dataImport = DataImport()
 			val supportedExtensions = dataImport.supportedImporterExtensions
@@ -84,67 +78,24 @@ internal class DataPage : PreferencePage {
 				)
 
 				setOnPreferenceClickListener {
-					if (requireImportPermissions(activity)) {
-						openImportDialog()
-					}
+					openImportDialog()
 					true
 				}
 			}
 		}
 	}
 
-	private fun requireImportPermissions(activity: Activity): Boolean {
-		return when {
-			validateImportPermissions(activity) -> true
-			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-				activity.requestPermissions(
-						arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
-						PERMISSION_READ_EXTERNAL_REQUEST
-				)
-				false
-			}
-			else -> throw PermissionException("Permission to read external storage is missing")
-		}
-	}
-
-	private fun validateImportPermissions(context: Context): Boolean {
-		return context.hasExternalStorageReadPermission
-	}
-
 	private fun openImportDialog() {
-		val dataImport = DataImport()
 		val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
 			addCategory(Intent.CATEGORY_OPENABLE)
+			flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+			// multi type does not work on Android default file selector
 			type = "*/*"
-
-			putExtra(
-					Intent.EXTRA_MIME_TYPES,
-					dataImport.supportedImporterExtensions.map {
-						MimeTypeMap.getSingleton()
-								.getMimeTypeFromExtension(it)
-					}.toTypedArray()
-			)
 		}
 		importRequest.launch(intent)
 	}
 
 	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
-
-	override fun onRequestPermissionsResult(
-			activity: FragmentActivity,
-			code: Int,
-			result: Collection<Pair<String, Int>>
-	) {
-		when (code) {
-			PERMISSION_READ_EXTERNAL_REQUEST -> {
-				val isSuccessful = result.all { it.second == PackageManager.PERMISSION_GRANTED }
-
-				if (isSuccessful) {
-					openImportDialog()
-				}
-			}
-		}
-	}
 
 	override fun onRegisterForResult(activity: FragmentActivity) {
 		importRequest = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult())
@@ -160,7 +111,6 @@ internal class DataPage : PreferencePage {
 	}
 
 	companion object {
-		private const val PERMISSION_READ_EXTERNAL_REQUEST = 857854
 		private const val SEPARATOR = ", "
 	}
 }

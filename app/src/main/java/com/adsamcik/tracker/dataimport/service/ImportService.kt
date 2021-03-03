@@ -16,12 +16,12 @@ import com.adsamcik.tracker.dataimport.archive.ArchiveExtractor
 import com.adsamcik.tracker.dataimport.file.FileImport
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.notificationManager
+import com.adsamcik.tracker.shared.base.extension.openInputStream
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
-import com.anggrayudi.storage.file.extension
-import com.anggrayudi.storage.file.openInputStream
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -160,7 +160,7 @@ internal class ImportService : CoreService() {
 	}
 
 	private fun handleFile(file: DocumentFile): Int {
-		val extension = file.extension.toLowerCase(Locale.ROOT)
+		val extension = file.extension?.toLowerCase(Locale.ROOT)
 		val extractor = import.activeArchiveExtractorList
 				.find { it.supportedExtensions.contains(extension) }
 

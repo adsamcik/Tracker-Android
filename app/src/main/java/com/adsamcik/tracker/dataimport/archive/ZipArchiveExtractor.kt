@@ -3,7 +3,7 @@ package com.adsamcik.tracker.dataimport.archive
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.dataimport.FileImportStream
-import com.anggrayudi.storage.file.openInputStream
+import com.adsamcik.tracker.shared.base.extension.openInputStream
 import java.util.zip.ZipInputStream
 
 /**
