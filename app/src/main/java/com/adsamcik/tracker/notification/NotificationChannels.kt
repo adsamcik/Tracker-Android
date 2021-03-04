@@ -52,6 +52,14 @@ object NotificationChannels {
 				false,
 				NotificationManager.IMPORTANCE_LOW
 		)
+		createChannel(
+				context,
+				R.string.channel_goals_id,
+				R.string.channel_goals_name,
+				R.string.channel_goals_description,
+				false,
+				NotificationManager.IMPORTANCE_HIGH
+		)
 	}
 
 	private fun createChannel(
