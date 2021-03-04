@@ -8,7 +8,7 @@ import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.activity.debug.LogViewerActivity
 import com.adsamcik.tracker.app.activity.debug.StatusActivity
-import com.adsamcik.tracker.notification.Notifications
+import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.setOnClickListener
 import com.adsamcik.tracker.shared.base.Time
