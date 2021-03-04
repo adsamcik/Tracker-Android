@@ -30,6 +30,9 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Initializes preference observer.
+	 */
 	fun initialize(preferences: SharedPreferences) {
 		preferences.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener)
 	}
@@ -53,6 +56,10 @@ object PreferenceObserver {
 		}
 	}
 
+	/**
+	 * Observe string resource that represents integer for change.
+	 * The observer is first called with current value.
+	 */
 	@JvmName("observeInt")
 	fun observe(
 			context: Context,
@@ -61,7 +68,9 @@ object PreferenceObserver {
 			observer: Observer<Int>,
 			owner: LifecycleOwner? = null
 	) {
-		Preferences.getPref(context).getIntResString(keyRes, defaultRes)
+		Preferences
+				.getPref(context)
+				.getIntResString(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(
 				context,
@@ -72,6 +81,10 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Observe integer resource for change.
+	 * The observer is first called with current value.
+	 */
 	@JvmName("observeIntRes")
 	fun observeIntRes(
 			context: Context, @StringRes keyRes: Int,
@@ -89,6 +102,10 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Observe string resource that represents 64bit integer for change.
+	 * The observer is first called with current value.
+	 */
 	@JvmName("observeLong")
 	fun observe(
 			context: Context,
@@ -108,13 +125,21 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Observe string resource that represents single-precision floating point for change.
+	 * The observer is first called with current value.
+	 */
 	@JvmName("observeFloat")
 	fun observe(
-			context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int,
+			context: Context,
+			@StringRes keyRes: Int,
+			@StringRes defaultRes: Int,
 			observer: Observer<Float>,
 			owner: LifecycleOwner? = null
 	) {
-		Preferences.getPref(context).getFloatResString(keyRes, defaultRes)
+		Preferences
+				.getPref(context)
+				.getFloatResString(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(
 				context,
@@ -125,13 +150,21 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Observe string resource that represents boolean for change.
+	 * The observer is first called with current value.
+	 */
 	@JvmName("observeBoolean")
 	fun observe(
-			context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int,
+			context: Context,
+			@StringRes keyRes: Int,
+			@StringRes defaultRes: Int,
 			observer: Observer<Boolean>,
 			owner: LifecycleOwner? = null
 	) {
-		Preferences.getPref(context).getBooleanRes(keyRes, defaultRes)
+		Preferences
+				.getPref(context)
+				.getBooleanRes(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(
 				context,
@@ -142,13 +175,21 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Observe string resource for change.
+	 * The observer is first called with current value.
+	 */
 	@JvmName("observeString")
 	fun observe(
-			context: Context, @StringRes keyRes: Int, @StringRes defaultRes: Int,
+			context: Context,
+			@StringRes keyRes: Int,
+			@StringRes defaultRes: Int,
 			observer: Observer<String>,
 			owner: LifecycleOwner? = null
 	) {
-		Preferences.getPref(context).getStringRes(keyRes, defaultRes)
+		Preferences
+				.getPref(context)
+				.getStringRes(keyRes, defaultRes)
 				.run { observer.onChanged(this) }
 		observe(
 				context,
@@ -159,6 +200,9 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Removes registered integer observer.
+	 */
 	@JvmName("removeIntObserver")
 	fun removeObserver(context: Context, @StringRes keyRes: Int, observer: Observer<Int>) {
 		removeObserver(
@@ -169,6 +213,9 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Removes registered 64bit integer observer.
+	 */
 	@JvmName("removeLongObserver")
 	fun removeObserver(context: Context, @StringRes keyRes: Int, observer: Observer<Long>) {
 		removeObserver(
@@ -179,6 +226,9 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Removes registered single-precision floating point observer.
+	 */
 	@JvmName("removeFloatObserver")
 	fun removeObserver(context: Context, @StringRes keyRes: Int, observer: Observer<Float>) {
 		removeObserver(
@@ -189,6 +239,9 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Removes registered boolean observer.
+	 */
 	@JvmName("removeBooleanObserver")
 	fun removeObserver(context: Context, @StringRes keyRes: Int, observer: Observer<Boolean>) {
 		removeObserver(
@@ -199,6 +252,9 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Removes registered string observer.
+	 */
 	@JvmName("removeStringObserver")
 	fun removeObserver(context: Context, @StringRes keyRes: Int, observer: Observer<String>) {
 		removeObserver(
@@ -209,9 +265,13 @@ object PreferenceObserver {
 		)
 	}
 
+	/**
+	 * Removes registered observer.
+	 */
 	private fun <T> removeObserver(
 			context: Context,
-			type: PreferenceListenerType<T>, @StringRes keyRes: Int,
+			type: PreferenceListenerType<T>,
+			@StringRes keyRes: Int,
 			observer: Observer<T>
 	) {
 		val key = context.getString(keyRes)
