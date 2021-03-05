@@ -16,6 +16,6 @@
     <string name="notification_challenge_done_description">Gratulace k dokončení výzvy %1$s</string>
     <string name="notification_challenge_done_title">%1$s výzva dokončena</string>
     <string name="notification_challenge_unknown_title">Neznámá výzva dokončena</string>
-    <string name="game_points_earned_today">dnes získané body</string>
+    <string name="points_earned_today">dnes získané body</string>
     <string name="settings_game_challenge_enable_title">Povolit výzvy</string>
 </resources>

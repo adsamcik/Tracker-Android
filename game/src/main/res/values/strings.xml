@@ -14,19 +14,22 @@
     <string name="challenge_walk_in_the_park_description">Move %s on foot</string>
     <string name="challenge_walk_in_the_park_title">Be the man who walks a thousand miles</string>
 
+    <string name="goals_day_goal_reached">You reached your daily goal!</string>
+    <string name="goals_steps_daily">daily steps</string>
+    <string name="goals_steps_weekly">weekly steps</string>
+    <string name="goals_value">%s of %s</string>
+    <string name="goals_week_goal_reached">You reached your weekly goal!</string>
+
     <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge</string>
     <string name="notification_challenge_done_title">%1$s challenge completed</string>
     <string name="notification_challenge_unknown_title">Unknown challenge completed</string>
 
-    <string name="game_points_earned_today">points earned today</string>
+    <string name="points_earned_today">points earned today</string>
 
     <string name="settings_game_challenge_category_title">Challenges</string>
     <string name="settings_game_challenge_enable_title">Enable challenges</string>
-    <string name="settings_game_goals_day_steps_title">Daily step goal</string>
-    <string name="settings_game_goals_week_steps_title">Weekly step goal</string>
-    <string name="settings_game_goals_notification_enabled_title">Send notification when goal is reached</string>
     <string name="settings_game_goals_category_title">Goals</string>
-    <string name="game_goals_value">%d of %d</string>
-    <string name="game_goals_steps_weekly">weekly steps</string>
-    <string name="game_goals_steps_daily">daily steps</string>
+    <string name="settings_game_goals_day_steps_title">Daily step goal</string>
+    <string name="settings_game_goals_notification_enabled_title">Send notification when goal is reached</string>
+    <string name="settings_game_goals_week_steps_title">Weekly step goal</string>
 </resources>

@@ -22,11 +22,10 @@ import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.PointsRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.StepsRecyclerData
 import com.adsamcik.tracker.game.fragment.recycler.data.abstraction.GameRecyclerData
+import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -79,7 +78,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 
 		initializeStyle(rootView, recycler)
 		initializePoints(context, adapter)
-		initializeSteps(context, adapter)
+		initializeGoals(adapter)
 		initializeChallenges(context, adapter)
 
 		return rootView
@@ -108,28 +107,34 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 				}
 	}
 
-	private fun initializeSteps(context: Context, adapter: GameAdapter) {
-		adapter.add(StepsRecyclerData(0, 0))
+	private fun initializeGoals(adapter: GameAdapter) {
+		adapter.add(StepsRecyclerData(0, 0, 0, 0))
 		val pointsIndex = adapter.itemCount - 1
-		launch(Dispatchers.Default) {
-			val now = Time.now
-			val lastWeek = now.minusWeeks(1L)
-			val dayStartMillis = Time.todayMillis
-			val lastWeekSessions = AppDatabase
-					.database(context)
-					.sessionDao()
-					.getAllBetween(lastWeek.toEpochMillis(), now.toEpochMillis())
 
-			val weekSum = lastWeekSessions.sumBy { it.steps }
-			val todaySum = lastWeekSessions
-					.filter { it.start >= dayStartMillis }
-					.sumBy { it.steps }
+		GoalTracker.stepsToday.observe(this) {
+			adapter.updateGoals(pointsIndex, stepsToday = it)
+		}
 
-			launch(Dispatchers.Main) {
-				adapter.updateAt(pointsIndex, StepsRecyclerData(todaySum, weekSum))
-			}
+		GoalTracker.stepsWeek.observe(this) {
+			adapter.updateGoals(pointsIndex, stepsWeek = it)
+		}
+
+		GoalTracker.goalDay.observe(this) {
+			adapter.updateGoals(pointsIndex, goalDay = it)
+		}
+
+		GoalTracker.goalWeek.observe(this) {
+			adapter.updateGoals(pointsIndex, goalWeek = it)
 		}
 	}
+
+	private fun GameAdapter.updateGoals(
+			index: Int,
+			stepsToday: Int = GoalTracker.stepsToday.value,
+			stepsWeek: Int = GoalTracker.stepsWeek.value,
+			goalDay: Int = GoalTracker.goalDay.value,
+			goalWeek: Int = GoalTracker.goalWeek.value
+	) = updateAt(index, StepsRecyclerData(stepsToday, stepsWeek, goalDay, goalWeek))
 
 	private fun initializeChallenges(context: Context, adapter: GameAdapter) {
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
