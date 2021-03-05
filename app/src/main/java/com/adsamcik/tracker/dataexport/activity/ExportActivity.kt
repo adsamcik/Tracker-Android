@@ -14,6 +14,7 @@ import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.widget.addTextChangedListener
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.dataexport.ExportResult
@@ -52,6 +53,8 @@ class ExportActivity : DetailActivity() {
 
 	private val dataRangeFrom: AppCompatEditText by lazy { findViewById(R.id.edittext_date_range_from) }
 	private val dataRangeTo: AppCompatEditText by lazy { findViewById(R.id.edittext_date_range_to) }
+
+	private val fileNameField: AppCompatEditText by lazy { findViewById(R.id.edittext_filename) }
 
 	private var range: ClosedRange<Calendar> = createDefaultRange()
 		set(value) {
@@ -122,6 +125,17 @@ class ExportActivity : DetailActivity() {
 
 		inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 
+		fileNameField.apply {
+			addTextChangedListener(afterTextChanged = {
+				val text = requireNotNull(it).toString()
+				error = if (Regex("[\\\\/:\"*?<>|]+").containsMatchIn(text)) {
+					getString(R.string.export_file_name_error)
+				} else {
+					null
+				}
+			})
+		}
+
 		if (exporter.canSelectDateRange) {
 			val now = Calendar.getInstance()
 
@@ -176,11 +190,11 @@ class ExportActivity : DetailActivity() {
 		return if (text.isNullOrBlank()) {
 			getString(R.string.export_default_file_name)
 		} else {
-			text.toString()
+			text.trim().toString()
 		}
 	}
 
-	private fun trimName(fileNameWithExtension: String): String {
+	private fun preventDoubleExtension(fileNameWithExtension: String): String {
 		val extension = MimeTypeMap
 				.getSingleton()
 				.getExtensionFromMimeType(exporter.mimeType)
@@ -234,7 +248,7 @@ class ExportActivity : DetailActivity() {
 			onPick: ((ExportResult, DocumentFile) -> Unit)?
 	) {
 		launch(Dispatchers.Default) {
-			val trimmedName = trimName(fileNameWithExtension)
+			val trimmedName = preventDoubleExtension(fileNameWithExtension)
 
 			val createdFile = directory.createFile(exporter.mimeType, trimmedName)
 					?: throw IOException("Could not access or create file $fileNameWithExtension")
