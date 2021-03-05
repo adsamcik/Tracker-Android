@@ -24,6 +24,7 @@
     <string name="stats_midnight">půlnoc</string>
     <string name="stats_morning">ranní</string>
     <string name="stats_night">noční</string>
+    <string name="stats_no_tracker_sessions">Nebyly nalezeny žádné záznamy. Zatím.</string>
     <string name="stats_ride">jízda</string>
     <string name="stats_run">běh</string>
     <string name="stats_session_count">Počet relací</string>

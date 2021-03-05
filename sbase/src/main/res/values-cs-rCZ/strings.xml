@@ -59,6 +59,8 @@
     <string name="channel_other_name">Ostatní</string>
     <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat.</string>
     <string name="channel_track_name">Sběr dat</string>
+    <string name="channel_goals_description">Upozornění při dokončení cíle.</string>
+    <string name="channel_goals_name">Cíle</string>
     <string name="day_short">%d d</string>
     <string name="error_general">Objevila se chyba</string>
     <string name="error_gnss_not_enabled">Satelitní lokalizace není povolena (GPS)</string>
@@ -72,6 +74,7 @@
     <string name="generic_ok">OK</string>
     <string name="generic_undo">vrátit</string>
     <string name="generic_yes">Ano</string>
+    <string name="generic_done">Hotovo</string>
     <string name="hour_short">%d h</string>
     <string name="location">Lokace</string>
     <string name="map_date_range_all">Vše</string>
@@ -79,7 +82,7 @@
         <item quantity="one">Dnes</item>
         <item quantity="few">Poslední %d dny</item>
         <item quantity="many">Posledních %d dní</item>
-        <item quantity="other">Last %d days</item>
+        <item quantity="other">Posledních %d dní</item>
     </plurals>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>

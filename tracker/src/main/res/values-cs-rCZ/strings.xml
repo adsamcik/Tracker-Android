@@ -49,7 +49,7 @@
         <item quantity="one">Automatický sběr byl zamčen na %1$d minutu.</item>
         <item quantity="few">Automatický sběr byl zamčen na %1$d minuty.</item>
         <item quantity="many">Automatický sběr byl zamčen na %1$d minut.</item>
-        <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
+        <item quantity="other">Automatický sběr byl zamčen na %1$d minut.</item>
     </plurals>
     <string name="notification_looking_for_gps">Hledá se GPS</string>
     <string name="notification_starting">Spouštím službu Tracker</string>
@@ -73,6 +73,7 @@
     <string name="settings_notification_customize_title">Přizpůsobení notifikace</string>
     <string name="settings_notification_styled_summary">Využívat barvu vzhledu aplikace pro notifikace?</string>
     <string name="settings_notification_styled_title">Barevné notifikace</string>
+    <string name="settings_steps_enabled_title">Počet kroků</string>
     <string name="settings_tracker_timer_clock">Časovač</string>
     <string name="settings_tracker_timer_fused">Google Play lokalizace</string>
     <string name="settings_tracker_timer_location">Android lokalizace</string>

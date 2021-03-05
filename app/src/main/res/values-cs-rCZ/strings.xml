@@ -9,12 +9,14 @@
     <string name="export_file_name">Název souboru</string>
     <string name="export_gpx_description">Export poloh zaznamenaných pomocí Advention mezi %1$s a %2$s.</string>
     <string name="export_error_stream_failed">Nepodařilo se zapsat data do souboru %s</string>
-    <string name="export_gpx_error">GPX export failed with error: %s</string>
+    <string name="export_gpx_error">GPX export selhal s chybou: %s</string>
+    <string name="export_file_name_error">Názvy souborů nemohou obsahovat \/:&quot;*?&lt;&gt;|</string>
     <string name="first_run_app_description">Díky, že jste dali Advention šanci. Průvodce počátečním nastavením je VYSOCE DOPORUČEN novým uživatelům. Nechť vám aplikace dobře slouží.</string>
     <string name="first_run_app_title">Vítejte v Advention</string>
     <string name="first_run_error_reporting_description">Přejete si povolit automatické hlášení chyb? Díky němu lze lépe a bez nutnosti hlášení z vaší strany opravit pády aplikace. Pro více informací se podívejte na <a href="%1$s">zásady o ochraně osobních údajů</a>.</string>
     <string name="first_run_error_reporting_title">Automatické hlášení chyb</string>
     <string name="import_notification_error_failed_open_database">Nepodařilo se otevřít databázový soubor %s</string>
+    <string name="import_notification_error_file_not_supported">Soubor %s není podporován.</string>
     <string name="import_notification_extracting">Rozbaluji %s …</string>
     <plurals name="import_notification_finished">
         <item quantity="one">Import dokončen. Úspěšně naimportován %d soubor.</item>
@@ -31,7 +33,7 @@
         <item>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</item>
         <item>Lákamí vůněhulás úmyval rohlivý jednovod lek obolekno lva umí ří úmyvaleka…</item>
         <item>Far far away, behind the word mountains…</item>
-        <item>But I must explain to you how all this mistaken idea…</item>
+        <item>Oprávněné aniž i odstoupil o snadno osoby vede grafikou osobami úmyslu 60 % poskytovat, dělí způsobem, § 36 veletrhu pověřit spravují zřejmém, k před platbě státu zvláštních tuzemsku.</item>
         <item>Sed ut perspiciatis unde omnis iste natus error…</item>
         <item>Oprávněné aniž i odstoupil o snadno osoby vede grafikou osobami.</item>
         <item>Dodělat více textu, které nikdo neuvidí.</item>
