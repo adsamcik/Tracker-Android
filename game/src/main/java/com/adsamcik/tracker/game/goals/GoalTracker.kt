@@ -24,27 +24,45 @@ import kotlinx.coroutines.launch
 import kotlin.reflect.KMutableProperty0
 
 
+/**
+ * Tracks goals
+ */
 internal object GoalTracker {
-	private var appContext: Context? = null
-
-	val stepsToday: NonNullLiveData<Int> get() = mStepsToday
-	val goalDay: NonNullLiveData<Int> get() = mGoalToday
-	private val mStepsToday = NonNullLiveMutableData(0)
-	private var mGoalToday = NonNullLiveMutableData(0)
-	private var mGoalTodayReached = false
-
-	val stepsWeek: NonNullLiveData<Int> get() = mStepsWeek
+	val stepsDay: NonNullLiveData<Int> get() = mMutableLiveStepsDay
+	val goalDay: NonNullLiveData<Int> get() = mGoalDay
+	val stepsWeek: NonNullLiveData<Int> get() = mMutableLiveStepsWeek
 	val goalWeek: NonNullLiveData<Int> get() = mGoalWeek
-	private val mStepsWeek = NonNullLiveMutableData(0)
+
+	private var mAppContext: Context? = null
+
+	private val mMutableLiveStepsDay = NonNullLiveMutableData(0)
+	private var mStepsDay: Int = 0
+		set(value) {
+			field = value
+			mMutableLiveStepsDay.postValue(value)
+		}
+
+	private var mGoalDay = NonNullLiveMutableData(0)
+	private var mGoalDayReached = false
+
+	private val mMutableLiveStepsWeek = NonNullLiveMutableData(0)
+	private var mStepsWeek: Int = 0
+		set(value) {
+			field = value
+			mMutableLiveStepsWeek.postValue(value)
+		}
 	private var mGoalWeek = NonNullLiveMutableData(0)
 	private var mGoalWeekReached = false
 
-	private var lastStepCount: Int = 0
-	private var lastSessionId: Long = -1
+	private var mLastStepCount: Int = 0
+	private var mLastSessionId: Long = -1
 
+	/**
+	 * Initializes goal tracker.
+	 */
 	@WorkerThread
 	fun initialize(context: Context) {
-		appContext = context.applicationContext
+		mAppContext = context.applicationContext
 		initializeStepCounts(context)
 		GlobalScope.launch(Dispatchers.Main) {
 			initializeGoals(context)
@@ -54,19 +72,19 @@ internal object GoalTracker {
 
 	@MainThread
 	private fun subscribeToLive() {
-		stepsToday.observeForever {
+		stepsDay.observeForever {
 			checkStepsGoal(
 					it,
 					goalDay.value,
-					::mGoalTodayReached,
+					::mGoalDayReached,
 					R.string.goals_day_goal_reached
 			)
 		}
 		goalDay.observeForever {
 			checkStepsGoal(
-					stepsToday.value,
+					stepsDay.value,
 					it,
-					::mGoalTodayReached,
+					::mGoalDayReached,
 					R.string.goals_day_goal_reached
 			)
 		}
@@ -105,8 +123,8 @@ internal object GoalTracker {
 				.filter { it.start >= dayStartMillis }
 				.sumBy { it.steps }
 
-		mStepsToday.postValue(todaySum)
-		mStepsWeek.postValue(weekSum)
+		mMutableLiveStepsDay.postValue(todaySum)
+		mMutableLiveStepsWeek.postValue(weekSum)
 	}
 
 	@MainThread
@@ -127,10 +145,10 @@ internal object GoalTracker {
 				R.string.settings_game_goals_day_steps_key,
 				R.string.settings_game_goals_day_steps_default,
 				{ value: Int ->
-					if (mGoalToday.value < value) {
-						mGoalTodayReached = false
+					if (mGoalDay.value < value) {
+						mGoalDayReached = false
 					}
-					mGoalToday.postValue(value)
+					mGoalDay.postValue(value)
 				})
 	}
 
@@ -148,7 +166,7 @@ internal object GoalTracker {
 	}
 
 	private fun showNotification(@StringRes messageRes: Int) {
-		val context = requireNotNull(appContext)
+		val context = requireNotNull(mAppContext)
 		context.notificationManager.notify(
 				Notifications.uniqueNotificationId(),
 				NotificationCompat.Builder(
@@ -161,20 +179,23 @@ internal object GoalTracker {
 		)
 	}
 
+	/**
+	 * Called when new session data is available.
+	 */
 	fun update(session: TrackerSession) {
-		val diff = if (lastSessionId != session.id) {
-			lastSessionId = session.id
+		val diff = if (mLastSessionId != session.id) {
+			mLastSessionId = session.id
 			session.steps
 		} else {
-			session.steps - lastStepCount
+			session.steps - mLastStepCount
 		}
 
-		lastStepCount = session.steps
+		mLastStepCount = session.steps
 
-		val stepsToday = mStepsToday.value + diff
-		val stepsWeek = mStepsWeek.value + diff
+		val stepsToday = mStepsDay + diff
+		val stepsWeek = mStepsWeek + diff
 
-		mStepsWeek.postValue(stepsToday)
-		mStepsToday.postValue(stepsWeek)
+		mStepsDay = stepsToday
+		mStepsWeek = stepsWeek
 	}
 }

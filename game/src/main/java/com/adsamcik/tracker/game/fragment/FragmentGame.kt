@@ -111,7 +111,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		adapter.add(StepsRecyclerData(0, 0, 0, 0))
 		val pointsIndex = adapter.itemCount - 1
 
-		GoalTracker.stepsToday.observe(this) {
+		GoalTracker.stepsDay.observe(this) {
 			adapter.updateGoals(pointsIndex, stepsToday = it)
 		}
 
@@ -130,7 +130,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 
 	private fun GameAdapter.updateGoals(
 			index: Int,
-			stepsToday: Int = GoalTracker.stepsToday.value,
+			stepsToday: Int = GoalTracker.stepsDay.value,
 			stepsWeek: Int = GoalTracker.stepsWeek.value,
 			goalDay: Int = GoalTracker.goalDay.value,
 			goalWeek: Int = GoalTracker.goalWeek.value
