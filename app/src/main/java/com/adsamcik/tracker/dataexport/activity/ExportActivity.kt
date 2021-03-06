@@ -123,7 +123,7 @@ class ExportActivity : DetailActivity() {
 		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
 		exporter = exporterType.newInstance() as Exporter
 
-		inflateContent<ConstraintLayout>(R.layout.layout_data_export)
+		root = inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 
 		fileNameField.apply {
 			addTextChangedListener(afterTextChanged = {
