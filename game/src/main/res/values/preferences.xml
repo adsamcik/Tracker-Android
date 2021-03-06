@@ -9,4 +9,7 @@
     <string name="settings_game_goals_week_steps_key" translatable="false">goalStepsWeek</string>
     <string name="settings_game_goals_notification_enabled_default" translatable="false">true</string>
     <string name="settings_game_goals_notification_enabled_key" translatable="false">goalNotificationEnabled</string>
+
+    <string name="goals_day_goal_reached_key" translatable="false">goalDayReached</string>
+    <string name="goals_week_goal_reached_key" translatable="false">goalWeekReached</string>
 </resources>
