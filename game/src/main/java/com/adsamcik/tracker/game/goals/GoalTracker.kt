@@ -82,7 +82,7 @@ internal object GoalTracker : CoroutineScope {
 			initializeGoals(context)
 			subscribeToLive()
 			registerSessionListener(context)
-			launch {
+			launch(Dispatchers.Default) {
 				initializeStepCounts(context)
 			}
 		}
@@ -269,7 +269,7 @@ internal object GoalTracker : CoroutineScope {
 			)
 		}
 
-		launch {
+		launch(Dispatchers.Default) {
 			initializeStepCounts(requireNotNull(mAppContext))
 		}
 		Logger.log(LogData(message = "Goal day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
