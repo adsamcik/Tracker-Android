@@ -19,16 +19,18 @@ import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.time.temporal.IsoFields
+import kotlin.coroutines.CoroutineContext
 
 
 /**
  * Tracks goals
  */
-internal object GoalTracker {
+internal object GoalTracker : CoroutineScope {
 	val stepsDay: NonNullLiveData<Int> get() = mMutableLiveStepsDay
 	val goalDay: NonNullLiveData<Int> get() = mGoalDay
 	val goalDayReached: NonNullLiveData<Boolean> get() = mGoalDayReached
@@ -60,6 +62,11 @@ internal object GoalTracker {
 	private var mLastStepCount: Int = 0
 	private var mLastSessionId: Long = -1
 
+	private val job = SupervisorJob()
+
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Default + job
+
 	/**
 	 * Initializes goal tracker.
 	 */
@@ -67,7 +74,7 @@ internal object GoalTracker {
 	fun initialize(context: Context) {
 		mAppContext = context.applicationContext
 		initializeStepCounts(context)
-		GlobalScope.launch(Dispatchers.Main) {
+		launch(Dispatchers.Main) {
 			initializeGoals(context)
 			subscribeToLive()
 		}
@@ -220,6 +227,9 @@ internal object GoalTracker {
 			)
 		}
 
+		launch {
+			initializeStepCounts(requireNotNull(mAppContext))
+		}
 		Logger.log(LogData(message = "Goal day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
 	}
 
