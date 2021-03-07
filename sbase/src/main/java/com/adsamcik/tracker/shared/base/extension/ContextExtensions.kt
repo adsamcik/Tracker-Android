@@ -93,9 +93,10 @@ fun Context.startActivity(
  *
  * @param className Path to the activity class
  */
-fun Context.startActivity(className: String) {
+inline fun Context.startActivity(className: String, init: Intent.() -> Unit = {}) {
 	val intent = Intent()
 	intent.setClassName(this, className)
+	intent.init()
 	startActivity(intent)
 }
 
@@ -104,9 +105,10 @@ fun Context.startActivity(className: String) {
  *
  * @param className Path to the activity class
  */
-fun Activity.startActivity(className: String) {
+fun Activity.startActivity(className: String, init: Intent.() -> Unit = {}) {
 	val intent = Intent()
 	intent.setClassName(this, className)
+	intent.init()
 	startActivity(intent)
 }
 
@@ -117,7 +119,7 @@ fun Activity.startActivity(className: String) {
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Service> Context.startService(
-		noinline init: Intent.() -> Unit = {}
+		init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
 	intent.init()
@@ -130,7 +132,7 @@ inline fun <reified T : Service> Context.startService(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Service> Context.startForegroundService(
-		noinline init: Intent.() -> Unit = {}
+		init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
 	intent.init()
