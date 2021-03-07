@@ -7,7 +7,9 @@ import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.OnDoneListener
 import com.afollestad.materialdialogs.callbacks.onDismiss
 
-
+/**
+ * Prompts user for first run dialogs to ensures application is setup properly.
+ */
 class AppFirstRun : FirstRun() {
 	override fun onFirstRun(context: Context, onDoneListener: OnDoneListener) {
 		createDialog(context) {
