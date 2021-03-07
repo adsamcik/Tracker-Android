@@ -56,6 +56,8 @@ class ExportActivity : DetailActivity() {
 
 	private val fileNameField: AppCompatEditText by lazy { findViewById(R.id.edittext_filename) }
 
+	private lateinit var snackMaker: SnackMaker
+
 	private var range: ClosedRange<Calendar> = createDefaultRange()
 		set(value) {
 			field = value
@@ -66,7 +68,11 @@ class ExportActivity : DetailActivity() {
 	private val exportResult: ActivityResultLauncher<Uri> = registerForActivityResult(
 			ActivityResultContracts.OpenDocumentTree()
 	) {
-		tryExport(requireNotNull(DocumentFile.fromTreeUri(this, it)), false)
+		if (it == null) {
+			snackMaker.addMessage(R.string.export_error_no_uri)
+		} else {
+			tryExport(requireNotNull(DocumentFile.fromTreeUri(this, it)), false)
+		}
 	}
 
 
@@ -96,8 +102,7 @@ class ExportActivity : DetailActivity() {
 			}
 
 			if (availableRange.isEmpty()) {
-				//todo improve this message to be properly shown in time
-				SnackMaker(root).addMessage(R.string.settings_export_no_data)
+				snackMaker.addMessage(R.string.settings_export_no_data)
 				return@launch
 			}
 
@@ -183,6 +188,35 @@ class ExportActivity : DetailActivity() {
 			}
 		}
 		setTitle(R.string.share_button)
+
+		abortIfNoData()
+	}
+
+	private fun abortIfNoData() {
+		launch(Dispatchers.Default) {
+			val sessionDao = AppDatabase.database(this@ExportActivity).sessionDao()
+			val availableRange = sessionDao.range().let {
+				if (it.start == 0L && it.endInclusive == 0L) {
+					LongRange.EMPTY
+				} else {
+					LongRange(it.start, it.endInclusive)
+				}
+			}
+
+			if (availableRange.isEmpty()) {
+				launch(Dispatchers.Main) {
+					Assist.ensureLooper()
+					MaterialDialog(this@ExportActivity).show {
+						title(res = R.string.settings_export_no_data)
+						positiveButton(res = com.adsamcik.tracker.shared.base.R.string.generic_ok) {
+							finish()
+						}
+						dynamicStyle()
+					}
+				}
+			}
+		}
+
 	}
 
 	private fun getExportFileName(): String {
@@ -285,7 +319,7 @@ class ExportActivity : DetailActivity() {
 		} else {
 			val message = result.message?.localize(this)
 			if (message != null) {
-				SnackMaker(root)
+				snackMaker
 						.addMessage(
 								message,
 								Snackbar.LENGTH_LONG
