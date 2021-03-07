@@ -118,8 +118,9 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 
 		val view = requireView()
 		view.findViewById<View>(R.id.button_settings).setOnClickListener {
-			val context = it.context
-			context.startActivity("com.adsamcik.tracker.preference.activity.SettingsActivity")
+			it.context.startActivity("com.adsamcik.tracker.preference.activity.SettingsActivity") {
+				flags = Intent.FLAG_ACTIVITY_CLEAR_TASK
+			}
 		}
 
 		view.findViewById<View>(R.id.button_tracking).setOnClickListener {
