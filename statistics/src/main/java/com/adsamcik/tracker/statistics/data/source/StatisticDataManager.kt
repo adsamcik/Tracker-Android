@@ -308,9 +308,7 @@ class StatisticDataManager : CoroutineScope {
 			cacheList: List<CacheStatData>,
 			onStatFinished: StatAddCallback
 	): List<CacheableStat> {
-		val filteredConsumers = Logger.measureTimeMillis("Filter consumers") {
-			filterConsumers(session, cacheList)
-		}
+		val filteredConsumers = filterConsumers(session, cacheList)
 		Log.d("TrackerPerf", "Consumer count ${filteredConsumers.size}")
 		val (rawCacheMap, cacheMap) = prepareDataMaps(filteredConsumers, session)
 
@@ -379,9 +377,7 @@ class StatisticDataManager : CoroutineScope {
 				cached = emptyList()
 			} else {
 				cacheDao = StatsDatabase.database(context).cacheDao()
-				cached = Logger.measureTimeMillis("Cache loading") {
-					cacheDao.getAllForSession(sessionId)
-				}
+				cached = cacheDao.getAllForSession(sessionId)
 			}
 
 			val newList = generateStatisticData(context, session, cached, onStatFinished)
