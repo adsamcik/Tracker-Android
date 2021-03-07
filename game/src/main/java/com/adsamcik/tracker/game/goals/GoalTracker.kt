@@ -2,6 +2,7 @@ package com.adsamcik.tracker.game.goals
 
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.StringRes
 import androidx.annotation.WorkerThread
@@ -73,14 +74,17 @@ internal object GoalTracker : CoroutineScope {
 	/**
 	 * Initializes goal tracker.
 	 */
-	@WorkerThread
+	@AnyThread
 	fun initialize(context: Context) {
 		mAppContext = context.applicationContext
-		initializeStepCounts(context)
 		launch(Dispatchers.Main) {
+			initializeGoalReached(context)
 			initializeGoals(context)
 			subscribeToLive()
 			registerSessionListener(context)
+			launch {
+				initializeStepCounts(context)
+			}
 		}
 	}
 
@@ -129,6 +133,23 @@ internal object GoalTracker : CoroutineScope {
 					it,
 			)
 		}
+	}
+
+	@MainThread
+	private fun initializeGoalReached(context: Context) {
+		val preferences = Preferences.getPref(context)
+		mGoalDayReached.postValue(
+				preferences.getBooleanRes(
+						R.string.goals_day_goal_reached_key,
+						false
+				)
+		)
+		mGoalWeekReached.postValue(
+				preferences.getBooleanRes(
+						R.string.goals_week_goal_reached_key,
+						false
+				)
+		)
 	}
 
 	@WorkerThread
