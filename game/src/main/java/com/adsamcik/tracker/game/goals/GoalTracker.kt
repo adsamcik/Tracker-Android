@@ -1,12 +1,14 @@
 package com.adsamcik.tracker.game.goals
 
 import android.content.Context
+import android.content.Intent
 import androidx.annotation.MainThread
 import androidx.annotation.StringRes
 import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.goals.receiver.GoalsSessionUpdateReceiver
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
@@ -19,6 +21,7 @@ import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,7 +80,25 @@ internal object GoalTracker : CoroutineScope {
 		launch(Dispatchers.Main) {
 			initializeGoals(context)
 			subscribeToLive()
+			registerSessionListener(context)
 		}
+	}
+
+	@MainThread
+	private fun registerSessionListener(context: Context) {
+		context.sendBroadcast(
+				Intent(TrackerUpdateReceiver.ACTION_REGISTER_COMPONENT).putExtra(
+						TrackerUpdateReceiver.RECEIVER_LISTENER_REGISTRATION_CLASSNAME,
+						GoalsSessionUpdateReceiver::class.java.name
+				),
+				TrackerSession.BROADCAST_PERMISSION
+		)
+		Logger.log(
+				LogData(
+						message = "Attempted goal session listener registration",
+						source = GOALS_LOG_SOURCE
+				)
+		)
 	}
 
 	@MainThread
@@ -244,12 +265,14 @@ internal object GoalTracker : CoroutineScope {
 			session.steps - mLastStepCount
 		}
 
-		mLastStepCount = session.steps
+		if (diff > 0) {
+			mLastStepCount = session.steps
 
-		val stepsToday = mStepsDay + diff
-		val stepsWeek = mStepsWeek + diff
+			val stepsToday = mStepsDay + diff
+			val stepsWeek = mStepsWeek + diff
 
-		mStepsDay = stepsToday
-		mStepsWeek = stepsWeek
+			mStepsDay = stepsToday
+			mStepsWeek = stepsWeek
+		}
 	}
 }
