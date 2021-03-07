@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.dataexport.activity
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -9,11 +10,14 @@ import android.view.ViewGroup
 import android.webkit.MimeTypeMap
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.FileProvider
+import androidx.core.net.toFile
 import androidx.core.widget.addTextChangedListener
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
@@ -71,7 +75,19 @@ class ExportActivity : DetailActivity() {
 		if (it == null) {
 			snackMaker.addMessage(R.string.export_error_no_uri)
 		} else {
-			tryExport(requireNotNull(DocumentFile.fromTreeUri(this, it)), false)
+			tryExport(requireNotNull(DocumentFile.fromTreeUri(this, it)), false) { result, _ ->
+				if (result.isSuccess) {
+					finish()
+				}
+			}
+		}
+	}
+
+	private val shareResult = registerForActivityResult(
+			StartActivityForResult()
+	) {
+		if (it.resultCode == Activity.RESULT_OK) {
+			it.data
 		}
 	}
 
@@ -130,6 +146,8 @@ class ExportActivity : DetailActivity() {
 
 		root = inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 
+		snackMaker = SnackMaker(root)
+
 		fileNameField.apply {
 			addTextChangedListener(afterTextChanged = {
 				val text = requireNotNull(it).toString()
@@ -173,10 +191,16 @@ class ExportActivity : DetailActivity() {
 			tryExport(DocumentFile.fromFile(shareableDir), true) { exportResult, documentFile ->
 				if (!exportResult.isSuccess) return@tryExport
 
+				val shareUri = FileProvider.getUriForFile(
+						this,
+						"com.adsamcik.tracker.fileprovider",
+						documentFile.uri.toFile()
+				)
 				val shareIntent = Intent().apply {
 					action = Intent.ACTION_SEND
-					putExtra(Intent.EXTRA_STREAM, documentFile.uri)
+					putExtra(Intent.EXTRA_STREAM, shareUri)
 					type = exporter.mimeType
+					flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
 				}
 
 				val intent = Intent.createChooser(
@@ -184,7 +208,7 @@ class ExportActivity : DetailActivity() {
 						resources.getText(R.string.share_button)
 				)
 
-				startActivity(intent)
+				shareResult.launch(intent)
 			}
 		}
 		setTitle(R.string.share_button)
@@ -314,9 +338,7 @@ class ExportActivity : DetailActivity() {
 	) {
 		onPick?.invoke(result, file)
 
-		if (result.isSuccess) {
-			finish()
-		} else {
+		if (!result.isSuccess) {
 			val message = result.message?.localize(this)
 			if (message != null) {
 				snackMaker
@@ -375,7 +397,6 @@ class ExportActivity : DetailActivity() {
 
 	companion object {
 		private const val SHARABLE_DIR_NAME = "sharable"
-
 		const val EXPORTER_KEY: String = "exporter"
 	}
 }
