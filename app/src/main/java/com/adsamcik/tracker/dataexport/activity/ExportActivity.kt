@@ -27,9 +27,8 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.extension.cloneCalendar
-import com.adsamcik.tracker.shared.base.extension.createCalendarWithTime
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
@@ -42,7 +41,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
-import java.text.SimpleDateFormat
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.time.temporal.ChronoUnit
 import java.util.*
 
 
@@ -62,7 +64,7 @@ class ExportActivity : DetailActivity() {
 
 	private lateinit var snackMaker: SnackMaker
 
-	private var range: ClosedRange<Calendar> = createDefaultRange()
+	private var range: ClosedRange<ZonedDateTime> = Time.now.minusMonths(1)..Time.now
 		set(value) {
 			field = value
 			updateDateTimeText(dataRangeFrom, value.start)
@@ -87,19 +89,10 @@ class ExportActivity : DetailActivity() {
 			StartActivityForResult()
 	) {
 		if (it.resultCode == Activity.RESULT_OK) {
-			it.data
+			finish()
+		} else {
+			snackMaker.addMessage(R.string.export_error_no_share)
 		}
-	}
-
-
-	//init block cannot be used with custom setter (Kotlin 1.3)
-	private fun createDefaultRange(): ClosedRange<Calendar> {
-		val now = Calendar.getInstance()
-		val monthAgo = now.cloneCalendar().apply {
-			add(Calendar.MONTH, -1)
-		}
-
-		return monthAgo..now
 	}
 
 	override fun onConfigure(configuration: Configuration) {
@@ -123,14 +116,16 @@ class ExportActivity : DetailActivity() {
 			}
 
 			val selectedRange = LongRange(
-					range.start.timeInMillis,
-					range.endInclusive.timeInMillis
+					range.start.toEpochMillis(),
+					range.endInclusive.toEpochMillis()
 			)
 			launch(Dispatchers.Main) {
 				createDateTimeDialog(styleController, availableRange, selectedRange) {
-					range = createCalendarWithTime(it.first)..createCalendarWithTime(
-							it.last + Time.DAY_IN_MILLISECONDS - Time.SECOND_IN_MILLISECONDS
-					)
+					range = Time.ofEpochMilli(it.first)..Time.roundToDate(Time.ofEpochMilli(it.last))
+							.with { time ->
+								time.plus(1L, ChronoUnit.DAYS)
+								time.minus(1L, ChronoUnit.MILLIS)
+							}
 				}
 			}
 		}
@@ -160,18 +155,10 @@ class ExportActivity : DetailActivity() {
 		}
 
 		if (exporter.canSelectDateRange) {
-			val now = Calendar.getInstance()
+			val now = Time.now
+			val monthBefore = now.minusMonths(1L)
 
-			val in15minutes = now.cloneCalendar().apply {
-				@Suppress("MagicNumber")
-				add(Calendar.MINUTE, 15)
-			}
-
-			val monthBefore = now.cloneCalendar().apply {
-				add(Calendar.MONTH, -1)
-			}
-
-			range = monthBefore..in15minutes
+			range = monthBefore..now
 
 			dataRangeFrom.setOnClickListener(clickListener)
 			dataRangeTo.setOnClickListener(clickListener)
@@ -243,10 +230,17 @@ class ExportActivity : DetailActivity() {
 
 	}
 
+	private fun formatForFile(dateTime: ZonedDateTime) =
+			dateTime.withNano(0).format(DateTimeFormatter.ofPattern("d-M-y--k-m")).replace(':', '-')
+
 	private fun getExportFileName(): String {
 		val text = findViewById<AppCompatEditText>(R.id.edittext_filename).text
 		return if (text.isNullOrBlank()) {
-			getString(R.string.export_default_file_name)
+			getString(
+					R.string.export_default_file_name,
+					formatForFile(range.start),
+					formatForFile(range.endInclusive)
+			)
 		} else {
 			text.trim().toString()
 		}
@@ -379,7 +373,7 @@ class ExportActivity : DetailActivity() {
 			val locationDao = database.locationDao()
 			val from = this.range.start
 			val to = this.range.endInclusive
-			val locations = locationDao.getAllBetween(from.timeInMillis, to.timeInMillis)
+			val locations = locationDao.getAllBetween(from.toEpochMillis(), to.toEpochMillis())
 
 			if (locations.isEmpty()) {
 				return ExportResult(false, LocalizedString(R.string.error_no_locations_in_interval))
@@ -390,9 +384,9 @@ class ExportActivity : DetailActivity() {
 		}
 	}
 
-	private fun updateDateTimeText(textView: AppCompatEditText, value: Calendar) {
-		val format = SimpleDateFormat.getDateTimeInstance()
-		textView.text = SpannableStringBuilder(format.format(value.time))
+	private fun updateDateTimeText(textView: AppCompatEditText, value: ZonedDateTime) {
+		val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+		textView.text = SpannableStringBuilder(value.format(format))
 	}
 
 	companion object {

@@ -1,12 +1,10 @@
 package com.adsamcik.tracker.shared.base
 
 import android.os.SystemClock
-import com.adsamcik.tracker.shared.base.extension.roundToDate
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.*
 
 /**
  * Centralized access to time.
@@ -75,6 +73,13 @@ object Time {
 				.withSecond(0)
 				.withMinute(0)
 				.withHour(0)
+	}
+
+	/**
+	 * Returns zoned date time from milliseconds since epoch.
+	 */
+	fun ofEpochMilli(epochMilli: Long): ZonedDateTime {
+		return Instant.ofEpochMilli(epochMilli).atZone(ZoneId.systemDefault())
 	}
 
 	const val DAY_IN_HOURS: Long = 24L
