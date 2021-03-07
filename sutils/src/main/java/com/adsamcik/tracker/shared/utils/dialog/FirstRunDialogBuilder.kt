@@ -45,7 +45,7 @@ class FirstRunDialogBuilder : CoroutineScope {
 	private fun next(context: Context, isCloseRequested: Boolean) {
 		launch {
 			if (!isCloseRequested && ++currentIndex < dialogDataList.size) {
-				dialogDataList[currentIndex].onFirstRun(context, this::next)
+				dialogDataList[currentIndex].onFirstRun(context, this@FirstRunDialogBuilder::next)
 			} else {
 				onFirstRunFinished?.invoke()
 			}
