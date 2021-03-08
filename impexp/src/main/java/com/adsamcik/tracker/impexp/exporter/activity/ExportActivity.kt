@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.exporter.activity
+package com.adsamcik.tracker.impexp.exporter.activity
 
 import android.app.Activity
 import android.content.Intent
@@ -20,9 +20,9 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toFile
 import androidx.core.widget.addTextChangedListener
 import androidx.documentfile.provider.DocumentFile
-import com.adsamcik.tracker.R
-import com.adsamcik.tracker.exporter.ExportResult
-import com.adsamcik.tracker.exporter.Exporter
+import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.exporter.ExportResult
+import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
@@ -192,13 +192,13 @@ class ExportActivity : DetailActivity() {
 
 				val intent = Intent.createChooser(
 						shareIntent,
-						resources.getText(R.string.share_button)
+						resources.getText(R.string.export_share_button)
 				)
 
 				shareResult.launch(intent)
 			}
 		}
-		setTitle(R.string.share_button)
+		setTitle(R.string.export_share_button)
 
 		abortIfNoData()
 	}

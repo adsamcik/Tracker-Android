@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.exporter
+package com.adsamcik.tracker.impexp.exporter
 
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 

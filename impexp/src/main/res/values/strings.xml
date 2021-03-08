@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="error_no_locations_in_interval">No locations found in the selected interval.</string>
+
+    <string name="export_button">Export</string>
+    <string name="export_default_file_name">Advention_export_data_%s__%s</string>
+    <string name="export_default_file_name_all">Advention_export_data</string>
+    <string name="export_error_no_share">Sharing aborted</string>
+    <string name="export_error_no_uri">No export folder was selected</string>
+    <string name="export_error_stream_failed">Could not create stream to file %s</string>
+    <string name="export_file_name">File name</string>
+    <string name="export_file_name_error">File names cannot contain \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Export of location data from %1$s to %2$s tracked with Advention.</string>
+    <string name="export_gpx_error">GPX export failed with error: %s</string>
+    <string name="export_share_button">Share</string>
+
+    <string name="import_notification_error_failed_open_database">Failed to open database file %s</string>
+    <string name="import_notification_error_file_not_supported">File %s is not supported.</string>
+    <string name="import_notification_extracting">Extracting %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import finished. Successfully imported %d file.</item>
+        <item quantity="other">Import finished. Successfully imported %d files.</item>
+    </plurals>
+    <string name="import_notification_importing">Importing %s …</string>
+    <string name="import_notification_progress">Import in progress …</string>
+
+    <string name="settings_export_dialog_from">From</string>
+    <string name="settings_export_dialog_to">To</string>
+    <string name="settings_export_gpx_summary">Export your tracked location to GPX file</string>
+    <string name="settings_export_gpx_title">As GPX file</string>
+    <string name="settings_export_json_summary">Export your tracked data to JSON file</string>
+    <string name="settings_export_json_title">As JSON file</string>
+    <string name="settings_export_kml_summary">Export your tracked location to KML file</string>
+    <string name="settings_export_kml_title">As KML file</string>
+    <string name="settings_export_no_data">No data to export</string>
+    <string name="settings_export_sqlite_summary">Export raw SQLite3 database file</string>
+    <string name="settings_export_sqlite_title">Raw database file</string>
+    <string name="settings_export_title">Export</string>
+    <string name="settings_import_no_types">no types supported on your device, sorry.</string>
+    <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s)</string>
+    <string name="settings_import_title">Import</string>
+</resources>

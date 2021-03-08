@@ -9,11 +9,10 @@ import androidx.fragment.app.FragmentActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.importer.DataImport
-import com.adsamcik.tracker.importer.service.ImportService
+import com.adsamcik.tracker.impexp.importer.DataImport
+import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.afollestad.materialdialogs.MaterialDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -102,9 +101,7 @@ internal class DataPage : PreferencePage {
 		{ result: ActivityResult ->
 			if (result.resultCode == Activity.RESULT_OK) {
 				result.data?.data?.also { uri ->
-					activity.startForegroundService<ImportService> {
-						putExtra(ImportService.ARG_FILE_URI, uri)
-					}
+					DataImporter.import(activity, uri)
 				}
 			}
 		}

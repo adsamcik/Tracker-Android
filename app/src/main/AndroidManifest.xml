@@ -64,7 +64,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="com.adsamcik.tracker.exporter.activity.ExportActivity"
+            android:name="com.adsamcik.tracker.impexp.exporter.activity.ExportActivity"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.PICK" />
@@ -98,7 +98,7 @@
         </receiver>
 
         <service
-            android:name="com.adsamcik.tracker.importer.service.ImportService"
+            android:name="com.adsamcik.tracker.impexp.importer.service.ImportService"
             android:exported="false" />
 
         <meta-data

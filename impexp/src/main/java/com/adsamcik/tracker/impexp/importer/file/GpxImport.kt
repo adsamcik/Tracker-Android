@@ -1,7 +1,7 @@
-package com.adsamcik.tracker.importer.file
+package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
-import com.adsamcik.tracker.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LengthUnit

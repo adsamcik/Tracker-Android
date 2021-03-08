@@ -1,11 +1,11 @@
-package com.adsamcik.tracker.importer
+package com.adsamcik.tracker.impexp.importer
 
 import java.io.InputStream
 
 /**
  * Provides stream with a filename.
  */
-internal class FileImportStream(
+class FileImportStream(
 		private val stream: InputStream,
 		/**
 		 * File name with extension.

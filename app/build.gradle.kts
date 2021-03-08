@@ -91,6 +91,7 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
+	implementation(project(":impexp"))
 
 	//debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
@@ -102,12 +103,11 @@ dependencies {
 	Dependencies.introduction(this)
 
 	//3rd party dependencies
-	Dependencies.json(this)
-
 	Dependencies.colorChooser(this)
 	Dependencies.fileChooser(this)
 
 	Dependencies.gpx(this)
+	Dependencies.json(this)
 
 	//Google dependencies
 	implementation("androidx.cardview:cardview:1.0.0")

@@ -1,13 +1,13 @@
-package com.adsamcik.tracker.importer.archive
+package com.adsamcik.tracker.impexp.importer.archive
 
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
-import com.adsamcik.tracker.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.FileImportStream
 
 /**
  * Archive extractor interface.
  */
-internal interface ArchiveExtractor {
+interface ArchiveExtractor {
 	val supportedExtensions: Collection<String>
 
 	/**

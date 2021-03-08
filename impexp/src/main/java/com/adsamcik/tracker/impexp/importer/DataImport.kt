@@ -1,15 +1,15 @@
-package com.adsamcik.tracker.importer
+package com.adsamcik.tracker.impexp.importer
 
-import com.adsamcik.tracker.importer.archive.ArchiveExtractor
-import com.adsamcik.tracker.importer.archive.ZipArchiveExtractor
-import com.adsamcik.tracker.importer.file.DatabaseImport
-import com.adsamcik.tracker.importer.file.FileImport
-import com.adsamcik.tracker.importer.file.GpxImport
+import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.file.DatabaseImport
+import com.adsamcik.tracker.impexp.importer.file.FileImport
+import com.adsamcik.tracker.impexp.importer.file.GpxImport
 
 /**
  * Takes care of data importing.
  */
-internal class DataImport {
+class DataImport {
 	/**
 	 * List of active file importers
 	 */

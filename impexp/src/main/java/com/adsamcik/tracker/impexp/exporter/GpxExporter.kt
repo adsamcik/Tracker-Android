@@ -1,7 +1,7 @@
-package com.adsamcik.tracker.exporter
+package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
-import com.adsamcik.tracker.R
+import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.extension.applicationName
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime

@@ -1,11 +1,11 @@
-package com.adsamcik.tracker.importer.file
+package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteConstraintException
 import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.adsamcik.tracker.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.exception.NotFoundException

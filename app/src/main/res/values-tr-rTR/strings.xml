@@ -93,7 +93,7 @@
     <string name="settings_style_mode_title">Style mode</string>
     <string name="settings_style_title">Style</string>
     <string name="settings_title">Settings</string>
-    <string name="share_button">Share</string>
+    <string name="export_share_button">Share</string>
     <string name="show_tips_title">Show tips</string>
     <string name="tutorial_game_description">You can find games on the right</string>
     <string name="tutorial_game_title">Games</string>

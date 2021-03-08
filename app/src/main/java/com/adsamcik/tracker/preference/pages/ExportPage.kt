@@ -2,10 +2,10 @@ package com.adsamcik.tracker.preference.pages
 
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.exporter.DatabaseExporter
-import com.adsamcik.tracker.exporter.GpxExporter
-import com.adsamcik.tracker.exporter.KmlExporter
-import com.adsamcik.tracker.exporter.activity.ExportActivity
+import com.adsamcik.tracker.impexp.exporter.DatabaseExporter
+import com.adsamcik.tracker.impexp.exporter.GpxExporter
+import com.adsamcik.tracker.impexp.exporter.KmlExporter
+import com.adsamcik.tracker.impexp.exporter.activity.ExportActivity
 import com.adsamcik.tracker.preference.setOnClickListener
 import com.adsamcik.tracker.shared.base.extension.startActivity
 
