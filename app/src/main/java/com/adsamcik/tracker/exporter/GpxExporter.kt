@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.dataexport
+package com.adsamcik.tracker.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.R

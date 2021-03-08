@@ -1,17 +1,10 @@
-package com.adsamcik.tracker.dataimport
+package com.adsamcik.tracker.importer
 
-import android.app.Activity
-import android.content.Intent
-import android.webkit.MimeTypeMap
-import androidx.activity.result.ActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import com.adsamcik.tracker.dataimport.archive.ArchiveExtractor
-import com.adsamcik.tracker.dataimport.archive.ZipArchiveExtractor
-import com.adsamcik.tracker.dataimport.file.DatabaseImport
-import com.adsamcik.tracker.dataimport.file.FileImport
-import com.adsamcik.tracker.dataimport.file.GpxImport
-import com.adsamcik.tracker.dataimport.service.ImportService
-import com.adsamcik.tracker.shared.base.extension.startForegroundService
+import com.adsamcik.tracker.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.importer.file.DatabaseImport
+import com.adsamcik.tracker.importer.file.FileImport
+import com.adsamcik.tracker.importer.file.GpxImport
 
 /**
  * Takes care of data importing.

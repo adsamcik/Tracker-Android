@@ -1,8 +1,8 @@
-package com.adsamcik.tracker.dataimport.archive
+package com.adsamcik.tracker.importer.archive
 
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
-import com.adsamcik.tracker.dataimport.FileImportStream
+import com.adsamcik.tracker.importer.FileImportStream
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import java.util.zip.ZipInputStream
 

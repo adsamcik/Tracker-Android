@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.dataexport.activity
+package com.adsamcik.tracker.exporter.activity
 
 import android.app.Activity
 import android.content.Intent
@@ -21,8 +21,8 @@ import androidx.core.net.toFile
 import androidx.core.widget.addTextChangedListener
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.dataexport.ExportResult
-import com.adsamcik.tracker.dataexport.Exporter
+import com.adsamcik.tracker.exporter.ExportResult
+import com.adsamcik.tracker.exporter.Exporter
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist

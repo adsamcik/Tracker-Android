@@ -1,8 +1,8 @@
-package com.adsamcik.tracker.dataimport.archive
+package com.adsamcik.tracker.importer.archive
 
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
-import com.adsamcik.tracker.dataimport.FileImportStream
+import com.adsamcik.tracker.importer.FileImportStream
 
 /**
  * Archive extractor interface.

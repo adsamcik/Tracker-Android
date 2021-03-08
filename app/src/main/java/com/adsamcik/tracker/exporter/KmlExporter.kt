@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.dataexport
+package com.adsamcik.tracker.exporter
 
 import android.annotation.SuppressLint
 import android.content.Context

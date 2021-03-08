@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.dataimport
+package com.adsamcik.tracker.importer
 
 import java.io.InputStream
 

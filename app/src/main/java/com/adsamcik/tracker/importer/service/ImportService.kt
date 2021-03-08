@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.dataimport.service
+package com.adsamcik.tracker.importer.service
 
 import android.app.Notification
 import android.app.Service
@@ -10,10 +10,10 @@ import androidx.annotation.WorkerThread
 import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.dataimport.DataImport
-import com.adsamcik.tracker.dataimport.FileImportStream
-import com.adsamcik.tracker.dataimport.archive.ArchiveExtractor
-import com.adsamcik.tracker.dataimport.file.FileImport
+import com.adsamcik.tracker.importer.DataImport
+import com.adsamcik.tracker.importer.FileImportStream
+import com.adsamcik.tracker.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.importer.file.FileImport
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.extension
