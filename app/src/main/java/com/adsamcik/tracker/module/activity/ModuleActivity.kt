@@ -123,7 +123,9 @@ class ModuleActivity : DetailActivity() {
 		val layoutManager = LinearLayoutManager(this)
 		recycler.layoutManager = layoutManager
 
-		val edgeMargin = resources.getDimension(R.dimen.activity_horizontal_margin).toInt()
+		val edgeMargin = resources
+				.getDimension(com.adsamcik.tracker.shared.utils.R.dimen.activity_horizontal_margin)
+				.toInt()
 		recycler.addItemDecoration(MarginDecoration(16.dp, edgeMargin))
 
 		recycler.post {
@@ -173,7 +175,12 @@ class ModuleActivity : DetailActivity() {
 		private val modules = mutableListOf<ModuleInfo>()
 
 		val modulesToInstall: List<ModuleInfo> get() = modules.filter { it.shouldBeInstalled.and(!it.isInstalled) }
-		val modulesToUninstall: List<ModuleInfo> get() = modules.filter { (!it.shouldBeInstalled).and(it.isInstalled) }
+		val modulesToUninstall: List<ModuleInfo>
+			get() = modules.filter {
+				(!it.shouldBeInstalled).and(
+						it.isInstalled
+				)
+			}
 
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 			val view = LayoutInflater.from(parent.context)
