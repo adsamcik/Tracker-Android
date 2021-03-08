@@ -3,7 +3,7 @@
     <string name="dev_notification_dummy">Hello World!</string>
     <string name="did_you_know">Did you know</string>
     <string name="error_failed_to_open_license">Failed to open license. If auto reporting is enabled, report was sent.</string>
-    <string name="error_no_locations_in_interval">No locations found in the selected interval.</string>
+    <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
     <string name="export_button">Export</string>
     <string name="export_default_file_name">Advention_export_data</string>
     <string name="export_file_name">File name</string>

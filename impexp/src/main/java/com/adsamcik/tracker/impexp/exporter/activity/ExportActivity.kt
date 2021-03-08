@@ -376,7 +376,7 @@ class ExportActivity : DetailActivity() {
 			val locations = locationDao.getAllBetween(from.toEpochMillis(), to.toEpochMillis())
 
 			if (locations.isEmpty()) {
-				return ExportResult(false, LocalizedString(R.string.error_no_locations_in_interval))
+				return ExportResult(false, LocalizedString(R.string.export_error_no_locations_in_interval))
 			}
 			exporter.export(this, locations, outputStream)
 		} else {

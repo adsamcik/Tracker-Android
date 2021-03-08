@@ -1,10 +1,9 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources>
-    <string name="error_no_locations_in_interval">No locations found in the selected interval.</string>
-
     <string name="export_button">Export</string>
     <string name="export_default_file_name">Advention_export_data_%s__%s</string>
     <string name="export_default_file_name_all">Advention_export_data</string>
+    <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
     <string name="export_error_no_share">Sharing aborted</string>
     <string name="export_error_no_uri">No export folder was selected</string>
     <string name="export_error_stream_failed">Could not create stream to file %s</string>
