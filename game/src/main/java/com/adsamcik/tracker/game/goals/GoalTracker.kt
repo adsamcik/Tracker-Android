@@ -258,7 +258,8 @@ internal object GoalTracker : CoroutineScope {
 	internal fun onNewDay() {
 		setGoalReached(R.string.goals_day_goal_reached_key, mGoalDayReached, false)
 		val today = Time.today
-		if (today.minusDays(1).get(IsoFields.WEEK_BASED_YEAR) != today[IsoFields.WEEK_BASED_YEAR]) {
+		if (today.minusDays(1)[IsoFields.WEEK_OF_WEEK_BASED_YEAR] !=
+				today[IsoFields.WEEK_OF_WEEK_BASED_YEAR]) {
 			mGoalWeekReached.postValue(false)
 			setGoalReached(R.string.goals_week_goal_reached_key, mGoalWeekReached, false)
 			Logger.log(
