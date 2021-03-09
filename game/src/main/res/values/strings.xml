@@ -14,11 +14,11 @@
     <string name="challenge_walk_in_the_park_description">Move %s on foot</string>
     <string name="challenge_walk_in_the_park_title">Be the man who walks a thousand miles</string>
 
-    <string name="goals_day_goal_reached_notification">You reached your daily goal!</string>
+    <string name="goals_day_goal_reached_notification">Good Job! You reached your daily goal!</string>
     <string name="goals_steps_daily">daily steps</string>
     <string name="goals_steps_weekly">weekly steps</string>
     <string name="goals_value">%s of %s</string>
-    <string name="goals_week_goal_reached_notification">You reached your weekly goal!</string>
+    <string name="goals_week_goal_reached_notification">You are awesome! You reached your weekly goal!</string>
 
     <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge</string>
     <string name="notification_challenge_done_title">%1$s challenge completed</string>
