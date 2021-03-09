@@ -12,6 +12,7 @@ import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.receiver.GoalsSessionUpdateReceiver
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -27,6 +28,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.time.ZonedDateTime
 import java.time.temporal.IsoFields
 import kotlin.coroutines.CoroutineContext
 
@@ -37,10 +39,10 @@ import kotlin.coroutines.CoroutineContext
 internal object GoalTracker : CoroutineScope {
 	val stepsDay: NonNullLiveData<Int> get() = mMutableLiveStepsDay
 	val goalDay: NonNullLiveData<Int> get() = mGoalDay
-	val goalDayReached: NonNullLiveData<Boolean> get() = mGoalDayReached
+	val goalDayReached: NonNullLiveData<Int> get() = mGoalDayReached
 	val stepsWeek: NonNullLiveData<Int> get() = mMutableLiveStepsWeek
 	val goalWeek: NonNullLiveData<Int> get() = mGoalWeek
-	val goalWeekReached: NonNullLiveData<Boolean> get() = mGoalWeekReached
+	val goalWeekReached: NonNullLiveData<Int> get() = mGoalWeekReached
 
 	private var mAppContext: Context? = null
 
@@ -52,7 +54,7 @@ internal object GoalTracker : CoroutineScope {
 		}
 
 	private var mGoalDay = NonNullLiveMutableData(0)
-	private val mGoalDayReached = NonNullLiveMutableData(false)
+	private val mGoalDayReached = NonNullLiveMutableData(0)
 
 	private val mMutableLiveStepsWeek = NonNullLiveMutableData(0)
 	private var mStepsWeek: Int = 0
@@ -61,7 +63,7 @@ internal object GoalTracker : CoroutineScope {
 			mMutableLiveStepsWeek.postValue(value)
 		}
 	private var mGoalWeek = NonNullLiveMutableData(0)
-	private val mGoalWeekReached = NonNullLiveMutableData(false)
+	private val mGoalWeekReached = NonNullLiveMutableData(0)
 
 	private var mLastStepCount: Int = 0
 	private var mLastSessionId: Long = -1
@@ -139,15 +141,15 @@ internal object GoalTracker : CoroutineScope {
 	private fun initializeGoalReached(context: Context) {
 		val preferences = Preferences.getPref(context)
 		mGoalDayReached.postValue(
-				preferences.getBooleanRes(
-						R.string.goals_day_goal_reached_key,
-						false
+				preferences.getInt(
+						context.getString(R.string.goals_day_goal_reached_key),
+						0
 				)
 		)
 		mGoalWeekReached.postValue(
-				preferences.getBooleanRes(
-						R.string.goals_week_goal_reached_key,
-						false
+				preferences.getInt(
+						context.getString(R.string.goals_week_goal_reached_key),
+						0
 				)
 		)
 	}
@@ -194,6 +196,7 @@ internal object GoalTracker : CoroutineScope {
 			steps,
 			goal,
 			mGoalDayReached,
+			getGoalWeek(Time.now),
 			R.string.goals_day_goal_reached_key,
 			R.string.goals_day_goal_reached_notification
 	)
@@ -202,6 +205,7 @@ internal object GoalTracker : CoroutineScope {
 			steps,
 			goal,
 			mGoalWeekReached,
+			getGoalDay(Time.now),
 			R.string.goals_week_goal_reached_key,
 			R.string.goals_week_goal_reached_notification
 	)
@@ -209,11 +213,12 @@ internal object GoalTracker : CoroutineScope {
 	private fun checkStepsGoal(
 			steps: Int,
 			goal: Int,
-			liveData: NonNullLiveMutableData<Boolean>,
+			liveData: NonNullLiveMutableData<Int>,
+			time: Int,
 			@StringRes goalKeyRes: Int,
 			@StringRes messageRes: Int
 	) {
-		if (liveData.value && steps >= goal) {
+		if (liveData.value < time && steps >= goal && goal > 0) {
 			Logger.log(
 					LogData(
 							message = "Reached goal of $goal steps at ${Time.now}",
@@ -221,7 +226,7 @@ internal object GoalTracker : CoroutineScope {
 					)
 			)
 			showNotification(messageRes)
-			setGoalReached(goalKeyRes, liveData, true)
+			setGoalReached(goalKeyRes, liveData, time)
 		}
 	}
 
@@ -239,41 +244,33 @@ internal object GoalTracker : CoroutineScope {
 		)
 	}
 
+	private fun getGoalDay(dateTime: ZonedDateTime) = dateTime.dayOfYear + dateTime.year * 1000
+
+	private fun getGoalWeek(dateTime: ZonedDateTime) =
+			dateTime.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR) + dateTime.get(IsoFields.WEEK_BASED_YEAR) * 100
+
 	private fun setGoalReached(
 			@StringRes goalKeyRes: Int,
-			liveData: NonNullLiveMutableData<Boolean>,
-			value: Boolean
+			liveData: NonNullLiveMutableData<Int>,
+			value: Int
 	) {
 		liveData.postValue(value)
 		persistGoalReached(goalKeyRes, value)
 	}
 
-	private fun persistGoalReached(@StringRes goalKeyRes: Int, value: Boolean) {
+	private fun persistGoalReached(@StringRes goalKeyRes: Int, value: Int) {
 		val context = requireNotNull(mAppContext)
 		Preferences.getPref(context).edit {
-			setBoolean(goalKeyRes, value)
+			setInt(goalKeyRes, value)
 		}
 	}
 
 	internal fun onNewDay() {
-		setGoalReached(R.string.goals_day_goal_reached_key, mGoalDayReached, false)
-		val today = Time.today
-		if (today.minusDays(1)[IsoFields.WEEK_OF_WEEK_BASED_YEAR] !=
-				today[IsoFields.WEEK_OF_WEEK_BASED_YEAR]) {
-			mGoalWeekReached.postValue(false)
-			setGoalReached(R.string.goals_week_goal_reached_key, mGoalWeekReached, false)
-			Logger.log(
-					LogData(
-							message = "Goal week reset at ${Time.now}",
-							source = GOALS_LOG_SOURCE
-					)
-			)
-		}
-
+		mLastSessionId = -1
 		launch(Dispatchers.Default) {
 			initializeStepCounts(requireNotNull(mAppContext))
 		}
-		Logger.log(LogData(message = "Goal day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
+		Logger.log(LogData(message = "New day reset at ${Time.now}", source = GOALS_LOG_SOURCE))
 	}
 
 	/**
@@ -295,6 +292,11 @@ internal object GoalTracker : CoroutineScope {
 
 			mStepsDay = stepsToday
 			mStepsWeek = stepsWeek
+		} else if (diff < 0) {
+			Reporter.report(
+					"Step difference is negative. This should never happen session steps:" +
+							" ${session.steps} last steps: $mLastStepCount"
+			)
 		}
 	}
 }
