@@ -20,20 +20,22 @@ internal object TrackerListenerManager {
 	 * Registers new component.
 	 */
 	fun register(context: Context, component: TrackerUpdateReceiver) {
-		val index = listenerList.indexOfFirst { it::class.java == component::class.java }
-		if (index >= 0) {
-			Reporter.report("There is already an active listener for class ${component::class.java.name}. Has it leaked?")
-			listenerList[index] = component
-		} else {
-			listenerList.add(component)
-		}
+		synchronized(listenerList) {
+			val index = listenerList.indexOfFirst { it::class.java == component::class.java }
+			if (index >= 0) {
+				Reporter.report("There is already an active listener for class ${component::class.java.name}. Has it leaked?")
+				listenerList[index] = component
+			} else {
+				listenerList.add(component)
+			}
 
-		if (lastSessionData != null && lastCollectionData != null) {
-			component.onNewData(
-					context,
-					requireNotNull(lastSessionData),
-					requireNotNull(lastCollectionData)
-			)
+			if (lastSessionData != null && lastCollectionData != null) {
+				component.onNewData(
+						context,
+						requireNotNull(lastSessionData),
+						requireNotNull(lastCollectionData)
+				)
+			}
 		}
 	}
 
@@ -41,9 +43,11 @@ internal object TrackerListenerManager {
 	 * Unregister class from listener.
 	 */
 	fun unregister(componentClass: Class<TrackerUpdateReceiver>) {
-		val anyRemoved = listenerList.remove { it::class.java == componentClass }
-		if (!anyRemoved) {
-			Reporter.report("Tried to unregister ${componentClass.name} but it was not registered.")
+		synchronized(listenerList) {
+			val anyRemoved = listenerList.remove { it::class.java == componentClass }
+			if (!anyRemoved) {
+				Reporter.report("Tried to unregister ${componentClass.name} but it was not registered.")
+			}
 		}
 	}
 
@@ -51,11 +55,13 @@ internal object TrackerListenerManager {
 	 * Sends update to all listeners.
 	 */
 	fun send(context: Context, session: TrackerSession, data: CollectionData) {
-		lastSessionData = session
-		lastCollectionData = data
+		synchronized(listenerList) {
+			lastSessionData = session
+			lastCollectionData = data
 
-		listenerList.forEach {
-			it.onNewData(context, session, data)
+			listenerList.forEach {
+				it.onNewData(context, session, data)
+			}
 		}
 	}
 }
