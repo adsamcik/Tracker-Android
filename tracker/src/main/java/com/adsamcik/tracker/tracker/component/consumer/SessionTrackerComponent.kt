@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.component.consumer
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.Observer
+import com.adsamcik.tracker.logger.assertMoreOrEqual
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
@@ -73,6 +74,7 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 			end = Time.nowMillis
 
 			tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
+				assertMoreOrEqual(newSteps, 0)
 				steps += newSteps
 			}
 
