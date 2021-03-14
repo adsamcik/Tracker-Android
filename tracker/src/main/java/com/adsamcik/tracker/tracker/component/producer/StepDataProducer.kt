@@ -6,6 +6,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
@@ -29,6 +30,8 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 				tempData.set(NEW_STEPS_ARG, stepCountSinceLastCollection)
 				stepCountSinceLastCollection = 0
 			}
+		} else {
+			Reporter.report("Negative step count since last collection $stepCountSinceLastCollection")
 		}
 	}
 
