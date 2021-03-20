@@ -71,5 +71,6 @@ dependencies {
 	Dependencies.preference(this)
 	Dependencies.test(this)
 	Dependencies.inputDialog(this)
+	Dependencies.slider(this)
 }
 

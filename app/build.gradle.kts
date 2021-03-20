@@ -106,7 +106,6 @@ dependencies {
 	Dependencies.colorChooser(this)
 	Dependencies.fileChooser(this)
 
-	Dependencies.gpx(this)
 	Dependencies.json(this)
 
 	//Google dependencies

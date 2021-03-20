@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+-keep class javax.xml.stream.**  { *; }
+-keep class io.jenetics.jpx.** { *; }
+-keep class com.bea.xml.stream.** { *; }
