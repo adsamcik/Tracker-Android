@@ -5,12 +5,14 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.preference.sliders.FloatSliderPreference
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.SubmoduleSettings
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.callbacks.onShow
 import com.afollestad.materialdialogs.input.input
 
 /**
@@ -90,8 +92,22 @@ class GoalsSettings : SubmoduleSettings {
 			)
 		}
 
+		val weeklyStepDailyPercentagePreference = FloatSliderPreference(context).apply {
+			setTitle(R.string.settings_game_goals_week_steps_daily_percentage_title)
+			setSummary(R.string.settings_game_goals_week_steps_daily_percentage_summary)
+			key = context.getString(R.string.settings_game_goals_week_steps_daily_percentage_key)
+			initialValue = context.getString(R.string.settings_game_goals_week_steps_daily_percentage_default)
+					.toFloat()
+			minValue = 1f / Time.WEEK_IN_DAYS
+			maxValue = 1f
+			step = 1f / (Time.WEEK_IN_DAYS * Time.QUARTER_DAY_IN_HOURS)
+			val formatString = context.getString(com.adsamcik.tracker.shared.utils.R.string.percentage_format)
+			labelFormatter = { formatString.format((it * 100f).format(0)) }
+		}
+
 		preferenceCategory.addPreference(notificationEnablePreference)
 		preferenceCategory.addPreference(dailyStepPreference)
 		preferenceCategory.addPreference(weeklyStepPreference)
+		preferenceCategory.addPreference(weeklyStepDailyPercentagePreference)
 	}
 }

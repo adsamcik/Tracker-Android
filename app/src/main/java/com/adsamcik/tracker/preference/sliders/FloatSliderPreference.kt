@@ -9,17 +9,18 @@ import androidx.annotation.IntegerRes
 import androidx.core.content.res.getStringOrThrow
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
+import com.adsamcik.slider.LabelFormatter
 import com.adsamcik.slider.abstracts.Slider
 import com.adsamcik.slider.abstracts.SliderExtension
 import com.adsamcik.slider.extensions.FloatSliderSharedPreferencesExtension
-import com.adsamcik.slider.implementations.FloatValueSlider
+import com.adsamcik.slider.implementations.FloatSlider
 import com.adsamcik.tracker.R
 
 /**
  * Custom Preference implementation of the FloatValueSlider from Slider library.
  * It allows Slider to be used as preference.
  */
-class FloatValueSliderPreference : Preference {
+class FloatSliderPreference : Preference {
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
 			context, attrs,
 			defStyleAttr, defStyleRes
@@ -58,9 +59,14 @@ class FloatValueSliderPreference : Preference {
 
 	@IntegerRes
 	private var mValuesResource: Int? = null
-	private var mInitialValue: Float = 0f
+	var initialValue: Float = 0f
 
-	var slider: FloatValueSlider? = null
+	var minValue: Float = 0f
+	var maxValue: Float = 1f
+	var step: Float = 0.1f
+	var labelFormatter: LabelFormatter<Float> = { mTextViewString.format(it) }
+
+	var slider: FloatSlider? = null
 
 	/**
 	 * Sets string format.
@@ -79,7 +85,7 @@ class FloatValueSliderPreference : Preference {
 	}
 
 	init {
-		layoutResource = R.layout.layout_settings_float_value_slider
+		layoutResource = R.layout.layout_settings_float_slider
 	}
 
 	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
@@ -88,24 +94,20 @@ class FloatValueSliderPreference : Preference {
 
 	override fun onSetInitialValue(defaultValue: Any?) {
 		if (defaultValue != null) {
-			mInitialValue = defaultValue as Float
+			initialValue = defaultValue as Float
 		}
 	}
 
 	override fun onBindViewHolder(holder: PreferenceViewHolder) {
 		super.onBindViewHolder(holder)
-		val slider = holder.findViewById(R.id.slider) as FloatValueSlider
+		val slider = holder.findViewById(R.id.slider) as FloatSlider
 
-		val valuesResource = mValuesResource
-				?: throw NullPointerException("Value resource must be set!")
-
-		val stringArray = context.resources.getStringArray(valuesResource)
-
-		slider.setItems(stringArray.map { it.toFloat() }.toTypedArray())
+		slider.minValue = minValue
+		slider.maxValue = maxValue
+		slider.step = step
+		slider.setLabelFormatter(labelFormatter)
 
 		slider.background = ColorDrawable(Color.TRANSPARENT)
-
-		slider.setLabelFormatter { mTextViewString.format(it) }
 
 		this.summary?.let { summary -> slider.description = summary }
 
@@ -113,7 +115,7 @@ class FloatValueSliderPreference : Preference {
 				FloatSliderSharedPreferencesExtension(
 						sharedPreferences,
 						key,
-						mInitialValue
+						initialValue
 				)
 		)
 
@@ -126,7 +128,7 @@ class FloatValueSliderPreference : Preference {
 			) {
 				if (isFromUser) {
 					onPreferenceChangeListener?.onPreferenceChange(
-							this@FloatValueSliderPreference,
+							this@FloatSliderPreference,
 							value
 					)
 				}

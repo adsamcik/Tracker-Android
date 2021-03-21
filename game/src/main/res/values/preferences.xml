@@ -7,6 +7,8 @@
     <string name="settings_game_goals_day_steps_key" translatable="false">goalStepsDay</string>
     <string name="settings_game_goals_week_steps_default" translatable="false">24000</string>
     <string name="settings_game_goals_week_steps_key" translatable="false">goalStepsWeek</string>
+    <string name="settings_game_goals_week_steps_daily_percentage_default" translatable="false">0.3</string>
+    <string name="settings_game_goals_week_steps_daily_percentage_key" translatable="false">goalStepsWeekMaxDailyPercentage</string>
     <string name="settings_game_goals_notification_enabled_default" translatable="false">true</string>
     <string name="settings_game_goals_notification_enabled_key" translatable="false">goalNotificationEnabled</string>
 

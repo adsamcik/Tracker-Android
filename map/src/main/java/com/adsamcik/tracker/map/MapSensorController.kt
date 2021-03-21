@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.map
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent

@@ -39,7 +39,7 @@
         app:layout_constraintStart_toStartOf="@android:id/title"
         app:layout_constraintTop_toBottomOf="@android:id/title">
 
-        <com.adsamcik.slider.implementations.FloatSlider
+        <com.adsamcik.slider.implementations.FloatValueSlider
             android:id="@+id/slider"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

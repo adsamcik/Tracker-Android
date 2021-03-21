@@ -31,5 +31,7 @@
     <string name="settings_game_goals_category_title">Goals</string>
     <string name="settings_game_goals_day_steps_title">Daily step goal</string>
     <string name="settings_game_goals_notification_enabled_title">Send notification when goal is reached</string>
+    <string name="settings_game_goals_week_steps_daily_percentage_summary">Maximum percentage of weekly goal that can be completed each day</string>
+    <string name="settings_game_goals_week_steps_daily_percentage_title">Maximum daily progress of weekly goal</string>
     <string name="settings_game_goals_week_steps_title">Weekly step goal</string>
 </resources>
