@@ -49,7 +49,7 @@ object Dependencies {
 		internal const val dialogs = "3.3.0"
 
 		internal const val componentsRecycler = "1.0.0"
-		internal const val componentsDraggable = "1.0.3"
+		internal const val componentsDraggable = "1.0.4"
 		internal const val componentSlider = "2.1.0"
 
 		internal const val dexter = "6.2.2"
