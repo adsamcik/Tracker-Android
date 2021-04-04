@@ -23,16 +23,28 @@ internal class StepsViewHolder(
 		super.bind(data, styleController)
 		val resources = itemView.context.resources
 		dailyStepsTitle.text = resources.getString(R.string.goals_steps_daily)
-		dailyStepsText.text = resources.getString(
-				R.string.goals_value,
-				data.stepsToday.formatReadable(),
-				data.goalDay.formatReadable()
-		)
+
+		val stepsDay = data.stepsDay
+		val goalDay = data.goalDay
+		if (stepsDay != null && goalDay != null) {
+			dailyStepsText.text = resources.getString(
+					R.string.goals_value,
+					stepsDay.formatReadable(),
+					goalDay.formatReadable()
+			)
+		}
+
 		weeklyStepsTitle.text = resources.getString(R.string.goals_steps_weekly)
-		weeklyStepsText.text = resources.getString(
-				R.string.goals_value,
-				data.stepsThisWeek.formatReadable(),
-				data.goalWeek.formatReadable()
-		)
+
+		val stepsWeek = data.stepsWeek
+		val goalWeek = data.goalWeek
+
+		if (stepsWeek != null && goalWeek != null) {
+			weeklyStepsText.text = resources.getString(
+					R.string.goals_value,
+					stepsWeek.formatReadable(),
+					goalWeek.formatReadable()
+			)
+		}
 	}
 }

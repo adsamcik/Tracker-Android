@@ -7,10 +7,10 @@ import com.adsamcik.tracker.game.fragment.recycler.data.abstraction.GameRecycler
  * Recycler data for steps.
  */
 data class StepsRecyclerData(
-		val stepsToday: Int,
-		val stepsThisWeek: Int,
-		val goalDay: Int,
-		val goalWeek: Int
+		val stepsDay: Int?,
+		val stepsWeek: Int?,
+		val goalDay: Int?,
+		val goalWeek: Int?
 ) : GameRecyclerData {
 	override val type: GameRecyclerType
 		get() = GameRecyclerType.Steps

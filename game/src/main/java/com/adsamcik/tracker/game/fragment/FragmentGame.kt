@@ -111,29 +111,29 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		adapter.add(StepsRecyclerData(0, 0, 0, 0))
 		val pointsIndex = adapter.itemCount - 1
 
-		GoalTracker.stepsDay.observe(this) {
+		GoalTracker.stepsDay.observe(viewLifecycleOwner) {
 			adapter.updateGoals(pointsIndex, stepsToday = it)
 		}
 
-		GoalTracker.stepsWeek.observe(this) {
+		GoalTracker.stepsWeek.observe(viewLifecycleOwner) {
 			adapter.updateGoals(pointsIndex, stepsWeek = it)
 		}
 
-		GoalTracker.goalDay.observe(this) {
+		GoalTracker.goalDay.observe(viewLifecycleOwner) {
 			adapter.updateGoals(pointsIndex, goalDay = it)
 		}
 
-		GoalTracker.goalWeek.observe(this) {
+		GoalTracker.goalWeek.observe(viewLifecycleOwner) {
 			adapter.updateGoals(pointsIndex, goalWeek = it)
 		}
 	}
 
 	private fun GameAdapter.updateGoals(
 			index: Int,
-			stepsToday: Int = GoalTracker.stepsDay.value,
-			stepsWeek: Int = GoalTracker.stepsWeek.value,
-			goalDay: Int = GoalTracker.goalDay.value,
-			goalWeek: Int = GoalTracker.goalWeek.value
+			stepsToday: Int? = GoalTracker.stepsDay.value,
+			stepsWeek: Int? = GoalTracker.stepsWeek.value,
+			goalDay: Int? = GoalTracker.goalDay.value,
+			goalWeek: Int? = GoalTracker.goalWeek.value
 	) = updateAt(index, StepsRecyclerData(stepsToday, stepsWeek, goalDay, goalWeek))
 
 	private fun initializeChallenges(context: Context, adapter: GameAdapter) {

@@ -1,14 +1,74 @@
 package com.adsamcik.tracker.game.goals.data.abstraction
 
+import android.app.Notification
 import android.content.Context
+import androidx.core.app.NotificationCompat
+import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.goals.data.GoalPersistence
+import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import java.time.ZonedDateTime
+import kotlin.coroutines.CoroutineContext
 
-abstract class BaseGoal : Goal {
-	abstract val goalPreferenceKey: Int
-	abstract val goalPreferenceDefault: Int
+abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, CoroutineScope {
+	private val job = SupervisorJob()
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Main + job
 
-	abstract val goalReachedKey: Int
+	
+	abstract val goalPreferenceKeyRes: Int
+	abstract val goalPreferenceDefaultRes: Int
+
+	abstract val goalReachedKeyRes: Int
+	private lateinit var goalReachedKey: String
+
 	abstract val notificationMessageRes: Int
+	override var onValueChanged: (value: Int) -> Unit = {}
+	override var onTargetChanged: (value: Int) -> Unit = {}
+
+	override var value: Int = 0
+		protected set(value) {
+			field = value
+			onValueChanged(value)
+		}
+
+	override var target: Int = 0
+		protected set(value) {
+			field = value
+			onTargetChanged(value)
+		}
+
+	/**
+	 * Time of last report.
+	 * Used instead of boolean to provide better durability against unreliable resets.
+	 */
+	private var lastReportTime: Int = 0
+		set(value) {
+			field = value
+			val nowRounded = roundToGoalTime(Time.now)
+			isReported = nowRounded == value
+			if (roundToGoalTime(Time.now) < nowRounded) {
+				Reporter.report(
+						"""Goal ${javaClass.name} with key $goalReachedKey has future time 
+						   set as goal. Current time: ${nowRounded}, 
+						   Goal time: ${value},
+						   Now time ${Time.today.toEpochMillis()}"""
+				)
+			}
+			if (isEnabled) {
+				persistence.persist(goalReachedKey, value)
+			}
+		}
+
+	/**
+	 * Caches lastReportTime
+	 */
+	private var isReported: Boolean = false
 
 	override var isEnabled: Boolean = false
 		protected set
@@ -26,6 +86,8 @@ abstract class BaseGoal : Goal {
 	override suspend fun onEnable(context: Context) {
 		onEnableInternal(context)
 		updateFromDatabase(context)
+		goalReachedKey = context.getString(goalReachedKeyRes)
+		persistence.load(goalReachedKey)?.let { lastReportTime = it }
 		isEnabled = true
 	}
 
@@ -34,8 +96,24 @@ abstract class BaseGoal : Goal {
 		isEnabled = false
 	}
 
+	override fun onSessionUpdated(session: TrackerSession, isNewSession: Boolean): Boolean {
+		onSessionUpdatedInternal(session, isNewSession)
+		if (!isReported && value >= target) {
+			lastReportTime = roundToGoalTime(Time.now)
+			return true
+		}
+		return false
+	}
+
+	protected abstract fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean)
+
 	override fun onNewDay(context: Context, day: ZonedDateTime) {
-		if (shouldResetToday(day)) {
+		val time = roundToGoalTime(day)
+		// This will trigger recount once a day if the goal is not reached, but
+		// because the cost should not be very high, the extra code complexity does not seem
+		// to be worth it.
+		if (time != lastReportTime) {
+			isReported = false
 			updateFromDatabase(context)
 		}
 	}
@@ -46,7 +124,17 @@ abstract class BaseGoal : Goal {
 	protected abstract fun updateFromDatabase(context: Context)
 
 	/**
-	 * Returns true if value should be reset today.
+	 * Rounds date time to goal time.
 	 */
-	protected abstract fun shouldResetToday(day: ZonedDateTime): Boolean
+	protected abstract fun roundToGoalTime(day: ZonedDateTime): Int
+
+	override fun buildNotification(context: Context): Notification {
+		return NotificationCompat.Builder(
+				context,
+				context.getString(com.adsamcik.tracker.R.string.channel_goals_id)
+		)
+				.setContentTitle(context.getString(notificationMessageRes))
+				.setSmallIcon(R.drawable.ic_flag)
+				.build()
+	}
 }

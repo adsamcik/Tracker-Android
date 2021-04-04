@@ -2,6 +2,7 @@ package com.adsamcik.tracker.game.goals.data.implementation
 
 import android.content.Context
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.StepGoal
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -11,15 +12,15 @@ import java.time.ZonedDateTime
 /**
  * Daily step goal
  */
-class DailyStepGoal : StepGoal() {
-	override val goalReachedKey: Int
+class DailyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
+	override val goalReachedKeyRes: Int
 		get() = R.string.goals_day_goal_reached_key
 	override val notificationMessageRes: Int
 		get() = R.string.goals_day_goal_reached_notification
 
-	override val goalPreferenceKey: Int
+	override val goalPreferenceKeyRes: Int
 		get() = R.string.settings_game_goals_day_steps_key
-	override val goalPreferenceDefault: Int
+	override val goalPreferenceDefaultRes: Int
 		get() = R.string.settings_game_goals_day_steps_default
 
 	override fun updateFromDatabase(context: Context) {
@@ -30,9 +31,11 @@ class DailyStepGoal : StepGoal() {
 				.sessionDao()
 				.getAllBetween(today.toEpochMillis(), tomorrow.toEpochMillis())
 
-		stepCount = todaySessions.sumBy { it.steps }
+		value = todaySessions.sumBy { it.steps }
 	}
 
 
-	override fun shouldResetToday(day: ZonedDateTime): Boolean = true
+	override fun roundToGoalTime(day: ZonedDateTime): Int {
+		return day.dayOfYear + day.year * 1000
+	}
 }
