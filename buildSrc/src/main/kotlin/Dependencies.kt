@@ -30,10 +30,10 @@ object Dependencies {
 		internal const val room = "2.3.0-rc01"
 
 		internal const val maps = "17.0.0"
-		internal const val recyclerView = "1.2.0-rc01"
+		internal const val recyclerView = "1.2.0"
 		internal const val paging = "3.0.0-beta03"
 
-		internal const val firebaseCore = "18.0.2"
+		internal const val firebaseCore = "18.0.3"
 		internal const val crashlytics = "17.4.1"
 		const val crashlyticsGradle: String = "2.5.2"
 
