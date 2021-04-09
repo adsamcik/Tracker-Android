@@ -239,7 +239,7 @@ class StatsDetailActivity : DetailActivity() {
 	private fun addStats(session: TrackerSession, adapter: StatsDetailAdapter) {
 		val context = this
 		launch(Dispatchers.Default) {
-			StatisticDataManager().getForSession(context, session.id, false) {
+			StatisticDataManager().getForSession(context, session.id, true) {
 				launch(Dispatchers.Main) {
 					adapter.add(convertToDisplayData(it))
 				}
