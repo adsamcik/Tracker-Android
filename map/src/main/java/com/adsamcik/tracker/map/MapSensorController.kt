@@ -107,7 +107,7 @@ internal class MapSensorController(
 	fun subscribeToLocationUpdates(context: Context, moveToCurrentLocation: Boolean = false) {
 		if (!isSubscribed && context.hasLocationPermission) {
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
-			val locationRequest = LocationRequest().apply {
+			val locationRequest = LocationRequest.create().apply {
 				this.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
 				this.interval = LOCATION_UPDATE_INTERVAL_MS
 			}
