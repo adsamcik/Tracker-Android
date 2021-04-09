@@ -7,9 +7,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 abstract class StepGoal(persistence: GoalPersistence) : BaseGoal(persistence) {
 	private var lastStepValue = 0
@@ -18,6 +16,8 @@ abstract class StepGoal(persistence: GoalPersistence) : BaseGoal(persistence) {
 
 	override fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean) {
 		val diff = if (isNewSession) session.steps else lastStepValue - session.steps
+
+		lastStepValue = session.steps
 
 		if (diff > 0) {
 			value += diff
