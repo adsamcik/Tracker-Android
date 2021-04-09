@@ -9,6 +9,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
+import com.afollestad.materialdialogs.utils.MDUtil.getStringArray
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,7 +21,6 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
 
-	
 	abstract val goalPreferenceKeyRes: Int
 	abstract val goalPreferenceDefaultRes: Int
 
@@ -129,11 +129,12 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	protected abstract fun roundToGoalTime(day: ZonedDateTime): Int
 
 	override fun buildNotification(context: Context): Notification {
+		val encouragement = context.getStringArray(R.array.goals_encouragement).random()
 		return NotificationCompat.Builder(
 				context,
 				context.getString(com.adsamcik.tracker.R.string.channel_goals_id)
 		)
-				.setContentTitle(context.getString(notificationMessageRes))
+				.setContentTitle(context.getString(notificationMessageRes, encouragement))
 				.setSmallIcon(R.drawable.ic_flag)
 				.build()
 	}
