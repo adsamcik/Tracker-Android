@@ -35,7 +35,7 @@ class DailyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 	}
 
 
-	override fun roundToGoalTime(day: ZonedDateTime): Int {
+	override fun getGoalTime(day: ZonedDateTime): Int {
 		return day.dayOfYear + day.year * 1000
 	}
 }

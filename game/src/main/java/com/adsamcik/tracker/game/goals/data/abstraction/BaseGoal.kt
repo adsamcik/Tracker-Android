@@ -50,9 +50,9 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	private var lastReportTime: Int = 0
 		set(value) {
 			field = value
-			val nowRounded = roundToGoalTime(Time.now)
+			val nowRounded = getGoalTime(Time.now)
 			isReported = nowRounded == value
-			if (roundToGoalTime(Time.now) < nowRounded) {
+			if (getGoalTime(Time.now) < nowRounded) {
 				Reporter.report(
 						"""Goal ${javaClass.name} with key $goalReachedKey has future time 
 						   set as goal. Current time: ${nowRounded}, 
@@ -99,7 +99,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	override fun onSessionUpdated(session: TrackerSession, isNewSession: Boolean): Boolean {
 		onSessionUpdatedInternal(session, isNewSession)
 		if (!isReported && value >= target) {
-			lastReportTime = roundToGoalTime(Time.now)
+			lastReportTime = getGoalTime(Time.now)
 			return true
 		}
 		return false
@@ -108,7 +108,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	protected abstract fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean)
 
 	override fun onNewDay(context: Context, day: ZonedDateTime) {
-		val time = roundToGoalTime(day)
+		val time = getGoalTime(day)
 		// This will trigger recount once a day if the goal is not reached, but
 		// because the cost should not be very high, the extra code complexity does not seem
 		// to be worth it.
@@ -126,7 +126,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	/**
 	 * Rounds date time to goal time.
 	 */
-	protected abstract fun roundToGoalTime(day: ZonedDateTime): Int
+	protected abstract fun getGoalTime(day: ZonedDateTime): Int
 
 	override fun buildNotification(context: Context): Notification {
 		val encouragement = context.getStringArray(R.array.goals_encouragement).random()

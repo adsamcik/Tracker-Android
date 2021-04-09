@@ -42,7 +42,7 @@ class WeeklyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 	}
 
 
-	override fun roundToGoalTime(day: ZonedDateTime): Int {
+	override fun getGoalTime(day: ZonedDateTime): Int {
 		return day.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR) + day.get(IsoFields.WEEK_BASED_YEAR) * 100
 	}
 }
