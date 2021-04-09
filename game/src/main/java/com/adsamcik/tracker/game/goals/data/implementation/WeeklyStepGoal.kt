@@ -29,10 +29,9 @@ class WeeklyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 
 	override fun updateFromDatabase(context: Context) {
 		val now = Time.now
-		val startOfTheWeek = now.with {
-			it.with(ChronoField.MILLI_OF_DAY, 0L)
-			it.with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1L)
-		}
+		val startOfTheWeek = now
+				.with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1L)
+				.with(ChronoField.NANO_OF_DAY, 0L)
 		val endOfTheWeek = startOfTheWeek.plusWeeks(1L)
 		val lastWeekSessions = AppDatabase
 				.database(context)
