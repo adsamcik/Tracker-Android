@@ -72,7 +72,6 @@ internal object GoalTracker : CoroutineScope {
 			}
 			launch(Dispatchers.Main) {
 				registerSessionListener(context)
-				showNotification(goalList.first().goal)
 			}
 		}
 	}
