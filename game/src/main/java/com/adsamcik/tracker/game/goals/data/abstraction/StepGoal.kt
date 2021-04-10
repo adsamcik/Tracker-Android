@@ -15,7 +15,7 @@ abstract class StepGoal(persistence: GoalPersistence) : BaseGoal(persistence) {
 	private val goalPreferenceObserver = { value: Int -> target = value }
 
 	override fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean) {
-		val diff = if (isNewSession) session.steps else lastStepValue - session.steps
+		val diff = if (isNewSession) session.steps else session.steps - lastStepValue
 
 		lastStepValue = session.steps
 
