@@ -123,6 +123,7 @@ internal object GoalTracker : CoroutineScope {
 	 */
 	internal fun update(session: TrackerSession) {
 		val isNewSession = mLastSessionId != session.id
+		mLastSessionId = session.id
 
 		goalList.forEach {
 			if (it.onSessionUpdated(session, isNewSession)) {
