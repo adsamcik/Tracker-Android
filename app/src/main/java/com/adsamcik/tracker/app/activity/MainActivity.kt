@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.activity
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Point
 import android.graphics.Rect
@@ -116,6 +117,16 @@ class MainActivity : CoreUIActivity() {
 	override fun onResume() {
 		super.onResume()
 		initializeButtonsPosition()
+	}
+
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		root.post {
+			val openGame = intent.getBooleanExtra("openGame", false)
+			if (openGame) {
+				buttonGame.moveToState(DraggableImageButton.State.TARGET, false)
+			}
+		}
 	}
 
 	@Suppress("MagicNumber")

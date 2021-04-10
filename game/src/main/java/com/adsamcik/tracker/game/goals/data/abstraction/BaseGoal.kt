@@ -1,8 +1,11 @@
 package com.adsamcik.tracker.game.goals.data.abstraction
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
+import com.adsamcik.tracker.app.activity.MainActivity
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.logger.Reporter
@@ -130,12 +133,25 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 
 	override fun buildNotification(context: Context): Notification {
 		val encouragement = context.getStringArray(R.array.goals_encouragement).random()
+
+		val pendingIntent = PendingIntent.getActivity(
+				context,
+				0,
+				Intent(context, MainActivity::class.java).apply {
+					putExtra("openGame", true)
+					flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+				},
+				PendingIntent.FLAG_UPDATE_CURRENT
+		)
+
 		return NotificationCompat.Builder(
 				context,
 				context.getString(com.adsamcik.tracker.R.string.channel_goals_id)
 		)
 				.setContentTitle(context.getString(notificationMessageRes, encouragement))
 				.setSmallIcon(R.drawable.ic_flag)
+				.setContentIntent(pendingIntent)
+				.setAutoCancel(true)
 				.build()
 	}
 }
