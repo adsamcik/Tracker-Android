@@ -36,7 +36,6 @@ object ChallengeManager {
 			WalkDistanceChallengeDefinition(), StepChallengeDefinition()
 	)
 
-	//todo do not hold this indefinitely
 	private val mutableActiveChallengeList_: MutableList<ChallengeInstance<*, *>> = mutableListOf()
 
 	private const val MAX_CHALLENGE_COUNT = 3
@@ -103,6 +102,7 @@ object ChallengeManager {
 							onChallengeCompletedListener
 					)
 				}
+				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 			}
 		}
 	}
