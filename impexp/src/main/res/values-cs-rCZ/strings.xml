@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
     <string name="export_button">Export</string>
-    <string name="export_default_file_name">Advention_exportovana_data_%s__%s</string>
-    <string name="export_default_file_name_all">Advention_exportovana_data</string>
+    <string name="export_default_file_name_range">Advention_exportovana_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_exportovana_data_%1$s</string>
     <string name="export_error_no_locations_in_interval">Nebyly nalezeny žádné záznamy pro zadaný interval.</string>
     <string name="export_error_no_share">Sdílení zrušeno</string>
     <string name="export_error_no_uri">Nebyla zvolena složka pro export</string>

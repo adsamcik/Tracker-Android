@@ -2,7 +2,12 @@
 <resources>
     <string name="date_range_selector_all_days">Vše</string>
     <string name="date_range_selector_custom_days">Vlastní</string>
-    <string name="date_range_selector_x_days">Posledních %d dní</string>
+    <plurals name="date_range_selector_x_days">
+        <item quantity="one">Dnes</item>
+        <item quantity="few">Poslední %d dny</item>
+        <item quantity="many">Posledních %d dní</item>
+        <item quantity="other">Posledních %d dní</item>
+    </plurals>
     <string name="description_date_range">Časové období pro mapová data</string>
     <string name="description_legend">Legenda pro mapu</string>
     <string name="description_map_search">Tlačítko pro vyhledávání</string>
@@ -23,7 +28,7 @@
     <string name="map_layer_location_heatmap_title">Teplotní mapa poloh</string>
     <string name="map_layer_location_polyline">Křivka poloh</string>
     <string name="map_layer_no_data">Aktuální vrstva nemá žádná data</string>
-    <string name="map_layer_none">Vypnout překrytí</string>
+    <string name="map_layer_none">Žádné překrytí</string>
     <string name="map_layer_wifi_count_heatmap_title">Teplotní mapa pro počet Wi-Fi</string>
     <string name="map_layer_wifi_heatmap_description">Teplotní mapa odhadovaného počtu Wi-Fi sítí pro dané místo.</string>
     <string name="map_layer_wifi_heatmap_high">vysoká hustota</string>
