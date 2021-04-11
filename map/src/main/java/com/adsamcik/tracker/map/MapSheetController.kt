@@ -37,6 +37,7 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.marginBottom
 import com.adsamcik.tracker.shared.base.extension.requireParent
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
@@ -334,17 +335,20 @@ internal class MapSheetController(
 					val chipGroup = this.view.contentLayout.findViewById<ChipGroup>(R.id.map_date_range_chip_group)
 
 					@Suppress("MagicNumber")
-					val chipDays = listOf(7, 14, 30, 60, 90, 180, 365)
-					val daysText = context.getString(R.string.date_range_selector_x_days)
+					val chipDays = listOf(1, 3, 7, 14, 30, 60, 90, 180, 365)
 					chipDays.forEach { days ->
+						val daysText = context.resources.getQuantityString(
+								R.plurals.date_range_selector_x_days,
+								days
+						)
 						val chip = makeChip(context).apply {
 							text = daysText.format(Locale.getDefault(), days)
 							setOnClickListener {
 								// Add day and remove day to make the intent clear.
-								val tomorrow = Time.nowMillis + Time.DAY_IN_MILLISECONDS
+								val tomorrow = Time.tomorrow
 								mapController.dateRange = LongRange(
-										tomorrow - (days - 1) * Time.DAY_IN_MILLISECONDS,
-										tomorrow
+										tomorrow.minusDays((days - 1).toLong()).toEpochMillis(),
+										tomorrow.toEpochMillis()
 								)
 								this@show.dismiss()
 							}

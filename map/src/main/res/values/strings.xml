@@ -2,7 +2,10 @@
 <resources>
     <string name="date_range_selector_all_days">All</string>
     <string name="date_range_selector_custom_days">Custom</string>
-    <string name="date_range_selector_x_days">Last %d days</string>
+    <plurals name="date_range_selector_x_days">
+        <item quantity="one">Today</item>
+        <item quantity="other">Last %d days</item>
+    </plurals>
 
     <string name="description_date_range">Date range for map data</string>
     <string name="description_legend">Map legend</string>
