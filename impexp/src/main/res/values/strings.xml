@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources>
     <string name="export_button">Export</string>
-    <string name="export_default_file_name">Advention_export_data_%s__%s</string>
-    <string name="export_default_file_name_all">Advention_export_data</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
     <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
     <string name="export_error_no_share">Sharing aborted</string>
     <string name="export_error_no_uri">No export folder was selected</string>

@@ -236,11 +236,18 @@ class ExportActivity : DetailActivity() {
 	private fun getExportFileName(): String {
 		val text = findViewById<AppCompatEditText>(R.id.edittext_filename).text
 		return if (text.isNullOrBlank()) {
-			getString(
-					R.string.export_default_file_name,
-					formatForFile(range.start),
-					formatForFile(range.endInclusive)
-			)
+			if (!exporter.canSelectDateRange) {
+				getString(
+						R.string.export_default_file_name_all,
+						formatForFile(Time.now)
+				)
+			} else {
+				getString(
+						R.string.export_default_file_name_range,
+						formatForFile(range.start),
+						formatForFile(range.endInclusive)
+				)
+			}
 		} else {
 			text.trim().toString()
 		}
@@ -376,7 +383,10 @@ class ExportActivity : DetailActivity() {
 			val locations = locationDao.getAllBetween(from.toEpochMillis(), to.toEpochMillis())
 
 			if (locations.isEmpty()) {
-				return ExportResult(false, LocalizedString(R.string.export_error_no_locations_in_interval))
+				return ExportResult(
+						false,
+						LocalizedString(R.string.export_error_no_locations_in_interval)
+				)
 			}
 			exporter.export(this, locations, outputStream)
 		} else {
