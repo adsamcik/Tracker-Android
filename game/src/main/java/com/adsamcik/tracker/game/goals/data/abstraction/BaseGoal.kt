@@ -178,7 +178,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 			override val stringResource: Int
 				get() = R.string.goals_monthly_goal
 		};
-		
+
 		abstract val stringResource: Int
 	}
 }
