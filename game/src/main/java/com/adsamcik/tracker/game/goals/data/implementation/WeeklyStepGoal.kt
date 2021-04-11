@@ -19,8 +19,9 @@ import java.util.*
 class WeeklyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 	override val goalReachedKeyRes: Int
 		get() = R.string.goals_week_goal_reached_key
-	override val notificationMessageRes: Int
-		get() = R.string.goals_week_goal_reached_notification
+
+	override val period: GoalPeriod
+		get() = GoalPeriod.Week
 
 	override val goalPreferenceKeyRes: Int
 		get() = R.string.settings_game_goals_week_steps_key

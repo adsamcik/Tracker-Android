@@ -30,7 +30,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	abstract val goalReachedKeyRes: Int
 	private lateinit var goalReachedKey: String
 
-	abstract val notificationMessageRes: Int
+	abstract val period: GoalPeriod
 	override var onValueChanged: (value: Int) -> Unit = {}
 	override var onTargetChanged: (value: Int) -> Unit = {}
 
@@ -133,6 +133,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 
 	override fun buildNotification(context: Context): Notification {
 		val encouragement = context.getStringArray(R.array.goals_encouragement).random()
+		val periodString = context.getString(period.stringResource)
 
 		val pendingIntent = PendingIntent.getActivity(
 				context,
@@ -148,10 +149,36 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 				context,
 				context.getString(com.adsamcik.tracker.R.string.channel_goals_id)
 		)
-				.setContentTitle(context.getString(notificationMessageRes, encouragement))
+				.setContentTitle(
+						context.getString(
+								R.string.goals_reached_notification,
+								encouragement,
+								periodString
+						)
+				)
 				.setSmallIcon(R.drawable.ic_flag)
 				.setContentIntent(pendingIntent)
 				.setAutoCancel(true)
 				.build()
+	}
+
+	/**
+	 * Determines how long the goal is going to take
+	 */
+	enum class GoalPeriod {
+		Day {
+			override val stringResource: Int
+				get() = R.string.goals_daily_goal
+		},
+		Week {
+			override val stringResource: Int
+				get() = R.string.goals_weekly_goal
+		},
+		Month {
+			override val stringResource: Int
+				get() = R.string.goals_monthly_goal
+		};
+		
+		abstract val stringResource: Int
 	}
 }
