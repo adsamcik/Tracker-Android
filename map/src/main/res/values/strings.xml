@@ -27,7 +27,7 @@
     <string name="map_layer_location_heatmap_title">Location heatmap</string>
     <string name="map_layer_location_polyline">Location polyline</string>
     <string name="map_layer_no_data">Current layer has no available data</string>
-    <string name="map_layer_none">Disable overlay</string>
+    <string name="map_layer_none">No overlay</string>
     <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
     <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
     <string name="map_layer_wifi_heatmap_high">high density</string>
