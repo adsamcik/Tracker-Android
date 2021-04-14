@@ -23,6 +23,12 @@ interface Goal {
 	val target: Int
 
 	/**
+	 * Point multiplier.
+	 * Used for calculating amount of points awarded.
+	 */
+	val pointMultiplier: Double
+
+	/**
 	 * On value changed listener
 	 */
 	var onValueChanged: (value: Int) -> Unit

@@ -10,6 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 abstract class StepGoal(persistence: GoalPersistence) : BaseGoal(persistence) {
+	override val pointMultiplier: Double
+		get() = 0.01
+
 	private var lastStepValue = 0
 
 	private val goalPreferenceObserver = { value: Int -> target = value }

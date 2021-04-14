@@ -14,6 +14,10 @@ import com.adsamcik.tracker.game.goals.data.implementation.WeeklyStepGoal
 import com.adsamcik.tracker.game.goals.receiver.GoalsSessionUpdateReceiver
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.points.data.AwardSource
+import com.adsamcik.tracker.points.data.Points
+import com.adsamcik.tracker.points.data.PointsAwarded
+import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.notificationManager
@@ -93,13 +97,29 @@ internal object GoalTracker : CoroutineScope {
 		)
 	}
 
-	private fun showNotification(goal: Goal) {
+	private fun onGoalReached(goal: Goal) {
 		Logger.log(
 				LogData(
 						message = "Reached goal of $goal steps at ${Time.now}",
 						source = GOALS_LOG_SOURCE
 				)
 		)
+		showNotification(goal)
+		awardGoalPoints(goal)
+	}
+
+	private fun awardGoalPoints(goal: Goal) {
+		val pointsDao = PointsDatabase.database(requireContext()).pointsAwardedDao()
+		pointsDao.insert(
+				PointsAwarded(
+						Time.nowMillis,
+						Points(goal.pointMultiplier * goal.target),
+						AwardSource.GOAL
+				)
+		)
+	}
+
+	private fun showNotification(goal: Goal) {
 		val context = requireContext()
 		context.notificationManager.notify(
 				Notifications.uniqueNotificationId(),
@@ -127,7 +147,7 @@ internal object GoalTracker : CoroutineScope {
 
 		goalList.forEach {
 			if (it.onSessionUpdated(session, isNewSession)) {
-				showNotification(it.goal)
+				onGoalReached(it.goal)
 			}
 		}
 	}
