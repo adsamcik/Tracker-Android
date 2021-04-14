@@ -145,7 +145,8 @@ internal object SessionBroadcaster {
 											PARAM_SESSION_END,
 											Long.MIN_VALUE
 									)
-								} but now is ${session.end}"
+								} but now is ${session.end}",
+								source = SESSION_BROADCAST_LOG_SOURCE
 						)
 				)
 			}
