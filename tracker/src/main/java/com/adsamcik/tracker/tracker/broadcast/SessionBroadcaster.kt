@@ -47,7 +47,12 @@ internal object SessionBroadcaster {
 		sendBroadcast(context, intent)
 
 		cancelSessionFinal(context, session)
-		Logger.log(LogData(message = "Session started", source = SESSION_BROADCAST_LOG_SOURCE))
+		Logger.log(
+				LogData(
+						message = if (isNew) "Session started" else "Session resumed",
+						source = SESSION_BROADCAST_LOG_SOURCE
+				)
+		)
 	}
 
 	/**
