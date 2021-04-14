@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.extension.year
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.*
 
 
@@ -62,22 +63,27 @@ object StatsFormat {
 			activity.name
 		}
 
-		val startHour = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault()).hour
-		val endHour = Instant.ofEpochMilli(end).atZone(ZoneId.systemDefault()).hour
+		val startDateTime = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault())
+		val endDateTime = Instant.ofEpochMilli(end).atZone(ZoneId.systemDefault())
+
+		val startHour = startDateTime.hour
+		val endHour = endDateTime.hour
 
 		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start)
 				.capitalize(Locale.getDefault())
-		val timeOfDayStringRes = if (startHour >= 22 && endHour <= 2) {
+		val timeOfDayStringRes = if (ChronoUnit.DAYS.between(startDateTime, endDateTime) > 1) {
+			0
+		} else if (startHour >= 22 && endHour <= 2) {
 			R.string.stats_midnight
 		} else if ((startHour in 22..24 || startHour in 0..6) && (endHour in 22..24 || endHour in 0..6)) {
 			R.string.stats_night
-		} else if (startHour >= 6 && endHour <= 12) {
+		} else if (startHour in 6..10 && endHour <= 12) {
 			R.string.stats_morning
-		} else if (startHour >= 11 && endHour <= 14) {
+		} else if (startHour in 11..13 && endHour in 12..14) {
 			R.string.stats_lunch
-		} else if (startHour >= 12 && endHour <= 17) {
+		} else if (startHour >= 12 && endHour <= 20) {
 			R.string.stats_afternoon
-		} else if (startHour >= 17 && endHour <= 23) {
+		} else if (startHour >= 16 && endHour in 18..22) {
 			R.string.stats_evening
 		} else {
 			0
