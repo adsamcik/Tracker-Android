@@ -137,6 +137,17 @@ internal object SessionBroadcaster {
 
 			if (session.end == inputData.getLong(PARAM_SESSION_END, Long.MIN_VALUE)) {
 				broadcastSessionFinal(applicationContext, session)
+			} else {
+				Logger.log(
+						LogData(
+								message = "Scheduled finalization skipped. Session end was ${
+									inputData.getLong(
+											PARAM_SESSION_END,
+											Long.MIN_VALUE
+									)
+								} but now is ${session.end}"
+						)
+				)
 			}
 
 			return Result.success()
