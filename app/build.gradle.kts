@@ -3,16 +3,12 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.URL
 
 plugins {
+	id("com.google.secrets_gradle_plugin") version "0.6"
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
 	id("com.google.firebase.crashlytics")
 	Dependencies.corePlugins(this)
-}
-
-
-if (file("key.gradle").exists()) {
-	apply("key.gradle")
 }
 
 android {
