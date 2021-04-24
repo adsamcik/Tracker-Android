@@ -39,6 +39,7 @@ import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
+import com.adsamcik.tracker.tracker.module.TrackerFirstRun
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import java.util.*
@@ -84,11 +85,12 @@ class MainActivity : CoreUIActivity() {
 
 	override fun onStart() {
 		super.onStart()
-		if (!Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
+		firstRun()
+		/*if (!Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
 			firstRun()
 		} else {
 			uiIntroduction()
-		}
+		}*/
 	}
 
 	private fun uiIntroduction() {
@@ -99,7 +101,8 @@ class MainActivity : CoreUIActivity() {
 
 	private fun firstRun() {
 		FirstRunDialogBuilder().let { builder ->
-			builder.addData(AppFirstRun())
+			//builder.addData(AppFirstRun())
+			builder.addData(TrackerFirstRun())
 			ModuleClassLoader.invokeInEachActiveModule<FirstRun>(this@MainActivity) {
 				builder.addData(it)
 			}
@@ -107,7 +110,6 @@ class MainActivity : CoreUIActivity() {
 				Preferences.getPref(this@MainActivity).edit {
 					setBoolean(R.string.settings_first_run_key, true)
 				}
-				PermissionManager.checkActivityPermissions(this@MainActivity) {}
 				uiIntroduction()
 			}
 			builder.show(this@MainActivity)

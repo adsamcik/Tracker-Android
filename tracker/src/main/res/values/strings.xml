@@ -178,4 +178,10 @@
 
     <string name="wifi_count_title">Wi-Fi count</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
+
+    <string name="first_run_automatic_tracking_title">Automatic tracking based on activity</string>
+    <string name="first_run_automatic_tracking_description">Requires activity permission.</string>
+
+    <string name="first_run_background_tracking_permission_title">Background tracking permission required!</string>
+
 </resources>

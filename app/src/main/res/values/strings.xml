@@ -15,7 +15,6 @@
     <string name="first_run_error_reporting_title">Automatic error reporting</string>
 
 
-
     <string name="key_last_app_version" translatable="false">lastVersion</string>
 
     <string-array name="lorem_ipsum_facts">
