@@ -305,6 +305,11 @@
                         android:title="@string/settings_log_enabled_title" />
 
                     <SwitchPreferenceCompat
+                        android:defaultValue="@string/settings_log_performance_enabled_default"
+                        android:key="@string/settings_log_performance_enabled_key"
+                        android:title="@string/settings_log_performance_enabled_title" />
+
+                    <SwitchPreferenceCompat
                         android:defaultValue="@string/settings_log_activity_default"
                         android:key="@string/settings_log_activity_key"
                         android:title="@string/settings_log_activity_title" />

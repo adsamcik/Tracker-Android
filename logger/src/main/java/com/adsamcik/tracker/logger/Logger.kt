@@ -16,60 +16,65 @@ import kotlin.coroutines.CoroutineContext
  * Follows user preferences about logging.
  */
 object Logger : CoroutineScope {
-	private val job = SupervisorJob()
+    private val job = SupervisorJob()
 
-	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Default + job
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Default + job
 
 
-	private var genericDao: GenericLogDao? = null
+    private var genericDao: GenericLogDao? = null
 
-	private var isInitialized = false
+    private var isInitialized = false
 
-	private var preferences: Preferences? = null
+    private var preferences: Preferences? = null
 
-	fun initialize(context: Context) {
-		synchronized(isInitialized) {
-			if (isInitialized) return
-			isInitialized = true
-		}
+    fun initialize(context: Context) {
+        synchronized(isInitialized) {
+            if (isInitialized) return
+            isInitialized = true
+        }
 
-		preferences = Preferences.getPref(context)
-		genericDao = LogDatabase.database(context).genericLogDao()
-	}
+        preferences = Preferences.getPref(context)
+        genericDao = LogDatabase.database(context).genericLogDao()
+    }
 
-	@AnyThread
-	fun log(data: LogData) {
-		require(isInitialized)
-		if (requireNotNull(preferences).getBooleanRes(
-						R.string.settings_log_enabled_key,
-						R.string.settings_log_enabled_default
-				)) {
-			launch {
-				requireNotNull(genericDao).insert(data)
-			}
-		}
-	}
+    @AnyThread
+    fun log(data: LogData) {
+        require(isInitialized)
+        if (requireNotNull(preferences).getBooleanRes(
+                R.string.settings_log_enabled_key,
+                R.string.settings_log_enabled_default
+            )
+        ) {
+            launch {
+                requireNotNull(genericDao).insert(data)
+            }
+        }
+    }
 
-	@AnyThread
-	fun logWithPreference(data: LogData, @StringRes key: Int, @StringRes default: Int) {
-		if (requireNotNull(preferences).getBooleanRes(key, default)) {
-			log(data)
-		}
-	}
+    @AnyThread
+    fun logWithPreference(data: LogData, @StringRes key: Int, @StringRes default: Int) {
+        if (requireNotNull(preferences).getBooleanRes(key, default)) {
+            log(data)
+        }
+    }
 
-	@AnyThread
-	inline fun <R> measureTimeMillis(name: String, method: () -> R): R {
-		val result: R
-		val time = kotlin.system.measureTimeMillis {
-			result = method()
-		}
-		val message = "Measured time of $name is $time"
-		log(LogData(message = message, source = "performance"))
-		if (BuildConfig.DEBUG) {
-			Log.d("TrackerPerf", message)
-		}
+    @AnyThread
+    inline fun <R> measureTimeMillis(name: String, method: () -> R): R {
+        val result: R
+        val time = kotlin.system.measureTimeMillis {
+            result = method()
+        }
+        val message = "Measured time of $name is $time"
+        logWithPreference(
+            LogData(message = message, source = "performance"),
+            com.adsamcik.tracker.logger.R.string.settings_log_performance_enabled_key,
+            com.adsamcik.tracker.logger.R.string.settings_log_performance_enabled_default
+        )
+        if (BuildConfig.DEBUG) {
+            Log.d("TrackerPerf", message)
+        }
 
-		return result
-	}
+        return result
+    }
 }

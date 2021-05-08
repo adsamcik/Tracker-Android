@@ -77,6 +77,7 @@
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_log_activity_title">Log activity changes</string>
     <string name="settings_log_enabled_title">Enable logging</string>
+    <string name="settings_log_performance_enabled_title">Enable performance logging</string>
     <string name="settings_log_games_title">Log games</string>
     <string name="settings_log_list_activity_key" translatable="false">logViewer</string>
     <string name="settings_log_list_activity_title">Log viewer</string>

@@ -2,4 +2,7 @@
 <resources>
     <string name="settings_log_enabled_default" translatable="false">true</string>
     <string name="settings_log_enabled_key" translatable="false">log_enabled</string>
+
+    <string name="settings_log_performance_enabled_key">log_performance_enable</string>
+    <string name="settings_log_performance_enabled_default">false</string>
 </resources>
