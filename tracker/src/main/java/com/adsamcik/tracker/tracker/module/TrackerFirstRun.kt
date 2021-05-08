@@ -7,36 +7,22 @@ import com.adsamcik.tracker.shared.base.extension.telephonyManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.OnDoneListener
-import com.adsamcik.tracker.shared.utils.permission.*
+import com.adsamcik.tracker.shared.utils.permission.PermissionData
+import com.adsamcik.tracker.shared.utils.permission.PermissionManager
+import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
+import com.adsamcik.tracker.shared.utils.permission.PermissionResultCallback
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.utility.TelephonyUtils
 import com.afollestad.materialdialogs.list.listItemsMultiChoice
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
 
+/**
+ * First run for tracker component.
+ */
 class TrackerFirstRun : FirstRun() {
     override fun onFirstRun(context: Context, onDoneListener: OnDoneListener) {
         autoTrackingOptions(context, onDoneListener)
-    }
-
-    private fun requestActivity(context: Context, callback: PermissionResultCallback) {
-        val permissionList = mutableListOf<PermissionData>()
-
-        permissionList.add(PermissionData(
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) { context ->
-            context.getString(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_location)
-        })
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            permissionList.add(PermissionData(Manifest.permission.ACTIVITY_RECOGNITION) { context ->
-                context.getString(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_activity)
-            })
-        }
-
-        PermissionManager.checkPermissions(
-            PermissionRequest.with(context).permissions(permissionList).onResult(callback).build()
-        )
     }
 
     private fun requestBackgroundLocation(context: Context, callback: PermissionResultCallback) {
