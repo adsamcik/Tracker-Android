@@ -17,17 +17,17 @@ import java.util.*
 open class DialogListPreference : Preference {
 	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
-			context, attrs,
-			defStyleAttr, defStyleRes
+		context, attrs,
+		defStyleAttr, defStyleRes
 	) {
 		initAttributes(context, attrs)
 	}
 
 	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(
-			context,
-			attrs,
-			defStyleAttr
+		context,
+		attrs,
+		defStyleAttr
 	) {
 		initAttributes(context, attrs)
 	}
@@ -44,21 +44,24 @@ open class DialogListPreference : Preference {
 	protected val keyList: MutableList<String> = mutableListOf()
 
 	protected var summaryText: String = ""
-	protected var selectedValueIndex: Int = -1
+	var selectedValueIndex: Int = -1
+		protected set
+
+	val selectedValue get() = valueList[selectedValueIndex]
 
 
 	private fun initAttributes(context: Context, attrs: AttributeSet) {
 		val attributes = context.obtainStyledAttributes(attrs, R.styleable.DialogListPreference)
 		val titleResources = attributes
-				.getTextArray(R.styleable.DialogListPreference_titles)
-				?.map { it.toString() }
+			.getTextArray(R.styleable.DialogListPreference_titles)
+			?.map { it.toString() }
 		if (titleResources != null) {
 			valueList.addAll(titleResources)
 		}
 
 		val keyResources = attributes
-				.getTextArray(R.styleable.DialogListPreference_keys)
-				?.map { it.toString() }
+			.getTextArray(R.styleable.DialogListPreference_keys)
+			?.map { it.toString() }
 		if (keyResources != null) {
 			keyList.addAll(keyResources)
 		}
@@ -112,8 +115,8 @@ open class DialogListPreference : Preference {
 	override fun onClick() {
 		MaterialDialog(context).show {
 			listItemsSingleChoice(
-					items = valueList,
-					initialSelection = selectedValueIndex
+				items = valueList,
+				initialSelection = selectedValueIndex
 			) { _, index, _ ->
 				setIndex(index)
 			}

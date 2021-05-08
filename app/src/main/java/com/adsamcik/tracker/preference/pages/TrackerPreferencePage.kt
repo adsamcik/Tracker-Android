@@ -1,18 +1,24 @@
 package com.adsamcik.tracker.preference.pages
 
+import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.preference.CheckBoxPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.preference.component.DialogListPreference
+import com.adsamcik.tracker.preference.component.IndicesDialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
+import com.adsamcik.tracker.shared.base.extension.hasBackgroundLocationPermission
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.utils.permission.PermissionData
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
+import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.notification.NotificationManagementActivity
@@ -42,6 +48,14 @@ class TrackerPreferencePage : PreferencePage {
 		val stepCountPreference =
 			caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_steps_enabled_key)
 
+		val locationWarning = caller.findPreference(R.string.settings_location_warning_key)
+
+		val trackerPreference =
+			caller.findPreferenceTyped<DialogListPreference>(R.string.settings_tracker_timer_key)
+
+		val autoTracking =
+			caller.findPreferenceTyped<IndicesDialogListPreference>(R.string.settings_tracking_activity_key)
+
 		val context = caller.requireContext()
 		val packageManager = context.packageManager
 		if (!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)) {
@@ -52,13 +66,62 @@ class TrackerPreferencePage : PreferencePage {
 			cellPreference.isEnabled = false
 		}
 
+		fun updateLocationWarning(
+			isAutoTracking: Boolean = autoTracking.selectedValueIndex > 0,
+			tracksLocation: Boolean = locationPreference.isChecked,
+			usesLocationUpdater: Boolean = TrackerTimerManager.currentTimerRequiresLocation(context)
+		) {
+			if (isAutoTracking && (tracksLocation || usesLocationUpdater)) {
+				locationWarning.isVisible = !context.hasBackgroundLocationPermission
+			} else {
+				locationWarning.isVisible = false
+			}
+		}
+
+		locationWarning.setOnPreferenceClickListener {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+				PermissionManager.checkPermissions(
+					PermissionRequest
+						.with(context)
+						.permissions(
+							listOf(
+								PermissionData(
+									Manifest.permission.ACCESS_BACKGROUND_LOCATION
+								) { "BlaBla" }
+							)
+						)
+						//.onRationale { token, _ -> token.continuePermissionRequest() }
+						.onResult { updateLocationWarning() }
+						.build()
+				)
+			}
+			true
+		}
+
+		autoTracking.setOnPreferenceChangeListener { _, newValue ->
+			updateLocationWarning(isAutoTracking = newValue as Int > 0)
+			true
+		}
+
+		trackerPreference.setOnPreferenceChangeListener { _, newValue ->
+			updateLocationWarning(
+				usesLocationUpdater = TrackerTimerManager.timerWithKeyRequiredLocation(
+					newValue as String
+				)
+			)
+			true
+		}
+
+
 		fun validateEnablePreference(
 			locationEnabled: Boolean = locationPreference.isChecked,
 			wifiEnabled: Boolean = wifiPreference.isChecked,
 			cellEnabled: Boolean = cellPreference.isChecked,
 			activity: Boolean = activityPreference.isChecked,
 			stepCount: Boolean = stepCountPreference.isChecked,
-		) = locationEnabled.or(wifiEnabled).or(cellEnabled).or(activity).or(stepCount)
+		): Boolean {
+			return locationEnabled.or(wifiEnabled).or(cellEnabled).or(activity).or(stepCount)
+		}
 
 		fun onValidated(isValid: Boolean): Boolean {
 			if (!isValid) {
@@ -71,7 +134,8 @@ class TrackerPreferencePage : PreferencePage {
 		}
 
 		locationPreference.setOnPreferenceChangeListener { _, newValue ->
-			onValidated(validateEnablePreference(locationEnabled = newValue as Boolean))
+			updateLocationWarning(tracksLocation = newValue as Boolean)
+			onValidated(validateEnablePreference(locationEnabled = newValue))
 		}
 
 		wifiPreference.setOnPreferenceChangeListener { _, newValue ->

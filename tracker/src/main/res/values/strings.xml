@@ -134,6 +134,8 @@
     </integer-array>
     <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
     <string name="settings_tracking_notice_title">Notice</string>
+    <string name="settings_location_warning_summary">Since Android 11, explicit background location permission need to be set in order for background tracking to work.</string>
+    <string name="settings_location_warning_title">Background location permission not granted!</string>
     <integer-array name="settings_tracking_required_accuracy">
         <item>5</item>
         <item>10</item>
