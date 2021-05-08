@@ -3,7 +3,7 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:4.2.0-rc01")
+		classpath("com.android.tools.build:gradle:4.2.0")
 		classpath("com.google.gms:google-services:4.3.5")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.4")
 		classpath("com.google.firebase:firebase-crashlytics-gradle:${Dependencies.Versions.crashlyticsGradle}")
