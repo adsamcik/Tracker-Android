@@ -5,7 +5,6 @@ import android.graphics.Color
 import androidx.core.graphics.ColorUtils
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.base.misc.BlendFunctions
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData

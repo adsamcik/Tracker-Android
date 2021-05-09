@@ -41,7 +41,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			inflater: LayoutInflater,
 			container: ViewGroup?,
 			savedInstanceState: Bundle?
-	): View? {
+	): View {
 		val activity = requireActivity()
 		val fragmentView = inflater.inflate(R.layout.fragment_stats, container, false)
 		val flipper = fragmentView as ViewFlipper

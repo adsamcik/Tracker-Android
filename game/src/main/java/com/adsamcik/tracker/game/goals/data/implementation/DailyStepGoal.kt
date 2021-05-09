@@ -28,11 +28,11 @@ class DailyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 		val today = Time.today
 		val tomorrow = Time.tomorrow
 		val todaySessions = AppDatabase
-				.database(context)
-				.sessionDao()
-				.getAllBetween(today.toEpochMillis(), tomorrow.toEpochMillis())
+			.database(context)
+			.sessionDao()
+			.getAllBetween(today.toEpochMillis(), tomorrow.toEpochMillis())
 
-		value = todaySessions.sumBy { it.steps }
+		value = todaySessions.sumOf { it.steps }
 	}
 
 

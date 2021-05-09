@@ -27,7 +27,7 @@ import java.util.*
  * It is based upon Android's [Preference].
  */
 class SettingsActivity : DetailActivity(),
-		PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
+	PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
 	val fragment: FragmentSettings = FragmentSettings()
 
 	private val backstack = mutableListOf<PreferenceScreen>()
@@ -65,11 +65,11 @@ class SettingsActivity : DetailActivity(),
 
 		val resources = resources
 		pageList = mapOf(
-				resources.getString(R.string.settings_debug_title) to DebugPage(),
-				resources.getString(R.string.settings_style_title) to StylePage(),
-				resources.getString(R.string.settings_tracking_title) to TrackerPreferencePage(),
-				resources.getString(R.string.settings_data_title) to DataPage(),
-				resources.getString(R.string.settings_export_title) to ExportPage()
+			resources.getString(R.string.settings_debug_title) to DebugPage(),
+			resources.getString(R.string.settings_style_title) to StylePage(),
+			resources.getString(R.string.settings_tracking_title) to TrackerPreferencePage(),
+			resources.getString(R.string.settings_data_title) to DataPage(),
+			resources.getString(R.string.settings_export_title) to ExportPage()
 		)
 
 		pageList.forEach { (_, value) ->
@@ -79,13 +79,21 @@ class SettingsActivity : DetailActivity(),
 
 	private fun initializeModuleSettingsList() {
 		val modules = Module.getActiveModuleInfo(this)
-		modules.forEach {
+		modules.forEach { module ->
 			try {
-				val tClass = it.module.loadClass<ModuleSettings>(
-						"preference.${it.module.moduleName.capitalize(Locale.ROOT)}Settings"
+				val tClass = module.module.loadClass<ModuleSettings>(
+					"preference.${
+						module.module.moduleName.replaceFirstChar {
+							if (it.isLowerCase()) {
+								it.titlecase(Locale.ROOT)
+							} else {
+								it.toString()
+							}
+						}
+					}Settings"
 				)
 				val instance = tClass.newInstance()
-				moduleSettingsList[it.module] = instance
+				moduleSettingsList[module.module] = instance
 			} catch (e: ClassNotFoundException) {
 				//e.printStackTrace()
 				//this exception is ok, just don't add anything
@@ -136,8 +144,8 @@ class SettingsActivity : DetailActivity(),
 
 
 	override fun onPreferenceStartScreen(
-			caller: PreferenceFragmentCompat,
-			pref: PreferenceScreen
+		caller: PreferenceFragmentCompat,
+		pref: PreferenceScreen
 	): Boolean {
 		caller.preferenceScreen = pref
 		val index = backstack.indexOf(pref)
@@ -156,9 +164,9 @@ class SettingsActivity : DetailActivity(),
 	}
 
 	override fun onRequestPermissionsResult(
-			requestCode: Int,
-			permissions: Array<out String>,
-			grantResults: IntArray
+		requestCode: Int,
+		permissions: Array<out String>,
+		grantResults: IntArray
 	) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 

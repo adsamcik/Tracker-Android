@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.utils.permission
 
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
-import com.afollestad.materialdialogs.MaterialDialog
 import com.karumi.dexter.PermissionToken
 
 typealias PermissionResultCallback = (result: PermissionRequestResult) -> Unit

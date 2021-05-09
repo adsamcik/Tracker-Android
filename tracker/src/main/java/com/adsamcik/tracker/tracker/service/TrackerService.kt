@@ -42,7 +42,6 @@ import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
-import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.locker.TrackerLocker

@@ -6,6 +6,7 @@ import androidx.test.InstrumentationRegistry.getInstrumentation
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObjectNotFoundException
 import androidx.test.uiautomator.UiSelector
+import java.util.*
 
 val device: UiDevice get() = UiDevice.getInstance(getInstrumentation())!!
 
@@ -13,7 +14,7 @@ fun handlePermissions(accept: Boolean) {
 	if (Build.VERSION.SDK_INT >= 23) {
 		var value = if (accept) "Allow" else "Deny"
 		if (Build.VERSION.SDK_INT >= 26) {
-			value = value.toUpperCase()
+			value = value.uppercase(Locale.getDefault())
 		}
 		val allowPermissions = device.findObject(UiSelector().text(value))
 		if (allowPermissions.exists()) {

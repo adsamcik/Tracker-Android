@@ -28,7 +28,7 @@ class ResourceLicenseObject(
 	}
 
 	private fun resolveNotice(): Notice {
-		val lowerName = name.toLowerCase(Locale.getDefault())
+		val lowerName = name.lowercase(Locale.getDefault())
 		val resolvedLicense = getLicense()
 		if (lowerName.startsWith("stag")) {
 			return Notice(

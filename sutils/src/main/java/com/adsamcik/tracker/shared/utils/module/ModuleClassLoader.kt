@@ -17,8 +17,18 @@ object ModuleClassLoader {
 		activeModules.forEach { moduleName ->
 			try {
 				val classDefinition = loadClass<T>(
-						moduleName = moduleName,
-						className = "${moduleName.capitalize(Locale.ROOT)}${T::class.java.simpleName}"
+					moduleName = moduleName,
+					className = "${
+						moduleName.replaceFirstChar {
+							if (it.isLowerCase()) {
+								it.titlecase(
+									Locale.ROOT
+								)
+							} else {
+								it.toString()
+							}
+						}
+					}${T::class.java.simpleName}"
 				)
 				func(classDefinition.newInstance())
 			} catch (e: ClassNotFoundException) {

@@ -6,7 +6,6 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest

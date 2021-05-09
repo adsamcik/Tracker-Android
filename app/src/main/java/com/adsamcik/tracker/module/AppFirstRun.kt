@@ -1,16 +1,10 @@
 package com.adsamcik.tracker.module
 
-import android.Manifest
 import android.content.Context
-import android.os.Build
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.OnDoneListener
-import com.adsamcik.tracker.shared.utils.permission.PermissionData
-import com.adsamcik.tracker.shared.utils.permission.PermissionManager
-import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
-import com.adsamcik.tracker.shared.utils.permission.PermissionResultCallback
 import com.afollestad.materialdialogs.callbacks.onDismiss
 
 /**

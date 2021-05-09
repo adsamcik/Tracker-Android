@@ -127,12 +127,13 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			preferenceParent.isVisible = false
 		} else {
 			val locale = Locale.getDefault()
-			modules.forEach {
+			modules.forEach { module ->
 				val preferenceScreen = preferenceManager.createPreferenceScreen(context)
-				preferenceScreen.title = context.getString(it.key.titleRes).capitalize(locale)
-				preferenceScreen.key = "module-${it.key.moduleName}"
-				preferenceScreen.setIcon(it.value.iconRes)
-				it.value.onCreatePreferenceScreen(preferenceScreen)
+				preferenceScreen.title = context.getString(module.key.titleRes)
+					.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+				preferenceScreen.key = "module-${module.key.moduleName}"
+				preferenceScreen.setIcon(module.value.iconRes)
+				module.value.onCreatePreferenceScreen(preferenceScreen)
 				preferenceParent.addPreference(preferenceScreen)
 			}
 		}

@@ -24,12 +24,12 @@ import kotlin.math.abs
 import kotlin.math.max
 
 internal class PointsWorker(context: Context, workerParams: WorkerParameters) : Worker(
-		context,
-		workerParams
+	context,
+	workerParams
 ) {
 	private fun logResult(
-			message: String,
-			result: Result
+		message: String,
+		result: Result
 	): Result {
 		Logger.log(LogData(message = message, source = POINTS_LOG_SOURCE))
 		return result
@@ -38,23 +38,23 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 	override fun doWork(): Result {
 		val id = this.inputData.getPositiveLongReportNull(ARG_ID) ?: return Result.failure()
 		val session = AppDatabase.database(applicationContext).sessionDao().get(id)
-				?: return logResult("Found no session for point calculation.", Result.failure())
+			?: return logResult("Found no session for point calculation.", Result.failure())
 
 		val locationData = AppDatabase.database(applicationContext)
-				.locationDao()
-				.getAllBetweenOrdered(session.start, session.end)
-				.filter { it.altitude != null && it.activityInfo.groupedActivity == GroupedActivity.ON_FOOT }
+			.locationDao()
+			.getAllBetweenOrdered(session.start, session.end)
+			.filter { it.altitude != null && it.activityInfo.groupedActivity == GroupedActivity.ON_FOOT }
 
 		if (locationData.size <= 1) {
 			return logResult(
-					"Not enough locations with altitude and on foot for point calculation.",
-					Result.failure()
+				"Not enough locations with altitude and on foot for point calculation.",
+				Result.failure()
 			)
 		}
 
 		val slopeList = calculateSlope(locationData)
 
-		val points = slopeList.sumByDouble {
+		val points = slopeList.sumOf {
 			@Suppress("MagicNumber")
 			val slopePositive = max(it.slope, 0.0)
 
@@ -65,19 +65,19 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		}
 
 		val awardPoints = PointsAwarded(
-				Time.nowMillis,
-				Points(points),
-				AwardSource.SESSION
+			Time.nowMillis,
+			Points(points),
+			AwardSource.SESSION
 		)
 
 		PointsDatabase
-				.database(applicationContext)
-				.pointsAwardedDao()
-				.insert(awardPoints)
+			.database(applicationContext)
+			.pointsAwardedDao()
+			.insert(awardPoints)
 
 		return logResult(
-				"Awarded ${awardPoints.value.value.format(2)} points from ${awardPoints.source.value}",
-				Result.success()
+			"Awarded ${awardPoints.value.value.format(2)} points from ${awardPoints.source.value}",
+			Result.success()
 		)
 	}
 
@@ -85,14 +85,14 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		val firstLocation = locationData.first()
 		var lastAltitude = requireNotNull(firstLocation.altitude)
 		val slopeList = mutableListOf(
-				SlopeData(
-						firstLocation.location,
-						firstLocation.activityInfo,
-						0.0,
-						0.0,
-						0.0,
-						0.0
-				)
+			SlopeData(
+				firstLocation.location,
+				firstLocation.activityInfo,
+				0.0,
+				0.0,
+				0.0,
+				0.0
+			)
 		)
 		var prevLocation = firstLocation.location
 		locationData.forEachIndexed { index, dbLocation ->
@@ -104,14 +104,14 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 				val speed = distance / (location.time - prevLocation.time)
 				val slope = kotlin.math.atan(diff / distance)
 				slopeList.add(
-						SlopeData(
-								location,
-								dbLocation.activityInfo,
-								diff,
-								slope,
-								distance,
-								speed
-						)
+					SlopeData(
+						location,
+						dbLocation.activityInfo,
+						diff,
+						slope,
+						distance,
+						speed
+					)
 				)
 
 				prevLocation = location
@@ -123,12 +123,12 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 	}
 
 	data class SlopeData(
-			val location: Location,
-			val activity: ActivityInfo,
-			val change: Double,
-			val slope: Double,
-			val distance: Double,
-			val speedMPS: Double
+		val location: Location,
+		val activity: ActivityInfo,
+		val change: Double,
+		val slope: Double,
+		val distance: Double,
+		val speedMPS: Double
 	)
 
 	companion object {

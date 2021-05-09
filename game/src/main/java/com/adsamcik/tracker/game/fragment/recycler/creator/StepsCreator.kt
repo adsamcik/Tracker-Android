@@ -2,10 +2,8 @@ package com.adsamcik.tracker.game.fragment.recycler.creator
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.appcompat.widget.AppCompatTextView
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.fragment.recycler.data.abstraction.GameRecyclerData
-import com.adsamcik.tracker.game.fragment.recycler.viewholder.PointsRecyclerViewHolder
 import com.adsamcik.tracker.game.fragment.recycler.viewholder.StepsViewHolder
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolder
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeViewHolderCreator

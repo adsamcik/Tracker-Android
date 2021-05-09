@@ -20,7 +20,6 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.HomeIntroduction
-import com.adsamcik.tracker.module.AppFirstRun
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.shared.base.Time
@@ -35,7 +34,6 @@ import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
-import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView

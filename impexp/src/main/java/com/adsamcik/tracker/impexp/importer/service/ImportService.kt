@@ -115,7 +115,7 @@ internal class ImportService : CoreService() {
 
 	@WorkerThread
 	private fun tryImport(stream: FileImportStream): Int {
-		val extension = stream.extension.toLowerCase(Locale.ROOT)
+		val extension = stream.extension.lowercase(Locale.ROOT)
 		val importer = import.activeImporterList
 				.find { it.supportedExtensions.contains(extension) }
 
@@ -160,7 +160,7 @@ internal class ImportService : CoreService() {
 	}
 
 	private fun handleFile(file: DocumentFile): Int {
-		val extension = file.extension?.toLowerCase(Locale.ROOT)
+		val extension = file.extension?.lowercase(Locale.ROOT)
 		val extractor = import.activeArchiveExtractorList
 				.find { it.supportedExtensions.contains(extension) }
 
