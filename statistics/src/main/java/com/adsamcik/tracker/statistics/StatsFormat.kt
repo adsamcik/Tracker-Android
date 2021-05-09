@@ -70,7 +70,7 @@ object StatsFormat {
 		val endHour = endDateTime.hour
 
 		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start)
-				.capitalize(Locale.getDefault())
+			.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 		val timeOfDayStringRes = if (ChronoUnit.DAYS.between(startDateTime, endDateTime) > 1) {
 			0
 		} else if (startHour >= 22 && endHour <= 2) {
