@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.statistics.detail.activity
+ package com.adsamcik.tracker.statistics.detail.activity
 
 import android.content.Context
 import android.os.Bundle
@@ -73,10 +73,10 @@ class StatsDetailActivity : DetailActivity() {
 		val rootContentView = inflateContent<ViewGroup>(R.layout.activity_stats_detail)
 
 		styleController.watchView(
-				StyleView(
-						rootContentView.findViewById(R.id.root_stats_detail),
-						0
-				)
+			StyleView(
+				rootContentView.findViewById(R.id.root_stats_detail),
+				0
+			)
 		)
 
 		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
@@ -103,8 +103,8 @@ class StatsDetailActivity : DetailActivity() {
 
 
 		addAction(
-				com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
-				R.string.edit_session
+			com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
+			R.string.edit_session
 		) {
 			val addItemLayout = findViewById<View>(R.id.add_item_layout)
 			val headerRoot = findViewById<ViewGroup>(R.id.header_root)
@@ -115,7 +115,7 @@ class StatsDetailActivity : DetailActivity() {
 				addItemLayout.visibility = View.VISIBLE
 				headerRoot.updatePadding(top = HEADER_ROOT_PADDING.dp)
 				findViewById<View>(
-						R.id.button_change_activity
+					R.id.button_change_activity
 				).setOnClickListener { showActivitySelectionDialog() }
 				findViewById<View>(R.id.button_remove_session).setOnClickListener { showDeleteConfirmDialog() }
 			}
@@ -126,17 +126,17 @@ class StatsDetailActivity : DetailActivity() {
 
 	private fun showDeleteConfirmDialog() {
 		MaterialDialog(this)
-				.message(
-						text = getString(
-								com.adsamcik.tracker.shared.base.R.string.alert_confirm,
-								getString(R.string.remove_session)
-						)
+			.message(
+				text = getString(
+					com.adsamcik.tracker.shared.base.R.string.alert_confirm,
+					getString(R.string.remove_session)
 				)
-				.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
-				.positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_yes) { removeSession() }
-				.negativeButton(com.adsamcik.tracker.shared.base.R.string.generic_no)
-				.dynamicStyle()
-				.show()
+			)
+			.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
+			.positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_yes) { removeSession() }
+			.negativeButton(com.adsamcik.tracker.shared.base.R.string.generic_no)
+			.dynamicStyle()
+			.show()
 	}
 
 	private fun removeSession() {
@@ -151,11 +151,11 @@ class StatsDetailActivity : DetailActivity() {
 		launch(Dispatchers.Default) {
 			val activities = SessionActivity.getAll(this@StatsDetailActivity)
 			SessionActivitySelection(
-					this@StatsDetailActivity,
-					activities,
-					viewModel.session.requireValue
+				this@StatsDetailActivity,
+				activities,
+				viewModel.session.requireValue
 			)
-					.showActivitySelectionDialog()
+				.showActivitySelectionDialog()
 		}
 	}
 
@@ -171,15 +171,15 @@ class StatsDetailActivity : DetailActivity() {
 
 		val callback = object : SortCallback<StatisticsDetailData> {
 			override fun areContentsTheSame(
-					a: StatisticsDetailData,
-					b: StatisticsDetailData
+				a: StatisticsDetailData,
+				b: StatisticsDetailData
 			): Boolean {
 				return areItemsTheSame(a, b)
 			}
 
 			override fun areItemsTheSame(
-					a: StatisticsDetailData,
-					b: StatisticsDetailData
+				a: StatisticsDetailData,
+				b: StatisticsDetailData
 			): Boolean = a == b
 
 			override fun compare(a: StatisticsDetailData, b: StatisticsDetailData): Int {
@@ -189,9 +189,9 @@ class StatsDetailActivity : DetailActivity() {
 		}
 
 		val adapter = StatsDetailAdapter(
-				styleController,
-				callback,
-				StatisticsDetailData::class.java
+			styleController,
+			callback,
+			StatisticsDetailData::class.java
 		).apply {
 			registerType(StatisticDisplayType.Information, InformationViewHolderCreator())
 			registerType(StatisticDisplayType.Map, MapViewHolderCreator())
@@ -217,7 +217,7 @@ class StatsDetailActivity : DetailActivity() {
 			override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = Unit
 
 			override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) =
-					Unit
+				Unit
 		})
 
 		val recycler = findViewById<RecyclerView>(R.id.recycler)
@@ -231,8 +231,8 @@ class StatsDetailActivity : DetailActivity() {
 		setTitle(session)
 
 		findViewById<TextView>(R.id.date_time).text = StatsFormat.formatRange(
-				startCalendar,
-				endCalendar
+			startCalendar,
+			endCalendar
 		)
 	}
 
@@ -254,24 +254,24 @@ class StatsDetailActivity : DetailActivity() {
 			val sessionActivity = when {
 				activityId == null -> null
 				activityId < -1 -> NativeSessionActivity.values()
-						.find { it.id == activityId }
-						?.getSessionActivity(
-								this@StatsDetailActivity
-						)
+					.find { it.id == activityId }
+					?.getSessionActivity(
+						this@StatsDetailActivity
+					)
 				else -> if (activityId == 0L || activityId == -1L) {
 					null
 				} else {
 					val activityDao = AppDatabase.database(this@StatsDetailActivity)
-							.activityDao()
+						.activityDao()
 					activityDao.get(activityId)
 				}
 			} ?: SessionActivity.UNKNOWN
 
 			val title = StatsFormat.createTitle(
-					this@StatsDetailActivity,
-					session.start,
-					session.end,
-					sessionActivity
+				this@StatsDetailActivity,
+				session.start,
+				session.end,
+				sessionActivity
 			)
 
 			val drawable = sessionActivity.getIcon(this@StatsDetailActivity)
@@ -287,15 +287,15 @@ class StatsDetailActivity : DetailActivity() {
 	private fun convertToDisplayData(stat: Stat): StatisticsDetailData {
 		return when (stat.displayType) {
 			StatisticDisplayType.Information -> InformationStatisticsData(
-					stat.iconRes,
-					stat.nameRes,
-					stat.data.toString()
+				stat.iconRes,
+				stat.nameRes,
+				stat.data.toString()
 			)
 			StatisticDisplayType.Map -> MapStatisticsData(stat.data as List<BaseLocation>)
 			StatisticDisplayType.LineChart -> LineChartStatisticsData(
-					stat.iconRes,
-					stat.nameRes,
-					stat.data as List<Entry>
+				stat.iconRes,
+				stat.nameRes,
+				stat.data as List<Entry>
 			)
 		}
 	}

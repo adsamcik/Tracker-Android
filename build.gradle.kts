@@ -3,8 +3,8 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:4.2.0")
-		classpath("com.google.gms:google-services:4.3.5")
+		classpath("com.android.tools.build:gradle:7.0.0")
+		classpath("com.google.gms:google-services:4.3.9")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.4")
 		classpath("com.google.firebase:firebase-crashlytics-gradle:${Dependencies.Versions.crashlyticsGradle}")
 
@@ -15,16 +15,16 @@ buildscript {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.38.0")
+	id("com.github.ben-manes.versions") version ("0.39.0")
 }
 
 allprojects {
 	repositories {
-		jcenter()
 		google()
 		maven("https://jitpack.io")
 		maven("https://kotlin.bintray.com/kotlinx/")
 		mavenCentral()
+		jcenter()
 	}
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {

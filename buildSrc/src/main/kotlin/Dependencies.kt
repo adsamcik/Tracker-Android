@@ -12,29 +12,29 @@ object Dependencies {
      */
     object Versions {
         internal const val constraintLayout = "2.0.4"
-        internal const val coreKtx = "1.5.0-rc02"
-        internal const val appcompat = "1.3.0-rc01"
-        internal const val fragment = "1.3.3"
+        internal const val coreKtx = "1.6.0"
+        internal const val appcompat = "1.3.1"
+        internal const val fragment = "1.3.6"
         const val dokka: String = "0.9.18"
         internal const val moshi = "1.12.0"
-        internal const val work = "2.5.0"
+        internal const val work = "2.6.0-rc01"
         internal const val lifecycle = "2.3.1"
         internal const val preference = "1.1.1"
-        internal const val material = "1.3.0"
+        internal const val material = "1.4.0"
         internal const val desugar = "1.0.10"
 
-        const val kotlin: String = "1.5.0"
-        internal const val coroutines = "1.5.0-RC"
+        const val kotlin: String = "1.5.21"
+        internal const val coroutines = "1.5.1"
 
         internal const val sqlite = "3.34.1"
         internal const val room = "2.3.0"
 
-        internal const val recyclerView = "1.2.0"
-        internal const val paging = "3.0.0"
+        internal const val recyclerView = "1.2.1"
+        internal const val paging = "3.0.1"
 
-        internal const val firebaseCore = "18.0.3"
-        internal const val crashlytics = "17.4.1"
-        const val crashlyticsGradle: String = "2.5.2"
+        internal const val firebaseCore = "19.0.0"
+        internal const val crashlytics = "18.2.1"
+        const val crashlyticsGradle: String = "2.7.1"
 
         internal const val playServicesBase = "17.6.0"
         internal const val playLocation = "18.0.0"
@@ -43,7 +43,7 @@ object Dependencies {
 
         internal const val stax = "1.0.1"
         internal const val jpx = "2.2.0"
-        internal const val xml = "1.2.2"
+        internal const val xml = "1.3.0"
 
         internal const val spotlight = "2.2.3"
         internal const val dialogs = "3.3.0"
@@ -52,18 +52,18 @@ object Dependencies {
         internal const val componentsDraggable = "1.0.4"
         internal const val componentSlider = "2.1.0"
 
-        internal const val dexter = "6.2.2"
+        internal const val dexter = "6.2.3"
 
-        internal const val suncalc = "3.4"
+        internal const val suncalc = "3.5"
 
         /**
          * Testing specific dependencies
          */
         internal object Test {
-            internal const val androidxTest: String = "1.3.0"
-            internal const val espresso: String = "3.3.0"
+            internal const val androidxTest: String = "1.4.0"
+            internal const val espresso: String = "3.4.0"
             internal const val coreTesting: String = "2.1.0"
-            internal const val testingKtx: String = "1.1.2"
+            internal const val testingKtx: String = "1.2.0"
         }
     }
 
@@ -106,10 +106,10 @@ object Dependencies {
             implementation("androidx.core:core-ktx:${Versions.coreKtx}")
             implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
 
-            //Recycler
+            // Recycler
             implementation("com.github.adsamcik:Recycler:${Versions.componentsRecycler}")
             implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
-            //implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
+            // implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
 
             implementation("androidx.lifecycle:lifecycle-runtime-ktx:${Versions.lifecycle}")
             implementation("androidx.lifecycle:lifecycle-service:${Versions.lifecycle}")
@@ -122,7 +122,7 @@ object Dependencies {
             implementation("com.google.android.play:core:${Versions.playCore}")
 
             implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
-            //implementation("com.codezjx.library:andlinker:0.7.2")
+            // implementation("com.codezjx.library:andlinker:0.7.2")
 
             implementation("com.karumi:dexter:${Versions.dexter}")
 

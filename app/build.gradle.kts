@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.URL
 
 plugins {
-	id("com.google.secrets_gradle_plugin") version "0.6"
+	id("com.google.secrets_gradle_plugin") version "0.6.1"
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
@@ -12,16 +12,18 @@ plugins {
 }
 
 android {
-	compileSdkVersion(Android.compile)
-	buildToolsVersion(Android.buildTools)
+	compileSdk = Android.compile
+	buildToolsVersion = Android.buildTools
 	defaultConfig {
 		applicationId = "com.adsamcik.tracker"
-		minSdkVersion(Android.min)
-		targetSdkVersion(Android.target)
+		minSdk = Android.min
+		targetSdk = Android.target
 		versionCode = 364
 		versionName = "2021.1α9"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		resConfigs("en", "cs-rCZ")
+
+		resourceConfigurations.add("en")
+		resourceConfigurations.add("cs-rCZ")
 	}
 
 	compileOptions {
@@ -34,7 +36,6 @@ android {
 		with(kotlinOptions) {
 			jvmTarget = "1.8"
 			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes", "-Xjvm-default=enable")
-			useIR = true
 		}
 	}
 
@@ -52,7 +53,7 @@ android {
 		}
 	}
 
-	lintOptions {
+	lint {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
 	}
@@ -60,10 +61,12 @@ android {
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
 	packagingOptions {
-		pickFirst("META-INF/atomicfu.kotlin_module")
+		resources.pickFirsts.add("META-INF/atomicfu.kotlin_module")
 	}
 
-	dynamicFeatures = mutableSetOf(":statistics", ":game", ":map")
+	dynamicFeatures.add(":statistics")
+	dynamicFeatures.add(":game")
+	dynamicFeatures.add(":map")
 }
 
 tasks.withType<DokkaTask> {
@@ -89,41 +92,40 @@ dependencies {
 	implementation(project(":logger"))
 	implementation(project(":impexp"))
 
-	//debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
+	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
 	Dependencies.core(this)
-	//1st party dependencies
+	// 1st party dependencies
 	Dependencies.slider(this)
 	Dependencies.draggable(this)
 
 	Dependencies.introduction(this)
 
-	//3rd party dependencies
+	// 3rd party dependencies
 	Dependencies.colorChooser(this)
 	Dependencies.fileChooser(this)
 
 	Dependencies.json(this)
 
-	//Google dependencies
+	// Google dependencies
 	implementation("androidx.cardview:cardview:1.0.0")
 
-	//Preference
+	// Preference
 	Dependencies.preference(this)
 
-	//Open-source licenses
-	implementation("de.psdev.licensesdialog:licensesdialog:2.1.0")
+	// Open-source licenses
+	implementation("de.psdev.licensesdialog:licensesdialog:2.2.0")
 	implementation("com.google.android.gms:play-services-oss-licenses:17.0.0")
 
-	//PlayServices
+	// PlayServices
 	Dependencies.location(this)
 	Dependencies.crashlytics(this)
 
-	//Database
+	// Database
 	Dependencies.database(this)
 
-
 	Dependencies.test(this)
-	//workaround  Multiple APKs packaging the same library can cause runtime errors.
+	// workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":smap"))
 	Dependencies.map(this)
 }

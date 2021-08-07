@@ -67,15 +67,17 @@ class MainActivity : CoreUIActivity() {
 
 		initializeButtons()
 		initializeColorElements()
+		initializeButtonsPosition()
 
-		trackerFragment = supportFragmentManager.findFragmentByTag(FragmentTracker::class.java.simpleName)
+		trackerFragment =
+			supportFragmentManager.findFragmentByTag(FragmentTracker::class.java.simpleName)
 		if (trackerFragment == null) {
 			trackerFragment = FragmentTracker()
 			supportFragmentManager.transaction {
 				replace(
-						R.id.tracker_placeholder,
-						requireNotNull(trackerFragment),
-						FragmentTracker::class.java.simpleName
+					R.id.tracker_placeholder,
+					requireNotNull(trackerFragment),
+					FragmentTracker::class.java.simpleName
 				)
 			}
 		}
@@ -116,7 +118,7 @@ class MainActivity : CoreUIActivity() {
 
 	override fun onResume() {
 		super.onResume()
-		initializeButtonsPosition()
+		//initializeButtonsPosition()
 	}
 
 	override fun onNewIntent(intent: Intent) {
@@ -131,7 +133,8 @@ class MainActivity : CoreUIActivity() {
 
 	@Suppress("MagicNumber")
 	private fun initializeStatsButton(size: Point) {
-		val fragmentStatsClass = Module.STATISTICS.loadClass<PayloadFragment>("fragment.FragmentStats")
+		val fragmentStatsClass =
+			Module.STATISTICS.loadClass<PayloadFragment>("fragment.FragmentStats")
 
 		buttonStats.apply {
 			visibility = View.VISIBLE
@@ -174,7 +177,8 @@ class MainActivity : CoreUIActivity() {
 			onLeaveStateListener = { _, state ->
 				if (state == DraggableImageButton.State.TARGET) {
 					if (buttonGame.state != DraggableImageButton.State.TARGET &&
-							buttonStats.state != DraggableImageButton.State.TARGET) {
+						buttonStats.state != DraggableImageButton.State.TARGET
+					) {
 						showBottomLayer()
 					}
 
@@ -323,7 +327,8 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun initializeButtonsPosition() {
-		val navGuideline = findViewById<Guideline>(R.id.navigation_guideline)
+		val navGuideline = findViewById<Guideline>(R.id.navigation_guideline) ?: return
+
 		if (navigationOffset == Int.MIN_VALUE) {
 			navigationOffset = navGuideline.guidelineEnd
 		}
@@ -346,19 +351,19 @@ class MainActivity : CoreUIActivity() {
 
 	private fun initializeSystemBars() {
 		styleController.watchNotificationBar(
-				SystemBarStyleView(
-						window,
-						layer = 1,
-						style = SystemBarStyle.Transparent
-				)
+			SystemBarStyleView(
+				window,
+				layer = 1,
+				style = SystemBarStyle.Transparent
+			)
 		)
 
 		styleController.watchNavigationBar(
-				SystemBarStyleView(
-						window,
-						layer = 1,
-						style = SystemBarStyle.Transparent
-				)
+			SystemBarStyleView(
+				window,
+				layer = 1,
+				style = SystemBarStyle.Transparent
+			)
 		)
 	}
 
@@ -395,13 +400,13 @@ class MainActivity : CoreUIActivity() {
 	override fun onBackPressed() {
 		when {
 			buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
-					DraggableImageButton.State.INITIAL, true
+				DraggableImageButton.State.INITIAL, true
 			)
 			buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
-					DraggableImageButton.State.INITIAL, true
+				DraggableImageButton.State.INITIAL, true
 			)
 			buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
-					DraggableImageButton.State.INITIAL, true
+				DraggableImageButton.State.INITIAL, true
 			)
 			else -> super.onBackPressed()
 		}
