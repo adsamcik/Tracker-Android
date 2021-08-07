@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
@@ -37,9 +38,17 @@ import kotlin.coroutines.CoroutineContext
  * Sectioned recycler adapter for sessions with paging.
  */
 internal class SessionSectionedRecyclerAdapter :
-		PagingDataAdapter<SessionUiModel,
-				RecyclerView.ViewHolder>(SessionModeComparator),
-		IViewChange {
+	PagingDataAdapter<SessionUiModel,
+			RecyclerView.ViewHolder>(SessionModeComparator),
+	IViewChange {
+
+	private val sunSetRise = SunSetRise()
+
+	override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+		super.onAttachedToRecyclerView(recyclerView)
+		sunSetRise.initialize(recyclerView.context)
+	}
+
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	override fun onViewAttachedToWindow(holder: RecyclerView.ViewHolder) {
@@ -59,30 +68,31 @@ internal class SessionSectionedRecyclerAdapter :
 
 
 	override fun onCreateViewHolder(
-			parent: ViewGroup,
-			viewType: Int
+		parent: ViewGroup,
+		viewType: Int
 	): RecyclerView.ViewHolder {
 		val inflater = LayoutInflater.from(parent.context)
 		val rootView = inflater.inflate(viewType, parent, false) as ViewGroup
 		return when (viewType) {
 			R.layout.layout_section_preview_session -> SessionModelViewHolder(
-					rootView,
-					rootView.findViewById(R.id.text_time),
-					rootView.findViewById(R.id.text_title),
-					rootView.findViewById(R.id.text_info)
+				rootView,
+				rootView.findViewById(R.id.text_time),
+				rootView.findViewById(R.id.text_title),
+				rootView.findViewById(R.id.text_info),
+				sunSetRise
 			)
 			R.layout.layout_section_header_list -> SessionListHeaderViewHolder(
-					rootView,
-					rootView.findViewById(R.id.text_time),
-					rootView.findViewById(R.id.text_distance),
-					rootView.findViewById(R.id.button_stats_summary),
-					rootView.findViewById(R.id.button_stats_week),
-					rootView.findViewById(R.id.button_stats_wifi_list)
+				rootView,
+				rootView.findViewById(R.id.text_time),
+				rootView.findViewById(R.id.text_distance),
+				rootView.findViewById(R.id.button_stats_summary),
+				rootView.findViewById(R.id.button_stats_week),
+				rootView.findViewById(R.id.button_stats_wifi_list)
 			)
 			else -> SessionHeaderViewHolder(
-					rootView,
-					rootView.findViewById(R.id.text_time),
-					rootView.findViewById(R.id.text_distance)
+				rootView,
+				rootView.findViewById(R.id.text_time),
+				rootView.findViewById(R.id.text_distance)
 			)
 		}
 	}
@@ -98,10 +108,11 @@ internal class SessionSectionedRecyclerAdapter :
 }
 
 internal class SessionModelViewHolder(
-		root: ViewGroup,
-		val time: AppCompatTextView,
-		val title: AppCompatTextView,
-		val info: AppCompatTextView
+	root: ViewGroup,
+	val time: AppCompatTextView,
+	val title: AppCompatTextView,
+	val info: AppCompatTextView,
+	val sunSetRise: SunSetRise,
 ) : RecyclerView.ViewHolder(root), CoroutineScope {
 
 	private val job = SupervisorJob()
@@ -116,9 +127,9 @@ internal class SessionModelViewHolder(
 		builder.append(time)
 
 		val distance = resources.formatDistance(
-				session.distanceInM,
-				1,
-				Preferences.getLengthSystem(context)
+			session.distanceInM,
+			1,
+			Preferences.getLengthSystem(context)
 		)
 		builder.append(" | ").append(distance)
 
@@ -128,8 +139,8 @@ internal class SessionModelViewHolder(
 	fun bind(model: SessionUiModel.SessionModel) {
 		val session = model.session
 		val timeFormat = SimpleDateFormat.getTimeInstance(
-				SimpleDateFormat.MEDIUM,
-				Locale.getDefault()
+			SimpleDateFormat.MEDIUM,
+			Locale.getDefault()
 		)
 
 		val context = itemView.context
@@ -141,24 +152,26 @@ internal class SessionModelViewHolder(
 
 		val activityId = session.sessionActivityId
 		title.text = StatsFormat.createTitle(
-				context,
-				session.start,
-				session.end,
-				SessionActivity.UNKNOWN
+			context,
+			session.start,
+			session.end,
+			SessionActivity.UNKNOWN,
+			sunSetRise
 		)
 		if (activityId != null) {
 			launch {
 				val activity = AppDatabase.database(context).activityDao().getLocalized(
-						context,
-						activityId
+					context,
+					activityId
 				) ?: SessionActivity.UNKNOWN
 
 				title.post {
 					title.text = StatsFormat.createTitle(
-							context,
-							session.start,
-							session.end,
-							activity
+						context,
+						session.start,
+						session.end,
+						activity,
+						sunSetRise
 					)
 				}
 			}
@@ -168,8 +181,8 @@ internal class SessionModelViewHolder(
 		itemView.setOnClickListener {
 			it.context.startActivity<StatsDetailActivity> {
 				putExtra(
-						StatsDetailActivity.ARG_SESSION_ID,
-						it.tag as Long
+					StatsDetailActivity.ARG_SESSION_ID,
+					it.tag as Long
 				)
 			}
 		}
@@ -177,42 +190,42 @@ internal class SessionModelViewHolder(
 }
 
 internal open class SessionHeaderViewHolder(
-		root: ViewGroup,
-		private val time: AppCompatTextView,
-		private val distance: AppCompatTextView
+	root: ViewGroup,
+	private val time: AppCompatTextView,
+	private val distance: AppCompatTextView
 ) : RecyclerView.ViewHolder(root) {
 	fun bind(header: SessionUiModel.SessionHeader) {
 		time.text = DateUtils.getRelativeTimeSpanString(
-				header.date,
-				Time.todayMillis,
-				DateUtils.DAY_IN_MILLIS
+			header.date,
+			Time.todayMillis,
+			DateUtils.DAY_IN_MILLIS
 		)
 	}
 }
 
 internal class SessionListHeaderViewHolder(
-		root: ViewGroup,
-		time: AppCompatTextView,
-		distance: AppCompatTextView,
-		private val buttonSummary: AppCompatButton,
-		private val buttonWeek: AppCompatButton,
-		private val buttonWifi: AppCompatButton
+	root: ViewGroup,
+	time: AppCompatTextView,
+	distance: AppCompatTextView,
+	private val buttonSummary: AppCompatButton,
+	private val buttonWeek: AppCompatButton,
+	private val buttonWifi: AppCompatButton
 ) : SessionHeaderViewHolder(root, time, distance) {
 	fun bind(header: SessionUiModel.ListHeader) {
 		super.bind(header)
 
 		buttonSummary.setOnClickListener {
 			StatisticSummaryDialog().show(
-					it.context,
-					R.string.stats_sum_title,
-					SummaryGenerator::buildSummary
+				it.context,
+				R.string.stats_sum_title,
+				SummaryGenerator::buildSummary
 			)
 		}
 		buttonWeek.setOnClickListener {
 			StatisticSummaryDialog().show(
-					it.context,
-					R.string.stats_weekly_title,
-					SummaryGenerator::buildSevenDaySummary
+				it.context,
+				R.string.stats_weekly_title,
+				SummaryGenerator::buildSevenDaySummary
 			)
 		}
 		buttonWifi.setOnClickListener { it.context.startActivity<WifiBrowseActivity> { } }
@@ -246,8 +259,8 @@ internal sealed class SessionUiModel {
  */
 internal object SessionModeComparator : DiffUtil.ItemCallback<SessionUiModel>() {
 	override fun areItemsTheSame(
-			oldItem: SessionUiModel,
-			newItem: SessionUiModel
+		oldItem: SessionUiModel,
+		newItem: SessionUiModel
 	): Boolean {
 		val isSameRepoItem = oldItem is SessionUiModel.SessionModel
 				&& newItem is SessionUiModel.SessionModel
@@ -261,8 +274,8 @@ internal object SessionModeComparator : DiffUtil.ItemCallback<SessionUiModel>() 
 	}
 
 	override fun areContentsTheSame(
-			oldItem: SessionUiModel,
-			newItem: SessionUiModel
+		oldItem: SessionUiModel,
+		newItem: SessionUiModel
 	) = oldItem == newItem
 }
 

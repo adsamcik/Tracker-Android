@@ -20,6 +20,7 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <permission
@@ -42,7 +43,9 @@
             android:screenOrientation="portrait" />
         <activity android:name=".notification.NotificationManagementActivity" />
 
-        <receiver android:name="com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver">
+        <receiver
+            android:name="com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>

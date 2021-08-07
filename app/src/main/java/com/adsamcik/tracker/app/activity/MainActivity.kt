@@ -85,12 +85,11 @@ class MainActivity : CoreUIActivity() {
 
 	override fun onStart() {
 		super.onStart()
-		firstRun()
-		/*if (!Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
+		if (!Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
 			firstRun()
 		} else {
 			uiIntroduction()
-		}*/
+		}
 	}
 
 	private fun uiIntroduction() {

@@ -1,4 +1,4 @@
- package com.adsamcik.tracker.statistics.detail.activity
+package com.adsamcik.tracker.statistics.detail.activity
 
 import android.content.Context
 import android.os.Bundle
@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.multitype.StyleSortMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
+import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.data.Stat
@@ -161,7 +162,7 @@ class StatsDetailActivity : DetailActivity() {
 
 	@MainThread
 	private fun initializeSessionData(session: TrackerSession) {
-		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
+		// recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
 		val layoutManager = LinearLayoutManager(this)
 		recycler.layoutManager = layoutManager
 
@@ -271,7 +272,8 @@ class StatsDetailActivity : DetailActivity() {
 				this@StatsDetailActivity,
 				session.start,
 				session.end,
-				sessionActivity
+				sessionActivity,
+				viewModel.sunSetRise
 			)
 
 			val drawable = sessionActivity.getIcon(this@StatsDetailActivity)
@@ -308,6 +310,8 @@ class StatsDetailActivity : DetailActivity() {
 		private var initialized = false
 		private val sessionMutable: MutableLiveData<TrackerSession?> = MutableLiveData()
 
+		val sunSetRise = SunSetRise()
+
 		/**
 		 * Returns LiveData containing tracker sessions
 		 */
@@ -323,6 +327,7 @@ class StatsDetailActivity : DetailActivity() {
 
 			val database = AppDatabase.database(context)
 			sessionMutable.postValue(database.sessionDao().get(sessionId))
+			sunSetRise.initialize(context)
 		}
 	}
 

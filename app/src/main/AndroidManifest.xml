@@ -66,6 +66,7 @@
         </activity>
         <activity
             android:name="com.adsamcik.tracker.impexp.exporter.activity.ExportActivity"
+            android:exported="false"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.PICK" />
@@ -87,12 +88,16 @@
             android:name="com.adsamcik.tracker.app.activity.debug.StatusActivity"
             android:exported="true" />
 
-        <receiver android:name="com.adsamcik.tracker.app.receiver.BootReceiver">
+        <receiver
+            android:name="com.adsamcik.tracker.app.receiver.BootReceiver"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-        <receiver android:name="com.adsamcik.tracker.app.receiver.OnAppUpdateReceiver">
+        <receiver
+            android:name="com.adsamcik.tracker.app.receiver.OnAppUpdateReceiver"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>

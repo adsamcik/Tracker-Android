@@ -39,7 +39,6 @@ class SunSetRise {
 			requireNotNull(context)
 			updateLocation(context, locationResult.lastLocation)
 		}
-
 	}
 
 	/**

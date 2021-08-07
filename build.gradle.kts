@@ -43,7 +43,7 @@ tasks.register("clean", Delete::class) {
 fun isStable(version: String): Boolean {
 	val stableKeyword = listOf("RELEASE", "FINAL", "GA", "RC").any {
 		version.toUpperCase()
-				.contains(it)
+			.contains(it)
 	}
 	val regex = "^[0-9,.v-]+(-r)?$".toRegex()
 	return stableKeyword || regex.matches(version)
@@ -51,8 +51,8 @@ fun isStable(version: String): Boolean {
 
 
 tasks.named(
-		"dependencyUpdates",
-		com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask::class.java
+	"dependencyUpdates",
+	com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask::class.java
 ).configure {
 	resolutionStrategy {
 		componentSelection {
