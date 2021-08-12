@@ -7,9 +7,11 @@ plugins {
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
-	id("com.google.firebase.crashlytics")
 	Dependencies.corePlugins(this)
 }
+
+apply(plugin = "com.google.gms.google-services")
+apply(plugin = "com.google.firebase.crashlytics")
 
 android {
 	compileSdk = Android.compile

@@ -32,7 +32,7 @@ object Dependencies {
         internal const val recyclerView = "1.2.1"
         internal const val paging = "3.0.1"
 
-        internal const val firebaseCore = "19.0.0"
+        internal const val firebaseBom = "28.3.0"
         internal const val crashlytics = "18.2.1"
         const val crashlyticsGradle: String = "2.7.1"
 
@@ -68,7 +68,7 @@ object Dependencies {
     }
 
     private fun DependencyHandler.api(name: String) = add("api", name)
-    private fun DependencyHandler.implementation(name: String) = add("implementation", name)
+    private fun DependencyHandler.implementation(name: Any) = add("implementation", name)
     private fun DependencyHandler.kapt(name: String) = add("kapt", name)
     private fun DependencyHandler.androidTestImplementation(name: String) =
         add("androidTestImplementation", name)
@@ -161,8 +161,8 @@ object Dependencies {
 
     fun crashlytics(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
-            implementation("com.google.firebase:firebase-core:${Versions.firebaseCore}")
-            implementation("com.google.firebase:firebase-crashlytics:${Versions.crashlytics}")
+            implementation(platform("com.google.firebase:firebase-bom:${Versions.firebaseBom}"))
+            implementation("com.google.firebase:firebase-crashlytics-ktx:${Versions.crashlytics}")
         }
     }
 
