@@ -21,7 +21,7 @@ object Dependencies {
         internal const val lifecycle = "2.3.1"
         internal const val preference = "1.1.1"
         internal const val material = "1.4.0"
-        internal const val desugar = "1.0.10"
+        internal const val desugar = "1.1.5"
 
         const val kotlin: String = "1.5.21"
         internal const val coroutines = "1.5.1"
