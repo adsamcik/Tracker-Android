@@ -42,7 +42,7 @@ android {
 		create("release_nominify")
 	}
 
-	lintOptions {
+	lint {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
 	}

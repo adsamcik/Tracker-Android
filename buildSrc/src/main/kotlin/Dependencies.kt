@@ -109,7 +109,6 @@ object Dependencies {
             // Recycler
             implementation("com.github.adsamcik:Recycler:${Versions.componentsRecycler}")
             implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
-            // implementation("androidx.paging:paging-runtime-ktx:${Versions.paging}")
 
             implementation("androidx.lifecycle:lifecycle-runtime-ktx:${Versions.lifecycle}")
             implementation("androidx.lifecycle:lifecycle-service:${Versions.lifecycle}")
