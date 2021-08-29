@@ -22,7 +22,6 @@ allprojects {
 	repositories {
 		google()
 		maven("https://jitpack.io")
-		maven("https://kotlin.bintray.com/kotlinx/")
 		mavenCentral()
 		jcenter()
 	}
