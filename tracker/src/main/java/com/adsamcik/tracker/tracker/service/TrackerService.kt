@@ -56,6 +56,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/***
+ * Service which is responsible for tracking.
+ */
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
@@ -72,7 +75,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private val postComponentList = mutableListOf<PostTrackerComponent>()
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
-	//Kept here and used internally in case something went wrong and service was launched again with different info
+	// Kept here and used internally in case something went wrong and service was launched again with different info
 	private var sessionInfo: TrackerSessionInfo? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private val session: TrackerSession get() = requireNotNull(sessionComponent).session
@@ -84,7 +87,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private suspend fun updateData(tempData: MutableCollectionTempData) {
 		requireNotNull(dataProducerManager).getData(tempData)
 
-		//if we don't know the accuracy the location is worthless
+		// if we don't know the accuracy the location is worthless
 		if (!preComponentList.all {
 					if (it.requirementsMet(tempData)) {
 						tryWithResultAndReport(
@@ -134,7 +137,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				TrackerNotificationManager.getForegroundNotification(this)
 		)
 
-		//Get managers
+		// Get managers
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(
 				PowerManager.PARTIAL_WAKE_LOCK,
@@ -142,7 +145,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		)
 
 
-		//Shortcut setup
+		// Shortcut setup
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
 			Shortcuts.updateShortcut(
 					this,
@@ -283,7 +286,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		preComponentList.forEach { it.onDisable(context) }
 		postComponentList.forEach { it.onDisable(context) }
 
-		//Can be null if TrackerServices is immediately stopped after start
+		// Can be null if TrackerServices is immediately stopped after start
 		val sessionComponent = sessionComponent
 		if (sessionComponent != null) {
 			SessionBroadcaster.broadcastSessionEnd(context, sessionComponent.session)
