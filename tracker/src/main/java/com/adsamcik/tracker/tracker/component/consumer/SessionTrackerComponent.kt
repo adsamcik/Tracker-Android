@@ -26,7 +26,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
 internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent,
-		CoroutineScope {
+	CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
 
 	private val job = SupervisorJob()
@@ -34,8 +34,8 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 		get() = Dispatchers.Default + job
 
 	private var mutableSession: MutableTrackerSession = MutableTrackerSession(
-			Time.nowMillis,
-			isUserInitiated
+		Time.nowMillis,
+		isUserInitiated
 	)
 
 	val session: TrackerSession
@@ -53,8 +53,8 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	private lateinit var sessionDao: SessionDataDao
 
 	override suspend fun onDataUpdated(
-			tempData: CollectionTempData,
-			collectionData: MutableCollectionData
+		tempData: CollectionTempData,
+		collectionData: MutableCollectionData
 	) {
 		mutableSession.run {
 			val locationData = tempData.tryGetLocationData()
@@ -64,8 +64,8 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 				tempData.tryGetActivity()?.let { activity ->
 					validateActivity(
-							distance, tempData.elapsedRealtimeNanos,
-							activity.groupedActivity
+						distance, tempData.elapsedRealtimeNanos,
+						activity.groupedActivity
 					)
 				}
 			}
@@ -85,15 +85,16 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	private fun MutableTrackerSession.validateActivity(
-			distance: Float,
-			elapsedRealtimeNanos: Long,
-			groupedActivity: GroupedActivity
+		distance: Float,
+		elapsedRealtimeNanos: Long,
+		groupedActivity: GroupedActivity
 	) {
 		if (elapsedRealtimeNanos < max(
-						Time.SECOND_IN_NANOSECONDS * 20,
-						minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS
-				) ||
-				distance <= minDistanceInMeters * 2f) {
+				Time.SECOND_IN_NANOSECONDS * 20,
+				minUpdateDelayInSeconds * 2 * Time.SECOND_IN_NANOSECONDS
+			) ||
+			distance <= minDistanceInMeters * 2f
+		) {
 
 			when (groupedActivity) {
 				GroupedActivity.ON_FOOT -> distanceOnFootInM += distance
@@ -106,12 +107,12 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	override suspend fun onDisable(context: Context) {
 		PreferenceObserver.removeObserver(
-				context, R.string.settings_tracking_min_distance_key,
-				minDistanceInMetersObserver
+			context, R.string.settings_tracking_min_distance_key,
+			minDistanceInMetersObserver
 		)
 		PreferenceObserver.removeObserver(
-				context, R.string.settings_tracking_min_time_key,
-				minUpdateDelayInSecondsObserver
+			context, R.string.settings_tracking_min_time_key,
+			minUpdateDelayInSecondsObserver
 		)
 
 		mutableSession.apply {
@@ -125,12 +126,12 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	override suspend fun onEnable(context: Context) {
 		PreferenceObserver.observeIntRes(
-				context, R.string.settings_tracking_min_distance_key,
-				R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver
+			context, R.string.settings_tracking_min_distance_key,
+			R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver
 		)
 		PreferenceObserver.observeIntRes(
-				context, R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver
+			context, R.string.settings_tracking_min_time_key,
+			R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver
 		)
 
 		withContext(coroutineContext) {
@@ -151,8 +152,9 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 			val lastSessionAge = now - lastSessionEnd
 
 			if (lastSessionAge in 0..SESSION_RESUME_TIMEOUT &&
-					lastSession.isUserInitiated == isUserInitiated &&
-					!isUserInitiated) {
+				lastSession.isUserInitiated == isUserInitiated &&
+				!isUserInitiated
+			) {
 				mutableSession = MutableTrackerSession(lastSession)
 				isNewSession = false
 			}
@@ -168,7 +170,7 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	companion object {
-		const val SESSION_RESUME_TIMEOUT = 0 * Time.MINUTE_IN_MILLISECONDS
+		const val SESSION_RESUME_TIMEOUT = 15 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
 
