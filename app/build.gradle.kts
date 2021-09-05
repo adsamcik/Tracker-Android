@@ -20,8 +20,8 @@ android {
 		applicationId = "com.adsamcik.tracker"
 		minSdk = Android.min
 		targetSdk = Android.target
-		versionCode = 367
-		versionName = "2021.1"
+		versionCode = 368
+		versionName = "2021.2α1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		resourceConfigurations.add("en")
