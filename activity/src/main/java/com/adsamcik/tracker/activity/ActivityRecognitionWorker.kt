@@ -72,7 +72,7 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 		} else {
 			Reporter.log(message)
 		}
-		
+
 		return Result.failure()
 	}
 
