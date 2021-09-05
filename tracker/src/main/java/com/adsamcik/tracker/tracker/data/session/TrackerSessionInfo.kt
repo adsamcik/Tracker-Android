@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.data.session
 import android.os.Parcel
 import android.os.Parcelable
 
+/**
+ * Contains information about the session.
+ */
 data class TrackerSessionInfo(val isInitiatedByUser: Boolean) : Parcelable {
 	constructor(parcel: Parcel) : this(parcel.readByte() != 0.toByte())
 
