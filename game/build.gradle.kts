@@ -18,9 +18,9 @@ android {
 		with(javaCompileOptions) {
 			with(annotationProcessorOptions) {
 				arguments(
-						mapOf(
-								"room.incremental" to "true"
-						)
+					mapOf(
+						"room.incremental" to "true"
+					)
 				)
 			}
 		}

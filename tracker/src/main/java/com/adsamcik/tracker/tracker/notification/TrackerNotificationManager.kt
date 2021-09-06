@@ -52,7 +52,7 @@ class TrackerNotificationManager(
 				context,
 				0,
 				stopIntent,
-				PendingIntent.FLAG_UPDATE_CURRENT
+				PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
 		)
 		if (isUserInitiatedSession) {
 			addAction(
@@ -80,7 +80,7 @@ class TrackerNotificationManager(
 					context,
 					1,
 					stopForMinutesIntent,
-					PendingIntent.FLAG_UPDATE_CURRENT
+					PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
 			)
 			addAction(
 					R.drawable.ic_stop_black_24dp,
@@ -121,7 +121,7 @@ class TrackerNotificationManager(
 					.setOngoing(true)
 					.setContentIntent(TaskStackBuilder.create(context).run {
 						addNextIntentWithParentStack(intent)
-						getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT)
+						getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE))
 					}).also {
 						if (useStyle) {
 							it.setColor(StyleManager.styleData.backgroundColor(isInverted = false))

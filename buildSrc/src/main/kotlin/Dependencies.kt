@@ -17,7 +17,7 @@ object Dependencies {
         internal const val fragment = "1.3.6"
         const val dokka: String = "0.9.18"
         internal const val moshi = "1.12.0"
-        internal const val work = "2.6.0"
+        internal const val work = "2.7.0-beta01"
         internal const val lifecycle = "2.3.1"
         internal const val preference = "1.1.1"
         internal const val material = "1.4.0"
