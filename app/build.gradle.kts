@@ -69,6 +69,7 @@ android {
 	dynamicFeatures.add(":statistics")
 	dynamicFeatures.add(":game")
 	dynamicFeatures.add(":map")
+	dynamicFeatures.add(":external")
 }
 
 tasks.withType<DokkaTask> {
