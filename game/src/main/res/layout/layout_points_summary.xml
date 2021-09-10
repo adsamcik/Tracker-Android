@@ -11,7 +11,7 @@
 
     <com.google.android.material.progressindicator.CircularProgressIndicator
         android:id="@+id/progress_circular_points"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="0dp"
         android:indeterminate="true"
         android:indeterminateBehavior="repeat"
@@ -20,8 +20,8 @@
         android:progressBackgroundTint="@color/cardview_dark_background"
         app:indicatorInset="0dp"
         app:indicatorSize="200dp"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:trackThickness="16dp" />
 
