@@ -20,7 +20,7 @@ android {
 		applicationId = "com.adsamcik.tracker"
 		minSdk = Android.min
 		targetSdk = Android.target
-		versionCode = 367
+		versionCode = 368
 		versionName = "2021.1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -105,6 +105,7 @@ dependencies {
 
 	// 3rd party dependencies
 	Dependencies.colorChooser(this)
+	Dependencies.inputDialog(this)
 
 	Dependencies.json(this)
 
