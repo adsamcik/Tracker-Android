@@ -20,7 +20,9 @@ inline fun MaterialDialog.dynamicStyle(
 		styleController.watchView(StyleView(view, layer))
 		styleController.addListener { styleData ->
 			view.buttonsLayout?.actionButtons?.forEach {
-				it.updateTextColor(styleData.foregroundColor())
+				it.post {
+					it.updateTextColor(styleData.foregroundColor())
+				}
 			}
 		}
 
