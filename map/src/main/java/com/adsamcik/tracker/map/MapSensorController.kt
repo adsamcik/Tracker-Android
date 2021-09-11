@@ -25,6 +25,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.tasks.Task
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,9 +34,9 @@ import kotlin.coroutines.CoroutineContext
 
 @Suppress("TooManyFunctions", "MemberVisibilityCanBePrivate")
 internal class MapSensorController(
-    context: Context,
-    private val map: GoogleMap,
-    private val eventListener: MapEventListener
+	context: Context,
+	private val map: GoogleMap,
+	private val eventListener: MapEventListener
 ) : SensorEventListener, CoroutineScope {
 	private var followMyPosition: Boolean = false
 
@@ -122,9 +123,9 @@ internal class MapSensorController(
 			if (moveToCurrentLocation) {
 				// Checked few lines above (context.hasLocationPermission)
 				@Suppress("MissingPermission")
-				locationClient.lastLocation.addOnCompleteListener {
+				locationClient.lastLocation.addOnCompleteListener { it: Task<Location?> ->
 					if (it.isSuccessful) {
-						it.result.let { result ->
+						it.result?.let { result ->
 							onNewLocationAvailable(result)
 							moveTo(LatLng(result.latitude, result.longitude), false)
 						}
@@ -231,11 +232,11 @@ internal class MapSensorController(
 	}
 
 	private fun animateTo(
-	    position: LatLng,
-	    zoom: Float,
-	    tilt: Float,
-	    bearing: Float,
-	    duration: Int
+		position: LatLng,
+		zoom: Float,
+		tilt: Float,
+		bearing: Float,
+		duration: Int
 	) {
 		val builder = CameraPosition.Builder(map.cameraPosition).target(position).zoom(zoom)
 			.tilt(tilt).bearing(bearing)
