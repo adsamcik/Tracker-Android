@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.adsamcik.tracker.shared.base.Time
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
+import com.karumi.dexter.BuildConfig
 
 /**
  * Notification manager for tracker service and related modules.

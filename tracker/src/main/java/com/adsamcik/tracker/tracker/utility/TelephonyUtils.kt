@@ -11,11 +11,8 @@ object TelephonyUtils {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
             telephonyManager.activeModemCount
         }
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-            @Suppress("DEPRECATION") telephonyManager.phoneCount
-        }
         else -> {
-            1
+            @Suppress("DEPRECATION") telephonyManager.phoneCount
         }
     }
 }

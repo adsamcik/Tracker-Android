@@ -11,20 +11,18 @@ import java.util.*
 val device: UiDevice get() = UiDevice.getInstance(getInstrumentation())!!
 
 fun handlePermissions(accept: Boolean) {
-	if (Build.VERSION.SDK_INT >= 23) {
-		var value = if (accept) "Allow" else "Deny"
-		if (Build.VERSION.SDK_INT >= 26) {
-			value = value.uppercase(Locale.getDefault())
+	var value = if (accept) "Allow" else "Deny"
+	if (Build.VERSION.SDK_INT >= 26) {
+		value = value.uppercase(Locale.getDefault())
+	}
+	val allowPermissions = device.findObject(UiSelector().text(value))
+	if (allowPermissions.exists()) {
+		try {
+			allowPermissions.click()
+		} catch (e: UiObjectNotFoundException) {
+			Log.e("Advention", "There is no permissions dialog to interact with ")
 		}
-		val allowPermissions = device.findObject(UiSelector().text(value))
-		if (allowPermissions.exists()) {
-			try {
-				allowPermissions.click()
-			} catch (e: UiObjectNotFoundException) {
-				Log.e("Advention", "There is no permissions dialog to interact with ")
-			}
 
-		}
 	}
 }
 

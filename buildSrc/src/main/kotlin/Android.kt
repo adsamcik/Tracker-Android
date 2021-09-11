@@ -2,7 +2,7 @@
  * Android specific build properties
  */
 object Android {
-	const val min: Int = 21
+	const val min: Int = 23
 	const val compile: Int = 31
 	const val target: Int = 31
 

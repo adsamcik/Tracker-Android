@@ -21,7 +21,7 @@ internal class SystemStyleUpdater {
 					view,
 					luminance
 			)
-			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> updateSystemBarAppearanceMQ(
+			else -> updateSystemBarAppearanceMQ(
 					view,
 					luminance
 			)
@@ -55,7 +55,6 @@ internal class SystemStyleUpdater {
 	}
 
 	@SuppressLint("InlinedApi")
-	@RequiresApi(Build.VERSION_CODES.M)
 	private fun updateSystemBarAppearanceMQ(view: View, luminance: Int) {
 		require(Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
 

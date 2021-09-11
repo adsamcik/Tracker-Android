@@ -16,9 +16,9 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 @MainThread
 internal class ImageViewStyleUpdater {
 	fun updateStyle(
-			view: ImageView,
-			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt backgroundColor: Int
+		view: ImageView,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
 	) {
 		val drawable = view.drawable
 		if (drawable is StyleableForegroundDrawable) {
@@ -29,9 +29,7 @@ internal class ImageViewStyleUpdater {
 			val colorStateList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 			view.imageTintList = colorStateList
 
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-				view.foregroundTintList = colorStateList
-			}
+			view.foregroundTintList = colorStateList
 		}
 
 		when (view) {
@@ -41,14 +39,14 @@ internal class ImageViewStyleUpdater {
 	}
 
 	private fun updateStyle(
-			view: FloatingActionButton,
-			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt backgroundColor: Int
+		view: FloatingActionButton,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
 	) {
 		val nextLevel = ColorFunctions.getBackgroundLayerColor(
-				backgroundColor,
-				updateStyleData.backgroundLuminance,
-				1
+			backgroundColor,
+			updateStyleData.backgroundLuminance,
+			1
 		)
 		view.rippleColor = nextLevel
 		//view.setBackgroundColor(backgroundColor)
@@ -56,9 +54,9 @@ internal class ImageViewStyleUpdater {
 	}
 
 	private fun updateStyle(
-			view: AppCompatImageButton,
-			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt backgroundColor: Int
+		view: AppCompatImageButton,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
 	) {
 		view.backgroundTintList = backgroundColor.toTintList()
 	}

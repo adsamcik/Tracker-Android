@@ -16,9 +16,9 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 
 	@CallSuper
 	override fun onRequestPermissionsResult(
-			requestCode: Int,
-			permissions: Array<out String>,
-			grantResults: IntArray
+		requestCode: Int,
+		permissions: Array<out String>,
+		grantResults: IntArray
 	) {
 		val index = permissionRequestList.indexOfFirst { it.first == requestCode }
 		require(index >= 0) { "There was no permission request with this id" }
@@ -35,11 +35,9 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 	fun requestPermissions(request: PermissionRequest) {
 		require(request.permissionList.isNotEmpty())
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			val id = ++lastPermissionRequestId
+		val id = ++lastPermissionRequestId
 
-			permissionRequestList.add(id to request)
-			PermissionManager.checkPermissionsWithRationaleDialog(request)
-		}
+		permissionRequestList.add(id to request)
+		PermissionManager.checkPermissionsWithRationaleDialog(request)
 	}
 }
