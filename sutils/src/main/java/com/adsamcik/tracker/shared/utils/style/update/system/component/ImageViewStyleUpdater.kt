@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.utils.style.update.system.component
 
 import android.content.res.ColorStateList
-import android.os.Build
 import android.widget.ImageView
 import androidx.annotation.ColorInt
 import androidx.annotation.MainThread
@@ -16,9 +15,9 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 @MainThread
 internal class ImageViewStyleUpdater {
 	fun updateStyle(
-		view: ImageView,
-		updateStyleData: StyleUpdater.UpdateStyleData,
-		@ColorInt backgroundColor: Int
+	    view: ImageView,
+	    updateStyleData: StyleUpdater.UpdateStyleData,
+	    @ColorInt backgroundColor: Int
 	) {
 		val drawable = view.drawable
 		if (drawable is StyleableForegroundDrawable) {
@@ -39,9 +38,9 @@ internal class ImageViewStyleUpdater {
 	}
 
 	private fun updateStyle(
-		view: FloatingActionButton,
-		updateStyleData: StyleUpdater.UpdateStyleData,
-		@ColorInt backgroundColor: Int
+	    view: FloatingActionButton,
+	    updateStyleData: StyleUpdater.UpdateStyleData,
+	    @ColorInt backgroundColor: Int
 	) {
 		val nextLevel = ColorFunctions.getBackgroundLayerColor(
 			backgroundColor,
@@ -49,14 +48,14 @@ internal class ImageViewStyleUpdater {
 			1
 		)
 		view.rippleColor = nextLevel
-		//view.setBackgroundColor(backgroundColor)
+		// view.setBackgroundColor(backgroundColor)
 		view.backgroundTintList = backgroundColor.toTintList()
 	}
 
 	private fun updateStyle(
-		view: AppCompatImageButton,
-		updateStyleData: StyleUpdater.UpdateStyleData,
-		@ColorInt backgroundColor: Int
+	    view: AppCompatImageButton,
+	    updateStyleData: StyleUpdater.UpdateStyleData,
+	    @ColorInt backgroundColor: Int
 	) {
 		view.backgroundTintList = backgroundColor.toTintList()
 	}
