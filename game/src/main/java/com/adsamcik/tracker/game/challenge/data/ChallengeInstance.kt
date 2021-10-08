@@ -1,12 +1,13 @@
 package com.adsamcik.tracker.game.challenge.data
 
 import android.content.Context
+import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntryExtra
 import com.adsamcik.tracker.game.logGame
+import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.utils.debug.LogData
 
 abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : ChallengeInstance<ExtraData, Instance>>(
 		val data: ChallengeEntry,
@@ -50,7 +51,12 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : Cha
 		val startProgress = progress
 		processSession(context, session)
 
-		logGame(LogData(message = "Processed ${getTitle(context)} and progressed from $startProgress to $progress"))
+		logGame(
+				LogData(
+						message = "Processed ${getTitle(context)} and progressed from $startProgress to $progress",
+						source = CHALLENGE_LOG_SOURCE
+				)
+		)
 		if (checkCompletionConditions()) {
 			extra.isCompleted = true
 			@Suppress("UNCHECKED_CAST")

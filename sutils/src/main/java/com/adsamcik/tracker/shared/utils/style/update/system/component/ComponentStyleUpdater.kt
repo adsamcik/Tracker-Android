@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.utils.style.update.system.component
 
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.view.View
 import android.widget.ImageView
 import android.widget.ProgressBar
@@ -19,6 +20,7 @@ import com.adsamcik.tracker.shared.utils.style.marker.StyleableForegroundDrawabl
 import com.adsamcik.tracker.shared.utils.style.marker.StyleableView
 import com.adsamcik.tracker.shared.utils.style.update.system.RecyclerEdgeEffectFactory
 import com.adsamcik.tracker.shared.utils.style.update.system.StyleUpdater
+import com.google.android.material.progressindicator.CircularProgressIndicator
 
 /**
  * Component style updater.
@@ -31,15 +33,15 @@ internal class ComponentStyleUpdater {
 	private val textViewStyleUpdater = TextViewStyleUpdater()
 
 	private fun updateForegroundDrawable(
-			drawable: Drawable,
-			updateStyleData: StyleUpdater.UpdateStyleData
+		drawable: Drawable,
+		updateStyleData: StyleUpdater.UpdateStyleData
 	) {
 		drawable.mutate()
 		when (drawable) {
 			is StyleableForegroundDrawable -> drawable.onForegroundStyleChanged(
-					updateStyleData.getBaseTextColorStateList(
-							255
-					)
+				updateStyleData.getBaseTextColorStateList(
+					255
+				)
 			)
 			else -> DrawableCompat.setTint(drawable, updateStyleData.baseForegroundColor)
 		}
@@ -47,41 +49,53 @@ internal class ComponentStyleUpdater {
 
 	//region FluidSlider
 	private fun updateStyle(
-			view: FluidSlider,
-			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt backgroundColor: Int
+		view: FluidSlider,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
 	) {
-		val foreground = updateStyleData.baseForegroundColor.withAlpha(ColorConstants.FULL_COMPONENT)
-		val background = updateStyleData.baseBackgroundColor
-		view.colorBarText = background
+		val foreground =
+			updateStyleData.baseForegroundColor.withAlpha(ColorConstants.FULL_COMPONENT)
+		view.colorBarText = backgroundColor
 		view.colorBubbleText = foreground
-		view.descriptionPaint.color = updateStyleData.baseForegroundColor.withAlpha(ColorConstants.MEDIUM_EMPHASIS_ALPHA)
-		view.colorBubble = background
+		view.descriptionPaint.color =
+			updateStyleData.baseForegroundColor.withAlpha(ColorConstants.MEDIUM_EMPHASIS_ALPHA)
+		view.colorBubble = backgroundColor
 		view.colorBar = foreground
 	}
 	//endregion
 
 	//region ProgressBar
 	private fun updateStyle(
-			view: ProgressBar,
-			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt backgroundColor: Int
+		view: ProgressBar,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
 	) {
 		val foregroundTintList = ColorStateList.valueOf(updateStyleData.baseForegroundColor)
 		view.progressTintList = foregroundTintList
+		view.foregroundTintList = foregroundTintList
 		view.indeterminateTintList = foregroundTintList
+		view.secondaryProgressTintList = foregroundTintList
 		view.progressBackgroundTintList = ColorStateList.valueOf(
-				updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA)
+			updateStyleData.baseForegroundColor.withAlpha(StyleUpdater.DISABLED_ALPHA)
 		)
+	}
+
+	private fun updateStyle(
+		view: CircularProgressIndicator,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
+	) {
+		view.setIndicatorColor(updateStyleData.baseForegroundColor)
+		view.trackColor = backgroundColor
 	}
 	//endregion
 
 
 	//region RecyclerView
 	fun updateStyle(
-			view: RecyclerView,
-			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt backgroundColor: Int
+		view: RecyclerView,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
 	) {
 		edgeEffectFactory.color = updateStyleData.baseForegroundColor
 
@@ -99,18 +113,19 @@ internal class ComponentStyleUpdater {
 	//endregion
 
 	fun updateStyle(
-			view: View,
-			updateStyleData: StyleUpdater.UpdateStyleData,
-			@ColorInt backgroundColor: Int
+		view: View,
+		updateStyleData: StyleUpdater.UpdateStyleData,
+		@ColorInt backgroundColor: Int
 	) {
 		when (view) {
 			is StyleableView -> view.onStyleChanged(StyleManager.styleData)
 			is FluidSlider -> updateStyle(view, updateStyleData, backgroundColor)
+			is CircularProgressIndicator -> updateStyle(view, updateStyleData, backgroundColor)
 			is ProgressBar -> updateStyle(view, updateStyleData, backgroundColor)
 			is ImageView -> imageViewStyleUpdater.updateStyle(
-					view,
-					updateStyleData,
-					backgroundColor
+				view,
+				updateStyleData,
+				backgroundColor
 			)
 			is TextView -> textViewStyleUpdater.updateStyle(view, updateStyleData, backgroundColor)
 		}

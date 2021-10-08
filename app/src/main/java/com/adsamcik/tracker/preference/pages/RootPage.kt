@@ -1,15 +1,13 @@
 package com.adsamcik.tracker.preference.pages
 
-import android.content.Context
-import android.widget.Toast
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
-import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivity
 import com.adsamcik.tracker.license.LicenseActivity
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.activity.ModuleActivity
 import com.adsamcik.tracker.preference.component.DialogListPreference
@@ -20,7 +18,6 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import java.util.*
@@ -63,7 +60,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		initializeLanguage(caller)
 	}
 
-	override fun onExit(caller: PreferenceFragmentCompat) = Unit
+	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
 	private fun initializeVersion(caller: PreferenceFragmentCompat) {
 		val version = caller.findPreference(R.string.settings_app_version_key)
@@ -73,8 +70,6 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 				BuildConfig.VERSION_NAME
 		)
 
-		val resources = caller.resources
-
 		val devEnabledKeyRes = R.string.settings_debug_enabled_key
 		val devEnabledDefaultRes = R.string.settings_debug_enabled_default
 
@@ -83,43 +78,13 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 					.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)
 		}
 
-		version.setOnPreferenceClickListener {
-			val context = it.context
-			val preferences = Preferences.getPref(context)
-
-			if (preferences.getBooleanRes(devEnabledKeyRes, devEnabledDefaultRes)) {
-				showToast(context, resources.getString(R.string.settings_debug_already_available))
-				return@setOnPreferenceClickListener false
+		caller.findPreference(R.string.settings_debug_enabled_key).apply {
+			onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+				debugPreference.isVisible = newValue as Boolean
+				true
 			}
-
-			clickCount++
-			if (clickCount >= REQUIRED_DEV_TAP_COUNT) {
-				preferences.edit {
-					setBoolean(devEnabledKeyRes, true)
-				}
-				showToast(context, resources.getString(R.string.settings_debug_available))
-				debugPreference.isVisible = true
-				caller.findPreferenceTyped<SwitchPreferenceCompat>(devEnabledKeyRes)
-						.isChecked = true
-			} else if (clickCount >= REQUIRED_DEV_TAP_SNACK_COUNT) {
-				val remainingClickCount = REQUIRED_DEV_TAP_COUNT - clickCount
-				showToast(
-						context,
-						resources.getQuantityString(
-								R.plurals.settings_debug_available_in, remainingClickCount,
-								remainingClickCount
-						)
-				)
-			}
-			true
 		}
 	}
-
-	private fun showToast(context: Context, string: String) = Toast.makeText(
-			context,
-			string,
-			Toast.LENGTH_SHORT
-	).show()
 
 	private fun initializeLanguage(caller: PreferenceFragmentCompat) {
 		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_language_key).apply {
@@ -162,12 +127,13 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			preferenceParent.isVisible = false
 		} else {
 			val locale = Locale.getDefault()
-			modules.forEach {
+			modules.forEach { module ->
 				val preferenceScreen = preferenceManager.createPreferenceScreen(context)
-				preferenceScreen.title = context.getString(it.key.titleRes).capitalize(locale)
-				preferenceScreen.key = "module-${it.key.moduleName}"
-				preferenceScreen.setIcon(it.value.iconRes)
-				it.value.onCreatePreferenceScreen(preferenceScreen)
+				preferenceScreen.title = context.getString(module.key.titleRes)
+					.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+				preferenceScreen.key = "module-${module.key.moduleName}"
+				preferenceScreen.setIcon(module.value.iconRes)
+				module.value.onCreatePreferenceScreen(preferenceScreen)
 				preferenceParent.addPreference(preferenceScreen)
 			}
 		}

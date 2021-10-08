@@ -13,11 +13,19 @@ import com.afollestad.materialdialogs.list.getRecyclerView
  * Automatically removes dialog when closed.
  */
 inline fun MaterialDialog.dynamicStyle(
-		layer: Int = 1,
-		applyStyle: (StyleController) -> Unit = {}
+	layer: Int = 1,
+	applyStyle: (StyleController) -> Unit = {}
 ): MaterialDialog {
 	return dynamicBaseStyle(layer) { styleController ->
 		styleController.watchView(StyleView(view, layer))
+		styleController.addListener { styleData ->
+			view.buttonsLayout?.actionButtons?.forEach {
+				it.post {
+					it.updateTextColor(styleData.foregroundColor())
+				}
+			}
+		}
+
 		applyStyle(styleController)
 	}
 }
@@ -28,15 +36,15 @@ inline fun MaterialDialog.dynamicStyle(
  * Automatically removes dialog when closed.
  */
 inline fun MaterialDialog.dynamicBaseStyle(
-		layer: Int = 1,
-		applyStyle: (StyleController) -> Unit
+	layer: Int = 1,
+	applyStyle: (StyleController) -> Unit
 ): MaterialDialog {
 	val styleController = StyleManager.createController()
 	try {
 		val recycler = getRecyclerView()
 		styleController.watchRecyclerView(RecyclerStyleView(recycler, layer))
 	} catch (e: IllegalStateException) {
-		//it's fine, just don't add it to recycler
+		// it's fine, just don't add it to recycler
 	}
 
 	applyStyle(styleController)

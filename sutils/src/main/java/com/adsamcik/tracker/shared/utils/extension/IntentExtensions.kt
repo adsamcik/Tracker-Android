@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.extension
 
 import android.content.Intent
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 
 /**
  * Try get long value from Intent.

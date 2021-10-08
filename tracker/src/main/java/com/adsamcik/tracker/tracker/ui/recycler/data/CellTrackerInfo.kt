@@ -32,6 +32,6 @@ class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		val NAME_RESOURCE = R.string.cell
+		val NAME_RESOURCE: Int = R.string.cell
 	}
 }

@@ -46,6 +46,6 @@ class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURC
 	}
 
 	companion object {
-		val NAME_RESOURCE = R.string.tracker_session_card_title
+		val NAME_RESOURCE: Int = R.string.tracker_session_card_title
 	}
 }

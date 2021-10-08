@@ -17,7 +17,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
-import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -26,9 +26,11 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.requireValue
 import com.adsamcik.tracker.shared.base.extension.toCalendar
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.multitype.StyleSortMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
+import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.data.Stat
@@ -72,10 +74,10 @@ class StatsDetailActivity : DetailActivity() {
 		val rootContentView = inflateContent<ViewGroup>(R.layout.activity_stats_detail)
 
 		styleController.watchView(
-				StyleView(
-						rootContentView.findViewById(R.id.root_stats_detail),
-						0
-				)
+			StyleView(
+				rootContentView.findViewById(R.id.root_stats_detail),
+				0
+			)
 		)
 
 		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
@@ -102,8 +104,8 @@ class StatsDetailActivity : DetailActivity() {
 
 
 		addAction(
-				com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
-				R.string.edit_session
+			com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
+			R.string.edit_session
 		) {
 			val addItemLayout = findViewById<View>(R.id.add_item_layout)
 			val headerRoot = findViewById<ViewGroup>(R.id.header_root)
@@ -114,7 +116,7 @@ class StatsDetailActivity : DetailActivity() {
 				addItemLayout.visibility = View.VISIBLE
 				headerRoot.updatePadding(top = HEADER_ROOT_PADDING.dp)
 				findViewById<View>(
-						R.id.button_change_activity
+					R.id.button_change_activity
 				).setOnClickListener { showActivitySelectionDialog() }
 				findViewById<View>(R.id.button_remove_session).setOnClickListener { showDeleteConfirmDialog() }
 			}
@@ -125,16 +127,17 @@ class StatsDetailActivity : DetailActivity() {
 
 	private fun showDeleteConfirmDialog() {
 		MaterialDialog(this)
-				.message(
-						text = getString(
-								com.adsamcik.tracker.shared.base.R.string.alert_confirm,
-								getString(R.string.remove_session)
-						)
+			.message(
+				text = getString(
+					com.adsamcik.tracker.shared.base.R.string.alert_confirm,
+					getString(R.string.remove_session)
 				)
-				.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
-				.positiveButton(com.adsamcik.tracker.shared.base.R.string.yes) { removeSession() }
-				.negativeButton(com.adsamcik.tracker.shared.base.R.string.no)
-				.show()
+			)
+			.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
+			.positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_yes) { removeSession() }
+			.negativeButton(com.adsamcik.tracker.shared.base.R.string.generic_no)
+			.dynamicStyle()
+			.show()
 	}
 
 	private fun removeSession() {
@@ -149,17 +152,17 @@ class StatsDetailActivity : DetailActivity() {
 		launch(Dispatchers.Default) {
 			val activities = SessionActivity.getAll(this@StatsDetailActivity)
 			SessionActivitySelection(
-					this@StatsDetailActivity,
-					activities,
-					viewModel.session.requireValue
+				this@StatsDetailActivity,
+				activities,
+				viewModel.session.requireValue
 			)
-					.showActivitySelectionDialog()
+				.showActivitySelectionDialog()
 		}
 	}
 
 	@MainThread
 	private fun initializeSessionData(session: TrackerSession) {
-		//recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
+		// recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
 		val layoutManager = LinearLayoutManager(this)
 		recycler.layoutManager = layoutManager
 
@@ -169,15 +172,15 @@ class StatsDetailActivity : DetailActivity() {
 
 		val callback = object : SortCallback<StatisticsDetailData> {
 			override fun areContentsTheSame(
-					a: StatisticsDetailData,
-					b: StatisticsDetailData
+				a: StatisticsDetailData,
+				b: StatisticsDetailData
 			): Boolean {
 				return areItemsTheSame(a, b)
 			}
 
 			override fun areItemsTheSame(
-					a: StatisticsDetailData,
-					b: StatisticsDetailData
+				a: StatisticsDetailData,
+				b: StatisticsDetailData
 			): Boolean = a == b
 
 			override fun compare(a: StatisticsDetailData, b: StatisticsDetailData): Int {
@@ -187,9 +190,9 @@ class StatsDetailActivity : DetailActivity() {
 		}
 
 		val adapter = StatsDetailAdapter(
-				styleController,
-				callback,
-				StatisticsDetailData::class.java
+			styleController,
+			callback,
+			StatisticsDetailData::class.java
 		).apply {
 			registerType(StatisticDisplayType.Information, InformationViewHolderCreator())
 			registerType(StatisticDisplayType.Map, MapViewHolderCreator())
@@ -215,7 +218,7 @@ class StatsDetailActivity : DetailActivity() {
 			override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = Unit
 
 			override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) =
-					Unit
+				Unit
 		})
 
 		val recycler = findViewById<RecyclerView>(R.id.recycler)
@@ -229,15 +232,15 @@ class StatsDetailActivity : DetailActivity() {
 		setTitle(session)
 
 		findViewById<TextView>(R.id.date_time).text = StatsFormat.formatRange(
-				startCalendar,
-				endCalendar
+			startCalendar,
+			endCalendar
 		)
 	}
 
 	private fun addStats(session: TrackerSession, adapter: StatsDetailAdapter) {
 		val context = this
 		launch(Dispatchers.Default) {
-			StatisticDataManager().getForSession(context, session.id) {
+			StatisticDataManager().getForSession(context, session.id, true) {
 				launch(Dispatchers.Main) {
 					adapter.add(convertToDisplayData(it))
 				}
@@ -246,33 +249,31 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	private fun setTitle(session: TrackerSession) {
-		val startCalendar = Date(session.start).toCalendar()
-		val endCalendar = Date(session.end).toCalendar()
-
 		val activityId = session.sessionActivityId
 
 		launch(Dispatchers.Default) {
 			val sessionActivity = when {
 				activityId == null -> null
 				activityId < -1 -> NativeSessionActivity.values()
-						.find { it.id == activityId }
-						?.getSessionActivity(
-								this@StatsDetailActivity
-						)
+					.find { it.id == activityId }
+					?.getSessionActivity(
+						this@StatsDetailActivity
+					)
 				else -> if (activityId == 0L || activityId == -1L) {
 					null
 				} else {
 					val activityDao = AppDatabase.database(this@StatsDetailActivity)
-							.activityDao()
+						.activityDao()
 					activityDao.get(activityId)
 				}
 			} ?: SessionActivity.UNKNOWN
 
 			val title = StatsFormat.createTitle(
-					this@StatsDetailActivity,
-					startCalendar,
-					endCalendar,
-					sessionActivity
+				this@StatsDetailActivity,
+				session.start,
+				session.end,
+				sessionActivity,
+				viewModel.sunSetRise
 			)
 
 			val drawable = sessionActivity.getIcon(this@StatsDetailActivity)
@@ -288,15 +289,15 @@ class StatsDetailActivity : DetailActivity() {
 	private fun convertToDisplayData(stat: Stat): StatisticsDetailData {
 		return when (stat.displayType) {
 			StatisticDisplayType.Information -> InformationStatisticsData(
-					stat.iconRes,
-					stat.nameRes,
-					stat.data.toString()
+				stat.iconRes,
+				stat.nameRes,
+				stat.data.toString()
 			)
-			StatisticDisplayType.Map -> MapStatisticsData(stat.data as List<Location>)
+			StatisticDisplayType.Map -> MapStatisticsData(stat.data as List<BaseLocation>)
 			StatisticDisplayType.LineChart -> LineChartStatisticsData(
-					stat.iconRes,
-					stat.nameRes,
-					stat.data as List<Entry>
+				stat.iconRes,
+				stat.nameRes,
+				stat.data as List<Entry>
 			)
 		}
 	}
@@ -309,11 +310,16 @@ class StatsDetailActivity : DetailActivity() {
 		private var initialized = false
 		private val sessionMutable: MutableLiveData<TrackerSession?> = MutableLiveData()
 
+		val sunSetRise = SunSetRise()
+
 		/**
 		 * Returns LiveData containing tracker sessions
 		 */
 		val session: LiveData<TrackerSession?> get() = sessionMutable
 
+		/**
+		 * Initializes view model
+		 */
 		@WorkerThread
 		fun initialize(context: Context, sessionId: Long) {
 			if (initialized) return
@@ -321,6 +327,7 @@ class StatsDetailActivity : DetailActivity() {
 
 			val database = AppDatabase.database(context)
 			sessionMutable.postValue(database.sessionDao().get(sessionId))
+			sunSetRise.initialize(context)
 		}
 	}
 
@@ -328,7 +335,7 @@ class StatsDetailActivity : DetailActivity() {
 		/**
 		 * Session id argument identifier
 		 */
-		const val ARG_SESSION_ID = "session_id"
+		const val ARG_SESSION_ID: String = "session_id"
 		private const val HEADER_ROOT_PADDING = 16
 	}
 }

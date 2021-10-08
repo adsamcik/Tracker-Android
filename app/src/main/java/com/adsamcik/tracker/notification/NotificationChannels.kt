@@ -16,18 +16,33 @@ import com.adsamcik.tracker.R
 //todo add option for modules to add channels
 object NotificationChannels {
 
+	/**
+	 * Prepares channels for application
+	 */
 	fun prepareChannels(context: Context) {
 		createChannel(
-				context, R.string.channel_track_id, R.string.channel_track_name,
-				R.string.channel_track_description, true, NotificationManager.IMPORTANCE_LOW
+				context,
+				R.string.channel_track_id,
+				R.string.channel_track_name,
+				R.string.channel_track_description,
+				true,
+				NotificationManager.IMPORTANCE_LOW
 		)
 		createChannel(
-				context, R.string.channel_other_id, R.string.channel_other_name,
-				R.string.channel_other_description, true, NotificationManager.IMPORTANCE_LOW
+				context,
+				R.string.channel_other_id,
+				R.string.channel_other_name,
+				R.string.channel_other_description,
+				true,
+				NotificationManager.IMPORTANCE_LOW
 		)
 		createChannel(
-				context, R.string.channel_challenges_id, R.string.channel_challenges_name,
-				R.string.channel_challenges_description, true, NotificationManager.IMPORTANCE_HIGH
+				context,
+				R.string.channel_challenges_id,
+				R.string.channel_challenges_name,
+				R.string.channel_challenges_description,
+				true,
+				NotificationManager.IMPORTANCE_HIGH
 		)
 		createChannel(
 				context,
@@ -36,6 +51,14 @@ object NotificationChannels {
 				R.string.channel_activity_watcher_description,
 				false,
 				NotificationManager.IMPORTANCE_LOW
+		)
+		createChannel(
+				context,
+				R.string.channel_goals_id,
+				R.string.channel_goals_name,
+				R.string.channel_goals_description,
+				false,
+				NotificationManager.IMPORTANCE_HIGH
 		)
 	}
 

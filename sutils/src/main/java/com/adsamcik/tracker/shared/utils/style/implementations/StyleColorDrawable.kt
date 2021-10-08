@@ -15,8 +15,8 @@ class StyleColorDrawable(drawable: GradientDrawable, private val strokeWidth: In
 	}
 
 	companion object {
-		const val BASE_STROKE_WIDTH = 3
-		const val EXTENDED_STROKE_WIDTH = 4
+		const val BASE_STROKE_WIDTH: Int = 3
+		const val EXTENDED_STROKE_WIDTH: Int = 4
 	}
 }
 

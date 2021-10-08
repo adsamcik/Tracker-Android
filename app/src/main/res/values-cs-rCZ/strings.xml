@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="dev_notification_dummy">Ahoj světe!</string>
+    <string name="did_you_know">Věděli jste, že</string>
+    <string name="error_failed_to_open_license">Nelze otevřít licenci. Pokud je automatické hlášení chyb povoleno, bylo odesláno hlášení.</string>
+    <string name="first_run_app_description">Díky, že jste dali Advention šanci. Průvodce počátečním nastavením je VYSOCE DOPORUČEN novým uživatelům. Nechť vám aplikace dobře slouží.</string>
+    <string name="first_run_app_title">Vítejte v Advention</string>
+    <string name="first_run_error_reporting_description">Přejete si povolit automatické hlášení chyb? Díky němu lze lépe a bez nutnosti hlášení z vaší strany opravit pády aplikace. Pro více informací se podívejte na <a href="%1$s">zásady o ochraně osobních údajů</a>.</string>
+    <string name="first_run_error_reporting_title">Automatické hlášení chyb</string>
+    <string-array name="lorem_ipsum_facts">
+        <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>
+        <item>Lorem ipsum se používá již od roku 16. století</item>
+        <item>Lorem ipsum není latina, ale hatmatilka</item>
+        <item>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</item>
+        <item>Lákamí vůněhulás úmyval rohlivý jednovod lek obolekno lva umí ří úmyvaleka…</item>
+        <item>Far far away, behind the word mountains…</item>
+        <item>Oprávněné aniž i odstoupil o snadno osoby vede grafikou osobami úmyslu 60 % poskytovat, dělí způsobem, § 36 veletrhu pověřit spravují zřejmém, k před platbě státu zvláštních tuzemsku.</item>
+        <item>Sed ut perspiciatis unde omnis iste natus error…</item>
+        <item>Oprávněné aniž i odstoupil o snadno osoby vede grafikou osobami.</item>
+        <item>Dodělat více textu, které nikdo neuvidí.</item>
+    </string-array>
+    <string name="module_download_progress">Staženo %1$s / %2$s</string>
+    <string name="module_error">Selhala instalace modulu %1$s (číslo chyby %2$d)</string>
+    <string name="module_game_title">hry</string>
+    <string name="module_installing">Instaluje se modul %s</string>
+    <string name="module_map_title">mapa</string>
+    <string name="module_statistics_title">statistiky</string>
+    <string name="module_success">Instalace byla úspěšně dokončena</string>
+    <string name="open_source_licenses">Licence otevřeného softwaru</string>
+    <string name="settings_activity_status_title">Informace o stavu (pouze anglicky)</string>
+    <string name="settings_clear_preferences_title">Smazat preference</string>
+    <string name="settings_color_default_title">Výchozí barvy</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_debug_title">Vývojářské nástroje</string>
+    <string name="settings_developer_enabled">Vývojářské nástroje povoleny</string>
+    <string name="settings_error_reporting_summary">Automatické hlášení chyb pomáhá s opravováním pádů aplikace a některých jiných chyb. S hlášením jsou odeslány také obecné informace o zařízení.</string>
+    <string name="settings_error_reporting_title">Automatické hlášení chyb</string>
+    <string name="settings_hello_world_title">Vítej světe!</string>
+    <string name="settings_language_summary">Aktuální jazyk: %s</string>
+    <string name="settings_language_title">Jazyk aplikace</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrický</item>
+        <item>Imperiální (USA)</item>
+        <item>Římské míry</item>
+    </string-array>
+    <string name="settings_length_system_title">Délkový systém</string>
+    <string name="settings_licenses_title">Otevřené licence</string>
+    <string name="settings_log_activity_title">Logovat aktivity</string>
+    <string name="settings_log_enabled_title">Povolit logování</string>
+    <string name="settings_log_games_title">Logování her</string>
+    <string name="settings_log_list_activity_title">Zobrazit logy</string>
+    <string name="settings_module_enable_title">Moduly</string>
+    <string name="settings_module_group_title">Nastavení modulů</string>
+    <string name="settings_other_title">Ostatní</string>
+    <string name="settings_remove_all_collected_data_summary">Odstraní nasbíraná data (Uživatelské aktivity, nastavení atd. zůstanou nedotčena)</string>
+    <string name="settings_remove_all_collected_data_title">Odstranit veškerá nasbíraná data</string>
+    <string-array name="settings_speed_format_names">
+        <item>V sekundách</item>
+        <item>V minutách</item>
+        <item>V hodinách</item>
+    </string-array>
+    <string name="settings_speed_format_title">Formát rychlosti</string>
+    <string name="settings_style_mode_title">Režim barev</string>
+    <string name="settings_style_title">Vzhled</string>
+    <string name="settings_title">Nastavení</string>
+    <string name="show_tips_title">Zobrazovat tipy</string>
+    <string name="tutorial_game_description">Hry jsou napravo</string>
+    <string name="tutorial_game_title">Hry</string>
+    <string name="tutorial_map_description">Pokud kliknete, nebo vytáhnete tuto plochu vzhůru, zobrazí se mapa</string>
+    <string name="tutorial_map_title">Mapa</string>
+    <string name="tutorial_settings_description">Pod tímto tlačítkem najdete nastavení</string>
+    <string name="tutorial_settings_title">Nastavení</string>
+    <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
+    <string name="tutorial_stats_title">Statistiky</string>
+</resources>

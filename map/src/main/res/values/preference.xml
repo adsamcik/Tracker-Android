@@ -4,9 +4,6 @@
 
     <string name="settings_map_quality_default" translatable="false">1.0</string>
     <string name="settings_map_quality_key" translatable="false">mapHeatmapQuality</string>
-    <string name="settings_map_quality_summary">Scale relative to default resolution.</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_quality_format">%.2fx</string>
     <string-array name="settings_map_quality_values">
         <item>0.25</item>
         <item>0.5</item>
@@ -34,8 +31,7 @@
         <item>50</item>
         <item>100</item>
     </integer-array>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
+
 
 
     <string name="settings_map_visit_threshold_default" translatable="false">15</string>
@@ -59,6 +55,4 @@
         <item>43200</item>
         <item>86400</item>
     </integer-array>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="settings_map_visit_threshold_summary">Heatmap will heat up only with visits with larger difference than threshold.</string>
 </resources>

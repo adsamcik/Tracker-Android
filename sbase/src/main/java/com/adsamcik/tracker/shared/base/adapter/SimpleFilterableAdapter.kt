@@ -43,7 +43,7 @@ abstract class SimpleFilterableAdapter<DataType, FilterType>(
 		val viewHolder = ViewHolder(view, getTitleView(view))
 
 		view.setOnClickListener {
-			val position = viewHolder.adapterPosition
+			val position = viewHolder.bindingAdapterPosition
 			onItemClickListener?.invoke(position, getItem(position))
 		}
 		return viewHolder

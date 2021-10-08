@@ -41,7 +41,7 @@ object LocaleAssist {
 		config.setLocale(locale)
 	}
 
-	fun setSystemLocale(context: Context, locale: Locale) =
+	fun setSystemLocale(context: Context, locale: Locale): Unit =
 			setSystemLocale(getConfig(context), locale)
 
 	fun setSystemLocale(config: Configuration, locale: Locale) {

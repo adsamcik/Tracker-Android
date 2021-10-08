@@ -25,6 +25,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.tasks.Task
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,14 +34,15 @@ import kotlin.coroutines.CoroutineContext
 
 @Suppress("TooManyFunctions", "MemberVisibilityCanBePrivate")
 internal class MapSensorController(
-		context: Context,
-		private val map: GoogleMap,
-		private val eventListener: MapEventListener
+	context: Context,
+	private val map: GoogleMap,
+	private val eventListener: MapEventListener
 ) : SensorEventListener, CoroutineScope {
 	private var followMyPosition: Boolean = false
 
 	private val sensorManager: SensorManager = context.sensorManager
-	private val rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+	private val rotationVector: Sensor? =
+		sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
 	private var lastUserPos: LatLng? = null
 	private var targetPosition: LatLng = LatLng(0.0, 0.0)
@@ -55,14 +57,13 @@ internal class MapSensorController(
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Main + job
 
-
-	//Orientation
+	// Orientation
 	private var prevRotation: Float = 0f
 
 	private var orientation = FloatArray(3)
 	private var rotationMatrix = FloatArray(9)
 
-	//Location
+	// Location
 	private var isSubscribed = false
 	private val locationCallback = object : LocationCallback() {
 		override fun onLocationResult(locationResult: LocationResult?) {
@@ -77,7 +78,6 @@ internal class MapSensorController(
 		mapPositionController.onNewPosition(latlng, location.accuracy)
 		setUserPosition(latlng)
 	}
-
 
 	init {
 		initializePositions()
@@ -107,7 +107,7 @@ internal class MapSensorController(
 	fun subscribeToLocationUpdates(context: Context, moveToCurrentLocation: Boolean = false) {
 		if (!isSubscribed && context.hasLocationPermission) {
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
-			val locationRequest = LocationRequest().apply {
+			val locationRequest = LocationRequest.create().apply {
 				this.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
 				this.interval = LOCATION_UPDATE_INTERVAL_MS
 			}
@@ -116,12 +116,14 @@ internal class MapSensorController(
 
 			@Suppress("MissingPermission")
 			locationClient.requestLocationUpdates(
-					locationRequest,
-					locationCallback,
-					Looper.myLooper()
+				locationRequest,
+				locationCallback,
+				requireNotNull(Looper.myLooper())
 			)
 			if (moveToCurrentLocation) {
-				locationClient.lastLocation.addOnCompleteListener {
+				// Checked few lines above (context.hasLocationPermission)
+				@Suppress("MissingPermission")
+				locationClient.lastLocation.addOnCompleteListener { it: Task<Location?> ->
 					if (it.isSuccessful) {
 						it.result?.let { result ->
 							onNewLocationAvailable(result)
@@ -139,21 +141,21 @@ internal class MapSensorController(
 		subscribeToLocationUpdates(context, true)
 
 		ActivityRequestManager.requestActivity(
-				context,
-				ActivityRequestData(
-						this::class,
-						ActivityChangeRequestData(
-								ACTIVITY_DETECTION_INTERVAL_S,
-								this::onActivityUpdate
-						)
+			context,
+			ActivityRequestData(
+				this::class,
+				ActivityChangeRequestData(
+					ACTIVITY_DETECTION_INTERVAL_S,
+					this::onActivityUpdate
 				)
+			)
 		)
 
 		sensorManager.registerListener(
-				this,
-				rotationVector,
-				SensorManager.SENSOR_DELAY_NORMAL,
-				SensorManager.SENSOR_DELAY_UI
+			this,
+			rotationVector,
+			SensorManager.SENSOR_DELAY_NORMAL,
+			SensorManager.SENSOR_DELAY_UI
 		)
 	}
 
@@ -166,7 +168,6 @@ internal class MapSensorController(
 
 		ActivityRequestManager.removeActivityRequest(context, this::class)
 	}
-
 
 	private fun setUserPosition(latlng: LatLng) {
 		this.lastUserPos = latlng
@@ -191,7 +192,6 @@ internal class MapSensorController(
 			eventListener -= this
 		}
 	}
-
 
 	/**
 	 * Animates movement from current position to target position and zoom.
@@ -232,14 +232,14 @@ internal class MapSensorController(
 	}
 
 	private fun animateTo(
-			position: LatLng?,
-			zoom: Float,
-			tilt: Float,
-			bearing: Float,
-			duration: Int
+		position: LatLng,
+		zoom: Float,
+		tilt: Float,
+		bearing: Float,
+		duration: Int
 	) {
 		val builder = CameraPosition.Builder(map.cameraPosition).target(position).zoom(zoom)
-				.tilt(tilt).bearing(bearing)
+			.tilt(tilt).bearing(bearing)
 		map.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), duration, null)
 	}
 
@@ -273,7 +273,6 @@ internal class MapSensorController(
 		} else {
 			teleportToPositionZoom(latlng, zoom)
 		}
-
 	}
 
 	private fun updateRotation(rotation: Float) {
@@ -288,18 +287,18 @@ internal class MapSensorController(
 			SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
 			// getPref the azimuth value (orientation[0]) in degree
 			val orientation = SensorManager.getOrientation(
-					rotationMatrix,
-					orientation
+				rotationMatrix,
+				orientation
 			)[0].toDouble()
-			//updateRotation()
+			// updateRotation()
 			val directionRadians = (orientation + GeometryConstants.CIRCLE_IN_RADIANS)
-					.rem(GeometryConstants.CIRCLE_IN_RADIANS)
+				.rem(GeometryConstants.CIRCLE_IN_RADIANS)
 			mapPositionController.onDirectionChanged(directionRadians)
 		}
 	}
 
 	override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
-		//no need to check
+		// no need to check
 	}
 
 	companion object {
@@ -313,4 +312,3 @@ internal class MapSensorController(
 		private const val ACTIVITY_DETECTION_INTERVAL_S = 10
 	}
 }
-

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_game_challenge_enable_default" translatable="false">true</string>
+    <string name="settings_game_challenge_enable_key" translatable="false">enableChallenges</string>
+
+    <string name="settings_game_goals_day_steps_default" translatable="false">4000</string>
+    <string name="settings_game_goals_day_steps_key" translatable="false">goalStepsDay</string>
+    <string name="settings_game_goals_week_steps_default" translatable="false">24000</string>
+    <string name="settings_game_goals_week_steps_key" translatable="false">goalStepsWeek</string>
+    <string name="settings_game_goals_week_steps_daily_percentage_default" translatable="false">0.3</string>
+    <string name="settings_game_goals_week_steps_daily_percentage_key" translatable="false">goalStepsWeekMaxDailyPercentage</string>
+    <string name="settings_game_goals_notification_enabled_default" translatable="false">true</string>
+    <string name="settings_game_goals_notification_enabled_key" translatable="false">goalNotificationEnabled</string>
+
+    <string name="goals_day_goal_reached_key" translatable="false">goalDayReached</string>
+    <string name="goals_week_goal_reached_key" translatable="false">goalWeekReached</string>
+</resources>

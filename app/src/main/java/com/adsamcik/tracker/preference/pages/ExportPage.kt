@@ -1,29 +1,26 @@
 package com.adsamcik.tracker.preference.pages
 
-import android.os.Build
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.export.DatabaseExporter
-import com.adsamcik.tracker.export.GpxExporter
-import com.adsamcik.tracker.export.KmlExporter
-import com.adsamcik.tracker.export.activity.ExportActivity
-import com.adsamcik.tracker.preference.findPreference
+import com.adsamcik.tracker.impexp.exporter.DatabaseExporter
+import com.adsamcik.tracker.impexp.exporter.GpxExporter
+import com.adsamcik.tracker.impexp.exporter.KmlExporter
+import com.adsamcik.tracker.impexp.exporter.activity.ExportActivity
 import com.adsamcik.tracker.preference.setOnClickListener
 import com.adsamcik.tracker.shared.base.extension.startActivity
 
-class ExportPage : PreferencePage {
-	override fun onExit(caller: PreferenceFragmentCompat) {}
+/**
+ * Preference page for exports.
+ */
+internal class ExportPage : PreferencePage {
+	override fun onExit(caller: PreferenceFragmentCompat) = Unit
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-				setOnClickListener(R.string.settings_export_gpx_key) {
-					startActivity<ExportActivity> {
-						putExtra(ExportActivity.EXPORTER_KEY, GpxExporter::class.java)
-					}
+			setOnClickListener(R.string.settings_export_gpx_key) {
+				startActivity<ExportActivity> {
+					putExtra(ExportActivity.EXPORTER_KEY, GpxExporter::class.java)
 				}
-			} else {
-				findPreference(R.string.settings_export_gpx_key).isVisible = false
 			}
 
 			setOnClickListener(R.string.settings_export_kml_key) {
@@ -39,5 +36,4 @@ class ExportPage : PreferencePage {
 			}
 		}
 	}
-
 }

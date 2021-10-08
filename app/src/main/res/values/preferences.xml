@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_location_warning_key" translatable="false">location_warning</string>
+</resources>

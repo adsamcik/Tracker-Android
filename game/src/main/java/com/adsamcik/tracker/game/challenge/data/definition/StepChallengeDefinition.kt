@@ -14,7 +14,7 @@ class StepChallengeDefinition : ChallengeDefinition<StepChallengeInstance>(
 ) {
 	override val type: ChallengeType = ChallengeType.Step
 
-	val defaultRequiredStepCount = BASE_STEPS_PER_DAY * BASE_DAY_COUNT
+	val defaultRequiredStepCount: Int = BASE_STEPS_PER_DAY * BASE_DAY_COUNT
 
 	override val minDurationMultiplier: Double = 0.5
 	override val maxDurationMultiplier: Double = 4.0

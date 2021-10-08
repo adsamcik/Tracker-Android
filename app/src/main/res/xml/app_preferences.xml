@@ -12,11 +12,20 @@
             android:title="@string/settings_tracking_notice_title"
             app:icon="@drawable/ic_bulletin_board" />
 
-        <com.adsamcik.tracker.preference.component.DialogListPreference
-            android:key="@string/settings_tracker_timer_key"
-            android:summary="@string/settings_tracker_timer_summary"
-            android:title="@string/settings_tracker_timer_title" />
+        <Preference
+            android:key="@string/settings_location_warning_key"
+            android:summary="@string/settings_location_warning_summary"
+            android:title="@string/settings_location_warning_title"
+            app:icon="@drawable/ic_outline_error_outline"
+            app:isPreferenceVisible="false" />
 
+        <PreferenceCategory>
+            <com.adsamcik.tracker.preference.component.DialogListPreference
+                android:key="@string/settings_tracker_timer_key"
+                android:summary="@string/settings_tracker_timer_summary"
+                android:title="@string/settings_tracker_timer_title" />
+
+        </PreferenceCategory>
         <androidx.preference.PreferenceCategory android:title="@string/settings_auto_tracking_category">
 
             <com.adsamcik.tracker.preference.component.IndicesDialogListPreference
@@ -113,6 +122,12 @@
                 app:icon="@drawable/ic_directions_walk_white"
                 app:key="@string/settings_activity_enabled_key"
                 app:title="@string/settings_activity_enabled_title" />
+
+            <androidx.preference.CheckBoxPreference
+                app:defaultValue="@string/settings_steps_enabled_default"
+                app:icon="@drawable/ic_shoe_print"
+                app:key="@string/settings_steps_enabled_key"
+                app:title="@string/settings_steps_enabled_title" />
 
             <androidx.preference.CheckBoxPreference
                 app:defaultValue="@string/settings_wifi_enabled_default"
@@ -266,54 +281,66 @@
             android:title="@string/settings_licenses_title"
             app:icon="@drawable/ic_open_source_licenses" />
 
-        <androidx.preference.PreferenceScreen
-            android:key="@string/settings_debug_key"
-            android:title="@string/settings_debug_title"
-            app:icon="@drawable/ic_outline_developer_mode_24px">
+        <androidx.preference.PreferenceCategory>
 
-            <androidx.preference.PreferenceCategory>
+            <androidx.preference.SwitchPreferenceCompat
+                android:key="@string/settings_debug_enabled_key"
+                android:title="@string/settings_developer_enabled" />
 
-                <androidx.preference.SwitchPreferenceCompat
-                    android:key="@string/settings_debug_enabled_key"
-                    android:title="@string/settings_debug_enabled" />
-            </androidx.preference.PreferenceCategory>
+            <androidx.preference.PreferenceScreen
+                android:key="@string/settings_debug_key"
+                android:title="@string/settings_debug_title"
+                app:icon="@drawable/ic_outline_developer_mode_24px">
 
-            <androidx.preference.PreferenceCategory>
+                <androidx.preference.PreferenceCategory>
 
-                <androidx.preference.Preference
-                    android:key="@string/settings_activity_status_key"
-                    android:title="@string/settings_activity_status_title" />
+                    <androidx.preference.Preference
+                        android:key="@string/settings_activity_status_key"
+                        android:title="@string/settings_activity_status_title" />
 
-                <androidx.preference.Preference
-                    android:key="@string/settings_log_list_activity_key"
-                    android:title="@string/settings_log_list_activity_title" />
+                    <androidx.preference.Preference
+                        android:key="@string/settings_log_list_activity_key"
+                        android:title="@string/settings_log_list_activity_title" />
 
-                <androidx.preference.Preference
-                    android:key="@string/settings_hello_world_key"
-                    android:title="@string/settings_hello_world_title" />
-            </androidx.preference.PreferenceCategory>
+                    <androidx.preference.Preference
+                        android:key="@string/settings_hello_world_key"
+                        android:title="@string/settings_hello_world_title" />
+                </androidx.preference.PreferenceCategory>
 
-            <androidx.preference.PreferenceCategory>
-                <SwitchPreferenceCompat
-                    android:defaultValue="@string/settings_log_activity_default"
-                    android:key="@string/settings_log_activity_key"
-                    android:title="@string/settings_log_activity_title" />
+                <androidx.preference.PreferenceCategory>
+                    <SwitchPreferenceCompat
+                        android:defaultValue="@string/settings_log_enabled_default"
+                        android:key="@string/settings_log_enabled_key"
+                        android:title="@string/settings_log_enabled_title" />
 
-                <SwitchPreferenceCompat
-                    android:defaultValue="@string/settings_log_games_default"
-                    android:key="@string/settings_log_games_key"
-                    android:title="@string/settings_log_games_title" />
-            </androidx.preference.PreferenceCategory>
+                    <SwitchPreferenceCompat
+                        android:defaultValue="@string/settings_log_performance_enabled_default"
+                        android:key="@string/settings_log_performance_enabled_key"
+                        android:title="@string/settings_log_performance_enabled_title" />
 
-            <androidx.preference.PreferenceCategory>
+                    <SwitchPreferenceCompat
+                        android:defaultValue="@string/settings_log_activity_default"
+                        android:key="@string/settings_log_activity_key"
+                        android:title="@string/settings_log_activity_title" />
 
-                <androidx.preference.Preference
-                    android:key="@string/settings_clear_preferences_key"
-                    android:title="@string/settings_clear_preferences_title" />
-            </androidx.preference.PreferenceCategory>
-        </androidx.preference.PreferenceScreen>
+                    <SwitchPreferenceCompat
+                        android:defaultValue="@string/settings_log_games_default"
+                        android:key="@string/settings_log_games_key"
+                        android:title="@string/settings_log_games_title" />
+                </androidx.preference.PreferenceCategory>
 
-        <androidx.preference.Preference android:key="@string/settings_app_version_key" />
+                <androidx.preference.PreferenceCategory>
+
+                    <androidx.preference.Preference
+                        android:key="@string/settings_clear_preferences_key"
+                        android:title="@string/settings_clear_preferences_title" />
+                </androidx.preference.PreferenceCategory>
+            </androidx.preference.PreferenceScreen>
+        </androidx.preference.PreferenceCategory>
+
+        <androidx.preference.PreferenceCategory>
+            <androidx.preference.Preference android:key="@string/settings_app_version_key" />
+        </androidx.preference.PreferenceCategory>
 
     </androidx.preference.PreferenceCategory>
 

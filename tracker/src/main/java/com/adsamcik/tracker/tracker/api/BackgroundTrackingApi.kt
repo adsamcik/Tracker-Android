@@ -11,6 +11,8 @@ import com.adsamcik.tracker.activity.ActivityTransitionRequestCallback
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.logger.assertFalse
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
@@ -18,8 +20,6 @@ import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
-import com.adsamcik.tracker.shared.utils.debug.assertFalse
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
@@ -30,7 +30,7 @@ import com.adsamcik.tracker.tracker.service.TrackerService
  */
 @Suppress("TooManyFunctions")
 object BackgroundTrackingApi {
-	var isActive = false
+	var isActive: Boolean = false
 		private set
 
 	//todo add option for this in settings
@@ -42,12 +42,14 @@ object BackgroundTrackingApi {
 		if (activity.confidence >= REQUIRED_CONFIDENCE) {
 			if (TrackerServiceApi.isActive) {
 				if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
-						!canContinueBackgroundTracking(context, activity.groupedActivity)) {
+					!canContinueBackgroundTracking(context, activity.groupedActivity)
+				) {
 					TrackerServiceApi.stopService(context)
 				}
 			} else {
 				if (canBackgroundTrack(context, activity.groupedActivity) &&
-						canTrackerServiceBeStarted(context)) {
+					canTrackerServiceBeStarted(context)
+				) {
 					TrackerServiceApi.startService(context, isUserInitiated = false)
 				}
 			}
@@ -57,12 +59,14 @@ object BackgroundTrackingApi {
 	private val transitionCallback: ActivityTransitionRequestCallback = { context, activity, _ ->
 		if (TrackerServiceApi.isActive) {
 			if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
-					!canContinueBackgroundTracking(context, activity.activity.groupedActivity)) {
+				!canContinueBackgroundTracking(context, activity.activity.groupedActivity)
+			) {
 				TrackerServiceApi.stopService(context)
 			}
 		} else {
 			if (canBackgroundTrack(context, activity.activity.groupedActivity) &&
-					canTrackerServiceBeStarted(context)) {
+				canTrackerServiceBeStarted(context)
+			) {
 				TrackerServiceApi.startService(context, isUserInitiated = false)
 			}
 		}
@@ -70,9 +74,9 @@ object BackgroundTrackingApi {
 
 	private val observer: Observer<Int> = Observer {
 		val context = requireNotNull(appContext)
-		if (it == GroupedActivity.STILL.ordinal) {
+		if (it == GroupedActivity.STILL.ordinal && isActive) {
 			disable(context)
-		} else {
+		} else if (!isActive) {
 			if (context.hasActivityPermission) {
 				enable(context)
 			}
@@ -99,19 +103,20 @@ object BackgroundTrackingApi {
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 		val preferences = Preferences.getPref(context)
 		if (groupedActivity.isStillOrUnknown ||
-				TrackerService.isServiceRunning.value ||
-				preferences.getBooleanRes(
-						R.string.settings_disabled_recharge_key,
-						R.string.settings_disabled_recharge_default
-				)) {
+			TrackerService.isServiceRunning.value ||
+			preferences.getBooleanRes(
+				R.string.settings_disabled_recharge_key,
+				R.string.settings_disabled_recharge_default
+			)
+		) {
 			return false
 		}
 
 		val preference = Preferences.getPref(context)
-				.getIntResString(
-						R.string.settings_tracking_activity_key,
-						R.string.settings_tracking_activity_default
-				)
+			.getIntResString(
+				R.string.settings_tracking_activity_key,
+				R.string.settings_tracking_activity_default
+			)
 		val prefActivity = GroupedActivity.values()[preference]
 		return prefActivity != GroupedActivity.STILL &&
 				(prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
@@ -124,8 +129,8 @@ object BackgroundTrackingApi {
 	 * @return true if background tracking can continue running
 	 */
 	private fun canContinueBackgroundTracking(
-			context: Context,
-			groupedActivity: GroupedActivity
+		context: Context,
+		groupedActivity: GroupedActivity
 	): Boolean {
 		if (groupedActivity == GroupedActivity.STILL) return false
 
@@ -137,10 +142,10 @@ object BackgroundTrackingApi {
 	}
 
 	private fun getBackgroundTrackingActivityRequirement(context: Context) =
-			Preferences.getPref(context).getIntResString(
-					R.string.settings_tracking_activity_key,
-					R.string.settings_tracking_activity_default
-			)
+		Preferences.getPref(context).getIntResString(
+			R.string.settings_tracking_activity_key,
+			R.string.settings_tracking_activity_default
+		)
 
 	private fun buildTransitions(context: Context): List<ActivityTransitionData> {
 		val transitions = mutableListOf<ActivityTransitionData>()
@@ -148,34 +153,34 @@ object BackgroundTrackingApi {
 
 		if (requiredActivityId >= GroupedActivity.IN_VEHICLE.ordinal) {
 			transitions.add(
-					ActivityTransitionData(
-							DetectedActivity.IN_VEHICLE,
-							ActivityTransitionType.ENTER
-					)
+				ActivityTransitionData(
+					DetectedActivity.IN_VEHICLE,
+					ActivityTransitionType.ENTER
+				)
 			)
 			transitions.add(
-					ActivityTransitionData(
-							DetectedActivity.ON_BICYCLE,
-							ActivityTransitionType.ENTER
-					)
+				ActivityTransitionData(
+					DetectedActivity.ON_BICYCLE,
+					ActivityTransitionType.ENTER
+				)
 			)
 		}
 
 		if (requiredActivityId >= GroupedActivity.ON_FOOT.ordinal) {
 			transitions.add(
-					ActivityTransitionData(DetectedActivity.ON_FOOT, ActivityTransitionType.ENTER)
+				ActivityTransitionData(DetectedActivity.ON_FOOT, ActivityTransitionType.ENTER)
 			)
 			transitions.add(
-					ActivityTransitionData(DetectedActivity.RUNNING, ActivityTransitionType.ENTER)
+				ActivityTransitionData(DetectedActivity.RUNNING, ActivityTransitionType.ENTER)
 			)
 			transitions.add(
-					ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER)
+				ActivityTransitionData(DetectedActivity.WALKING, ActivityTransitionType.ENTER)
 			)
 		}
 
 		if (transitions.isNotEmpty()) {
 			transitions.add(
-					ActivityTransitionData(DetectedActivity.STILL, ActivityTransitionType.ENTER)
+				ActivityTransitionData(DetectedActivity.STILL, ActivityTransitionType.ENTER)
 			)
 		}
 
@@ -189,10 +194,10 @@ object BackgroundTrackingApi {
 
 	private fun getActivityRequest(context: Context): ActivityChangeRequestData {
 		val interval = Preferences.getPref(context)
-				.getIntResString(
-						R.string.settings_activity_freq_key,
-						R.string.settings_activity_freq_default
-				)
+			.getIntResString(
+				R.string.settings_activity_freq_key,
+				R.string.settings_activity_freq_default
+			)
 		return ActivityChangeRequestData(interval, callback)
 	}
 
@@ -214,10 +219,10 @@ object BackgroundTrackingApi {
 		isActive = true
 
 		val useTransitionApi = Preferences.getPref(context)
-				.getBooleanRes(
-						R.string.settings_auto_tracking_transition_key,
-						R.string.settings_auto_tracking_transition_default
-				)
+			.getBooleanRes(
+				R.string.settings_auto_tracking_transition_key,
+				R.string.settings_auto_tracking_transition_default
+			)
 		reinitializeRequest(context, useTransitionApi)
 	}
 
@@ -240,17 +245,17 @@ object BackgroundTrackingApi {
 		appContext = context.applicationContext
 
 		PreferenceObserver.observe(
-				context,
-				R.string.settings_tracking_activity_key,
-				R.string.settings_tracking_activity_default,
-				observer
+			context,
+			R.string.settings_tracking_activity_key,
+			R.string.settings_tracking_activity_default,
+			observer
 		)
 
 		PreferenceObserver.observe(
-				context,
-				R.string.settings_auto_tracking_transition_key,
-				R.string.settings_auto_tracking_transition_default,
-				transitionObserver
+			context,
+			R.string.settings_auto_tracking_transition_key,
+			R.string.settings_auto_tracking_transition_default,
+			transitionObserver
 		)
 	}
 }

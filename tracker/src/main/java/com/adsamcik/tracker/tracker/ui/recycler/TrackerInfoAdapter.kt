@@ -17,6 +17,9 @@ import com.adsamcik.tracker.tracker.ui.recycler.data.SessionTrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.TrackerInfo
 import com.adsamcik.tracker.tracker.ui.recycler.data.WifiTrackerInfo
 
+/**
+ * Adapter for displaying current tracker session information on tracker fragment.
+ */
 class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>(), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 	private val data = mutableListOf<TrackerInfo>()
@@ -40,12 +43,20 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 		onViewChangedListener?.invoke(holder.itemView)
 	}
 
-	fun update(collectionData: CollectionData, sessionData: TrackerSession) {
+	/**
+	 * Updates session data.
+	 */
+	fun updateSession(sessionData: TrackerSession) {
 		update(sessionData,
 		       SessionTrackerInfo.NAME_RESOURCE,
 		       { SessionTrackerInfo(it) },
 		       { trackerInfo, value -> trackerInfo.session = value })
+	}
 
+	/**
+	 * Updates collection data.
+	 */
+	fun updateCollection(collectionData: CollectionData) {
 		val location = collectionData.location
 		update(location,
 		       LocationTrackerInfo.NAME_RESOURCE,
@@ -94,6 +105,9 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 		}
 	}
 
+	/**
+	 * Tracker info fragment ViewHolder
+	 */
 	class ViewHolder(
 			root: View,
 			val content: ViewGroup,
@@ -101,6 +115,9 @@ class TrackerInfoAdapter : RecyclerView.Adapter<TrackerInfoAdapter.ViewHolder>()
 			val fields: MutableList<InfoField> = mutableListOf()
 	) : RecyclerView.ViewHolder(root)
 
+	/**
+	 * Describes a view holder field to minimize the need for creating new views.
+	 */
 	data class InfoField(val title: TextView, val value: TextView)
 }
 

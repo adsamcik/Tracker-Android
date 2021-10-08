@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.component
 import android.content.Context
 import com.adsamcik.tracker.tracker.component.producer.ActivityDataProducer
 import com.adsamcik.tracker.tracker.component.producer.CellDataProducer
+import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
@@ -28,7 +29,8 @@ internal class DataProducerManager(context: Context) : TrackerDataProducerObserv
 	private val producerList = listOf(
 			WifiDataProducer(this),
 			CellDataProducer(this),
-			ActivityDataProducer(this)
+			ActivityDataProducer(this),
+			StepDataProducer(this)
 	)
 
 	private val activeProducerList = mutableListOf<TrackerDataProducerComponent>()

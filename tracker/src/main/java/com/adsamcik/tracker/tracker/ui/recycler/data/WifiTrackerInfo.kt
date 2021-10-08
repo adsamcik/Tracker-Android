@@ -14,6 +14,6 @@ class WifiTrackerInfo(var wifiData: WifiData) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		val NAME_RESOURCE = R.string.wifi
+		val NAME_RESOURCE: Int = R.string.wifi
 	}
 }

@@ -22,6 +22,6 @@ abstract class Introduction {
 	abstract fun getTargets(activity: FragmentActivity): Collection<Target>
 
 	companion object {
-		const val prefix = "introduction"
+		const val prefix: String = "introduction"
 	}
 }

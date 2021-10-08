@@ -18,7 +18,7 @@ class ExplorerChallengeInstance(
 		data: ExplorerChallengeEntity
 ) : ChallengeInstance<ExplorerChallengeEntity, ExplorerChallengeInstance>(entry, definition, data) {
 
-	override val persistence = ExplorerChallengePersistence()
+	override val persistence: ExplorerChallengePersistence = ExplorerChallengePersistence()
 
 	override val progress: Double
 		get() = extra.locationCount / extra.requiredLocationCount.toDouble()
@@ -30,7 +30,7 @@ class ExplorerChallengeInstance(
 		return context.getString(definition.descriptionRes, extra.requiredLocationCount)
 	}
 
-	override fun checkCompletionConditions() = extra.locationCount >= extra.requiredLocationCount
+	override fun checkCompletionConditions(): Boolean = extra.locationCount >= extra.requiredLocationCount
 
 	private fun countUnique(
 			dao: LocationDataDao,

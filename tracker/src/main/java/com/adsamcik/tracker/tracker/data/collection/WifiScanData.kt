@@ -2,6 +2,9 @@ package com.adsamcik.tracker.tracker.data.collection
 
 import android.net.wifi.ScanResult
 
+/**
+ * Wi-Fi scan data
+ */
 data class WifiScanData(
 		/**
 		 * Time in milliseconds

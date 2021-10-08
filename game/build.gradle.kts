@@ -6,14 +6,11 @@ plugins {
 }
 
 android {
-	compileSdkVersion(Android.compile)
-	buildToolsVersion(Android.buildTools)
+	compileSdk = Android.compile
+	buildToolsVersion = Android.buildTools
 
 	defaultConfig {
-		minSdkVersion(Android.min)
-		targetSdkVersion(Android.target)
-		versionCode = 1
-		versionName = "1.0"
+		minSdk = Android.min
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -21,9 +18,9 @@ android {
 		with(javaCompileOptions) {
 			with(annotationProcessorOptions) {
 				arguments(
-						mapOf(
-								"room.incremental" to "true"
-						)
+					mapOf(
+						"room.incremental" to "true"
+					)
 				)
 			}
 		}
@@ -31,13 +28,13 @@ android {
 
 	compileOptions {
 		isCoreLibraryDesugaringEnabled = true
-		sourceCompatibility = JavaVersion.VERSION_1_8
-		targetCompatibility = JavaVersion.VERSION_1_8
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	tasks.withType<KotlinCompile> {
 		with(kotlinOptions) {
-			jvmTarget = "1.8"
+			jvmTarget = Android.jvmTarget
 		}
 	}
 
@@ -45,7 +42,7 @@ android {
 		create("release_nominify")
 	}
 
-	lintOptions {
+	lint {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
 	}
@@ -58,14 +55,19 @@ android {
 }
 
 dependencies {
+	implementation(project(":app"))
+	implementation(project(":sbase"))
+	implementation(project(":sutils"))
+	implementation(project(":spreferences"))
+	implementation(project(":logger"))
+	implementation(project(":points"))
+
 	Dependencies.core(this)
 	Dependencies.draggable(this)
 	Dependencies.database(this)
 	Dependencies.preference(this)
 	Dependencies.test(this)
-
-	implementation(project(":app"))
-	implementation(project(":sbase"))
-	implementation(project(":sutils"))
-	implementation(project(":spreferences"))
+	Dependencies.inputDialog(this)
+	Dependencies.slider(this)
 }
+

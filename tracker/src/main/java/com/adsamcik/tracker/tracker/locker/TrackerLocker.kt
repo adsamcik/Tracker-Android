@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.locker
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.content.Context
 import android.content.Intent
 import androidx.annotation.AnyThread
@@ -66,16 +67,18 @@ object TrackerLocker {
 		val preferences = Preferences.getPref(context)
 
 		setTimeLock(
-				context, preferences.getLongResString(
-				R.string.settings_disabled_time_key,
-				R.string.settings_disabled_time_default
-		)
+				context,
+				preferences.getLongResString(
+						R.string.settings_disabled_time_key,
+						R.string.settings_disabled_time_default
+				)
 		)
 		setRechargeLock(
-				context, preferences.getBooleanRes(
-				R.string.settings_disabled_recharge_key,
-				R.string.settings_disabled_recharge_default
-		)
+				context,
+				preferences.getBooleanRes(
+						R.string.settings_disabled_recharge_key,
+						R.string.settings_disabled_recharge_default
+				)
 		)
 	}
 
@@ -196,7 +199,7 @@ object TrackerLocker {
 
 	private fun getTimeUnlockBroadcastIntent(context: Context): PendingIntent {
 		val intent = Intent(context, TrackerTimeUnlockReceiver::class.java)
-		return PendingIntent.getBroadcast(context, 0, intent, 0)
+		return PendingIntent.getBroadcast(context, 0, intent, FLAG_IMMUTABLE)
 	}
 }
 

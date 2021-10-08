@@ -28,7 +28,7 @@ internal class ActivityNotificationComponent : TrackerNotificationComponent() {
 		val activity = data.activity ?: return null
 		return context.getString(
 				R.string.activity_value,
-				context.getString(activity.activity.nameRes).toLowerCase(Locale.getDefault())
+			context.getString(activity.activity.nameRes).lowercase(Locale.getDefault())
 		)
 	}
 }

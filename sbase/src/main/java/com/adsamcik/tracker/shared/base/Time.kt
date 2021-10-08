@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.shared.base
 
 import android.os.SystemClock
-import com.adsamcik.tracker.shared.base.extension.roundToDate
-import com.adsamcik.tracker.shared.base.extension.toCalendar
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
+import java.time.Instant
+import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.*
 
 /**
  * Centralized access to time.
@@ -18,9 +18,9 @@ object Time {
 	val nowMillis: Long get() = System.currentTimeMillis()
 
 	/**
-	 * Current date time as calendar
+	 * Current date time as [ZonedDateTime]
 	 */
-	val now: Calendar get() = Calendar.getInstance()
+	val now: ZonedDateTime get() = ZonedDateTime.now()
 
 	/**
 	 * Elapsed time in milliseconds since boot.
@@ -35,41 +35,51 @@ object Time {
 	/**
 	 * Today's date in milliseconds since epoch.
 	 */
-	val todayMillis: Long get() = roundToDate(nowMillis)
+	val todayMillis: Long get() = roundToDate(nowMillis).toEpochMillis()
 
 	/**
 	 * Tomorrow date
 	 */
 	val tomorrow: ZonedDateTime
-		get() = ZonedDateTime.now()
-				.withHour(0)
-				.withMinute(0)
-				.withSecond(0)
-				.withNano(0)
-				.plusDays(1)
+		get() = roundToDate(ZonedDateTime.now()).plusDays(1)
 
 	/**
 	 * Tomorrow date in milliseconds since epoch.
 	 */
-	val tomorrowMillis: Long get() = roundToDate(nowMillis + DAY_IN_MILLISECONDS)
+	val tomorrowMillis: Long
+		get() = tomorrow.toEpochMillis()
 
 	/**
 	 * Today's date as calendar
 	 */
-	val today: Calendar
+	val today: ZonedDateTime
 		get() {
-			val now = now
-			now.roundToDate()
-			return now
+			return roundToDate(now)
 		}
 
 	/**
 	 * Round date time in milliseconds to date in milliseconds
 	 */
-	fun roundToDate(time: Long): Long {
-		return Date(time).toCalendar().apply {
-			roundToDate()
-		}.timeInMillis
+	fun roundToDate(time: Long): ZonedDateTime {
+		return roundToDate(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()))
+	}
+
+	/**
+	 * Round date time in milliseconds to date in milliseconds
+	 */
+	fun roundToDate(time: ZonedDateTime): ZonedDateTime {
+		return time
+				.withNano(0)
+				.withSecond(0)
+				.withMinute(0)
+				.withHour(0)
+	}
+
+	/**
+	 * Returns zoned date time from milliseconds since epoch.
+	 */
+	fun ofEpochMilli(epochMilli: Long): ZonedDateTime {
+		return Instant.ofEpochMilli(epochMilli).atZone(ZoneId.systemDefault())
 	}
 
 	const val DAY_IN_HOURS: Long = 24L
@@ -87,5 +97,8 @@ object Time {
 	const val DAY_IN_MILLISECONDS: Long = DAY_IN_HOURS * HOUR_IN_MILLISECONDS
 	const val WEEK_IN_MILLISECONDS: Long = WEEK_IN_DAYS * DAY_IN_MILLISECONDS
 	const val DAY_IN_MINUTES: Long = DAY_IN_MILLISECONDS / MINUTE_IN_MILLISECONDS
+
+	const val QUARTER_DAY_IN_HOURS: Long = 6L
+	const val HALF_DAY_IN_HOURS: Long = 12L
 }
 

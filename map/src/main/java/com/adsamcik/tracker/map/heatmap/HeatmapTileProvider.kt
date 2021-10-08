@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.heatmap
 
 import android.util.Log
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
@@ -10,7 +11,6 @@ import com.adsamcik.tracker.shared.base.extension.LocationExtensions
 import com.adsamcik.tracker.shared.base.misc.ConditionVariableInt
 import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.map.CoordinateBounds
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
 import java.util.concurrent.atomic.AtomicBoolean

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.consumer.pre
 
 import android.content.Context
+import android.os.Build
 import androidx.lifecycle.Observer
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 
@@ -16,7 +17,7 @@ import kotlin.coroutines.CoroutineContext
 
 internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
-			TrackerComponentRequirement.LOCATION
+		TrackerComponentRequirement.LOCATION
 	)
 
 	private val job = SupervisorJob()
@@ -30,10 +31,10 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 	override suspend fun onEnable(context: Context) {
 		withContext(coroutineContext) {
 			PreferenceObserver.observeIntRes(
-					context,
-					keyRes = R.string.settings_tracking_required_accuracy_key,
-					defaultRes = R.integer.settings_tracking_required_accuracy_default,
-					observer = observer
+				context,
+				keyRes = R.string.settings_tracking_required_accuracy_key,
+				defaultRes = R.integer.settings_tracking_required_accuracy_default,
+				observer = observer
 			)
 		}
 	}
@@ -41,9 +42,9 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 	override suspend fun onDisable(context: Context) {
 		withContext(coroutineContext) {
 			PreferenceObserver.removeObserver(
-					context,
-					R.string.settings_tracking_required_accuracy_key,
-					observer
+				context,
+				R.string.settings_tracking_required_accuracy_key,
+				observer
 			)
 		}
 	}
@@ -51,12 +52,15 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 	override suspend fun onNewData(data: MutableCollectionTempData): Boolean {
 		val location = data.getLocation(this)
 
-		if (location.isFromMockProvider) return false
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+			if (location.isMock) return false
+		} else {
+			@Suppress("deprecation")
+			if (location.isFromMockProvider) return false
+		}
 
 		if (!location.hasAccuracy()) return false
 
 		return location.accuracy <= requiredAccuracy
 	}
-
-
 }

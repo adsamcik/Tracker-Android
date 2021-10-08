@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.utils.module
 
 import android.content.Context
 import android.view.View
+import androidx.annotation.MainThread
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -38,15 +39,18 @@ abstract class FirstRun {
 	 * @param context Context
 	 * @param creator Dialog creator
 	 */
+	@MainThread
 	protected fun createDialog(
 			context: Context,
 			creator: MaterialDialog.() -> Unit
 	) {
-		MaterialDialog(context).apply(creator).also {
-			it.cancelable(false)
-			it.dynamicStyle(DIALOG_LAYER)
-			it.show()
-		}
+		MaterialDialog(context)
+				.apply(creator)
+				.also {
+					it.cancelable(false)
+					it.dynamicStyle(DIALOG_LAYER)
+					it.show()
+				}
 	}
 
 	/**

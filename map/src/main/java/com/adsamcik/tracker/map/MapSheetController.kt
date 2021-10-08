@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Space
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -36,6 +37,7 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.marginBottom
 import com.adsamcik.tracker.shared.base.extension.requireParent
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
@@ -59,7 +61,6 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
-import kotlinx.android.synthetic.main.layout_map_bottom_sheet_peek.view.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -142,7 +143,7 @@ internal class MapSheetController(
 	private val sheetBehavior = BottomSheetBehavior.from(rootLayout).apply {
 		peekHeight = PEEK_CONTENT_HEIGHT_DP.dp +
 				peekNavbarSpace.layoutParams.height +
-				rootLayout.layout_map_controls.marginBottom
+				rootLayout.findViewById<LinearLayoutCompat>(R.id.layout_map_controls).marginBottom
 
 		val navbarHeightInverseRatio = -1f + navbarDim.y / peekHeight.toFloat()
 		isHideable = true
@@ -188,7 +189,8 @@ internal class MapSheetController(
 			override fun onStateChanged(bottomSheet: View, newState: Int) {
 				if (newState != BottomSheetBehavior.STATE_EXPANDED && newState != BottomSheetBehavior.STATE_SETTLING) {
 					keyboardManager.hideKeyboard()
-					rootLayout.edittext_map_search.clearFocus()
+					rootLayout.findViewById<AppCompatEditText>(R.id.edittext_map_search)
+							.clearFocus()
 				}
 
 				if (newState == BottomSheetBehavior.STATE_HIDDEN) {
@@ -248,7 +250,7 @@ internal class MapSheetController(
 			!isOpen && isKeyboardOpen -> {
 				sheetBehavior.state = stateBeforeKeyboard
 				isKeyboardOpen = false
-				rootLayout.edittext_map_search.clearFocus()
+				rootLayout.findViewById<AppCompatEditText>(R.id.edittext_map_search).clearFocus()
 			}
 		}
 	}
@@ -274,34 +276,38 @@ internal class MapSheetController(
 			}
 			rootLayout.findViewById<View>(R.id.button_map_search).isGone = true
 		} else {
-			rootLayout.edittext_map_search.setOnEditorActionListener { textView, _, _ ->
-				search(textView.text.toString())
-				true
-			}
-
-			rootLayout.edittext_map_search.setOnFocusChangeListener { _, isFocused ->
-				when (isFocused) {
-					true -> {
-						stateBeforeKeyboard = when (val state = sheetBehavior.state) {
-							BottomSheetBehavior.STATE_COLLAPSED,
-							BottomSheetBehavior.STATE_HALF_EXPANDED,
-							BottomSheetBehavior.STATE_EXPANDED -> state
-							else -> BottomSheetBehavior.STATE_COLLAPSED
-						}
-
-						sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+			rootLayout.findViewById<AppCompatEditText>(R.id.edittext_map_search)
+					.setOnEditorActionListener { textView, _, _ ->
+						search(textView.text.toString())
+						true
 					}
-					false -> {
-						if (sheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
-							sheetBehavior.state = stateBeforeKeyboard
+
+			rootLayout
+					.findViewById<AppCompatEditText>(R.id.edittext_map_search)
+					.setOnFocusChangeListener { _, isFocused ->
+						when (isFocused) {
+							true -> {
+								stateBeforeKeyboard = when (val state = sheetBehavior.state) {
+									BottomSheetBehavior.STATE_COLLAPSED,
+									BottomSheetBehavior.STATE_HALF_EXPANDED,
+									BottomSheetBehavior.STATE_EXPANDED -> state
+									else -> BottomSheetBehavior.STATE_COLLAPSED
+								}
+
+								sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+							}
+							false -> {
+								if (sheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
+									sheetBehavior.state = stateBeforeKeyboard
+								}
+								rootLayout.findViewById<AppCompatEditText>(R.id.edittext_map_search)
+										.clearFocus()
+							}
 						}
-						rootLayout.edittext_map_search.clearFocus()
 					}
-				}
-			}
 
 			rootLayout.findViewById<View>(R.id.button_map_search).setOnClickListener {
-				search(rootLayout.edittext_map_search.text.toString())
+				search(rootLayout.findViewById<AppCompatEditText>(R.id.edittext_map_search).text.toString())
 			}
 		}
 	}
@@ -329,17 +335,20 @@ internal class MapSheetController(
 					val chipGroup = this.view.contentLayout.findViewById<ChipGroup>(R.id.map_date_range_chip_group)
 
 					@Suppress("MagicNumber")
-					val chipDays = listOf(7, 14, 30, 60, 90, 180, 365)
-					val daysText = context.getString(R.string.date_range_selector_x_days)
+					val chipDays = listOf(1, 3, 7, 14, 30, 60, 90, 180, 365)
 					chipDays.forEach { days ->
+						val daysText = context.resources.getQuantityString(
+								R.plurals.date_range_selector_x_days,
+								days
+						)
 						val chip = makeChip(context).apply {
 							text = daysText.format(Locale.getDefault(), days)
 							setOnClickListener {
 								// Add day and remove day to make the intent clear.
-								val tomorrow = Time.nowMillis + Time.DAY_IN_MILLISECONDS
+								val tomorrow = Time.tomorrow
 								mapController.dateRange = LongRange(
-										tomorrow - (days - 1) * Time.DAY_IN_MILLISECONDS,
-										tomorrow
+										tomorrow.minusDays((days - 1).toLong()).toEpochMillis(),
+										tomorrow.toEpochMillis()
 								)
 								this@show.dismiss()
 							}
@@ -382,32 +391,33 @@ internal class MapSheetController(
 	init {
 		rootLayout.findViewById<View>(R.id.button_map_date_range)
 				.setOnClickListener(this::showRangeSelectionDialog)
-		rootLayout.button_map_my_location.setOnClickListener {
-			fun onPositionClick(button: AppCompatImageButton) {
-				locationListener.onMyPositionButtonClick(button)
-			}
+		rootLayout.findViewById<AppCompatImageButton>(R.id.button_map_my_location)
+				.setOnClickListener {
+					fun onPositionClick(button: AppCompatImageButton) {
+						locationListener.onMyPositionButtonClick(button)
+					}
 
-			it as AppCompatImageButton
-			if (it.context.hasLocationPermission) {
-				onPositionClick(it)
-			} else {
-				fragment.requestPermissions(
-						PermissionRequest
-								.with(it.context)
-								.permissions(listOf(
-										PermissionData(
-												Manifest.permission.ACCESS_FINE_LOCATION
-										) { context -> context.getString(R.string.permission_rationale_location_map) }
-								))
-								.onResult { result ->
-									if (result.isSuccess) {
-										onPositionClick(it)
-									}
-								}
-								.build()
-				)
-			}
-		}
+					it as AppCompatImageButton
+					if (it.context.hasLocationPermission) {
+						onPositionClick(it)
+					} else {
+						fragment.requestPermissions(
+								PermissionRequest
+										.with(it.context)
+										.permissions(listOf(
+												PermissionData(
+														Manifest.permission.ACCESS_FINE_LOCATION
+												) { context -> context.getString(R.string.permission_rationale_location_map) }
+										))
+										.onResult { result ->
+											if (result.isSuccess) {
+												onPositionClick(it)
+											}
+										}
+										.build()
+						)
+					}
+				}
 		// styleController.watchView(StyleView(layout_map_controls, MAP_CONTROLS_LAYER))
 	}
 
@@ -489,7 +499,7 @@ internal class MapSheetController(
 			val locationListener = locationListener
 			if (addresses?.isNotEmpty() == true) {
 				val address = addresses.first()
-				locationListener.stopUsingUserPosition(rootLayout.button_map_my_location)
+				locationListener.stopUsingUserPosition(rootLayout.findViewById(R.id.button_map_my_location))
 				locationListener.animateToPositionZoom(
 						LatLng(address.latitude, address.longitude),
 						ANIMATE_TO_ZOOM
@@ -519,8 +529,8 @@ internal class MapSheetController(
 	private fun updateIconList(isKeyboardOpen: Boolean) {
 		val shouldBeVisible = !isKeyboardOpen
 
-		rootLayout.button_map_date_range.isVisible = shouldBeVisible
-		rootLayout.button_map_my_location.isVisible = shouldBeVisible
+		rootLayout.findViewById<AppCompatImageButton>(R.id.button_map_date_range).isVisible = shouldBeVisible
+		rootLayout.findViewById<AppCompatImageButton>(R.id.button_map_my_location).isVisible = shouldBeVisible
 	}
 
 	companion object {

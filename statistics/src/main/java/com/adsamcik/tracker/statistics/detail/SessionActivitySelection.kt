@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.listItems
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +38,7 @@ class SessionActivitySelection(
 					//initialSelection = selectedIndex,
 					selection = this@SessionActivitySelection::onSelected
 			)
+			dynamicStyle()
 		}
 	}
 

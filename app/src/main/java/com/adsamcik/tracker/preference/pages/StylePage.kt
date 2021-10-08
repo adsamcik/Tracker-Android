@@ -103,6 +103,6 @@ class StylePage : PreferencePage {
 
 	}
 
-	override fun onExit(caller: PreferenceFragmentCompat) = Unit
+	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 }
 

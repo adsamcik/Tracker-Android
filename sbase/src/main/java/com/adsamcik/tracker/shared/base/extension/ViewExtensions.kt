@@ -39,13 +39,13 @@ val Int.dp: Int get() = (this * Resources.getSystem().displayMetrics.density).ro
  * Converts Scale-independent pixels to pixels. Rounds to whole pixels.
  */
 val Int.sp: Int
-	get() = (this * Resources.getSystem().displayMetrics.scaledDensity).roundToInt();
+	get() = (this * Resources.getSystem().displayMetrics.scaledDensity).roundToInt()
 
 /**
  * Converts Scale-independent pixels to pixels.
  */
 val Float.sp: Float
-	get() = this * Resources.getSystem().displayMetrics.scaledDensity;
+	get() = this * Resources.getSystem().displayMetrics.scaledDensity
 
 private class ViewGroupNotSupportedException(message: String? = null) : Exception(message)
 
@@ -220,7 +220,7 @@ fun <T> View.firstParent(iClass: Class<T>, maxDistance: Int = Int.MAX_VALUE): T?
 /**
  * Utility method for findChildrenOfType(class)
  */
-inline fun <reified T : View> ViewGroup.findChildrenOfType() =
+inline fun <reified T : View> ViewGroup.findChildrenOfType(): Collection<T> =
 		findChildrenOfType(T::class.java)
 
 /**
@@ -253,7 +253,7 @@ fun <T : View> ViewGroup.findChildrenOfType(
 /**
  * Utility inline function for findChildOfType(class)
  */
-inline fun <reified T : View> ViewGroup.findChildOfType() =
+inline fun <reified T : View> ViewGroup.findChildOfType(): T =
 		findChildOfType(T::class.java)
 
 /**

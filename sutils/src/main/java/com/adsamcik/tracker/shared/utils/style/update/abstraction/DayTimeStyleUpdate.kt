@@ -3,10 +3,9 @@ package com.adsamcik.tracker.shared.utils.style.update.abstraction
 import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.base.misc.BlendFunctions
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
@@ -112,7 +111,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 		updateLock.withLock {
 			if (colorList.size >= 2) {
 				val data = getUpdateData(
-						Time.now.toZonedDateTime(),
+						Time.now,
 						colorList,
 						sunsetRise,
 				)

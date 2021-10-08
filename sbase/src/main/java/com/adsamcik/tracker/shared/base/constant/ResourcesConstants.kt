@@ -7,5 +7,5 @@ object ResourcesConstants {
 	/**
 	 * Null resources value
 	 */
-	const val ID_NULL = 0
+	const val ID_NULL: Int = 0
 }

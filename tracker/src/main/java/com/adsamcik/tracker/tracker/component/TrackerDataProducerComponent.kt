@@ -3,8 +3,8 @@ package com.adsamcik.tracker.tracker.component
 import android.content.Context
 import androidx.annotation.CallSuper
 import androidx.lifecycle.Observer
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
 internal abstract class TrackerDataProducerComponent(private val changeReceiver: TrackerDataProducerObserver) {

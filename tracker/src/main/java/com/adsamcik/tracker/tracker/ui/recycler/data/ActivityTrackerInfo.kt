@@ -25,6 +25,6 @@ class ActivityTrackerInfo(var activity: ActivityInfo) : TrackerInfo(NAME_RESOURC
 	}
 
 	companion object {
-		val NAME_RESOURCE = R.string.tracker_activity_card_title
+		val NAME_RESOURCE: Int = R.string.tracker_activity_card_title
 	}
 }

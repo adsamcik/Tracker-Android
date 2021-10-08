@@ -6,6 +6,7 @@ import androidx.annotation.MainThread
 import androidx.core.view.isGone
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.map.ColorMap
 import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -15,7 +16,7 @@ internal class MapController(
 		val context: Context,
 		val map: GoogleMap,
 		mapOwner: MapOwner,
-		val inProgressTileTextView: TextView
+		private val inProgressTileTextView: TextView
 ) {
 	private var activeLayer: MapLayerLogic = NoMapLayerLogic()
 	private var quality: Float = 1f
@@ -23,14 +24,21 @@ internal class MapController(
 	val availableDateRange: LongRange
 		get() = activeLayer.availableRange
 
-	var dateRange: LongRange = LongRange(
-			Time.nowMillis - 30 * Time.DAY_IN_MILLISECONDS,
-			Time.nowMillis
-	)
+	val defaultDateRange: LongRange
+		get() = LongRange(
+				Time.today.minusMonths(1).toEpochMillis(),
+				Long.MAX_VALUE
+		)
+
+	var dateRange: LongRange = defaultDateRange
 		set(value) {
 			field = value
 			activeLayer.dateRange = value
+			lastDateChange = Time.nowMillis
 		}
+
+	var lastDateChange: Long = 0L
+		private set
 
 	@MainThread
 	fun setLayer(context: Context, logic: MapLayerLogic) {
@@ -101,6 +109,10 @@ internal class MapController(
 		activeLayer.quality = quality
 		activeLayer.tileCountInGeneration.observeForever(this::generatingTileCountObserver)
 		activeLayer.onEnable(context, map, quality)
+
+		if (lastDateChange != 0L && Time.nowMillis - lastDateChange > Time.QUARTER_DAY_IN_HOURS * Time.HOUR_IN_MILLISECONDS) {
+			dateRange = defaultDateRange
+		}
 	}
 
 	private fun onDisable() {

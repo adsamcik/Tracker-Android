@@ -79,7 +79,7 @@ class FloatValueSliderPreference : Preference {
 	}
 
 	init {
-		layoutResource = R.layout.layout_settings_float_slider
+		layoutResource = R.layout.layout_settings_float_value_slider
 	}
 
 	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.lifecycle.LiveData
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.RewriteQueriesToDropUnusedColumns
@@ -55,8 +56,11 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	@Query("SELECT * from tracker_session where `end` >= :from and start <= :to")
 	fun getAllBetween(from: Long, to: Long): List<TrackerSession>
 
-	/*@Query("SELECT * FROM tracker_session ORDER BY start DESC")
-	fun getAllPaged(): DataSource.Factory<Int, TrackerSession>*/
+	/**
+	 * Returns all paged ordered descending by the start of the session.
+	 */
+	@Query("SELECT * FROM tracker_session ORDER BY start DESC")
+	fun getAllPaged(): PagingSource<Int, TrackerSession>
 
 	/**
 	 * Calculates a summary of all session in the database.

@@ -8,6 +8,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
@@ -19,6 +21,7 @@ import java.util.concurrent.TimeUnit
 internal object SessionBroadcaster {
 	private const val PARAM_SESSION_END = "endSession"
 	private const val SESSION_FINAL_WORK_TAG = "finalSession"
+	private const val SESSION_BROADCAST_LOG_SOURCE = "session"
 
 	private fun createBaseIntent(context: Context, action: String, session: TrackerSession) =
 			Intent(action).apply {
@@ -44,6 +47,12 @@ internal object SessionBroadcaster {
 		sendBroadcast(context, intent)
 
 		cancelSessionFinal(context, session)
+		Logger.log(
+				LogData(
+						message = if (isNew) "Session started" else "Session resumed",
+						source = SESSION_BROADCAST_LOG_SOURCE
+				)
+		)
 	}
 
 	/**
@@ -57,7 +66,13 @@ internal object SessionBroadcaster {
 		)
 		sendBroadcast(context, intent)
 
-		scheduleBroadcastSessionFinal(context, session)
+		Logger.log(LogData(message = "Session ended", source = SESSION_BROADCAST_LOG_SOURCE))
+
+		if (session.isUserInitiated) {
+			broadcastSessionFinal(context, session)
+		} else {
+			scheduleBroadcastSessionFinal(context, session)
+		}
 	}
 
 	/**
@@ -70,6 +85,7 @@ internal object SessionBroadcaster {
 				session
 		)
 		sendBroadcast(context, intent)
+		Logger.log(LogData(message = "Session finalized", source = SESSION_BROADCAST_LOG_SOURCE))
 	}
 
 	private fun getScheduleFinalId(session: TrackerSession) = "${session.id}$SESSION_FINAL_WORK_TAG"
@@ -79,8 +95,6 @@ internal object SessionBroadcaster {
 	}
 
 	private fun scheduleBroadcastSessionFinal(context: Context, session: TrackerSession) {
-		if (session.isUserInitiated) return
-
 		val data = Data
 				.Builder()
 				.putLong(TrackerSession.RECEIVER_SESSION_ID, session.id)
@@ -123,6 +137,18 @@ internal object SessionBroadcaster {
 
 			if (session.end == inputData.getLong(PARAM_SESSION_END, Long.MIN_VALUE)) {
 				broadcastSessionFinal(applicationContext, session)
+			} else {
+				Logger.log(
+						LogData(
+								message = "Scheduled finalization skipped. Session end was ${
+									inputData.getLong(
+											PARAM_SESSION_END,
+											Long.MIN_VALUE
+									)
+								} but now is ${session.end}",
+								source = SESSION_BROADCAST_LOG_SOURCE
+						)
+				)
 			}
 
 			return Result.success()

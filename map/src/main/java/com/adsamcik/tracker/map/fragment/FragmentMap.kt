@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.map.fragment
 
-
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -40,7 +39,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 
 	private var fActivity: FragmentActivity? = null
 
-	override fun onPermissionResponse(requestCode: Int, success: Boolean) = Unit
+	override fun onPermissionResponse(requestCode: Int, success: Boolean): Unit = Unit
 
 	override fun onLeave(activity: FragmentActivity) {
 		mapOwner.onDisable()
@@ -57,7 +56,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
-		//This will prevent a crash, but can cause side effects, investigation needed
+		// This will prevent a crash, but can cause side effects, investigation needed
 		if (isStateSaved) return
 
 		this.fActivity = activity
@@ -71,8 +70,8 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		val context = requireContext()
 		MapsInitializer.initialize(context)
-		retainInstance = false
 
 		mapOwner.addOnCreateListener(this::onMapReady)
 		mapOwner.addOnEnableListener {
@@ -84,10 +83,10 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	}
 
 	override fun onCreateView(
-			inflater: LayoutInflater,
-			container: ViewGroup?,
-			savedInstanceState: Bundle?
-	): View? {
+	    inflater: LayoutInflater,
+	    container: ViewGroup?,
+	    savedInstanceState: Bundle?
+	): View {
 		val activity = requireActivity()
 		val fragmentView: View
 		if (Assist.isPlayServicesAvailable(activity) && container != null) {
@@ -160,6 +159,4 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	companion object {
 		private const val PERMISSION_LOCATION_CODE = 200
 	}
-
 }
-

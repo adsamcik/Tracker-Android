@@ -24,7 +24,7 @@ internal class StartTimeNotificationComponent : TrackerNotificationComponent() {
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData
-	): String? {
+	): String {
 		return context.getString(R.string.start_time_value, session.start.formatAsDateTime())
 	}
 }

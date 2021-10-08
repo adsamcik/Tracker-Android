@@ -6,7 +6,7 @@ import com.adsamcik.tracker.activity.receiver.ActivitySessionReceiver
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.module.ModuleInitializer
+import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 
 /**
  * Activity module initializer
@@ -31,6 +31,9 @@ class ActivityModuleInitializer : ModuleInitializer {
 		context.registerReceiver(ActivitySessionReceiver(), trackerSessionBroadcastFilter)
 	}
 
+	/**
+	 * Initializes activity module.
+	 */
 	override fun initialize(context: Context) {
 		initializeTrackerSessionReceivers(context)
 		initializeDatabase(context)

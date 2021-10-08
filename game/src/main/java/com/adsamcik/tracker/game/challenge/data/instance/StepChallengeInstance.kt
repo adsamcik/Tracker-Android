@@ -28,7 +28,7 @@ class StepChallengeInstance(
 	override val progress: Double
 		get() = extra.stepCount.toDouble() / extra.requiredStepCount.toDouble()
 
-	override fun checkCompletionConditions() = extra.stepCount >= extra.requiredStepCount
+	override fun checkCompletionConditions(): Boolean = extra.stepCount >= extra.requiredStepCount
 
 	override fun processSession(context: Context, session: TrackerSession) {
 		extra.stepCount += session.steps

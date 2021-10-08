@@ -10,7 +10,7 @@ import com.adsamcik.tracker.shared.base.extension.round
 import com.adsamcik.tracker.shared.base.extension.toRadians
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 import kotlin.math.sqrt
 
 /**
@@ -129,6 +129,15 @@ data class Location(
 	companion object {
 		private const val ROUND_TO_DECIMALS = 6
 
+		/**
+		 * Calculates approximate 2D distance between 2 positions.
+		 *
+		 * @param firstLatitude Latitude of first position
+		 * @param firstLongitude Longitude of first position
+		 * @param secondLatitude Latitude of second position
+		 * @param secondLongitude Longitude of second position
+		 * @param unit Length unity of resulting distance
+		 */
 		fun distance(
 				firstLatitude: Double,
 				firstLongitude: Double,
@@ -159,8 +168,16 @@ data class Location(
 		}
 
 		/**
-		 * Returns approximate distance between 2 3D coordinates.
-		 * This function uses Pythagorean theorem for altitude
+		 * Calculates approximate distance between two 3D coordinates.
+		 * This function uses Pythagorean theorem for altitude.
+		 *
+		 * @param firstLatitude Latitude of first position
+		 * @param firstLongitude Longitude of first position
+		 * @param firstAltitude Altitude of first position
+		 * @param secondLatitude Latitude of second position
+		 * @param secondLongitude Longitude of second position
+		 * @param secondAltitude Altitude of second position
+		 * @param unit Length unity of resulting distance
 		 */
 		@Suppress("LongParameterList")
 		fun distance(
@@ -186,16 +203,30 @@ data class Location(
 		private fun calculateLineOfLongitudeM(latitude: Double) =
 				kotlin.math.cos(latitude.toRadians()) * EARTH_CIRCUMFERENCE
 
+		/***
+		 * Calculates how much can longitude change to fit inside given precision.
+		 *
+		 * @param precisionInMeters Precision in meters
+		 * @param latitude Latitude required for proper distance calculation
+		 */
 		fun longitudeAccuracy(precisionInMeters: Double, latitude: Double): Double =
 				precisionInMeters * (360.0 / calculateLineOfLongitudeM(latitude)).round(
 						ROUND_TO_DECIMALS
 				)
 
+		/**
+		 * Calculates how much can latitude change to fit inside given precision.
+		 *
+		 * @param precisionInMeters Precision in meters
+		 */
 		fun latitudeAccuracy(precisionInMeters: Double): Double =
 				(METER_DEGREE_LATITUDE * precisionInMeters).round(ROUND_TO_DECIMALS)
 	}
 }
 
+/**
+ * Base location data object
+ */
 @JsonClass(generateAdapter = true)
 data class BaseLocation(
 		@Json(name = "lat")
@@ -215,6 +246,9 @@ data class BaseLocation(
 	constructor(location: Location) : this(location.latitude, location.longitude, location.altitude)
 }
 
+/**
+ * Units of length
+ */
 enum class LengthUnit {
 	Meter,
 	Kilometer,

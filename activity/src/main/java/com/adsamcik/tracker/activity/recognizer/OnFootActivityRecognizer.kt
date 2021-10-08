@@ -34,11 +34,11 @@ internal class OnFootActivityRecognizer : ActivityRecognizer() {
 			}
 		}
 
-		if (other.count + unknown.count > onFoot.count + walk.count + run.count + unknown.count) {
+		if (other.count > onFoot.count + walk.count + run.count) {
 			return ActivityRecognitionResult(null, 0)
 		}
 
-		//just a little run should make it enough to consider it running session
+		// check if large enough portion consisted of running
 		if (run.confidenceSum > walk.confidenceSum / WALK_DENOMINATOR) {
 			val confidence = (run.count.toDouble() / locationCollection.size.toDouble()) * run.confidence
 			return ActivityRecognitionResult(NativeSessionActivity.RUN, confidence.roundToInt())
@@ -48,7 +48,7 @@ internal class OnFootActivityRecognizer : ActivityRecognizer() {
 	}
 
 	companion object {
-		const val WALK_DENOMINATOR = 4
+		const val WALK_DENOMINATOR = 3
 	}
 
 }

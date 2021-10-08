@@ -1,13 +1,13 @@
 package com.adsamcik.tracker.map.heatmap.implementation
 
+import com.adsamcik.tracker.logger.assertLess
+import com.adsamcik.tracker.logger.assertMore
+import com.adsamcik.tracker.logger.assertMoreOrEqual
+import com.adsamcik.tracker.logger.assertWithin
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.withAlpha
-import com.adsamcik.tracker.shared.utils.debug.assertLess
-import com.adsamcik.tracker.shared.utils.debug.assertMore
-import com.adsamcik.tracker.shared.utils.debug.assertMoreOrEqual
-import com.adsamcik.tracker.shared.utils.debug.assertWithin
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.EMPTY_COMPONENT
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.FULL_COMPONENT
 import kotlin.math.max
@@ -44,7 +44,7 @@ typealias AlphaMergeFunction = (current: Int, stampValue: Float, weight: Float) 
 
 typealias WeightMergeFunction = (current: Float, currentAlpha: Int, stampValue: Float, value: Float) -> Float
 
-const val AGE_THRESHOLD_MINUTES = 15
+const val AGE_THRESHOLD_MINUTES: Int = 15
 
 @Suppress("MemberVisibilityCanBePrivate")
 internal class AgeWeightedHeatmap(
@@ -131,7 +131,11 @@ internal class AgeWeightedHeatmap(
 					val newAlphaPercentage = max(alphaPercentage, stampValue)
 					val newAlphaValue = (newAlphaPercentage * FULL_COMPONENT).toInt()
 
-					assertWithin(newAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
+					assertWithin(
+							newAlphaValue,
+							EMPTY_COMPONENT,
+							FULL_COMPONENT
+					)
 
 					// Check if older than threshold
 					if (ageInSeconds - valueAge < ageThresholdFloat) {

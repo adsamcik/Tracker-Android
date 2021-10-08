@@ -23,9 +23,9 @@ data class StyleData(
 	@IntRange(from = 0, to = 255)
 	private val perceivedLuminance: Int
 
-	val luminance get() = baseColorHSL[2]
-	val saturation get() = baseColorHSL[1]
-	val hue get() = baseColorHSL[0]
+	val luminance: Float get() = baseColorHSL[2]
+	val saturation: Float get() = baseColorHSL[1]
+	val hue: Float get() = baseColorHSL[0]
 
 
 	init {

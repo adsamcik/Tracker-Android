@@ -37,7 +37,7 @@ data class SessionActivity(
 		/**
 		 * Unknown activity value. Default for many applications.
 		 */
-		val UNKNOWN get() = SessionActivity(0L, "", null)
+		val UNKNOWN: SessionActivity get() = SessionActivity(0L, "", null)
 
 		@WorkerThread
 		fun getAll(context: Context): List<SessionActivity> {

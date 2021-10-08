@@ -27,6 +27,7 @@ fun FragmentActivity.createDateTimeDialog(
 	MaterialDatePicker.Builder.dateRangePicker()
 			.setCalendarConstraints(constraints)
 			.setTheme(com.adsamcik.tracker.shared.base.R.style.CalendarPicker)
+			.setSelection(androidx.core.util.Pair(selectedRange.first, selectedRange.last))
 			.build().apply {
 				addOnPositiveButtonClickListener {
 					val from = it.first ?: selectedRange.first

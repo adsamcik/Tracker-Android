@@ -5,15 +5,16 @@ import android.util.SparseArray
 import androidx.core.util.forEach
 import androidx.core.util.isEmpty
 import androidx.core.util.isNotEmpty
+import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
-import com.adsamcik.tracker.shared.utils.debug.LogData
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
 import kotlin.reflect.KClass
@@ -39,7 +40,13 @@ object ActivityRequestManager {
 	fun requestActivity(context: Context, requestData: ActivityRequestData): Boolean {
 		require(requestData.transitionData != null || requestData.changeData != null)
 
-		logActivity(LogData(message = "new activity request", data = requestData))
+		logActivity(
+				LogData(
+						message = "new activity request",
+						data = requestData,
+						source = ACTIVITY_LOG_SOURCE
+				)
+		)
 
 		val hash = requestData.key.hashCode()
 		activeRequestArray.put(hash, requestData)
@@ -55,7 +62,12 @@ object ActivityRequestManager {
 		if (index >= 0) {
 			activeRequestArray.removeAt(index)
 
-			logActivity(LogData(message = "removed request for ${tClass.java.name}"))
+			logActivity(
+					LogData(
+							message = "removed request for ${tClass.java.name}",
+							source = ACTIVITY_LOG_SOURCE
+					)
+			)
 
 			if (activeRequestArray.isNotEmpty()) {
 				onRequestChange(context)

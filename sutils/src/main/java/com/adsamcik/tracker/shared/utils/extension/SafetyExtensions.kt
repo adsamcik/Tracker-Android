@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.shared.utils.extension
 
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 
 /**
  * Tries to call [func] and if exception occurs it logs it.

@@ -8,6 +8,9 @@ import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import io.requery.android.database.sqlite.SQLiteDatabase
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 
+/**
+ * Base class for Database Object.
+ */
 abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) {
 	abstract val databaseName: String
 
@@ -34,12 +37,18 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 		return instance
 	}
 
+	/**
+	 * Returns database instance
+	 */
 	@AnyThread
 	@Synchronized
 	fun database(context: Context): T {
 		return instance ?: createInstance(context)
 	}
 
+	/**
+	 * Returns database instance for testing.
+	 */
 	fun testDatabase(context: Context): T {
 		return Room.inMemoryDatabaseBuilder(
 				context.applicationContext,

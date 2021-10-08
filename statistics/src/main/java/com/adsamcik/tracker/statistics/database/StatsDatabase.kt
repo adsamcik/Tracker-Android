@@ -20,7 +20,7 @@ abstract class StatsDatabase : RoomDatabase() {
 	companion object : ObjectBaseDatabase<StatsDatabase>(StatsDatabase::class.java) {
 		override val databaseName: String get() = "stats_database"
 
-		override fun setupDatabase(database: Builder<StatsDatabase>) = Unit
+		override fun setupDatabase(database: Builder<StatsDatabase>): Unit = Unit
 
 	}
 }

@@ -5,6 +5,9 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 
+/**
+ * Receives time unlock broadcasts
+ */
 class TrackerTimeUnlockReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		TrackerLocker.unlockTimeLock(context)

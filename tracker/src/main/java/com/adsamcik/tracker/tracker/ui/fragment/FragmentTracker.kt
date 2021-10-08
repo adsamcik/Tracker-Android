@@ -10,16 +10,19 @@ import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.widget.ImageButton
+import androidx.annotation.MainThread
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.adsamcik.recycler.decoration.MarginDecoration
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
@@ -27,6 +30,7 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.CellData
 import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
+import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
@@ -39,25 +43,31 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.base.useMock
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
-import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
+import com.adsamcik.tracker.tracker.ui.TrackerViewModel
+import com.adsamcik.tracker.tracker.ui.receiver.SessionUpdateReceiver
 import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 import com.google.android.gms.location.DetectedActivity
-import kotlinx.android.synthetic.main.fragment_tracker.view.*
 
 /**
  * Fragment that displays current tracking information
  */
 class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 	private lateinit var adapter: TrackerInfoAdapter
+
+	private lateinit var viewModel: TrackerViewModel
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		viewModel = ViewModelProvider(this).get(TrackerViewModel::class.java)
+	}
 
 	override fun onCreateView(
 			inflater: LayoutInflater,
@@ -67,11 +77,12 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		if (container == null) return null
 
 		val view = inflater.inflate(R.layout.fragment_tracker, container, false)
-		view.top_panel_root.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-			height += DisplayAssist.getStatusBarHeight(container.context)
-		}
+		view.findViewById<LinearLayoutCompat>(R.id.top_panel_root)
+				.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+					height += DisplayAssist.getStatusBarHeight(container.context)
+				}
 
-		view.tracker_recycler.apply {
+		view.findViewById<RecyclerView>(R.id.tracker_recycler).apply {
 			val adapter = TrackerInfoAdapter()
 			this@FragmentTracker.adapter = adapter
 			this.adapter = adapter
@@ -107,8 +118,9 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 
 		val view = requireView()
 		view.findViewById<View>(R.id.button_settings).setOnClickListener {
-			val context = it.context
-			context.startActivity("com.adsamcik.tracker.preference.activity.SettingsActivity")
+			it.context.startActivity("com.adsamcik.tracker.preference.activity.SettingsActivity") {
+				flags = Intent.FLAG_ACTIVITY_CLEAR_TASK
+			}
 		}
 
 		view.findViewById<View>(R.id.button_tracking).setOnClickListener {
@@ -146,9 +158,15 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 			updateTrackerButton(it)
 		}
 
-		TrackerService.lastCollectionData.observe(this) {
-			if (it.session.start > 0) {
-				updateData(it)
+		SessionUpdateReceiver.sessionData.observe(this) {
+			if (it != null && it.start > 0) {
+				updateSessionData(it)
+			}
+		}
+
+		SessionUpdateReceiver.collectionData.observe(this) {
+			if (it != null) {
+				updateCollectionData(it)
 			}
 		}
 
@@ -183,7 +201,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 					.addMessage(
 							messageRes = R.string.error_gnss_not_enabled,
 							priority = SnackMaker.SnackbarPriority.IMPORTANT,
-							actionRes = R.string.enable,
+							actionRes = R.string.generic_enable,
 							onActionClick = {
 								val locationOptionsIntent = Intent(
 										Settings.ACTION_LOCATION_SOURCE_SETTINGS
@@ -260,7 +278,8 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 				154
 		)
 
-		updateData(CollectionDataEcho(collectionData, session))
+		updateCollectionData(collectionData)
+		updateSessionData(session)
 	}
 
 	private fun initializeColorElements() {
@@ -288,8 +307,14 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		}
 	}
 
-	private fun updateData(dataEcho: CollectionDataEcho) {
-		adapter.update(dataEcho.collectionData, dataEcho.session)
+	@MainThread
+	private fun updateCollectionData(collectionData: CollectionData) {
+		adapter.updateCollection(collectionData)
+	}
+
+	@MainThread
+	private fun updateSessionData(session: TrackerSession) {
+		adapter.updateSession(session)
 	}
 
 	companion object {

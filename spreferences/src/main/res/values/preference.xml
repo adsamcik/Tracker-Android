@@ -33,6 +33,8 @@
     <integer name="settings_tracking_required_accuracy_default">50</integer>
     <string name="settings_tracking_required_accuracy_key" translatable="false">requiredTrackingAccuracy</string>
     <string name="settings_wifi_enabled_default" translatable="false">false</string>
+    <string name="settings_steps_enabled_key" translatable="false">trackingStepsEnabled</string>
+    <string name="settings_steps_enabled_default" translatable="false">true</string>
     <string name="settings_wifi_enabled_key" translatable="false">trackingWifiEnabled</string>
     <string name="settings_wifi_location_count_enabled_default" translatable="false">false</string>
     <string name="settings_wifi_location_count_enabled_key" translatable="false">trackingWifiLocationCountEnabled</string>

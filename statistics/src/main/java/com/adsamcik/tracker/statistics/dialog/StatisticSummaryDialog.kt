@@ -40,7 +40,11 @@ class StatisticSummaryDialog : CoroutineScope {
 	 * @param titleRes Title string resource
 	 * @param dataLoader Asynchronously called function on work thread that returns stat collection
 	 */
-	fun show(context: Context, @StringRes titleRes: Int, dataLoader: () -> Collection<Stat>) {
+	fun show(
+			context: Context,
+			@StringRes titleRes: Int,
+			dataLoader: (context: Context) -> Collection<Stat>
+	) {
 		val adapter = SessionSummaryAdapter()
 		var styleController: StyleController? = null
 		val dialog = MaterialDialog(context).apply {
@@ -54,7 +58,7 @@ class StatisticSummaryDialog : CoroutineScope {
 		dialog.show()
 
 		launch {
-			val statDataCollection = dataLoader()
+			val statDataCollection = dataLoader(context)
 			launch(Dispatchers.Main) {
 				adapter.addAll(statDataCollection)
 				dialog.apply {

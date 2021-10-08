@@ -7,14 +7,11 @@ plugins {
 
 
 android {
-	compileSdkVersion(Android.compile)
-	buildToolsVersion(Android.buildTools)
+	compileSdk = Android.compile
+	buildToolsVersion = Android.buildTools
 
 	defaultConfig {
-		minSdkVersion(Android.min)
-		targetSdkVersion(Android.target)
-		versionCode = 1
-		versionName = "1.0"
+		minSdk = Android.min
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -31,13 +28,13 @@ android {
 
 	compileOptions {
 		isCoreLibraryDesugaringEnabled = true
-		sourceCompatibility = JavaVersion.VERSION_1_8
-		targetCompatibility = JavaVersion.VERSION_1_8
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	tasks.withType<KotlinCompile> {
 		with(kotlinOptions) {
-			jvmTarget = "1.8"
+			jvmTarget = Android.jvmTarget
 		}
 	}
 
@@ -45,7 +42,7 @@ android {
 		create("release_nominify")
 	}
 
-	lintOptions {
+	lint {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
 	}
@@ -59,19 +56,20 @@ android {
 
 dependencies {
 	implementation(project(":smap"))
-	Dependencies.core(this)
-	Dependencies.draggable(this)
-	Dependencies.database(this)
-	Dependencies.map(this)
-	Dependencies.test(this)
-	Dependencies.sectionedRecyclerAdapter(this)
-
-	implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
-	implementation("com.goebl:simplify:1.0.0")
-
-	implementation(fileTree("libs").include("*.jar"))
 	implementation(project(":app"))
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
+	implementation(project(":logger"))
+
+	Dependencies.core(this)
+	Dependencies.draggable(this)
+	Dependencies.database(this)
+	Dependencies.map(this)
+	Dependencies.json(this)
+	Dependencies.test(this)
+	Dependencies.paging(this)
+
+	implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
+	implementation("com.goebl:simplify:1.0.0")
 }

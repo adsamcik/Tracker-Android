@@ -39,6 +39,6 @@ class ActivitySessionReceiver : BroadcastReceiver() {
 	}
 
 	companion object {
-		const val ARG_ID = "id"
+		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
 	}
 }

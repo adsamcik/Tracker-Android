@@ -6,14 +6,12 @@ plugins {
 }
 
 android {
-	compileSdkVersion(Android.compile)
-	buildToolsVersion(Android.buildTools)
+	compileSdk = Android.compile
+	buildToolsVersion = Android.buildTools
 
 	defaultConfig {
-		minSdkVersion(Android.min)
-		targetSdkVersion(Android.target)
-		versionCode = 1
-		versionName = "1.0"
+		minSdk = Android.min
+		targetSdk = Android.target
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -24,13 +22,13 @@ android {
 
 	compileOptions {
 		isCoreLibraryDesugaringEnabled = true
-		sourceCompatibility = JavaVersion.VERSION_1_8
-		targetCompatibility = JavaVersion.VERSION_1_8
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	tasks.withType<KotlinCompile> {
 		with(kotlinOptions) {
-			jvmTarget = "1.8"
+			jvmTarget = Android.jvmTarget
 			freeCompilerArgs = listOf("-XXLanguage:+InlineClasses")
 		}
 	}
@@ -48,7 +46,7 @@ android {
 		}
 	}
 
-	lintOptions {
+	lint {
 		isCheckReleaseBuilds = true
 		isAbortOnError = false
 	}

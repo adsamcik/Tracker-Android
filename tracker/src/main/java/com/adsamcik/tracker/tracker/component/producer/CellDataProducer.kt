@@ -14,6 +14,7 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CellInfo
 import com.adsamcik.tracker.shared.base.data.CellType
@@ -21,12 +22,12 @@ import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.utility.TelephonyUtils
 import java.util.*
 
 internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
@@ -115,18 +116,6 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		}
 	}
 
-	private fun getPhoneCount(telephonyManager: TelephonyManager) = when {
-		Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
-			telephonyManager.activeModemCount
-		}
-		Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-			@Suppress("DEPRECATION") telephonyManager.phoneCount
-		}
-		else -> {
-			1
-		}
-	}
-
 	private fun getScanData(
 			telephonyManager: TelephonyManager,
 			registeredOperators: List<NetworkOperator>
@@ -134,7 +123,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		@SuppressLint("MissingPermission")
 		val cellInfo = telephonyManager.allCellInfo ?: return null
 
-		val phoneCount = getPhoneCount(telephonyManager)
+		val phoneCount = TelephonyUtils.getPhoneCount(telephonyManager)
 		val registeredCells = ArrayList<CellInfo>(phoneCount)
 
 		cellInfo.forEach {

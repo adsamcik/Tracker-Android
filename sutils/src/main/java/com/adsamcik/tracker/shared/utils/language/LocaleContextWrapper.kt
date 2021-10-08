@@ -5,9 +5,14 @@ import android.content.ContextWrapper
 import com.adsamcik.tracker.shared.base.assist.LocaleAssist
 import java.util.*
 
-
+/**
+ * Context wrapper for locales.
+ */
 class LocaleContextWrapper(base: Context?) : ContextWrapper(base) {
 	companion object {
+		/**
+		 * Wraps context in Locale context wrapper.
+		 */
 		fun wrap(context: Context): ContextWrapper {
 			val language: String = LocaleManager.getLocale(context)
 			val config = LocaleAssist.getConfig(context)

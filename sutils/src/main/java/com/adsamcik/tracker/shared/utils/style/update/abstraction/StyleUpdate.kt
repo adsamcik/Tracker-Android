@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.style.update.abstraction
 
 import android.content.Context
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import java.util.concurrent.locks.ReentrantLock

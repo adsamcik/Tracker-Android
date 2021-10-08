@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.shared.utils.style.update.implementation
 
+import com.adsamcik.tracker.logger.assertEqual
+import com.adsamcik.tracker.logger.assertMore
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.isAfterOrEqual
 import com.adsamcik.tracker.shared.base.extension.isBeforeOrEqual
-import com.adsamcik.tracker.shared.utils.debug.assertEqual
-import com.adsamcik.tracker.shared.utils.debug.assertMore
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.abstraction.DayTimeStyleUpdate
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData

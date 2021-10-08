@@ -39,7 +39,7 @@ abstract class DetailActivity : CoreUIActivity() {
 	 *
 	 * @param configuration Configuration object.
 	 */
-	open fun onConfigure(configuration: Configuration) = Unit
+	open fun onConfigure(configuration: Configuration): Unit = Unit
 
 	private val topPanelRoot: ViewGroup by lazy { findViewById(R.id.top_panel_root) }
 	private val contentDetailRoot: ViewGroup by lazy { findViewById(R.id.content_detail_root) }
@@ -280,13 +280,14 @@ abstract class DetailActivity : CoreUIActivity() {
 	protected fun <RootView : View> inflateContent(@LayoutRes resource: Int): RootView {
 		val rootContentView = layoutInflater.inflate(resource, contentDetailRoot, false)
 		contentDetailRoot.addView(rootContentView)
+		styleController.forceUpdate()
 		@Suppress("unchecked_cast")
 		return rootContentView as RootView
 	}
 
 	companion object {
 		const val CONTENT_ID: Int = 2668368
-		const val DEFAULT_TITLE_BAR_ELEVATION = 4
+		const val DEFAULT_TITLE_BAR_ELEVATION: Int = 4
 		private const val ACTION_IMAGE_SIZE = 48
 	}
 

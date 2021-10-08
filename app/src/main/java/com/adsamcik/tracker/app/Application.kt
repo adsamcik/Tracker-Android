@@ -5,12 +5,13 @@ import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
-import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
-import com.adsamcik.tracker.shared.base.module.ModuleInitializer
-import com.adsamcik.tracker.shared.utils.debug.Logger
-import com.adsamcik.tracker.shared.utils.debug.Reporter
+import com.adsamcik.tracker.points.PointsInitializer
+import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
+import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
@@ -18,7 +19,6 @@ import com.google.android.play.core.splitcompat.SplitCompatApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import java.util.*
 
 /**
  * Main application
@@ -32,18 +32,8 @@ class Application : SplitCompatApplication() {
 	@SuppressLint("DefaultLocale")
 	@WorkerThread
 	private fun initializeModules() {
-		val activeModules = ModuleClassLoader.getEnabledModuleNames(this)
-
-		activeModules.forEach { moduleName ->
-			try {
-				val initializer = ModuleClassLoader.loadClass<ModuleInitializer>(
-						moduleName = moduleName,
-						className = "${moduleName.capitalize(Locale.getDefault())}${ModuleInitializer::class.java.simpleName}"
-				)
-				initializer.newInstance().initialize(this)
-			} catch (e: ClassNotFoundException) {
-				//it's fine, do nothing
-			}
+		ModuleClassLoader.invokeInEachActiveModule<ModuleInitializer>(this) {
+			it.initialize(this)
 		}
 	}
 
@@ -62,12 +52,20 @@ class Application : SplitCompatApplication() {
 	private fun initializeImportantSingletons() {
 		Reporter.initialize(this)
 		Logger.initialize(this)
-		ActivityWatcherService.poke(this)
 	}
 
 	@WorkerThread
 	private fun initializeDatabaseMaintenance() {
 		DatabaseMaintenanceWorker.schedule(this)
+	}
+
+	@WorkerThread
+	private fun initializeFeatures() {
+		// Points
+		PointsInitializer().initialize(this)
+
+		// Activities
+		ActivityWatcherService.poke(this)
 	}
 
 	override fun onCreate() {
@@ -78,6 +76,7 @@ class Application : SplitCompatApplication() {
 			initializeClasses()
 			initializeModules()
 			initializeDatabaseMaintenance()
+			initializeFeatures()
 		}
 
 		setupLifecycleListener()

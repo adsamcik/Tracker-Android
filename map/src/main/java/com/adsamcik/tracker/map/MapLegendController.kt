@@ -42,6 +42,8 @@ class MapLegendController(rootLayout: View) {
 		val descriptionRes = layerData.legend.description
 		if (descriptionRes != null) {
 			descriptionView.setText(descriptionRes)
+		} else {
+			descriptionView.text = ""
 		}
 
 		legendAdapter.removeAll()

@@ -4,7 +4,11 @@ import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
+import com.adsamcik.tracker.game.fragment.recycler.viewholder.abstraction.ListRecyclerViewHolder
 
+/**
+ * View holder for challenges in game recycler.
+ */
 class ChallengeRecyclerViewHolder(
 		rootView: View,
 		title: TextView,

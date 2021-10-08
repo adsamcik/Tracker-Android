@@ -23,7 +23,7 @@ internal class CollectionCountNotificationComponent : TrackerNotificationCompone
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData
-	): String? {
+	): String {
 		return context.getString(R.string.collection_count_value, session.collections)
 	}
 }

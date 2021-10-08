@@ -6,7 +6,6 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -40,7 +39,6 @@ class SunSetRise {
 			requireNotNull(context)
 			updateLocation(context, locationResult.lastLocation)
 		}
-
 	}
 
 	/**
@@ -48,7 +46,7 @@ class SunSetRise {
 	 *
 	 * @return Time of the nearest sunrise within 24 hours or null if there won't be one
 	 */
-	fun sunriseForToday(): ZonedDateTime? = sunriseFor(Time.now.toZonedDateTime())
+	fun sunriseForToday(): ZonedDateTime? = sunriseFor(Time.now)
 
 	/**
 	 * Finds nearest sunrise within 24 hours from given date.
@@ -69,7 +67,7 @@ class SunSetRise {
 	 *
 	 * @return Time of the nearest sunset within 24 hours or null if there won't be one
 	 */
-	fun sunsetForToday(): ZonedDateTime? = sunsetFor(Time.now.toZonedDateTime())
+	fun sunsetForToday(): ZonedDateTime? = sunsetFor(Time.now)
 
 	/**
 	 * Finds nearest sunset within 24 hours from given date.

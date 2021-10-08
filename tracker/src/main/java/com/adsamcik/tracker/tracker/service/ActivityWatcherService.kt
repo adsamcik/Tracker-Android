@@ -36,10 +36,10 @@ class ActivityWatcherService : CoreService() {
 		instance = this
 
 		val updatePreferenceInSeconds = Preferences.getPref(this)
-				.getIntResString(
-						R.string.settings_activity_freq_key,
-						R.string.settings_activity_freq_default
-				)
+			.getIntResString(
+				R.string.settings_activity_freq_key,
+				R.string.settings_activity_freq_default
+			)
 
 		startForeground(NOTIFICATION_ID, updateNotification())
 
@@ -70,33 +70,33 @@ class ActivityWatcherService : CoreService() {
 
 	private fun updateNotification(): Notification {
 		val intent = packageManager.getLaunchIntentForPackage(packageName)
-				?: throw NullPointerException("Launch intent for package is null.")
+			?: throw NullPointerException("Launch intent for package is null.")
 
 		val builder = NotificationCompat.Builder(
-				this,
-				getString(R.string.channel_activity_watcher_id)
+			this,
+			getString(R.string.channel_activity_watcher_id)
 		)
-				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setTicker(
-						getString(R.string.notification_activity_watcher_ticker)
-				)  // the done text
-				.setWhen(Time.nowMillis)  // the time stamp
-				.setVibrate(null)
-				.setOngoing(true)
-				.setContentIntent(
-						PendingIntent.getActivity(
-								this, 0, intent,
-								0
-						)
+			.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+			.setTicker(
+				getString(R.string.notification_activity_watcher_ticker)
+			)  // the done text
+			.setWhen(Time.nowMillis)  // the time stamp
+			.setVibrate(null)
+			.setOngoing(true)
+			.setContentIntent(
+				PendingIntent.getActivity(
+					this, 0, intent,
+					PendingIntent.FLAG_IMMUTABLE
 				)
+			)
 
 		builder.setContentTitle(getString(R.string.settings_activity_watcher_title))
 		builder.setContentText(
-				getString(
-						R.string.notification_activity_watcher_info,
-						activityInfo.getGroupedActivityName(this),
-						activityInfo.confidence
-				)
+			getString(
+				R.string.notification_activity_watcher_info,
+				activityInfo.getGroupedActivityName(this),
+				activityInfo.confidence
+			)
 		)
 
 		builder.setSmallIcon(activityInfo.groupedActivity.iconRes)
@@ -110,22 +110,22 @@ class ActivityWatcherService : CoreService() {
 		private var instance: ActivityWatcherService? = null
 
 		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(
-				context
+			context
 		).getBooleanRes(
-				R.string.settings_activity_watcher_key, R.string.settings_activity_watcher_default
+			R.string.settings_activity_watcher_key, R.string.settings_activity_watcher_default
 		)
 
 		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(
-				context
+			context
 		).getIntResString(
-				R.string.settings_tracking_activity_key,
-				R.string.settings_tracking_activity_default
+			R.string.settings_tracking_activity_key,
+			R.string.settings_tracking_activity_default
 		)
 
 		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(
-				context
+			context
 		).getIntResString(
-				R.string.settings_activity_freq_key, R.string.settings_activity_freq_default
+			R.string.settings_activity_freq_key, R.string.settings_activity_freq_default
 		)
 
 		/**
@@ -160,12 +160,12 @@ class ActivityWatcherService : CoreService() {
 		@Synchronized
 		@Suppress("LongParameterList")
 		fun poke(
-				context: Context,
-				watcherPreference: Boolean = getWatcherPreference(context),
-				updateInterval: Int = getActivityIntervalPreference(context),
-				autoTracking: Int = getAutoTrackingPreference(context),
-				trackerLocked: Boolean = TrackerLocker.isLocked.value,
-				trackerRunning: Boolean = TrackerService.isServiceRunning.value
+			context: Context,
+			watcherPreference: Boolean = getWatcherPreference(context),
+			updateInterval: Int = getActivityIntervalPreference(context),
+			autoTracking: Int = getAutoTrackingPreference(context),
+			trackerLocked: Boolean = TrackerLocker.isLocked.value,
+			trackerRunning: Boolean = TrackerService.isServiceRunning.value
 		) {
 
 			if (updateInterval > 0 && autoTracking > 0) {

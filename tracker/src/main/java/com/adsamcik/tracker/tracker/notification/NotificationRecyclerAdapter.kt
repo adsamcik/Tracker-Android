@@ -53,7 +53,7 @@ internal class NotificationRecyclerAdapter(
 		}
 
 		holder.editButton.setOnClickListener {
-			editCallback(holder.adapterPosition)
+			editCallback(holder.absoluteAdapterPosition)
 		}
 
 		val preference = item.preference

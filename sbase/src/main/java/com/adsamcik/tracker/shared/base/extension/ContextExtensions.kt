@@ -36,9 +36,9 @@ import androidx.fragment.app.Fragment
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : AppCompatActivity> Activity.startActivity(
-		requestCode: Int = -1,
-		options: Bundle? = null,
-		noinline init: Intent.() -> Unit = {}
+	requestCode: Int = -1,
+	options: Bundle? = null,
+	noinline init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
 	intent.init()
@@ -53,8 +53,8 @@ inline fun <reified T : AppCompatActivity> Activity.startActivity(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : AppCompatActivity> Fragment.startActivity(
-		options: Bundle? = null,
-		noinline init: Intent.() -> Unit = {}
+	options: Bundle? = null,
+	noinline init: Intent.() -> Unit = {}
 ) {
 	requireContext().startActivity<T>(options, init)
 }
@@ -66,8 +66,8 @@ inline fun <reified T : AppCompatActivity> Fragment.startActivity(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : AppCompatActivity> Context.startActivity(
-		options: Bundle? = null,
-		noinline init: Intent.() -> Unit = {}
+	options: Bundle? = null,
+	noinline init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
 	intent.init()
@@ -81,8 +81,8 @@ inline fun <reified T : AppCompatActivity> Context.startActivity(
  * @param uri URI
  */
 fun Context.startActivity(
-		action: String,
-		uri: Uri
+	action: String,
+	uri: Uri
 ) {
 	val intent = Intent(action, uri)
 	startActivity(intent)
@@ -93,9 +93,10 @@ fun Context.startActivity(
  *
  * @param className Path to the activity class
  */
-fun Context.startActivity(className: String) {
+inline fun Context.startActivity(className: String, init: Intent.() -> Unit = {}) {
 	val intent = Intent()
 	intent.setClassName(this, className)
+	intent.init()
 	startActivity(intent)
 }
 
@@ -104,9 +105,10 @@ fun Context.startActivity(className: String) {
  *
  * @param className Path to the activity class
  */
-fun Activity.startActivity(className: String) {
+fun Activity.startActivity(className: String, init: Intent.() -> Unit = {}) {
 	val intent = Intent()
 	intent.setClassName(this, className)
+	intent.init()
 	startActivity(intent)
 }
 
@@ -117,7 +119,7 @@ fun Activity.startActivity(className: String) {
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Service> Context.startService(
-		noinline init: Intent.() -> Unit = {}
+	init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
 	intent.init()
@@ -130,7 +132,7 @@ inline fun <reified T : Service> Context.startService(
  * @param init Initialization function to setup the intent if needed
  */
 inline fun <reified T : Service> Context.startForegroundService(
-		noinline init: Intent.() -> Unit = {}
+	init: Intent.() -> Unit = {}
 ) {
 	val intent = newIntent<T>()
 	intent.init()
@@ -151,9 +153,12 @@ inline fun <reified T : Any> Context.stopService() {
  * Creates new intent for class of type [T]
  */
 inline fun <reified T : Any> Context.newIntent(): Intent =
-		Intent(this, T::class.java)
+	Intent(this, T::class.java)
 
 
+/**
+ * Returns app version.
+ */
 fun Context.appVersion(): Long {
 	val packageInfo = packageManager.getPackageInfo(packageName, 0)
 	return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -164,27 +169,31 @@ fun Context.appVersion(): Long {
 	}
 }
 
+/**
+ * Checks if application has given permission.
+ */
 fun Context.hasSelfPermission(permission: String): Boolean =
-		ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+	ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
+/**
+ * Checks if application has all permissions in a collection.
+ */
 fun Context.hasSelfPermissions(permissions: Collection<String>): BooleanArray =
-		permissions.map { hasSelfPermission(it) }.toBooleanArray()
+	permissions.map { hasSelfPermission(it) }.toBooleanArray()
 
 inline val Context.hasLocationPermission: Boolean
 	get() =
 		hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 
+inline val Context.hasBackgroundLocationPermission: Boolean
+	get() =
+		Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+				hasSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+
 inline val Context.hasActivityPermission: Boolean
 	get() =
-		hasSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-
-inline val Context.hasExternalStorageReadPermission: Boolean
-	get() =
-		hasSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
-
-inline val Context.hasExternalStorageWritePermission: Boolean
-	get() =
-		hasSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+		Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+				hasSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION)
 
 inline val Context.hasReadPhonePermission: Boolean
 	get() =
@@ -197,9 +206,9 @@ inline val Context.hasReadPhonePermission: Boolean
  * Typed method in Android does name lookup (so it might be tiny bit slower) and is available from API 23.
  */
 inline fun <reified T : Any> Context.getSystemServiceTyped(serviceName: String): T =
-		getSystemService(
-				serviceName
-		) as T
+	getSystemService(
+		serviceName
+	) as T
 
 /**
  * Shortcut to get [TelephonyManager]. This property does not cache the service.
@@ -262,15 +271,23 @@ inline val Context.notificationManager: NotificationManager get() = getSystemSer
  */
 inline val Context.layoutInflater: LayoutInflater get() = getSystemServiceTyped(Context.LAYOUT_INFLATER_SERVICE)
 
+/**
+ * Name of the application
+ */
 val Context.applicationName: String
 	get() {
 		val applicationInfo = applicationInfo
 		val stringId = applicationInfo.labelRes
-		return if (stringId == 0) applicationInfo.nonLocalizedLabel.toString() else getString(
-				stringId
-		)
+		return if (stringId == 0) {
+			applicationInfo.nonLocalizedLabel.toString()
+		} else {
+			getString(stringId)
+		}
 	}
 
+/**
+ * Tag for an activity.
+ */
 @Suppress("unused")
 val Activity.tag: String
 	get() = applicationName + this::class.java.simpleName

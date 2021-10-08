@@ -5,10 +5,17 @@ import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.extension.dayOfYear
 import com.adsamcik.tracker.shared.base.extension.toDate
 import com.adsamcik.tracker.shared.base.extension.year
+import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.*
 
 
+/**
+ * Formats stats titles.
+ */
 object StatsFormat {
 	//todo improve separator localization
 	fun formatRange(start: Calendar, end: Calendar): String {
@@ -19,8 +26,8 @@ object StatsFormat {
 		val locale = Locale.getDefault()
 
 		var dateFormat = SimpleDateFormat.getDateInstance(
-				SimpleDateFormat.MEDIUM,
-				locale
+			SimpleDateFormat.MEDIUM,
+			locale
 		) as SimpleDateFormat
 
 		if (start.year == today.year) {
@@ -31,17 +38,17 @@ object StatsFormat {
 			val timeFormat = SimpleDateFormat.getTimeInstance(SimpleDateFormat.SHORT, locale)
 			"${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} - ${
 				timeFormat.format(
-						endDate
+					endDate
 				)
 			}"
 		} else {
 			val timeFormat = SimpleDateFormat.getDateTimeInstance(
-					SimpleDateFormat.SHORT, SimpleDateFormat.SHORT,
-					locale
+				SimpleDateFormat.SHORT, SimpleDateFormat.SHORT,
+				locale
 			) as SimpleDateFormat
 			val format = SimpleDateFormat(
-					"${dateFormat.toPattern()} ${timeFormat.toPattern()}",
-					locale
+				"${dateFormat.toPattern()} ${timeFormat.toPattern()}",
+				locale
 			)
 			"${format.format(startDate)} - ${format.format(endDate)}"
 		}
@@ -49,10 +56,11 @@ object StatsFormat {
 
 	@Suppress("ComplexMethod", "MagicNumber")
 	fun createTitle(
-			context: Context,
-			start: Calendar,
-			end: Calendar,
-			activity: SessionActivity
+		context: Context,
+		start: Long,
+		end: Long,
+		activity: SessionActivity,
+		sunSetRise: SunSetRise
 	): String {
 		val activityName = if (activity.name.isBlank()) {
 			context.getString(R.string.stats_format_unknown_activity)
@@ -60,22 +68,32 @@ object StatsFormat {
 			activity.name
 		}
 
-		val startHour = start[Calendar.HOUR_OF_DAY]
-		val endHour = end[Calendar.HOUR_OF_DAY]
+		val startDateTime = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault())
+		val endDateTime = Instant.ofEpochMilli(end).atZone(ZoneId.systemDefault())
 
-		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start.time)
-				.capitalize(Locale.getDefault())
-		val timeOfDayStringRes = if (startHour >= 22 && endHour <= 2) {
+		val startHour = startDateTime.hour
+		val endHour = endDateTime.hour
+
+		val morningStartHour = sunSetRise.sunriseFor(startDateTime)
+		val nightStartHour = sunSetRise.sunsetFor(endDateTime)
+
+		//todo add better daytime calculation
+
+		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start)
+			.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+		val timeOfDayStringRes = if (ChronoUnit.DAYS.between(startDateTime, endDateTime) > 1) {
+			0
+		} else if (startHour >= 22 && endHour <= 2) {
 			R.string.stats_midnight
 		} else if ((startHour in 22..24 || startHour in 0..6) && (endHour in 22..24 || endHour in 0..6)) {
 			R.string.stats_night
-		} else if (startHour >= 6 && endHour <= 12) {
+		} else if (startHour in 6..10 && endHour <= 12) {
 			R.string.stats_morning
-		} else if (startHour >= 11 && endHour <= 14) {
+		} else if (startHour in 11..13 && endHour in 12..14) {
 			R.string.stats_lunch
-		} else if (startHour >= 12 && endHour <= 17) {
+		} else if (startHour >= 12 && endHour <= 20) {
 			R.string.stats_afternoon
-		} else if (startHour >= 17 && endHour <= 23) {
+		} else if (startHour >= 16 && endHour in 18..22) {
 			R.string.stats_evening
 		} else {
 			0

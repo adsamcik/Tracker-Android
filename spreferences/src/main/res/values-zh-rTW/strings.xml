@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="passus">%s pace</string>
+    <string name="per_hour_abbr">%s/h</string>
+    <string name="per_minute_abbr">%s/m</string>
+    <string name="per_second_abbr">%s/s</string>
+    <string name="feet_abbr">%s ft</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="meter_abbr">%s m</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="millepassus">%s roman mile</string>
+</resources>

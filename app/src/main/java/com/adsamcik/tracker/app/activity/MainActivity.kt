@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.activity
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Point
 import android.graphics.Rect
@@ -19,7 +20,6 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.HomeIntroduction
-import com.adsamcik.tracker.module.AppFirstRun
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.shared.base.Time
@@ -28,16 +28,16 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.guidelineEnd
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
-import com.adsamcik.tracker.shared.base.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.module.FirstRun
-import com.adsamcik.tracker.shared.utils.permission.PermissionManager
+import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
+import com.adsamcik.tracker.tracker.module.TrackerFirstRun
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import java.util.*
@@ -51,7 +51,7 @@ import java.util.*
 class MainActivity : CoreUIActivity() {
 	private var navigationOffset = Int.MIN_VALUE
 
-	private lateinit var trackerFragment: androidx.fragment.app.Fragment
+	private var trackerFragment: androidx.fragment.app.Fragment? = null
 
 	private val root: ViewGroup by lazy { findViewById(R.id.root) }
 
@@ -67,10 +67,19 @@ class MainActivity : CoreUIActivity() {
 
 		initializeButtons()
 		initializeColorElements()
+		initializeButtonsPosition()
 
-		trackerFragment = FragmentTracker()
-		supportFragmentManager.transaction {
-			replace(R.id.tracker_placeholder, trackerFragment)
+		trackerFragment =
+			supportFragmentManager.findFragmentByTag(FragmentTracker::class.java.simpleName)
+		if (trackerFragment == null) {
+			trackerFragment = FragmentTracker()
+			supportFragmentManager.transaction {
+				replace(
+					R.id.tracker_placeholder,
+					requireNotNull(trackerFragment),
+					FragmentTracker::class.java.simpleName
+				)
+			}
 		}
 	}
 
@@ -90,41 +99,41 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun firstRun() {
-		val locale = Locale.getDefault()
-		FirstRunDialogBuilder().apply {
-			val modules = ModuleClassLoader.getEnabledModuleNames(this@MainActivity)
-			addData(AppFirstRun())
-			modules.forEach {
-				try {
-					val firstRunClass = ModuleClassLoader.loadModuleClass<FirstRun>(
-							it,
-							"${it.capitalize(locale)}FirstRun"
-					)
-					addData(firstRunClass.newInstance())
-				} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-					//do nothing, it's fine
-				}
+		FirstRunDialogBuilder().let { builder ->
+			//builder.addData(AppFirstRun())
+			builder.addData(TrackerFirstRun())
+			ModuleClassLoader.invokeInEachActiveModule<FirstRun>(this@MainActivity) {
+				builder.addData(it)
 			}
-			onFirstRunFinished = {
+			builder.onFirstRunFinished = {
 				Preferences.getPref(this@MainActivity).edit {
 					setBoolean(R.string.settings_first_run_key, true)
 				}
-				PermissionManager.checkActivityPermissions(this@MainActivity) {}
 				uiIntroduction()
 			}
-		}.run {
-			show(this@MainActivity)
+			builder.show(this@MainActivity)
 		}
 	}
 
 	override fun onResume() {
 		super.onResume()
-		initializeButtonsPosition()
+		//initializeButtonsPosition()
+	}
+
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		root.post {
+			val openGame = intent.getBooleanExtra("openGame", false)
+			if (openGame) {
+				buttonGame.moveToState(DraggableImageButton.State.TARGET, false)
+			}
+		}
 	}
 
 	@Suppress("MagicNumber")
 	private fun initializeStatsButton(size: Point) {
-		val fragmentStatsClass = Module.STATISTICS.loadClass<PayloadFragment>("fragment.FragmentStats")
+		val fragmentStatsClass =
+			Module.STATISTICS.loadClass<PayloadFragment>("fragment.FragmentStats")
 
 		buttonStats.apply {
 			visibility = View.VISIBLE
@@ -167,7 +176,8 @@ class MainActivity : CoreUIActivity() {
 			onLeaveStateListener = { _, state ->
 				if (state == DraggableImageButton.State.TARGET) {
 					if (buttonGame.state != DraggableImageButton.State.TARGET &&
-							buttonStats.state != DraggableImageButton.State.TARGET) {
+						buttonStats.state != DraggableImageButton.State.TARGET
+					) {
 						showBottomLayer()
 					}
 
@@ -278,11 +288,13 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun hideBottomLayer() {
+		val trackerFragment = requireNotNull(trackerFragment)
 		trackerFragment.view?.visibility = View.GONE
 		trackerFragment.onPause()
 	}
 
 	private fun showBottomLayer() {
+		val trackerFragment = requireNotNull(trackerFragment)
 		trackerFragment.view?.visibility = View.VISIBLE
 		trackerFragment.onResume()
 	}
@@ -314,7 +326,8 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun initializeButtonsPosition() {
-		val navGuideline = findViewById<Guideline>(R.id.navigation_guideline)
+		val navGuideline = findViewById<Guideline>(R.id.navigation_guideline) ?: return
+
 		if (navigationOffset == Int.MIN_VALUE) {
 			navigationOffset = navGuideline.guidelineEnd
 		}
@@ -337,19 +350,19 @@ class MainActivity : CoreUIActivity() {
 
 	private fun initializeSystemBars() {
 		styleController.watchNotificationBar(
-				SystemBarStyleView(
-						window,
-						layer = 1,
-						style = SystemBarStyle.Transparent
-				)
+			SystemBarStyleView(
+				window,
+				layer = 1,
+				style = SystemBarStyle.Transparent
+			)
 		)
 
 		styleController.watchNavigationBar(
-				SystemBarStyleView(
-						window,
-						layer = 1,
-						style = SystemBarStyle.Transparent
-				)
+			SystemBarStyleView(
+				window,
+				layer = 1,
+				style = SystemBarStyle.Transparent
+			)
 		)
 	}
 
@@ -386,13 +399,13 @@ class MainActivity : CoreUIActivity() {
 	override fun onBackPressed() {
 		when {
 			buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
-					DraggableImageButton.State.INITIAL, true
+				DraggableImageButton.State.INITIAL, true
 			)
 			buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
-					DraggableImageButton.State.INITIAL, true
+				DraggableImageButton.State.INITIAL, true
 			)
 			buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
-					DraggableImageButton.State.INITIAL, true
+				DraggableImageButton.State.INITIAL, true
 			)
 			else -> super.onBackPressed()
 		}

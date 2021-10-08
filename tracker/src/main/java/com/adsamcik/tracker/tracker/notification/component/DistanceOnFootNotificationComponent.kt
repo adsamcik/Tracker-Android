@@ -26,7 +26,7 @@ internal class DistanceOnFootNotificationComponent : TrackerNotificationComponen
 			context: Context,
 			session: TrackerSession,
 			data: CollectionData
-	): String? {
+	): String {
 		return context.getString(
 				R.string.distance_onfoot_value,
 				context.resources.formatDistance(

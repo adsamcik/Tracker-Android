@@ -1,26 +1,32 @@
 package com.adsamcik.tracker.preference.pages
 
 import android.app.Activity
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
+import android.content.Intent
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.fragment.app.FragmentActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.import.DataImport
+import com.adsamcik.tracker.impexp.importer.DataImport
+import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.exception.PermissionException
-import com.adsamcik.tracker.shared.base.extension.hasExternalStorageReadPermission
 import com.afollestad.materialdialogs.MaterialDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
-class DataPage : PreferencePage {
+/**
+ * Page with data options, such as import, export and clear.
+ */
+internal class DataPage : PreferencePage {
+	private lateinit var importRequest: ActivityResultLauncher<Intent>
+
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
-			initializeImport(requireActivity(), findPreference(R.string.settings_import_key))
+			initializeImport(findPreference(R.string.settings_import_key))
 
 			initializeDelete(findPreference(R.string.settings_remove_all_collected_data_key))
 		}
@@ -49,7 +55,7 @@ class DataPage : PreferencePage {
 		}
 	}
 
-	private fun initializeImport(activity: Activity, importPreference: Preference) {
+	private fun initializeImport(importPreference: Preference) {
 		importPreference.apply {
 			val dataImport = DataImport()
 			val supportedExtensions = dataImport.supportedImporterExtensions
@@ -71,59 +77,37 @@ class DataPage : PreferencePage {
 				)
 
 				setOnPreferenceClickListener {
-					if (requireImportPermissions(activity)) {
-						openImportDialog(it.context)
-					}
+					openImportDialog()
 					true
 				}
 			}
 		}
 	}
 
-	private fun requireImportPermissions(activity: Activity): Boolean {
-		return when {
-			validateImportPermissions(activity) -> true
-			Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-				activity.requestPermissions(
-						arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
-						PERMISSION_READ_EXTERNAL_REQUEST
-				)
-				false
-			}
-			else -> throw PermissionException("Permission to read external storage is missing")
+	private fun openImportDialog() {
+		val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+			addCategory(Intent.CATEGORY_OPENABLE)
+			flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+			// multi type does not work on Android default file selector
+			type = "*/*"
 		}
+		importRequest.launch(intent)
 	}
 
-	private fun validateImportPermissions(context: Context): Boolean {
-		return context.hasExternalStorageReadPermission
-	}
+	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
-	private fun openImportDialog(context: Context) {
-		DataImport().showImportDialog(context)
-	}
-
-	override fun onExit(caller: PreferenceFragmentCompat) {
-
-	}
-
-	override fun onRequestPermissionsResult(
-			context: Context,
-			code: Int,
-			result: Collection<Pair<String, Int>>
-	) {
-		when (code) {
-			PERMISSION_READ_EXTERNAL_REQUEST -> {
-				val isSuccessful = result.all { it.second == PackageManager.PERMISSION_GRANTED }
-
-				if (isSuccessful) {
-					openImportDialog(context)
+	override fun onRegisterForResult(activity: FragmentActivity) {
+		importRequest = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult())
+		{ result: ActivityResult ->
+			if (result.resultCode == Activity.RESULT_OK) {
+				result.data?.data?.also { uri ->
+					DataImporter.import(activity, uri)
 				}
 			}
 		}
 	}
 
 	companion object {
-		private const val PERMISSION_READ_EXTERNAL_REQUEST = 857854
 		private const val SEPARATOR = ", "
 	}
 }

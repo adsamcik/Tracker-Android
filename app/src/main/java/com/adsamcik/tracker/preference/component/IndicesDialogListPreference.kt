@@ -3,13 +3,13 @@ package com.adsamcik.tracker.preference.component
 import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
-import com.adsamcik.tracker.shared.utils.debug.assertEqual
+import com.adsamcik.tracker.logger.assertEqual
 import java.util.*
 
 /**
  * Dialog list preference with indices as keys
  */
-class IndicesDialogListPreference : DialogListPreference {
+open class IndicesDialogListPreference : DialogListPreference {
 	@Suppress("unused")
 	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
 			context, attrs,

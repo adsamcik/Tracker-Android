@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.map
 
 import android.os.Parcelable
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class MapLayerInfo(

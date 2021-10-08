@@ -17,7 +17,7 @@ class MapSheetHiddenIntroduction : Introduction() {
 	override fun getTargets(activity: FragmentActivity): Collection<Target> {
 		activity.run {
 			val buttonData = SimpleTarget.ButtonData(
-					getString(com.adsamcik.tracker.shared.base.R.string.next_part)
+					getString(com.adsamcik.tracker.shared.base.R.string.generic_continue)
 			) { _, spotlight ->
 				spotlight.next()
 			}

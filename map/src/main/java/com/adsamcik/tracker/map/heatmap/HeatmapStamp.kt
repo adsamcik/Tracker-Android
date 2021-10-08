@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.map.heatmap
 
-import com.adsamcik.tracker.shared.utils.debug.assertMore
+import com.adsamcik.tracker.logger.assertMore
 import kotlin.math.sqrt
 
 internal data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {

@@ -16,7 +16,7 @@ class RawLocationDataProducer : RawDataProducer {
 			context: Context,
 			startTime: Long,
 			endTime: Long
-	): Any? {
+	): Any {
 		return AppDatabase.database(context).locationDao()
 				.getAllBetweenOrdered(startTime, endTime)
 	}

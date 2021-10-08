@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:orientation="horizontal">
+
+    <include
+        android:id="@+id/steps_goal_day"
+        layout="@layout/layout_points_goals"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/content_padding"
+        android:layout_marginRight="8dp"
+        android:layout_weight="1" />
+
+    <include
+        android:id="@+id/steps_goal_week"
+        layout="@layout/layout_points_goals"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginTop="@dimen/content_padding"
+        android:layout_weight="1" />
+
+</androidx.appcompat.widget.LinearLayoutCompat>

@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
+import com.adsamcik.tracker.logger.assertLess
+import com.adsamcik.tracker.logger.assertMore
+import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
@@ -9,9 +12,6 @@ import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 import com.adsamcik.tracker.shared.base.extension.isPowerOfTwo
 import com.adsamcik.tracker.shared.map.CoordinateBounds
-import com.adsamcik.tracker.shared.utils.debug.assertLess
-import com.adsamcik.tracker.shared.utils.debug.assertMore
-import com.adsamcik.tracker.shared.utils.debug.assertTrue
 import kotlin.math.floor
 
 typealias InsideAndBetween = (

@@ -1,29 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources>
-    <string name="app_name">Advention</string>
-
-    <string name="share_button">Share</string>
-    <string name="export_button">Export</string>
-    <string name="export_gpx_description">Export of location data tracked using Advention between %1$s - %2$s</string>
-    <string name="export_file_name">File name</string>
-    <string name="export_default_file_name">Advention_export_data</string>
-
-    <string name="import_notification_progress">Import in progress …</string>
-    <plurals name="import_notification_finished">
-        <item quantity="one">Import finished. Successfully imported %d file.</item>
-        <item quantity="other">Import finished. Successfully imported %d files.</item>
-    </plurals>
-    <string name="import_notification_extracting">Extracting %s …</string>
-    <string name="import_notification_importing">Importing %s …</string>
-
-    <string name="import_notification_error_failed_open_database">Failed to open database file %s</string>
+    <string name="app_name" translatable="false">Advention</string>
 
     <string name="dev_notification_dummy">Hello World!</string>
 
-    <!-- Open source licenses -->
-    <string name="open_source_licenses">Open source licenses</string>
+    <string name="did_you_know">Did you know</string>
+
     <string name="error_failed_to_open_license">Failed to open license. If auto reporting is enabled, report was sent.</string>
 
-    <!-- PREFERENCES KEYS -->
+
+    <string name="first_run_app_description">Thank you for trying Advention. This initial setup is HIGHLY RECOMMENDED for new users. May Advention serve you well.</string>
+    <string name="first_run_app_title">Welcome to Advention</string>
+    <string name="first_run_error_reporting_description">Would you like to enable automatic error reporting? It is very important for issue resolving as it provides crucial information about the issue. For more information see <a href="%1$s">privacy policy</a>.</string>
+    <string name="first_run_error_reporting_title">Automatic error reporting</string>
+
+
     <string name="key_last_app_version" translatable="false">lastVersion</string>
 
+    <string-array name="lorem_ipsum_facts">
+        <item>Lorem ipsum is derived from over 2000 year old text</item>
+        <item>Lorem ipsum is used since the 1500s</item>
+        <item>Lorem ipsum is not latin but gibberish</item>
+        <item>Lorem ipsum dolor sit amet, consectetur adipiscing elit…</item>
+        <item>One morning, when Gregor Samsa woke from troubled dreams…</item>
+        <item>Far far away, behind the word mountains…</item>
+        <item>But I must explain to you how all this mistaken idea…</item>
+        <item>Sed ut perspiciatis unde omnis iste natus error…</item>
+        <item>Bacon ipsum dolor amet swine filet mignon boudin turducken.</item>
+        <item>ToDo write some more messages that none will see.</item>
+    </string-array>
+
+    <string name="module_download_progress">Downloaded %1$s / %2$s</string>
+    <string name="module_error">Failed to install modules %1$s (error code %2$d)</string>
+    <string name="module_game_title">games</string>
+    <string name="module_installing">Installing module %s</string>
+    <string name="module_map_title">map</string>
+    <string name="module_statistics_title">statistics</string>
+    <string name="module_success">Installation completed successfully</string>
+
+    <string name="open_source_licenses">Open source licenses</string>
+
+    <string name="settings_activity_status_key" translatable="false">activityStatus</string>
+    <string name="settings_activity_status_title">Status information</string>
+    <string name="settings_app_version_key" translatable="false">appVersion</string>
+    <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
+    <string name="settings_clear_preferences_title">Clear preferences</string>
+    <string name="settings_color_default_key" translatable="false">defaultColors</string>
+    <string name="settings_color_default_title">Default colors</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_debug_enabled_default" translatable="false">false</string>
+    <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
+    <string name="settings_debug_key" translatable="false">debugSection</string>
+    <string name="settings_debug_title">Developer options</string>
+    <string name="settings_developer_enabled">Developer options enabled</string>
+    <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
+    <string name="settings_error_reporting_title">Automatic error reporting</string>
+
+    <string name="settings_first_run_key" translatable="false">firstRun</string>
+    <string name="settings_hello_world_key" translatable="false">helloWorld</string>
+    <string name="settings_hello_world_title">Hello world!</string>
+
+    <string name="settings_language_summary">Current language: %s</string>
+    <string name="settings_language_title">Application language</string>
+    <string-array name="settings_length_system_names">
+        <item>Metric</item>
+        <item>Imperial (USC)</item>
+        <item>Ancient Roman</item>
+    </string-array>
+    <string name="settings_length_system_title">Length system</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+    </string-array>
+    <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
+    <string name="settings_licenses_title">Open source licenses</string>
+    <string name="settings_log_activity_title">Log activity changes</string>
+    <string name="settings_log_enabled_title">Enable logging</string>
+    <string name="settings_log_performance_enabled_title">Enable performance logging</string>
+    <string name="settings_log_games_title">Log games</string>
+    <string name="settings_log_list_activity_key" translatable="false">logViewer</string>
+    <string name="settings_log_list_activity_title">Log viewer</string>
+    <string name="settings_module_enable_key" translatable="false">modules</string>
+    <string name="settings_module_enable_title">Modules</string>
+    <string name="settings_module_group_key" translatable="false">moduleSettings</string>
+    <string name="settings_module_group_title">Module settings</string>
+    <string name="settings_other_title">Other</string>
+    <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
+    <string name="settings_remove_all_collected_data_summary">Deletes data acquired during collection (Custom activities, settings etc. will be kept)</string>
+    <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
+    <string-array name="settings_speed_format_names">
+        <item>In seconds</item>
+        <item>In minutes</item>
+        <item>In hours</item>
+    </string-array>
+    <string name="settings_speed_format_title">Speed format</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_style_color_category_key" translatable="false">styleColorCategory</string>
+    <string name="settings_style_mode_title">Style mode</string>
+    <string name="settings_style_title">Style</string>
+    <string name="settings_title">Settings</string>
+
+    <string name="show_tips_title">Show tips</string>
+
+    <string name="tutorial_game_description">You can find games on the right</string>
+    <string name="tutorial_game_title">Games</string>
+    <string name="tutorial_map_description">If you click or drag this surface upwards, it will bring up the map</string>
+    <string name="tutorial_map_title">Map</string>
+    <string name="tutorial_settings_description">This button hides many options to customize your experience</string>
+    <string name="tutorial_settings_title">Settings</string>
+    <string name="tutorial_stats_description">You can find statistics on the left</string>
+    <string name="tutorial_stats_title">Statistics</string>
 </resources>

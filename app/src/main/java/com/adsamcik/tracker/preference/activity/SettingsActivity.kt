@@ -5,6 +5,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings
 import com.adsamcik.tracker.preference.pages.DataPage
@@ -18,7 +19,6 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import java.util.*
 
@@ -27,7 +27,7 @@ import java.util.*
  * It is based upon Android's [Preference].
  */
 class SettingsActivity : DetailActivity(),
-		PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
+	PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
 	val fragment: FragmentSettings = FragmentSettings()
 
 	private val backstack = mutableListOf<PreferenceScreen>()
@@ -35,6 +35,8 @@ class SettingsActivity : DetailActivity(),
 	private val moduleSettingsList = mutableMapOf<Module, ModuleSettings>()
 
 	private var activePage: PreferencePage? = null
+
+	private lateinit var pageList: Map<String, PreferencePage>
 
 	override fun onConfigure(configuration: Configuration) {
 		configuration.apply {
@@ -60,17 +62,38 @@ class SettingsActivity : DetailActivity(),
 		}
 
 		title = getString(R.string.settings_title)
+
+		val resources = resources
+		pageList = mapOf(
+			resources.getString(R.string.settings_debug_title) to DebugPage(),
+			resources.getString(R.string.settings_style_title) to StylePage(),
+			resources.getString(R.string.settings_tracking_title) to TrackerPreferencePage(),
+			resources.getString(R.string.settings_data_title) to DataPage(),
+			resources.getString(R.string.settings_export_title) to ExportPage()
+		)
+
+		pageList.forEach { (_, value) ->
+			value.onRegisterForResult(this)
+		}
 	}
 
 	private fun initializeModuleSettingsList() {
 		val modules = Module.getActiveModuleInfo(this)
-		modules.forEach {
+		modules.forEach { module ->
 			try {
-				val tClass = it.module.loadClass<ModuleSettings>(
-						"preference.${it.module.moduleName.capitalize(Locale.ROOT)}Settings"
+				val tClass = module.module.loadClass<ModuleSettings>(
+					"preference.${
+						module.module.moduleName.replaceFirstChar {
+							if (it.isLowerCase()) {
+								it.titlecase(Locale.ROOT)
+							} else {
+								it.toString()
+							}
+						}
+					}Settings"
 				)
 				val instance = tClass.newInstance()
-				moduleSettingsList[it.module] = instance
+				moduleSettingsList[module.module] = instance
 			} catch (e: ClassNotFoundException) {
 				//e.printStackTrace()
 				//this exception is ok, just don't add anything
@@ -115,22 +138,14 @@ class SettingsActivity : DetailActivity(),
 
 
 	private fun initializeStartScreen(caller: PreferenceFragmentCompat, key: String) {
-		val r = resources
-		val page = when (key) {
-			r.getString(R.string.settings_debug_title) -> DebugPage()
-			r.getString(R.string.settings_style_title) -> StylePage()
-			r.getString(R.string.settings_tracking_title) -> TrackerPreferencePage()
-			r.getString(R.string.settings_data_title) -> DataPage()
-			r.getString(R.string.settings_export_title) -> ExportPage()
-			else -> return
-		}
+		val page = pageList[key] ?: return
 		setPage(caller, page)
 	}
 
 
 	override fun onPreferenceStartScreen(
-			caller: PreferenceFragmentCompat,
-			pref: PreferenceScreen
+		caller: PreferenceFragmentCompat,
+		pref: PreferenceScreen
 	): Boolean {
 		caller.preferenceScreen = pref
 		val index = backstack.indexOf(pref)
@@ -149,9 +164,9 @@ class SettingsActivity : DetailActivity(),
 	}
 
 	override fun onRequestPermissionsResult(
-			requestCode: Int,
-			permissions: Array<out String>,
-			grantResults: IntArray
+		requestCode: Int,
+		permissions: Array<out String>,
+		grantResults: IntArray
 	) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 

@@ -1,5 +1,6 @@
 ![Build Status](https://github.com/adsamcik/Tracker-Android/workflows/Android%20CI/badge.svg)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Tracker-Android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Tracker-Android&amp;utm_campaign=Badge_Grade)
+[![Crowdin](https://badges.crowdin.net/advention/localized.svg)](https://crowdin.com/project/advention)
 
 <a href='https://play.google.com/store/apps/details?id=com.adsamcik.tracker&utm_campaign=Github&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'><img alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png' height="50px"/></a>
 
@@ -24,9 +25,13 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 - Supported length systems: metric, imperial (USC), ancient roman
 - Does not upload your tracked data anywhere (well except for automatic Android backup which sometimes works)
 
-## Roadmap
+## Contributions
 
-Milestones form a roadmap of sorts for this project. Dates are only approximate and are subject to change. If you want to implement any one feature, see [contributions](#contributions)
+Contributions to Tracker are welcome. If you want any new feature (even if it's in later milestone or no milestone at all) you are free to do so. It is recommended to consult on larger issues as they might collide with some future system revamps and might not be merged because of it.
+
+### Translations
+
+Tracker uses Crowdin to crowdsource translations. You can help with translating the application today at [https://crowdin.com/project/advention](https://crowdin.com/project/advention).
 
 ## Versioning
 
@@ -54,10 +59,6 @@ Late test builds that are feature complete (no new features should be added in t
 #### Release
 
 Most stable releases meant for general public
-
-## Contributions
-
-Contributions to Tracker are welcome. Planned new features can be seen in milestones. If you want any new feature (even if it's in later milestone or no milestone at all) you are free to do so. It is recommended to consult on larger issues as they might collide with some future system revamps and might not be merged because of it.
 
 ## Legal
 

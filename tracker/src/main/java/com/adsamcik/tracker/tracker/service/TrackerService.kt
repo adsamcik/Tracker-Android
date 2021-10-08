@@ -8,6 +8,7 @@ import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -16,7 +17,6 @@ import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.base.service.CoreService
-import com.adsamcik.tracker.shared.utils.debug.Reporter
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.R
@@ -42,11 +42,10 @@ import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.pre.StepPreTrackerComponent
-import com.adsamcik.tracker.tracker.data.collection.CollectionDataEcho
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
+import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
@@ -57,6 +56,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/***
+ * Service which is responsible for tracking.
+ */
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
@@ -73,7 +75,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private val postComponentList = mutableListOf<PostTrackerComponent>()
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
-	//Kept here and used internally in case something went wrong and service was launched again with different info
+	// Kept here and used internally in case something went wrong and service was launched again with different info
 	private var sessionInfo: TrackerSessionInfo? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private val session: TrackerSession get() = requireNotNull(sessionComponent).session
@@ -85,7 +87,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private suspend fun updateData(tempData: MutableCollectionTempData) {
 		requireNotNull(dataProducerManager).getData(tempData)
 
-		//if we don't know the accuracy the location is worthless
+		// if we don't know the accuracy the location is worthless
 		if (!preComponentList.all {
 					if (it.requirementsMet(tempData)) {
 						tryWithResultAndReport(
@@ -123,7 +125,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 
-		lastCollectionDataMutable.postValue(CollectionDataEcho(collectionData, session))
+		TrackerListenerManager.send(this, session, collectionData)
 	}
 
 
@@ -135,7 +137,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				TrackerNotificationManager.getForegroundNotification(this)
 		)
 
-		//Get managers
+		// Get managers
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(
 				PowerManager.PARTIAL_WAKE_LOCK,
@@ -143,7 +145,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		)
 
 
-		//Shortcut setup
+		// Shortcut setup
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
 			Shortcuts.updateShortcut(
 					this,
@@ -171,7 +173,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 
 		preComponentList.apply {
-			add(StepPreTrackerComponent())
 			add(LocationPreTrackerComponent())
 		}.forEach { it.onEnable(this) }
 
@@ -285,7 +286,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		preComponentList.forEach { it.onDisable(context) }
 		postComponentList.forEach { it.onDisable(context) }
 
-		//Can be null if TrackerServices is immediately stopped after start
+		// Can be null if TrackerServices is immediately stopped after start
 		val sessionComponent = sessionComponent
 		if (sessionComponent != null) {
 			SessionBroadcaster.broadcastSessionEnd(context, sessionComponent.session)
@@ -344,13 +345,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		 * LiveData containing information about whether the service is currently running
 		 */
 		val isServiceRunning: NonNullLiveData<Boolean> get() = isServiceRunningMutable
-
-		private val lastCollectionDataMutable: MutableLiveData<CollectionDataEcho> = MutableLiveData()
-
-		/**
-		 * Collection data from last collection
-		 */
-		val lastCollectionData: LiveData<CollectionDataEcho> get() = lastCollectionDataMutable
 
 
 		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo?> = MutableLiveData()

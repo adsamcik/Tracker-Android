@@ -3,9 +3,8 @@ package com.adsamcik.tracker.shared.utils
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.adsamcik.tracker.logger.assertEqual
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.toZonedDateTime
-import com.adsamcik.tracker.shared.utils.debug.assertEqual
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.shared.utils.style.update.data.StyleConfigData
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
