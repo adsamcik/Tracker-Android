@@ -11,19 +11,19 @@ object Dependencies {
      * Dependencies that are not project are required to be internal.
      */
     object Versions {
-        internal const val constraintLayout = "2.1.0"
+        internal const val constraintLayout = "2.1.1"
         internal const val coreKtx = "1.6.0"
         internal const val appcompat = "1.3.1"
         internal const val fragment = "1.3.6"
         const val dokka: String = "0.9.18"
         internal const val moshi = "1.12.0"
-        internal const val work = "2.6.0"
+        internal const val work = "2.7.0-rc01"
         internal const val lifecycle = "2.3.1"
         internal const val preference = "1.1.1"
         internal const val material = "1.4.0"
         internal const val desugar = "1.1.5"
 
-        const val kotlin: String = "1.5.30"
+        const val kotlin: String = "1.5.31"
         internal const val coroutines = "1.5.2"
 
         internal const val sqlite = "3.34.1"
@@ -32,13 +32,13 @@ object Dependencies {
         internal const val recyclerView = "1.2.1"
         internal const val paging = "3.0.1"
 
-        internal const val firebaseBom = "28.4.0"
-        internal const val crashlytics = "18.2.1"
+        internal const val firebaseBom = "28.4.2"
+        internal const val crashlytics = "18.2.3"
         const val crashlyticsGradle: String = "2.7.1"
 
         internal const val playServicesBase = "17.6.0"
         internal const val playLocation = "18.0.0"
-        internal const val playCore = "1.10.1"
+        internal const val playCore = "1.10.2"
         internal const val maps = "17.0.1"
 
         internal const val stax = "1.0.1"
