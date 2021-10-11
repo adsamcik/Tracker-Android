@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.app.activity.MainActivity
 import com.adsamcik.tracker.game.R
@@ -142,7 +144,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 					putExtra("openGame", true)
 					flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
 				},
-				PendingIntent.FLAG_UPDATE_CURRENT
+				PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
 		)
 
 		return NotificationCompat.Builder(

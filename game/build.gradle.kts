@@ -18,9 +18,9 @@ android {
 		with(javaCompileOptions) {
 			with(annotationProcessorOptions) {
 				arguments(
-						mapOf(
-								"room.incremental" to "true"
-						)
+					mapOf(
+						"room.incremental" to "true"
+					)
 				)
 			}
 		}
@@ -28,13 +28,13 @@ android {
 
 	compileOptions {
 		isCoreLibraryDesugaringEnabled = true
-		sourceCompatibility = JavaVersion.VERSION_1_8
-		targetCompatibility = JavaVersion.VERSION_1_8
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	tasks.withType<KotlinCompile> {
 		with(kotlinOptions) {
-			jvmTarget = "1.8"
+			jvmTarget = Android.jvmTarget
 		}
 	}
 

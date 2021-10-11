@@ -118,30 +118,13 @@ class StyleController : CoroutineScope {
 		systemStyleUpdater.updateNavigationBar(validatedStyleView, styleData)
 	}
 
-	private fun ensureValidNotificationStyle(styleView: SystemBarStyleView): SystemBarStyleView {
-		return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-			val style = when (styleView.style) {
-				SystemBarStyle.LayerColor,
-				SystemBarStyle.Default -> SystemBarStyle.Default
-				SystemBarStyle.Transparent,
-				SystemBarStyle.Translucent -> SystemBarStyle.Translucent
-			}
-			return SystemBarStyleView(styleView.window, styleView.layer, style)
-		} else {
-			styleView
-		}
-	}
-
 	/**
 	 * Enables automatic style updates for the notification bar
 	 */
 	fun watchNotificationBar(styleView: SystemBarStyleView) {
-
-		val validatedStyleView = ensureValidNotificationStyle(styleView)
-
-		notificationStyleView = validatedStyleView
-		systemStyleUpdater.updateSystemBarStyle(validatedStyleView, navigationBarStyleView)
-		systemStyleUpdater.updateStatusBar(validatedStyleView, styleData)
+		notificationStyleView = styleView
+		systemStyleUpdater.updateSystemBarStyle(styleView, navigationBarStyleView)
+		systemStyleUpdater.updateStatusBar(styleView, styleData)
 	}
 
 	/**

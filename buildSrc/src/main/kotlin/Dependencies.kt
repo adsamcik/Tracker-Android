@@ -183,12 +183,6 @@ object Dependencies {
         }
     }
 
-    fun fileChooser(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.afollestad.material-dialogs:files:${Versions.dialogs}")
-        }
-    }
-
     fun inputDialog(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             implementation("com.afollestad.material-dialogs:input:${Versions.dialogs}")

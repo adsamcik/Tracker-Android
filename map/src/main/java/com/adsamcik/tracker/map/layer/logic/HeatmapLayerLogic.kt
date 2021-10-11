@@ -31,19 +31,19 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 		get() = provider.range
 		set(value) {
 			provider.range = value
-			overlay.clearTileCache()
+			overlay?.clearTileCache()
 		}
 
 	override var quality: Float
 		get() = provider.quality
 		set(value) {
 			provider.updateQuality(value)
-			overlay.clearTileCache()
+			overlay?.clearTileCache()
 		}
 
 	override val tileCountInGeneration: MutableLiveData<Int> = MutableLiveData()
 
-	protected lateinit var overlay: TileOverlay
+	protected var overlay: TileOverlay? = null
 
 	protected lateinit var provider: HeatmapTileProvider
 
@@ -55,9 +55,9 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 	protected abstract fun getTileCreator(context: Context): HeatmapTileCreator
 
 	override fun onEnable(
-			context: Context,
-			map: GoogleMap,
-			quality: Float
+		context: Context,
+		map: GoogleMap,
+		quality: Float
 	) {
 		val tileCreator = getTileCreator(context)
 
@@ -67,20 +67,20 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 
 		val preferences = Preferences.getPref(context)
 		val maxHeat = preferences.getIntResString(
-				R.string.settings_map_max_heat_key,
-				R.string.settings_map_max_heat_default
+			R.string.settings_map_max_heat_key,
+			R.string.settings_map_max_heat_default
 		).toFloat()
 		val visitThreshold = preferences.getIntResString(
-				R.string.settings_map_visit_threshold_key,
-				R.string.settings_map_visit_threshold_default
+			R.string.settings_map_visit_threshold_key,
+			R.string.settings_map_visit_threshold_default
 		)
 		val tileProvider = HeatmapTileProvider(
-				tileCreator,
-				UserHeatmapData(
-						maxHeat,
-						visitThreshold,
-						quality
-				)
+			tileCreator,
+			UserHeatmapData(
+				maxHeat,
+				visitThreshold,
+				quality
+			)
 		)
 
 		tileProvider.tileRequestCountListener = { tileCountInGeneration.postValue(it) }
@@ -94,17 +94,17 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 		tileProvider.onHeatChange = { heat, heatChange ->
 			if (heatChange / (heat - heatChange) > HEAT_CHANGE_THRESHOLD_PERCENTAGE) {
 				tileProvider.synchronizeMaxHeat()
-				overlay.clearTileCache()
+				overlay?.clearTileCache()
 			}
 		}
 	}
 
 	override fun onDisable(map: GoogleMap) {
-		overlay.remove()
+		overlay?.remove()
 	}
 
 	override fun update(context: Context) {
-		overlay.clearTileCache()
+		overlay?.clearTileCache()
 	}
 
 	companion object {

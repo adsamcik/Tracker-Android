@@ -6,11 +6,21 @@ import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.remove
 import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Manages all tracker listeners.
  */
-internal object TrackerListenerManager {
+internal object TrackerListenerManager : CoroutineScope {
+	private val job = SupervisorJob()
+
+	override val coroutineContext: CoroutineContext
+		get() = Dispatchers.Default + job
+
 	private val listenerList: MutableList<TrackerUpdateReceiver> = mutableListOf()
 
 	private var lastCollectionData: CollectionData? = null
@@ -30,11 +40,13 @@ internal object TrackerListenerManager {
 			}
 
 			if (lastSessionData != null && lastCollectionData != null) {
-				component.onNewData(
-						context,
-						requireNotNull(lastSessionData),
-						requireNotNull(lastCollectionData)
-				)
+				launch {
+					component.onNewData(
+							context,
+							requireNotNull(lastSessionData),
+							requireNotNull(lastCollectionData)
+					)
+				}
 			}
 		}
 	}

@@ -36,8 +36,8 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 				): Boolean {
 
 					val adapter = recyclerView.adapter as NotificationRecyclerAdapter
-					val from = viewHolder.adapterPosition
-					val to = target.adapterPosition
+					val from = viewHolder.absoluteAdapterPosition
+					val to = target.absoluteAdapterPosition
 					adapter.moveItemPersistent(this@NotificationManagementActivity, from, to)
 
 					return true

@@ -22,13 +22,13 @@ android {
 
 	compileOptions {
 		isCoreLibraryDesugaringEnabled = true
-		sourceCompatibility = JavaVersion.VERSION_1_8
-		targetCompatibility = JavaVersion.VERSION_1_8
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	tasks.withType<KotlinCompile> {
 		with(kotlinOptions) {
-			jvmTarget = "1.8"
+			jvmTarget = Android.jvmTarget
 			freeCompilerArgs = listOf("-Xinline-classes")
 		}
 	}
@@ -65,6 +65,6 @@ dependencies {
 
 tasks.withType<KotlinCompile> {
 	with(kotlinOptions) {
-		jvmTarget = "1.8"
+		jvmTarget = Android.jvmTarget
 	}
 }
