@@ -56,8 +56,8 @@ android {
 	}
 
 	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+		checkReleaseBuilds = true
+		abortOnError = false
 	}
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
@@ -79,10 +79,10 @@ tasks.withType<DokkaTask> {
 	skipEmptyPackages = true
 	skipDeprecated = true
 
-	externalDocumentationLink {
-		url = URL("https://developer.android.com/reference/")
-		packageListUrl = URL("https://developer.android.com/reference/android/support/package-list")
-	}
+	//externalDocumentationLink {
+		//url = URL("https://developer.android.com/reference/")
+		//packageListUrl = URL("https://developer.android.com/reference/android/support/package-list")
+	//}
 }
 
 dependencies {

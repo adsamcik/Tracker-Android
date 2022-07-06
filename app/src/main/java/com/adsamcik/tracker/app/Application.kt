@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -23,68 +24,66 @@ import kotlinx.coroutines.launch
 /**
  * Main application
  */
+@DelicateCoroutinesApi
 @Suppress("unused")
-@ExperimentalStdlibApi
 class Application : SplitCompatApplication() {
 
-	private val styleObserver = StyleLifecycleObserver(this)
+    private val styleObserver = StyleLifecycleObserver(this)
 
-	@SuppressLint("DefaultLocale")
-	@WorkerThread
-	private fun initializeModules() {
-		ModuleClassLoader.invokeInEachActiveModule<ModuleInitializer>(this) {
-			it.initialize(this)
-		}
-	}
+    @SuppressLint("DefaultLocale")
+    @WorkerThread
+    private fun initializeModules() {
+        ModuleClassLoader.invokeInEachActiveModule<ModuleInitializer>(this) {
+            it.initialize(this)
+        }
+    }
 
-	@WorkerThread
-	private fun initializeClasses() {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-			Shortcuts.initializeShortcuts(this)
-		}
+    @WorkerThread
+    private fun initializeClasses() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            Shortcuts.initializeShortcuts(this)
+        }
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			NotificationChannels.prepareChannels(this)
-		}
-	}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannels.prepareChannels(this)
+        }
+    }
 
-	@MainThread
-	private fun initializeImportantSingletons() {
-		Reporter.initialize(this)
-		Logger.initialize(this)
-	}
+    @MainThread
+    private fun initializeImportantSingletons() {
+        Reporter.initialize(this)
+        Logger.initialize(this)
+    }
 
-	@WorkerThread
-	private fun initializeDatabaseMaintenance() {
-		DatabaseMaintenanceWorker.schedule(this)
-	}
+    @WorkerThread
+    private fun initializeDatabaseMaintenance() {
+        DatabaseMaintenanceWorker.schedule(this)
+    }
 
-	@WorkerThread
-	private fun initializeFeatures() {
-		// Points
-		PointsInitializer().initialize(this)
+    @WorkerThread
+    private fun initializeFeatures() {
+        // Points
+        PointsInitializer().initialize(this)
 
-		// Activities
-		ActivityWatcherService.poke(this)
-	}
+        // Activities
+        ActivityWatcherService.poke(this)
+    }
 
-	override fun onCreate() {
-		super.onCreate()
-		initializeImportantSingletons()
+    override fun onCreate() {
+        super.onCreate()
+        initializeImportantSingletons()
 
-		GlobalScope.launch(Dispatchers.Default) {
-			initializeClasses()
-			initializeModules()
-			initializeDatabaseMaintenance()
-			initializeFeatures()
-		}
+        GlobalScope.launch(Dispatchers.Default) {
+            initializeClasses()
+            initializeModules()
+            initializeDatabaseMaintenance()
+            initializeFeatures()
+        }
 
-		setupLifecycleListener()
-	}
+        setupLifecycleListener()
+    }
 
-	private fun setupLifecycleListener() {
-		ProcessLifecycleOwner.get().lifecycle.addObserver(styleObserver)
-	}
-
+    private fun setupLifecycleListener() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(styleObserver)
+    }
 }
-

@@ -40,6 +40,7 @@ object Dependencies {
         internal const val playLocation = "18.0.0"
         internal const val playCore = "1.10.2"
         internal const val maps = "17.0.1"
+        internal const val splashScreen = "1.0.0-alpha02"
 
         internal const val stax = "1.0.1"
         internal const val jpx = "2.2.0"
@@ -119,6 +120,8 @@ object Dependencies {
             implementation("com.google.android.material:material:${Versions.material}")
             implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
             implementation("com.google.android.play:core:${Versions.playCore}")
+
+            implementation("androidx.core:core-splashscreen:${Versions.splashScreen}")
 
             implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
             // implementation("com.codezjx.library:andlinker:0.7.2")

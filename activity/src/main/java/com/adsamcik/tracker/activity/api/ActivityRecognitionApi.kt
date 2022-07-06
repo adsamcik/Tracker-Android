@@ -10,6 +10,7 @@ import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.logger.LogData
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
