@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.shared.utils.extension
 
 import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.os.Parcelable
 import com.adsamcik.tracker.logger.Reporter
 
 /**

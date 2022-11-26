@@ -11,7 +11,7 @@ import androidx.lifecycle.LiveData
  * @param body Higher order function that is executed when live data changes
  */
 fun <T> LiveData<T>.observe(owner: LifecycleOwner, body: (T?) -> Unit) {
-	observe(owner) { t -> body(t) }
+	observe<T>(owner) { t -> body(t) }
 }
 
 /**

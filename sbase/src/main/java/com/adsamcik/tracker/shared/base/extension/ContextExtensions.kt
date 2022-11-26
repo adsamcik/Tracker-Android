@@ -9,6 +9,7 @@ import android.app.job.JobScheduler
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.PackageManager.PackageInfoFlags
 import android.content.pm.ShortcutManager
 import android.hardware.SensorManager
 import android.location.LocationManager
@@ -160,7 +161,10 @@ inline fun <reified T : Any> Context.newIntent(): Intent =
  * Returns app version.
  */
 fun Context.appVersion(): Long {
-	val packageInfo = packageManager.getPackageInfo(packageName, 0)
+	val packageInfo = when{
+		Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> packageManager.getPackageInfo(packageName, PackageInfoFlags.of(0))
+		else -> @Suppress("DEPRECATION") packageManager.getPackageInfo(packageName, 0)
+	}
 	return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
 		packageInfo.longVersionCode
 	} else {
