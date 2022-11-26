@@ -1,16 +1,15 @@
 package com.adsamcik.tracker.shared.base.adapter
 
 
+import android.annotation.SuppressLint
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.base.assist.Assist
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 
 /**
  * Abstract class that contains basic implementation to allow filtering.
  */
+@OptIn(DelicateCoroutinesApi::class)
 abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : RecyclerView.ViewHolder>(
 		stringMethod: (DataType) -> String,
 		initialCollection: MutableList<DataType>
@@ -52,9 +51,10 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	fun add(item: DataType) {
 		mRawCollection.add(item)
 		if (filter(item, filterObject)) {
+			val position = mDisplayCollection.size
 			mDisplayCollection.add(item)
 			GlobalScope.launch(Dispatchers.Main) {
-				notifyDataSetChanged()
+				notifyItemInserted(position)
 			}
 		}
 	}
@@ -64,20 +64,21 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	 *
 	 * @param items Collection of items
 	 */
+	@SuppressLint("NotifyDataSetChanged")
 	@Synchronized
 	fun addAll(items: Collection<DataType>) {
-		var anyPassed = false
+		val originalDisplayCount = mDisplayCollection.size
 		mRawCollection.addAll(items)
 		for (item in items) {
 			if (filter(item, filterObject)) {
 				mDisplayCollection.add(item)
-				anyPassed = true
 			}
 		}
+		val finalCount = mDisplayCollection.size
 
-		if (anyPassed) {
+		if (originalDisplayCount != finalCount) {
 			GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-				notifyDataSetChanged()
+				notifyItemRangeInserted(originalDisplayCount, finalCount - originalDisplayCount)
 			}
 		}
 	}
@@ -85,6 +86,7 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	/**
 	 * Clears all items from the adapter
 	 */
+	@SuppressLint("NotifyDataSetChanged")
 	fun clear() {
 		mRawCollection.clear()
 		mDisplayCollection.clear()
@@ -118,6 +120,7 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	 *
 	 * @param filterObject Object used for filtering
 	 */
+	@SuppressLint("NotifyDataSetChanged")
 	fun filter(filterObject: FilterType?) {
 		this.filterObject = filterObject
 		mDisplayCollection = ArrayList(mRawCollection.size)

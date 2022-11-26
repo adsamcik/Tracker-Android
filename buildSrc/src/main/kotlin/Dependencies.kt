@@ -27,7 +27,7 @@ object Dependencies {
         internal const val coroutines = "1.6.4"
 
         internal const val sqlite = "3.34.1"
-        internal const val room = "2.4.3"
+        internal const val room = "2.5.0-beta02"
 
         internal const val recyclerView = "1.3.0-rc01"
         internal const val paging = "3.1.1"
@@ -70,7 +70,9 @@ object Dependencies {
 
     private fun DependencyHandler.api(name: String) = add("api", name)
     private fun DependencyHandler.implementation(name: Any) = add("implementation", name)
+    private fun DependencyHandler.annotationProcessor(name: Any) = add("annotationProcessor", name)
     private fun DependencyHandler.kapt(name: String) = add("kapt", name)
+    private fun DependencyHandler.ksp(name: String) = add("ksp", name)
     private fun DependencyHandler.androidTestImplementation(name: String) =
         add("androidTestImplementation", name)
 
@@ -88,8 +90,10 @@ object Dependencies {
     fun database(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             val roomBaseString = "androidx.room:room"
-            api("$roomBaseString-runtime:${Versions.room}")
+            implementation("$roomBaseString-runtime:${Versions.room}")
+            annotationProcessor("$roomBaseString-compiler:${Versions.room}")
             kapt("$roomBaseString-compiler:${Versions.room}")
+            //ksp("$roomBaseString-compiler:${Versions.room}")
             implementation("$roomBaseString-ktx:${Versions.room}")
             implementation("io.requery:sqlite-android:${Versions.sqlite}")
             androidTestImplementation("androidx.room:room-testing:${Versions.room}")

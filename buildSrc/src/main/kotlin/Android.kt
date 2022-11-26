@@ -10,6 +10,6 @@ object Android {
 
 	const val buildTools: String = "31.0.0"
 
-	val javaTarget: JavaVersion = JavaVersion.VERSION_11
-	const val jvmTarget: String = "11"
+	val javaTarget: JavaVersion = JavaVersion.VERSION_19
+	const val jvmTarget: String = "19"
 }

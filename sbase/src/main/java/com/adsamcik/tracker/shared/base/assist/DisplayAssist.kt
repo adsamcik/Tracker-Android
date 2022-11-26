@@ -35,8 +35,18 @@ object DisplayAssist {
 		val display = getDisplay(context)
 
 		val realScreenSize = Point()
-		display.getRealSize(realScreenSize)
-		return Int2(realScreenSize.x, realScreenSize.y)
+
+		return when {
+			Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+				val windowMetrics = context.windowManager.currentWindowMetrics
+				val bounds = windowMetrics.bounds
+				Int2(bounds.width(), bounds.height())
+			}
+			else -> @Suppress("DEPRECATION") {
+				display.getRealSize(realScreenSize)
+				Int2(realScreenSize.x, realScreenSize.y)
+			}
+		}
 	}
 
 	fun getUsableArea(context: Context): Int2 {
