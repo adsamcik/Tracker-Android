@@ -43,8 +43,9 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+    namespace = "com.adsamcik.tracker.logger"
 
-	kapt {
+    kapt {
 		arguments {
 			this.arg("room.schemaLocation", "$projectDir/schemas")
 		}

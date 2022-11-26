@@ -3,9 +3,9 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:7.2.1")
-		classpath("com.google.gms:google-services:4.3.10")
-		classpath("com.google.android.gms:oss-licenses-plugin:0.10.4")
+		classpath("com.android.tools.build:gradle:7.3.1")
+		classpath("com.google.gms:google-services:4.3.14")
+		classpath("com.google.android.gms:oss-licenses-plugin:0.10.5")
 		classpath("com.google.firebase:firebase-crashlytics-gradle:${Dependencies.Versions.crashlyticsGradle}")
 
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
@@ -15,7 +15,7 @@ buildscript {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.39.0")
+	id("com.github.ben-manes.versions") version ("0.44.0")
 }
 
 allprojects {

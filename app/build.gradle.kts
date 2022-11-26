@@ -1,6 +1,5 @@
 import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.net.URL
 
 plugins {
 	id("com.google.secrets_gradle_plugin") version "0.6.1"
@@ -70,6 +69,7 @@ android {
 	dynamicFeatures.add(":game")
 	dynamicFeatures.add(":map")
 	dynamicFeatures.add(":external")
+    namespace = "com.adsamcik.tracker"
 }
 
 tasks.withType<DokkaTask> {

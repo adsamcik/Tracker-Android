@@ -46,6 +46,7 @@ android {
         checkReleaseBuilds = true
         abortOnError = false
     }
+    namespace = "com.adsamcik.tracker.external"
 
     kapt {
         arguments {
@@ -66,5 +67,5 @@ dependencies {
     Dependencies.json(this)
     Dependencies.test(this)
 
-    implementation("com.github.weliem:blessed-android:2.1.0")
+    //implementation("com.github.weliem:blessed-android:2.2.1")
 }

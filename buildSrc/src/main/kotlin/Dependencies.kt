@@ -11,40 +11,40 @@ object Dependencies {
      * Dependencies that are not project are required to be internal.
      */
     object Versions {
-        internal const val constraintLayout = "2.1.1"
-        internal const val coreKtx = "1.6.0"
-        internal const val appcompat = "1.3.1"
-        internal const val fragment = "1.3.6"
+        internal const val constraintLayout = "2.1.4"
+        internal const val coreKtx = "1.9.0"
+        internal const val appcompat = "1.6.0-rc01"
+        internal const val fragment = "1.5.4"
         const val dokka: String = "0.9.18"
-        internal const val moshi = "1.12.0"
-        internal const val work = "2.7.0-rc01"
-        internal const val lifecycle = "2.3.1"
-        internal const val preference = "1.1.1"
-        internal const val material = "1.4.0"
-        internal const val desugar = "1.1.5"
+        internal const val moshi = "1.14.0"
+        internal const val work = "2.7.1"
+        internal const val lifecycle = "2.5.1"
+        internal const val preference = "1.2.0"
+        internal const val material = "1.7.0"
+        internal const val desugar = "1.2.2"
 
-        const val kotlin: String = "1.5.31"
-        internal const val coroutines = "1.5.2"
+        const val kotlin: String = "1.7.21"
+        internal const val coroutines = "1.6.4"
 
         internal const val sqlite = "3.34.1"
-        internal const val room = "2.3.0"
+        internal const val room = "2.4.3"
 
-        internal const val recyclerView = "1.2.1"
-        internal const val paging = "3.0.1"
+        internal const val recyclerView = "1.3.0-rc01"
+        internal const val paging = "3.1.1"
 
-        internal const val firebaseBom = "28.4.2"
-        internal const val crashlytics = "18.2.3"
-        const val crashlyticsGradle: String = "2.7.1"
+        internal const val firebaseBom = "31.1.0"
+        internal const val crashlytics = "18.3.2"
+        const val crashlyticsGradle: String = "2.9.2"
 
-        internal const val playServicesBase = "17.6.0"
-        internal const val playLocation = "18.0.0"
-        internal const val playCore = "1.10.2"
-        internal const val maps = "17.0.1"
-        internal const val splashScreen = "1.0.0-alpha02"
+        internal const val playServicesBase = "18.1.0"
+        internal const val playLocation = "21.0.1"
+        internal const val playCore = "1.10.3"
+        internal const val maps = "18.1.0"
+        internal const val splashScreen = "1.0.0"
 
         internal const val stax = "1.0.1"
-        internal const val jpx = "2.2.0"
-        internal const val xml = "1.3.0"
+        internal const val jpx = "3.0.1"
+        internal const val xml = "1.3.2"
 
         internal const val spotlight = "2.2.3"
         internal const val dialogs = "3.3.0"
@@ -61,8 +61,8 @@ object Dependencies {
          * Testing specific dependencies
          */
         internal object Test {
-            internal const val androidxTest: String = "1.4.0"
-            internal const val espresso: String = "3.4.0"
+            internal const val androidxTest: String = "1.5.0"
+            internal const val espresso: String = "3.5.0"
             internal const val coreTesting: String = "2.1.0"
             internal const val testingKtx: String = "1.2.0"
         }
@@ -221,6 +221,7 @@ object Dependencies {
     fun paging(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             implementation("androidx.paging:paging-runtime:${Versions.paging}")
+            implementation("androidx.room:room-paging:${Versions.room}")
         }
     }
 
@@ -230,7 +231,7 @@ object Dependencies {
             androidTestImplementation("androidx.test:runner:${Versions.Test.androidxTest}")
             androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
             androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
-            androidTestImplementation("androidx.test.ext:junit:1.1.2")
+            androidTestImplementation("androidx.test.ext:junit:1.1.4")
             androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.coreTesting}")
             androidTestImplementation("com.jraska.livedata:testing-ktx:${Versions.Test.testingKtx}")
             androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")

@@ -49,6 +49,7 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+    namespace = "com.adsamcik.tracker.activity"
 }
 
 dependencies {

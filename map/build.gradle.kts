@@ -38,6 +38,7 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+    namespace = "com.adsamcik.tracker.map"
 }
 
 dependencies {
