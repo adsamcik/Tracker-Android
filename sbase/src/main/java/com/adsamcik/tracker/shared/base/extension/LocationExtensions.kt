@@ -4,7 +4,7 @@ import android.location.Location
 
 @Suppress("Unused")
 object LocationExtensions {
-	const val EARTH_CIRCUMFERENCE: Int = 40075000
+	const val EARTH_CIRCUMFERENCE: Int = 40075017
 	const val METER_DEGREE_LATITUDE: Double = 360.0 / EARTH_CIRCUMFERENCE
 
 	private const val ESTIMATE_LOCATION_PROVIDER: String = "Estimate"
