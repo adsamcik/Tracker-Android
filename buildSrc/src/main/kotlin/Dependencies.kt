@@ -23,7 +23,7 @@ object Dependencies {
         internal const val material = "1.4.0"
         internal const val desugar = "1.1.5"
 
-        const val kotlin: String = "1.5.30"
+        const val kotlin: String = "1.9.10"
         internal const val coroutines = "1.5.2"
 
         internal const val sqlite = "3.34.1"

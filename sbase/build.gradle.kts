@@ -63,9 +63,10 @@ android {
 	}
 
 	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+		checkReleaseBuilds = true
+		abortOnError = false
 	}
+    namespace = "com.adsamcik.tracker.shared.base"
 }
 
 dependencies {

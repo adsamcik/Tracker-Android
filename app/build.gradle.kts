@@ -56,8 +56,8 @@ android {
 	}
 
 	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+		checkReleaseBuilds = true
+		abortOnError = false
 	}
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
@@ -69,6 +69,7 @@ android {
 	dynamicFeatures.add(":statistics")
 	dynamicFeatures.add(":game")
 	dynamicFeatures.add(":map")
+	namespace = "com.adsamcik.tracker"
 }
 
 tasks.withType<DokkaTask> {
