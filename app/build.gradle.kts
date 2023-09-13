@@ -118,7 +118,7 @@ dependencies {
 
 	// Open-source licenses
 	implementation("de.psdev.licensesdialog:licensesdialog:2.2.0")
-	implementation("com.google.android.gms:play-services-oss-licenses:17.0.0")
+	implementation("com.google.android.gms:play-services-oss-licenses:17.0.1")
 
 	// PlayServices
 	Dependencies.location(this)
