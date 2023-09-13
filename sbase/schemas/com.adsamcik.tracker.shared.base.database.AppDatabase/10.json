@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 10,
-    "identityHash": "c295ffb1790acf8df67006d8994dd2c9",
+    "identityHash": "0450ddcfb62c0bb907dbd58ebb962e11",
     "entities": [
       {
         "tableName": "location_data",
@@ -210,7 +210,7 @@
       },
       {
         "tableName": "wifi_data",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bssid` TEXT NOT NULL, `longitude` REAL, `latitude` REAL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `ssid` TEXT, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, PRIMARY KEY(`bssid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bssid` TEXT NOT NULL, `longitude` REAL, `latitude` REAL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, PRIMARY KEY(`bssid`))",
         "fields": [
           {
             "fieldPath": "bssid",
@@ -252,7 +252,7 @@
             "fieldPath": "ssid",
             "columnName": "ssid",
             "affinity": "TEXT",
-            "notNull": false
+            "notNull": true
           },
           {
             "fieldPath": "capabilities",
@@ -562,7 +562,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c295ffb1790acf8df67006d8994dd2c9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0450ddcfb62c0bb907dbd58ebb962e11')"
     ]
   }
 }

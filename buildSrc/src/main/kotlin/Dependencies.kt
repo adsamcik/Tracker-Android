@@ -42,7 +42,7 @@ object Dependencies {
         internal const val maps = "18.1.0"
 
         internal const val stax = "1.0.1"
-        internal const val jpx = "2.3.0"
+        internal const val jpx = "3.0.1"
         internal const val xml = "1.3.2"
 
         internal const val spotlight = "2.2.3"

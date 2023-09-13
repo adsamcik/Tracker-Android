@@ -1,3 +1,5 @@
+import java.util.Locale
+
 buildscript {
 	repositories {
 		google()
@@ -41,7 +43,7 @@ tasks.register("clean", Delete::class) {
  */
 fun isStable(version: String): Boolean {
 	val stableKeyword = listOf("RELEASE", "FINAL", "GA", "RC").any {
-		version.toUpperCase()
+		version.uppercase(Locale.getDefault())
 			.contains(it)
 	}
 	val regex = "^[0-9,.v-]+(-r)?$".toRegex()
