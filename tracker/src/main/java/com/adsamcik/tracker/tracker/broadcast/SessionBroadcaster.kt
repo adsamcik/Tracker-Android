@@ -119,7 +119,7 @@ internal object SessionBroadcaster {
 				)
 	}
 
-	private class SessionFinalWorker(context: Context, workerParams: WorkerParameters) : Worker(
+	class SessionFinalWorker(context: Context, workerParams: WorkerParameters) : Worker(
 			context,
 			workerParams
 	) {

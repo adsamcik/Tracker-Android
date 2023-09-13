@@ -3,6 +3,7 @@ package com.adsamcik.tracker.shared.base.data
 import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.annotation.WorkerThread
+import androidx.core.content.res.ResourcesCompat
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -22,7 +23,7 @@ data class SessionActivity(
 					nativeSessionActivity.iconName
 			)
 
-	fun getIcon(context: Context): Drawable {
+	fun getIcon(context: Context): Drawable? {
 		val resources = context.resources
 		val drawableName = iconName
 				?: com.adsamcik.tracker.shared.base.R.drawable::ic_help_white.name
@@ -30,7 +31,7 @@ data class SessionActivity(
 
 		if (drawableId == 0) throw NullPointerException("Resource with name $drawableName not found")
 
-		return resources.getDrawable(drawableId, context.theme)
+		return ResourcesCompat.getDrawable(resources, drawableId, context.theme)
 	}
 
 	companion object {
