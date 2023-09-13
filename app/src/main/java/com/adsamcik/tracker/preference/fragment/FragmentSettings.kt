@@ -14,6 +14,6 @@ class FragmentSettings : PreferenceFragmentCompat() {
 		// Load the Preferences from the XML file
 		setPreferencesFromResource(R.xml.app_preferences, rootKey)
 
-		PreferenceObserver.initialize(preferenceManager.sharedPreferences)
+		PreferenceObserver.initialize(preferenceManager.sharedPreferences!!)
 	}
 }

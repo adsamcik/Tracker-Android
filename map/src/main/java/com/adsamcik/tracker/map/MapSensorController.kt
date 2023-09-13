@@ -66,10 +66,10 @@ internal class MapSensorController(
 	// Location
 	private var isSubscribed = false
 	private val locationCallback = object : LocationCallback() {
-		override fun onLocationResult(locationResult: LocationResult?) {
-			locationResult ?: return
+		override fun onLocationResult(locationResult: LocationResult) {
+			locationResult.lastLocation ?: return
 
-			onNewLocationAvailable(locationResult.lastLocation)
+			onNewLocationAvailable(locationResult.lastLocation!!)
 		}
 	}
 

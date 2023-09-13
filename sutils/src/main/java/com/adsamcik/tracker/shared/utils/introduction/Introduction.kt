@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.utils.introduction
 
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.FragmentActivity
 import com.takusemba.spotlight.Target
 

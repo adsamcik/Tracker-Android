@@ -248,6 +248,7 @@ internal class MapSheetController(
 				sheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
 			}
 			!isOpen && isKeyboardOpen -> {
+				@SuppressLint("WrongConstant")
 				sheetBehavior.state = stateBeforeKeyboard
 				isKeyboardOpen = false
 				rootLayout.findViewById<AppCompatEditText>(R.id.edittext_map_search).clearFocus()
@@ -259,7 +260,7 @@ internal class MapSheetController(
 		addKeyboardListener(keyboardListener)
 	}
 
-	override fun onMapClick(p0: LatLng?) {
+	override fun onMapClick(p0: LatLng) {
 		sheetBehavior.state = when (sheetBehavior.state) {
 			BottomSheetBehavior.STATE_COLLAPSED -> BottomSheetBehavior.STATE_HIDDEN
 			BottomSheetBehavior.STATE_HIDDEN -> BottomSheetBehavior.STATE_COLLAPSED

@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game
 import android.content.Context
 import android.content.IntentFilter
 import androidx.annotation.WorkerThread
+import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.game.challenge.receiver.ChallengeSessionReceiver
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.game.goals.NewDayGoalWorker
@@ -20,9 +21,11 @@ class GameModuleInitializer : ModuleInitializer {
 			addAction(TrackerSession.ACTION_SESSION_FINAL)
 		}
 
-		applicationContext.registerReceiver(
-				ChallengeSessionReceiver(),
-				trackerSessionBroadcastFilter
+		ContextCompat.registerReceiver(
+			applicationContext,
+			ChallengeSessionReceiver(),
+			trackerSessionBroadcastFilter,
+			ContextCompat.RECEIVER_NOT_EXPORTED
 		)
 	}
 

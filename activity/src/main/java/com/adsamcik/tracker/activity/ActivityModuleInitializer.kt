@@ -2,6 +2,7 @@ package com.adsamcik.tracker.activity
 
 import android.content.Context
 import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.activity.receiver.ActivitySessionReceiver
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -28,7 +29,12 @@ class ActivityModuleInitializer : ModuleInitializer {
 			addAction(TrackerSession.ACTION_SESSION_ENDED)
 		}
 
-		context.registerReceiver(ActivitySessionReceiver(), trackerSessionBroadcastFilter)
+		ContextCompat.registerReceiver(
+			context,
+			ActivitySessionReceiver(),
+			trackerSessionBroadcastFilter,
+			ContextCompat.RECEIVER_NOT_EXPORTED
+		)
 	}
 
 	/**

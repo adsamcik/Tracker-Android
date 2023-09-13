@@ -21,6 +21,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <permission
         android:name="com.adsamcik.tracker.permission.TRACKER"
@@ -35,7 +36,10 @@
 
         <service
             android:name="com.adsamcik.tracker.tracker.service.ActivityWatcherService"
-            android:exported="false" />
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="ActivityMonitoring"/>
+        </service>
 
         <activity
             android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"

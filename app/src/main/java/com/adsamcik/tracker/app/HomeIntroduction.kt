@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app
 
-import androidx.appcompat.app.AppCompatActivity
 import android.content.res.Resources
 import android.view.View
 import androidx.fragment.app.FragmentActivity
@@ -18,7 +17,7 @@ class HomeIntroduction : Introduction() {
 	override val key: String = "home_tips"
 
 	private fun createSettingsTarget(
-        activity: AppCompatActivity,
+        activity: FragmentActivity,
         resources: Resources,
         buttonData: SimpleTarget.ButtonData
 	): Target {
@@ -41,7 +40,7 @@ class HomeIntroduction : Introduction() {
 
 
 	private fun createMapTarget(
-        activity: AppCompatActivity,
+        activity: FragmentActivity,
         resources: Resources,
         buttonData: SimpleTarget.ButtonData
 	): Target {
@@ -62,7 +61,7 @@ class HomeIntroduction : Introduction() {
 	}
 
 	private fun createGameTarget(
-        activity: AppCompatActivity,
+        activity: FragmentActivity,
         resources: Resources,
         buttonData: SimpleTarget.ButtonData
 	): Target {
@@ -78,7 +77,7 @@ class HomeIntroduction : Introduction() {
 
 
 	private fun createStatsTarget(
-        activity: AppCompatActivity,
+        activity: FragmentActivity,
         resources: Resources,
         buttonData: SimpleTarget.ButtonData
 	): Target {

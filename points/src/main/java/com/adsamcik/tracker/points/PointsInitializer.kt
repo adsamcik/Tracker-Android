@@ -2,6 +2,7 @@ package com.adsamcik.tracker.points
 
 import android.content.Context
 import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 
@@ -14,6 +15,11 @@ class PointsInitializer : ModuleInitializer {
 			addAction(TrackerSession.ACTION_SESSION_FINAL)
 		}
 
-		context.registerReceiver(PointsSessionReceiver(), trackerSessionBroadcastFilter)
+		ContextCompat.registerReceiver(
+			context,
+			PointsSessionReceiver(),
+			trackerSessionBroadcastFilter,
+			ContextCompat.RECEIVER_NOT_EXPORTED
+		)
 	}
 }
