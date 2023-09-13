@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		TrackerDataProducerComponent(changeReceiver),
 		SensorEventListener {
+	private val lockObject = Object()
 	private var lastStepCount = -1
 	private var stepCountSinceLastCollection = 0
 
@@ -26,7 +27,7 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
 	override fun onDataRequest(tempData: MutableCollectionTempData) {
 		if (stepCountSinceLastCollection >= 0) {
-			synchronized(stepCountSinceLastCollection) {
+			synchronized(lockObject) {
 				tempData.set(NEW_STEPS_ARG, stepCountSinceLastCollection)
 				stepCountSinceLastCollection = 0
 			}
@@ -56,7 +57,7 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		if (sensor.type == Sensor.TYPE_STEP_COUNTER) {
 			val stepCount = event.values.first().toInt()
 			if (lastStepCount >= 0 && stepCount > 0) {
-				synchronized(stepCountSinceLastCollection) {
+				synchronized(lockObject) {
 					//In case sensor would overflow and reset to 0 at some point
 					if (lastStepCount > stepCount) {
 						this.stepCountSinceLastCollection += stepCount

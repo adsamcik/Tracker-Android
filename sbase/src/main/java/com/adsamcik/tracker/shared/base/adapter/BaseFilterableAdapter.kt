@@ -53,8 +53,9 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 		mRawCollection.add(item)
 		if (filter(item, filterObject)) {
 			mDisplayCollection.add(item)
+			val index = mDisplayCollection.size
 			GlobalScope.launch(Dispatchers.Main) {
-				notifyDataSetChanged()
+				notifyItemInserted(index)
 			}
 		}
 	}

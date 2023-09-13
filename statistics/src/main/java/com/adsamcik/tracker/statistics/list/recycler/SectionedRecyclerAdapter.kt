@@ -251,7 +251,7 @@ internal sealed class SessionUiModel {
 	 * List header UI model.
 	 * Shown at the top of the session list.
 	 */
-	class ListHeader(date: Long) : SessionUiModel.SessionHeader(date)
+	class ListHeader(date: Long) : SessionHeader(date)
 }
 
 /**

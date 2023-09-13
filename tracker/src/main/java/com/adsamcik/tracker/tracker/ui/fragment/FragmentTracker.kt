@@ -66,7 +66,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		viewModel = ViewModelProvider(this).get(TrackerViewModel::class.java)
+		viewModel = ViewModelProvider(this)[TrackerViewModel::class.java]
 	}
 
 	override fun onCreateView(

@@ -113,61 +113,61 @@ class MutableTrackerSession(
 
 	override var id: Long
 		get() = super.id
-		public set(value) {
+		set(value) {
 			super.id = value
 		}
 
 	override var start: Long
 		get() = super.start
-		public set(value) {
+		set(value) {
 			super.start = value
 		}
 
 	override var end: Long
 		get() = super.end
-		public set(value) {
+		set(value) {
 			super.end = value
 		}
 
 	override var isUserInitiated: Boolean
 		get() = super.isUserInitiated
-		public set(value) {
+		set(value) {
 			super.isUserInitiated = value
 		}
 
 	override var collections: Int
 		get() = super.collections
-		public set(value) {
+		set(value) {
 			super.collections = value
 		}
 
 	override var distanceInM: Float
 		get() = super.distanceInM
-		public set(value) {
+		set(value) {
 			super.distanceInM = value
 		}
 
 	override var distanceInVehicleInM: Float
 		get() = super.distanceInVehicleInM
-		public set(value) {
+		set(value) {
 			super.distanceInVehicleInM = value
 		}
 
 	override var distanceOnFootInM: Float
 		get() = super.distanceOnFootInM
-		public set(value) {
+		set(value) {
 			super.distanceOnFootInM = value
 		}
 
 	override var steps: Int
 		get() = super.steps
-		public set(value) {
+		set(value) {
 			super.steps = value
 		}
 
 	override var sessionActivityId: Long?
 		get() = super.sessionActivityId
-		public set(value) {
+		set(value) {
 			super.sessionActivityId = value
 		}
 

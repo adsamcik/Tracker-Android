@@ -38,7 +38,7 @@ internal class ImportService : CoreService() {
 		if (intent == null) {
 			Reporter.report(NullPointerException("Service cannot be started without intent"))
 			stopSelf()
-			return Service.START_NOT_STICKY
+			return START_NOT_STICKY
 		}
 
 		val uri = requireNotNull(intent.getParcelableExtra(ARG_FILE_URI)) as Uri

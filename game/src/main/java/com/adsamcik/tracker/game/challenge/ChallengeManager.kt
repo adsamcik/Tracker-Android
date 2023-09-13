@@ -139,7 +139,7 @@ object ChallengeManager {
 		val expired = mutableActiveChallengeList_.filter { it.endTime <= now }
 		if (expired.isNotEmpty()) {
 			activeChallengeLock.withLock {
-				mutableActiveChallengeList_.removeAll(expired)
+				mutableActiveChallengeList_.removeAll(expired.toSet())
 				fillEmptyChallengeSlots(context)
 				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 			}

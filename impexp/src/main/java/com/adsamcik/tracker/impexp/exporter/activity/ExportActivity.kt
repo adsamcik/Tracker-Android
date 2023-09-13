@@ -87,7 +87,7 @@ class ExportActivity : DetailActivity() {
 	private val shareResult = registerForActivityResult(
 			StartActivityForResult()
 	) {
-		if (it.resultCode == AppCompatActivity.RESULT_OK) {
+		if (it.resultCode == RESULT_OK) {
 			finish()
 		} else {
 			snackMaker.addMessage(R.string.export_error_no_share)

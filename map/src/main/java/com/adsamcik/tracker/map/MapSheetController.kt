@@ -299,6 +299,7 @@ internal class MapSheetController(
 							}
 							false -> {
 								if (sheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
+									@SuppressLint("WrongConstant")
 									sheetBehavior.state = stateBeforeKeyboard
 								}
 								rootLayout.findViewById<AppCompatEditText>(R.id.edittext_map_search)

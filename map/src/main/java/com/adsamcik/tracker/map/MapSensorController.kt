@@ -95,7 +95,7 @@ internal class MapSensorController(
 	 */
 	private fun initializePositions() {
 		val cameraPosition = map.cameraPosition
-		targetPosition = cameraPosition.target ?: LatLng(0.0, 0.0)
+		targetPosition = cameraPosition.target
 		targetTilt = cameraPosition.tilt
 		targetBearing = cameraPosition.bearing
 		targetZoom = cameraPosition.zoom
