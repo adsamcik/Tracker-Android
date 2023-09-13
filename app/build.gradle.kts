@@ -37,7 +37,6 @@ android {
 	tasks.withType<KotlinCompile> {
 		with(kotlinOptions) {
 			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes", "-Xjvm-default=enable")
 		}
 	}
 

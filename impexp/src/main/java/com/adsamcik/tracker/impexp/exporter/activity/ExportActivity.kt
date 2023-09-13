@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.impexp.exporter.activity
 
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -45,7 +45,6 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
-import java.util.*
 
 
 /**
@@ -71,7 +70,7 @@ class ExportActivity : DetailActivity() {
 			updateDateTimeText(dataRangeTo, value.endInclusive)
 		}
 
-	private val exportResult: ActivityResultLauncher<Uri> = registerForActivityResult(
+	private val exportResult: ActivityResultLauncher<Uri?> = registerForActivityResult(
 			ActivityResultContracts.OpenDocumentTree()
 	) {
 		if (it == null) {
@@ -88,7 +87,7 @@ class ExportActivity : DetailActivity() {
 	private val shareResult = registerForActivityResult(
 			StartActivityForResult()
 	) {
-		if (it.resultCode == Activity.RESULT_OK) {
+		if (it.resultCode == AppCompatActivity.RESULT_OK) {
 			finish()
 		} else {
 			snackMaker.addMessage(R.string.export_error_no_share)

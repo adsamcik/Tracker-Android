@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.preference.pages
 
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -99,7 +99,7 @@ internal class DataPage : PreferencePage {
 	override fun onRegisterForResult(activity: FragmentActivity) {
 		importRequest = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult())
 		{ result: ActivityResult ->
-			if (result.resultCode == Activity.RESULT_OK) {
+			if (result.resultCode == AppCompatActivity.RESULT_OK) {
 				result.data?.data?.also { uri ->
 					DataImporter.import(activity, uri)
 				}

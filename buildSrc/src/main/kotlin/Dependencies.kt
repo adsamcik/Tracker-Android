@@ -42,7 +42,7 @@ object Dependencies {
         internal const val maps = "18.1.0"
 
         internal const val stax = "1.0.1"
-        internal const val jpx = "3.0.1"
+        internal const val jpx = "2.3.0"
         internal const val xml = "1.3.2"
 
         internal const val spotlight = "2.2.3"
@@ -100,7 +100,7 @@ object Dependencies {
     fun core(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             // Fix for compile error caused by missing annotation in JDK9+
-            compileOnly("com.github.pengrad:jdk9-deps:1.0")
+            implementation("com.github.pengrad:jdk9-deps:1.0")
             coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
 
             implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
