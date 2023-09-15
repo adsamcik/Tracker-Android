@@ -27,9 +27,7 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain {
-			languageVersion = Android.javaKotlinTarget
-		}
+		jvmToolchain(Android.javaVersion)
 	}
 
 	buildTypes {
@@ -64,7 +62,5 @@ dependencies {
 }
 
 kotlin {
-	jvmToolchain {
-			languageVersion = Android.javaKotlinTarget
-		}
+	jvmToolchain(Android.javaVersion)
 }

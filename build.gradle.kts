@@ -5,7 +5,7 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:8.1.1")
+		classpath("com.android.tools.build:gradle:7.4.2")
 		classpath("com.google.gms:google-services:4.4.0")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
 		classpath("com.google.firebase:firebase-crashlytics-gradle:${Dependencies.Versions.crashlyticsGradle}")
@@ -13,11 +13,6 @@ buildscript {
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
 	}
-}
-
-plugins {
-	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.48.0")
 }
 
 allprojects {
@@ -35,7 +30,12 @@ allprojects {
 }
 
 tasks.register("clean", Delete::class) {
-	delete(rootProject.buildDir)
+	delete(rootProject.layout.buildDirectory)
+}
+
+plugins {
+	// gradlew dependencyUpdates -Drevision=release
+	id("com.github.ben-manes.versions") version ("0.48.0")
 }
 
 /**

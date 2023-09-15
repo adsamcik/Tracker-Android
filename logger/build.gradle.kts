@@ -49,9 +49,7 @@ android {
 		arg("room.schemaLocation", "$projectDir/schemas")
 	}
 	kotlin {
-		jvmToolchain {
-			languageVersion = Android.javaKotlinTarget
-		}
+		jvmToolchain(Android.javaVersion)
 	}
 }
 

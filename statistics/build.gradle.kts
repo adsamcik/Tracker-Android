@@ -33,9 +33,7 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain {
-			languageVersion = Android.javaKotlinTarget
-		}
+		jvmToolchain(Android.javaVersion)
 	}
 
 	buildTypes {

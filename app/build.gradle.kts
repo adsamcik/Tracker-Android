@@ -34,9 +34,7 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain {
-			languageVersion = Android.javaKotlinTarget
-		}
+		jvmToolchain(Android.javaVersion)
 	}
 
 	buildTypes {
@@ -61,7 +59,7 @@ android {
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
-	packaging {
+	packagingOptions {
 		resources.pickFirsts.add("META-INF/atomicfu.kotlin_module")
 	}
 
@@ -74,7 +72,7 @@ android {
 tasks.withType<DokkaTask> {
 	outputFormat = "html"
 	outputDirectory = "$buildDir/javadoc"
-	jdkVersion = 8
+	jdkVersion = Android.javaVersion
 	skipEmptyPackages = true
 	skipDeprecated = true
 

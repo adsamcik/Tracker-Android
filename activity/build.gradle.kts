@@ -11,7 +11,6 @@ android {
 
 	defaultConfig {
 		minSdk = Android.min
-		targetSdk = Android.target
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -27,14 +26,13 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain {
-			languageVersion = Android.javaKotlinTarget
-		}
+		jvmToolchain(Android.javaVersion)
 	}
 
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {

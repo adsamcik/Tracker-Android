@@ -11,6 +11,6 @@ object Android {
 
 	const val buildTools: String = "34.0.0"
 
-	val javaTarget: JavaVersion = JavaVersion.VERSION_17
-	val javaKotlinTarget: JavaLanguageVersion = JavaLanguageVersion.of(javaTarget.majorVersion)
+	val javaVersion: Int = 11
+	val javaTarget: JavaVersion = JavaVersion.toVersion(javaVersion)
 }
