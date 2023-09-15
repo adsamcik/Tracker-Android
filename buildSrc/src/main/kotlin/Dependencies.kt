@@ -98,8 +98,6 @@ object Dependencies {
 
     fun core(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
-            // Fix for compile error caused by missing annotation in JDK9+
-            implementation("com.github.pengrad:jdk9-deps:1.0")
             coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
 
             implementation("androidx.appcompat:appcompat:${Versions.appcompat}")

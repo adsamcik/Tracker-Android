@@ -59,7 +59,7 @@ android {
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
-	packagingOptions {
+	packaging {
 		resources.pickFirsts.add("META-INF/atomicfu.kotlin_module")
 	}
 
@@ -67,6 +67,10 @@ android {
 	dynamicFeatures.add(":game")
 	dynamicFeatures.add(":map")
 	namespace = "com.adsamcik.tracker"
+	dependenciesInfo {
+		includeInApk = true
+		includeInBundle = true
+	}
 }
 
 tasks.withType<DokkaTask> {
