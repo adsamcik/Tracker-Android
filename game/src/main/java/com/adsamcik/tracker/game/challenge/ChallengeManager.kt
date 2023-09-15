@@ -54,14 +54,14 @@ object ChallengeManager {
 	@WorkerThread
 	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
 		val database = ChallengeDatabase.database(context)
-		val active = database.entryDao.getActiveEntry(Time.nowMillis)
+		val active = database.entryDao().getActiveEntry(Time.nowMillis)
 
 		return active.mapNotNull {
 			tryWithResultAndReport({ null }) {
 				ChallengeLoader.loadChallenge(context, it)
 			}.also { instance ->
 				if (instance == null) {
-					database.entryDao.delete(it)
+					database.entryDao().delete(it)
 				}
 			}
 		}

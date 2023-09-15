@@ -11,22 +11,13 @@ android {
 
 	defaultConfig {
 		minSdk = Android.min
-		targetSdk = Android.target
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		ksp {
 			arg("room.schemaLocation", "$projectDir/schemas")
-		}
-
-		with(javaCompileOptions) {
-			with(annotationProcessorOptions) {
-				arguments(
-						mapOf(
-								"room.incremental" to "true"
-						)
-				)
-			}
+			arg("room.incremental", "true")
+			arg("room.generateKotlin", "true")
 		}
 	}
 
@@ -44,9 +35,18 @@ android {
 		jvmToolchain(Android.javaVersion)
 	}
 
+	java {
+		toolchain {
+			languageVersion.set(JavaLanguageVersion.of(Android.javaVersion))
+			setSourceCompatibility(Android.javaVersion)
+			setTargetCompatibility(Android.javaVersion)
+		}
+	}
+
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {

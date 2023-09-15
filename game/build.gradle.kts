@@ -15,14 +15,10 @@ android {
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 
-		with(javaCompileOptions) {
-			with(annotationProcessorOptions) {
-				arguments(
-					mapOf(
-						"room.incremental" to "true"
-					)
-				)
-			}
+		ksp {
+			arg("room.schemaLocation", "$projectDir/schemas")
+			arg("room.incremental", "true")
+			arg("room.generateKotlin", "true")
 		}
 	}
 

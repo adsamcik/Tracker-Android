@@ -11,7 +11,6 @@ android {
 
 	defaultConfig {
 		minSdk = Android.min
-		targetSdk = Android.target
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -32,7 +31,8 @@ android {
 
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {
@@ -41,6 +41,12 @@ android {
 		getByName("release") {
 			isMinifyEnabled = true
 		}
+	}
+
+	ksp {
+		arg("room.schemaLocation", "$projectDir/schemas")
+		arg("room.incremental", "true")
+		arg("room.generateKotlin", "true")
 	}
 
 	lint {

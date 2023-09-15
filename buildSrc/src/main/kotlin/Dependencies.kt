@@ -11,11 +11,14 @@ object Dependencies {
      * Dependencies that are not project are required to be internal.
      */
     object Versions {
+        const val kotlin: String = "1.9.10"
+        const val dokka: String = "0.9.18"
+        const val ksp = "${kotlin}-1.0.13"
+
         internal const val constraintLayout = "2.1.4"
         internal const val coreKtx = "1.9.0"
         internal const val appcompat = "1.6.1"
         internal const val fragment = "1.6.1"
-        const val dokka: String = "0.9.18"
         internal const val moshi = "1.15.0"
         internal const val work = "2.8.1"
         internal const val lifecycle = "2.6.2"
@@ -23,11 +26,10 @@ object Dependencies {
         internal const val material = "1.9.0"
         internal const val desugar = "2.0.3"
 
-        const val kotlin: String = "1.9.10"
         internal const val coroutines = "1.7.3"
 
         internal const val sqlite = "3.43.0"
-        internal const val room = "2.5.2"
+        internal const val room = "2.6.0-beta01"
 
         internal const val recyclerView = "1.3.1"
         internal const val paging = "3.2.1"
@@ -99,6 +101,7 @@ object Dependencies {
     fun core(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
+            implementation("com.google.devtools.ksp:symbol-processing-api:${Versions.ksp}")
 
             implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
             implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
@@ -120,7 +123,6 @@ object Dependencies {
             implementation("com.google.android.play:core:${Versions.playCore}")
 
             implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
-            // implementation("com.codezjx.library:andlinker:0.7.2")
 
             implementation("com.karumi:dexter:${Versions.dexter}")
 
@@ -135,7 +137,7 @@ object Dependencies {
         with(scope) {
             kotlin("android")
             id("org.jetbrains.kotlin.plugin.parcelize")
-            id("com.google.devtools.ksp").version("1.9.10-1.0.13")
+            id("com.google.devtools.ksp")
         }
     }
 

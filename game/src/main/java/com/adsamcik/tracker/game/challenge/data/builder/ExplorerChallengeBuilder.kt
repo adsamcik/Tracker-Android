@@ -43,7 +43,7 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 	}
 
 	override fun persistExtra(database: ChallengeDatabase, challenge: ExplorerChallengeInstance) {
-		database.explorerDao.insert(challenge.extra)
+		database.explorerDao().insert(challenge.extra)
 	}
 }
 

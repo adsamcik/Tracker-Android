@@ -79,7 +79,7 @@ internal class NotificationRecyclerAdapter(
 
 	@WorkerThread
 	fun updateItemPersistent(context: Context, item: NotificationPreference) {
-		PreferenceDatabase.database(context).notificationDao.upsert(item)
+		PreferenceDatabase.database(context).getNotificationDao().upsert(item)
 		val index = indexOf { it.id == item.id }
 		require(index >= 0)
 		launch {
@@ -110,7 +110,7 @@ internal class NotificationRecyclerAdapter(
 					)
 				}
 
-				PreferenceDatabase.database(context).notificationDao.upsert(updateOrderList)
+				PreferenceDatabase.database(context).getNotificationDao().upsert(updateOrderList)
 			}
 		}
 	}

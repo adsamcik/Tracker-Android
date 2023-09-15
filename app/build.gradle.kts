@@ -37,6 +37,14 @@ android {
 		jvmToolchain(Android.javaVersion)
 	}
 
+	java {
+		toolchain {
+			setSourceCompatibility(Android.javaVersion)
+			setTargetCompatibility(Android.javaVersion)
+		}
+	}
+
+
 	buildTypes {
 		getByName("debug") {
 			enableAndroidTestCoverage = true
@@ -75,7 +83,7 @@ android {
 
 tasks.withType<DokkaTask> {
 	outputFormat = "html"
-	outputDirectory = "$buildDir/javadoc"
+	outputDirectory = "${layout.buildDirectory}/javadoc"
 	jdkVersion = Android.javaVersion
 	skipEmptyPackages = true
 	skipDeprecated = true

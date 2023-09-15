@@ -13,6 +13,10 @@ buildscript {
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
 	}
+
+	plugins {
+		id("com.google.devtools.ksp") version Dependencies.Versions.ksp apply false
+	}
 }
 
 allprojects {
