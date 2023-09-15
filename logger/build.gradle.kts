@@ -50,10 +50,8 @@ android {
 			this.arg("room.schemaLocation", "$projectDir/schemas")
 		}
 	}
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-		}
+	kotlin {
+		jvmToolchain { Android.javaTarget }
 	}
 }
 

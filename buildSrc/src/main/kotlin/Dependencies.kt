@@ -69,7 +69,6 @@ object Dependencies {
 
     private fun DependencyHandler.api(name: String) = add("api", name)
     private fun DependencyHandler.implementation(name: Any) = add("implementation", name)
-    private fun DependencyHandler.kapt(name: String) = add("kapt", name)
     private fun DependencyHandler.ksp(name: String) = add("ksp", name)
     private fun DependencyHandler.androidTestImplementation(name: String) =
         add("androidTestImplementation", name)
@@ -81,7 +80,7 @@ object Dependencies {
     fun json(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             implementation("com.squareup.moshi:moshi:${Versions.moshi}")
-            kapt("com.squareup.moshi:moshi-kotlin-codegen:${Versions.moshi}")
+            ksp("com.squareup.moshi:moshi-kotlin-codegen:${Versions.moshi}")
         }
     }
 
@@ -89,7 +88,7 @@ object Dependencies {
         with(dependencyHandler) {
             val roomBaseString = "androidx.room:room"
             api("$roomBaseString-runtime:${Versions.room}")
-            kapt("$roomBaseString-compiler:${Versions.room}")
+            ksp("$roomBaseString-compiler:${Versions.room}")
             implementation("$roomBaseString-ktx:${Versions.room}")
             implementation("$roomBaseString-paging:${Versions.room}")
             implementation("io.requery:sqlite-android:${Versions.sqlite}")
@@ -129,7 +128,8 @@ object Dependencies {
 
             work(this)
 
-            kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
+            implementation("androidx.lifecycle:lifecycle-common-java8:${Versions.lifecycle}")
+
         }
     }
 
@@ -137,7 +137,6 @@ object Dependencies {
         with(scope) {
             kotlin("android")
             id("org.jetbrains.kotlin.plugin.parcelize")
-            kotlin("kapt")
         }
     }
 

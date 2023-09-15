@@ -32,10 +32,8 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-		}
+	kotlin {
+		jvmToolchain { Android.javaTarget }
 	}
 
 	buildTypes {
@@ -47,12 +45,6 @@ android {
 		abortOnError = false
 	}
 	namespace = "com.adsamcik.tracker.game"
-
-	kapt {
-		arguments {
-			this.arg("room.schemaLocation", "$projectDir/schemas")
-		}
-	}
 }
 
 dependencies {

@@ -26,11 +26,8 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-XXLanguage:+InlineClasses")
-		}
+	kotlin {
+		jvmToolchain { Android.javaTarget }
 	}
 
 	buildTypes {

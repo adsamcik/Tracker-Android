@@ -23,11 +23,8 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes")
-		}
+	kotlin {
+		jvmToolchain { Android.javaTarget }
 	}
 
 	buildTypes {

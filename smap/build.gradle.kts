@@ -22,10 +22,8 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-		}
+	kotlin {
+		jvmToolchain { Android.javaTarget }
 	}
 
 	buildTypes {

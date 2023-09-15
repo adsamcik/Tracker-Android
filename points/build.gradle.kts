@@ -26,11 +26,8 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-Xinline-classes")
-		}
+	kotlin {
+		jvmToolchain { Android.javaTarget }
 	}
 
 	buildTypes {
@@ -64,8 +61,6 @@ dependencies {
 	Dependencies.test(this)
 }
 
-tasks.withType<KotlinCompile> {
-	with(kotlinOptions) {
-		jvmTarget = Android.jvmTarget
-	}
+kotlin {
+	jvmToolchain { Android.javaTarget }
 }
