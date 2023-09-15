@@ -26,7 +26,7 @@ object Dependencies {
         const val kotlin: String = "1.9.10"
         internal const val coroutines = "1.7.3"
 
-        internal const val sqlite = "3.34.1"
+        internal const val sqlite = "3.43.0"
         internal const val room = "2.5.2"
 
         internal const val recyclerView = "1.3.1"
@@ -91,7 +91,7 @@ object Dependencies {
             ksp("$roomBaseString-compiler:${Versions.room}")
             implementation("$roomBaseString-ktx:${Versions.room}")
             implementation("$roomBaseString-paging:${Versions.room}")
-            implementation("io.requery:sqlite-android:${Versions.sqlite}")
+            implementation("com.github.requery:sqlite-android:${Versions.sqlite}")
             androidTestImplementation("androidx.room:room-testing:${Versions.room}")
         }
     }
