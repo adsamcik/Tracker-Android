@@ -137,6 +137,7 @@ object Dependencies {
         with(scope) {
             kotlin("android")
             id("org.jetbrains.kotlin.plugin.parcelize")
+            id("com.google.devtools.ksp").version("1.9.10-1.0.13")
         }
     }
 

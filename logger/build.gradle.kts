@@ -45,10 +45,8 @@ android {
 	}
 	namespace = "com.adsamcik.tracker.logger"
 
-	kapt {
-		arguments {
-			this.arg("room.schemaLocation", "$projectDir/schemas")
-		}
+	ksp {
+		arg("room.schemaLocation", "$projectDir/schemas")
 	}
 	kotlin {
 		jvmToolchain { Android.javaTarget }

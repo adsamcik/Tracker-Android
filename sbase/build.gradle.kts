@@ -15,10 +15,8 @@ android {
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-		kapt {
-			arguments {
-				this.arg("room.schemaLocation", "$projectDir/schemas")
-			}
+		ksp {
+			arg("room.schemaLocation", "$projectDir/schemas")
 		}
 
 		with(javaCompileOptions) {

@@ -7,7 +7,6 @@ plugins {
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
 	Dependencies.corePlugins(this)
-	id("com.google.devtools.ksp") version "1.9.10-1.0.13"
 }
 
 apply(plugin = "com.google.gms.google-services")

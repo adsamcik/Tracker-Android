@@ -86,7 +86,7 @@ data class WifiInfo(
         this.bssid = sr.BSSID
         this.ssid = when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> sr.wifiSsid?.toString()
-                else -> sr.SSID
+                else -> @Suppress("DEPRECATION") sr.SSID
             }
         this.capabilities = sr.capabilities
         this.centerFreq0 = sr.centerFreq0

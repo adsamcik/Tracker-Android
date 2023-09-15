@@ -10,5 +10,5 @@ object Android {
 
 	const val buildTools: String = "34.0.0"
 
-	val javaTarget: JavaVersion = JavaVersion.VERSION_1_9
+	val javaTarget: JavaVersion = JavaVersion.VERSION_17
 }

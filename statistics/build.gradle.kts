@@ -46,10 +46,8 @@ android {
 	}
 	namespace = "com.adsamcik.tracker.statistics"
 
-	kapt {
-		arguments {
-			this.arg("room.schemaLocation", "$projectDir/schemas")
-		}
+	ksp {
+		arg("room.schemaLocation", "$projectDir/schemas")
 	}
 }
 
