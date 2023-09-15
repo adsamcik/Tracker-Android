@@ -13,16 +13,8 @@ jobs:
       uses: actions/setup-java@v3
       with:
         java-version: 17    
-       
-    - name: Gradle cache
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
     - name: Prepare for build
       run: | 
         chmod +x gradlew
@@ -30,3 +22,8 @@ jobs:
         yes | cp -rf google-services.json.example app/google-services.json
     - name: Build with Gradle
       run: ./gradlew build
+    - name: Upload build reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-reports
+        path: build/reports/
