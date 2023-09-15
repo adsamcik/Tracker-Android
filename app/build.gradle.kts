@@ -34,12 +34,15 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain { Android.javaTarget }
+		jvmToolchain {
+			languageVersion = Android.javaKotlinTarget
+		}
 	}
 
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {
@@ -58,7 +61,7 @@ android {
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
-	packagingOptions {
+	packaging {
 		resources.pickFirsts.add("META-INF/atomicfu.kotlin_module")
 	}
 
