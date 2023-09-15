@@ -48,6 +48,12 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    - name: Prepare for build
+      run: | 
+        chmod +x gradlew
+        echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
+        yes | cp -rf google-services.json.example app/google-services.json
+
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
