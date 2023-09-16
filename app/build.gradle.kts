@@ -20,7 +20,7 @@ android {
 		minSdk = Android.min
 		targetSdk = Android.target
 		versionCode = 369
-		versionName = "2021.1"
+		versionName = "2023.1-⍺1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		resourceConfigurations.add("en")
