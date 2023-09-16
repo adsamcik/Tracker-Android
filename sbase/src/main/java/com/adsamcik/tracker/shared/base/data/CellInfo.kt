@@ -1,11 +1,13 @@
 package com.adsamcik.tracker.shared.base.data
 
 import android.os.Parcelable
+import android.telephony.CellIdentity
 import android.telephony.CellIdentityCdma
 import android.telephony.CellIdentityGsm
 import android.telephony.CellIdentityLte
 import android.telephony.CellIdentityNr
 import android.telephony.CellIdentityWcdma
+import android.telephony.CellSignalStrength
 import android.telephony.CellSignalStrengthCdma
 import android.telephony.CellSignalStrengthGsm
 import android.telephony.CellSignalStrengthLte
@@ -23,7 +25,6 @@ import kotlinx.parcelize.Parcelize
  * It works universally with every supported cell technology
  * Supported technologies are GSM, CDMA, WCDMA, LTE and NR
  */
-@Suppress("DEPRECATION")
 @JsonClass(generateAdapter = true)
 @Parcelize
 data class CellInfo
