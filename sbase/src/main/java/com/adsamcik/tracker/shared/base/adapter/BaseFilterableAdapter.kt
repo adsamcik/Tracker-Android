@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Abstract class that contains basic implementation to allow filtering.
+ *
+ * The class uses notifyDataSetChanged for all operations to provide thread safety.
  */
 abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : RecyclerView.ViewHolder>(
 		stringMethod: (DataType) -> String,
