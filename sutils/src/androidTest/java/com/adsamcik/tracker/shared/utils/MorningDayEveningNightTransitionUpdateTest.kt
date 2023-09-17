@@ -39,7 +39,7 @@ class MorningDayEveningNightTransitionUpdateTest {
 
 	@Test
 	fun morningTest() {
-		val now = Time.now.toZonedDateTime()
+		val now = Time.now
 		val sunData = sunSetRise.sunDataFor(now)
 		val sunrise = requireNotNull(sunData.rise)
 		val afterSunrise = sunrise.plusHours(1)
@@ -51,7 +51,7 @@ class MorningDayEveningNightTransitionUpdateTest {
 
 	@Test
 	fun beforeSunsetTest() {
-		val now = Time.now.toZonedDateTime()
+		val now = Time.now
 		val sunData = sunSetRise.sunDataFor(now)
 		val sunrise = requireNotNull(sunData.noon)
 		val afterSunrise = sunrise.plusHours(1)
@@ -63,7 +63,7 @@ class MorningDayEveningNightTransitionUpdateTest {
 
 	@Test
 	fun afterSunsetTest() {
-		val now = Time.now.toZonedDateTime()
+		val now = Time.now
 		val sunData = sunSetRise.sunDataFor(now)
 		val sunset = requireNotNull(sunData.set)
 		val afterSunset = sunset.plusHours(1)
@@ -75,7 +75,7 @@ class MorningDayEveningNightTransitionUpdateTest {
 
 	@Test
 	fun beforeMorningTest() {
-		val now = Time.now.toZonedDateTime()
+		val now = Time.now
 		val sunData = sunSetRise.sunDataFor(now)
 		val sunrise = requireNotNull(sunData.rise)
 		val afterSunrise = sunrise.minusHours(1)
@@ -87,7 +87,7 @@ class MorningDayEveningNightTransitionUpdateTest {
 
 	@Test
 	fun beforeMidnight() {
-		val now = Time.now.toZonedDateTime()
+		val now = Time.now
 		val sunData = sunSetRise.sunDataFor(now)
 		val sunrise = requireNotNull(sunData.nadir)
 		val beforeMidnight = sunrise.minusMinutes(15)
