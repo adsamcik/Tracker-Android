@@ -21,6 +21,7 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.CameraPosition
@@ -107,10 +108,9 @@ internal class MapSensorController(
 	fun subscribeToLocationUpdates(context: Context, moveToCurrentLocation: Boolean = false) {
 		if (!isSubscribed && context.hasLocationPermission) {
 			val locationClient = LocationServices.getFusedLocationProviderClient(context)
-			val locationRequest = LocationRequest.create().apply {
-				this.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-				this.interval = LOCATION_UPDATE_INTERVAL_MS
-			}
+			val locationRequest = LocationRequest.Builder(LOCATION_UPDATE_INTERVAL_MS)
+				.setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+				.build()
 
 			Assist.ensureLooper()
 
