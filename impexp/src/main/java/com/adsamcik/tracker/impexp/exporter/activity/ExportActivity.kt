@@ -136,7 +136,7 @@ class ExportActivity : DetailActivity() {
 		shareableDir = File(filesDir, SHARABLE_DIR_NAME)
 
 		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
-		exporter = exporterType.newInstance() as Exporter
+		exporter = exporterType.getConstructor().newInstance() as Exporter
 
 		root = inflateContent<ConstraintLayout>(R.layout.layout_data_export)
 

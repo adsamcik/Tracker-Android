@@ -4,6 +4,7 @@ package com.adsamcik.tracker.shared.base.adapter
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.base.assist.Assist
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -48,6 +49,7 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	 *
 	 * @param item     object that will be added to adapter
 	 */
+	@OptIn(DelicateCoroutinesApi::class)
 	@Synchronized
 	fun add(item: DataType) {
 		mRawCollection.add(item)
@@ -65,20 +67,22 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	 *
 	 * @param items Collection of items
 	 */
+	@OptIn(DelicateCoroutinesApi::class)
 	@Synchronized
 	fun addAll(items: Collection<DataType>) {
-		var anyPassed = false
+		var numberAdded = 0
+		val countBefore = mDisplayCollection.size
 		mRawCollection.addAll(items)
 		for (item in items) {
 			if (filter(item, filterObject)) {
 				mDisplayCollection.add(item)
-				anyPassed = true
+				numberAdded++
 			}
 		}
 
-		if (anyPassed) {
+		if (numberAdded > 0) {
 			GlobalScope.launch(Dispatchers.Main, CoroutineStart.DEFAULT) {
-				notifyDataSetChanged()
+				notifyItemRangeInserted(countBefore, numberAdded)
 			}
 		}
 	}
@@ -88,8 +92,9 @@ abstract class BaseFilterableAdapter<DataType, FilterType, ViewHolder : Recycler
 	 */
 	fun clear() {
 		mRawCollection.clear()
+		val sizeBeforeClear = mDisplayCollection.size
 		mDisplayCollection.clear()
-		notifyDataSetChanged()
+		notifyItemRangeRemoved(0, sizeBeforeClear)
 	}
 
 	override fun getItemCount(): Int {

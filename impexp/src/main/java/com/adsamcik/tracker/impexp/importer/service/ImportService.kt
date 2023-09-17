@@ -66,7 +66,7 @@ internal class ImportService : CoreService() {
 				)
 			}
 
-			stopForeground(false)
+			stopForeground(STOP_FOREGROUND_REMOVE)
 		}
 
 		return super.onStartCommand(intent, flags, startId)

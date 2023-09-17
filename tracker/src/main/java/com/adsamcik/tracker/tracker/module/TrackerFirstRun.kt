@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import com.adsamcik.tracker.shared.base.extension.telephonyManager
@@ -48,6 +49,7 @@ class TrackerFirstRun : FirstRun() {
         onDoneListener(context, false)
     }
 
+    @SuppressLint("CheckResult")
     private fun autoTrackingOptions(context: Context, onDoneListener: OnDoneListener) {
         createDialog(context) {
             title(R.string.first_run_automatic_tracking_title)

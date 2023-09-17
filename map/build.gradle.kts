@@ -25,6 +25,9 @@ android {
 
 	kotlin {
 		jvmToolchain(Android.javaVersion)
+		compilerOptions {
+			optIn.add("kotlin.ExperimentalUnsignedTypes")
+		}
 	}
 
 	buildTypes {

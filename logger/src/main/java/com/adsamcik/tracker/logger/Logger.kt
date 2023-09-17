@@ -29,7 +29,7 @@ object Logger : CoroutineScope {
     private var preferences: Preferences? = null
 
     fun initialize(context: Context) {
-        synchronized(isInitialized) {
+        synchronized(this) {
             if (isInitialized) return
             isInitialized = true
         }
