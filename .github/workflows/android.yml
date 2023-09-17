@@ -21,7 +21,7 @@ jobs:
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
           yes | cp -rf google-services.json.example app/google-services.json
       - name: Build with Gradle
-        run: ./gradlew assembleRelease_nominify1
+        run: ./gradlew assembleRelease_nominify
       - name: Upload build reports
         uses: actions/upload-artifact@v3
         with:
