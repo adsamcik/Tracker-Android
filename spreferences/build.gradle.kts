@@ -31,7 +31,8 @@ android {
 
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {
