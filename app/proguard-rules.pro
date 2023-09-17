@@ -64,3 +64,4 @@
 -dontwarn edu.umd.cs.findbugs.annotations.Nullable
 -dontwarn javax.xml.transform.stax.StAXResult
 -dontwarn javax.xml.transform.stax.StAXSource
+-dontwarn java.lang.invoke.StringConcatFactory

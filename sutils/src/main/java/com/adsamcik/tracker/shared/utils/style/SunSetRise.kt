@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.utils.style
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
@@ -11,6 +12,7 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import org.shredzone.commons.suncalc.SunTimes
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
@@ -38,8 +40,8 @@ class SunSetRise {
             val context = appContext
             requireNotNull(context)
 
-			val lastLocation = locationResult.lastLocation ?: return
-			updateLocation(context, lastLocation)
+            val lastLocation = locationResult.lastLocation ?: return
+            updateLocation(context, lastLocation)
         }
     }
 
@@ -94,12 +96,12 @@ class SunSetRise {
         return getCalculator(dateTime, location)
     }
 
+    @SuppressLint("MissingPermission")
     private fun requestLocationUpdates(context: Context) {
         val locationProvider = LocationServices.getFusedLocationProviderClient(context)
-        val request = LocationRequest.create().apply {
-            priority = LocationRequest.PRIORITY_NO_POWER
-            interval = Time.MINUTE_IN_MILLISECONDS
-        }
+        val request = LocationRequest.Builder(Time.MINUTE_IN_MILLISECONDS)
+            .setPriority(Priority.PRIORITY_PASSIVE)
+            .build()
 
         locationProvider.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
     }
