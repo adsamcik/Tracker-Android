@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -67,6 +68,7 @@ object ChallengeManager {
 		}
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	@AnyThread
 	fun initialize(context: Context, onInitialized: (() -> Unit)? = null) {
 		GlobalScope.launch(Dispatchers.Default) {
