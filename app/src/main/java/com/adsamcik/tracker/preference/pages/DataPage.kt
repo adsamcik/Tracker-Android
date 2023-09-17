@@ -14,6 +14,7 @@ import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.afollestad.materialdialogs.MaterialDialog
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -32,6 +33,7 @@ internal class DataPage : PreferencePage {
 		}
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	private fun initializeDelete(deletePreference: Preference) {
 		deletePreference.setOnPreferenceClickListener { preference ->
 			val context = preference.context
