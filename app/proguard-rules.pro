@@ -59,3 +59,8 @@
 -keep class javax.xml.stream.**  { *; }
 -keep class io.jenetics.jpx.** { *; }
 -keep class com.bea.xml.stream.** { *; }
+
+# New errors, they don't seem to cause any problems
+-dontwarn edu.umd.cs.findbugs.annotations.Nullable
+-dontwarn javax.xml.transform.stax.StAXResult
+-dontwarn javax.xml.transform.stax.StAXSource
