@@ -31,11 +31,11 @@ class TrackerFirstRun : FirstRun() {
             PermissionManager.checkPermissions(
                 PermissionRequest
                     .with(context)
-                    .permissions(listOf(
+                    .permission(
                         PermissionData(
                             Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                        ) { context -> context.getString(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_background_location) }
-                    ))
+                        ) { it.getString(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_background_location) }
+                    )
                     .onResult(callback)
                     .build()
             )
@@ -44,48 +44,52 @@ class TrackerFirstRun : FirstRun() {
 
     private fun backgroundLocation(context: Context, onDoneListener: OnDoneListener) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            requestBackgroundLocation(context) { }
+            requestBackgroundLocation(context) {
+                onDoneListener(context, false)
+            }
+        } else {
+            onDoneListener(context, false)
         }
-        onDoneListener(context, false)
+
     }
 
-    @SuppressLint("CheckResult")
     private fun autoTrackingOptions(context: Context, onDoneListener: OnDoneListener) {
+        val itemsArray = context.resources.getStringArray(R.array.auto_tracking_options_values)
+
         createDialog(context) {
-            title(R.string.first_run_automatic_tracking_title)
-            message(R.string.first_run_automatic_tracking_description)
-            listItemsSingleChoice(
-                R.array.auto_tracking_options_values,
-                waitForPositiveButton = true,
-                selection = { dialog, index, _ ->
-                    Preferences.getPref(dialog.context).edit {
-                        setInt(
-                            com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-                            index
-                        )
-                    }
-
-                    if (index > 0) {
-                        PermissionManager.checkActivityPermissions(dialog.context) {
-                            if (!it.isSuccess) {
-                                Preferences.getPref(dialog.context).edit {
-                                    setInt(
-                                        com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-                                        0
-                                    )
-                                }
-                            }
-
-                            whatToTrackOptions(dialog.context, onDoneListener)
-                        }
-                    } else {
-                        whatToTrackOptions(dialog.context, onDoneListener)
-                    }
+            setTitle(R.string.first_run_automatic_tracking_title)
+            setMessage(R.string.first_run_automatic_tracking_description)
+            setSingleChoiceItems(itemsArray, -1) { dialog, which ->
+                // Handle item selection
+                Preferences.getPref(context).edit {
+                    setInt(
+                        com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+                        which
+                    )
                 }
-            )
-            positiveButton(res = com.adsamcik.tracker.shared.base.R.string.generic_done)
+
+                if (which > 0) {
+                    PermissionManager.checkActivityPermissions(context) {
+                        if (!it.isSuccess) {
+                            Preferences.getPref(context).edit {
+                                setInt(
+                                    com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+                                    0
+                                )
+                            }
+                        }
+                        whatToTrackOptions(context, onDoneListener)
+                    }
+                } else {
+                    whatToTrackOptions(context, onDoneListener)
+                }
+            }
+            setPositiveButton(com.adsamcik.tracker.shared.base.R.string.generic_done) { dialog, _ ->
+                dialog.dismiss()
+            }
         }
     }
+
 
     private fun getTrackingListResources(): List<Triple<Int, Int, Int>> {
         return listOf(
@@ -169,47 +173,47 @@ class TrackerFirstRun : FirstRun() {
 
         val resources = context.resources
         val selection = list
-            .asSequence()
             .mapIndexed { index, triple ->
                 (resources.getString(triple.second) == "true") to index
             }
             .filter { it.first }
             .map { it.second }
-            .toList()
             .toIntArray()
 
         val titleList = list.map { resources.getString(it.third) }
+        val titleListCharSequence = titleList.toTypedArray()
+        val initialSelectionBooleanArray = BooleanArray(titleList.size) { it in selection.toList() }
 
         createDialog(context) {
-            title(R.string.settings_auto_tracking_category)
-            listItemsMultiChoice(
-                items = titleList,
-                waitForPositiveButton = true,
-                initialSelection = selection,
-                allowEmptySelection = true,
-                selection = { dialog, indices, _ ->
-                    Preferences.getPref(dialog.context).edit {
-                        list.forEachIndexed { index, triple ->
-                            setBoolean(triple.first, indices.contains(index))
-                        }
+            setTitle(R.string.settings_auto_tracking_category)
+            setMultiChoiceItems(titleListCharSequence, initialSelectionBooleanArray) { _, index, isChecked ->
+                // Handle item selected/deselected
+            }
+            setPositiveButton(R.string.generic_ok) { dialog, _ ->
+                val selectedIndices = initialSelectionBooleanArray.mapIndexed { idx, isChecked ->
+                    if (isChecked) idx else null
+                }.filterNotNull().toIntArray()
 
-                        val anyWifi = list.mapIndexedNotNull { index, triple ->
-                            if (triple.first == R.string.settings_wifi_location_count_enabled_key ||
-                                triple.first == R.string.settings_wifi_location_count_enabled_key
-                            ) {
-                                index
-                            } else {
-                                null
-                            }
-                        }.any { indices.contains(it) }
+                Preferences.getPref(context).edit {
+                    list.forEachIndexed { index, triple ->
+                        setBoolean(resources.getString(triple.first), selectedIndices.contains(index))
+                    }
 
-                        if (anyWifi) {
-                            setBoolean(R.string.settings_wifi_enabled_key, true)
+                    val anyWifi = list.mapIndexedNotNull { index, triple ->
+                        if (triple.first == R.string.settings_wifi_location_count_enabled_key ||
+                            triple.first == R.string.settings_wifi_location_count_enabled_key
+                        ) {
+                            index
+                        } else {
+                            null
                         }
+                    }.any { selectedIndices.contains(it) }
+
+                    if (anyWifi) {
+                        setBoolean(resources.getString(R.string.settings_wifi_enabled_key), true)
                     }
                 }
-            )
-            positiveButton {
+
                 trackingPermissionRequest(context) {
                     if (it.checkPermissionGranted(Manifest.permission.ACCESS_FINE_LOCATION)) {
                         backgroundLocation(context, onDoneListener)
@@ -217,6 +221,9 @@ class TrackerFirstRun : FirstRun() {
                         onDoneListener(context, false)
                     }
                 }
+            }
+            setNegativeButton(R.string.generic_cancel) { dialog, _ ->
+                // Handle Cancel button click
             }
         }
     }

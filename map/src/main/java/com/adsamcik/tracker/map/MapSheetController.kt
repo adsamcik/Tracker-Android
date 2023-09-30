@@ -406,11 +406,11 @@ internal class MapSheetController(
 						fragment.requestPermissions(
 								PermissionRequest
 										.with(it.context)
-										.permissions(listOf(
+										.permission(
 												PermissionData(
 														Manifest.permission.ACCESS_FINE_LOCATION
 												) { context -> context.getString(R.string.permission_rationale_location_map) }
-										))
+										)
 										.onResult { result ->
 											if (result.isSuccess) {
 												onPositionClick(it)

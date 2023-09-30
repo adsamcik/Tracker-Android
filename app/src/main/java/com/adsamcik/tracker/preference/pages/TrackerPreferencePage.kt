@@ -83,12 +83,8 @@ class TrackerPreferencePage : PreferencePage {
 				PermissionManager.checkPermissions(
 					PermissionRequest
 						.with(context)
-						.permissions(
-							listOf(
-								PermissionData(
-									Manifest.permission.ACCESS_BACKGROUND_LOCATION
-								) { "BlaBla" }
-							)
+						.permission(
+								PermissionData(Manifest.permission.ACCESS_BACKGROUND_LOCATION) { "BlaBla" }
 						)
 						//.onRationale { token, _ -> token.continuePermissionRequest() }
 						.onResult { updateLocationWarning() }
