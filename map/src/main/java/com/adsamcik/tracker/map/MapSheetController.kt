@@ -4,12 +4,15 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.location.Address
 import android.location.Geocoder
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Space
 import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
@@ -28,6 +31,7 @@ import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
 import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
+import com.adsamcik.tracker.map.layer.logic.SpeedHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.WifiCountHeatmapLogic
 import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
 import com.adsamcik.tracker.shared.base.Time
@@ -431,7 +435,8 @@ internal class MapSheetController(
 				CellHeatmapLogic(),
 				WifiHeatmapLogic(),
 				WifiCountHeatmapLogic(),
-				LocationPolylineLogic()
+				LocationPolylineLogic(),
+				SpeedHeatmapLogic()
 		)
 
 		rootLayout.findViewById<RecyclerView>(R.id.map_layers_recycler).apply {
@@ -496,21 +501,63 @@ internal class MapSheetController(
 			return
 		}
 
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			searchLocationAndUpdateUI(searchText, geocoder, view, activity)
+		} else {
+			searchLegacy(searchText, geocoder, view)
+		}
+	}
+
+	private fun searchLegacy(searchText: String, geocoder: Geocoder, view: View) {
 		try {
+			@Suppress("DEPRECATION")
 			val addresses = geocoder.getFromLocationName(searchText, 1)
 			val locationListener = locationListener
 			if (addresses?.isNotEmpty() == true) {
 				val address = addresses.first()
 				locationListener.stopUsingUserPosition(rootLayout.findViewById(R.id.button_map_my_location))
 				locationListener.animateToPositionZoom(
-						LatLng(address.latitude, address.longitude),
-						ANIMATE_TO_ZOOM
+					LatLng(address.latitude, address.longitude),
+					ANIMATE_TO_ZOOM
 				)
 				sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 			}
 		} catch (e: IOException) {
 			SnackMaker(view).addMessage(R.string.map_search_no_geocoder)
 		}
+	}
+
+	@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+	private fun searchLocationAndUpdateUI(searchText: String, geocoder: Geocoder, view: View, context: Context) {
+		try {
+			geocoder.getFromLocationName(searchText, 1,
+				object : Geocoder.GeocodeListener {
+					override fun onError(errorMessage: String?) {
+						if (errorMessage != null) {
+							SnackMaker(view).addMessage(errorMessage)
+						}
+					}
+
+					override fun onGeocode(addresses: MutableList<Address>) {
+						if (addresses.isNotEmpty()) {
+							val address = addresses[0]
+							val latLng = LatLng(address.latitude, address.longitude)
+							updateUIWithLocation(latLng)
+						}
+					}
+				})
+		} catch (e: IllegalArgumentException) {
+			SnackMaker(view).addMessage(R.string.map_search_no_geocoder)
+		}
+	}
+
+	private fun updateUIWithLocation(latLng: LatLng) {
+		// Make sure locationListener and sheetBehavior are properly initialized
+		val locationListener = locationListener
+		val sheetBehavior = sheetBehavior
+		locationListener.stopUsingUserPosition(rootLayout.findViewById(R.id.button_map_my_location))
+		locationListener.animateToPositionZoom(latLng, ANIMATE_TO_ZOOM)
+		sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 	}
 
 	private fun onEnable() {

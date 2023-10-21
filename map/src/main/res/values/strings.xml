@@ -25,6 +25,11 @@
     <string name="map_layer_location_heatmap_low">Low density</string>
     <string name="map_layer_location_heatmap_medium">Medium density</string>
     <string name="map_layer_location_heatmap_title">Location heatmap</string>
+    <string name="map_layer_speed_heatmap_description">Heatmap representing the speed of movement across different areas.</string>
+    <string name="map_layer_speed_heatmap_high">High speed</string>
+    <string name="map_layer_speed_heatmap_low">Still</string>
+    <string name="map_layer_speed_heatmap_medium">Walking speed</string>
+    <string name="map_layer_speed_heatmap_title">Speed heatmap</string>
     <string name="map_layer_location_polyline">Location polyline</string>
     <string name="map_layer_no_data">Current layer has no available data</string>
     <string name="map_layer_none">No overlay</string>

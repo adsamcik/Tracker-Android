@@ -129,6 +129,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 							Manifest.permission.POST_NOTIFICATIONS
 						) { "" }
 					)
+					.onResult {  }
 					.build()
 			)
 		}

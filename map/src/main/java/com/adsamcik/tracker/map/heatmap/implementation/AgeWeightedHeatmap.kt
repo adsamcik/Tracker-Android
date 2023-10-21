@@ -91,6 +91,7 @@ internal class AgeWeightedHeatmap(
 		//todo validate that odd numbers don't cause some weird artifacts
 		val halfStampHeight = stamp.height / 2
 		val halfStampWidth = stamp.width / 2
+		val ageThresholdFloat = ageThreshold.toFloat()
 
 		// Assert point will have anything to draw
 		// There are points that do not get drawn but it seems to be a little more complicated than some mistake.
@@ -109,8 +110,6 @@ internal class AgeWeightedHeatmap(
 		val y0 = if (y < halfStampHeight) stamp.height / 2 - y else 0
 		val x1 = if (x + halfStampWidth < width) stamp.width else halfStampWidth + width - x
 		val y1 = if (y + halfStampHeight < height) stamp.height else halfStampHeight + height - y
-
-		val ageThresholdFloat = ageThreshold.toFloat()
 
 		for (itY in y0 until y1) {
 			var heatIndex = (y + itY - halfStampHeight) * width + (x + x0) - halfStampWidth
