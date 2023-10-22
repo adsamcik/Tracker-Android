@@ -41,7 +41,7 @@ object Dependencies {
         internal const val playServicesBase = "18.2.0"
         internal const val playLocation = "21.0.1"
         internal const val playCore = "1.10.3"
-        internal const val maps = "18.1.0"
+        internal const val maps = "18.2.0"
 
         internal const val stax = "1.0.1"
         internal const val jpx = "3.0.1"

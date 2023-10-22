@@ -23,7 +23,18 @@ internal class SpeedHeatmapLogic : HeatmapLayerLogic() {
 			R.string.map_layer_speed_heatmap_title
 	)
 
-	override fun colorList(): List<Int> = listOf(Color.BLUE, Color.YELLOW, Color.RED)
+	// todo change layer data so that it does the value mapping
+	override fun colorList(): List<Int> {
+		return listOf(
+			Color.rgb(153, 102, 255), // Very Slow: Purple
+			Color.rgb(102, 204, 255), // Walking: Light Blue
+			Color.rgb(102, 255, 102), // Running: Light Green
+			Color.rgb(255, 255, 102), // Bike: Yellow
+			Color.rgb(255, 128, 0),   // Public Transport: Orange
+			Color.rgb(255, 51, 51),   // Car: Red
+			Color.rgb(255, 0, 0)      // Very High Speed: Dark Red
+		)
+	}
 
 	override fun layerData(): MapLayerData {
 		val colorList = colorList()

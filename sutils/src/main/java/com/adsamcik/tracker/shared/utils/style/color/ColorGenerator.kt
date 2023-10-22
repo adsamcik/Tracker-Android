@@ -2,7 +2,6 @@ package com.adsamcik.tracker.shared.utils.style.color
 
 import android.graphics.Color
 import androidx.annotation.FloatRange
-import androidx.palette.graphics.Palette
 import com.adsamcik.tracker.shared.utils.style.color.palette.PaletteGenerator
 import kotlin.math.PI
 import kotlin.math.abs

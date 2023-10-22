@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.math.ceil
+import kotlin.math.ln1p
 import kotlin.math.max
 import kotlin.math.pow
 
@@ -17,22 +18,27 @@ import kotlin.math.pow
 internal class SpeedHeatmapTileCreator(context: Context, val layerData: MapLayerData) :
     HeatmapTileCreator {
     override fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig {
-        val colorList = layerData.colorList
-        val colorListSize = colorList.size.toDouble()
+        val speedRanges = SpeedCategory.values().map { it.range }
         val heatmapColors = layerData.colorList.mapIndexed { index, color ->
-            index / colorListSize to color
+            val speedRange = speedRanges[index]
+            val normalizedSpeed =
+                (speedRange.start + speedRange.endInclusive) / 2 / dataUser.maxHeat
+            normalizedSpeed to color
         }
         return HeatmapConfig(
             HeatmapColorScheme.fromArray(heatmapColors, 100),
             dataUser.maxHeat,
             false,
             dataUser.ageThreshold,
-            { original, _, _, weight ->
-                max(weight, original)
-            }) { original, stampValue, _ ->
-            val newAlpha = (stampValue * UByte.MAX_VALUE.toFloat()).toInt()
-            max(original, newAlpha)
-        }
+            weightMergeFunction = { original, _, _, new ->
+                // Using a logarithmic function to balance the influence of high and low weights
+                (original + ln1p(new.toDouble()).toFloat()).coerceAtMost(dataUser.maxHeat)
+            },
+            alphaMergeFunction = { original, newAlpha, weight ->
+                // Adjusting alpha based on weight, giving more prominence to higher weights
+                val adjustedAlpha = (newAlpha * weight / dataUser.maxHeat).toInt()
+                max(original, adjustedAlpha).coerceIn(0, 255)
+            })
     }
 
     override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
@@ -56,6 +62,17 @@ internal class SpeedHeatmapTileCreator(context: Context, val layerData: MapLayer
     override val getAllInsideAndBetween = dao::getAllInsideAndBetweenSpeed
 
     override val getAllInside = dao::getAllInside
+
+
+    private enum class SpeedCategory(val range: ClosedFloatingPointRange<Double>) {
+        VERY_SLOW(0.0..0.5),
+        WALKING(0.5..1.5),
+        RUNNING(1.5..3.0),
+        BIKE(3.0..7.0),
+        PUBLIC_TRANSPORT(7.0..15.0),
+        CAR(15.0..30.0),
+        VERY_HIGH_SPEED(30.0..Double.MAX_VALUE)
+    }
 
     companion object {
         private const val BASE_HEAT_SIZE_IN_METERS = 40f

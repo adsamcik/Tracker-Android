@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Space
 import android.widget.TextView
+import androidx.annotation.AnyThread
 import androidx.annotation.RequiresApi
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.AppCompatImageButton
@@ -502,7 +503,7 @@ internal class MapSheetController(
 		}
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-			searchLocationAndUpdateUI(searchText, geocoder, view, activity)
+			searchLocationAndUpdateUI(searchText, geocoder, view)
 		} else {
 			searchLegacy(searchText, geocoder, view)
 		}
@@ -528,7 +529,7 @@ internal class MapSheetController(
 	}
 
 	@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-	private fun searchLocationAndUpdateUI(searchText: String, geocoder: Geocoder, view: View, context: Context) {
+	private fun searchLocationAndUpdateUI(searchText: String, geocoder: Geocoder, view: View) {
 		try {
 			geocoder.getFromLocationName(searchText, 1,
 				object : Geocoder.GeocodeListener {
@@ -551,13 +552,17 @@ internal class MapSheetController(
 		}
 	}
 
+	@AnyThread
 	private fun updateUIWithLocation(latLng: LatLng) {
 		// Make sure locationListener and sheetBehavior are properly initialized
 		val locationListener = locationListener
 		val sheetBehavior = sheetBehavior
-		locationListener.stopUsingUserPosition(rootLayout.findViewById(R.id.button_map_my_location))
-		locationListener.animateToPositionZoom(latLng, ANIMATE_TO_ZOOM)
-		sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+
+		launch(Dispatchers.Main) {
+			locationListener.stopUsingUserPosition(rootLayout.findViewById(R.id.button_map_my_location))
+			locationListener.animateToPositionZoom(latLng, ANIMATE_TO_ZOOM)
+			sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+		}
 	}
 
 	private fun onEnable() {
