@@ -5,9 +5,7 @@ import android.net.Uri
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import com.adsamcik.tracker.impexp.importer.service.ImportService
 import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
-import com.adsamcik.tracker.shared.base.extension.startForegroundService
 
 /**
  * Exposes import start to other packages.

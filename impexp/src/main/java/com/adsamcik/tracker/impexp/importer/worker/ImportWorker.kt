@@ -16,7 +16,6 @@ import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.FileImport
-import com.adsamcik.tracker.impexp.importer.service.ImportService
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.openInputStream
@@ -74,7 +73,7 @@ class ImportWorker(
         //notification should under no circumstances crash import
         tryWithReport {
             val notification = createNotification(text, inProgress)
-            notificationManager.notify(ImportService.NOTIFICATION_ID, notification)
+            notificationManager.notify(NOTIFICATION_ID, notification)
         }
     }
 
@@ -82,7 +81,7 @@ class ImportWorker(
     private fun showErrorNotification(text: String) {
         tryWithReport {
             val notification = createNotification(text, false)
-            notificationManager.notify(ImportService.NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
+            notificationManager.notify(NOTIFICATION_ERROR_BASE_ID + errorCount++, notification)
         }
     }
 

@@ -34,7 +34,6 @@ internal class CellHeatmapLogic : HeatmapLayerLogic() {
 			MapLegendValue(CellType.values()[index].nameRes, color)
 		}
 
-		@Suppress("unchecked_cast")
 		return MapLayerData(
 				layerInfo,
 				colorList = colorList,
@@ -46,7 +45,7 @@ internal class CellHeatmapLogic : HeatmapLayerLogic() {
 	}
 
 	companion object {
-		const val COLOR_START_HUE = 0.129
+		const val COLOR_START_HUE = 0.230
 	}
 }
 
