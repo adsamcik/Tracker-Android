@@ -30,14 +30,16 @@ internal class SpeedHeatmapTileCreator(context: Context, val layerData: MapLayer
             dataUser.maxHeat,
             false,
             dataUser.ageThreshold,
-            weightMergeFunction = { original, _, _, new ->
-                // Using a logarithmic function to balance the influence of high and low weights
-                (original + ln1p(new.toDouble()).toFloat()).coerceAtMost(dataUser.maxHeat)
+            weightMergeFunction = { original, currentAlpha, _, new ->
+                // Converting alpha from Int to Float and normalizing to [0, 1]
+                val alpha = currentAlpha / 255f
+                // Applying the EMA formula
+                (new * (1 - alpha)) + (original * alpha)
             },
             alphaMergeFunction = { original, newAlpha, weight ->
-                // Adjusting alpha based on weight, giving more prominence to higher weights
-                val adjustedAlpha = (newAlpha * weight / dataUser.maxHeat).toInt()
-                max(original, adjustedAlpha).coerceIn(0, 255)
+                // Setting alpha proportional to the speed at this location
+                val normalizedWeight = weight / dataUser.maxHeat
+                (newAlpha * normalizedWeight).toInt().coerceIn(0, 255)
             })
     }
 
