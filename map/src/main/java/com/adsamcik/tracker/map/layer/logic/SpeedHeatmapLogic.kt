@@ -39,9 +39,13 @@ internal class SpeedHeatmapLogic : HeatmapLayerLogic() {
 	override fun layerData(): MapLayerData {
 		val colorList = colorList()
 		val nameResList = listOf(
-				R.string.map_layer_speed_heatmap_low,
-				R.string.map_layer_speed_heatmap_medium,
-				R.string.map_layer_speed_heatmap_high
+			R.string.map_layer_speed_very_slow,
+			R.string.map_layer_speed_walking,
+			R.string.map_layer_speed_running,
+			R.string.map_layer_speed_moderate,
+			R.string.map_layer_speed_fast,
+			R.string.map_layer_speed_very_fast,
+			R.string.map_layer_speed_extreme
 		)
 
 		val legendList = nameResList.zip(colorList) { a, b -> MapLegendValue(a, b) }
