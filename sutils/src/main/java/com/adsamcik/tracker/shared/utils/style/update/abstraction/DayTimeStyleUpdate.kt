@@ -56,7 +56,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 	private fun updateUpdate() {
 		updateLock.withLock {
 			if (colorList.size > 1) {
-				synchronized(timerActive) {
+				synchronized(this) {
 					stopUpdate()
 					startUpdate()
 				}

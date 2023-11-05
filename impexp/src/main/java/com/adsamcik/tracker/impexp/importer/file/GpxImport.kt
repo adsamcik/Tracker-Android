@@ -29,7 +29,7 @@ internal class GpxImport : FileImport {
 			database: AppDatabase,
 			stream: FileImportStream
 	) {
-		val gpx = GPX.read(stream)
+		val gpx = GPX.Reader.DEFAULT.read(stream)
 		gpx.tracks().forEach { track ->
 			val type: String? = if (track.type.isPresent) track.type.get() else null
 			val activity = if (type != null) {
@@ -67,8 +67,8 @@ internal class GpxImport : FileImport {
 		val end: Long
 
 		try {
-			start = segment.points.first { it.time.isPresent }.time.get().toEpochMillisecond()
-			end = segment.points.last { it.time.isPresent }.time.get().toEpochMillisecond()
+			start = segment.points.first { it.time.isPresent }.time.get().toEpochMilli()
+			end = segment.points.last { it.time.isPresent }.time.get().toEpochMilli()
 		} catch (e: NoSuchElementException) {
 			return null
 		}
@@ -120,7 +120,7 @@ internal class GpxImport : FileImport {
 	private fun saveWaypointToDb(locationDao: LocationDataDao, waypoint: WayPoint): Location? {
 		if (!waypoint.time.isPresent) return null
 
-		val time = waypoint.time.get().toEpochMillisecond()
+		val time = waypoint.time.get().toEpochMilli()
 		val latitude = waypoint.latitude.toDegrees()
 		val longitude = waypoint.longitude.toDegrees()
 		val altitude = waypoint.elevation.orElse(null)?.toDouble()

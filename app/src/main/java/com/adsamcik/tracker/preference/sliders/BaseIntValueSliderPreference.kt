@@ -84,7 +84,7 @@ open class BaseIntValueSliderPreference : Preference {
 
 		slider.addExtension(
 				IntSliderSharedPreferencesExtension(
-						sharedPreferences,
+						sharedPreferences!!,
 						key,
 						initialValue
 				)

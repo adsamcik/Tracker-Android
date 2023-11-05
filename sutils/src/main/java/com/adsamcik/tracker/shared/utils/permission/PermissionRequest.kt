@@ -32,6 +32,14 @@ class PermissionRequest private constructor(
         /**
          * Sets required permissions
          */
+        fun permission(permission: PermissionData): Builder {
+            this.permissions.add(permission)
+            return this
+        }
+
+        /**
+         * Sets required permissions
+         */
         fun permissions(permissions: Collection<PermissionData>): Builder {
             this.permissions.addAll(permissions)
             return this

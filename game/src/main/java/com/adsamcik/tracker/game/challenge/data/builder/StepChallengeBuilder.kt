@@ -42,7 +42,7 @@ class StepChallengeBuilder(private val definition: StepChallengeDefinition) : Ch
 	}
 
 	override fun persistExtra(database: ChallengeDatabase, challenge: StepChallengeInstance) {
-		database.stepDao.insert(challenge.extra)
+		database.stepDao().insert(challenge.extra)
 	}
 }
 

@@ -11,39 +11,41 @@ object Dependencies {
      * Dependencies that are not project are required to be internal.
      */
     object Versions {
-        internal const val constraintLayout = "2.1.0"
-        internal const val coreKtx = "1.6.0"
-        internal const val appcompat = "1.3.1"
-        internal const val fragment = "1.3.6"
+        const val kotlin: String = "1.9.20"
         const val dokka: String = "0.9.18"
-        internal const val moshi = "1.12.0"
-        internal const val work = "2.7.0-beta01"
-        internal const val lifecycle = "2.3.1"
-        internal const val preference = "1.1.1"
-        internal const val material = "1.4.0"
-        internal const val desugar = "1.1.5"
+        const val ksp = "${kotlin}-1.0.13"
 
-        const val kotlin: String = "1.5.30"
-        internal const val coroutines = "1.5.2"
+        internal const val constraintLayout = "2.1.4"
+        internal const val coreKtx = "1.12.0"
+        internal const val appcompat = "1.6.1"
+        internal const val fragment = "1.6.2"
+        internal const val moshi = "1.15.0"
+        internal const val work = "2.8.1"
+        internal const val lifecycle = "2.6.2"
+        internal const val preference = "1.2.1"
+        internal const val material = "1.9.0"
+        internal const val desugar = "2.0.4"
 
-        internal const val sqlite = "3.34.1"
-        internal const val room = "2.3.0"
+        internal const val coroutines = "1.7.3"
 
-        internal const val recyclerView = "1.2.1"
-        internal const val paging = "3.0.1"
+        internal const val sqlite = "3.43.0"
+        internal const val room = "2.6.0"
 
-        internal const val firebaseBom = "28.4.0"
-        internal const val crashlytics = "18.2.1"
-        const val crashlyticsGradle: String = "2.7.1"
+        internal const val recyclerView = "1.3.2"
+        internal const val paging = "3.2.1"
 
-        internal const val playServicesBase = "17.6.0"
-        internal const val playLocation = "18.0.0"
-        internal const val playCore = "1.10.1"
-        internal const val maps = "17.0.1"
+        internal const val firebaseBom = "32.5.0"
+        internal const val crashlytics = "18.5.1"
+        const val crashlyticsGradle: String = "2.9.9"
+
+        internal const val playServicesBase = "18.2.0"
+        internal const val playLocation = "21.0.1"
+        internal const val playCore = "1.10.3"
+        internal const val maps = "18.2.0"
 
         internal const val stax = "1.0.1"
-        internal const val jpx = "2.2.0"
-        internal const val xml = "1.3.0"
+        internal const val jpx = "3.0.1"
+        internal const val xml = "1.3.2"
 
         internal const val spotlight = "2.2.3"
         internal const val dialogs = "3.3.0"
@@ -54,22 +56,22 @@ object Dependencies {
 
         internal const val dexter = "6.2.3"
 
-        internal const val suncalc = "3.5"
+        internal const val suncalc = "3.7"
 
         /**
          * Testing specific dependencies
          */
         internal object Test {
             internal const val androidxTest: String = "1.4.0"
-            internal const val espresso: String = "3.4.0"
-            internal const val coreTesting: String = "2.1.0"
-            internal const val testingKtx: String = "1.2.0"
+            internal const val espresso: String = "3.5.1"
+            internal const val coreTesting: String = "2.2.0"
+            internal const val testingKtx: String = "1.3.0"
         }
     }
 
     private fun DependencyHandler.api(name: String) = add("api", name)
     private fun DependencyHandler.implementation(name: Any) = add("implementation", name)
-    private fun DependencyHandler.kapt(name: String) = add("kapt", name)
+    private fun DependencyHandler.ksp(name: String) = add("ksp", name)
     private fun DependencyHandler.androidTestImplementation(name: String) =
         add("androidTestImplementation", name)
 
@@ -80,7 +82,7 @@ object Dependencies {
     fun json(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             implementation("com.squareup.moshi:moshi:${Versions.moshi}")
-            kapt("com.squareup.moshi:moshi-kotlin-codegen:${Versions.moshi}")
+            ksp("com.squareup.moshi:moshi-kotlin-codegen:${Versions.moshi}")
         }
     }
 
@@ -88,18 +90,18 @@ object Dependencies {
         with(dependencyHandler) {
             val roomBaseString = "androidx.room:room"
             api("$roomBaseString-runtime:${Versions.room}")
-            kapt("$roomBaseString-compiler:${Versions.room}")
+            ksp("$roomBaseString-compiler:${Versions.room}")
             implementation("$roomBaseString-ktx:${Versions.room}")
-            implementation("io.requery:sqlite-android:${Versions.sqlite}")
+            implementation("$roomBaseString-paging:${Versions.room}")
+            implementation("com.github.requery:sqlite-android:${Versions.sqlite}")
             androidTestImplementation("androidx.room:room-testing:${Versions.room}")
         }
     }
 
     fun core(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
-            // Fix for compile error caused by missing annotation in JDK9+
-            compileOnly("com.github.pengrad:jdk9-deps:1.0")
             coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
+            implementation("com.google.devtools.ksp:symbol-processing-api:${Versions.ksp}")
 
             implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
             implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
@@ -121,13 +123,13 @@ object Dependencies {
             implementation("com.google.android.play:core:${Versions.playCore}")
 
             implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
-            // implementation("com.codezjx.library:andlinker:0.7.2")
 
             implementation("com.karumi:dexter:${Versions.dexter}")
 
             work(this)
 
-            kapt("androidx.lifecycle:lifecycle-compiler:${Versions.lifecycle}")
+            implementation("androidx.lifecycle:lifecycle-common-java8:${Versions.lifecycle}")
+
         }
     }
 
@@ -135,7 +137,7 @@ object Dependencies {
         with(scope) {
             kotlin("android")
             id("org.jetbrains.kotlin.plugin.parcelize")
-            kotlin("kapt")
+            id("com.google.devtools.ksp")
         }
     }
 

@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.OnMapsSdkInitializedCallback
 import com.google.android.gms.maps.SupportMapFragment
 
 /**
@@ -71,7 +72,6 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val context = requireContext()
-		MapsInitializer.initialize(context)
 
 		mapOwner.addOnCreateListener(this::onMapReady)
 		mapOwner.addOnEnableListener {
@@ -80,6 +80,8 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		mapOwner.addOnDisableListener {
 			locationListener?.onDisable(requireContext())
 		}
+
+		MapsInitializer.initialize(context)
 	}
 
 	override fun onCreateView(
@@ -159,4 +161,5 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	companion object {
 		private const val PERMISSION_LOCATION_CODE = 200
 	}
+
 }

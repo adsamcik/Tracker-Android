@@ -47,7 +47,7 @@ internal class WalkDistanceChallengeBuilder(private val definition: WalkDistance
 			database: ChallengeDatabase,
 			challenge: WalkDistanceChallengeInstance
 	) {
-		database.walkDistanceDao.insert(challenge.extra)
+		database.walkDistanceDao().insert(challenge.extra)
 	}
 }
 

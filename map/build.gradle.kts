@@ -23,10 +23,10 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes")
+	kotlin {
+		jvmToolchain(Android.javaVersion)
+		compilerOptions {
+			optIn.add("kotlin.ExperimentalUnsignedTypes")
 		}
 	}
 
@@ -35,9 +35,10 @@ android {
 	}
 
 	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+		checkReleaseBuilds = true
+		abortOnError = false
 	}
+    namespace = "com.adsamcik.tracker.map"
 }
 
 dependencies {

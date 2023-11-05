@@ -20,6 +20,7 @@ import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.HomeIntroduction
+import com.adsamcik.tracker.module.AppFirstRun
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.shared.base.Time
@@ -100,7 +101,7 @@ class MainActivity : CoreUIActivity() {
 
 	private fun firstRun() {
 		FirstRunDialogBuilder().let { builder ->
-			//builder.addData(AppFirstRun())
+			builder.addData(AppFirstRun())
 			builder.addData(TrackerFirstRun())
 			ModuleClassLoader.invokeInEachActiveModule<FirstRun>(this@MainActivity) {
 				builder.addData(it)
@@ -113,11 +114,6 @@ class MainActivity : CoreUIActivity() {
 			}
 			builder.show(this@MainActivity)
 		}
-	}
-
-	override fun onResume() {
-		super.onResume()
-		//initializeButtonsPosition()
 	}
 
 	override fun onNewIntent(intent: Intent) {
@@ -396,6 +392,7 @@ class MainActivity : CoreUIActivity() {
 		}
 	}
 
+	@Deprecated("Deprecated in Java")
 	override fun onBackPressed() {
 		when {
 			buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(

@@ -30,7 +30,7 @@ object ModuleClassLoader {
 						}
 					}${T::class.java.simpleName}"
 				)
-				func(classDefinition.newInstance())
+				func(classDefinition.getConstructor().newInstance())
 			} catch (e: ClassNotFoundException) {
 				//it's fine, do nothing
 			} catch (e: InstantiationException) {
@@ -79,7 +79,7 @@ object ModuleClassLoader {
 	 * @return Returns instance of the desired class
 	 */
 	fun <T> newInstance(moduleName: String, className: String): T {
-		return loadClass<T>(moduleName, className).newInstance()
+		return loadClass<T>(moduleName, className).getConstructor().newInstance()
 	}
 
 	/**

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.heatmap
 
 import androidx.core.graphics.ColorUtils
+import kotlin.math.min
 
 internal data class HeatmapColorScheme constructor(val colors: IntArray) {
 	override fun equals(other: Any?): Boolean {
@@ -1089,7 +1090,7 @@ internal data class HeatmapColorScheme constructor(val colors: IntArray) {
 
 			val stepProgress = 1.0 / totalSteps.toDouble()
 			val startAt = (current.first / stepProgress).toInt()
-			val endAt = (argbArray.last().first / stepProgress).toInt()
+			val endAt = min((argbArray.last().first / stepProgress).toInt(), totalSteps - 1)
 
 			repeat(startAt) { resultColorArray[it] = current.second }
 

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map
 
 import androidx.annotation.AnyThread
+import androidx.annotation.MainThread
 import androidx.fragment.app.FragmentManager
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.google.android.gms.maps.GoogleMap
@@ -87,6 +88,7 @@ class MapOwner : OnMapReadyCallback {
 	 * Calling repeatedly only creates map once.
 	 */
 	@Synchronized
+	@MainThread
 	fun createMap(fragmentManager: FragmentManager) {
 		if (fragment != null) return
 

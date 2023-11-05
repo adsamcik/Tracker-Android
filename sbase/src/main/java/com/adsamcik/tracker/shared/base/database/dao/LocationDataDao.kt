@@ -95,6 +95,52 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	): List<TimeLocation2DWeighted>
 
 	/**
+	 * Get all location data with speed with area constraints.
+	 */
+	@Query(
+		"""
+		SELECT time, lon, lat, speed as weight
+		FROM location_data
+		where
+			lat >= :bottomLatitude and
+			lon >= :leftLongitude and
+			lat <= :topLatitude and
+			lon <= :rightLongitude
+		"""
+	)
+	fun getAllInsideSpeed(
+		topLatitude: Double,
+		rightLongitude: Double,
+		bottomLatitude: Double,
+		leftLongitude: Double
+	): List<TimeLocation2DWeighted>
+
+	/**
+	 * Get all location data with speed with area and time constraints.
+	 */
+	@Query(
+		"""
+		SELECT time, lon, lat, speed as weight
+		FROM location_data
+		where
+			time >= :from and
+			time <= :to and
+			lat >= :bottomLatitude and
+			lon >= :leftLongitude and
+			lat <= :topLatitude and
+			lon <= :rightLongitude
+		"""
+	)
+	fun getAllInsideAndBetweenSpeed(
+		from: Long,
+		to: Long,
+		topLatitude: Double,
+		rightLongitude: Double,
+		bottomLatitude: Double,
+		leftLongitude: Double
+	): List<TimeLocation2DWeighted>
+
+	/**
 	 * Count all location records in database.
 	 */
 	@Query("SELECT COUNT(*) FROM location_data")

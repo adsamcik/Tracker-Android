@@ -4,8 +4,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 val MIGRATION_2_3: Migration = object : Migration(2, 3) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("CREATE TABLE tmp_location_data (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL, `hor_acc` REAL, `ver_acc` REAL, `activity` INTEGER NOT NULL, `confidence` INTEGER NOT NULL)")
 			execSQL("INSERT INTO tmp_location_data SELECT id, time, lat, lon, alt, hor_acc, null as ver_acc, activity, confidence FROM location_data")
 			execSQL("DROP TABLE location_data")
@@ -23,8 +23,8 @@ val MIGRATION_2_3: Migration = object : Migration(2, 3) {
 }
 
 val MIGRATION_3_4: Migration = object : Migration(3, 4) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("DROP TABLE map_max_heat")
 			execSQL("CREATE TABLE map_max_heat (`layer_name` TEXT NOT NULL, `zoom` INTEGER NOT NULL, `max_heat` REAL NOT NULL, PRIMARY KEY(`layer_name`, `zoom`))")
 
@@ -35,8 +35,8 @@ val MIGRATION_3_4: Migration = object : Migration(3, 4) {
 }
 
 val MIGRATION_4_5: Migration = object : Migration(4, 5) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("DROP TABLE wifi_data")
 			execSQL("CREATE TABLE wifi_data (`bssid` TEXT NOT NULL, `longitude` REAL NOT NULL, `latitude` REAL NOT NULL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, PRIMARY KEY(`bssid`))")
 
@@ -50,8 +50,8 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
 }
 
 val MIGRATION_5_6: Migration = object : Migration(5, 6) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("CREATE TABLE IF NOT EXISTS location_data_tmp (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL, `hor_acc` REAL, `ver_acc` REAL, `speed` REAL, `s_acc` REAL, `activity` INTEGER NOT NULL, `confidence` INTEGER NOT NULL)")
 
 			execSQL("INSERT INTO location_data_tmp SELECT id, time, lat, lon, alt, hor_acc, ver_acc, null, null, activity, confidence from location_data")
@@ -70,8 +70,8 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
 }
 
 val MIGRATION_6_7: Migration = object : Migration(6, 7) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("CREATE TABLE IF NOT EXISTS tracker_session_tmp (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start` INTEGER NOT NULL, `end` INTEGER NOT NULL, `user_initiated` INTEGER NOT NULL, `collections` INTEGER NOT NULL, `distance` REAL NOT NULL, `distance_on_foot` REAL NOT NULL, `distance_in_vehicle` REAL NOT NULL, `steps` INTEGER NOT NULL, `session_activity_id` INTEGER)")
 			execSQL("CREATE TABLE IF NOT EXISTS activity (`id` INTEGER NOT NULL, `name` TEXT NOT NULL, `iconName` TEXT, PRIMARY KEY(`id`))")
 			execSQL("CREATE  INDEX `index_activity_name` ON activity (`name`)")
@@ -84,8 +84,8 @@ val MIGRATION_6_7: Migration = object : Migration(6, 7) {
 }
 
 val MIGRATION_7_8: Migration = object : Migration(7, 8) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("DROP TABLE IF EXISTS activity")
 			execSQL("CREATE TABLE IF NOT EXISTS activity (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `iconName` TEXT)")
 			execSQL("CREATE  INDEX `index_activity_name` ON activity (`name`)")
@@ -101,8 +101,8 @@ val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 }
 
 val MIGRATION_8_9: Migration = object : Migration(8, 9) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("CREATE TABLE IF NOT EXISTS wifi_data_tmp (`bssid` TEXT NOT NULL, `longitude` REAL, `latitude` REAL, `altitude` REAL, `first_seen` INTEGER NOT NULL, `last_seen` INTEGER NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, PRIMARY KEY(`bssid`))")
 			execSQL("INSERT INTO wifi_data_tmp SELECT * FROM wifi_data")
 			execSQL("DROP TABLE wifi_data")
@@ -124,8 +124,8 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
 }
 
 val MIGRATION_9_10: Migration = object : Migration(9, 10) {
-	override fun migrate(database: SupportSQLiteDatabase) {
-		with(database) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
 			execSQL("CREATE TABLE IF NOT EXISTS location_wifi_count (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `count` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL)")
 			execSQL("CREATE  INDEX `index_location_wifi_count_lon` ON location_wifi_count (`lon`)")
 			execSQL("CREATE  INDEX `index_location_wifi_count_lat` ON location_wifi_count (`lat`)")

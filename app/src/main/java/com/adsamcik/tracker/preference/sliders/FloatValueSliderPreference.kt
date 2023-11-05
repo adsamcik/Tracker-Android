@@ -111,7 +111,7 @@ class FloatValueSliderPreference : Preference {
 
 		slider.addExtension(
 				FloatSliderSharedPreferencesExtension(
-						sharedPreferences,
+						sharedPreferences!!,
 						key,
 						mInitialValue
 				)

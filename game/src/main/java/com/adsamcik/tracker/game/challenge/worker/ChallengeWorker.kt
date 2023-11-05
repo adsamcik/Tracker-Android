@@ -21,10 +21,10 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 ) {
 
 	private fun getSession(database: ChallengeDatabase, id: Long): ChallengeSessionData {
-		val databaseSession = database.sessionDao.get(id)
+		val databaseSession = database.sessionDao().get(id)
 		return if (databaseSession == null) {
 			val newSession = ChallengeSessionData(id, false)
-			database.sessionDao.insert(newSession)
+			database.sessionDao().insert(newSession)
 			newSession
 		} else {
 			databaseSession
@@ -68,7 +68,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		}
 
 		challengeSession.isChallengeProcessed = true
-		database.sessionDao.update(challengeSession)
+		database.sessionDao().update(challengeSession)
 
 		logGame(
 				LogData(

@@ -113,7 +113,7 @@ class FloatSliderPreference : Preference {
 
 		slider.addExtension(
 				FloatSliderSharedPreferencesExtension(
-						sharedPreferences,
+						sharedPreferences!!,
 						key,
 						initialValue
 				)

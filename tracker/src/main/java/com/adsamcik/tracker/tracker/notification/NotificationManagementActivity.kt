@@ -78,7 +78,7 @@ class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
 	}
 
 	override fun onCreateRecycler(recyclerView: RecyclerView) {
-		dao = PreferenceDatabase.database(this).notificationDao
+		dao = PreferenceDatabase.database(this).getNotificationDao()
 
 		launch(Dispatchers.Default) {
 			TrackerNotificationProvider.updatePreferences(this@NotificationManagementActivity)

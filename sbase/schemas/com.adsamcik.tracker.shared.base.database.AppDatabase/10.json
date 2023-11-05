@@ -76,10 +76,10 @@
           }
         ],
         "primaryKey": {
+          "autoGenerate": true,
           "columnNames": [
             "id"
-          ],
-          "autoGenerate": true
+          ]
         },
         "indices": [
           {
@@ -88,7 +88,8 @@
             "columnNames": [
               "lat"
             ],
-            "createSql": "CREATE  INDEX `index_location_data_lat` ON `${TABLE_NAME}` (`lat`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_data_lat` ON `${TABLE_NAME}` (`lat`)"
           },
           {
             "name": "index_location_data_lon",
@@ -96,7 +97,8 @@
             "columnNames": [
               "lon"
             ],
-            "createSql": "CREATE  INDEX `index_location_data_lon` ON `${TABLE_NAME}` (`lon`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_data_lon` ON `${TABLE_NAME}` (`lon`)"
           },
           {
             "name": "index_location_data_time",
@@ -104,7 +106,8 @@
             "columnNames": [
               "time"
             ],
-            "createSql": "CREATE  INDEX `index_location_data_time` ON `${TABLE_NAME}` (`time`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_data_time` ON `${TABLE_NAME}` (`time`)"
           }
         ],
         "foreignKeys": []
@@ -175,10 +178,10 @@
           }
         ],
         "primaryKey": {
+          "autoGenerate": true,
           "columnNames": [
             "id"
-          ],
-          "autoGenerate": true
+          ]
         },
         "indices": [
           {
@@ -187,7 +190,8 @@
             "columnNames": [
               "session_activity_id"
             ],
-            "createSql": "CREATE  INDEX `index_tracker_session_session_activity_id` ON `${TABLE_NAME}` (`session_activity_id`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracker_session_session_activity_id` ON `${TABLE_NAME}` (`session_activity_id`)"
           }
         ],
         "foreignKeys": [
@@ -270,10 +274,10 @@
           }
         ],
         "primaryKey": {
+          "autoGenerate": false,
           "columnNames": [
             "bssid"
-          ],
-          "autoGenerate": false
+          ]
         },
         "indices": [
           {
@@ -282,7 +286,8 @@
             "columnNames": [
               "longitude"
             ],
-            "createSql": "CREATE  INDEX `index_wifi_data_longitude` ON `${TABLE_NAME}` (`longitude`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wifi_data_longitude` ON `${TABLE_NAME}` (`longitude`)"
           },
           {
             "name": "index_wifi_data_latitude",
@@ -290,7 +295,8 @@
             "columnNames": [
               "latitude"
             ],
-            "createSql": "CREATE  INDEX `index_wifi_data_latitude` ON `${TABLE_NAME}` (`latitude`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wifi_data_latitude` ON `${TABLE_NAME}` (`latitude`)"
           },
           {
             "name": "index_wifi_data_last_seen",
@@ -298,7 +304,8 @@
             "columnNames": [
               "last_seen"
             ],
-            "createSql": "CREATE  INDEX `index_wifi_data_last_seen` ON `${TABLE_NAME}` (`last_seen`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wifi_data_last_seen` ON `${TABLE_NAME}` (`last_seen`)"
           }
         ],
         "foreignKeys": []
@@ -327,10 +334,10 @@
           }
         ],
         "primaryKey": {
+          "autoGenerate": true,
           "columnNames": [
             "id"
-          ],
-          "autoGenerate": true
+          ]
         },
         "indices": [
           {
@@ -339,7 +346,8 @@
             "columnNames": [
               "name"
             ],
-            "createSql": "CREATE  INDEX `index_activity_name` ON `${TABLE_NAME}` (`name`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activity_name` ON `${TABLE_NAME}` (`name`)"
           }
         ],
         "foreignKeys": []
@@ -368,25 +376,19 @@
           }
         ],
         "primaryKey": {
+          "autoGenerate": false,
           "columnNames": [
             "mcc",
             "mnc"
-          ],
-          "autoGenerate": false
+          ]
         },
         "indices": [],
         "foreignKeys": []
       },
       {
         "tableName": "cell_location",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `cell_id` INTEGER NOT NULL, `type` INTEGER NOT NULL, `asu` INTEGER NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`time` INTEGER NOT NULL, `mcc` TEXT NOT NULL, `mnc` TEXT NOT NULL, `cell_id` INTEGER NOT NULL, `type` INTEGER NOT NULL, `asu` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `lat` REAL NOT NULL, `lon` REAL NOT NULL, `alt` REAL)",
         "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
           {
             "fieldPath": "time",
             "columnName": "time",
@@ -424,6 +426,12 @@
             "notNull": true
           },
           {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
             "fieldPath": "location.latitude",
             "columnName": "lat",
             "affinity": "REAL",
@@ -443,10 +451,10 @@
           }
         ],
         "primaryKey": {
+          "autoGenerate": true,
           "columnNames": [
             "id"
-          ],
-          "autoGenerate": true
+          ]
         },
         "indices": [
           {
@@ -457,7 +465,8 @@
               "mnc",
               "cell_id"
             ],
-            "createSql": "CREATE  INDEX `index_cell_location_mcc_mnc_cell_id` ON `${TABLE_NAME}` (`mcc`, `mnc`, `cell_id`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cell_location_mcc_mnc_cell_id` ON `${TABLE_NAME}` (`mcc`, `mnc`, `cell_id`)"
           },
           {
             "name": "index_cell_location_time",
@@ -465,7 +474,8 @@
             "columnNames": [
               "time"
             ],
-            "createSql": "CREATE  INDEX `index_cell_location_time` ON `${TABLE_NAME}` (`time`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cell_location_time` ON `${TABLE_NAME}` (`time`)"
           }
         ],
         "foreignKeys": []
@@ -512,10 +522,10 @@
           }
         ],
         "primaryKey": {
+          "autoGenerate": true,
           "columnNames": [
             "id"
-          ],
-          "autoGenerate": true
+          ]
         },
         "indices": [
           {
@@ -524,7 +534,8 @@
             "columnNames": [
               "lon"
             ],
-            "createSql": "CREATE  INDEX `index_location_wifi_count_lon` ON `${TABLE_NAME}` (`lon`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_wifi_count_lon` ON `${TABLE_NAME}` (`lon`)"
           },
           {
             "name": "index_location_wifi_count_lat",
@@ -532,7 +543,8 @@
             "columnNames": [
               "lat"
             ],
-            "createSql": "CREATE  INDEX `index_location_wifi_count_lat` ON `${TABLE_NAME}` (`lat`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_wifi_count_lat` ON `${TABLE_NAME}` (`lat`)"
           },
           {
             "name": "index_location_wifi_count_time",
@@ -540,7 +552,8 @@
             "columnNames": [
               "time"
             ],
-            "createSql": "CREATE  INDEX `index_location_wifi_count_time` ON `${TABLE_NAME}` (`time`)"
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_location_wifi_count_time` ON `${TABLE_NAME}` (`time`)"
           }
         ],
         "foreignKeys": []

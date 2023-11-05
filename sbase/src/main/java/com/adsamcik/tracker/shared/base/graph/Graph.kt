@@ -10,7 +10,8 @@ package com.adsamcik.tracker.shared.base.graph
 	}
 }*/
 
-inline class Vertex(val value: Int)
+@JvmInline
+value class Vertex(val value: Int)
 
 data class Edge(val from: Vertex, val to: Vertex)
 

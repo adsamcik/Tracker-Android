@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -68,6 +69,7 @@ class Application : SplitCompatApplication() {
 		ActivityWatcherService.poke(this)
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	override fun onCreate() {
 		super.onCreate()
 		initializeImportantSingletons()

@@ -1,28 +1,20 @@
 package com.adsamcik.tracker.shared.utils.style
 
 import android.content.Context
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 
 /**
  * Style observer that manages enable and disable of style updates.
  */
-class StyleLifecycleObserver(private val applicationContext: Context) : LifecycleObserver {
-
-	/**
-	 * Called when application moves to foreground.
-	 */
-	@OnLifecycleEvent(Lifecycle.Event.ON_START)
-	fun onMoveToForeground() {
+class StyleLifecycleObserver(private val applicationContext: Context) : DefaultLifecycleObserver {
+	override fun onStart(owner: LifecycleOwner) {
+		super.onStart(owner)
 		StyleManager.enableUpdateWithPreference(applicationContext)
 	}
 
-	/**
-	 * Called when application moves to background.
-	 */
-	@OnLifecycleEvent(Lifecycle.Event.ON_STOP)
-	fun onMoveToBackground() {
+	override fun onStop(owner: LifecycleOwner) {
+		super.onStop(owner)
 		StyleManager.disableUpdate(applicationContext)
 	}
 }

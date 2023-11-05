@@ -11,7 +11,6 @@ android {
 
 	defaultConfig {
 		minSdk = Android.min
-		targetSdk = Android.target
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -26,16 +25,14 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-Xinline-classes")
-		}
+	kotlin {
+		jvmToolchain(Android.javaVersion)
 	}
 
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {
@@ -46,10 +43,17 @@ android {
 		}
 	}
 
-	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+	ksp {
+		arg("room.schemaLocation", "$projectDir/schemas")
+		arg("room.incremental", "true")
+		arg("room.generateKotlin", "true")
 	}
+
+	lint {
+		checkReleaseBuilds = true
+		abortOnError = false
+	}
+	namespace = "com.adsamcik.tracker.points"
 }
 
 dependencies {
@@ -63,8 +67,6 @@ dependencies {
 	Dependencies.test(this)
 }
 
-tasks.withType<KotlinCompile> {
-	with(kotlinOptions) {
-		jvmTarget = Android.jvmTarget
-	}
+kotlin {
+	jvmToolchain(Android.javaVersion)
 }

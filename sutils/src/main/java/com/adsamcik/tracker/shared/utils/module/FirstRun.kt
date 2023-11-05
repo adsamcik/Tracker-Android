@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.afollestad.materialdialogs.MaterialDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * Type alias for on first run done listener.
@@ -42,14 +43,15 @@ abstract class FirstRun {
 	@MainThread
 	protected fun createDialog(
 			context: Context,
-			creator: MaterialDialog.() -> Unit
+			creator: MaterialAlertDialogBuilder.() -> Unit
 	) {
-		MaterialDialog(context)
+		MaterialAlertDialogBuilder(context)
 				.apply(creator)
 				.also {
-					it.cancelable(false)
-					it.dynamicStyle(DIALOG_LAYER)
-					it.show()
+					it.setCancelable(false)
+
+					val dialog = it.show()
+					dialog.dynamicStyle(layer = 3)
 				}
 	}
 

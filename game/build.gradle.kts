@@ -15,14 +15,10 @@ android {
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 
-		with(javaCompileOptions) {
-			with(annotationProcessorOptions) {
-				arguments(
-					mapOf(
-						"room.incremental" to "true"
-					)
-				)
-			}
+		ksp {
+			arg("room.schemaLocation", "$projectDir/schemas")
+			arg("room.incremental", "true")
+			arg("room.generateKotlin", "true")
 		}
 	}
 
@@ -32,10 +28,8 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-		}
+	kotlin {
+		jvmToolchain(Android.javaVersion)
 	}
 
 	buildTypes {
@@ -43,15 +37,10 @@ android {
 	}
 
 	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+		checkReleaseBuilds = true
+		abortOnError = false
 	}
-
-	kapt {
-		arguments {
-			this.arg("room.schemaLocation", "$projectDir/schemas")
-		}
-	}
+	namespace = "com.adsamcik.tracker.game"
 }
 
 dependencies {

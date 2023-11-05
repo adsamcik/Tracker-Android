@@ -11,37 +11,37 @@ import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import java.util.concurrent.TimeUnit
 
 class DatabaseMaintenanceWorker(
-		context: Context,
-		workerParams: WorkerParameters
+    context: Context,
+    workerParams: WorkerParameters
 ) : Worker(context, workerParams) {
 
-	override fun doWork(): Result {
-		tryWithReport {
-			val database = AppDatabase.database(applicationContext)
-			val clearInvalidSessions = database.compileStatement(
-					"DELETE FROM tracker_session WHERE start >= `end` OR (collections <= 1 AND steps <= 10)"
-			)
-			clearInvalidSessions.executeUpdateDelete()
-		}
-		return Result.success()
-	}
+    override fun doWork(): Result {
+        tryWithReport {
+            val database = AppDatabase.database(applicationContext)
+            val clearInvalidSessions = database.compileStatement(
+                "DELETE FROM tracker_session WHERE start >= `end` OR (collections <= 1 AND steps <= 10)"
+            )
+            clearInvalidSessions.executeUpdateDelete()
+        }
+        return Result.success()
+    }
 
-	companion object {
-		private const val MAINTENANCE_UNIQUE_ID = "AppDatabaseMaintenance"
-		private const val REPEAT_INTERVAL_H: Long = 6L
+    companion object {
+        private const val MAINTENANCE_UNIQUE_ID = "AppDatabaseMaintenance"
+        private const val REPEAT_INTERVAL_H: Long = 6L
 
-		fun schedule(context: Context) {
-			val workManager = WorkManager.getInstance(context)
-			val builder = PeriodicWorkRequestBuilder<DatabaseMaintenanceWorker>(
-					REPEAT_INTERVAL_H,
-					TimeUnit.HOURS
-			)
-			workManager.enqueueUniquePeriodicWork(
-					MAINTENANCE_UNIQUE_ID,
-					ExistingPeriodicWorkPolicy.REPLACE,
-					builder.build()
-			)
-		}
-	}
+        fun schedule(context: Context) {
+            val workManager = WorkManager.getInstance(context)
+            val builder = PeriodicWorkRequestBuilder<DatabaseMaintenanceWorker>(
+                REPEAT_INTERVAL_H,
+                TimeUnit.HOURS
+            )
+            workManager.enqueueUniquePeriodicWork(
+                MAINTENANCE_UNIQUE_ID,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                builder.build()
+            )
+        }
+    }
 }
 

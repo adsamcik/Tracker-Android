@@ -34,7 +34,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		viewModel = ViewModelProvider(this).get(StatsViewModel::class.java)
+		viewModel = ViewModelProvider(this)[StatsViewModel::class.java]
 	}
 
 	override fun onCreateView(

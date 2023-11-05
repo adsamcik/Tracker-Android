@@ -37,20 +37,20 @@ class ColorPreference : Preference, CoroutineScope {
 		get() = Dispatchers.Main + job
 
 	constructor(
-			context: Context?,
+			context: Context,
 			attrs: AttributeSet?,
 			defStyleAttr: Int,
 			defStyleRes: Int
 	) : super(context, attrs, defStyleAttr, defStyleRes)
 
-	constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(
+	constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(
 			context,
 			attrs,
 			defStyleAttr
 	)
 
-	constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
-	constructor(context: Context?) : super(context)
+	constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
+	constructor(context: Context) : super(context)
 
 	init {
 		layoutResource = R.layout.layout_color_picker

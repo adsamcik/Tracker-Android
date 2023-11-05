@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.base.assist
 
 import android.animation.ObjectAnimator
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
@@ -98,7 +98,7 @@ object Assist {
 	 * @param activity context
 	 * @return true if available
 	 */
-	fun isPlayServicesAvailable(activity: Activity): Boolean {
+	fun isPlayServicesAvailable(activity: AppCompatActivity): Boolean {
 		val playServicesResolutionRequest = PLAY_SERVICES_REQUEST_ID
 		val api = GoogleApiAvailability.getInstance()
 		val resultCode = api.isGooglePlayServicesAvailable(activity)

@@ -301,7 +301,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	override fun onDestroy() {
 		super.onDestroy()
-		stopForeground(true)
+		stopForeground(STOP_FOREGROUND_REMOVE)
 		onDestroyServiceMetaData()
 
 		val tempData = MutableCollectionTempData(Time.nowMillis, Time.elapsedRealtimeNanos)

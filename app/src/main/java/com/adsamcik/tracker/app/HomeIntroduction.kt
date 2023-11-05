@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app
 
-import android.app.Activity
 import android.content.res.Resources
 import android.view.View
 import androidx.fragment.app.FragmentActivity
@@ -18,9 +17,9 @@ class HomeIntroduction : Introduction() {
 	override val key: String = "home_tips"
 
 	private fun createSettingsTarget(
-			activity: Activity,
-			resources: Resources,
-			buttonData: SimpleTarget.ButtonData
+        activity: FragmentActivity,
+        resources: Resources,
+        buttonData: SimpleTarget.ButtonData
 	): Target {
 		val target = activity.findViewById<View>(R.id.button_settings)
 		return SimpleTarget.Builder(activity)
@@ -41,9 +40,9 @@ class HomeIntroduction : Introduction() {
 
 
 	private fun createMapTarget(
-			activity: Activity,
-			resources: Resources,
-			buttonData: SimpleTarget.ButtonData
+        activity: FragmentActivity,
+        resources: Resources,
+        buttonData: SimpleTarget.ButtonData
 	): Target {
 		val target = activity.findViewById<View>(R.id.button_map)
 		return SimpleTarget.Builder(activity)
@@ -62,9 +61,9 @@ class HomeIntroduction : Introduction() {
 	}
 
 	private fun createGameTarget(
-			activity: Activity,
-			resources: Resources,
-			buttonData: SimpleTarget.ButtonData
+        activity: FragmentActivity,
+        resources: Resources,
+        buttonData: SimpleTarget.ButtonData
 	): Target {
 		val target = activity.findViewById<View>(R.id.button_game)
 		return SimpleTarget.Builder(activity)
@@ -78,9 +77,9 @@ class HomeIntroduction : Introduction() {
 
 
 	private fun createStatsTarget(
-			activity: Activity,
-			resources: Resources,
-			buttonData: SimpleTarget.ButtonData
+        activity: FragmentActivity,
+        resources: Resources,
+        buttonData: SimpleTarget.ButtonData
 	): Target {
 		val target = activity.findViewById<View>(R.id.button_stats)
 		return SimpleTarget.Builder(activity)

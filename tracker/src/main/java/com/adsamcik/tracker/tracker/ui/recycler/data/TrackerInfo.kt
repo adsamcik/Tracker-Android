@@ -5,6 +5,8 @@ import android.content.res.Resources
 import android.widget.TextView
 import androidx.annotation.StringRes
 import androidx.appcompat.widget.AppCompatTextView
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import com.adsamcik.tracker.shared.base.extension.detach
 import com.adsamcik.tracker.tracker.ui.recycler.TrackerInfoAdapter
 
@@ -28,7 +30,7 @@ abstract class TrackerInfo(@StringRes val nameRes: Int) {
 		title.apply {
 			setText(nameRes)
 
-			val icon = resources.getDrawable(iconRes, context.theme)
+			val icon = ResourcesCompat.getDrawable(resources, iconRes, context.theme)
 			setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null)
 		}
 	}

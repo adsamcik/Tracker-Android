@@ -1,5 +1,7 @@
-package com.adsamcik.tracker.map.heatmap
+package com.adsamcik.tracker.map.heatmap.implementation
 
+import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
+import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -43,7 +45,7 @@ internal class Heatmap(
 
 	fun addWeightedPoint(x: Int, y: Int, weight: Float) = addWeightedPointWithStamp(
 			x, y, weight,
-			HeatmapStamp.default9x9
+		HeatmapStamp.default9x9
 	)
 
 	fun addPointWithStamp(x: Int, y: Int, stamp: HeatmapStamp) =
@@ -57,11 +59,11 @@ internal class Heatmap(
 			}
 
 	fun addWeightedPointWithStamp(
-			x: Int,
-			y: Int,
-			stamp: HeatmapStamp,
-			weight: Float,
-			mergeFunction: (current: Float, input: Float, weight: Float) -> Float
+		x: Int,
+		y: Int,
+		stamp: HeatmapStamp,
+		weight: Float,
+		mergeFunction: (current: Float, input: Float, weight: Float) -> Float
 	) {
 		//todo validate that odd numbers don't cause some weird artifacts
 		val halfStampHeight = stamp.height / 2
@@ -118,17 +120,17 @@ internal class Heatmap(
 	}
 
 	fun renderSaturatedTo(
-			colorScheme: HeatmapColorScheme,
-			saturation: Float
+		colorScheme: HeatmapColorScheme,
+		saturation: Float
 	): IntArray = renderSaturatedTo(
 			colorScheme,
 			saturation
 	) { it }
 
 	inline fun renderSaturatedTo(
-			colorScheme: HeatmapColorScheme,
-			saturation: Float,
-			normalizedValueModifierFunction: (Float) -> Float
+		colorScheme: HeatmapColorScheme,
+		saturation: Float,
+		normalizedValueModifierFunction: (Float) -> Float
 	): IntArray {
 		require(saturation > 0f)
 

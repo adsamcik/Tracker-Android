@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.preference.pages
 
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -14,6 +14,7 @@ import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.afollestad.materialdialogs.MaterialDialog
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -32,6 +33,7 @@ internal class DataPage : PreferencePage {
 		}
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	private fun initializeDelete(deletePreference: Preference) {
 		deletePreference.setOnPreferenceClickListener { preference ->
 			val context = preference.context
@@ -99,7 +101,7 @@ internal class DataPage : PreferencePage {
 	override fun onRegisterForResult(activity: FragmentActivity) {
 		importRequest = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult())
 		{ result: ActivityResult ->
-			if (result.resultCode == Activity.RESULT_OK) {
+			if (result.resultCode == AppCompatActivity.RESULT_OK) {
 				result.data?.data?.also { uri ->
 					DataImporter.import(activity, uri)
 				}

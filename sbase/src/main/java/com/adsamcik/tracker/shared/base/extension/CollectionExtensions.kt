@@ -160,7 +160,7 @@ fun <T> MutableList<T>.removeAllByIndexes(indexCollection: Collection<Int>) {
  */
 fun DoubleArray.toIntArray(): IntArray {
 	val intArray = IntArray(size)
-	for (i in 0 until size) {
+	for (i in indices) {
 		intArray[i] = this[i].toInt()
 	}
 	return intArray
@@ -171,7 +171,7 @@ fun DoubleArray.toIntArray(): IntArray {
  */
 fun DoubleArray.roundToIntArray(): IntArray {
 	val intArray = IntArray(size)
-	for (i in 0 until size) {
+	for (i in indices) {
 		intArray[i] = this[i].roundToInt()
 	}
 	return intArray

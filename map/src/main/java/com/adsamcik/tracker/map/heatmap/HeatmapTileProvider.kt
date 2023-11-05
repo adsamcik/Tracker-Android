@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
+import java.lang.Throwable
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -168,12 +169,29 @@ internal class HeatmapTileProvider(
 				val stamp = requireNotNull(stamp)
 				val tileData = HeatmapTileData(config, stamp, heatmapSize, x, y, zoom, area)
 
-				heatmap = if (range == LongRange.EMPTY) {
-					tileCreator.getHeatmap(tileData)
-				} else {
-					tileCreator.getHeatmap(tileData, range.first, range.last)
+				var genHeatmap: HeatmapTile? = null
+				var lastException: kotlin.Throwable? = null
+				for (i in 1..3) {
+					try {
+						genHeatmap = if (range == LongRange.EMPTY) {
+							tileCreator.getHeatmap(tileData)
+						} else {
+							tileCreator.getHeatmap(tileData, range.first, range.last)
+						}
+						break;
+					} catch (e: OutOfMemoryError) {
+						lastException = e
+						System.gc()
+						Thread.sleep(1000)
+					}
 				}
-				heatmapCache[key] = heatmap
+
+				if(genHeatmap == null) {
+					throw lastException!!
+				}
+
+				heatmapCache[key] = genHeatmap
+				heatmap = genHeatmap
 			}
 
 			updateHeat(heatmap, zoom)

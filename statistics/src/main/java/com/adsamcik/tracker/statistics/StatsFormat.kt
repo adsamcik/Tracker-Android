@@ -62,10 +62,8 @@ object StatsFormat {
 		activity: SessionActivity,
 		sunSetRise: SunSetRise
 	): String {
-		val activityName = if (activity.name.isBlank()) {
+		val activityName = activity.name.ifBlank {
 			context.getString(R.string.stats_format_unknown_activity)
-		} else {
-			activity.name
 		}
 
 		val startDateTime = Instant.ofEpochMilli(start).atZone(ZoneId.systemDefault())
