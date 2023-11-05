@@ -39,7 +39,7 @@ tasks.register("clean", Delete::class) {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.48.0")
+	id("com.github.ben-manes.versions") version ("0.49.0")
 }
 
 /**

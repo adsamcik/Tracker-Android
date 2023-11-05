@@ -149,7 +149,7 @@ internal class AgeWeightedHeatmap(
 
                     // Adjust the new weight value based on recency
                     val adjustmentFactor =
-                        if (ageInSeconds - valueAge < ageThreshold) recencyFactor else 1.0f
+                        if (ageInSeconds - valueAge < ageThreshold) 1.0f - recencyFactor else 1.0f
                     val adjustedWeightValue =
                         weightValue + (newWeightValue - weightValue) * adjustmentFactor
 
@@ -168,10 +168,10 @@ internal class AgeWeightedHeatmap(
         }
     }
 
-    private fun calculateRecencyFactor(ageInSeconds: Int, valueAge: Int, ageThreshold: Int): Float {
-        val ageDifference = ageInSeconds - valueAge
+    private fun calculateRecencyFactor(ageInSeconds: Int, lastAgeInSeconds: Int, ageThreshold: Int): Float {
+        val ageDifference = ageInSeconds - lastAgeInSeconds
         if (ageDifference < ageThreshold) {
-            val a = (2.0f / 3.0f) * ageThreshold  // Adjust 'a' as needed
+            val a = ageThreshold.toFloat()
             val exponent = -(ageDifference / a).pow(2)
             return exp(exponent)
         }
