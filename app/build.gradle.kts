@@ -52,6 +52,7 @@ android {
 		getByName("debug") {
 			enableAndroidTestCoverage = true
 			enableUnitTestCoverage = true
+			applicationIdSuffix = ".debug"
 		}
 
 		create("release_nominify") {
