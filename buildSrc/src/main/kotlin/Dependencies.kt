@@ -34,10 +34,6 @@ object Dependencies {
         internal const val recyclerView = "1.3.2"
         internal const val paging = "3.2.1"
 
-        internal const val firebaseBom = "32.5.0"
-        internal const val crashlytics = "18.5.1"
-        const val crashlyticsGradle: String = "2.9.9"
-
         internal const val playServicesBase = "18.2.0"
         internal const val playLocation = "21.0.1"
         internal const val playCore = "1.10.3"
@@ -157,13 +153,6 @@ object Dependencies {
     fun location(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             implementation("com.google.android.gms:play-services-location:${Versions.playLocation}")
-        }
-    }
-
-    fun crashlytics(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation(platform("com.google.firebase:firebase-bom:${Versions.firebaseBom}"))
-            implementation("com.google.firebase:firebase-crashlytics-ktx:${Versions.crashlytics}")
         }
     }
 

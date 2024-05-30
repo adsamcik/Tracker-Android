@@ -59,7 +59,6 @@ dependencies {
 	Dependencies.core(this)
 	Dependencies.slider(this)
 	Dependencies.json(this)
-	Dependencies.crashlytics(this)
 	Dependencies.location(this)
 	Dependencies.preference(this)
 	Dependencies.introduction(this)

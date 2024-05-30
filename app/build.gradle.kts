@@ -10,7 +10,6 @@ plugins {
 }
 
 apply(plugin = "com.google.gms.google-services")
-apply(plugin = "com.google.firebase.crashlytics")
 
 android {
 	compileSdk = Android.compile
@@ -131,11 +130,10 @@ dependencies {
 
 	// Open-source licenses
 	implementation("de.psdev.licensesdialog:licensesdialog:2.2.0")
-	implementation("com.google.android.gms:play-services-oss-licenses:17.0.1")
+	implementation("com.google.android.gms:play-services-oss-licenses:17.1.0")
 
 	// PlayServices
 	Dependencies.location(this)
-	Dependencies.crashlytics(this)
 
 	// Database
 	Dependencies.database(this)

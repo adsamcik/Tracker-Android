@@ -1,11 +1,11 @@
 package com.adsamcik.tracker.logger
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.Observer
 import com.adsamcik.tracker.shared.base.BuildConfig
 import com.adsamcik.tracker.shared.base.isEmulator
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
-import com.google.firebase.crashlytics.FirebaseCrashlytics
 
 /**
  * Object that handles reporting of any message, error or exception that is passed to it.
@@ -13,11 +13,10 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 object Reporter {
 	private var isInitialized = false
 	private var isEnabled = false
-	private val crashlytics by lazy { FirebaseCrashlytics.getInstance() }
+	private const val TAG = "com.adsamcik.tracker-error"
 
 	private val loggingObserver = Observer<Boolean> {
 		isEnabled = it
-		crashlytics.setCrashlyticsCollectionEnabled(it)
 	}
 
 	/**
@@ -50,7 +49,9 @@ object Reporter {
 		if (BuildConfig.DEBUG) throw Exception(exception)
 
 		checkInitialized()
-		if (isEnabled) crashlytics.recordException(exception)
+		if (isEnabled) {
+			exception.message?.let { Log.e(TAG, it) }
+		}
 	}
 
 	/**
@@ -60,10 +61,14 @@ object Reporter {
 	 */
 	@Suppress("TooGenericExceptionThrown")
 	fun report(message: String) {
-		if (BuildConfig.DEBUG) throw Exception(message)
+		if (BuildConfig.DEBUG) {
+			throw Exception(message)
+		}
 
 		checkInitialized()
-		if (isEnabled) crashlytics.recordException(Throwable(message))
+		if (isEnabled) {
+			Log.e(TAG, message)
+		}
 	}
 
 	/**
@@ -73,10 +78,14 @@ object Reporter {
 	 */
 	@Suppress("TooGenericExceptionThrown")
 	fun log(message: String) {
-		if (BuildConfig.DEBUG) throw Exception(message)
+		if (BuildConfig.DEBUG) {
+			throw Exception(message)
+		}
 
 		checkInitialized()
-		if (isEnabled) crashlytics.log(message)
+		if (isEnabled) {
+			Log.e(TAG, message)
+		}
 	}
 }
 
