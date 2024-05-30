@@ -38,7 +38,7 @@ object PreferenceObserver {
 
 
 	private fun invokeAnyObserver(key: String?, preferences: SharedPreferences) {
-		if (key == null) return;
+		if (key == null) return
 		val value = preferences.all[key] ?: return
 		invokeAnyObserver(
 			key,

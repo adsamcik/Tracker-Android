@@ -15,6 +15,7 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 /**
  * Collection trigger that uses Fused Location Provider in Google Play Services.
@@ -61,12 +62,11 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger() {
 		)
 
 		val client = LocationServices.getFusedLocationProviderClient(context)
-		val request = LocationRequest.create().apply {
-			interval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
-			fastestInterval = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS
-			smallestDisplacement = minDistanceInMeters.toFloat()
-			priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-		}
+		val request = LocationRequest.Builder(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
+			.setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+			.setMinUpdateDistanceMeters(minDistanceInMeters.toFloat())
+			.setMinUpdateIntervalMillis(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
+			.build()
 
 		// checked by component manager
 		@Suppress("MissingPermission")

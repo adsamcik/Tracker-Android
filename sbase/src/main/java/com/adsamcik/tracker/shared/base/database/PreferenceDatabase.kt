@@ -12,9 +12,9 @@ import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 		version = 1
 )
 abstract class PreferenceDatabase : RoomDatabase() {
-	abstract val genericDao: GenericPreferenceDao
+	abstract fun getGenericDao(): GenericPreferenceDao
 
-	abstract val notificationDao: NotificationPreferenceDao
+	abstract fun getNotificationDao(): NotificationPreferenceDao
 
 	companion object : ObjectBaseDatabase<PreferenceDatabase>(PreferenceDatabase::class.java) {
 		override val databaseName: String = "preference_database"

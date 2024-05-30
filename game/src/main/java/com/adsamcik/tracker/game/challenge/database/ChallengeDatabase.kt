@@ -32,15 +32,15 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
 
-	abstract val entryDao: ChallengeEntryDao
+	abstract fun entryDao(): ChallengeEntryDao
 
-	abstract val sessionDao: SessionChallengeDataDao
+	abstract fun sessionDao(): SessionChallengeDataDao
 
-	abstract val explorerDao: ExplorerChallengeDao
+	abstract fun explorerDao(): ExplorerChallengeDao
 
-	abstract val walkDistanceDao: WalkDistanceChallengeDao
+	abstract fun walkDistanceDao(): WalkDistanceChallengeDao
 
-	abstract val stepDao: StepChallengeDao
+	abstract fun stepDao(): StepChallengeDao
 
 	companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
 		override fun setupDatabase(database: Builder<ChallengeDatabase>): Unit = Unit

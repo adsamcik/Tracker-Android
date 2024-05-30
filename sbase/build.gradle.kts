@@ -11,24 +11,13 @@ android {
 
 	defaultConfig {
 		minSdk = Android.min
-		targetSdk = Android.target
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-		kapt {
-			arguments {
-				this.arg("room.schemaLocation", "$projectDir/schemas")
-			}
-		}
-
-		with(javaCompileOptions) {
-			with(annotationProcessorOptions) {
-				arguments(
-						mapOf(
-								"room.incremental" to "true"
-						)
-				)
-			}
+		ksp {
+			arg("room.schemaLocation", "$projectDir/schemas")
+			arg("room.incremental", "true")
+			arg("room.generateKotlin", "true")
 		}
 	}
 
@@ -42,16 +31,22 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-XXLanguage:+InlineClasses")
+	kotlin {
+		jvmToolchain(Android.javaVersion)
+	}
+
+	java {
+		toolchain {
+			languageVersion.set(JavaLanguageVersion.of(Android.javaVersion))
+			setSourceCompatibility(Android.javaVersion)
+			setTargetCompatibility(Android.javaVersion)
 		}
 	}
 
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {
@@ -63,9 +58,10 @@ android {
 	}
 
 	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+		checkReleaseBuilds = true
+		abortOnError = false
 	}
+    namespace = "com.adsamcik.tracker.shared.base"
 }
 
 dependencies {

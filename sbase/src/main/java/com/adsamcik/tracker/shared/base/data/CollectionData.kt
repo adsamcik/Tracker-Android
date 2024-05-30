@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.data
 
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
@@ -82,8 +83,8 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 	 *
 	 * Throws an [IllegalArgumentException] if the value is null.
 	 */
-	fun <T : Parcelable> get(key: String): T {
-		return requireNotNull(bundle.getParcelable(key))
+	inline fun <reified T : Parcelable> get(key: String): T {
+		return requireNotNull(tryGet(key))
 	}
 
 	/**
@@ -91,8 +92,13 @@ class MutableCollectionData(val bundle: Bundle = Bundle()) : CollectionData {
 	 *
 	 * @return Value or null if the value is not available
 	 */
-	fun <T : Parcelable> tryGet(key: String): T? {
-		return bundle.getParcelable(key)
+	inline fun <reified T : Parcelable> tryGet(key: String): T? {
+		return if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			bundle.getParcelable(key, T::class.java)
+		} else {
+			@Suppress("DEPRECATION")
+			bundle.getParcelable(key)
+		}
 	}
 
 	/**

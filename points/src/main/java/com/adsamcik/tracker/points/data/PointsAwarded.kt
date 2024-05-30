@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.points.data
 
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 
@@ -15,6 +16,7 @@ data class PointsAwarded(
 		val value: Points,
 		val source: AwardSource
 ) {
+	@Ignore
 	constructor(
 			time: Long,
 			value: Points,

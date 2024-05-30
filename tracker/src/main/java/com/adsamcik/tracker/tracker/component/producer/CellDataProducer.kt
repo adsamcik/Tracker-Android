@@ -47,7 +47,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		if (!Assist.isAirplaneModeEnabled(context)) {
 			val telephonyManager = requireNotNull(telephonyManager)
 
-			val scanData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && context.hasReadPhonePermission) {
+			val scanData = if (context.hasReadPhonePermission) {
 				val subscriptionManager = requireNotNull(subscriptionManager)
 
 				//Requires suppress missing permission because lint does not properly work with context.hasReadPhonePermission
@@ -78,7 +78,6 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		}
 	}
 
-	@RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1)
 	@RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
 	private fun getScanData(
 			telephonyManager: TelephonyManager,
@@ -160,18 +159,18 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			registeredOperator: List<NetworkOperator>
 	): CellInfo? {
 		return when {
-			cellInfo is CellInfoLte -> {
-				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
-				}
-			}
 			Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr -> {
 				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
 					CellInfo(
-							cellInfo.cellIdentity as CellIdentityNr,
-							cellInfo.cellSignalStrength as CellSignalStrengthNr,
-							it
+						cellInfo.cellIdentity as CellIdentityNr,
+						cellInfo.cellSignalStrength as CellSignalStrengthNr,
+						it
 					)
+				}
+			}
+			cellInfo is CellInfoLte -> {
+				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
+					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 				}
 			}
 			cellInfo is CellInfoGsm -> {
@@ -201,9 +200,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		this.context = context
 		telephonyManager = context.telephonyManager
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-			subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
-		}
+		subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
 	}
 
 	override fun onDisable(context: Context) {

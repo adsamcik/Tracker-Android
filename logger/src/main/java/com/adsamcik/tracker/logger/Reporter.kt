@@ -24,7 +24,7 @@ object Reporter {
 	 * Initializes reporter. Required for proper functionality.
 	 */
 	fun initialize(context: Context) {
-		synchronized(isInitialized) {
+		synchronized(this) {
 			if (isInitialized) return
 			isInitialized = true
 		}

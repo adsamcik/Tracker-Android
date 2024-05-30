@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.utils.style.StyleData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -35,6 +36,7 @@ object ColorMap {
 		}
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	private fun destroy() {
 		GlobalScope.launch {
 			synchronized(styleChangeListeners) {
@@ -63,6 +65,7 @@ object ColorMap {
 		}
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	private fun onStyleChange(style: MapStyleOptions) {
 		removeNullMaps()
 		GlobalScope.launch(Dispatchers.Main) {

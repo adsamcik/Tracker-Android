@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.ui.fragment
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.LayoutInflater
@@ -44,6 +46,8 @@ import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.base.useMock
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
+import com.adsamcik.tracker.shared.utils.permission.PermissionData
+import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.tracker.R
@@ -66,7 +70,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		viewModel = ViewModelProvider(this).get(TrackerViewModel::class.java)
+		viewModel = ViewModelProvider(this)[TrackerViewModel::class.java]
 	}
 
 	override fun onCreateView(
@@ -115,6 +119,20 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 
 	override fun onStart() {
 		super.onStart()
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			requestPermissions(
+				PermissionRequest
+					.with(requireContext())
+					.permission(
+						PermissionData(
+							Manifest.permission.POST_NOTIFICATIONS
+						) { "" }
+					)
+					.onResult {  }
+					.build()
+			)
+		}
 
 		val view = requireView()
 		view.findViewById<View>(R.id.button_settings).setOnClickListener {

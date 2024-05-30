@@ -40,7 +40,7 @@ internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
 		val jClass = resolveClass(intent)
 		if (jClass != null) {
 			try {
-				val instance = jClass.newInstance()
+				val instance = jClass.getConstructor().newInstance()
 				TrackerListenerManager.register(context, instance)
 				Logger.log(
 						LogData(

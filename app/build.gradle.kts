@@ -1,5 +1,4 @@
 import org.jetbrains.dokka.gradle.DokkaTask
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.URL
 
 plugins {
@@ -20,8 +19,8 @@ android {
 		applicationId = "com.adsamcik.tracker"
 		minSdk = Android.min
 		targetSdk = Android.target
-		versionCode = 369
-		versionName = "2021.1"
+		versionCode = 381
+		versionName = "2023.1"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		resourceConfigurations.add("en")
@@ -34,16 +33,26 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	tasks.withType<KotlinCompile> {
-		with(kotlinOptions) {
-			jvmTarget = Android.jvmTarget
-			freeCompilerArgs = listOf("-Xuse-experimental=kotlin.ExperimentalUnsignedTypes", "-Xjvm-default=enable")
+	kotlin {
+		jvmToolchain(Android.javaVersion)
+		compilerOptions {
+			optIn.add("kotlin.ExperimentalUnsignedTypes")
 		}
 	}
 
+	java {
+		toolchain {
+			setSourceCompatibility(Android.javaVersion)
+			setTargetCompatibility(Android.javaVersion)
+		}
+	}
+
+
 	buildTypes {
 		getByName("debug") {
-			isTestCoverageEnabled = true
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
+			applicationIdSuffix = ".debug"
 		}
 
 		create("release_nominify") {
@@ -56,25 +65,30 @@ android {
 	}
 
 	lint {
-		isCheckReleaseBuilds = true
-		isAbortOnError = false
+		checkReleaseBuilds = true
+		abortOnError = false
 	}
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
-	packagingOptions {
+	packaging {
 		resources.pickFirsts.add("META-INF/atomicfu.kotlin_module")
 	}
 
 	dynamicFeatures.add(":statistics")
 	dynamicFeatures.add(":game")
 	dynamicFeatures.add(":map")
+	namespace = "com.adsamcik.tracker"
+	dependenciesInfo {
+		includeInApk = true
+		includeInBundle = true
+	}
 }
 
 tasks.withType<DokkaTask> {
 	outputFormat = "html"
-	outputDirectory = "$buildDir/javadoc"
-	jdkVersion = 8
+	outputDirectory = "${layout.buildDirectory}/javadoc"
+	jdkVersion = Android.javaVersion
 	skipEmptyPackages = true
 	skipDeprecated = true
 
@@ -117,7 +131,7 @@ dependencies {
 
 	// Open-source licenses
 	implementation("de.psdev.licensesdialog:licensesdialog:2.2.0")
-	implementation("com.google.android.gms:play-services-oss-licenses:17.0.0")
+	implementation("com.google.android.gms:play-services-oss-licenses:17.0.1")
 
 	// PlayServices
 	Dependencies.location(this)

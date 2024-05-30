@@ -61,7 +61,7 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 	abstract fun selectChallengeSpecificParameters()
 
 	private fun createEntry(database: ChallengeDatabase, startAt: Long): ChallengeEntry {
-		val entryDao = database.entryDao
+		val entryDao = database.entryDao()
 		val entry = ChallengeEntry(definition.type, startAt, startAt + duration, difficulty)
 		entryDao.insertSetId(entry)
 

@@ -28,7 +28,7 @@ class MapBottomSheetBehavior<V : View> : BottomSheetBehavior<V> {
 			return false
 		}
 
-		return !isLockedInside && super.onStartNestedScroll(
+		return super.onStartNestedScroll(
 				coordinatorLayout,
 				child,
 				directTargetChild,

@@ -1,21 +1,22 @@
+import java.util.Locale
+
 buildscript {
 	repositories {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:7.0.2")
-		classpath("com.google.gms:google-services:4.3.10")
-		classpath("com.google.android.gms:oss-licenses-plugin:0.10.4")
+		classpath("com.android.tools.build:gradle:8.1.2")
+		classpath("com.google.gms:google-services:4.4.0")
+		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
 		classpath("com.google.firebase:firebase-crashlytics-gradle:${Dependencies.Versions.crashlyticsGradle}")
 
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
 	}
-}
 
-plugins {
-	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.39.0")
+	plugins {
+		id("com.google.devtools.ksp") version Dependencies.Versions.ksp apply false
+	}
 }
 
 allprojects {
@@ -33,7 +34,12 @@ allprojects {
 }
 
 tasks.register("clean", Delete::class) {
-	delete(rootProject.buildDir)
+	delete(rootProject.layout.buildDirectory)
+}
+
+plugins {
+	// gradlew dependencyUpdates -Drevision=release
+	id("com.github.ben-manes.versions") version ("0.49.0")
 }
 
 /**
@@ -41,7 +47,7 @@ tasks.register("clean", Delete::class) {
  */
 fun isStable(version: String): Boolean {
 	val stableKeyword = listOf("RELEASE", "FINAL", "GA", "RC").any {
-		version.toUpperCase()
+		version.uppercase(Locale.getDefault())
 			.contains(it)
 	}
 	val regex = "^[0-9,.v-]+(-r)?$".toRegex()

@@ -80,7 +80,7 @@ abstract class DetailActivity : CoreUIActivity() {
 
 
 		val desiredElevation = configuration.elevation
-				?: DEFAULT_TITLE_BAR_ELEVATION.dp * configuration.titleBarLayer
+			?: (DEFAULT_TITLE_BAR_ELEVATION.dp * configuration.titleBarLayer)
 		topPanelRoot.elevation = kotlin.math.max(0, desiredElevation).toFloat()
 
 		val topBarStyleView = StyleView(topPanelRoot, configuration.titleBarLayer)

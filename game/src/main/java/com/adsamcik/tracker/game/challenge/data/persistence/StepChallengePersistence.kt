@@ -8,8 +8,8 @@ import com.adsamcik.tracker.game.challenge.data.instance.StepChallengeInstance
 class StepChallengePersistence : ChallengePersistence<StepChallengeInstance> {
 	override fun load(context: Context, entryId: Long): StepChallengeInstance {
 		val database = getDatabase(context)
-		val entry = database.entryDao.get(entryId)
-		val entity = database.stepDao.getByEntry(entryId)
+		val entry = database.entryDao().get(entryId)
+		val entity = database.stepDao().getByEntry(entryId)
 		val definition = StepChallengeDefinition()
 		return StepChallengeInstance(
 				entry,
@@ -20,8 +20,8 @@ class StepChallengePersistence : ChallengePersistence<StepChallengeInstance> {
 
 	override fun persist(context: Context, instance: StepChallengeInstance) {
 		val database = getDatabase(context)
-		database.entryDao.update(instance.data)
-		database.stepDao.update(instance.extra)
+		database.entryDao().update(instance.data)
+		database.stepDao().update(instance.extra)
 	}
 
 }

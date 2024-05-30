@@ -92,7 +92,7 @@ class SettingsActivity : DetailActivity(),
 						}
 					}Settings"
 				)
-				val instance = tClass.newInstance()
+				val instance = tClass.getConstructor().newInstance()
 				moduleSettingsList[module.module] = instance
 			} catch (e: ClassNotFoundException) {
 				//e.printStackTrace()

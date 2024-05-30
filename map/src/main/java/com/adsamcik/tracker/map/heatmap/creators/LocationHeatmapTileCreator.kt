@@ -15,55 +15,56 @@ import kotlin.math.pow
 
 @Suppress("MagicNumber")
 internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLayerData) :
-		HeatmapTileCreator {
-	override fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig {
-		val colorList = layerData.colorList
-		val colorListSize = colorList.size.toDouble()
-		val heatmapColors = layerData.colorList.mapIndexed { index, color ->
-			index / colorListSize to color
-		}
-		return HeatmapConfig(
-				HeatmapColorScheme.fromArray(heatmapColors, 100),
-				dataUser.maxHeat,
-				false,
-				dataUser.ageThreshold,
-				{ current, _, stampValue, weight ->
-					current + stampValue * weight
-				}) { current, stampValue, _ ->
-			max(current, (stampValue * 255f).toInt())
-		}
-	}
+    HeatmapTileCreator {
+    override fun createHeatmapConfig(dataUser: UserHeatmapData): HeatmapConfig {
+        val colorList = layerData.colorList
+        val colorListSize = colorList.size.toDouble()
+        val heatmapColors = layerData.colorList.mapIndexed { index, color ->
+            index / colorListSize to color
+        }
+        return HeatmapConfig(
+            HeatmapColorScheme.fromArray(heatmapColors, 100),
+            dataUser.maxHeat,
+            false,
+            dataUser.ageThreshold,
+            { current, _, stampValue, weight ->
+                current + stampValue * weight
+            }) { current, stampValue, _ ->
+            max(current, (stampValue * 255f).toInt())
+        }
+    }
 
-	override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
-		val baseMeterSize = BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow(MapController.MAX_ZOOM - zoom)
-		return HeatmapStamp.generateNonlinear(ceil(baseMeterSize / pixelInMeters).toInt()) {
-			it.pow(2f)
-		}
-	}
+    override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
+        val baseMeterSize =
+            BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow(MapController.MAX_ZOOM - zoom)
+        return HeatmapStamp.generateNonlinear(ceil(baseMeterSize / pixelInMeters).toInt()) {
+            it.pow(2f)
+        }
+    }
 
-	private val dao = AppDatabase.database(context).locationDao()
+    private val dao = AppDatabase.database(context).locationDao()
 
-	override val availableRange: LongRange
-		get() {
-			val range = dao.range()
-			return LongRange(range.start, range.endInclusive)
-		}
+    override val availableRange: LongRange
+        get() {
+            val range = dao.range()
+            return LongRange(range.start, range.endInclusive)
+        }
 
-	override val weightNormalizationValue: Double = Preferences
-			.getPref(context)
-			.getIntRes(
-					R.string.settings_tracking_required_accuracy_key,
-					R.integer.settings_tracking_required_accuracy_default
-			)
-			.toDouble()
+    override val weightNormalizationValue: Double = Preferences
+        .getPref(context)
+        .getIntRes(
+            R.string.settings_tracking_required_accuracy_key,
+            R.integer.settings_tracking_required_accuracy_default
+        )
+        .toDouble()
 
-	override val getAllInsideAndBetween = dao::getAllInsideAndBetween
+    override val getAllInsideAndBetween = dao::getAllInsideAndBetween
 
-	override val getAllInside = dao::getAllInside
+    override val getAllInside = dao::getAllInside
 
-	companion object {
-		private const val BASE_HEAT_SIZE_IN_METERS = 40f
-		private const val HEATMAP_ZOOM_SCALE = 1.4f
-	}
+    companion object {
+        private const val BASE_HEAT_SIZE_IN_METERS = 40f
+        private const val HEATMAP_ZOOM_SCALE = 1.4f
+    }
 }
 

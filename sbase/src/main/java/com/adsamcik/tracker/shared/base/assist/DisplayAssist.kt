@@ -32,11 +32,17 @@ object DisplayAssist {
 	}
 
 	fun getRealArea(context: Context): Int2 {
-		val display = getDisplay(context)
-
-		val realScreenSize = Point()
-		display.getRealSize(realScreenSize)
-		return Int2(realScreenSize.x, realScreenSize.y)
+		return if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			val windowMetrics = context.windowManager.currentWindowMetrics
+			val bounds = windowMetrics.bounds
+			Int2(bounds.width(), bounds.height())
+		} else {
+			val display = getDisplay(context)
+			val realScreenSize = Point()
+			@Suppress("DEPRECATION")
+			display.getRealSize(realScreenSize)
+			Int2(realScreenSize.x, realScreenSize.y)
+		}
 	}
 
 	fun getUsableArea(context: Context): Int2 {
@@ -72,7 +78,7 @@ object DisplayAssist {
 						bounds.right + bounds.left
 				)
 			}
-			else -> @Suppress("DEPRECATION") {
+			else -> {
 				val appUsableSize = getUsableArea(context)
 				val realScreenSize = getRealArea(context)
 

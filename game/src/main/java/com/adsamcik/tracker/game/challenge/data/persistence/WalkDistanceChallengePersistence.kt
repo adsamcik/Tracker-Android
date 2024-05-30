@@ -8,8 +8,8 @@ import com.adsamcik.tracker.game.challenge.data.instance.WalkDistanceChallengeIn
 internal class WalkDistanceChallengePersistence : ChallengePersistence<WalkDistanceChallengeInstance> {
 	override fun load(context: Context, entryId: Long): WalkDistanceChallengeInstance {
 		val database = getDatabase(context)
-		val entry = database.entryDao.get(entryId)
-		val entity = database.walkDistanceDao.getByEntry(entryId)
+		val entry = database.entryDao().get(entryId)
+		val entity = database.walkDistanceDao().getByEntry(entryId)
 		val definition = WalkDistanceChallengeDefinition()
 		return WalkDistanceChallengeInstance(
 				entry,
@@ -20,8 +20,8 @@ internal class WalkDistanceChallengePersistence : ChallengePersistence<WalkDista
 
 	override fun persist(context: Context, instance: WalkDistanceChallengeInstance) {
 		val database = getDatabase(context)
-		database.entryDao.update(instance.data)
-		database.walkDistanceDao.update(instance.extra)
+		database.entryDao().update(instance.data)
+		database.walkDistanceDao().update(instance.extra)
 	}
 
 }

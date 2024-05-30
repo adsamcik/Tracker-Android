@@ -14,7 +14,20 @@ import kotlinx.parcelize.Parcelize
 import kotlin.math.sqrt
 
 /**
- * Location data object with latitude, longitude, altitude and other supporting parameters.
+ * `Location` represents a set of geographic coordinates along with additional data such as altitude, accuracies, and speed.
+ *
+ * @property time The timestamp of the location data, represented as milliseconds since the Unix epoch.
+ * @property latitude The latitude of the location in degrees. Values are in the range [-90.0, 90.0].
+ * @property longitude The longitude of the location in degrees. Values are in the range [-180.0, 180.0].
+ * @property altitude The altitude of the location in meters above the WGS 84 reference ellipsoid, or `null` if altitude is not available.
+ * @property horizontalAccuracy The accuracy of the location's latitude and longitude coordinates in meters, or `null` if horizontal accuracy is not available.
+ * @property verticalAccuracy The accuracy of the location's altitude in meters, or `null` if vertical accuracy is not available.
+ * @property speed The speed of the device over ground in meters per second, or `null` if speed is not available.
+ * @property speedAccuracy The accuracy of the speed measurement in meters per second, or `null` if speed accuracy is not available.
+ *
+ * The `@JsonClass` annotation indicates that this class can be serialized and deserialized by Moshi.
+ * The `@Parcelize` annotation indicates that this class can be parcelled to be passed between Android components.
+ * The `@ColumnInfo` annotations are used to specify the column names when storing the location data in a database using Room.
  */
 @JsonClass(generateAdapter = true)
 @Parcelize

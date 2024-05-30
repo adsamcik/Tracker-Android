@@ -140,10 +140,10 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		val challengeAdapter = ChallengeAdapter(context, arrayOf())
 		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter))
 
-		ChallengeManager.activeChallenges.observe(this) { updateChallenges(challengeAdapter, it) }
+		ChallengeManager.activeChallenges.observe(viewLifecycleOwner) { updateChallenges(challengeAdapter, it) }
 
 		val challengeList = ChallengeManager.activeChallenges.value
-		if (challengeList.isNullOrEmpty()) {
+		if (challengeList.isEmpty()) {
 			ChallengeManager.initialize(context)
 		} else {
 			updateChallenges(challengeAdapter, challengeList)

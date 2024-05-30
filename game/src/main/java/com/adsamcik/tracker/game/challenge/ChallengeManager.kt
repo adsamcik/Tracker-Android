@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -54,19 +55,20 @@ object ChallengeManager {
 	@WorkerThread
 	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
 		val database = ChallengeDatabase.database(context)
-		val active = database.entryDao.getActiveEntry(Time.nowMillis)
+		val active = database.entryDao().getActiveEntry(Time.nowMillis)
 
 		return active.mapNotNull {
 			tryWithResultAndReport({ null }) {
 				ChallengeLoader.loadChallenge(context, it)
 			}.also { instance ->
 				if (instance == null) {
-					database.entryDao.delete(it)
+					database.entryDao().delete(it)
 				}
 			}
 		}
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	@AnyThread
 	fun initialize(context: Context, onInitialized: (() -> Unit)? = null) {
 		GlobalScope.launch(Dispatchers.Default) {
@@ -139,7 +141,7 @@ object ChallengeManager {
 		val expired = mutableActiveChallengeList_.filter { it.endTime <= now }
 		if (expired.isNotEmpty()) {
 			activeChallengeLock.withLock {
-				mutableActiveChallengeList_.removeAll(expired)
+				mutableActiveChallengeList_.removeAll(expired.toSet())
 				fillEmptyChallengeSlots(context)
 				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
 			}
