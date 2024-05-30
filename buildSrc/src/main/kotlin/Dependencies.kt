@@ -11,36 +11,36 @@ object Dependencies {
      * Dependencies that are not project are required to be internal.
      */
     object Versions {
-        const val kotlin: String = "1.9.20"
+        const val kotlin: String = "2.0.0"
         const val dokka: String = "0.9.18"
-        const val ksp = "${kotlin}-1.0.13"
+        const val ksp = "${kotlin}-1.0.21"
 
         internal const val constraintLayout = "2.1.4"
         internal const val coreKtx = "1.12.0"
-        internal const val appcompat = "1.6.1"
-        internal const val fragment = "1.6.2"
-        internal const val moshi = "1.15.0"
-        internal const val work = "2.8.1"
-        internal const val lifecycle = "2.6.2"
+        internal const val appcompat = "1.7.0"
+        internal const val fragment = "1.7.1"
+        internal const val moshi = "1.15.1"
+        internal const val work = "2.9.0"
+        internal const val lifecycle = "2.8.1"
         internal const val preference = "1.2.1"
-        internal const val material = "1.9.0"
+        internal const val material = "1.12.0"
         internal const val desugar = "2.0.4"
 
-        internal const val coroutines = "1.7.3"
+        internal const val coroutines = "1.8.1"
 
-        internal const val sqlite = "3.43.0"
-        internal const val room = "2.6.0"
+        internal const val sqlite = "3.45.0"
+        internal const val room = "2.6.1"
 
         internal const val recyclerView = "1.3.2"
-        internal const val paging = "3.2.1"
+        internal const val paging = "3.3.0"
 
-        internal const val playServicesBase = "18.2.0"
-        internal const val playLocation = "21.0.1"
+        internal const val playServicesBase = "18.5.0"
+        internal const val playLocation = "21.3.0"
         internal const val playCore = "1.10.3"
         internal const val maps = "18.2.0"
 
         internal const val stax = "1.0.1"
-        internal const val jpx = "3.0.1"
+        internal const val jpx = "3.1.0"
         internal const val xml = "1.3.2"
 
         internal const val spotlight = "2.2.3"
@@ -52,13 +52,14 @@ object Dependencies {
 
         internal const val dexter = "6.2.3"
 
-        internal const val suncalc = "3.7"
+        internal const val suncalc = "3.10"
 
         /**
          * Testing specific dependencies
          */
         internal object Test {
-            internal const val androidxTest: String = "1.4.0"
+            internal const val rules: String = "1.5.0"
+            internal const val runner: String = "1.5.2"
             internal const val espresso: String = "3.5.1"
             internal const val coreTesting: String = "2.2.0"
             internal const val testingKtx: String = "1.3.0"
@@ -215,10 +216,10 @@ object Dependencies {
     fun test(dependencyHandler: DependencyHandler) {
         with(dependencyHandler) {
             androidTestImplementation("junit:junit:4.12")
-            androidTestImplementation("androidx.test:runner:${Versions.Test.androidxTest}")
-            androidTestImplementation("androidx.test:rules:${Versions.Test.androidxTest}")
-            androidTestImplementation("androidx.test.uiautomator:uiautomator:2.2.0")
-            androidTestImplementation("androidx.test.ext:junit:1.1.2")
+            androidTestImplementation("androidx.test:runner:${Versions.Test.rules}")
+            androidTestImplementation("androidx.test:rules:${Versions.Test.runner}")
+            androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+            androidTestImplementation("androidx.test.ext:junit:1.1.5")
             androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.coreTesting}")
             androidTestImplementation("com.jraska.livedata:testing-ktx:${Versions.Test.testingKtx}")
             androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
