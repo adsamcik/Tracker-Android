@@ -39,6 +39,7 @@ abstract class StyleableDrawableWrapper(drawable: GradientDrawable) : Drawable()
 		return drawable.changingConfigurations
 	}
 
+	@Deprecated("Deprecated in Java")
 	override fun setDither(dither: Boolean) {
 		drawable.setDither(dither)
 	}
@@ -79,6 +80,7 @@ abstract class StyleableDrawableWrapper(drawable: GradientDrawable) : Drawable()
 		return super.setVisible(visible, restart) || drawable.setVisible(visible, restart)
 	}
 
+	@Deprecated("Deprecated in Java")
 	override fun getOpacity(): Int {
 		return drawable.opacity
 	}

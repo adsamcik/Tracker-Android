@@ -60,6 +60,5 @@ dependencies {
     Dependencies.gpx(this)
 
     Dependencies.core(this)
-    Dependencies.crashlytics(this)
     Dependencies.test(this)
 }

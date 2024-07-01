@@ -10,7 +10,6 @@ plugins {
 }
 
 apply(plugin = "com.google.gms.google-services")
-apply(plugin = "com.google.firebase.crashlytics")
 
 android {
 	compileSdk = Android.compile
@@ -19,8 +18,8 @@ android {
 		applicationId = "com.adsamcik.tracker"
 		minSdk = Android.min
 		targetSdk = Android.target
-		versionCode = 381
-		versionName = "2023.1"
+		versionCode = 382
+		versionName = "2024.1.0"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		resourceConfigurations.add("en")
@@ -131,11 +130,10 @@ dependencies {
 
 	// Open-source licenses
 	implementation("de.psdev.licensesdialog:licensesdialog:2.2.0")
-	implementation("com.google.android.gms:play-services-oss-licenses:17.0.1")
+	implementation("com.google.android.gms:play-services-oss-licenses:17.1.0")
 
 	// PlayServices
 	Dependencies.location(this)
-	Dependencies.crashlytics(this)
 
 	// Database
 	Dependencies.database(this)

@@ -57,7 +57,6 @@ dependencies {
 	implementation(project(":logger"))
 
 	Dependencies.core(this)
-	Dependencies.crashlytics(this)
 	Dependencies.location(this)
 	Dependencies.test(this)
 }
