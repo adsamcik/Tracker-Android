@@ -36,7 +36,7 @@ object Dependencies {
 
         internal const val playServicesBase = "18.5.0"
         internal const val playLocation = "21.3.0"
-        internal const val playCore = "1.10.3"
+        internal const val playFeatureDelivery = "2.1.0"
         internal const val maps = "18.2.0"
 
         internal const val stax = "1.0.1"
@@ -117,7 +117,9 @@ object Dependencies {
             implementation("androidx.fragment:fragment-ktx:${Versions.fragment}")
             implementation("com.google.android.material:material:${Versions.material}")
             implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
-            implementation("com.google.android.play:core:${Versions.playCore}")
+            implementation("com.google.android.play:feature-delivery:${Versions.playFeatureDelivery}")
+            implementation("com.google.android.play:feature-delivery-ktx:${Versions.playFeatureDelivery}")
+
 
             implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
 

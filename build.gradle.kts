@@ -5,7 +5,7 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:8.4.1")
+		classpath("com.android.tools.build:gradle:8.4.2")
 		classpath("com.google.gms:google-services:4.4.2")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
 
