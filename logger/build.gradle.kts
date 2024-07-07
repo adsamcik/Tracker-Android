@@ -62,6 +62,5 @@ dependencies {
 
 	Dependencies.core(this)
 	Dependencies.database(this)
-	Dependencies.crashlytics(this)
 	Dependencies.test(this)
 }

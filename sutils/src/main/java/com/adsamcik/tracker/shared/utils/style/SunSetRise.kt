@@ -178,6 +178,8 @@ class SunSetRise {
             .apply {
                 if (location?.isValid == true) {
                     at(location.latitude, location.longitude)
+                } else {
+                    at(0.0, 0.0)
                 }
                 on(truncated)
                 twilight(SunTimes.Twilight.VISUAL)
