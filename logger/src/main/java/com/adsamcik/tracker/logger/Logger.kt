@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.logger
 
 import android.content.Context
+import android.os.Debug
 import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.StringRes
@@ -40,6 +41,10 @@ object Logger : CoroutineScope {
 
     @AnyThread
     fun log(data: LogData) {
+        if (BuildConfig.DEBUG) {
+            Log.d("com.adsamcik.tracker.debug.${data.source}", data.toString())
+        }
+
         require(isInitialized)
         if (requireNotNull(preferences).getBooleanRes(
                 R.string.settings_log_enabled_key,
