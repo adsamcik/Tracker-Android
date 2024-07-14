@@ -31,7 +31,7 @@ internal object SessionBroadcaster {
 			}
 
 	private fun sendBroadcast(context: Context, intent: Intent) {
-		context.sendBroadcast(intent, TrackerSession.BROADCAST_PERMISSION)
+		context.sendBroadcast(intent, TrackerSession.getBroadcastPermission(context))
 	}
 
 	/**

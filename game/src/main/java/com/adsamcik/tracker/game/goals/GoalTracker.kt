@@ -87,7 +87,7 @@ internal object GoalTracker : CoroutineScope {
 						TrackerUpdateReceiver.RECEIVER_LISTENER_REGISTRATION_CLASSNAME,
 						GoalsSessionUpdateReceiver::class.java.name
 				),
-				TrackerSession.BROADCAST_PERMISSION
+				TrackerSession.getBroadcastPermission(context)
 		)
 		Logger.log(
 				LogData(

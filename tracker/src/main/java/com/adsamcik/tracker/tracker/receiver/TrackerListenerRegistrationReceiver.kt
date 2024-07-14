@@ -16,11 +16,6 @@ import com.adsamcik.tracker.tracker.module.TrackerListenerManager
  * Receives tracker listener registrations.
  */
 internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
-
-	init {
-	    Logger.log(LogData(message = "Tracker listener registration receiver initialized", source = TRACKER_LOG_SOURCE))
-	}
-
 	private fun resolveClass(intent: Intent): Class<TrackerUpdateReceiver>? {
 		val className = intent.getStringExtra(RECEIVER_LISTENER_REGISTRATION_CLASSNAME)
 		if (className == null) {

@@ -25,7 +25,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <permission
-        android:name="com.adsamcik.tracker.permission.TRACKER"
+        android:name="${applicationId}.permission.TRACKER"
         android:protectionLevel="signature" />
 
     <application>
@@ -63,7 +63,7 @@
         <receiver
             android:name="com.adsamcik.tracker.tracker.receiver.TrackerListenerRegistrationReceiver"
             android:exported="false"
-            android:permission="com.adsamcik.tracker.permission.TRACKER">
+            android:permission="${applicationId}.permission.TRACKER">
             <intent-filter>
                 <action android:name="com.adsamcik.tracker.listener.REGISTER" />
                 <action android:name="com.adsamcik.tracker.listener.UNREGISTER" />

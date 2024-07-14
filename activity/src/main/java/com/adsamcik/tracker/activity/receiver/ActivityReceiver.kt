@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.activity.receiver
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -11,6 +12,7 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
@@ -28,15 +30,23 @@ import com.google.android.gms.tasks.Task
  * Intent service that receives all activity updates.
  * Handles logging if it is enabled.
  */
+// Permissions are checked earlier which is not seen by analyzer, lets not pollute the code with checks everywhere
+@SuppressLint("MissingPermission")
 internal class ActivityReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
+        val hasActivityTransitionResult = ActivityTransitionResult.hasResult(intent)
+
+        logActivity(LogData(
+            message = "Received activity update with activity:$hasActivityResult and activity transition:$hasActivityTransitionResult",
+            source = ACTIVITY_LOG_SOURCE))
+
         if (hasActivityResult) {
             val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
             onActivityResult(context, result)
         }
 
-        if (ActivityTransitionResult.hasResult(intent)) {
+        if (hasActivityTransitionResult) {
             val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
             onActivityTransitionResult(context, result)
 
@@ -151,13 +161,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
                     )
                 )
 
-                ContextCompat.registerReceiver(
-                    context,
-                    receiver,
-                    IntentFilter(ACTIVITY_INTENT),
-                    ContextCompat.RECEIVER_NOT_EXPORTED
-                )
-
                 isSubscribed = true
 
                 if (delayInS > 0) {
@@ -255,14 +258,14 @@ internal class ActivityReceiver : BroadcastReceiver() {
          * Gets a PendingIntent to be sent for each activity detection.
          */
         private fun getActivityDetectionPendingIntent(context: Context): PendingIntent {
-            val intent = Intent(ACTIVITY_INTENT)
+            val intent = Intent(context, ActivityReceiver::class.java)
             // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
             // requestActivityUpdates() and removeActivityUpdates().
             return PendingIntent.getBroadcast(
                 context,
                 REQUEST_CODE_PENDING_INTENT,
                 intent,
-                PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
+                PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_MUTABLE)
             )
         }
     }
