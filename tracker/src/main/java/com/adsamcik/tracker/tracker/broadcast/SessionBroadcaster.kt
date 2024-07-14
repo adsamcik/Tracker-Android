@@ -26,6 +26,7 @@ internal object SessionBroadcaster {
 	private fun createBaseIntent(context: Context, action: String, session: TrackerSession) =
 			Intent(action).apply {
 				putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
+				setPackage(context.packageName)
 				`package` = context.packageName
 			}
 
