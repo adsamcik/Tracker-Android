@@ -6,6 +6,7 @@ plugins {
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
+	id("org.jetbrains.kotlin.plugin.compose") version Dependencies.Versions.kotlin
 	Dependencies.corePlugins(this)
 }
 
@@ -84,6 +85,7 @@ android {
 	}
 	buildFeatures {
 		buildConfig = true
+		compose = true
 	}
 }
 
@@ -109,6 +111,12 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 	implementation(project(":impexp"))
+	implementation("androidx.compose.runtime:runtime-android:1.7.0-beta05")
+	implementation("androidx.compose.material:material:1.7.0-beta05")
+	implementation("androidx.compose.ui:ui-tooling-preview-android:1.7.0-beta05")
+	implementation("androidx.compose.ui:ui-viewbinding:1.6.8")
+	debugImplementation("androidx.compose.ui:ui-tooling:1.7.0-beta05")
+
 
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
