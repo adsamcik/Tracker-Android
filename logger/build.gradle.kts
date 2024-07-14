@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
 	id("com.android.library")
 	Dependencies.corePlugins(this)
@@ -44,6 +42,9 @@ android {
 		abortOnError = false
 	}
 	namespace = "com.adsamcik.tracker.logger"
+	buildFeatures {
+		buildConfig = true
+	}
 
 	ksp {
 		arg("room.schemaLocation", "$projectDir/schemas")

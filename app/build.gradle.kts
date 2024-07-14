@@ -82,6 +82,9 @@ android {
 		includeInApk = true
 		includeInBundle = true
 	}
+	buildFeatures {
+		buildConfig = true
+	}
 }
 
 tasks.withType<DokkaTask> {

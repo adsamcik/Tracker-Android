@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
 	id("com.android.library")
 	Dependencies.corePlugins(this)
@@ -48,6 +46,9 @@ android {
 		abortOnError = false
 	}
     namespace = "com.adsamcik.tracker.shared.preferences"
+    buildFeatures {
+        buildConfig = true
+    }
 }
 
 dependencies {
