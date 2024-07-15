@@ -17,7 +17,7 @@ class ActivityModuleInitializer : ModuleInitializer {
 	private fun initializeDatabase(context: Context) {
 		val activityDao = AppDatabase.database(context).activityDao()
 
-		val sessionActivity = NativeSessionActivity.values().map {
+		val sessionActivity = NativeSessionActivity.entries.map {
 			it.getSessionActivity(context)
 		}
 

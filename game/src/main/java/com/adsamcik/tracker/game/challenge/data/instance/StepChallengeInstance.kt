@@ -17,7 +17,6 @@ class StepChallengeInstance(
 		data, definition, extra
 ) {
 
-	@Suppress("unchecked_cast")
 	override val persistence: ChallengePersistence<StepChallengeInstance>
 		get() = StepChallengePersistence()
 

@@ -26,11 +26,12 @@ internal object SessionBroadcaster {
 	private fun createBaseIntent(context: Context, action: String, session: TrackerSession) =
 			Intent(action).apply {
 				putExtra(TrackerSession.RECEIVER_SESSION_ID, session.id)
+				setPackage(context.packageName)
 				`package` = context.packageName
 			}
 
 	private fun sendBroadcast(context: Context, intent: Intent) {
-		context.sendBroadcast(intent, TrackerSession.BROADCAST_PERMISSION)
+		context.sendBroadcast(intent, TrackerSession.getBroadcastPermission(context))
 	}
 
 	/**

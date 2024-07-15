@@ -10,5 +10,14 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity android:name="com.adsamcik.tracker.app.activity.debug.LogViewerActivity" />
+
+        <receiver
+            android:name=".receiver.ActivityReceiver"
+            android:exported="false"
+            android:permission="com.google.android.gms.permission.ACTIVITY_RECOGNITION">
+            <intent-filter>
+                <action android:name="com.adsamcik.tracker.ACTIVITY_RESULT"/>
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

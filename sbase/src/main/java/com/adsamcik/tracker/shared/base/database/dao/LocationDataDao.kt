@@ -187,7 +187,7 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	 * Get all new locations since time.
 	 * It is considered new location if it is first record within [accuracy].
 	 */
-	@Transaction
+	@RewriteQueriesToDropUnusedColumns
 	fun newLocations(
 			list: List<Pair<Double, Double>>,
 			time: Long,

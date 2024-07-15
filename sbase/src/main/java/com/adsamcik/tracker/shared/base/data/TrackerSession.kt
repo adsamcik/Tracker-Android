@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.base.data
 
+import android.content.Context
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -78,7 +79,7 @@ open class TrackerSession(
 		const val RECEIVER_SESSION_ID: String = "id"
 		const val RECEIVER_SESSION_IS_NEW: String = "isNew"
 		const val RECEIVER_SESSION_RESUME_TIMEOUT: String = "resumeTimeout"
-		const val BROADCAST_PERMISSION: String = "com.adsamcik.tracker.permission.TRACKER"
+		fun getBroadcastPermission(context: Context) = "${context.packageName}.permission.TRACKER"
 	}
 }
 

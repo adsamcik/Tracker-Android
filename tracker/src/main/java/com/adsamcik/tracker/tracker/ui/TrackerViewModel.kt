@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.ui
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import com.adsamcik.tracker.logger.LogData
@@ -17,13 +18,10 @@ internal class TrackerViewModel(application: Application) : AndroidViewModel(app
 
 	init {
 		val context = getApplication<Application>().applicationContext
-		context.sendBroadcast(
-				Intent(TrackerUpdateReceiver.ACTION_REGISTER_COMPONENT).putExtra(
-						TrackerUpdateReceiver.RECEIVER_LISTENER_REGISTRATION_CLASSNAME,
-						SessionUpdateReceiver::class.java.name
-				),
-				TrackerSession.BROADCAST_PERMISSION
-		)
+		getBaseIntent(context).also { intent ->
+			intent.setAction(TrackerUpdateReceiver.ACTION_REGISTER_COMPONENT)
+			context.sendBroadcast(intent)
+		}
 		Logger.log(
 				LogData(
 						message = "Attempted tracker listener registration",
@@ -35,18 +33,21 @@ internal class TrackerViewModel(application: Application) : AndroidViewModel(app
 	override fun onCleared() {
 		super.onCleared()
 		val context = getApplication<Application>().applicationContext
-		context.sendBroadcast(
-				Intent(TrackerUpdateReceiver.ACTION_UNREGISTER_COMPONENT).putExtra(
-						TrackerUpdateReceiver.RECEIVER_LISTENER_REGISTRATION_CLASSNAME,
-						SessionUpdateReceiver::class.java.name
-				),
-				TrackerSession.BROADCAST_PERMISSION
-		)
+
+		getBaseIntent(context).also { intent ->
+			intent.setAction(TrackerUpdateReceiver.ACTION_UNREGISTER_COMPONENT)
+			context.sendBroadcast(intent)
+		}
 		Logger.log(
 				LogData(
 						message = "Attempted tracker listener unregistration",
 						source = TRACKER_LOG_SOURCE
 				)
 		)
+	}
+
+	private fun getBaseIntent(context: Context) = Intent().also { intent ->
+		intent.putExtra( TrackerUpdateReceiver.RECEIVER_LISTENER_REGISTRATION_CLASSNAME, SessionUpdateReceiver::class.java.name)
+		intent.setPackage(context.packageName)
 	}
 }

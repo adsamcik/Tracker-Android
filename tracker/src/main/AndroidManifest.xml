@@ -44,7 +44,8 @@
 
         <activity
             android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi" />
         <activity android:name=".notification.NotificationManagementActivity" />
 
         <receiver
@@ -55,12 +56,14 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name="com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver" />
+        <receiver
+            android:name="com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver"
+            android:exported="false"/>
 
         <receiver
             android:name="com.adsamcik.tracker.tracker.receiver.TrackerListenerRegistrationReceiver"
             android:exported="false"
-            android:permission="com.adsamcik.tracker.permission.TRACKER">
+            android:permission="${applicationId}.permission.TRACKER">
             <intent-filter>
                 <action android:name="com.adsamcik.tracker.listener.REGISTER" />
                 <action android:name="com.adsamcik.tracker.listener.UNREGISTER" />

@@ -16,7 +16,6 @@ import com.adsamcik.tracker.tracker.module.TrackerListenerManager
  * Receives tracker listener registrations.
  */
 internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
-
 	private fun resolveClass(intent: Intent): Class<TrackerUpdateReceiver>? {
 		val className = intent.getStringExtra(RECEIVER_LISTENER_REGISTRATION_CLASSNAME)
 		if (className == null) {
@@ -64,6 +63,7 @@ internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
 	}
 
 	override fun onReceive(context: Context, intent: Intent) {
+		Logger.log(LogData(message = "Received intent ${intent.action}", source = TRACKER_LOG_SOURCE))
 		when (intent.action) {
 			TrackerUpdateReceiver.ACTION_REGISTER_COMPONENT -> registerIntent(context, intent)
 			TrackerUpdateReceiver.ACTION_UNREGISTER_COMPONENT -> unregisterIntent(intent)
