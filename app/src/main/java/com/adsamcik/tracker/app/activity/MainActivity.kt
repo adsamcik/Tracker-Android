@@ -10,6 +10,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import androidx.activity.OnBackPressedCallback
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
@@ -82,6 +83,27 @@ class MainActivity : CoreUIActivity() {
 				)
 			}
 		}
+
+		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+			override fun handleOnBackPressed() {
+				when {
+					buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
+						DraggableImageButton.State.INITIAL, true
+					)
+					buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
+						DraggableImageButton.State.INITIAL, true
+					)
+					buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
+						DraggableImageButton.State.INITIAL, true
+					)
+					else -> {
+						// If no custom behavior, allow the default behavior
+						isEnabled = false
+						onBackPressedDispatcher.onBackPressed()
+					}
+				}
+			}
+		})
 	}
 
 	override fun onStart() {
@@ -389,22 +411,6 @@ class MainActivity : CoreUIActivity() {
 			true
 		} else {
 			super.dispatchTouchEvent(event)
-		}
-	}
-
-	@Deprecated("Deprecated in Java")
-	override fun onBackPressed() {
-		when {
-			buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
-				DraggableImageButton.State.INITIAL, true
-			)
-			buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
-				DraggableImageButton.State.INITIAL, true
-			)
-			buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
-				DraggableImageButton.State.INITIAL, true
-			)
-			else -> super.onBackPressed()
 		}
 	}
 }
