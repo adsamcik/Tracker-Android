@@ -28,6 +28,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeight
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.CellData
 import com.adsamcik.tracker.shared.base.data.CellInfo
@@ -83,7 +84,7 @@ class FragmentTracker : CorePermissionFragment(), LifecycleObserver {
 		val view = inflater.inflate(R.layout.fragment_tracker, container, false)
 		view.findViewById<LinearLayoutCompat>(R.id.top_panel_root)
 				.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-					height += DisplayAssist.getStatusBarHeight(container.context)
+					height += container.getStatusBarHeight()
 				}
 
 		view.findViewById<RecyclerView>(R.id.tracker_recycler).apply {

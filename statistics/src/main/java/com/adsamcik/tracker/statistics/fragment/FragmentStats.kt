@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeight
 import com.adsamcik.tracker.shared.utils.extension.isEmpty
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -49,7 +50,7 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		val contentPadding = activity.resources.getDimension(
 				com.adsamcik.tracker.shared.base.R.dimen.content_padding
 		).toInt()
-		val statusBarHeight = DisplayAssist.getStatusBarHeight(activity)
+		val statusBarHeight = fragmentView.getStatusBarHeight()
 		val navBarSize = DisplayAssist.getNavigationBarSize(activity)
 		val navBarHeight = navBarSize.second.y
 
