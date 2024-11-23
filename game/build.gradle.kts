@@ -1,16 +1,14 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
 	id("com.android.dynamic-feature")
 	Dependencies.corePlugins(this)
 }
 
 android {
-	compileSdk = Android.compile
-	buildToolsVersion = Android.buildTools
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = Android.min
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -29,7 +27,7 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain(Android.javaVersion)
+		jvmToolchain(Android.JAVA_VERSION)
 	}
 
 	buildTypes {

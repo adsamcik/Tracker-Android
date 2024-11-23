@@ -12,12 +12,12 @@ plugins {
 apply(plugin = "com.google.gms.google-services")
 
 android {
-	compileSdk = Android.compile
-	buildToolsVersion = Android.buildTools
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 	defaultConfig {
 		applicationId = "com.adsamcik.tracker"
-		minSdk = Android.min
-		targetSdk = Android.target
+		minSdk = Android.MIN_VERSION
+		targetSdk = Android.TARGET_VERSION
 		versionCode = 383
 		versionName = "2024.2.0"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -33,7 +33,7 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain(Android.javaVersion)
+		jvmToolchain(Android.JAVA_VERSION)
 		compilerOptions {
 			optIn.add("kotlin.ExperimentalUnsignedTypes")
 		}
@@ -41,8 +41,8 @@ android {
 
 	java {
 		toolchain {
-			setSourceCompatibility(Android.javaVersion)
-			setTargetCompatibility(Android.javaVersion)
+			setSourceCompatibility(Android.JAVA_VERSION)
+			setTargetCompatibility(Android.JAVA_VERSION)
 		}
 	}
 
@@ -90,7 +90,7 @@ android {
 tasks.withType<DokkaTask> {
 	outputFormat = "html"
 	outputDirectory = "${layout.buildDirectory}/javadoc"
-	jdkVersion = Android.javaVersion
+	jdkVersion = Android.JAVA_VERSION
 	skipEmptyPackages = true
 	skipDeprecated = true
 
