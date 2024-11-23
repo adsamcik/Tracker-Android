@@ -10,13 +10,13 @@ import com.adsamcik.tracker.shared.base.extension.standardDeviation
 import com.adsamcik.tracker.shared.base.misc.Probability
 
 abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
-		private val definition: ChallengeDefinition<ChallengeType>
+	private val definition: ChallengeDefinition<ChallengeType>
 ) {
-	private var difficulties = mutableListOf<Double>()
+	private val difficultyValues = mutableListOf<Double>()
 
 	protected fun addDifficulty(value: Double) {
-		require(value > 0.0)
-		difficulties.add(value)
+		require(value > 0.0) { "Difficulty value must be positive." }
+		difficultyValues.add(value)
 	}
 
 	protected var duration: Long = 0L
@@ -30,22 +30,24 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 
 	protected open val difficulty: ChallengeDifficulty
 		get() {
-			val difficultyAvg = difficulties.average()
-			val difficultyStdDev = difficulties.standardDeviation()
+			val difficultyAvg = difficultyValues.average()
 			return when {
-				difficultyAvg < difficultyAvg - difficultyStdDev -> ChallengeDifficulty.VERY_EASY
-				difficultyAvg < difficultyAvg -> ChallengeDifficulty.EASY
-				difficultyAvg < difficultyAvg + difficultyStdDev -> ChallengeDifficulty.MEDIUM
-				difficultyAvg < difficultyAvg + 2 * difficultyStdDev -> ChallengeDifficulty.HARD
+				difficultyAvg < 0.8 -> ChallengeDifficulty.VERY_EASY
+				difficultyAvg < 0.9 -> ChallengeDifficulty.EASY
+				difficultyAvg < 1.1 -> ChallengeDifficulty.MEDIUM
+				difficultyAvg < 1.3 -> ChallengeDifficulty.HARD
 				else -> ChallengeDifficulty.VERY_HARD
 			}
 		}
 
 	protected fun normalRandom(range: ClosedFloatingPointRange<Double>): Double {
-		val mean = 0.5
-		val standardDeviation = 0.22
-		val value = Probability.truncatedNormal(mean, standardDeviation, 0.0, 1.0)
-		return value.rescale(range)
+		val mean = (range.start + range.endInclusive) / 2
+		val standardDeviation = (range.endInclusive - range.start) / 6 // Approx 99.7% within range
+		var value: Double
+		do {
+			value = Probability.normal(mean, standardDeviation).first()
+		} while (value < range.start || value > range.endInclusive)
+		return value
 	}
 
 	open fun selectDuration() {
@@ -54,7 +56,7 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 
 		require(durationMultiplier > 0)
 
-		durationMultiplierNormalized = durationMultiplier.normalize(range)
+		durationMultiplierNormalized = (durationMultiplier - range.start) / (range.endInclusive - range.start)
 
 		duration = (definition.defaultDuration * durationMultiplier).toLong()
 
@@ -90,4 +92,5 @@ abstract class ChallengeBuilder<ChallengeType : ChallengeInstance<*, *>>(
 
 	protected abstract fun persistExtra(database: ChallengeDatabase, challenge: ChallengeType)
 }
+
 
