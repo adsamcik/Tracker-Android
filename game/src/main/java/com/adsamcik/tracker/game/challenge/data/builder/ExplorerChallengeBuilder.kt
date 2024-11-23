@@ -8,8 +8,6 @@ import com.adsamcik.tracker.game.challenge.data.instance.ExplorerChallengeInstan
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.extension.additiveInverse
-import com.adsamcik.tracker.shared.base.extension.rescale
 
 class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefinition) :
 	ChallengeBuilder<ExplorerChallengeInstance>(definition) {

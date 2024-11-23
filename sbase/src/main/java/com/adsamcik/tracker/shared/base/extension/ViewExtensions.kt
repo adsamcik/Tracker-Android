@@ -35,18 +35,6 @@ fun View.setMargin(left: Int, top: Int, right: Int, bottom: Int) {
  */
 val Int.dp: Int get() = (this * Resources.getSystem().displayMetrics.density).roundToInt()
 
-/**
- * Converts Scale-independent pixels to pixels. Rounds to whole pixels.
- */
-val Int.sp: Int
-	get() = (this * Resources.getSystem().displayMetrics.scaledDensity).roundToInt()
-
-/**
- * Converts Scale-independent pixels to pixels.
- */
-val Float.sp: Float
-	get() = this * Resources.getSystem().displayMetrics.scaledDensity
-
 private class ViewGroupNotSupportedException(message: String? = null) : Exception(message)
 
 /**
