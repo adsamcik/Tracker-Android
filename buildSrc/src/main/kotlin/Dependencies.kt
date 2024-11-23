@@ -15,16 +15,16 @@ object Dependencies {
         const val dokka: String = "0.9.18"
         const val ksp = "${kotlin}-1.0.21"
 
-        internal const val constraintLayout = "2.1.4"
-        internal const val coreKtx = "1.13.1"
+        internal const val constraintLayout = "2.2.0"
+        internal const val coreKtx = "1.15.0"
         internal const val appcompat = "1.7.0"
-        internal const val fragment = "1.8.1"
+        internal const val fragment = "1.8.5"
         internal const val moshi = "1.15.1"
-        internal const val work = "2.9.0"
-        internal const val lifecycle = "2.8.3"
+        internal const val work = "2.10.0"
+        internal const val lifecycle = "2.8.7"
         internal const val preference = "1.2.1"
         internal const val material = "1.12.0"
-        internal const val desugar = "2.0.4"
+        internal const val desugar = "2.1.3"
 
         internal const val coroutines = "1.8.1"
 
@@ -32,7 +32,7 @@ object Dependencies {
         internal const val room = "2.6.1"
 
         internal const val recyclerView = "1.3.2"
-        internal const val paging = "3.3.0"
+        internal const val paging = "3.3.4"
 
         internal const val playServicesBase = "18.5.0"
         internal const val playLocation = "21.3.0"
@@ -40,7 +40,7 @@ object Dependencies {
         internal const val maps = "19.0.0"
 
         internal const val stax = "1.0.1"
-        internal const val jpx = "3.1.0"
+        internal const val jpx = "3.2.0"
         internal const val xml = "1.3.3"
 
         internal const val spotlight = "2.2.3"
