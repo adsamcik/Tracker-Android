@@ -219,7 +219,6 @@ object Dependencies {
         with(dependencyHandler) {
             androidTestImplementation("junit:junit:4.12")
             androidTestImplementation("androidx.test:runner:${Versions.Test.rules}")
-            androidTestImplementation("androidx.test:rules:${Versions.Test.runner}")
             androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
             androidTestImplementation("androidx.test.ext:junit:1.1.5")
             androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.coreTesting}")

@@ -131,7 +131,7 @@ internal class SystemStyleUpdater {
 		updateSystemBarAppearance(styleView.view, perceivedLuminance)
 	}
 
-	private fun updateSystemBarStyle(
+	fun updateSystemBarStyle(
 		notificationStyleView: SystemBarStyleView?,
 		navigationStyleView: SystemBarStyleView?
 	) {
