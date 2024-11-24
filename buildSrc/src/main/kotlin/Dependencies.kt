@@ -10,7 +10,7 @@ object Dependencies {
      * Object containing versions for various dependencies.
      */
     object Versions {
-        const val kotlin = "2.1.0-RC2"
+        const val kotlin = "2.0.21"
         const val dokka = "0.9.18"
         const val ksp = "$kotlin-1.0.28"
 

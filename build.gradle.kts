@@ -8,13 +8,14 @@ buildscript {
 		classpath("com.android.tools.build:gradle:8.7.2")
 		classpath("com.google.gms:google-services:4.4.2")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
-
+		classpath("com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin:2.0.1")
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
 	}
 
 	plugins {
 		id("com.google.devtools.ksp") version Dependencies.Versions.ksp apply false
+
 	}
 }
 

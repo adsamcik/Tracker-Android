@@ -5,6 +5,7 @@ plugins {
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
+	id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
 	Dependencies.corePlugins(this)
 	Dependencies.composePlugins(this)
 }
@@ -19,7 +20,7 @@ android {
 		minSdk = Android.MIN_VERSION
 		targetSdk = Android.TARGET_VERSION
 		versionCode = 383
-		versionName = "2024.2.0"
+		versionName = "2024.3.0"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		resourceConfigurations.add("en")
@@ -116,6 +117,7 @@ dependencies {
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
 	Dependencies.core(this)
+	Dependencies.compose(this)
 	// 1st party dependencies
 	Dependencies.slider(this)
 	Dependencies.draggable(this)
