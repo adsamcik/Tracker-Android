@@ -22,27 +22,11 @@ import android.telephony.TelephonyManager
 import android.view.LayoutInflater
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
+import androidx.activity.ComponentActivity
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 
-
-/**
- * Starts new activity for result
- *
- * @param requestCode Request code
- * @param options Options bundle
- * @param init Initialization function to setup the intent if needed
- */
-inline fun <reified T : AppCompatActivity> AppCompatActivity.startActivity(
-	requestCode: Int = -1,
-	options: Bundle? = null,
-	noinline init: Intent.() -> Unit = {}
-) {
-	val intent = newIntent<T>()
-	intent.init()
-	startActivityForResult(intent, requestCode, options)
-}
 
 /**
  * Starts new activity.
@@ -51,7 +35,7 @@ inline fun <reified T : AppCompatActivity> AppCompatActivity.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : AppCompatActivity> Fragment.startActivity(
+inline fun <reified T : ComponentActivity> Fragment.startActivity(
 	options: Bundle? = null,
 	noinline init: Intent.() -> Unit = {}
 ) {
@@ -64,7 +48,7 @@ inline fun <reified T : AppCompatActivity> Fragment.startActivity(
  * @param options Options bundle
  * @param init Initialization function to setup the intent if needed
  */
-inline fun <reified T : AppCompatActivity> Context.startActivity(
+inline fun <reified T : ComponentActivity> Context.startActivity(
 	options: Bundle? = null,
 	noinline init: Intent.() -> Unit = {}
 ) {

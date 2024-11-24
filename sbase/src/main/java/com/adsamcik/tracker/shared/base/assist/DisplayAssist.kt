@@ -7,10 +7,13 @@ import android.os.Build
 import android.util.TypedValue
 import android.view.Surface
 import android.view.View
+import android.view.Window
 import android.view.WindowInsets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnAttach
+import androidx.core.view.doOnPreDraw
+import com.adsamcik.tracker.shared.base.BuildConfig
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.windowManager
 import com.adsamcik.tracker.shared.base.misc.Int2
@@ -129,9 +132,12 @@ object DisplayAssist {
 		}
 	}
 
-	fun View.getStatusBarHeight(): Int {
-		val insets = ViewCompat.getRootWindowInsets(this)
-		return insets?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+	fun Window.getStatusBarHeightDeferred(callback: (Int) -> Unit) {
+		decorView.doOnPreDraw {
+			val insets = ViewCompat.getRootWindowInsets(it)
+			val height = insets?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+			callback(height)
+		}
 	}
 
 	fun calculateNoOfColumns(context: Context, columnWidthDp: Float): Int {

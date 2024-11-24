@@ -20,7 +20,7 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.assist.Assist
-import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeight
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeightDeferred
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -101,14 +101,19 @@ abstract class DetailActivity : CoreUIActivity() {
 					)
 			)
 		} else {
-			topPanelRoot.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-				height += topPanelRoot.getStatusBarHeight()
+			window.getStatusBarHeightDeferred { statusBarHeight ->
+				topPanelRoot.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+					height += statusBarHeight
+				}
 			}
+
 		}
 	}
 
+	@Deprecated("deprecated in android")
 	override fun onBackPressed() {
-		finish()
+        super.onBackPressed()
+        finish()
 	}
 
 	/**
