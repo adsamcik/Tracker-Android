@@ -2,12 +2,11 @@ import org.jetbrains.dokka.gradle.DokkaTask
 import java.net.URI
 
 plugins {
-	id("com.google.secrets_gradle_plugin") version "0.6.1"
 	id("com.android.application")
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
 	Dependencies.corePlugins(this)
-	id("org.jetbrains.kotlin.plugin.compose")
+	Dependencies.composePlugins(this)
 }
 
 apply(plugin = "com.google.gms.google-services")
@@ -28,7 +27,6 @@ android {
 	}
 
 	compileOptions {
-		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
 	}
@@ -118,7 +116,6 @@ dependencies {
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
 	Dependencies.core(this)
-	Dependencies.compose(this)
 	// 1st party dependencies
 	Dependencies.slider(this)
 	Dependencies.draggable(this)

@@ -10,9 +10,9 @@ object Dependencies {
      * Object containing versions for various dependencies.
      */
     object Versions {
-        const val kotlin = "2.0.0"
+        const val kotlin = "2.1.0-RC2"
         const val dokka = "0.9.18"
-        const val ksp = "$kotlin-1.0.21"
+        const val ksp = "$kotlin-1.0.28"
 
         const val constraintLayout = "2.2.0"
         const val coreKtx = "1.15.0"
@@ -23,7 +23,6 @@ object Dependencies {
         const val lifecycle = "2.8.7"
         const val preference = "1.2.1"
         const val material = "1.12.0"
-        const val desugar = "2.1.3"
 
         const val coroutines = "1.8.1"
 
@@ -76,9 +75,6 @@ object Dependencies {
     private fun DependencyHandlerScope.ksp(dependency: Any) =
         add("ksp", dependency)
 
-    private fun DependencyHandlerScope.coreLibraryDesugaring(dependency: Any) =
-        add("coreLibraryDesugaring", dependency)
-
     private fun DependencyHandlerScope.androidTestImplementation(dependency: Any) =
         add("androidTestImplementation", dependency)
 
@@ -103,13 +99,6 @@ object Dependencies {
 
 
     fun core(scope: DependencyHandlerScope) {
-        // Apply Compose BOM
-        val composeBom = scope.platform("androidx.compose:compose-bom:${Versions.composeBom}")
-        scope.implementation(composeBom)
-
-        // Core Library Desugaring
-        scope.coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
-
         // Kotlin Symbol Processing API
         scope.implementation("com.google.devtools.ksp:symbol-processing-api:${Versions.ksp}")
 
@@ -201,7 +190,7 @@ object Dependencies {
 
     fun compose(scope: DependencyHandlerScope) {
         // Import the Compose BOM (Bill of Materials) to manage versions
-        val composeBom = scope.platform("androidx.compose:compose-bom:2024.10.01")
+        val composeBom = scope.platform("androidx.compose:compose-bom:${Versions.composeBom}")
         scope.implementation(composeBom)
         scope.androidTestImplementation(composeBom)
 
@@ -217,6 +206,7 @@ object Dependencies {
         scope.implementation("androidx.compose.animation:animation-graphics")
         scope.implementation("androidx.navigation:navigation-compose:2.9.0-alpha03")
         scope.implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+        scope.implementation("androidx.compose.runtime:runtime")
         scope.implementation("androidx.compose.runtime:runtime-livedata")
         scope.implementation("androidx.constraintlayout:constraintlayout-compose:1.0.1")
 
@@ -228,8 +218,6 @@ object Dependencies {
         scope.implementation("com.google.accompanist:accompanist-pager:0.36.0")
         scope.implementation("com.google.accompanist:accompanist-swiperefresh:0.36.0")
     }
-
-
 
     fun test(scope: DependencyHandlerScope) {
         scope.androidTestImplementation("junit:junit:4.12")
@@ -246,7 +234,13 @@ object Dependencies {
         with(scope) {
             kotlin("android")
             id("org.jetbrains.kotlin.plugin.parcelize")
-            id("com.google.devtools.ksp")
+            id("com.google.devtools.ksp") version Versions.ksp
+        }
+    }
+
+    fun composePlugins(scope: org.gradle.plugin.use.PluginDependenciesSpec) {
+        with(scope) {
+            id("org.jetbrains.kotlin.plugin.compose") version Dependencies.Versions.kotlin
         }
     }
 }

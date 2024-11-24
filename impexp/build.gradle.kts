@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     Dependencies.corePlugins(this)
+    Dependencies.composePlugins(this)
 }
 
 android {
@@ -18,7 +19,6 @@ android {
     }
 
     compileOptions {
-        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = Android.javaTarget
         targetCompatibility = Android.javaTarget
     }

@@ -4,7 +4,7 @@ import org.gradle.api.JavaVersion
  * Android specific build properties
  */
 object Android {
-	const val MIN_VERSION: Int = 24
+	const val MIN_VERSION: Int = 26
 	const val COMPILE_VERSION: Int = 35
 	const val TARGET_VERSION: Int = 35
 
