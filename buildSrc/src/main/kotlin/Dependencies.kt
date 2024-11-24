@@ -53,9 +53,7 @@ object Dependencies {
 
         const val suncalc = "3.11"
 
-        const val androidxBom = "2024.11.00"
         const val composeBom = "2024.10.01"
-        const val gmsBom = "21.3.0"
 
         /**
          * Testing specific dependencies
@@ -94,27 +92,20 @@ object Dependencies {
     }
 
     fun database(scope: DependencyHandlerScope) {
-        val androidxBom = scope.platform("androidx:androidx-bom:${Versions.androidxBom}")
-        scope.implementation(androidxBom)
-
         val roomBase = "androidx.room:room"
-        scope.api("$roomBase-runtime")
-        scope.ksp("$roomBase-compiler")
-        scope.implementation("$roomBase-ktx")
-        scope.implementation("$roomBase-paging")
+        scope.api("$roomBase-runtime:${Versions.room}")
+        scope.ksp("$roomBase-compiler:${Versions.room}")
+        scope.implementation("$roomBase-ktx:${Versions.room}")
+        scope.implementation("$roomBase-paging:${Versions.room}")
         scope.implementation("com.github.requery:sqlite-android:${Versions.sqlite}")
-        scope.androidTestImplementation("$roomBase-testing")
+        scope.androidTestImplementation("$roomBase-testing:${Versions.room}")
     }
 
-    fun core(scope: DependencyHandlerScope) {
-        // Apply BOMs
-        val androidxBom = scope.platform("androidx.compose:compose-bom:${Versions.composeBom}")
-        val gmsBom = scope.platform("com.google.android.gms:play-services-bom:${Versions.gmsBom}")
-        val kotlinBom = scope.platform("org.jetbrains.kotlin:kotlin-bom:${Versions.kotlin}")
 
-        scope.implementation(androidxBom)
-        scope.implementation(gmsBom)
-        scope.implementation(kotlinBom)
+    fun core(scope: DependencyHandlerScope) {
+        // Apply Compose BOM
+        val composeBom = scope.platform("androidx.compose:compose-bom:${Versions.composeBom}")
+        scope.implementation(composeBom)
 
         // Core Library Desugaring
         scope.coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
@@ -123,29 +114,29 @@ object Dependencies {
         scope.implementation("com.google.devtools.ksp:symbol-processing-api:${Versions.ksp}")
 
         // AndroidX Libraries
-        scope.implementation("androidx.appcompat:appcompat")
-        scope.implementation("androidx.core:core-ktx")
-        scope.implementation("androidx.constraintlayout:constraintlayout")
-        scope.implementation("androidx.recyclerview:recyclerview")
-        scope.implementation("androidx.lifecycle:lifecycle-runtime-ktx")
-        scope.implementation("androidx.lifecycle:lifecycle-service")
-        scope.implementation("androidx.lifecycle:lifecycle-process")
-        scope.implementation("androidx.fragment:fragment")
-        scope.implementation("androidx.fragment:fragment-ktx")
-        scope.implementation("androidx.preference:preference")
-        scope.implementation("androidx.lifecycle:lifecycle-common-java8")
+        scope.implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
+        scope.implementation("androidx.core:core-ktx:${Versions.coreKtx}")
+        scope.implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
+        scope.implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
+        scope.implementation("androidx.lifecycle:lifecycle-runtime-ktx:${Versions.lifecycle}")
+        scope.implementation("androidx.lifecycle:lifecycle-service:${Versions.lifecycle}")
+        scope.implementation("androidx.lifecycle:lifecycle-process:${Versions.lifecycle}")
+        scope.implementation("androidx.fragment:fragment:${Versions.fragment}")
+        scope.implementation("androidx.fragment:fragment-ktx:${Versions.fragment}")
+        scope.implementation("androidx.preference:preference:${Versions.preference}")
+        scope.implementation("androidx.lifecycle:lifecycle-common-java8:${Versions.lifecycle}")
 
         // Google Play Services
-        scope.implementation("com.google.android.gms:play-services-base")
-        scope.implementation("com.google.android.play:feature-delivery")
-        scope.implementation("com.google.android.play:feature-delivery-ktx")
+        scope.implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
+        scope.implementation("com.google.android.play:feature-delivery:${Versions.playFeatureDelivery}")
+        scope.implementation("com.google.android.play:feature-delivery-ktx:${Versions.playFeatureDelivery}")
 
         // Material Design Components
-        scope.implementation("com.google.android.material:material")
+        scope.implementation("com.google.android.material:material:${Versions.material}")
 
         // Kotlin Libraries
-        scope.implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-        scope.implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android")
+        scope.implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
+        scope.implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
 
         // Third-Party Libraries
         scope.implementation("com.github.adsamcik:Recycler:${Versions.componentsRecycler}")
@@ -155,6 +146,7 @@ object Dependencies {
         // Work Manager
         work(scope)
     }
+
 
     fun work(scope: DependencyHandlerScope) {
         scope.implementation("androidx.work:work-runtime-ktx:${Versions.work}")
