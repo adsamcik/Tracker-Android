@@ -6,6 +6,7 @@ import androidx.room.TypeConverters
 import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
+import com.adsamcik.tracker.game.challenge.database.dao.ActiveTimeChallengeDao
 import com.adsamcik.tracker.game.challenge.database.dao.ChallengeEntryDao
 import com.adsamcik.tracker.game.challenge.database.dao.ExplorerChallengeDao
 import com.adsamcik.tracker.game.challenge.database.dao.SessionChallengeDataDao
@@ -41,6 +42,8 @@ abstract class ChallengeDatabase : RoomDatabase() {
 	abstract fun walkDistanceDao(): WalkDistanceChallengeDao
 
 	abstract fun stepDao(): StepChallengeDao
+
+	abstract fun activeTimeDao(): ActiveTimeChallengeDao
 
 	companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
 		override fun setupDatabase(database: Builder<ChallengeDatabase>): Unit = Unit

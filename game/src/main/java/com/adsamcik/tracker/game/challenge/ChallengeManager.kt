@@ -6,9 +6,11 @@ import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
+import com.adsamcik.tracker.game.challenge.data.definition.ActiveTimeChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.definition.ExplorerChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.definition.StepChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.definition.WalkDistanceChallengeDefinition
+import com.adsamcik.tracker.game.challenge.data.instance.ActiveTimeChallengeInstance
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.ChallengeLoader
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
@@ -33,8 +35,10 @@ import kotlin.random.Random
  */
 object ChallengeManager {
 	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(
-			ExplorerChallengeDefinition(),
-			WalkDistanceChallengeDefinition(), StepChallengeDefinition()
+		ExplorerChallengeDefinition(),
+		WalkDistanceChallengeDefinition(),
+		StepChallengeDefinition(),
+		ActiveTimeChallengeDefinition()
 	)
 
 	private val mutableActiveChallengeList_: MutableList<ChallengeInstance<*, *>> = mutableListOf()
