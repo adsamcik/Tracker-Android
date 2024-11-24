@@ -38,6 +38,10 @@ class ExplorerChallengeInstance(
 		locations: List<DatabaseLocation>,
 		time: Long
 	): Int {
+		if (locations.isEmpty()) {
+			return 0
+		}
+
 		// Round and distinct the new locations
 		val newLocations = locations.map {
 			Location.roundTo(it.latitude, ACCURACY_IN_METERS, it.longitude, ACCURACY_IN_METERS)
