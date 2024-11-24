@@ -1,5 +1,5 @@
 import org.jetbrains.dokka.gradle.DokkaTask
-import java.net.URL
+import java.net.URI
 
 plugins {
 	id("com.google.secrets_gradle_plugin") version "0.6.1"
@@ -7,6 +7,7 @@ plugins {
 	id("org.jetbrains.dokka-android")
 	id("com.google.android.gms.oss-licenses-plugin")
 	Dependencies.corePlugins(this)
+	id("org.jetbrains.kotlin.plugin.compose")
 }
 
 apply(plugin = "com.google.gms.google-services")
@@ -63,6 +64,10 @@ android {
 		}
 	}
 
+	buildFeatures {
+		compose = true
+	}
+
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
@@ -95,8 +100,8 @@ tasks.withType<DokkaTask> {
 	skipDeprecated = true
 
 	externalDocumentationLink {
-		url = URL("https://developer.android.com/reference/")
-		packageListUrl = URL("https://developer.android.com/reference/android/support/package-list")
+		url = URI("https://developer.android.com/reference/").toURL()
+		packageListUrl = URI("https://developer.android.com/reference/android/support/package-list").toURL()
 	}
 }
 
@@ -113,6 +118,7 @@ dependencies {
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
 	Dependencies.core(this)
+	Dependencies.compose(this)
 	// 1st party dependencies
 	Dependencies.slider(this)
 	Dependencies.draggable(this)

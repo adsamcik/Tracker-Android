@@ -54,6 +54,7 @@ dependencies {
     implementation(project(":spreferences"))
     implementation(project(":logger"))
 
+    Dependencies.compose(this)
     Dependencies.database(this)
     Dependencies.gpx(this)
 
