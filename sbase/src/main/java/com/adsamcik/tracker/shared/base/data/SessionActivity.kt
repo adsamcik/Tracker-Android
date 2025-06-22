@@ -47,7 +47,7 @@ data class SessionActivity(
 			val mutableList = mutableListOf<SessionActivity>()
 
 			mutableList.addAll(activityDao.getAllUser())
-			mutableList.addAll(NativeSessionActivity.values().map { SessionActivity(context, it) })
+			mutableList.addAll(NativeSessionActivity.entries.map { SessionActivity(context, it) })
 			return mutableList
 		}
 	}

@@ -38,9 +38,8 @@ interface ActivityDao : BaseDao<SessionActivity> {
 	 * Get specific localized session activity.
 	 */
 	@Transaction
-	fun getLocalized(context: Context, id: Long): SessionActivity? {
-		return if (id < 0) {
-			val nativeSessionActivity = NativeSessionActivity.values()
+	fun getLocalized(context: Context, id: Long): SessionActivity? {		return if (id < 0) {
+			val nativeSessionActivity = NativeSessionActivity.entries
 					.find { it.id == id }
 
 			requireNotNull(nativeSessionActivity).getSessionActivity(context)

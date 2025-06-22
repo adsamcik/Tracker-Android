@@ -114,28 +114,27 @@ internal class SessionModelViewHolder(
 	val info: AppCompatTextView,
 	val sunSetRise: SunSetRise,
 ) : RecyclerView.ViewHolder(root), CoroutineScope {
-
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
-
-	private fun serializeInfo(context: Context, session: TrackerSession): String {
+	
+	private fun serializeInfo(context: Context, session: TrackerSession, sessionActivity: SessionActivity? = null): String {
 		val builder = StringBuilder()
 		val resources = context.resources
 
 		val time = (session.end - session.start).formatAsDuration(context)
 		builder.append(time)
 
+		val lengthSystem = Preferences.getLengthSystem(context, sessionActivity)
 		val distance = resources.formatDistance(
 			session.distanceInM,
 			1,
-			Preferences.getLengthSystem(context)
+			lengthSystem
 		)
 		builder.append(" | ").append(distance)
 
 		return builder.toString()
 	}
-
 	fun bind(model: SessionUiModel.SessionModel) {
 		val session = model.session
 		val timeFormat = SimpleDateFormat.getTimeInstance(
@@ -148,7 +147,7 @@ internal class SessionModelViewHolder(
 		val startDate = Date(session.start)
 
 		time.text = timeFormat.format(startDate)
-		info.text = serializeInfo(context, session)
+		info.text = serializeInfo(context, session) // Initial without activity
 
 		val activityId = session.sessionActivityId
 		title.text = StatsFormat.createTitle(
@@ -173,6 +172,8 @@ internal class SessionModelViewHolder(
 						activity,
 						sunSetRise
 					)
+					// Update the info text with the correct activity-based length system
+					info.text = serializeInfo(context, session, activity)
 				}
 			}
 		}

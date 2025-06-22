@@ -31,8 +31,7 @@ object SummaryGenerator {
 						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
 						displayType = StatisticDisplayType.Information,
 						sessionSummary.duration.formatAsDuration(context)
-				),
-				Stat(
+				),				Stat(
 						R.string.stats_distance_total,
 						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
 						displayType = StatisticDisplayType.Information,
@@ -41,8 +40,7 @@ object SummaryGenerator {
 								SUMMARY_DECIMAL_PLACES,
 								Preferences.getLengthSystem(context)
 						)
-				),
-				Stat(
+				),				Stat(
 						R.string.stats_distance_on_foot,
 						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
 						displayType = StatisticDisplayType.Information,
@@ -51,9 +49,7 @@ object SummaryGenerator {
 								SUMMARY_DECIMAL_PLACES,
 								Preferences.getLengthSystem(context)
 						)
-				),
-
-				Stat(
+				),				Stat(
 						R.string.stats_distance_in_vehicle,
 						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
 						displayType = StatisticDisplayType.Information,

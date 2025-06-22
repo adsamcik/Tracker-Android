@@ -9,13 +9,12 @@ enum class DetectedActivity(val value: Int) {
 
 		override val nameRes: Int
 			get() = R.string.activity_raw_still
-	},
-	RUNNING(com.google.android.gms.location.DetectedActivity.RUNNING) {
+	},	RUNNING(com.google.android.gms.location.DetectedActivity.RUNNING) {
 		override val groupedActivity: GroupedActivity
 			get() = GroupedActivity.ON_FOOT
 
 		override val nameRes: Int
-			get() = R.string.activity_run
+			get() = R.string.activity_running
 	},
 	ON_FOOT(com.google.android.gms.location.DetectedActivity.ON_FOOT) {
 		override val groupedActivity: GroupedActivity
@@ -51,22 +50,20 @@ enum class DetectedActivity(val value: Int) {
 
 		override val nameRes: Int
 			get() = R.string.activity_unknown
-	},
-	WALKING(com.google.android.gms.location.DetectedActivity.WALKING) {
+	},	WALKING(com.google.android.gms.location.DetectedActivity.WALKING) {
 		override val groupedActivity: GroupedActivity
 			get() = GroupedActivity.ON_FOOT
 
 		override val nameRes: Int
-			get() = R.string.activity_walk
+			get() = R.string.activity_walking
 	};
 
 	abstract val groupedActivity: GroupedActivity
 
 	abstract val nameRes: Int
-
 	companion object {
 		fun fromDetectedType(type: Int): DetectedActivity {
-			return values().find { it.value == type }
+			return entries.find { it.value == type }
 					?: throw IllegalArgumentException("Activity type with value $type is not defined.")
 		}
 	}

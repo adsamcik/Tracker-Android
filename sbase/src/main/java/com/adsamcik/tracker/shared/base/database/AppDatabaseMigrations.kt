@@ -134,3 +134,49 @@ val MIGRATION_9_10: Migration = object : Migration(9, 10) {
 	}
 }
 
+val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// Migration from old detailed activity system to new simplified activity system
+			// Map old activity IDs to new simplified categories
+			
+			// Walking activities: WALK(-2) -> WALKING(-2) (already matches)
+			// Running activities: RUN(-3) -> RUNNING(-3) (already matches)
+			// Cycling activities: BICYCLE(-4) -> BICYCLE(-4) (already matches)
+			// Vehicle activities: VEHICLE(-5) -> VEHICLE(-5) (already matches)
+			
+			// Map slope sports activities to SLOPE_SPORTS(-22)
+			// SKI(-23), SNOWBOARD(-24), SKATE(-22) -> SLOPE_SPORTS(-22)
+			execSQL("UPDATE tracker_session SET session_activity_id = -22 WHERE session_activity_id IN (-23, -24)")
+			
+			// Map land vehicle activities to LAND_VEHICLE(-34)  
+			// TRAIN(-34), RACE(-21) -> LAND_VEHICLE(-34)
+			execSQL("UPDATE tracker_session SET session_activity_id = -34 WHERE session_activity_id = -21")
+			
+			// Map water vehicle activities to WATER_VEHICLE(-26)
+			// SAILING(-26), CANOE(-27), KAYAK(-28), ROWING(-29), FERRY(-32) -> WATER_VEHICLE(-26)
+			execSQL("UPDATE tracker_session SET session_activity_id = -26 WHERE session_activity_id IN (-27, -28, -29, -32)")
+			
+			// Map air vehicle activities to AIR_VEHICLE(-31)
+			// AIRPLANE(-31), AIRBALLOON(-33) -> AIR_VEHICLE(-31)
+			execSQL("UPDATE tracker_session SET session_activity_id = -31 WHERE session_activity_id = -33")
+			
+			// Map sports that don't fit well into the new categories to generic activities
+			// This includes: SWIM(-6), TENIS(-7), VOLLEYBALL(-8), FOOTBALL(-9), RUGBY(-10), 
+			// MARTIAL_ARTS(-11), HOCKEY(-12), HANDBALL(-13), GOLF(-14), BASKETBALL(-15), 
+			// BASEBALL(-16), SOFTBALL(-17), BADMINTON(-18), HIKING(-19), CRICKET(-20), 
+			// HORSERIDE(-25), DIVE(-30)
+			execSQL("""
+				UPDATE tracker_session 
+				SET session_activity_id = CASE 
+					WHEN session_activity_id = -19 THEN -2  -- HIKING -> WALKING
+					WHEN session_activity_id = -25 THEN -5  -- HORSERIDE -> VEHICLE
+					WHEN session_activity_id IN (-6, -30) THEN -26  -- SWIM, DIVE -> WATER_VEHICLE
+					ELSE -5  -- All other sports -> VEHICLE (generic activity)
+				END 
+				WHERE session_activity_id IN (-6, -7, -8, -9, -10, -11, -12, -13, -14, -15, -16, -17, -18, -19, -20, -25, -30)
+			""".trimIndent())
+		}
+	}
+}
+

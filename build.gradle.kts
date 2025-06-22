@@ -5,7 +5,7 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:8.7.2")
+		classpath("com.android.tools.build:gradle:8.10.1")
 		classpath("com.google.gms:google-services:4.4.2")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
 		classpath("com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin:2.0.1")

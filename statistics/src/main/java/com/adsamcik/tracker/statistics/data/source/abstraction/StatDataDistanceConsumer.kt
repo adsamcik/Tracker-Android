@@ -21,11 +21,12 @@ interface StatDataDistanceConsumer : StatDataConsumer {
 	override fun deserializeData(data: String, moshi: Moshi): String = data
 
 	override val requiredMoshiAdapter: Any? get() = null
-
 	@CallSuper
 	override fun getData(context: Context, data: StatDataMap): Any {
 		val distance = getDistance(context, data)
-		val lengthSystem = Preferences.getLengthSystem(context)
+		// Get session activity from thread-local context if available
+		val sessionActivity = com.adsamcik.tracker.statistics.preference.SessionActivityContext.getSessionActivity()
+		val lengthSystem = Preferences.getLengthSystem(context, sessionActivity)
 		return context.resources.formatDistance(distance, 1, lengthSystem)
 	}
 }

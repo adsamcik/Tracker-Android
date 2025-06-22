@@ -26,7 +26,7 @@ object Dependencies {
 
         const val coroutines = "1.8.1"
 
-        const val sqlite = "3.45.0"
+        const val sqlite = "3.49.0"
         const val room = "2.6.1"
 
         const val recyclerView = "1.3.2"
