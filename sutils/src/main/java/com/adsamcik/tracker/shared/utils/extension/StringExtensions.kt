@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.preferences.R
 import com.adsamcik.tracker.shared.preferences.extension.formatAncientRome
 import com.adsamcik.tracker.shared.preferences.extension.formatMetric
 import com.adsamcik.tracker.shared.preferences.extension.formatUscs
+import com.adsamcik.tracker.shared.preferences.extension.formatSailing
+import com.adsamcik.tracker.shared.preferences.extension.formatFlying
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
 
@@ -119,8 +121,7 @@ fun Resources.formatDistance(
 		distanceInMeters: Double,
 		digits: Int,
 		unit: LengthSystem
-): String {
-	return when (unit) {
+): String {	return when (unit) {
 		LengthSystem.Metric -> formatMetric(
 				distanceInMeters,
 				digits
@@ -132,6 +133,14 @@ fun Resources.formatDistance(
 		LengthSystem.AncientRoman -> {
 			val passus = distanceInMeters / LengthConstants.METERS_IN_PASSUS
 			formatAncientRome(passus, digits)
+		}
+		LengthSystem.Sailing -> {
+			val fathoms = distanceInMeters / LengthConstants.METERS_IN_FATHOM
+			formatSailing(fathoms, digits)
+		}
+		LengthSystem.Flying -> {
+			val feet = distanceInMeters / LengthConstants.METERS_IN_FOOT
+			formatFlying(feet, digits)
 		}
 	}
 }

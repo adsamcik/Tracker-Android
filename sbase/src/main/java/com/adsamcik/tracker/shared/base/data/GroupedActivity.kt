@@ -15,12 +15,18 @@ enum class GroupedActivity {
 	IN_VEHICLE {
 		override val iconRes: Int = R.drawable.ic_baseline_commute
 	},
+	SAILING {
+		override val iconRes: Int = R.drawable.sailing
+	},
+	FLYING {
+		override val iconRes: Int = R.drawable.airplane
+	},
 	UNKNOWN {
 		override val iconRes: Int = R.drawable.ic_help_white
 	};
 
 	val isStillOrUnknown: Boolean get() = this == UNKNOWN || this == STILL
-	val isKnownMovement: Boolean get() = this == ON_FOOT || this == IN_VEHICLE
+	val isKnownMovement: Boolean get() = this == ON_FOOT || this == IN_VEHICLE || this == SAILING || this == FLYING
 
 	abstract val iconRes: Int
 }

@@ -63,17 +63,19 @@
     <string name="settings_hello_world_title">Hello world!</string>
 
     <string name="settings_language_summary">Current language: %s</string>
-    <string name="settings_language_title">Application language</string>
-    <string-array name="settings_length_system_names">
+    <string name="settings_language_title">Application language</string>    <string-array name="settings_length_system_names">
         <item>Metric</item>
         <item>Imperial (USC)</item>
         <item>Ancient Roman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
     </string-array>
-    <string name="settings_length_system_title">Length system</string>
-    <string-array name="settings_length_system_values" translatable="false">
+    <string name="settings_length_system_title">Length system</string>    <string-array name="settings_length_system_values" translatable="false">
         <item>Metric</item>
         <item>Imperial</item>
         <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
     </string-array>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
     <string name="settings_licenses_title">Open source licenses</string>
