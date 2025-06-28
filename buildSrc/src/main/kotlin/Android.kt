@@ -5,7 +5,7 @@ import org.gradle.api.JavaVersion
  */
 object Android {
 	const val MIN_VERSION: Int = 26
-	const val COMPILE_VERSION: Int = 35
+	const val COMPILE_VERSION: Int = 36
 	const val TARGET_VERSION: Int = 35
 
 	const val BUILD_TOOLS_VERSION: String = "35.0.0"

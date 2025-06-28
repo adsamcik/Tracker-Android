@@ -5,16 +5,16 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:8.10.1")
-		classpath("com.google.gms:google-services:4.4.2")
+		classpath("com.android.tools.build:gradle:8.11.0")
+		classpath("com.google.gms:google-services:4.4.3")
 		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
 		classpath("com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin:2.0.1")
-		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
-		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
+		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.DOKKA}")
+		classpath(kotlin("gradle-plugin", Dependencies.Versions.KOTLIN))
 	}
 
 	plugins {
-		id("com.google.devtools.ksp") version Dependencies.Versions.ksp apply false
+		id("com.google.devtools.ksp") version Dependencies.Versions.KSP apply false
 
 	}
 }
@@ -39,7 +39,7 @@ tasks.register("clean", Delete::class) {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.51.0")
+	id("com.github.ben-manes.versions") version ("0.52.0")
 }
 
 /**

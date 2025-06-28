@@ -26,10 +26,10 @@ android {
 		resourceConfigurations.add("en")
 		resourceConfigurations.add("cs-rCZ")
 	}
-
 	compileOptions {
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
+		isCoreLibraryDesugaringEnabled = true
 	}
 
 	kotlin {
@@ -105,6 +105,8 @@ tasks.withType<DokkaTask> {
 }
 
 dependencies {
+	coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
+	
 	implementation(project(":sbase"))
 	implementation(project(":tracker"))
 	implementation(project(":activity"))
