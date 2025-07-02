@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
@@ -86,8 +87,12 @@ class ImportExportComposeActivity : ComponentActivity() {
 
         shareableDir = File(filesDir, SHARABLE_DIR_NAME)
 
-        val exporterType = intent.extras?.get(EXPORTER_KEY) as? Class<*>
-            ?: throw IllegalArgumentException("Exporter class not found in intent extras")
+        val exporterType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.extras?.getSerializable(EXPORTER_KEY, Class::class.java) as? Class<*>
+        } else {
+            @Suppress("DEPRECATION")
+            intent.extras?.getSerializable(EXPORTER_KEY) as? Class<*>
+        } ?: throw IllegalArgumentException("Exporter class not found in intent extras")
         exporter = exporterType.getConstructor().newInstance() as Exporter
 
         setContent {

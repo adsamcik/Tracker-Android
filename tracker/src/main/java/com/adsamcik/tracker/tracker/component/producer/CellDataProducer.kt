@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.telephony.CellIdentityNr
-import android.telephony.CellInfoCdma
 import android.telephony.CellInfoGsm
 import android.telephony.CellInfoLte
 import android.telephony.CellInfoNr
@@ -152,8 +151,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
 		return CellScanData(registeredOperators, cellInfo, registeredCells)
 	}
-
-	@Suppress("ComplexMethod")
+	@Suppress("ComplexMethod", "DEPRECATION")
 	private fun convertToCellInfo(
 			cellInfo: android.telephony.CellInfo,
 			registeredOperator: List<NetworkOperator>
@@ -183,9 +181,10 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 				}
 			}
-			cellInfo is CellInfoCdma -> {
+			cellInfo is android.telephony.CellInfoCdma -> {
+				@Suppress("DEPRECATION")
 				registeredOperator.find { it.sameNetwork(cellInfo) }?.let {
-					CellInfo(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
+					CellInfo.fromCdma(cellInfo.cellIdentity, cellInfo.cellSignalStrength, it)
 				}
 			}
 			else -> {

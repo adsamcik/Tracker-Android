@@ -49,8 +49,9 @@ object Dependencies {
         const val COMPONENT_SLIDER = "2.1.0"
 
         const val DEXTER = "6.2.3"
-
         const val SUNCALC = "3.11"
+        
+        const val DESUGAR_JDK_LIBS = "2.1.3"
 
         const val COMPOSE_BOM = "2025.06.01"
         const val ACTIVITY_COMPOSE = "1.11.0-rc01"

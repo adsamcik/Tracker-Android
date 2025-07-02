@@ -3,7 +3,6 @@ package com.adsamcik.tracker.shared.base.data
 import android.os.Build
 import android.os.Parcelable
 import android.telephony.CellIdentityNr
-import android.telephony.CellInfoCdma
 import android.telephony.CellInfoGsm
 import android.telephony.CellInfoLte
 import android.telephony.CellInfoNr
@@ -46,7 +45,8 @@ data class NetworkOperator(
 	/**
 	 * Always returns false, because CDMA (2G) uses different identification than everything else.
 	 */
-	fun sameNetwork(@Suppress("UNUSED_PARAMETER") info: CellInfoCdma): Boolean {
+	@Suppress("DEPRECATION")
+	fun sameNetwork(@Suppress("UNUSED_PARAMETER") info: android.telephony.CellInfoCdma): Boolean {
 		return false
 	}
 

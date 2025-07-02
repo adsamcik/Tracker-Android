@@ -22,10 +22,12 @@ android {
 		versionCode = 385
 		versionName = "2024.3.0 α2"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-		resourceConfigurations.add("en")
-		resourceConfigurations.add("cs-rCZ")
 	}
+	
+	androidResources {
+		localeFilters.addAll(listOf("en", "cs-rCZ"))
+	}
+	
 	compileOptions {
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
@@ -105,7 +107,7 @@ tasks.withType<DokkaTask> {
 }
 
 dependencies {
-	coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
+	coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Dependencies.Versions.DESUGAR_JDK_LIBS}")
 	
 	implementation(project(":sbase"))
 	implementation(project(":tracker"))

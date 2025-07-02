@@ -14,6 +14,8 @@ abstract class CorePermissionFragment : CoreUIFragment() {
 	private var lastPermissionRequestId = 1000
 
 	@CallSuper
+	@Deprecated("This method is deprecated. Use registerForActivityResult() with an ActivityResultLauncher instead.")
+	@Suppress("DEPRECATION")
 	override fun onRequestPermissionsResult(
 		requestCode: Int,
 		permissions: Array<out String>,

@@ -109,6 +109,7 @@ internal class SystemStyleUpdater {
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
 		if (color != null) {
 			styleView.view.runOnUiThread {
+				@Suppress("DEPRECATION")
 				styleView.window.navigationBarColor = color
 			}
 		}
@@ -121,6 +122,7 @@ internal class SystemStyleUpdater {
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
 		if (color != null) {
 			styleView.view.runOnUiThread {
+				@Suppress("DEPRECATION")
 				styleView.window.statusBarColor = color
 			}
 		}
@@ -149,7 +151,9 @@ internal class SystemStyleUpdater {
 		var flags = window.attributes.flags
 
 		// Clear deprecated flags
+		@Suppress("DEPRECATION")
 		flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS.inv()
+		@Suppress("DEPRECATION")
 		flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION.inv()
 
 		// Add necessary flags
@@ -160,13 +164,17 @@ internal class SystemStyleUpdater {
 
 		// Handle transparent status bar
 		if (notificationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
 			window.setDecorFitsSystemWindows(false)
+			@Suppress("DEPRECATION")
 			window.statusBarColor = Color.TRANSPARENT
 		}
 
 		// Handle transparent navigation bar
 		if (navigationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
 			window.setDecorFitsSystemWindows(false)
+			@Suppress("DEPRECATION")
 			window.navigationBarColor = Color.TRANSPARENT
 		}
 	}
@@ -182,15 +190,19 @@ internal class SystemStyleUpdater {
 
 		// Handle translucent status bar
 		if (notificationStyle == SystemBarStyle.Translucent) {
+			@Suppress("DEPRECATION")
 			flags = flags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
 		} else {
+			@Suppress("DEPRECATION")
 			flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS.inv()
 		}
 
 		// Handle translucent navigation bar
 		if (navigationStyle == SystemBarStyle.Translucent) {
+			@Suppress("DEPRECATION")
 			flags = flags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
 		} else {
+			@Suppress("DEPRECATION")
 			flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION.inv()
 		}
 
@@ -202,11 +214,13 @@ internal class SystemStyleUpdater {
 
 		// Handle transparent status bar
 		if (notificationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
 			window.statusBarColor = Color.TRANSPARENT
 		}
 
 		// Handle transparent navigation bar
 		if (navigationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
 			window.navigationBarColor = Color.TRANSPARENT
 		}
 	}

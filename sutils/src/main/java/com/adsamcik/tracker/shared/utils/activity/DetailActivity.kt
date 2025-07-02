@@ -76,7 +76,10 @@ abstract class DetailActivity : CoreUIActivity() {
 		window.decorView.background = ColorDrawable(StyleManager.styleData.backgroundColor())
 		//styleController.updateOnce(StyleView(contentDetailRoot, 0), allowRecycler = false)
 
-		findViewById<View>(R.id.back_button).setOnClickListener { onBackPressed() }
+		findViewById<View>(R.id.back_button).setOnClickListener { 
+			@Suppress("DEPRECATION")
+			onBackPressed() 
+		}
 
 
 		val desiredElevation = configuration.elevation
@@ -111,6 +114,7 @@ abstract class DetailActivity : CoreUIActivity() {
 	}
 
 	@Deprecated("deprecated in android")
+	@Suppress("DEPRECATION")
 	override fun onBackPressed() {
         super.onBackPressed()
         finish()

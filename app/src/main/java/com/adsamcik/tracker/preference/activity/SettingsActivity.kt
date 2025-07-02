@@ -110,6 +110,8 @@ class SettingsActivity : DetailActivity(),
 		}
 	}
 
+	@Deprecated("deprecated in android")
+	@Suppress("DEPRECATION")
 	override fun onBackPressed() {
 		if (!pop()) super.onBackPressed()
 	}

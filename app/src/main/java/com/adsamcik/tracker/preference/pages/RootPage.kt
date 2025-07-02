@@ -90,7 +90,10 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_language_key).apply {
 			val languages = LocaleManager.getLocaleList()
 
-			val localeList = languages.map { Locale(it) }
+			val localeList = languages.map { 
+				@Suppress("DEPRECATION")
+				Locale(it) 
+			}
 			val entries = localeList.map { it.getDisplayName(it) }
 
 			setValues(entries, languages)

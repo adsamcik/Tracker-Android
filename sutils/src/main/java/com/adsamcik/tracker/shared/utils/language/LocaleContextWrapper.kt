@@ -18,8 +18,10 @@ class LocaleContextWrapper(base: Context?) : ContextWrapper(base) {
 			val config = LocaleAssist.getConfig(context)
 			val localeSplit = language.split('-', '_')
 			val locale = if (localeSplit.size == 1) {
+				@Suppress("DEPRECATION") 
 				Locale(language)
 			} else {
+				@Suppress("DEPRECATION")
 				Locale(localeSplit[0], localeSplit[1])
 			}
 			Locale.setDefault(locale)

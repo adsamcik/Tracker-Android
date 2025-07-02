@@ -136,10 +136,12 @@ abstract class StyleableDrawableWrapper(drawable: GradientDrawable) : Drawable()
 	}
 
 	override fun setAutoMirrored(mirrored: Boolean) {
+		@Suppress("DEPRECATION")
 		DrawableCompat.setAutoMirrored(drawable, mirrored)
 	}
 
 	override fun isAutoMirrored(): Boolean {
+		@Suppress("DEPRECATION")
 		return DrawableCompat.isAutoMirrored(drawable)
 	}
 

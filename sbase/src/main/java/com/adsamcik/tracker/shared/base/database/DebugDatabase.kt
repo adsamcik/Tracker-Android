@@ -14,6 +14,7 @@ abstract class DebugDatabase : RoomDatabase() {
 	companion object {
 		private var instance_: DebugDatabase? = null
 
+		@Suppress("DEPRECATION")
 		fun getAppDatabase(context: Context): DebugDatabase {
 			if (instance_ == null) {
 				instance_ = Room.databaseBuilder(

@@ -31,6 +31,13 @@ allprojects {
 			options.compilerArgs = listOf("-Xlint:unchecked", "-Xlint:deprecation")
 		}
 	}
+	
+	// Configure Kotlin compiler options for all projects
+	tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+		compilerOptions {
+			freeCompilerArgs.add("-Xannotation-default-target=param-property")
+		}
+	}
 }
 
 tasks.register("clean", Delete::class) {
