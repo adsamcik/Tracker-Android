@@ -85,6 +85,14 @@
     <string name="settings_log_games_title">Log games</string>
     <string name="settings_log_list_activity_key" translatable="false">logViewer</string>
     <string name="settings_log_list_activity_title">Log viewer</string>
+    <string name="settings_crash_viewer_key" translatable="false">crashViewer</string>
+    <string name="settings_crash_viewer_title">Crash viewer</string>
+    <string name="settings_export_crashes_key" translatable="false">exportCrashes</string>
+    <string name="settings_export_crashes_title">Export crashes</string>
+    <string name="settings_clear_crashes_key" translatable="false">clearCrashes</string>
+    <string name="settings_clear_crashes_title">Clear crashes</string>
+    <string name="settings_test_crash_key" translatable="false">testCrash</string>
+    <string name="settings_test_crash_title">Test crash (Debug only)</string>
     <string name="settings_module_enable_key" translatable="false">modules</string>
     <string name="settings_module_enable_title">Modules</string>
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>

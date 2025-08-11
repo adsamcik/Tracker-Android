@@ -60,7 +60,9 @@ android {
 			isMinifyEnabled = false
 		}
 		getByName("release") {
-			isMinifyEnabled = true
+			// Temporarily disable minification due to unresolved R8 missing class issues across feature modules
+			// TODO: Re-enable and fix by adding proper keep rules / adjusting dynamic feature class access
+			isMinifyEnabled = false
 			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
 		}
 	}

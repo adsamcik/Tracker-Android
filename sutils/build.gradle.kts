@@ -1,6 +1,8 @@
 plugins {
 	id("com.android.library")
 	Dependencies.corePlugins(this)
+	// Add Compose plugin for Compose code in this module
+	Dependencies.composePlugins(this)
 }
 
 android {
@@ -44,7 +46,13 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
-    namespace = "com.adsamcik.tracker.shared.utils"
+
+	// Enable Jetpack Compose
+	buildFeatures {
+		compose = true
+	}
+
+	namespace = "com.adsamcik.tracker.shared.utils"
 }
 
 dependencies {
@@ -60,6 +68,8 @@ dependencies {
 	Dependencies.preference(this)
 	Dependencies.introduction(this)
 	Dependencies.sunCalculator(this)
+	// Add Compose libraries used by style/compose utilities and activities
+	Dependencies.compose(this)
 
 	Dependencies.test(this)
 }

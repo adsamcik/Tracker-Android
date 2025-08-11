@@ -303,8 +303,20 @@
                         android:title="@string/settings_log_list_activity_title" />
 
                     <androidx.preference.Preference
-                        android:key="@string/settings_hello_world_key"
-                        android:title="@string/settings_hello_world_title" />
+                        android:key="@string/settings_crash_viewer_key"
+                        android:title="@string/settings_crash_viewer_title" />
+
+                    <androidx.preference.Preference
+                        android:key="@string/settings_export_crashes_key"
+                        android:title="@string/settings_export_crashes_title" />
+
+                    <androidx.preference.Preference
+                        android:key="@string/settings_clear_crashes_key"
+                        android:title="@string/settings_clear_crashes_title" />
+
+                    <androidx.preference.Preference
+                        android:key="@string/settings_test_crash_key"
+                        android:title="@string/settings_test_crash_title" />
                 </androidx.preference.PreferenceCategory>
 
                 <androidx.preference.PreferenceCategory>

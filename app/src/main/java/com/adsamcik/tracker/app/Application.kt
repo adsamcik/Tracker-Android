@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.adsamcik.tracker.logger.CrashHandler
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
@@ -53,6 +54,7 @@ class Application : SplitCompatApplication() {
 	private fun initializeImportantSingletons() {
 		Reporter.initialize(this)
 		Logger.initialize(this)
+		CrashHandler(this).initialize()
 	}
 
 	@WorkerThread

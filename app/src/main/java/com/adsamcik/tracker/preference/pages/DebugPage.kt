@@ -6,6 +6,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.app.activity.debug.CrashManagerActivity
+import com.adsamcik.tracker.app.activity.debug.CrashViewerActivity
 import com.adsamcik.tracker.app.activity.debug.LogViewerActivity
 import com.adsamcik.tracker.app.activity.debug.StatusActivity
 import com.adsamcik.tracker.shared.base.notification.Notifications
@@ -75,6 +77,32 @@ internal class DebugPage : PreferencePage {
 				.setOnPreferenceClickListener {
 					it.context.startActivity<LogViewerActivity> { }
 					false
+				}
+
+		caller.findPreference(R.string.settings_crash_viewer_key)
+				.setOnPreferenceClickListener {
+					it.context.startActivity<CrashViewerActivity> { }
+					false
+				}
+
+		caller.findPreference(R.string.settings_export_crashes_key)
+				.setOnPreferenceClickListener { pref ->
+					val context = pref.context
+					context.startActivity<CrashManagerActivity> { }
+					false
+				}
+
+		caller.findPreference(R.string.settings_clear_crashes_key)
+				.setOnPreferenceClickListener { pref ->
+					val context = pref.context
+					context.startActivity<CrashManagerActivity> { }
+					false
+				}
+
+		caller.findPreference(R.string.settings_test_crash_key)
+				.setOnPreferenceClickListener { pref ->
+					// Create a test crash for debugging purposes
+					throw RuntimeException("Test crash from debug menu - ${System.currentTimeMillis()}")
 				}
 	}
 

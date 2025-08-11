@@ -1,0 +1,425 @@
+package com.adsamcik.tracker.logger
+
+import android.app.ActivityManager
+import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.BatteryManager
+import android.os.Build
+import android.util.Log
+import androidx.lifecycle.ProcessLifecycleOwner
+import java.io.File
+import java.io.FileOutputStream
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+
+/**
+ * Handles application crashes and stores them safely
+ * Uses file-based storage as fallback to ensure crash data is preserved
+ */
+class CrashHandler(private val application: Application) : Thread.UncaughtExceptionHandler {
+    
+    private val defaultHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler()
+    private val crashDir: File
+    private val executor = Executors.newSingleThreadExecutor()
+    
+    companion object {
+        private const val TAG = "CrashHandler"
+        private const val CRASH_LOG_SOURCE = "crash"
+        private const val CRASH_DIR_NAME = "crashes"
+        private const val MAX_CRASH_FILES = 50
+        private const val CRASH_TIMEOUT_MS = 2000L
+    }
+    
+    init {
+        // Create crash directory in internal storage
+        crashDir = File(application.filesDir, CRASH_DIR_NAME)
+        if (!crashDir.exists()) {
+            crashDir.mkdirs()
+        }
+    }
+    
+    fun initialize() {
+        Thread.setDefaultUncaughtExceptionHandler(this)
+        
+        // Clean up old crash files periodically
+        cleanupOldCrashes()
+        
+        // Try to move file-based crashes to database when app starts normally
+        migrateCrashesToDatabase()
+    }
+    
+    override fun uncaughtException(thread: Thread, exception: Throwable) {
+        try {
+            Log.e(TAG, "Uncaught exception in thread ${thread.name}", exception)
+            
+            // Store crash data with fallback strategy
+            val crashData = createCrashDataSafely(thread, exception)
+            
+            // Try database first, fallback to file if it fails
+            val stored = storeCrashSafely(crashData)
+            
+            if (stored) {
+                Log.i(TAG, "Crash data stored successfully")
+            } else {
+                Log.e(TAG, "Failed to store crash data")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in crash handler", e)
+            // Even if our crash handler fails, we should try to store minimal info
+            storeMinimalCrashInfo(thread, exception)
+        } finally {
+            // Always call the default handler
+            defaultHandler?.uncaughtException(thread, exception)
+        }
+    }
+    
+    private fun createCrashDataSafely(thread: Thread, exception: Throwable): CrashData? {
+        return try {
+            val context = application.applicationContext
+            
+            CrashData(
+                exceptionName = exception.javaClass.simpleName,
+                exceptionMessage = exception.message ?: "No message",
+                stackTrace = getStackTraceStringSafely(exception),
+                cause = getCauseSafely(exception),
+                threadName = thread.name,
+                appVersion = getAppVersionSafely(context),
+                androidVersion = Build.VERSION.RELEASE,
+                deviceModel = Build.MODEL,
+                deviceManufacturer = Build.MANUFACTURER,
+                availableMemory = getAvailableMemorySafely(context),
+                totalMemory = getTotalMemorySafely(context),
+                batteryLevel = getBatteryLevelSafely(context),
+                isCharging = isChargingSafely(context),
+                networkType = getNetworkTypeSafely(context),
+                isInBackground = isAppInBackgroundSafely()
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create crash data", e)
+            null
+        }
+    }
+    
+    private fun storeCrashSafely(crashData: CrashData?): Boolean {
+        if (crashData == null) return false
+        
+        // Try database first
+        val databaseSuccess = storeCrashToDatabase(crashData)
+        if (databaseSuccess) {
+            return true
+        }
+        
+        // Fallback to file storage
+        return storeCrashToFile(crashData)
+    }
+    
+    private fun storeCrashToDatabase(crashData: CrashData): Boolean {
+        return try {
+            // Use a separate thread with timeout for database operations
+            val future = executor.submit<Boolean> {
+                try {
+                    val crashDao = LogDatabase.database(application).crashDataDao()
+                    crashDao.insert(crashData)
+                    
+                    // Also log to regular log
+                    val logDao = LogDatabase.database(application).genericLogDao()
+                    logDao.insert(
+                        LogData(
+                            message = "Application crashed: ${crashData.exceptionMessage}",
+                            source = CRASH_LOG_SOURCE
+                        )
+                    )
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Database storage failed", e)
+                    false
+                }
+            }
+            
+            future.get(CRASH_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        } catch (e: Exception) {
+            Log.e(TAG, "Database storage timed out or failed", e)
+            false
+        }
+    }
+    
+    private fun storeCrashToFile(crashData: CrashData): Boolean {
+        return try {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
+            val crashFile = File(crashDir, "crash_$timestamp.txt")
+            
+            FileOutputStream(crashFile).use { fos ->
+                PrintWriter(fos).use { writer ->
+                    writer.println("CRASH REPORT")
+                    writer.println("============")
+                    writer.println("Time: ${Date(crashData.timeStamp)}")
+                    writer.println("Exception: ${crashData.exceptionName}")
+                    writer.println("Message: ${crashData.exceptionMessage}")
+                    writer.println("Thread: ${crashData.threadName}")
+                    writer.println("App Version: ${crashData.appVersion}")
+                    writer.println("Android Version: ${crashData.androidVersion}")
+                    writer.println("Device: ${crashData.deviceManufacturer} ${crashData.deviceModel}")
+                    writer.println("Memory: ${crashData.availableMemory / 1024 / 1024}MB / ${crashData.totalMemory / 1024 / 1024}MB")
+                    writer.println("Battery: ${crashData.batteryLevel}%")
+                    writer.println("Network: ${crashData.networkType}")
+                    writer.println("Background: ${crashData.isInBackground}")
+                    crashData.cause?.let { writer.println("Cause: $it") }
+                    writer.println()
+                    writer.println("STACK TRACE:")
+                    writer.println(crashData.stackTrace)
+                    writer.flush()
+                }
+            }
+            
+            Log.i(TAG, "Crash stored to file: ${crashFile.absolutePath}")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "File storage failed", e)
+            false
+        }
+    }
+    
+    private fun storeMinimalCrashInfo(thread: Thread, exception: Throwable) {
+        try {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US).format(Date())
+            val crashFile = File(crashDir, "minimal_crash_$timestamp.txt")
+            
+            FileOutputStream(crashFile).use { fos ->
+                PrintWriter(fos).use { writer ->
+                    writer.println("MINIMAL CRASH REPORT")
+                    writer.println("====================")
+                    writer.println("Time: ${Date()}")
+                    writer.println("Thread: ${thread.name}")
+                    writer.println("Exception: ${exception.javaClass.simpleName}")
+                    writer.println("Message: ${exception.message}")
+                    writer.println("Stack Trace:")
+                    writer.println(getStackTraceStringSafely(exception))
+                    writer.flush()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Even minimal crash storage failed", e)
+        }
+    }
+    
+    private fun migrateCrashesToDatabase() {
+        executor.execute {
+            try {
+                val crashFiles = crashDir.listFiles { _, name ->
+                    name.startsWith("crash_") && name.endsWith(".txt")
+                } ?: return@execute
+                
+                val crashDao = LogDatabase.database(application).crashDataDao()
+                
+                for (file in crashFiles) {
+                    try {
+                        // Parse crash file and convert to CrashData
+                        val crashData = parseCrashFile(file)
+                        if (crashData != null) {
+                            crashDao.insert(crashData)
+                            file.delete() // Remove file after successful migration
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to migrate crash file: ${file.name}", e)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to migrate crashes to database", e)
+            }
+        }
+    }
+    
+    private fun parseCrashFile(file: File): CrashData? {
+        // Simple parsing - in production you might want more robust parsing
+        return try {
+            val lines = file.readLines()
+            var exceptionName = "Unknown"
+            var exceptionMessage = "Unknown"
+            var threadName = "Unknown"
+            var appVersion = "Unknown"
+            var stackTrace = ""
+            
+            var inStackTrace = false
+            val stackTraceLines = mutableListOf<String>()
+            
+            for (line in lines) {
+                when {
+                    line.startsWith("Exception: ") -> exceptionName = line.substring(11)
+                    line.startsWith("Message: ") -> exceptionMessage = line.substring(9)
+                    line.startsWith("Thread: ") -> threadName = line.substring(8)
+                    line.startsWith("App Version: ") -> appVersion = line.substring(13)
+                    line.startsWith("STACK TRACE:") -> inStackTrace = true
+                    inStackTrace -> stackTraceLines.add(line)
+                }
+            }
+            
+            stackTrace = stackTraceLines.joinToString("\n")
+            
+            CrashData(
+                exceptionName = exceptionName,
+                exceptionMessage = exceptionMessage,
+                stackTrace = stackTrace,
+                threadName = threadName,
+                appVersion = appVersion,
+                androidVersion = Build.VERSION.RELEASE,
+                deviceModel = Build.MODEL,
+                deviceManufacturer = Build.MANUFACTURER,
+                availableMemory = 0L,
+                totalMemory = 0L,
+                batteryLevel = -1f,
+                isCharging = false,
+                networkType = "Unknown",
+                isInBackground = false
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse crash file", e)
+            null
+        }
+    }
+    
+    private fun cleanupOldCrashes() {
+        executor.execute {
+            try {
+                val crashFiles = crashDir.listFiles() ?: return@execute
+                
+                if (crashFiles.size > MAX_CRASH_FILES) {
+                    // Sort by last modified and delete oldest
+                    val sortedFiles = crashFiles.sortedBy { it.lastModified() }
+                    val filesToDelete = sortedFiles.take(crashFiles.size - MAX_CRASH_FILES)
+                    
+                    for (file in filesToDelete) {
+                        file.delete()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to cleanup old crashes", e)
+            }
+        }
+    }
+    
+    // Safe utility methods that won't throw exceptions
+    private fun getStackTraceStringSafely(throwable: Throwable): String {
+        return try {
+            val writer = StringWriter()
+            throwable.printStackTrace(PrintWriter(writer))
+            writer.toString()
+        } catch (e: Exception) {
+            "Failed to get stack trace: ${e.message}"
+        }
+    }
+    
+    private fun getCauseSafely(throwable: Throwable): String? {
+        return try {
+            throwable.cause?.let { "${it.javaClass.simpleName}: ${it.message}" }
+        } catch (e: Exception) {
+            "Failed to get cause"
+        }
+    }
+    
+    private fun getAppVersionSafely(context: Context): String {
+        return try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            "${packageInfo.versionName} (${packageInfo.versionCode})"
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
+    
+    private fun getAvailableMemorySafely(context: Context): Long {
+        return try {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            memoryInfo.availMem
+        } catch (e: Exception) {
+            -1L
+        }
+    }
+    
+    private fun getTotalMemorySafely(context: Context): Long {
+        return try {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                memoryInfo.totalMem
+            } else {
+                Runtime.getRuntime().totalMemory()
+            }
+        } catch (e: Exception) {
+            -1L
+        }
+    }
+    
+    private fun getBatteryLevelSafely(context: Context): Float {
+        return try {
+            val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (level != -1 && scale != -1) {
+                level / scale.toFloat() * 100
+            } else {
+                -1f
+            }
+        } catch (e: Exception) {
+            -1f
+        }
+    }
+    
+    private fun isChargingSafely(context: Context): Boolean {
+        return try {
+            val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val status = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    private fun getNetworkTypeSafely(context: Context): String {
+        return try {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val network = connectivityManager.activeNetwork
+                val capabilities = connectivityManager.getNetworkCapabilities(network)
+                when {
+                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
+                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile"
+                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "Ethernet"
+                    else -> "Unknown"
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val activeNetworkInfo = connectivityManager.activeNetworkInfo
+                when (activeNetworkInfo?.type) {
+                    ConnectivityManager.TYPE_WIFI -> "WiFi"
+                    ConnectivityManager.TYPE_MOBILE -> "Mobile"
+                    ConnectivityManager.TYPE_ETHERNET -> "Ethernet"
+                    else -> "Unknown"
+                }
+            }
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
+    
+    private fun isAppInBackgroundSafely(): Boolean {
+        return try {
+            !ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(
+                androidx.lifecycle.Lifecycle.State.STARTED
+            )
+        } catch (e: Exception) {
+            false
+        }
+    }
+}

@@ -36,7 +36,9 @@ android {
 			isMinifyEnabled = false
 		}
 		getByName("release") {
-			isMinifyEnabled = true
+			// Disabled temporarily due to unresolved R8 missing class issues (see proguard rules)
+			// TODO: Re-enable minification after resolving class retention for shared modules
+			isMinifyEnabled = false
 		}
 	}
 
