@@ -58,18 +58,58 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	)
 
 	/**
-	 * Upsert (Update if exists, insert otherwise) Wi-Fi network data.
+	 * Optimized upsert preserving original semantics:
+	 *  - Insert new rows (IGNORE conflict)
+	 *  - For existing rows, perform a single conditional UPDATE that:
+	 *      * always refreshes last_seen, ssid, capabilities, frequency
+	 *      * updates level only if stronger
+	 *      * updates location (lon/lat/alt) only if level stronger AND new coords present
+	 *      * never changes first_seen
 	 */
+	@Query(
+		"""
+		UPDATE wifi_data SET
+			last_seen = :lastSeen,
+			ssid = :ssid,
+			capabilities = :capabilities,
+			frequency = :frequency,
+			level = CASE WHEN :level > level THEN :level ELSE level END,
+			longitude = CASE WHEN :level > level AND :longitude IS NOT NULL THEN :longitude ELSE longitude END,
+			latitude = CASE WHEN :level > level AND :latitude IS NOT NULL THEN :latitude ELSE latitude END,
+			altitude = CASE WHEN :level > level AND :altitude IS NOT NULL THEN :altitude ELSE altitude END
+		WHERE bssid = :bssid
+		"""
+	)
+	fun updateMerged(
+		bssid: String,
+		longitude: Double?,
+		latitude: Double?,
+		altitude: Double?,
+		lastSeen: Long,
+		ssid: String,
+		capabilities: String,
+		frequency: Int,
+		level: Int
+	)
+
 	@Transaction
 	fun upsert(objList: Collection<DatabaseWifiData>) {
+		if (objList.isEmpty()) return
 		val insertResult = insert(objList)
-		val updateList = objList.filterIndexed { index, _ -> insertResult[index] == -1L }
-
-		updateList.forEach {
-			if (it.longitude != null && it.latitude != null) {
-				updateSignalDataIfCloser(it.bssid, it.longitude, it.latitude, it.altitude, it.level)
+		objList.forEachIndexed { index, it ->
+			if (insertResult[index] == -1L) {
+				updateMerged(
+					it.bssid,
+					it.longitude,
+					it.latitude,
+					it.altitude,
+					it.lastSeen,
+					it.ssid,
+					it.capabilities,
+					it.frequency,
+					it.level
+				)
 			}
-			updateData(it.bssid, it.ssid, it.capabilities, it.frequency, it.lastSeen)
 		}
 	}
 
