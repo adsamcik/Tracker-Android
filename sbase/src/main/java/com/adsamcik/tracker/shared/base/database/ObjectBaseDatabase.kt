@@ -31,6 +31,8 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 				databaseName
 		)
 				.openHelperFactory(RequerySQLiteOpenHelperFactory(listOf(options)))
+				// Enable WAL for improved concurrent read/write performance and reduced writer stalls
+				.setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
 				.apply { setupDatabase(this) }
 				.build()
 		this.instance = instance
