@@ -12,6 +12,11 @@ import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
 import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
@@ -20,6 +25,7 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 
 	private var cellLocationDao: CellLocationDao? = null
 	private var cellOperatorDao: CellOperatorDao? = null
+	private var scope: CoroutineScope? = null
 
 	private fun toOwnLocation(location: android.location.Location?): Location? {
 		return if (location != null) {
@@ -46,7 +52,8 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	}
 
 	private fun saveOperator(cell: CellInfo) {
-		requireNotNull(cellOperatorDao).insert(cell.networkOperator)
+		val dao = cellOperatorDao ?: return
+		scope?.launch(Dispatchers.IO) { try { dao.insert(cell.networkOperator) } catch (_: Throwable) {} }
 	}
 
 	private fun saveOperator(cell: CellData) {
@@ -54,17 +61,17 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	}
 
 	private fun saveLocation(time: Long, cell: CellInfo, location: Location) {
+		val dao = cellLocationDao ?: return
 		val cellLocation = DatabaseCellLocation(
-				time,
-				cell.networkOperator.mcc,
-				cell.networkOperator.mnc,
-				cell.cellId,
-				cell.type,
-				cell.asu,
-				BaseLocation(location)
+			time,
+			cell.networkOperator.mcc,
+			cell.networkOperator.mnc,
+			cell.cellId,
+			cell.type,
+			cell.asu,
+			BaseLocation(location)
 		)
-
-		requireNotNull(cellLocationDao).insert(cellLocation)
+		scope?.launch(Dispatchers.IO) { try { dao.insert(cellLocation) } catch (_: Throwable) {} }
 	}
 
 	private fun saveLocation(time: Long, cell: CellData, location: Location) {
@@ -72,6 +79,7 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onDisable(context: Context) {
+		scope?.cancel(); scope = null
 		cellLocationDao = null
 		cellOperatorDao = null
 	}
@@ -80,6 +88,7 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 		val database = AppDatabase.database(context)
 		cellLocationDao = database.cellLocationDao()
 		cellOperatorDao = database.cellOperatorDao()
+		scope = CoroutineScope(Job() + Dispatchers.Default)
 	}
 }
 
