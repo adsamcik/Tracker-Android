@@ -29,7 +29,7 @@ import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
  * Contains only common data nothing module specific.
  */
 @Database(
-		version = 11,
+		version = 12,
 		entities = [DatabaseLocation::class,
 			TrackerSession::class,
 			DatabaseWifiData::class,
@@ -86,17 +86,18 @@ abstract class AppDatabase : RoomDatabase() {
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
 		override fun setupDatabase(database: Builder<AppDatabase>) {
-			database.addMigrations(
-					MIGRATION_2_3,
-					MIGRATION_3_4,
-					MIGRATION_4_5,
-					MIGRATION_5_6,
-					MIGRATION_6_7,
-					MIGRATION_7_8,
-					MIGRATION_8_9,
-					MIGRATION_9_10,
-					MIGRATION_10_11
-			)
+				database.addMigrations(
+						MIGRATION_2_3,
+						MIGRATION_3_4,
+						MIGRATION_4_5,
+						MIGRATION_5_6,
+						MIGRATION_6_7,
+						MIGRATION_7_8,
+						MIGRATION_8_9,
+						MIGRATION_9_10,
+						MIGRATION_10_11,
+						MIGRATION_11_12
+				)
 		}
 
 		/**

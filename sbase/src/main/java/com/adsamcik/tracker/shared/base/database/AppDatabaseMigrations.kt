@@ -180,3 +180,21 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
 	}
 }
 
+// Option B: Replace single-column indices on location_data with composite indices
+// Add new indices first, then drop old to minimize disruption.
+val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// Create composite indices
+			execSQL("CREATE INDEX IF NOT EXISTS idx_location_time_lat_lon ON location_data(time, lat, lon)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_location_lat_lon ON location_data(lat, lon)")
+
+			// Drop old single-column indices if they exist (names from earlier migrations)
+			// Safe even if already absent
+			execSQL("DROP INDEX IF EXISTS index_location_data_time")
+			execSQL("DROP INDEX IF EXISTS index_location_data_lat")
+			execSQL("DROP INDEX IF EXISTS index_location_data_lon")
+		}
+	}
+}
+
