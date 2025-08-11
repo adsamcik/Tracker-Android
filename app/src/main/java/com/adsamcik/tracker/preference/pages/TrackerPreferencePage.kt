@@ -84,9 +84,10 @@ class TrackerPreferencePage : PreferencePage {
 					PermissionRequest
 						.with(context)
 						.permission(
-								PermissionData(Manifest.permission.ACCESS_BACKGROUND_LOCATION) { "BlaBla" }
+								PermissionData(Manifest.permission.ACCESS_BACKGROUND_LOCATION) { 
+									it.getString(com.adsamcik.tracker.shared.utils.R.string.permission_rationale_background_location)
+								}
 						)
-						//.onRationale { token, _ -> token.continuePermissionRequest() }
 						.onResult { updateLocationWarning() }
 						.build()
 				)

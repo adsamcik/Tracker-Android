@@ -26,6 +26,30 @@ class TrackerFirstRun : FirstRun() {
         autoTrackingOptions(context, onDoneListener)
     }
 
+    private fun backgroundLocationDisclosure(context: Context, onDoneListener: OnDoneListener) {
+        createDialog(context) {
+            setTitle(R.string.first_run_background_location_disclosure_title)
+            setMessage(R.string.first_run_background_location_disclosure_description)
+            setPositiveButton(com.adsamcik.tracker.shared.base.R.string.generic_continue) { dialog, _ ->
+                dialog.dismiss()
+                requestBackgroundLocation(context) {
+                    onDoneListener(context, false)
+                }
+            }
+            setNegativeButton(R.string.skip_introduction) { dialog, _ ->
+                // User chose to skip background location, disable automatic tracking
+                Preferences.getPref(context).edit {
+                    setInt(
+                        com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+                        0
+                    )
+                }
+                dialog.dismiss()
+                onDoneListener(context, false)
+            }
+        }
+    }
+
     private fun requestBackgroundLocation(context: Context, callback: PermissionResultCallback) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             PermissionManager.checkPermissions(
@@ -44,13 +68,10 @@ class TrackerFirstRun : FirstRun() {
 
     private fun backgroundLocation(context: Context, onDoneListener: OnDoneListener) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            requestBackgroundLocation(context) {
-                onDoneListener(context, false)
-            }
+            backgroundLocationDisclosure(context, onDoneListener)
         } else {
             onDoneListener(context, false)
         }
-
     }
 
     private fun autoTrackingOptions(context: Context, onDoneListener: OnDoneListener) {
@@ -69,8 +90,10 @@ class TrackerFirstRun : FirstRun() {
                 }
 
                 if (which > 0) {
+                    // User selected automatic tracking, need activity permission first
                     PermissionManager.checkActivityPermissions(context) {
                         if (!it.isSuccess) {
+                            // Activity permission denied, disable automatic tracking
                             Preferences.getPref(context).edit {
                                 setInt(
                                     com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
@@ -78,14 +101,18 @@ class TrackerFirstRun : FirstRun() {
                                 )
                             }
                         }
+                        // Continue to tracking options regardless of activity permission result
                         whatToTrackOptions(context, onDoneListener)
                     }
                 } else {
+                    // No automatic tracking selected, continue normally
                     whatToTrackOptions(context, onDoneListener)
                 }
             }
             setPositiveButton(com.adsamcik.tracker.shared.base.R.string.generic_done) { dialog, _ ->
                 dialog.dismiss()
+                // If user clicks Done without selecting an option, proceed with disabled automatic tracking
+                whatToTrackOptions(context, onDoneListener)
             }
         }
     }
@@ -185,7 +212,8 @@ class TrackerFirstRun : FirstRun() {
         val initialSelectionBooleanArray = BooleanArray(titleList.size) { it in selection.toList() }
 
         createDialog(context) {
-            setTitle(R.string.settings_auto_tracking_category)
+            setTitle(R.string.first_run_what_to_track_title)
+            setMessage(R.string.first_run_what_to_track_description)
             setMultiChoiceItems(titleListCharSequence, initialSelectionBooleanArray) { _, index, isChecked ->
                 // Handle item selected/deselected
             }
@@ -223,7 +251,9 @@ class TrackerFirstRun : FirstRun() {
                 }
             }
             setNegativeButton(R.string.generic_cancel) { dialog, _ ->
-                // Handle Cancel button click
+                // User cancelled, proceed to complete first run without changes
+                dialog.dismiss()
+                onDoneListener(context, false)
             }
         }
     }

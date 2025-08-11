@@ -182,7 +182,13 @@
     <string name="wifi_count_value">Wi-Fi %d</string>
 
     <string name="first_run_automatic_tracking_title">Automatic tracking based on activity</string>
-    <string name="first_run_automatic_tracking_description">Requires activity permission.</string>
+    <string name="first_run_automatic_tracking_description">Automatic tracking starts and stops location tracking based on your activity (walking, driving, or stationary), helping save battery life and provide seamless fitness tracking.</string>
+    
+    <string name="first_run_background_location_disclosure_title">Background Location Required</string>
+    <string name="first_run_background_location_disclosure_description">For automatic tracking to work when Advention is not visible, the app needs access to your location in the background.\n\nThis allows the app to:\n• Automatically start tracking when you begin walking or driving\n• Continue tracking your location during activities\n• Provide accurate fitness and travel statistics\n\nYour location data is always kept on your device and never shared with anyone.</string>
+    
+    <string name="first_run_what_to_track_title">Choose what to track</string>
+    <string name="first_run_what_to_track_description">Select which types of data you want Advention to collect. You can change these settings later.</string>
 
     <string name="first_run_background_tracking_permission_title">Background tracking permission required!</string>
 
