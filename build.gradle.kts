@@ -1,22 +1,7 @@
 import java.util.Locale
 
 buildscript {
-	repositories {
-		google()
-	}
-	dependencies {
-		classpath("com.android.tools.build:gradle:8.12.0")
-		classpath("com.google.gms:google-services:4.4.3")
-		classpath("com.google.android.gms:oss-licenses-plugin:0.10.7")
-		classpath("com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin:2.0.1")
-		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.DOKKA}")
-		classpath(kotlin("gradle-plugin", Dependencies.Versions.KOTLIN))
-	}
-
-	plugins {
-		id("com.google.devtools.ksp") version Dependencies.Versions.KSP apply false
-
-	}
+	repositories { google() }
 }
 
 allprojects {
@@ -24,7 +9,12 @@ allprojects {
 		google()
 		maven("https://jitpack.io")
 		mavenCentral()
-		jcenter()
+		jcenter {
+			content {
+				includeGroup("com.adsamcik")
+				includeGroup("com.github.adsamcik")
+			}
+		}
 	}
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {
@@ -46,7 +36,18 @@ tasks.register("clean", Delete::class) {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.52.0")
+	alias(libs.plugins.benmanes.versions)
+	alias(libs.plugins.android.application) apply false
+	alias(libs.plugins.android.library) apply false
+	alias(libs.plugins.android.dynamic.feature) apply false
+	alias(libs.plugins.kotlin.android) apply false
+	alias(libs.plugins.kotlin.parcelize) apply false
+	alias(libs.plugins.kotlin.compose) apply false
+	alias(libs.plugins.ksp) apply false
+	alias(libs.plugins.google.services) apply false
+	alias(libs.plugins.secrets) apply false
+	alias(libs.plugins.oss.licenses) apply false
+	alias(libs.plugins.dokka) apply false
 }
 
 /**

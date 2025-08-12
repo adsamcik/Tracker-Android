@@ -1,6 +1,8 @@
 plugins {
-	id("com.android.dynamic-feature")
-	Dependencies.corePlugins(this)
+	alias(libs.plugins.android.dynamic.feature)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.ksp)
 }
 
 android {
@@ -48,12 +50,53 @@ dependencies {
 	implementation(project(":logger"))
 	implementation(project(":points"))
 
-	Dependencies.core(this)
-	Dependencies.draggable(this)
-	Dependencies.database(this)
-	Dependencies.preference(this)
-	Dependencies.test(this)
-	Dependencies.inputDialog(this)
-	Dependencies.slider(this)
+	// Core
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.androidx.recyclerview)
+	// Recycler helpers (BaseMultiTypeAdapter, etc.)
+	implementation(libs.components.recycler)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.service)
+	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.fragment)
+	implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.preference)
+	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.google.material)
+	implementation(libs.google.play.services.base)
+	implementation(libs.google.play.feature.delivery)
+	implementation(libs.google.play.feature.delivery.ktx)
+
+	// WorkManager
+	implementation(libs.androidx.work.runtime.ktx)
+	androidTestImplementation(libs.androidx.work.testing)
+
+	// DB
+	implementation(libs.androidx.room.runtime)
+	ksp(libs.androidx.room.compiler)
+	implementation(libs.androidx.room.ktx)
+	implementation(libs.androidx.room.paging)
+	implementation(libs.sqlite.android)
+	androidTestImplementation(libs.androidx.room.testing)
+
+	// UI utils
+	// Material dialogs
+	implementation(libs.material.dialogs.core)
+	implementation(libs.material.dialogs.input)
+	implementation(libs.component.slider)
+	implementation(libs.components.draggable)
+
+	// Tests
+	androidTestImplementation(libs.junit4)
+	androidTestImplementation(libs.androidx.test.runner)
+	androidTestImplementation(libs.uiautomator)
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.arch.core.testing)
+	androidTestImplementation(libs.livedata.testing.ktx)
+	androidTestImplementation(libs.espresso)
 }
 

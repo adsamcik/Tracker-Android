@@ -2,15 +2,18 @@ import org.jetbrains.dokka.gradle.DokkaTask
 import java.net.URI
 
 plugins {
-	id("com.android.application")
-	id("org.jetbrains.dokka-android")
-	id("com.google.android.gms.oss-licenses-plugin")
-	id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
-	Dependencies.corePlugins(this)
-	Dependencies.composePlugins(this)
+	alias(libs.plugins.android.application)
+	alias(libs.plugins.dokka)
+	alias(libs.plugins.oss.licenses)
+	alias(libs.plugins.secrets)
+	alias(libs.plugins.google.services)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.kotlin.compose)
+	alias(libs.plugins.ksp)
 }
 
-apply(plugin = "com.google.gms.google-services")
+// Google services plugin applied via alias above
 
 android {
 	compileSdk = Android.COMPILE_VERSION
@@ -95,21 +98,25 @@ android {
 	}
 }
 
-tasks.withType<DokkaTask> {
-	outputFormat = "html"
-	outputDirectory = "${layout.buildDirectory}/javadoc"
-	jdkVersion = Android.JAVA_VERSION
-	skipEmptyPackages = true
-	skipDeprecated = true
+// Dokka configuration for modern org.jetbrains.dokka plugin (HTML output)
+tasks.withType<DokkaTask>().configureEach {
+	// Write docs into build/javadoc
+	outputDirectory.set(layout.buildDirectory.dir("javadoc"))
 
-	externalDocumentationLink {
-		url = URI("https://developer.android.com/reference/").toURL()
-		packageListUrl = URI("https://developer.android.com/reference/android/support/package-list").toURL()
+	dokkaSourceSets.configureEach {
+		skipEmptyPackages.set(true)
+		skipDeprecated.set(true)
+		jdkVersion.set(Android.JAVA_VERSION)
+
+		externalDocumentationLink {
+			url.set(URI("https://developer.android.com/reference/").toURL())
+			packageListUrl.set(URI("https://developer.android.com/reference/android/support/package-list").toURL())
+		}
 	}
 }
 
 dependencies {
-	coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Dependencies.Versions.DESUGAR_JDK_LIBS}")
+	coreLibraryDesugaring(libs.desugar.jdk.libs)
 	
 	implementation(project(":sbase"))
 	implementation(project(":tracker"))
@@ -122,41 +129,94 @@ dependencies {
 
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
-	Dependencies.core(this)
-	Dependencies.compose(this)
-	// 1st party dependencies
-	Dependencies.slider(this)
-	Dependencies.draggable(this)
+	// Core
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.components.recycler)
+	implementation(libs.material.dialogs.core)
+	implementation(libs.dexter)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.androidx.recyclerview)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.service)
+	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.fragment)
+	implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.preference)
+	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.google.material)
+	implementation(libs.google.play.services.base)
+	implementation(libs.google.play.feature.delivery)
+	implementation(libs.google.play.feature.delivery.ktx)
+	// WorkManager
+	implementation(libs.androidx.work.runtime.ktx)
+	androidTestImplementation(libs.androidx.work.testing)
 
-	Dependencies.introduction(this)
+	// Compose
+	implementation(platform(libs.compose.bom))
+	androidTestImplementation(platform(libs.compose.bom))
+	implementation(libs.compose.material3)
+	implementation(libs.compose.ui.tooling.preview)
+	debugImplementation(libs.compose.ui.tooling)
+	implementation(libs.activity.compose)
+	implementation(libs.compose.material.icons.extended)
+	implementation(libs.compose.animation)
+	implementation(libs.compose.animation.graphics)
+	implementation(libs.navigation.compose)
+	implementation(libs.androidx.lifecycle.viewmodel.compose)
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.runtime.livedata)
+	implementation(libs.constraintlayout.compose)
+	androidTestImplementation(libs.compose.ui.test.junit4)
+	debugImplementation(libs.compose.ui.test.manifest)
+	implementation(libs.accompanist.pager)
+	implementation(libs.accompanist.swiperefresh)
+	// 1st party dependencies
+	implementation(libs.component.slider)
+	implementation(libs.components.draggable)
+
+	implementation(libs.spotlight)
 
 	// 3rd party dependencies
-	Dependencies.colorChooser(this)
-	Dependencies.inputDialog(this)
+	implementation(libs.material.dialogs.color)
+	implementation(libs.material.dialogs.input)
 
-	Dependencies.json(this)
+	implementation(libs.moshi)
+	ksp(libs.moshi.kotlin.codegen)
 
 	// Google dependencies
-	implementation("androidx.cardview:cardview:1.0.0")
+	implementation(libs.androidx.cardview)
 
 	// Preference
-	Dependencies.preference(this)
+	implementation(libs.androidx.preference)
 
 	// Open-source licenses
-	implementation("de.psdev.licensesdialog:licensesdialog:2.2.0")
-	implementation("com.google.android.gms:play-services-oss-licenses:17.1.0")
+	implementation(libs.licensesdialog)
+	implementation(libs.play.services.oss.licenses)
 
 	// PlayServices
-	Dependencies.location(this)
+	implementation(libs.google.play.services.location)
 
 	// Database
-	Dependencies.database(this)
+	implementation(libs.androidx.room.runtime)
+	ksp(libs.androidx.room.compiler)
+	implementation(libs.androidx.room.ktx)
+	implementation(libs.androidx.room.paging)
+	implementation(libs.sqlite.android)
+	androidTestImplementation(libs.androidx.room.testing)
 
-	Dependencies.test(this)
+	androidTestImplementation(libs.junit4)
+	androidTestImplementation(libs.androidx.test.runner)
+	androidTestImplementation(libs.uiautomator)
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.arch.core.testing)
+	androidTestImplementation(libs.livedata.testing.ktx)
+	androidTestImplementation(libs.espresso)
+	androidTestImplementation(libs.espresso)
 	// workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":smap"))
-	Dependencies.map(this)
+	implementation(libs.google.play.services.maps)
 }
-apply {
-	plugin("com.google.gms.google-services")
-}
+//
