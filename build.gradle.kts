@@ -5,9 +5,9 @@ buildscript {
 		google()
 	}
 	dependencies {
-		classpath("com.android.tools.build:gradle:8.11.0")
+		classpath("com.android.tools.build:gradle:8.12.0")
 		classpath("com.google.gms:google-services:4.4.3")
-		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
+		classpath("com.google.android.gms:oss-licenses-plugin:0.10.7")
 		classpath("com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin:2.0.1")
 		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.DOKKA}")
 		classpath(kotlin("gradle-plugin", Dependencies.Versions.KOTLIN))

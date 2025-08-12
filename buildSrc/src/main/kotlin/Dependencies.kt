@@ -10,17 +10,17 @@ object Dependencies {
      * Object containing versions for various dependencies.
      */
     object Versions {
-        const val KOTLIN = "2.2.0-RC3"
+    const val KOTLIN = "2.2.0"
         const val DOKKA = "0.9.18"
-        const val KSP = "2.2.0-RC3-2.0.2"
+    const val KSP = "2.2.0-2.0.2"
 
         const val CONSTRAINT_LAYOUT = "2.2.1"
         const val CORE_KTX = "1.16.0"
         const val APPCOMPAT = "1.7.1"
         const val FRAGMENT = "1.8.8"
         const val MOSHI = "1.15.2"
-        const val WORK = "2.10.2"
-        const val LIFECYCLE = "2.9.1"
+    const val WORK = "2.10.3"
+    const val LIFECYCLE = "2.9.2"
         const val PREFERENCE = "1.2.1"
         const val MATERIAL = "1.12.0"
 
@@ -32,7 +32,7 @@ object Dependencies {
         const val RECYCLER_VIEW = "1.4.0"
         const val PAGING = "3.3.6"
 
-        const val PLAY_SERVICES_BASE = "18.7.0"
+    const val PLAY_SERVICES_BASE = "18.7.2"
         const val PLAY_LOCATION = "21.3.0"
         const val PLAY_FEATURE_DELIVERY = "2.1.0"
         const val MAPS = "19.2.0"
@@ -51,11 +51,11 @@ object Dependencies {
         const val DEXTER = "6.2.3"
         const val SUNCALC = "3.11"
         
-        const val DESUGAR_JDK_LIBS = "2.1.3"
+    const val DESUGAR_JDK_LIBS = "2.1.5"
 
-        const val COMPOSE_BOM = "2025.06.01"
+    const val COMPOSE_BOM = "2025.07.00"
         const val ACTIVITY_COMPOSE = "1.11.0-rc01"
-        const val NAVIGATION_COMPOSE = "2.9.0"
+    const val NAVIGATION_COMPOSE = "2.9.3"
         const val CONSTRAINT_LAYOUT_COMPOSE = "1.1.1"
         const val ACCOMPANIST = "0.36.0"
 
@@ -64,11 +64,11 @@ object Dependencies {
          */
         object Test {
             const val JUNIT = "4.13.2"
-            const val JUNIT_EXT = "1.2.1"
+            const val JUNIT_EXT = "1.3.0"
             const val UIAUTOMATOR = "2.3.0"
             const val RULES = "1.6.2"
-            const val RUNNER = "1.6.2"
-            const val ESPRESSO = "3.6.1"
+            const val RUNNER = "1.7.0"
+            const val ESPRESSO = "3.7.0"
             const val CORE_TESTING = "2.2.0"
             const val TESTING_KTX = "1.3.0"
         }
