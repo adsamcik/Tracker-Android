@@ -13,7 +13,8 @@ import kotlin.math.cos
 object PolylineOptimizer {
 
     /**
-     * Simplify a polyline with Douglas-Peucker then enforce [maxPoints] by down sampling.
+     * Simplify a polyline with Douglas-Peucker then enforce [maxPoints] by down sampling and optional even spacing.
+     * Primary entry used internally; prefer the simpler overload unless custom spacing control required.
      */
     fun optimize(
         points: List<LatLng>,
@@ -27,6 +28,12 @@ object PolylineOptimizer {
         if (!evenSpacing) return capped
         return if (capped.size <= 2) capped else resampleEvenDistance(capped, min(maxPoints, capped.size))
     }
+
+    /**
+     * Spec-conforming overload (points, tolerance, maxPoints) -> List<LatLng> with even spacing enabled.
+     */
+    fun optimize(points: List<LatLng>, toleranceMeters: Double, maxPoints: Int): List<LatLng> =
+        optimize(points, toleranceMeters, maxPoints, evenSpacing = true)
 
     private fun douglasPeucker(points: List<LatLng>, tolerance: Double): List<LatLng> {
         if (points.size < 3) return points

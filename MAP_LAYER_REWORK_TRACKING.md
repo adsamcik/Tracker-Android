@@ -219,7 +219,7 @@ Files (new): `map/.../v2/graphics/BitmapPool.kt`
 
 Files (new): `map/.../v2/graphics/PolylineOptimizer.kt`
 
-- [ ] Implement Douglas-Peucker and even spacing; API `(points, tolerance, maxPoints) -> List<LatLng>`.
+- [x] Implement Douglas-Peucker and even spacing; API `(points, tolerance, maxPoints) -> List<LatLng>`.
 
  
 ### 4.4 HeatmapTileProvider improvements (non-breaking)
