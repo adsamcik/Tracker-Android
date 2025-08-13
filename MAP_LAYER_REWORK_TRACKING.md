@@ -100,7 +100,7 @@ Files: `map/.../MapController.kt`, `map/.../heatmap/HeatmapTileProvider.kt`
  
 Acceptance
 
-- [ ] Build compiles and runtime behavior unchanged.
+- [x] Build compiles and runtime behavior unchanged.
 
 ---
 
