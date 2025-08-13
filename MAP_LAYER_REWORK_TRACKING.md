@@ -120,7 +120,7 @@ Files (new): `map/src/main/java/com/adsamcik/tracker/map/v2/presentation/MapView
  
 Acceptance
 
-- [ ] ViewModel compiles; can be instantiated in tests.
+- [x] ViewModel compiles; can be instantiated in tests.
 
  
 ### 2.2 Layer descriptors and registry (manual, no DI yet)
