@@ -7,6 +7,8 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
 import android.os.Looper
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.appcompat.widget.AppCompatImageButton
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
@@ -38,7 +40,7 @@ internal class MapSensorController(
 	context: Context,
 	private val map: GoogleMap,
 	private val eventListener: MapEventListener
-) : SensorEventListener, CoroutineScope {
+) : SensorEventListener, CoroutineScope, DefaultLifecycleObserver {
 	private var followMyPosition: Boolean = false
 
 	private val sensorManager: SensorManager = context.sensorManager
@@ -311,4 +313,19 @@ internal class MapSensorController(
 		private const val LOCATION_UPDATE_INTERVAL_MS = 2 * Time.SECOND_IN_MILLISECONDS
 		private const val ACTIVITY_DETECTION_INTERVAL_S = 10
 	}
+
+	// Lifecycle bridging: use onStart/onStop for registering sensors and location
+	    override fun onStart(owner: LifecycleOwner) { /* no-op: explicit control via attachToLifecycle */ }
+	    override fun onStop(owner: LifecycleOwner) { /* no-op */ }
+
+	    fun attachToLifecycle(lifecycleOwner: LifecycleOwner, context: Context) {
+	        lifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+	            override fun onStart(owner: LifecycleOwner) {
+	                onEnable(context)
+	            }
+	            override fun onStop(owner: LifecycleOwner) {
+	                onDisable(context)
+	            }
+	        })
+	    }
 }

@@ -73,12 +73,12 @@ internal class MapEventListener(val map: GoogleMap) {
 	operator fun minusAssign(listener: GoogleMap.OnCameraMoveCanceledListener) {
 		onCameraMoveCancelledListeners.remove(listener)
 		if (onCameraMoveCancelledListeners.isEmpty()) {
-			map.setOnCameraMoveStartedListener(null)
+			map.setOnCameraMoveCanceledListener(null)
 		}
 	}
 
 	operator fun plusAssign(listener: GoogleMap.OnMapClickListener) {
-		if (onCameraMoveListeners.isEmpty()) {
+		if (onClickListeners.isEmpty()) {
 			map.setOnMapClickListener { latlng -> onClickListeners.forEach { it.onMapClick(latlng) } }
 		}
 		onClickListeners.add(listener)
@@ -86,8 +86,8 @@ internal class MapEventListener(val map: GoogleMap) {
 
 	operator fun minusAssign(listener: GoogleMap.OnMapClickListener) {
 		onClickListeners.remove(listener)
-		if (onCameraMoveListeners.isEmpty()) {
-			map.setOnCameraIdleListener(null)
+		if (onClickListeners.isEmpty()) {
+			map.setOnMapClickListener(null)
 		}
 	}
 }
