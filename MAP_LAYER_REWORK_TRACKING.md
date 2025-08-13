@@ -67,11 +67,16 @@ Currently both `MapOwner` enable/disable listeners and the lifecycle observer ca
 - [ ] Decide on preferred control path (likely lifecycle observer tied to `viewLifecycleOwner`).
 - [ ] Remove redundant `mapOwner.addOnEnableListener` / `addOnDisableListener` wiring for sensor controller (or alternatively remove the lifecycle observer and rely solely on MapOwner) to guarantee single subscription.
 - [ ] Add safeguard idempotence check (no-op if already subscribed) with lightweight logging if duplicate call occurs (debug only).
+ - [x] Decide on preferred control path (likely lifecycle observer tied to `viewLifecycleOwner`).
+ - [x] Remove redundant `mapOwner.addOnEnableListener` / `addOnDisableListener` wiring for sensor controller (or alternatively remove the lifecycle observer and rely solely on MapOwner) to guarantee single subscription.
+ - [x] Add safeguard idempotence check (no-op if already subscribed) with lightweight logging if duplicate call occurs (debug only).
 
 Acceptance
 
 - [ ] Only one code path invokes MapSensorController enable/disable in normal flow (verified via log or breakpoint).
 - [ ] No duplicate sensor or location requests after rapid pause/resume cycles.
+ - [x] Only one code path invokes MapSensorController enable/disable in normal flow (verified via log or breakpoint).
+ - [x] No duplicate sensor or location requests after rapid pause/resume cycles.
 - [ ] Verify that following mode (my location / bearing) resumes after app resumes and cancels when user moves the camera (check integration with `MapEventListener` move-started callbacks).
 
  

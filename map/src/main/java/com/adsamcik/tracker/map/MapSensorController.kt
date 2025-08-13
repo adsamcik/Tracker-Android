@@ -40,7 +40,7 @@ internal class MapSensorController(
 	context: Context,
 	private val map: GoogleMap,
 	private val eventListener: MapEventListener
-) : SensorEventListener, CoroutineScope, DefaultLifecycleObserver {
+): SensorEventListener, CoroutineScope {
 	private var followMyPosition: Boolean = false
 
 	private val sensorManager: SensorManager = context.sensorManager
@@ -139,7 +139,13 @@ internal class MapSensorController(
 		}
 	}
 
+	private var sensorsRegistered = false
+
 	fun onEnable(context: Context) {
+		if (sensorsRegistered) {
+			android.util.Log.d(TAG, "MapSensorController.onEnable called while already enabled; ignoring")
+			return
+		}
 		subscribeToLocationUpdates(context, true)
 
 		ActivityRequestManager.requestActivity(
@@ -162,6 +168,10 @@ internal class MapSensorController(
 	}
 
 	fun onDisable(context: Context) {
+		if (!sensorsRegistered) {
+			android.util.Log.d(TAG, "MapSensorController.onDisable called while already disabled; ignoring")
+			return
+		}
 		val locationClient = LocationServices.getFusedLocationProviderClient(context)
 		locationClient.removeLocationUpdates(locationCallback)
 		isSubscribed = false
@@ -169,6 +179,7 @@ internal class MapSensorController(
 		if (rotationVector != null) sensorManager.unregisterListener(this, rotationVector)
 
 		ActivityRequestManager.removeActivityRequest(context, this::class)
+		sensorsRegistered = false
 	}
 
 	private fun setUserPosition(latlng: LatLng) {
@@ -312,20 +323,14 @@ internal class MapSensorController(
 
 		private const val LOCATION_UPDATE_INTERVAL_MS = 2 * Time.SECOND_IN_MILLISECONDS
 		private const val ACTIVITY_DETECTION_INTERVAL_S = 10
+		private const val TAG = "MapSensorController"
 	}
 
 	// Lifecycle bridging: use onStart/onStop for registering sensors and location
-	    override fun onStart(owner: LifecycleOwner) { /* no-op: explicit control via attachToLifecycle */ }
-	    override fun onStop(owner: LifecycleOwner) { /* no-op */ }
-
-	    fun attachToLifecycle(lifecycleOwner: LifecycleOwner, context: Context) {
-	        lifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
-	            override fun onStart(owner: LifecycleOwner) {
-	                onEnable(context)
-	            }
-	            override fun onStop(owner: LifecycleOwner) {
-	                onDisable(context)
-	            }
-	        })
-	    }
+	fun attachToLifecycle(lifecycleOwner: LifecycleOwner, context: Context) {
+		lifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+			override fun onStart(owner: LifecycleOwner) { onEnable(context) }
+			override fun onStop(owner: LifecycleOwner) { onDisable(context) }
+		})
+	}
 }

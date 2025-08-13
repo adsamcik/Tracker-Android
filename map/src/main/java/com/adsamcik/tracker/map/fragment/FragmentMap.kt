@@ -74,12 +74,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		val context = requireContext()
 
 		mapOwner.addOnCreateListener(this::onMapReady)
-		mapOwner.addOnEnableListener {
-			locationListener?.onEnable(requireContext())
-		}
-		mapOwner.addOnDisableListener {
-			locationListener?.onDisable(requireContext())
-		}
+	// Removed direct MapOwner enable/disable wiring for MapSensorController; lifecycle observer now controls it.
 
 		MapsInitializer.initialize(context)
 	}
