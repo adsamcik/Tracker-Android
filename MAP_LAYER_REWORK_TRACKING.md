@@ -205,7 +205,7 @@ Make performance limits explicit and centralized.
 
 Files (new): `map/.../v2/perf/PerformanceManager.kt`
 
-- [ ] Provide budgets by quality (Low/Medium/High): maxPoints, maxPolylinePoints, maxCacheSize, tileRenderTimeout, decimationThreshold, batchSize.
+- [x] Provide budgets by quality (Low/Medium/High): maxPoints, maxPolylinePoints, maxCacheSize, tileRenderTimeout, decimationThreshold, batchSize.
 
  
 ### 4.2 BitmapPool
