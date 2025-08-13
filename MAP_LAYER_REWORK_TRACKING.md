@@ -128,11 +128,11 @@ Acceptance
 Files (new): `smap/.../shared/map/v2/layers/{LayerDescriptor.kt, LayerCapabilities.kt, LayerRecipe.kt, LayerParameter.kt}`
 Files (new): `map/.../v2/layers/registry/{LayerRegistry.kt, DefaultLayerRegistry.kt}`
 
-- [ ] Define `LayerDescriptor`, `LayerCapabilities`, `LayerRecipe`, `LayerParameter`, `LayerFactory` in shared `smap` to be accessible by other modules.
-- [ ] Implement `LayerRegistry` interface and `DefaultLayerRegistry` with manual registration.
-- [ ] Register descriptors mirroring current layers from `MapSheetController` list:
-  - NoMap, Location Heatmap, Cell Heatmap, Wifi Heatmap, Wifi Count Heatmap, Location Polyline, Speed Heatmap.
-  - For now, factories can return wrapper adapters to existing `MapLayerLogic` implementations (v1) to keep parity.
+- [x] Define `LayerDescriptor`, `LayerCapabilities`, `LayerRecipe`, `LayerParameter`, `LayerFactory` in shared `smap` to be accessible by other modules.
+- [x] Implement `LayerRegistry` interface and `DefaultLayerRegistry` with manual registration.
+- [x] Register descriptors mirroring current layers from `MapSheetController` list:
+  - [x] NoMap, Location Heatmap, Cell Heatmap, Wifi Heatmap, Wifi Count Heatmap, Location Polyline, Speed Heatmap.
+  - [x] For now, factories can return wrapper adapters to existing `MapLayerLogic` implementations (v1) to keep parity.
 
  
 Acceptance
