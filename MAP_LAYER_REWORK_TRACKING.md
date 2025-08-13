@@ -137,7 +137,7 @@ Files (new): `map/.../v2/layers/registry/{LayerRegistry.kt, DefaultLayerRegistry
  
 Acceptance
 
-- [ ] `DefaultLayerRegistry.getAllLayers()` returns descriptors for all current layers with names/icons wired to existing resources.
+- [x] `DefaultLayerRegistry.getAllLayers()` returns descriptors for all current layers with names/icons wired to existing resources.
 
  
 ### 2.3 MapHost and LayerController scaffolding
