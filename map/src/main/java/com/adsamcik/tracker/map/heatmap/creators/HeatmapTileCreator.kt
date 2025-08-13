@@ -96,6 +96,15 @@ internal interface HeatmapTileCreator {
 	}
 }
 
+/**
+ * Optional asynchronous adapter; implementations can override for non-blocking data fetch.
+ */
+internal interface HeatmapTileCreatorAsync : HeatmapTileCreator {
+	suspend fun getHeatmapAsync(data: HeatmapTileData, from: Long, to: Long): HeatmapTile =
+		getHeatmap(data, from, to)
+	suspend fun getHeatmapAsync(data: HeatmapTileData): HeatmapTile = getHeatmap(data)
+}
+
 internal data class HeatmapConfig(
 		val colorScheme: HeatmapColorScheme,
 		val maxHeat: Float,
