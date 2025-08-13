@@ -91,7 +91,7 @@ internal class MapController(
 		uiSettings.isCompassEnabled = false
 		uiSettings.isMyLocationButtonEnabled = false
 
-		map.setMaxZoomPreference(MAX_ZOOM)
+		map.setMaxZoomPreference(MapConstants.MAX_ZOOM)
 	}
 
 	private fun onEnable() {
@@ -122,7 +122,7 @@ internal class MapController(
 	}
 
 	companion object {
-		const val MAX_ZOOM = 17f
+		// MAX_ZOOM moved to MapConstants (task 1.3)
 	}
 }
 

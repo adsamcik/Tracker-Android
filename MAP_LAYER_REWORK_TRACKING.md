@@ -90,11 +90,12 @@ Acceptance
 
 Files: `map/.../MapController.kt`, `map/.../heatmap/HeatmapTileProvider.kt`
 
-- [ ] Create `map/src/main/java/com/adsamcik/tracker/map/MapConstants.kt` with `const val MAX_ZOOM = 17f`.
-- [ ] Replace `MapController.MAX_ZOOM` usages with `MapConstants.MAX_ZOOM` in:
-  - [ ] `MapController` (setMaxZoomPreference)
-  - [ ] `HeatmapTileProvider` (MAX_HEAT_ZOOM)
-- [ ] Remove `MAX_ZOOM` from `MapController.Companion` when references are updated.
+- [x] Create `map/src/main/java/com/adsamcik/tracker/map/MapConstants.kt` with `const val MAX_ZOOM = 17f`.
+- [x] Replace `MapController.MAX_ZOOM` usages with `MapConstants.MAX_ZOOM` in:
+  - [x] `MapController` (setMaxZoomPreference)
+  - [x] `HeatmapTileProvider` (MAX_HEAT_ZOOM)
+- [x] Remove `MAX_ZOOM` from `MapController.Companion` when references are updated.
+  - [x] Also updated additional usages in heatmap tile creators (not originally listed) to ensure compilation.
 
  
 Acceptance

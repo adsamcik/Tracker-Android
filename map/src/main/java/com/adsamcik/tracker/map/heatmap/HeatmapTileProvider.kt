@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map.heatmap
 import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.MapController
+import com.adsamcik.tracker.map.MapConstants
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
@@ -211,7 +212,7 @@ internal class HeatmapTileProvider(
 	}
 
 	companion object {
-		private const val MAX_HEAT_ZOOM = MapController.MAX_ZOOM
+		private const val MAX_HEAT_ZOOM = MapConstants.MAX_ZOOM
 
 		private const val MIN_TILE_SIZE: Int = 256
 

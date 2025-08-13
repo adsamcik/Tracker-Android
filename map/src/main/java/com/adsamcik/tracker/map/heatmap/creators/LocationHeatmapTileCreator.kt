@@ -2,7 +2,7 @@ package com.adsamcik.tracker.map.heatmap.creators
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.map.MapController
+import com.adsamcik.tracker.map.MapConstants
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.UserHeatmapData
@@ -36,7 +36,7 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 
     override fun generateStamp(heatmapSize: Int, zoom: Int, pixelInMeters: Float): HeatmapStamp {
         val baseMeterSize =
-            BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow(MapController.MAX_ZOOM - zoom)
+            BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow(MapConstants.MAX_ZOOM - zoom)
         return HeatmapStamp.generateNonlinear(ceil(baseMeterSize / pixelInMeters).toInt()) {
             it.pow(2f)
         }
