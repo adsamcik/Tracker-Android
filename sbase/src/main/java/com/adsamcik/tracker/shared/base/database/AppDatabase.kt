@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
+import com.adsamcik.tracker.shared.base.database.converter.GeoFeaturePropertiesConverter
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
@@ -18,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationWifiCountDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
+import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
@@ -38,7 +40,7 @@ import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 			DatabaseCellLocation::class,
 			DatabaseLocationWifiCount::class]
 )
-@TypeConverters(CellTypeConverter::class, DetectedActivityTypeConverter::class)
+@TypeConverters(CellTypeConverter::class, DetectedActivityTypeConverter::class, GeoFeaturePropertiesConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
 	/**
@@ -82,6 +84,11 @@ abstract class AppDatabase : RoomDatabase() {
 	 * These should be used only when absolutely needed.
 	 */
 	abstract fun generalDao(): GeneralDao
+
+	/**
+	 * Provides access to unified geo raw queries (Phase 3.1 experimental API).
+	 */
+	abstract fun unifiedGeoDao(): UnifiedGeoDao
 
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"

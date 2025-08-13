@@ -7,6 +7,11 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import com.adsamcik.tracker.map.v2.presentation.MapViewModel
+import com.adsamcik.tracker.map.v2.ui.MapHost
+import kotlinx.coroutines.launch
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
@@ -37,6 +42,12 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	private var mapFragment: SupportMapFragment? = null
 	private var mapEventListener: MapEventListener? = null
 	private var mapOwner = MapOwner()
+
+	// --- v2 scaffolding (task 2.4) ---
+	private val enableV2Scaffold = false // keep false to guarantee no behavior change by default
+	private var v2MapHost: MapHost? = null
+	private var v2ViewModel: MapViewModel? = null
+	// --- end v2 scaffolding ---
 
 	private var fActivity: FragmentActivity? = null
 
@@ -77,6 +88,19 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	// Removed direct MapOwner enable/disable wiring for MapSensorController; lifecycle observer now controls it.
 
 		MapsInitializer.initialize(context)
+	}
+
+	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+		super.onViewCreated(view, savedInstanceState)
+		if (!enableV2Scaffold) return
+
+		// Initialize v2 ViewModel & MapHost (wrapping existing mapOwner) with no-op state collection
+		v2ViewModel = ViewModelProvider(this)[MapViewModel::class.java]
+		v2MapHost = MapHost(mapOwner)
+
+		viewLifecycleOwner.lifecycleScope.launch {
+			v2ViewModel?.state?.collect { /* no-op: placeholder for future UI binding */ }
+		}
 	}
 
 	override fun onCreateView(

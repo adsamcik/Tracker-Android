@@ -39,7 +39,8 @@ import kotlin.coroutines.CoroutineContext
 internal class MapSensorController(
 	context: Context,
 	private val map: GoogleMap,
-	private val eventListener: MapEventListener
+	private val eventListener: MapEventListener,
+	private val mapPositionController: MapPositionController = MapPositionController(context, map)
 ): SensorEventListener, CoroutineScope {
 	private var followMyPosition: Boolean = false
 
@@ -53,7 +54,7 @@ internal class MapSensorController(
 	private var targetBearing: Float = 0f
 	private var targetZoom: Float = 0f
 
-	private val mapPositionController = MapPositionController(context, map)
+	// mapPositionController now injected (with default) to facilitate unit testing without Android resources
 
 	private val job = SupervisorJob()
 

@@ -7,6 +7,11 @@ import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.map.v2.DevFlags
+import com.adsamcik.tracker.map.v2.data.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.math.ceil
@@ -43,6 +48,8 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
     }
 
     private val dao = AppDatabase.database(context).locationDao()
+    private val unifiedDao = AppDatabase.database(context).unifiedGeoDao()
+    private val geoRepository: GeoRepository by lazy { GeoRepositoryImpl(unifiedDao) }
 
     override val availableRange: LongRange
         get() {
@@ -58,9 +65,34 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
         )
         .toDouble()
 
-    override val getAllInsideAndBetween = dao::getAllInsideAndBetween
+    override val getAllInsideAndBetween = if (DevFlags.USE_REPO_LOCATION_HEATMAP) { top@{ from: Long, to: Long, topLat: Double, rightLon: Double, bottomLat: Double, leftLon: Double ->
+        // Use repository synchronous collection inside runBlocking (legacy interface requires List)
+        runBlocking(Dispatchers.IO) {
+            geoRepository.queryWeighted(
+                GeoQuery(
+                    source = GeoSource.LOCATION,
+                    bounds = Bounds(topLat, rightLon, bottomLat, leftLon),
+                    timeFrom = from,
+                    timeTo = to,
+                    weight = "hor_acc" // default weighting analogous to existing weight selection
+                ),
+                weightColumn = "hor_acc"
+            ).first().map { w -> com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted(w.time, w.lon, w.lat, w.weight) }
+        }
+    } } else dao::getAllInsideAndBetween
 
-    override val getAllInside = dao::getAllInside
+    override val getAllInside = if (DevFlags.USE_REPO_LOCATION_HEATMAP) { top@{ topLat: Double, rightLon: Double, bottomLat: Double, leftLon: Double ->
+        runBlocking(Dispatchers.IO) {
+            geoRepository.queryWeighted(
+                GeoQuery(
+                    source = GeoSource.LOCATION,
+                    bounds = Bounds(topLat, rightLon, bottomLat, leftLon),
+                    weight = "hor_acc"
+                ),
+                weightColumn = "hor_acc"
+            ).first().map { w -> com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted(w.time, w.lon, w.lat, w.weight) }
+        }
+    } } else dao::getAllInside
 
     companion object {
         private const val BASE_HEAT_SIZE_IN_METERS = 40f

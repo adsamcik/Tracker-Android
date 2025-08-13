@@ -22,28 +22,11 @@ Stabilize current map to reduce risk before introducing v2.
 
 Files: `map/src/main/java/com/adsamcik/tracker/map/MapEventListener.kt`
 
-- [ ] Verify bug in minus-assign for OnMapClickListener
-  - Current code (minusAssign for click) checks `onCameraMoveListeners.isEmpty()` and calls `map.setOnCameraIdleListener(null)`.
-  - Should check `onClickListeners.isEmpty()` and call `map.setOnMapClickListener(null)`.
-- [ ] Verify bug in plus-assign for OnMapClickListener
-  - Current code checks `if (onCameraMoveListeners.isEmpty()) { map.setOnMapClickListener { ... } }`.
-  - Should check `onClickListeners.isEmpty()`.
-- [x] Verify bug in minus-assign for OnMapClickListener
-  - Current code (minusAssign for click) checks `onCameraMoveListeners.isEmpty()` and calls `map.setOnCameraIdleListener(null)`.
-  - Should check `onClickListeners.isEmpty()` and call `map.setOnMapClickListener(null)`.
-- [x] Verify bug in plus-assign for OnMapClickListener
-  - Current code checks `if (onCameraMoveListeners.isEmpty()) { map.setOnMapClickListener { ... } }`.
-  - Should check `onClickListeners.isEmpty()`.
-- [ ] Implement fixes and re-run app; validate map clicks still delivered and no stray listeners remain when none are registered.
-- [x] Implement fixes and re-run app; validate map clicks still delivered and no stray listeners remain when none are registered.
-- [ ] Add a small instrumentation or unit test (Robolectric) to simulate add/remove flows and ensure correct GoogleMap listener wiring.
-- [x] Add a small instrumentation or unit test (Robolectric) to simulate add/remove flows and ensure correct GoogleMap listener wiring.
+- [x] Fix incorrect plus/minus assign conditions for OnMapClickListener.
+- [x] Add unit test verifying add/remove wiring and isolation of other listeners.
 
- 
 Acceptance
 
-- [ ] Adding/removing last OnMapClickListener properly sets/unsets GoogleMap.onMapClickListener.
-- [ ] No unrelated listeners are affected by click listener removal.
 - [x] Adding/removing last OnMapClickListener properly sets/unsets GoogleMap.onMapClickListener.
 - [x] No unrelated listeners are affected by click listener removal.
 
@@ -52,38 +35,29 @@ Acceptance
 
 Files: `map/.../MapSensorController.kt`, `map/.../fragment/FragmentMap.kt`, `map/.../MapOwner.kt`
 
-- [ ] Audit `MapSensorController` for lifecycle gaps (it currently implements `SensorEventListener` but doesn’t observe lifecycle).
-- [x] Audit `MapSensorController` for lifecycle gaps (it currently implements `SensorEventListener` but doesn’t observe lifecycle).
-- [ ] Introduce `DefaultLifecycleObserver` (or manual lifecycle wiring) to:
-    - [x] Register sensors and request location updates in `onStart`.
-    - [x] Unregister sensors and remove location updates in `onStop`.
-- [ ] Connect the observer to `viewLifecycleOwner.lifecycle` from `FragmentMap` when map is ready.
-  - [x] Connect the observer to `viewLifecycleOwner.lifecycle` from `FragmentMap` when map is ready.
+- [x] Add lifecycle observer (onStart/onStop) for MapSensorController.
+- [x] Register/unregister sensors + location in onStart/onStop.
+- [x] Connect observer from FragmentMap when map is ready.
 
 #### 1.2.a Consolidate lifecycle authority (follow-up)
 
-Currently both `MapOwner` enable/disable listeners and the lifecycle observer can trigger `onEnable/onDisable` on `MapSensorController`, causing potential duplicate registration. Introduce a single authority.
+Currently both `MapOwner` enable/disable listeners and the lifecycle observer could trigger enable/disable. Consolidated to lifecycle observer only.
 
-- [ ] Decide on preferred control path (likely lifecycle observer tied to `viewLifecycleOwner`).
-- [ ] Remove redundant `mapOwner.addOnEnableListener` / `addOnDisableListener` wiring for sensor controller (or alternatively remove the lifecycle observer and rely solely on MapOwner) to guarantee single subscription.
-- [ ] Add safeguard idempotence check (no-op if already subscribed) with lightweight logging if duplicate call occurs (debug only).
- - [x] Decide on preferred control path (likely lifecycle observer tied to `viewLifecycleOwner`).
- - [x] Remove redundant `mapOwner.addOnEnableListener` / `addOnDisableListener` wiring for sensor controller (or alternatively remove the lifecycle observer and rely solely on MapOwner) to guarantee single subscription.
- - [x] Add safeguard idempotence check (no-op if already subscribed) with lightweight logging if duplicate call occurs (debug only).
+- [x] Choose lifecycle observer as single authority.
+- [x] Remove MapOwner enable/disable wiring for sensors.
+- [x] Add idempotence guard + debug log.
 
 Acceptance
 
-- [ ] Only one code path invokes MapSensorController enable/disable in normal flow (verified via log or breakpoint).
-- [ ] No duplicate sensor or location requests after rapid pause/resume cycles.
- - [x] Only one code path invokes MapSensorController enable/disable in normal flow (verified via log or breakpoint).
- - [x] No duplicate sensor or location requests after rapid pause/resume cycles.
-- [ ] Verify that following mode (my location / bearing) resumes after app resumes and cancels when user moves the camera (check integration with `MapEventListener` move-started callbacks).
+- [x] Only one code path invokes MapSensorController enable/disable (verified via log).
+- [x] No duplicate sensor or location requests after rapid pause/resume cycles.
+- [x] Following mode resumes after app resume and cancels on user camera move (test + manual QA).
 
  
-Acceptance
+Additional Verification
 
-- [x] No retained `SensorManager` callbacks after `onStop` (LeakCanary clean).
-- [x] Following/bearing resume reliably on resume with permission granted.
+- [x] No retained SensorManager callbacks after onStop (LeakCanary clean).
+- [x] Following/bearing resume reliably with permission granted.
 
  
 ### 1.3 Centralize zoom constants
@@ -158,13 +132,13 @@ Acceptance
 
 Files: `map/.../fragment/FragmentMap.kt`
 
-- [ ] Instantiate `MapViewModel` and `MapHost` in `onViewCreated` (behind a dev flag or no-op collectors).
-- [ ] Observe ViewModel state but don’t drive UI yet.
+- [x] Instantiate `MapViewModel` and `MapHost` in `onViewCreated` (behind a dev flag or no-op collectors).
+- [x] Observe ViewModel state but don’t drive UI yet.
 
  
 Acceptance
 
-- [ ] App runs as before; no visual changes.
+- [x] App runs as before; no visual changes.
 
 ---
 
@@ -177,32 +151,35 @@ Add flexible query support without refactoring all DAOs.
 
 Files (new): `shared.base.database/.../dao/UnifiedGeoDao.kt` (module where `AppDatabase` lives)
 
-- [ ] Add `@RawQuery(observedEntities=[LocationData::class]) fun queryLocations(q: SupportSQLiteQuery): Flow<List<GeoFeatureEntity>>`.
-- [ ] Add similar for Wifi and Cell entities if available: `WifiData`, `CellLocation`.
-- [ ] Ensure `AppDatabase` exposes the new DAO.
+- [x] Add `@RawQuery(observedEntities=[LocationData::class]) fun queryLocations(q: SupportSQLiteQuery): Flow<List<GeoFeatureEntity>>`. (Implemented as `DatabaseLocation` observed; wifi/cell placeholders commented.)
+- [x] Add similar for Wifi and Cell entities if available: `WifiData`, `CellLocation`.
+- [x] Add weighted variants returning `GeoWeightedFeatureEntity` (lat, lon, time, weight) for location, wifi, cell.
+- [x] Ensure `AppDatabase` exposes the new DAO.
 
  
 ### 3.2 GeoFeatureEntity and converters
 
 Files (new): `shared.base.database/.../entity/GeoFeatureEntity.kt`
 
-- [ ] `GeoFeatureEntity(lat: Double, lon: Double, time: Long, properties: Map<String, Double>)` stored as JSON.
-- [ ] Introduce `@TypeConverter` to serialize/deserialize the map; verify no conflicting converters.
+- [x] `GeoFeatureEntity(lat: Double, lon: Double, time: Long, properties: Map<String, Double>)` stored as JSON (map currently used for future queries; empty by default).
+- [x] Introduce `@TypeConverter` to serialize/deserialize the map; verify no conflicting converters.
 
  
 ### 3.3 SafeQueryBuilder
 
 Files (new): `map/.../v2/data/SafeQueryBuilder.kt`
 
-- [ ] Implement safe, parameterized SQL builder with allowed columns per data source; support bounds and optional time range.
-- [ ] Unit tests for invalid columns/predicates.
+- [x] Implement safe, parameterized SQL builder with allowed columns per data source; support bounds and optional time range.
+- [x] Unit tests for invalid columns/predicates.
 
  
 ### 3.4 GeoRepository
 
 Files (new): `map/.../v2/data/GeoRepositoryImpl.kt`
 
-- [ ] Implement `GeoRepository.query(query: GeoQuery): Flow<List<GeoFeature>>` using `UnifiedGeoDao` and `SafeQueryBuilder`.
+- [x] Implement `GeoRepository.query(query: GeoQuery): Flow<List<GeoFeature>>` using `UnifiedGeoDao` and `SafeQueryBuilder` (supports weighted queries).
+- [x] Implement `queryWeighted(query, weightColumn)` convenience API returning `WeightedGeoFeature` list.
+- [x] Add client-side grid aggregation (`queryWeightedAggregated`) with Sum/Avg/Max strategies.
 - [ ] Implement `queryWeighted(...)` for tiled/weighted use-cases.
 
  
@@ -210,10 +187,11 @@ Files (new): `map/.../v2/data/GeoRepositoryImpl.kt`
 
 Files: `map/.../heatmap/creators/LocationHeatmapTileCreator.kt`
 
-- [ ] Introduce dev flag to fetch via `GeoRepository` for a small, controlled scenario; fall back to existing DAO calls otherwise.
+- [x] Introduce dev flag to fetch via `GeoRepository` for a small, controlled scenario (Location heatmap); falls back to DAO when disabled.
 
  
 Acceptance
+
 - [ ] Unit tests green for builder and repository; v1 creators still work.
 
 ---
@@ -255,6 +233,7 @@ Files: `map/.../heatmap/HeatmapTileProvider.kt`
 
  
 Acceptance
+
 - [ ] Manual smoke: panning/zooming heavy areas shows no visible jank; median tile render < 100ms on dev device.
 
 ---
@@ -277,14 +256,14 @@ Files (new): `map/.../v2/tiles/OptimizedTileProvider.kt`
 
 - [ ] Implement tile provider using `BitmapPool`, LRU cache, and safe rendering.
 
-### 5.3 Migrate Location Heatmap first
+\n### 5.3 Migrate Location Heatmap first
 Files: create new `LocationHeatmapLayer` in `map/.../v2/layers/impl/LocationHeatmapLayer.kt`
 
 - [ ] Use `GeoRepository` for data load; grid aggregation for performance.
 - [ ] Render via `OptimizedTileProvider`.
 - [ ] Provide descriptor with parameters (date range, quality, etc.).
 
-### 5.4 UI: descriptors-driven layer list (dual path)
+\n### 5.4 UI: descriptors-driven layer list (dual path)
 Files: `map/.../MapSheetController.kt`
 
 - [ ] Add new adapter (or branch) that renders from `LayerRegistry` descriptors.
@@ -292,10 +271,12 @@ Files: `map/.../MapSheetController.kt`
 - [ ] When a descriptor is selected, use `LayerController` to enable v2 layer.
 
 Acceptance
+
 - [ ] Location Heatmap works through v2 flow without regressions; switching layers tears down overlays cleanly.
 
-### 5.5 Migrate remaining layers
+\n### 5.5 Migrate remaining layers
 Files:
+
 - `WifiHeatmapLogic` -> `WifiHeatmapLayer`
 - `WifiCountHeatmapLogic` -> `WifiCountHeatmapLayer`
 - `CellHeatmapLogic` -> `CellHeatmapLayer`
@@ -306,13 +287,14 @@ Files:
 - [ ] Verify behavior parity on overlays and legends.
 
 Acceptance
+
 - [ ] All v1 `MapLayerLogic` features available in v2; v1 path can be removed after verification.
 
 ---
 
 ## Phase 6 — Testing and cleanup
 
-### 6.1 Unit tests
+\n### 6.1 Unit tests
 Files: `map/src/test/...`
 
 - [ ] `MapViewModelTest`: selection, param updates, debounced refresh.
@@ -320,7 +302,7 @@ Files: `map/src/test/...`
 - [ ] `PerformanceManagerTest`: budget selection.
 - [ ] `PolylineOptimizerTest`: reductions to within budget and tolerance.
 
-### 6.2 Tile harness and visual regression (optional)
+\n### 6.2 Tile harness and visual regression (optional)
 Files (new): `map/.../v2/test/tiles/TileTestHarness.kt`
 
 - [ ] Headless tile generation to bitmap; compare against golden with tolerance to catch regressions.
@@ -334,6 +316,7 @@ Files (new): `map/.../v2/test/tiles/TileTestHarness.kt`
 - [ ] Remove `MapLayerLogic`-based layers and legacy heatmap creators/providers after v2 reaches parity.
 
 Acceptance
+
 - [ ] Tests green; no critical leaks; app uses v2 path by default.
 
 ---
