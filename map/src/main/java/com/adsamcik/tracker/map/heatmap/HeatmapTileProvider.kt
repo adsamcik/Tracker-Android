@@ -8,6 +8,8 @@ import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
+import com.adsamcik.tracker.map.v2.graphics.BitmapPool
+import com.adsamcik.tracker.map.v2.perf.PerformanceManager
 import com.adsamcik.tracker.shared.base.extension.LocationExtensions
 import com.adsamcik.tracker.shared.base.misc.ConditionVariableInt
 import com.adsamcik.tracker.shared.base.misc.Int2
@@ -27,9 +29,20 @@ import kotlin.math.roundToInt
 //todo refactor
 internal class HeatmapTileProvider(
 		private val tileCreator: HeatmapTileCreator,
-		private var dataUser: UserHeatmapData
+		private var dataUser: UserHeatmapData,
+		private val performanceManager: PerformanceManager = PerformanceManager()
 ) : TileProvider {
-	private val heatmapCache = mutableMapOf<Int2, HeatmapTile>()
+	// LRU cache for tiles.
+	private var maxCacheTiles: Int = 64
+	private val heatmapCache: MutableMap<Int2, HeatmapTile> = object : LinkedHashMap<Int2, HeatmapTile>(64, 0.75f, true) {
+		override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int2, HeatmapTile>?): Boolean = size > maxCacheTiles
+	}
+
+	private var tileRenderTimeoutMs: Long = 3_000
+	private val executor = EXECUTOR
+
+	private var bitmapPool: BitmapPool? = null
+	fun setBitmapPool(pool: BitmapPool?) { bitmapPool = pool }
 
 	private val heatLock = ReentrantLock()
 	private val heatUpdateScheduled = AtomicBoolean(false)
@@ -77,6 +90,11 @@ internal class HeatmapTileProvider(
 		if (lastZoom > 0) {
 			reinitializeHeatmapData(lastZoom)
 		}
+
+		// update performance budgets off quality (best effort).
+	val budgets = performanceManager.budgets(quality)
+	tileRenderTimeoutMs = budgets.tileRenderTimeout
+	maxCacheTiles = budgets.maxCacheSize
 
 		heatmapCache.clear()
 	}
@@ -162,37 +180,45 @@ internal class HeatmapTileProvider(
 
 			val key = Int2(x, y)
 			val heatmap: HeatmapTile
-			if (heatmapCache.containsKey(key)) {
-				heatmap = requireNotNull(heatmapCache[key])
-			} else {
-				val range = range
-				val config = requireNotNull(config)
-				val stamp = requireNotNull(stamp)
-				val tileData = HeatmapTileData(config, stamp, heatmapSize, x, y, zoom, area)
+			heatLock.withLock { heatmapCache[key] }.let { cached ->
+				if (cached != null) {
+					heatmap = cached
+				} else {
+					val range = range
+					val config = requireNotNull(config)
+					val stamp = requireNotNull(stamp)
+					val tileData = HeatmapTileData(config, stamp, heatmapSize, x, y, zoom, area)
 
-				var genHeatmap: HeatmapTile? = null
-				var lastException: kotlin.Throwable? = null
-				for (i in 1..3) {
-					try {
-						genHeatmap = if (range == LongRange.EMPTY) {
-							tileCreator.getHeatmap(tileData)
-						} else {
-							tileCreator.getHeatmap(tileData, range.first, range.last)
+					val callable = java.util.concurrent.Callable {
+						var genHeatmap: HeatmapTile? = null
+						var lastException: kotlin.Throwable? = null
+						for (i in 1..3) {
+							try {
+								genHeatmap = if (range == LongRange.EMPTY) {
+									tileCreator.getHeatmap(tileData)
+								} else {
+									tileCreator.getHeatmap(tileData, range.first, range.last)
+								}
+								break
+							} catch (e: OutOfMemoryError) {
+								lastException = e
+								System.gc()
+								Thread.sleep(250)
+							}
 						}
-						break;
-					} catch (e: OutOfMemoryError) {
-						lastException = e
-						System.gc()
-						Thread.sleep(1000)
+						if (genHeatmap == null) throw lastException ?: OutOfMemoryError("Unknown OOM during heatmap gen")
+						genHeatmap!!
 					}
+					val future: java.util.concurrent.Future<HeatmapTile> = executor.submit(callable)
+					heatmap = try {
+						future.get(tileRenderTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+					} catch (t: Throwable) {
+						future.cancel(true)
+						Log.w(TAG, "Tile generation timeout or error for ($x,$y,$zoom): ${t.localizedMessage}")
+						return TileProvider.NO_TILE
+					}
+					heatLock.withLock { heatmapCache[key] = heatmap }
 				}
-
-				if(genHeatmap == null) {
-					throw lastException!!
-				}
-
-				heatmapCache[key] = genHeatmap
-				heatmap = genHeatmap
 			}
 
 			updateHeat(heatmap, zoom)
@@ -217,6 +243,7 @@ internal class HeatmapTileProvider(
 		private const val MIN_TILE_SIZE: Int = 256
 
 		private const val TAG: String = "AdventionTile"
+        private val EXECUTOR = java.util.concurrent.Executors.newCachedThreadPool()
 	}
 }
 
