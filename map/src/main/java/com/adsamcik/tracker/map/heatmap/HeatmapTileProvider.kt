@@ -225,7 +225,7 @@ internal class HeatmapTileProvider(
 
 			return Tile(
 					heatmapSize, heatmapSize,
-					heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize))
+					heatmap.toByteArray(max(MIN_TILE_SIZE, heatmapSize), bitmapPool)
 			)
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			Log.e(TAG, e.localizedMessage, e)

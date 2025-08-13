@@ -58,20 +58,27 @@ internal class HeatmapTile(
 	}
 
 
-	fun toByteArray(bitmapSize: Int): ByteArray {
+	fun toByteArray(bitmapSize: Int, bitmapPool: com.adsamcik.tracker.map.v2.graphics.BitmapPool? = null): ByteArray {
 		val array = heatmap.renderSaturated(data.config.colorScheme, heatmap.maxHeat) { it }
-		val bitmap = Bitmap.createBitmap(
+		val base = bitmapPool?.acquire(data.heatmapSize, data.heatmapSize) ?: Bitmap.createBitmap(
 				array,
 				data.heatmapSize,
 				data.heatmapSize,
 				Bitmap.Config.ARGB_8888
 		)
-
-		return if (data.heatmapSize != bitmapSize) {
-			bitmap.scale(bitmapSize, bitmapSize, false).toByteArray()
-		} else {
-			bitmap.toByteArray()
+		if (base !== null && base.isMutable && base.width == data.heatmapSize && base.height == data.heatmapSize) {
+			// If acquired empty bitmap, copy pixels in; else we already created with pixels
+			if (base.getPixel(0,0) == 0) {
+				base.setPixels(array, 0, data.heatmapSize, 0, 0, data.heatmapSize, data.heatmapSize)
+			}
 		}
+		val resultBytes = if (data.heatmapSize != bitmapSize) {
+			base.scale(bitmapSize, bitmapSize, false).toByteArray()
+		} else {
+			base.toByteArray()
+		}
+		bitmapPool?.release(base)
+		return resultBytes
 	}
 
 	companion object {

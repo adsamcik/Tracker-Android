@@ -212,7 +212,7 @@ Files (new): `map/.../v2/perf/PerformanceManager.kt`
 
 Files (new): `map/.../v2/graphics/BitmapPool.kt`
 
-- [ ] Implement simple bounded pool with `acquire(width,height)` and `release(bitmap)`.
+- [x] Implement simple bounded pool with `acquire(width,height)` and `release(bitmap)`.
 
  
 ### 4.3 PolylineOptimizer
