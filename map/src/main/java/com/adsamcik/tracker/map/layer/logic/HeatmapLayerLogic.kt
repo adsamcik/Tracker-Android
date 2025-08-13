@@ -110,4 +110,12 @@ internal abstract class HeatmapLayerLogic : MapLayerLogic, CoroutineScope {
 	companion object {
 		private const val HEAT_CHANGE_THRESHOLD_PERCENTAGE = 0.05f
 	}
+
+	/** Called by owner when system is under memory pressure. */
+	open fun trimMemory() {
+		if (this::provider.isInitialized) {
+			provider.trimMemory()
+			overlay?.clearTileCache()
+		}
+	}
 }

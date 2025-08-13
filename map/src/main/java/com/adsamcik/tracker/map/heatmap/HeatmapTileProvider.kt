@@ -108,6 +108,15 @@ internal class HeatmapTileProvider(
 		}
 	}
 
+	/**
+	 * Release memory aggressively under system pressure.
+	 * Clears tile cache and bitmap pool contents.
+	 */
+	fun trimMemory() {
+		heatLock.withLock { heatmapCache.clear() }
+		bitmapPool?.clear()
+	}
+
 	private fun resetMaxHeat() {
 		heatLock.withLock {
 			maxHeat = dataUser.maxHeat

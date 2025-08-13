@@ -124,5 +124,12 @@ internal class MapController(
 	companion object {
 		// MAX_ZOOM moved to MapConstants (task 1.3)
 	}
+
+	fun onLowMemory() {
+		val layer = activeLayer
+		if (layer is com.adsamcik.tracker.map.layer.logic.HeatmapLayerLogic) {
+			layer.trimMemory()
+		}
+	}
 }
 

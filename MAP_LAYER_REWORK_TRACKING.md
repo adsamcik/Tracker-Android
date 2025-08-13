@@ -230,6 +230,7 @@ Files: `map/.../heatmap/HeatmapTileProvider.kt`
 - [x] Add in-memory LRU tile cache (keyed by x,y,zoom) with bounded size from `PerformanceManager`.
 - [x] Enforce per-tile render timeout to avoid long stalls; fail fast to `NO_TILE` on timeout.
 - [x] Review locking around tile generation; reduce contention to render-critical sections only.
+- [x] Add low-memory trim path (clear tile cache + bitmap pool via FragmentMap.onLowMemory).
 
  
 Acceptance
@@ -250,20 +251,22 @@ Files (new): `map/.../v2/layers/base/{BaseMapLayer.kt, HeatmapLayer.kt}`
 - [ ] Implement template method: `enable()` calls `beforeEnable -> loadData -> processData -> render -> afterEnable`.
 - [ ] Integrate `PerformanceManager` in processing.
 
- 
 ### 5.2 Optimized tile provider
+
 Files (new): `map/.../v2/tiles/OptimizedTileProvider.kt`
 
 - [ ] Implement tile provider using `BitmapPool`, LRU cache, and safe rendering.
 
-\n### 5.3 Migrate Location Heatmap first
+### 5.3 Migrate Location Heatmap first
+
 Files: create new `LocationHeatmapLayer` in `map/.../v2/layers/impl/LocationHeatmapLayer.kt`
 
 - [ ] Use `GeoRepository` for data load; grid aggregation for performance.
 - [ ] Render via `OptimizedTileProvider`.
 - [ ] Provide descriptor with parameters (date range, quality, etc.).
 
-\n### 5.4 UI: descriptors-driven layer list (dual path)
+### 5.4 UI: descriptors-driven layer list (dual path)
+
 Files: `map/.../MapSheetController.kt`
 
 - [ ] Add new adapter (or branch) that renders from `LayerRegistry` descriptors.
@@ -274,7 +277,8 @@ Acceptance
 
 - [ ] Location Heatmap works through v2 flow without regressions; switching layers tears down overlays cleanly.
 
-\n### 5.5 Migrate remaining layers
+### 5.5 Migrate remaining layers
+
 Files:
 
 - `WifiHeatmapLogic` -> `WifiHeatmapLayer`
