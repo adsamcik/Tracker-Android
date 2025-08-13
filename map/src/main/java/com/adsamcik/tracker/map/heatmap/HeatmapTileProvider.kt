@@ -12,7 +12,6 @@ import com.adsamcik.tracker.map.v2.graphics.BitmapPool
 import com.adsamcik.tracker.map.v2.perf.PerformanceManager
 import com.adsamcik.tracker.shared.base.extension.LocationExtensions
 import com.adsamcik.tracker.shared.base.misc.ConditionVariableInt
-import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
@@ -33,9 +32,10 @@ internal class HeatmapTileProvider(
 		private val performanceManager: PerformanceManager = PerformanceManager()
 ) : TileProvider {
 	// LRU cache for tiles.
+	private data class TileKey(val x: Int, val y: Int, val zoom: Int)
 	private var maxCacheTiles: Int = 64
-	private val heatmapCache: MutableMap<Int2, HeatmapTile> = object : LinkedHashMap<Int2, HeatmapTile>(64, 0.75f, true) {
-		override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int2, HeatmapTile>?): Boolean = size > maxCacheTiles
+	private val heatmapCache: MutableMap<TileKey, HeatmapTile> = object : LinkedHashMap<TileKey, HeatmapTile>(64, 0.75f, true) {
+		override fun removeEldestEntry(eldest: MutableMap.MutableEntry<TileKey, HeatmapTile>?): Boolean = size > maxCacheTiles
 	}
 
 	private var tileRenderTimeoutMs: Long = 3_000
@@ -178,7 +178,7 @@ internal class HeatmapTileProvider(
 
 			val area = CoordinateBounds(topY, rightX, bottomY, leftX)
 
-			val key = Int2(x, y)
+			val key = TileKey(x, y, zoom)
 			val heatmap: HeatmapTile
 			heatLock.withLock { heatmapCache[key] }.let { cached ->
 				if (cached != null) {

@@ -226,10 +226,10 @@ Files (new): `map/.../v2/graphics/PolylineOptimizer.kt`
 
 Files: `map/.../heatmap/HeatmapTileProvider.kt`
 
-- [ ] Add optional injection/setter for `BitmapPool`.
-- [ ] Add in-memory LRU tile cache (keyed by x,y,zoom) with bounded size from `PerformanceManager`.
-- [ ] Enforce per-tile render timeout to avoid long stalls; fail fast to `NO_TILE` on timeout.
-- [ ] Review locking around tile generation; reduce contention to render-critical sections only.
+- [x] Add optional injection/setter for `BitmapPool`.
+- [x] Add in-memory LRU tile cache (keyed by x,y,zoom) with bounded size from `PerformanceManager`.
+- [x] Enforce per-tile render timeout to avoid long stalls; fail fast to `NO_TILE` on timeout.
+- [x] Review locking around tile generation; reduce contention to render-critical sections only.
 
  
 Acceptance
