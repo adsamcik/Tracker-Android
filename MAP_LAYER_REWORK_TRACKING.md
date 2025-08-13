@@ -144,9 +144,9 @@ Acceptance
 
 Files (new): `map/.../v2/ui/{MapHost.kt, LayerController.kt}`
 
-- [ ] `MapHost`: lifecycle-safe wrapper around `SupportMapFragment` using `MapOwner` patterns; exposes `mapReady` observable.
-- [ ] `LayerController`: minimal wrapper that enables/disables a selected layer (using descriptor factory) on the map.
-- [ ] Do not change UI yet; keep v1 `MapSheetController` active.
+- [x] `MapHost`: lifecycle-safe wrapper around `SupportMapFragment` using `MapOwner` patterns; exposes `mapReady` observable.
+- [x] `LayerController`: minimal wrapper that enables/disables a selected layer (using descriptor factory) on the map.
+- [x] Do not change UI yet; keep v1 `MapSheetController` active.
 
  
 Acceptance
