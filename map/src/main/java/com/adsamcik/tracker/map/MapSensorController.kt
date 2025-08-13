@@ -165,6 +165,7 @@ internal class MapSensorController(
 			SensorManager.SENSOR_DELAY_NORMAL,
 			SensorManager.SENSOR_DELAY_UI
 		)
+	sensorsRegistered = true
 	}
 
 	fun onDisable(context: Context) {
