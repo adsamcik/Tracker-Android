@@ -113,9 +113,9 @@ Introduce state/registry alongside existing implementation.
 
 Files (new): `map/src/main/java/com/adsamcik/tracker/map/v2/presentation/MapViewModel.kt`
 
-- [ ] Create `MapViewModel` with `StateFlow` holding immutable `MapState`:
-  - selectedLayerId, dateRange, quality, followMode, userLocation, searchQuery, searchResults, isLoading, error, bottomSheetState, layerParameters, tileGenerationProgress.
-- [ ] Add debounced refresh utility inside ViewModel for parameter changes.
+- [x] Create `MapViewModel` with `StateFlow` holding immutable `MapState`:
+  - [x] selectedLayerId, dateRange, quality, followMode, userLocation, searchQuery, searchResults, isLoading, error, bottomSheetState, layerParameters, tileGenerationProgress.
+- [x] Add debounced refresh utility inside ViewModel for parameter changes.
 
  
 Acceptance
