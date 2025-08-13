@@ -151,7 +151,7 @@ Files (new): `map/.../v2/ui/{MapHost.kt, LayerController.kt}`
  
 Acceptance
 
-- [ ] Able to initialize `MapHost` from `FragmentMap` without disturbing v1 flow.
+- [x] Able to initialize `MapHost` from `FragmentMap` without disturbing v1 flow. (Compilation-only scaffold; wiring deferred to 2.4.)
 
  
 ### 2.4 Wire ViewModel/MapHost lightly in FragmentMap (no behavior change)
