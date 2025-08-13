@@ -82,8 +82,8 @@ Acceptance
  
 Acceptance
 
-- [ ] No retained `SensorManager` callbacks after `onStop` (LeakCanary clean).
-- [ ] Following/bearing resume reliably on resume with permission granted.
+- [x] No retained `SensorManager` callbacks after `onStop` (LeakCanary clean).
+- [x] Following/bearing resume reliably on resume with permission granted.
 
  
 ### 1.3 Centralize zoom constants

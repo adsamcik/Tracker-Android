@@ -129,8 +129,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		val inProgressTileTextView = activity.findViewById<TextView>(R.id.tile_generation_count_textview)
 		val mapController = MapController(activity, map, mapOwner, inProgressTileTextView)
 		val locationListener = MapSensorController(activity, map, mapEventListener)
-		// Attach sensor controller to fragment view lifecycle for automatic start/stop
-		viewLifecycleOwner.lifecycle.addObserver(locationListener)
+		// Attach sensor controller to fragment view lifecycle for automatic start/stop via internal observer
 		locationListener.attachToLifecycle(viewLifecycleOwner, activity)
 
 		this.mapController = mapController
