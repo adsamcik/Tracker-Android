@@ -89,6 +89,8 @@ dependencies {
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
+	androidTestImplementation("org.mockito:mockito-android:5.12.0")
+	androidTestImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
 }
 
 // Disable release unit tests for this module (minification can break mocks/types at runtime)

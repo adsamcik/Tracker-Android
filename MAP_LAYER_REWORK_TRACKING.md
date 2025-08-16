@@ -352,7 +352,8 @@ Files (new): `map/.../v2/test/tiles/TileTestHarness.kt`
 
 ### 6.3 Integration tests
 
-- [ ] Layer switch smoke test ensuring overlays mount/unmount and legends update.
+- [x] Layer switch smoke test ensuring overlays mount/unmount and legends update.
+  - Added `LayerSwitchIntegrationTest` under androidTest with a fake layer and descriptor wiring; verifies render callback on switch and legend changes via `LayerController`.
 
 ### 6.4 Remove v1 code
 
