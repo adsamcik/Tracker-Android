@@ -345,7 +345,10 @@ Note
 
 Files (new): `map/.../v2/test/tiles/TileTestHarness.kt`
 
-- [ ] Headless tile generation to bitmap; compare against golden with tolerance to catch regressions.
+- [x] Introduce headless tile harness utility `TileTestHarness` (unit tests) for exercising `OptimizedTileProvider`.
+- [x] Add minimal smoke test using a fake provider to validate harness wiring (no golden comparison yet).
+- [ ] Golden image comparisons with tolerance for selected tiles/layers (enable later via Robolectric or move to androidTest).
+- Notes: Harness currently avoids Robolectric to keep CI lean; golden tests deferred.
 
 ### 6.3 Integration tests
 
