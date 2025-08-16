@@ -7,6 +7,7 @@ import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
+import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.data.Aggregation
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoQuery
@@ -110,16 +111,16 @@ class SpeedHeatmapLayer(
             }
 
             val area = CoordinateBounds(top, right, bottom, left)
-            val config = com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig(
+            val config = HeatmapConfig(
                 colorScheme = HeatmapColorScheme.default,
                 maxHeat = DEFAULT_MAX_HEAT,
                 dynamicHeat = false,
                 ageThreshold = DEFAULT_AGE_THRESHOLD_SECONDS,
-                weightMergeFunction = { original, currentAlpha, _, new ->
+                weightMergeFunction = { original: Float, currentAlpha: Int, _: Float, new: Float ->
                     val alpha = currentAlpha / 255f
                     (new * (1 - alpha)) + (original * alpha)
                 },
-                alphaMergeFunction = { _, newAlpha, weight ->
+                alphaMergeFunction = { _: Int, newAlpha: Float, weight: Float ->
                     val normalizedWeight = weight / DEFAULT_MAX_HEAT
                     (newAlpha * normalizedWeight).toInt().coerceIn(0, 255)
                 }

@@ -10,7 +10,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 
-/** v2 polyline layer drawing user paths with decimation. */
+/** Polyline layer drawing user paths with decimation. */
 class LocationPathLayer(
     private val pointsProvider: suspend (LongRange) -> List<LatLng>,
     private val perf: PerformanceManager = PerformanceManager()

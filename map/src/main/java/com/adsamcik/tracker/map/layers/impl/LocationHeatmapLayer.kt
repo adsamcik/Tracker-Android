@@ -7,6 +7,7 @@ import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
+import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
@@ -125,13 +126,13 @@ class LocationHeatmapLayer(
             }
 
             val area = CoordinateBounds(top, right, bottom, left)
-            val config = com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig(
+            val config = HeatmapConfig(
                 colorScheme = HeatmapColorScheme.default,
                 maxHeat = DEFAULT_MAX_HEAT,
                 dynamicHeat = false,
                 ageThreshold = DEFAULT_AGE_THRESHOLD_SECONDS,
-                weightMergeFunction = { current, _, stampValue, value -> current + stampValue * value },
-                alphaMergeFunction = { current, stampValue, _ -> max(current, (stampValue * 255f).toInt()) }
+                weightMergeFunction = { current: Float, _: Int, stampValue: Float, value: Float -> current + stampValue * value },
+                alphaMergeFunction = { current: Int, stampValue: Float, _: Float -> max(current, (stampValue * 255f).toInt()) }
             )
             val data = HeatmapTileData(
                 config = config,

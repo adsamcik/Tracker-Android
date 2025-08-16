@@ -36,7 +36,7 @@ internal class MapController(
 	var lastDateChange: Long = 0L
 		private set
 
-	// Simplified for v2-only architecture - layer management moved to LayerController
+	// Layer management moved to LayerController
 	@MainThread
 	fun setLayer(context: Context, placeholder: Any?) {
 		// No-op: layer management is now handled by LayerController in MapSheetController

@@ -357,11 +357,17 @@ Files (new): `map/.../v2/test/tiles/TileTestHarness.kt`
 
 ### 6.4 Remove v1 code
 
-- [ ] Remove `MapLayerLogic`-based layers and legacy heatmap creators/providers after v2 reaches parity.
+- [x] Eliminate v1 usage from map flow: `LayerController` and `DefaultLayerRegistry` now use v2 layers only; legends come from descriptors.
+- [x] Physical deletion of legacy v1 interfaces and unused heatmap pipeline classes:
+  - Deleted: `smap/shared/map/MapLayerLogic.kt`, `MapLayer.kt`
+  - Deleted: `map/heatmap/HeatmapTileProvider.kt`
+  - Deleted: `map/heatmap/creators/` directory and all legacy creator classes
+  - Retained: minimal support classes (`HeatmapConfig`, `HeatmapTileData`, WiFi constants) needed by v2 layers
+- [x] Updated v2 layer imports and fixed compilation issues after cleanup.
 
 Acceptance
 
-- [ ] Tests green; no critical leaks; app uses v2 path by default.
+- [x] App uses v2 path by default; map and app modules assemble; unit tests pass for map module.
 
 ---
 

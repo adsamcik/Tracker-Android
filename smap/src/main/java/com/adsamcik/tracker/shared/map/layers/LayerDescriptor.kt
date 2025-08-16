@@ -1,9 +1,9 @@
-package com.adsamcik.tracker.shared.map.v2.layers
+package com.adsamcik.tracker.shared.map.layers
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 
-/** Describes a map layer for discovery/selection (v2 scaffold). */
+/** Describes a map layer for discovery/selection. */
 data class LayerDescriptor(
     val id: String,
     @StringRes val titleRes: Int,
@@ -34,5 +34,5 @@ data class LayerParameter<T>(
 )
 
 fun interface LayerFactory {
-    fun create(): Any /* Will adapt to existing MapLayerLogic for now */
+    fun create(): Any /* Returns layer instances */
 }

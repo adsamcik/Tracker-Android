@@ -11,7 +11,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
 /**
- * Base template for v2 map layers.
+ * Base template for map layers.
  *
  * enable(context, map, quality) runs the pipeline:
  *  beforeEnable -> loadData -> processData(with budgets) -> render (on Main) -> afterEnable (on Main)

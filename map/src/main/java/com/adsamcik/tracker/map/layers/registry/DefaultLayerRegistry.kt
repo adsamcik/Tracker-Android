@@ -18,20 +18,19 @@ import com.adsamcik.tracker.map.data.GeoRepositoryImpl
 import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.map.MapLayerInfo
-import com.adsamcik.tracker.shared.map.MapLayerLogic
 import com.adsamcik.tracker.shared.map.MapLegend
 import com.adsamcik.tracker.shared.map.MapLegendValue
-import com.adsamcik.tracker.shared.map.v2.layers.LayerCapabilities
-import com.adsamcik.tracker.shared.map.v2.layers.LayerDescriptor
-import com.adsamcik.tracker.shared.map.v2.layers.LayerFactory
-import com.adsamcik.tracker.shared.map.v2.layers.LayerRecipe
+import com.adsamcik.tracker.shared.map.layers.LayerCapabilities
+import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
+import com.adsamcik.tracker.shared.map.layers.LayerFactory
+import com.adsamcik.tracker.shared.map.layers.LayerRecipe
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** v2-only registry: registers v2 layers directly (cutover complete). */
+/** Registry for map layers: registers layers directly. */
 class DefaultLayerRegistry : LayerRegistry {
 
     private val layers: List<LayerDescriptor> = buildList {
@@ -50,7 +49,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             override fun render(map: com.google.android.gms.maps.GoogleMap, processed: Unit) {}
                         } },
                         legend = MapLayerData(
-                            info = MapLayerInfo(MapLayerLogic::class.java, R.string.map_layer_none_title),
+                            info = MapLayerInfo("NoMapLayer", R.string.map_layer_none_title),
                             colorList = emptyList(),
                             legend = MapLegend()
                         )
@@ -74,7 +73,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             LocationHeatmapLayer(repo, BitmapPool(), PerformanceManager())
                         },
                         legend = MapLayerData(
-                            info = MapLayerInfo(MapLayerLogic::class.java, R.string.map_layer_location_heatmap_title),
+                            info = MapLayerInfo("LocationHeatmapLayer", R.string.map_layer_location_heatmap_title),
                             colorList = listOf(Color.BLUE, Color.YELLOW, Color.RED),
                             legend = MapLegend(
                                 description = R.string.map_layer_location_heatmap_description,
@@ -105,7 +104,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             CellHeatmapLayer(repo, BitmapPool(), PerformanceManager())
                         },
                         legend = MapLayerData(
-                            info = MapLayerInfo(MapLayerLogic::class.java, R.string.map_layer_cell_heatmap_title),
+                            info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
                             colorList = run {
                                 val count = CellType.values().size
                                 val startHue = 0.230 // formerly CellHeatmapLogic.COLOR_START_HUE
@@ -145,7 +144,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             WifiHeatmapLayer(repo, BitmapPool(), PerformanceManager())
                         },
                         legend = MapLayerData(
-                            info = MapLayerInfo(MapLayerLogic::class.java, R.string.map_layer_wifi_heatmap_title),
+                            info = MapLayerInfo("WifiHeatmapLayer", R.string.map_layer_wifi_heatmap_title),
                             colorList = listOf(ColorConstants.GREEN, ColorConstants.ORANGE, ColorConstants.RED),
                             legend = MapLegend(
                                 description = R.string.map_layer_wifi_heatmap_description,
@@ -176,7 +175,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             WifiCountHeatmapLayer(repo, BitmapPool(), PerformanceManager())
                         },
                         legend = MapLayerData(
-                            info = MapLayerInfo(MapLayerLogic::class.java, R.string.map_layer_wifi_count_heatmap_title),
+                            info = MapLayerInfo("WifiCountHeatmapLayer", R.string.map_layer_wifi_count_heatmap_title),
                             colorList = listOf(ColorConstants.GREEN, ColorConstants.ORANGE, ColorConstants.RED),
                             legend = MapLegend(
                                 description = R.string.map_layer_wifi_heatmap_description,
@@ -207,7 +206,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             SpeedHeatmapLayer(repo, BitmapPool(), PerformanceManager())
                         },
                         legend = MapLayerData(
-                            info = MapLayerInfo(MapLayerLogic::class.java, R.string.map_layer_speed_heatmap_title),
+                            info = MapLayerInfo("SpeedHeatmapLayer", R.string.map_layer_speed_heatmap_title),
                             colorList = listOf(
                                 Color.rgb(153, 102, 255), // Very Slow: Purple
                                 Color.rgb(102, 204, 255), // Walking: Light Blue
@@ -268,7 +267,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             )
                         },
                         legend = MapLayerData(
-                            info = MapLayerInfo(MapLayerLogic::class.java, R.string.map_layer_location_polyline_title),
+                            info = MapLayerInfo("LocationPathLayer", R.string.map_layer_location_polyline_title),
                             colorList = emptyList(),
                             legend = MapLegend(R.string.map_layer_location_heatmap_description)
                         )

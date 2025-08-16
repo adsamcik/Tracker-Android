@@ -27,12 +27,10 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
-// v1 adapter removed after cutover
 import com.adsamcik.tracker.map.introduction.MapSheetHiddenIntroduction
 import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
 import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.ui.LayerController
-// legacy v1 MapLayerLogic imports removed after cutover
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.extension.coerceIn
@@ -44,7 +42,6 @@ import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
-// v1 MapLayerLogic no longer used in this controller
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
@@ -431,7 +428,7 @@ internal class MapSheetController(
 		// v2 descriptors-driven list (cutover complete)
 		val registry: LayerRegistry = DefaultLayerRegistry()
 		val descriptors = registry.getAllLayers()
-		val v2Controller = LayerController()
+		val layerController = LayerController()
 
 		rootLayout.findViewById<RecyclerView>(R.id.map_layers_recycler).apply {
 			layoutManager = GridLayoutManager(context, 2, GridLayoutManager.HORIZONTAL, false)
@@ -454,8 +451,8 @@ internal class MapSheetController(
 							res.getString(R.string.settings_map_quality_default).toFloat()
 						)
 						val range = mapController.dateRange
-						v2Controller.setLayer(ctx, map, d, quality, range)
-						v2Controller.activeLegend()?.let { legendController.setLayer(it) }
+						layerController.setLayer(ctx, map, d, quality, range)
+						layerController.activeLegend()?.let { legendController.setLayer(it) }
 						if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
 							sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 						}
@@ -465,7 +462,7 @@ internal class MapSheetController(
 		}
 	}
 
-	// Legacy v1 last-layer persistence is removed for v2 cutover.
+	// Legacy layer persistence removed.
 
 	init {
 		setSheetOffset(sheetBehavior.peekHeight)

@@ -6,6 +6,7 @@ import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.HeatmapTile
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
+import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.MAX_WIFI_HEAT
 import com.adsamcik.tracker.map.heatmap.creators.NORMALIZER
 import com.adsamcik.tracker.map.heatmap.creators.VISUAL_SCALE
@@ -116,13 +117,13 @@ class WifiCountHeatmapLayer(
             }
 
             val area = CoordinateBounds(top, right, bottom, left)
-            val config = com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig(
+            val config = HeatmapConfig(
                 colorScheme = HeatmapColorScheme.default,
                 maxHeat = MAX_WIFI_HEAT,
                 dynamicHeat = false,
                 ageThreshold = DEFAULT_AGE_THRESHOLD_SECONDS,
-                weightMergeFunction = { current, _, stampValue, value -> current + stampValue * value },
-                alphaMergeFunction = { current, stampValue, weight -> ((current.toFloat() + stampValue * weight) / 2f).toInt() }
+                weightMergeFunction = { current: Float, _: Int, stampValue: Float, value: Float -> current + stampValue * value },
+                alphaMergeFunction = { current: Int, stampValue: Float, weight: Float -> ((current.toFloat() + stampValue * weight) / 2f).toInt() }
             )
             val data = HeatmapTileData(
                 config = config,

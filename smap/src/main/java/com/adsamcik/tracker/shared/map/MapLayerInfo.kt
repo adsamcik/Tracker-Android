@@ -5,6 +5,6 @@ import kotlinx.parcelize.Parcelize
 
 @Parcelize
 data class MapLayerInfo(
-		val type: Class<out MapLayerLogic>,
+		val layerClass: String, // Store class name as string instead of Class reference
 		val nameRes: Int
 ) : Parcelable
