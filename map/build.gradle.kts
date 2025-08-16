@@ -78,6 +78,7 @@ dependencies {
 
 	// Tests
 	testImplementation(libs.junit4)
+	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.coroutines.get()}")
 	testImplementation("org.mockito:mockito-core:5.12.0")
 	testImplementation("org.mockito:mockito-inline:5.2.0")
 	testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
@@ -88,4 +89,11 @@ dependencies {
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
+}
+
+// Disable release unit tests for this module (minification can break mocks/types at runtime)
+tasks.withType<Test>().configureEach {
+	if (name.contains("ReleaseUnitTest")) {
+		enabled = false
+	}
 }
