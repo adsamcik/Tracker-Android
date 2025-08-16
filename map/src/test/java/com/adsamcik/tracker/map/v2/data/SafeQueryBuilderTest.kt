@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.map.v2.data
 
+import com.adsamcik.tracker.map.data.SafeQueryBuilder
+import androidx.sqlite.db.SimpleSQLiteQuery
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -14,21 +16,21 @@ class SafeQueryBuilderTest {
             .bounds(north = 50.0, east = 15.0, south = 40.0, west = 10.0)
             .limit(100)
             .build()
-        val sql = q.sql
+    val sql = (q as SimpleSQLiteQuery).sql
         assertTrue(sql.contains("FROM location_data"))
         assertTrue(sql.contains("time >= ?"))
         assertTrue(sql.contains("time <= ?"))
         assertTrue(sql.contains("lat <= ?"))
         assertTrue(sql.contains("lon >= ?"))
         assertTrue(sql.endsWith("LIMIT 100"))
-    val argCount = q.sql.count { it == '?' }
+    val argCount = sql.count { it == '?' }
     assertEquals(6, argCount) // timeFrom, timeTo, north, south, east, west
     }
 
     @Test
     fun `location weighted query`() {
         val q = SafeQueryBuilder.location().weight("speed").build()
-        val sql = q.sql
+    val sql = (q as SimpleSQLiteQuery).sql
         assertTrue(sql.contains("speed AS weight"))
     }
 
@@ -43,7 +45,7 @@ class SafeQueryBuilderTest {
     @Test
     fun `wifi query aliases columns`() {
         val q = SafeQueryBuilder.wifi().timeRange(0, 10).build()
-        val sql = q.sql
+    val sql = (q as SimpleSQLiteQuery).sql
         assertTrue(sql.contains("SELECT latitude AS lat, longitude AS lon, last_seen AS time"))
         assertTrue(sql.contains("FROM wifi_data"))
         assertTrue(sql.contains("last_seen >= ?"))
@@ -52,7 +54,7 @@ class SafeQueryBuilderTest {
     @Test
     fun `cell query basic`() {
         val q = SafeQueryBuilder.cell().limit(50).build()
-        val sql = q.sql
+    val sql = (q as SimpleSQLiteQuery).sql
         assertTrue(sql.startsWith("SELECT lat, lon, time"))
         assertTrue(sql.contains("FROM cell_location"))
         assertTrue(sql.endsWith("LIMIT 50"))

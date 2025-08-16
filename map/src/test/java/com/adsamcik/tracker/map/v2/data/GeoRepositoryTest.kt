@@ -1,5 +1,12 @@
 package com.adsamcik.tracker.map.v2.data
 
+import com.adsamcik.tracker.map.data.Aggregation
+import com.adsamcik.tracker.map.data.BasicGeoFeature
+import com.adsamcik.tracker.map.data.Bounds
+import com.adsamcik.tracker.map.data.GeoQuery
+import com.adsamcik.tracker.map.data.GeoRepositoryImpl
+import com.adsamcik.tracker.map.data.GeoSource
+import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.entity.GeoFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity
