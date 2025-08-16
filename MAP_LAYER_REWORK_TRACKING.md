@@ -364,10 +364,14 @@ Files (new): `map/.../v2/test/tiles/TileTestHarness.kt`
   - Deleted: `map/heatmap/creators/` directory and all legacy creator classes
   - Retained: minimal support classes (`HeatmapConfig`, `HeatmapTileData`, WiFi constants) needed by v2 layers
 - [x] Updated v2 layer imports and fixed compilation issues after cleanup.
+- [x] **COMMITTED**: Changes committed to git with cleanup documentation (30 files changed, 165 insertions, 952 deletions)
+- [x] **CONNECTED TEST**: LayerSwitchIntegrationTest passed on Medium_Phone_API_36.0(AVD) - layer switching works correctly after cleanup
+- [x] **DEPRECATION CLEANUP**: Removed deprecated JCenter repository references from build files - no more deprecation warnings
 
 Acceptance
 
 - [x] App uses v2 path by default; map and app modules assemble; unit tests pass for map module.
+- [x] Connected Android test passes, confirming layer switching functionality works in runtime environment.
 
 ---
 
