@@ -7,8 +7,7 @@ import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
 import com.adsamcik.tracker.map.heatmap.UserHeatmapData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.map.v2.DevFlags
-import com.adsamcik.tracker.map.v2.data.*
+import com.adsamcik.tracker.map.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -66,13 +65,13 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
         )
         .toDouble()
 
-    override val getAllInsideAndBetween = if (DevFlags.USE_REPO_LOCATION_HEATMAP) { top@{ from: Long, to: Long, topLat: Double, rightLon: Double, bottomLat: Double, leftLon: Double ->
+    override val getAllInsideAndBetween = { from: Long, to: Long, topLat: Double, rightLon: Double, bottomLat: Double, leftLon: Double ->
         blockingFetch(from, to, topLat, rightLon, bottomLat, leftLon)
-    } } else dao::getAllInsideAndBetween
+    }
 
-    override val getAllInside = if (DevFlags.USE_REPO_LOCATION_HEATMAP) { top@{ topLat: Double, rightLon: Double, bottomLat: Double, leftLon: Double ->
+    override val getAllInside = { topLat: Double, rightLon: Double, bottomLat: Double, leftLon: Double ->
         blockingFetch(null, null, topLat, rightLon, bottomLat, leftLon)
-    } } else dao::getAllInside
+    }
 
     private fun blockingFetch(from: Long?, to: Long?, topLat: Double, rightLon: Double, bottomLat: Double, leftLon: Double) =
         runBlocking(Dispatchers.IO) { fetchWeighted(from, to, topLat, rightLon, bottomLat, leftLon) }
@@ -91,14 +90,14 @@ internal class LocationHeatmapTileCreator(context: Context, val layerData: MapLa
 
     // Async variants using withContext to avoid blocking callers opting-in to suspend API.
     override suspend fun getHeatmapAsync(data: HeatmapTileData, from: Long, to: Long) =
-        if (!DevFlags.USE_REPO_LOCATION_HEATMAP) super.getHeatmapAsync(data, from, to) else withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             buildHeatmap(data) { topLat, rightLon, bottomLat, leftLon ->
                 fetchWeighted(from, to, topLat, rightLon, bottomLat, leftLon)
             }
         }
 
     override suspend fun getHeatmapAsync(data: HeatmapTileData) =
-        if (!DevFlags.USE_REPO_LOCATION_HEATMAP) super.getHeatmapAsync(data) else withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             buildHeatmap(data) { topLat, rightLon, bottomLat, leftLon ->
                 fetchWeighted(null, null, topLat, rightLon, bottomLat, leftLon)
             }

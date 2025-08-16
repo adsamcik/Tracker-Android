@@ -9,8 +9,8 @@ import androidx.appcompat.widget.AppCompatTextView
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import com.adsamcik.tracker.map.v2.presentation.MapViewModel
-import com.adsamcik.tracker.map.v2.ui.MapHost
+import com.adsamcik.tracker.map.presentation.MapViewModel
+import com.adsamcik.tracker.map.ui.MapHost
 import kotlinx.coroutines.launch
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.tracker.map.MapController
@@ -24,7 +24,7 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.map.ColorMap
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
-import com.adsamcik.tracker.shared.utils.style.StyleManager
+// import removed: StyleManager not used after cleanup
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapsSdkInitializedCallback
@@ -99,7 +99,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		v2MapHost = MapHost(mapOwner)
 
 		viewLifecycleOwner.lifecycleScope.launch {
-			v2ViewModel?.state?.collect { /* no-op: placeholder for future UI binding */ }
+			// TODO: Future UI binding for v2ViewModel state
 		}
 	}
 
@@ -135,26 +135,17 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 
 	override fun onDestroyView() {
 		super.onDestroyView()
-
-	override fun onLowMemory() {
-		super.onLowMemory()
-		mapController?.onLowMemory()
-	}
-
-	override fun onTrimMemory(level: Int) {
-		super.onTrimMemory(level)
-		if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-			mapController?.onLowMemory()
-		}
-	}
-		mapFragment = null
-
-		styleController.let { StyleManager.recycleController(it) }
+			mapFragment = null
 
 		mapController = null
 		mapEventListener = null
 		mapSheetController = null
 	}
+
+		override fun onLowMemory() {
+			super.onLowMemory()
+			mapController?.onLowMemory()
+		}
 
 	private fun onMapReady(map: GoogleMap) {
 		val activity = activity ?: return

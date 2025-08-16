@@ -8,14 +8,13 @@ import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileCreator
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
-import com.adsamcik.tracker.map.v2.graphics.BitmapPool
-import com.adsamcik.tracker.map.v2.perf.PerformanceManager
+import com.adsamcik.tracker.map.graphics.BitmapPool
+import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.shared.base.extension.LocationExtensions
 import com.adsamcik.tracker.shared.base.misc.ConditionVariableInt
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
-import java.lang.Throwable
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock

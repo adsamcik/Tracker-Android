@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.location.Address
 import android.location.Geocoder
 import android.os.Build
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -26,15 +27,12 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.recycler.decoration.MarginDecoration
-import com.adsamcik.tracker.map.adapter.MapFilterableAdapter
+// v1 adapter removed after cutover
 import com.adsamcik.tracker.map.introduction.MapSheetHiddenIntroduction
-import com.adsamcik.tracker.map.layer.logic.CellHeatmapLogic
-import com.adsamcik.tracker.map.layer.logic.LocationHeatmapLogic
-import com.adsamcik.tracker.map.layer.logic.LocationPolylineLogic
-import com.adsamcik.tracker.map.layer.logic.NoMapLayerLogic
-import com.adsamcik.tracker.map.layer.logic.SpeedHeatmapLogic
-import com.adsamcik.tracker.map.layer.logic.WifiCountHeatmapLogic
-import com.adsamcik.tracker.map.layer.logic.WifiHeatmapLogic
+import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
+import com.adsamcik.tracker.map.layers.registry.LayerRegistry
+import com.adsamcik.tracker.map.ui.LayerController
+// legacy v1 MapLayerLogic imports removed after cutover
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
 import com.adsamcik.tracker.shared.base.extension.coerceIn
@@ -46,7 +44,7 @@ import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.Int2
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
-import com.adsamcik.tracker.shared.map.MapLayerLogic
+// v1 MapLayerLogic no longer used in this controller
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
 import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
@@ -430,59 +428,44 @@ internal class MapSheetController(
 
 
 	init {
-		val mapLayerList = listOf(
-				NoMapLayerLogic(),
-				LocationHeatmapLogic(),
-				CellHeatmapLogic(),
-				WifiHeatmapLogic(),
-				WifiCountHeatmapLogic(),
-				LocationPolylineLogic(),
-				SpeedHeatmapLogic()
-		)
+		// v2 descriptors-driven list (cutover complete)
+		val registry: LayerRegistry = DefaultLayerRegistry()
+		val descriptors = registry.getAllLayers()
+		val v2Controller = LayerController()
 
 		rootLayout.findViewById<RecyclerView>(R.id.map_layers_recycler).apply {
 			layoutManager = GridLayoutManager(context, 2, GridLayoutManager.HORIZONTAL, false)
 			addItemDecoration(MarginDecoration(0, 4.dp, 0, 0))
-			adapter = MapFilterableAdapter(context, R.layout.layout_layer_icon) {
-				context.getString(it.layerInfo.nameRes)
-			}.apply {
-				addAll(mapLayerList)
-				onItemClickListener = this@MapSheetController::onItemClicked
-
-				initializeLastLayer(context, mapLayerList)
+			adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+				override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+					val view = LayoutInflater.from(parent.context).inflate(R.layout.layout_layer_icon, parent, false)
+					return object : RecyclerView.ViewHolder(view) {}
+				}
+				override fun getItemCount(): Int = descriptors.size
+				override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+					val d = descriptors[position]
+					holder.itemView.findViewById<TextView>(R.id.title).text = holder.itemView.context.getString(d.titleRes)
+					holder.itemView.setOnClickListener {
+						val ctx = holder.itemView.context
+						val pref = Preferences.getPref(ctx)
+						val res = ctx.resources
+						val quality = pref.getFloat(
+							res.getString(R.string.settings_map_quality_key),
+							res.getString(R.string.settings_map_quality_default).toFloat()
+						)
+						val range = mapController.dateRange
+						v2Controller.setLayer(ctx, map, d, quality, range)
+						v2Controller.activeLegend()?.let { legendController.setLayer(it) }
+						if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
+							sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+						}
+					}
+				}
 			}
 		}
 	}
 
-	private fun initializeLastLayer(context: Context, list: List<MapLayerLogic>) {
-		launch(Dispatchers.Default) {
-			val default = Preferences.getPref(context)
-					.getStringRes(R.string.settings_map_last_layer_key) ?: return@launch
-
-			val lastIndex = list.indexOfFirst { it.layerInfo.type.name == default }
-			if (lastIndex >= 0) {
-				onItemClicked(lastIndex, list[lastIndex])
-			} else {
-				onItemClicked(0, list[0])
-			}
-		}
-	}
-
-	private fun setLayer(layer: MapLayerLogic) {
-		launch(Dispatchers.Main.immediate) {
-			mapController.setLayer(rootLayout.context, layer)
-			legendController.setLayer(layer.layerData())
-		}
-	}
-
-	@Suppress("unused_parameter")
-	private fun onItemClicked(position: Int, item: MapLayerLogic) {
-		setLayer(item)
-
-		if (sheetBehavior.state == BottomSheetBehavior.STATE_HALF_EXPANDED) {
-			sheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
-		}
-	}
+	// Legacy v1 last-layer persistence is removed for v2 cutover.
 
 	init {
 		setSheetOffset(sheetBehavior.peekHeight)

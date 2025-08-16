@@ -58,7 +58,7 @@ internal class HeatmapTile(
 	}
 
 
-	fun toByteArray(bitmapSize: Int, bitmapPool: com.adsamcik.tracker.map.v2.graphics.BitmapPool? = null): ByteArray {
+	fun toByteArray(bitmapSize: Int, bitmapPool: com.adsamcik.tracker.map.graphics.BitmapPool? = null): ByteArray {
 		val array = heatmap.renderSaturated(data.config.colorScheme, heatmap.maxHeat) { it }
 		val base = bitmapPool?.acquire(data.heatmapSize, data.heatmapSize) ?: Bitmap.createBitmap(
 				array,
