@@ -304,30 +304,32 @@ Acceptance
 
 ### 5.6 Cutover and cleanup (move from 6.4)
 
-Purpose: simplify codebase by making v2 the only path and removing legacy.
+Purpose: simplify codebase by making the new layer system the only path and completely removing legacy.
 
-Files: `map/.../MapSheetController.kt`, `map/.../v2/ui/LayerController.kt`, `map/.../v2/layers/registry/DefaultLayerRegistry.kt`, `map/.../layer/logic/*`, `smap/.../shared/map/MapLayerLogic.kt`, flags in `map/.../v2/DevFlags.kt`, heatmap creators/providers if unused by v2
+Files: `map/.../MapSheetController.kt`, `map/.../ui/LayerController.kt`, `map/.../layers/registry/DefaultLayerRegistry.kt`, `smap/.../shared/map/MapLayerLogic.kt`, `smap/.../shared/map/MapLayer.kt`, heatmap creators/providers if unused
 
-- [ ] Make v2 descriptors list the default; remove legacy v1 list branch.
-- [ ] Replace descriptor factories to return v2 layers directly (drop adapters casting to MapLayerLogic).
-- [ ] Update `LayerController` to hold and control v2 layer types only.
-- [ ] Migrate legend/title/icon/colors into v2 descriptors; stop reading from v1 layer data.
-- [ ] Remove adapters in `map/v2/layers/adapters/*`.
-- [ ] Remove v1 `map/layer/logic/*` and the `MapLayerLogic` interface (or keep only if referenced elsewhere; otherwise remove).
-- [ ] Remove legacy heatmap tile creators/providers that are no longer used by v2.
-- [ ] Remove dev flags around v2 path and delete `DevFlags` toggles made obsolete.
-- [ ] Drop the "v2" naming: move packages from `.../map/v2/...` to `.../map/...`, and rename classes to neutral names (e.g., `LocationHeatmapLayerV2` → `LocationHeatmapLayer` if present). Update imports/usages accordingly.
-- [ ] Compile + smoke test map layer switching and overlays.
+- [x] Make descriptors list the default; remove legacy v1 list branch.
+- [x] Replace descriptor factories to return new layers directly (drop adapters casting to MapLayerLogic).
+- [x] Update `LayerController` to hold and control new layer types only.
+- [x] Migrate legend/title/icon/colors into descriptors; stop reading from v1 layer data.
+- [x] Remove adapters in `map/layers/adapters/*` (empty directories removed).
+- [x] **COMPLETE REMOVAL**: Remove `MapLayerLogic` interface entirely (no backwards compatibility).
+- [x] **COMPLETE REMOVAL**: Remove `MapLayer` compatibility interface.
+- [x] Remove legacy heatmap tile creators/providers that are no longer used.
+- [x] Remove dev flags around v2 path and delete obsolete toggles.
+- [x] Drop the "v2" naming: move packages from `.../map/v2/...` to `.../map/...`, and rename classes to neutral names. Update imports/usages accordingly.
+- [x] **COMPLETE CUTOVER**: Update `MapLayerInfo` to use string class names instead of Class references.
+- [x] Compile + smoke test map layer switching and overlays.
 
 Acceptance
 
-- [ ] App uses v2 path only; build green; overlays mount/unmount; no references to v1 logic remain; no "v2" names in packages or classes.
+- [x] App uses new layer system only; build green; overlays mount/unmount; **NO backwards compatibility** - all legacy v1 references completely removed.
 
 ---
 
 ## Phase 6 — Testing and cleanup
 
-\n### 6.1 Unit tests
+### 6.1 Unit tests
 Files: `map/src/test/...`
 
 - [ ] `MapViewModelTest`: selection, param updates, debounced refresh.
@@ -335,7 +337,7 @@ Files: `map/src/test/...`
 - [ ] `PerformanceManagerTest`: budget selection.
 - [ ] `PolylineOptimizerTest`: reductions to within budget and tolerance.
 
-\n### 6.2 Tile harness and visual regression (optional)
+### 6.2 Tile harness and visual regression (optional)
 Files (new): `map/.../v2/test/tiles/TileTestHarness.kt`
 
 - [ ] Headless tile generation to bitmap; compare against golden with tolerance to catch regressions.
