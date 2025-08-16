@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.v2.data
+package com.adsamcik.tracker.map.data
 
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery

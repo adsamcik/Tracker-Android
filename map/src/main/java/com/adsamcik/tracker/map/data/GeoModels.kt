@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.v2.data
+package com.adsamcik.tracker.map.data
 
 import com.adsamcik.tracker.shared.base.database.entity.GeoFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity

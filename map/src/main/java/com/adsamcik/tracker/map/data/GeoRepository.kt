@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.v2.data
+package com.adsamcik.tracker.map.data
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
@@ -154,6 +154,24 @@ sealed interface Aggregation {
                 if (p.time > time) time = p.time
             }
             return WeightedGeoFeature(lat, lon, time, max)
+        }
+    }
+
+    /**
+     * Count of points per grid cell. Weight is the number of items; lat/lon averaged; time = latest.
+     */
+    data object Count : Aggregation {
+        override fun reduce(points: List<WeightedGeoFeature>): WeightedGeoFeature {
+            var lat = 0.0
+            var lon = 0.0
+            var time = Long.MIN_VALUE
+            points.forEach { p ->
+                lat += p.lat
+                lon += p.lon
+                if (p.time > time) time = p.time
+            }
+            val n = points.size.toDouble()
+            return WeightedGeoFeature(lat / n, lon / n, time, n)
         }
     }
 }

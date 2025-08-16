@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.v2.perf
+package com.adsamcik.tracker.map.perf
 
 /**
  * Centralized performance budgets based on map quality level.

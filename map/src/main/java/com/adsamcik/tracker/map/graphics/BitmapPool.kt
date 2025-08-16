@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.v2.graphics
+package com.adsamcik.tracker.map.graphics
 
 import android.graphics.Bitmap
 import android.os.Build

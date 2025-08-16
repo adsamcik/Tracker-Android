@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.v2.layers.registry
+package com.adsamcik.tracker.map.layers.registry
 
 import com.adsamcik.tracker.shared.map.v2.layers.LayerDescriptor
 

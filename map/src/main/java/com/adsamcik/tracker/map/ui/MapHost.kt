@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.map.v2.ui
+package com.adsamcik.tracker.map.ui
 
 import androidx.fragment.app.FragmentManager
 import com.adsamcik.tracker.map.MapOwner
