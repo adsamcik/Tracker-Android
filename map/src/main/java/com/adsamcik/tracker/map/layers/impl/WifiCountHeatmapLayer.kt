@@ -227,10 +227,7 @@ class WifiCountHeatmapLayer(
                     (1f - t) * v + t * s
                 },
                 alphaFromNormalized = true,
-                opacity = 0.9f,
-                revisitIntervalSec = 15 * 60,
-                revisitEasing = com.adsamcik.tracker.map.heatmap.creators.RevisitEasing.Exponential,
-                revisitEasingStrength = 3f
+                opacity = 0.9f
             )
             val data = HeatmapTileData(
                 config = config,

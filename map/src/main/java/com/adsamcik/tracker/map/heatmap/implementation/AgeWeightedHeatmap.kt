@@ -6,7 +6,6 @@ import com.adsamcik.tracker.logger.assertMoreOrEqual
 import com.adsamcik.tracker.logger.assertWithin
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.creators.RevisitEasing
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.EMPTY_COMPONENT
@@ -56,10 +55,7 @@ internal class AgeWeightedHeatmap(
     val height: Int = width,
     val ageThreshold: Int = AGE_THRESHOLD_MINUTES * Time.MINUTE_IN_SECONDS.toInt(),
     var maxHeat: Float = 0f,
-    var dynamicHeat: Boolean = true,
-    var revisitIntervalSec: Int = 0,
-    var revisitEasing: RevisitEasing = RevisitEasing.Smoothstep,
-    var revisitEasingStrength: Float = 3f
+    var dynamicHeat: Boolean = true
 ) {
     // width * height * (1+4+4+4 = 13 bytes) total array size ~= 0.85MB for 256*256 tiles
     private val alphaArray: UByteArray = UByteArray(width * height)
@@ -178,16 +174,7 @@ internal class AgeWeightedHeatmap(
                         // Hotspot softening: compress contributions as pixel approaches saturation
                         val saturation = (decayedWeight / (maxHeat.takeIf { it > 0f } ?: 1f)).coerceIn(0f, 1f)
                         val softness = 1f - saturation * saturation // quadratic softening for peaks
-                        // Revisit gating: if a pixel is hit again sooner than revisitIntervalSec, reduce impact smoothly
-                        val revisitFactor = if (revisitIntervalSec > 0) {
-                            val u = (dt.toFloat() / revisitIntervalSec.toFloat()).coerceIn(0f, 1f)
-                            when (revisitEasing) {
-                                RevisitEasing.Smoothstep -> u * u * (3f - 2f * u)
-                                RevisitEasing.Exponential -> 1f - exp(-revisitEasingStrength * u)
-                                RevisitEasing.Power -> u.pow(revisitEasingStrength)
-                            }
-                        } else 1f
-                        val merged = weightMergeFunction(decayedWeight, alphaValue, stampValue * softness * densityGain * revisitFactor, weight)
+                        val merged = weightMergeFunction(decayedWeight, alphaValue, stampValue * softness * densityGain, weight)
                         weightArray[heatIndex] = merged
                         lastValueArray[heatIndex] = merged - decayedWeight
 
@@ -205,16 +192,7 @@ internal class AgeWeightedHeatmap(
                         val decayedWeight = weightValue
                         val saturation = (decayedWeight / (maxHeat.takeIf { it > 0f } ?: 1f)).coerceIn(0f, 1f)
                         val softness = 1f - saturation * saturation
-                        // Older sample relative to stored time: also apply revisit gating using |dt|
-                        val revisitFactor = if (revisitIntervalSec > 0) {
-                            val u = ((-dt).toFloat() / revisitIntervalSec.toFloat()).coerceIn(0f, 1f)
-                            when (revisitEasing) {
-                                RevisitEasing.Smoothstep -> u * u * (3f - 2f * u)
-                                RevisitEasing.Exponential -> 1f - exp(-revisitEasingStrength * u)
-                                RevisitEasing.Power -> u.pow(revisitEasingStrength)
-                            }
-                        } else 1f
-                        val merged = weightMergeFunction(decayedWeight, alphaValue, stampValue * softness * densityGain * forwardDecay * revisitFactor, weight)
+                        val merged = weightMergeFunction(decayedWeight, alphaValue, stampValue * softness * densityGain * forwardDecay, weight)
                         weightArray[heatIndex] = merged
                         lastValueArray[heatIndex] = merged - decayedWeight
 
