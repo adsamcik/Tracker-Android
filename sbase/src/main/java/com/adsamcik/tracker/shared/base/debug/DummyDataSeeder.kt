@@ -59,6 +59,22 @@ object DummyDataSeeder {
     }
 
     /**
+     * Seeds the database with dummy data regardless of current contents.
+     * Useful for development flows that want to append synthetic sessions.
+     */
+    suspend fun seed(context: Context): SeedResult = withContext(Dispatchers.IO) {
+        val database = AppDatabase.database(context)
+        try {
+            database.runInTransaction {
+                insertDummyData(database)
+            }
+            SeedResult(true)
+        } catch (e: Exception) {
+            SeedResult(false, "error: ${e.message}")
+        }
+    }
+
+    /**
      * Inserts dummy tracking data into the database
      */
     private fun insertDummyData(database: AppDatabase) {
@@ -83,49 +99,60 @@ object DummyDataSeeder {
             Checkpoint(40.6962, -73.9968, DetectedActivity.WALKING, "Brooklyn Heights Promenade")
         )
 
-        // Generate interpolated points with realistic GPS behavior
-        val locations = interpolatePoints(checkpoints)
-
-        // Create session
-        val startTime = System.currentTimeMillis() - (2 * 60 * 60 * 1000) // 2 hours ago
-        val endTime = startTime + (locations.size * 45 * 1000) // ~45 seconds per point
-
-        val session = TrackerSession(
-            start = startTime,
-            end = endTime,
-            isUserInitiated = false,
-            collections = locations.size,
-            distanceInM = calculateTotalDistance(locations),
-            distanceOnFootInM = calculateWalkingDistance(locations),
-            distanceInVehicleInM = calculateVehicleDistance(locations),
-            steps = Random.nextInt(8000, 12000)
+        // Plan 3 sessions reasonably spaced within the last 24 hours
+        val now = System.currentTimeMillis()
+        val hour = 60L * 60L * 1000L
+        val sessionsPlan = listOf(
+            // Morning-ish
+            Pair(now - 20L * hour, 45L * 60L * 1000L),
+            // Midday-ish
+            Pair(now - 12L * hour, 60L * 60L * 1000L),
+            // Evening-ish
+            Pair(now - 4L * hour, 35L * 60L * 1000L)
         )
-        sessionDao.insert(session)
 
-        // Insert all locations with embedded activity info
-        locations.forEach { locationData ->
-            val location = Location(
-                time = locationData.time,
-                latitude = locationData.lat,
-                longitude = locationData.lon,
-                altitude = locationData.altitude,
-                horizontalAccuracy = locationData.accuracy,
-                verticalAccuracy = null,
-                speed = locationData.speed,
-                speedAccuracy = null
-            )
+        sessionsPlan.forEach { (startTime, duration) ->
+            // Generate interpolated points with realistic GPS behavior and evenly distribute over duration
+            val locations = interpolatePoints(checkpoints, startTime, duration)
 
-            val activityInfo = ActivityInfo(
-                activityType = locationData.activity,
-                confidence = Random.nextInt(75, 100)
-            )
+            val endTime = if (locations.isNotEmpty()) locations.last().time else startTime + duration
 
-            val databaseLocation = DatabaseLocation(
-                location = location,
-                activityInfo = activityInfo
+            val session = TrackerSession(
+                start = startTime,
+                end = endTime,
+                isUserInitiated = false,
+                collections = locations.size,
+                distanceInM = calculateTotalDistance(locations),
+                distanceOnFootInM = calculateWalkingDistance(locations),
+                distanceInVehicleInM = calculateVehicleDistance(locations),
+                steps = Random.nextInt(4000, 12000)
             )
-            
-            locationDao.insert(databaseLocation)
+            sessionDao.insert(session)
+
+            // Insert all locations with embedded activity info
+            locations.forEach { locationData ->
+                val location = Location(
+                    time = locationData.time,
+                    latitude = locationData.lat,
+                    longitude = locationData.lon,
+                    altitude = locationData.altitude,
+                    horizontalAccuracy = locationData.accuracy,
+                    verticalAccuracy = null,
+                    speed = locationData.speed,
+                    speedAccuracy = null
+                )
+
+                val activityInfo = ActivityInfo(
+                    activityType = locationData.activity,
+                    confidence = Random.nextInt(75, 100)
+                )
+
+                val databaseLocation = DatabaseLocation(
+                    location = location,
+                    activityInfo = activityInfo
+                )
+                locationDao.insert(databaseLocation)
+            }
         }
     }
 
@@ -145,67 +172,62 @@ object DummyDataSeeder {
     /**
      * Interpolates points between checkpoints with realistic GPS behavior
      */
-    private fun interpolatePoints(checkpoints: List<Checkpoint>): List<LocationData> {
-        val points = mutableListOf<LocationData>()
-        val startTime = System.currentTimeMillis() - (2 * 60 * 60 * 1000) // 2 hours ago
-        
+    private fun interpolatePoints(
+        checkpoints: List<Checkpoint>,
+        startTime: Long,
+        durationMillis: Long
+    ): List<LocationData> {
+        val coords = mutableListOf<Triple<Double, Double, Int>>()
+
         for (i in 0 until checkpoints.size - 1) {
             val start = checkpoints[i]
             val end = checkpoints[i + 1]
-            
-            points.add(LocationData(
-                time = startTime + (points.size * 45 * 1000),
-                lat = start.lat,
-                lon = start.lon,
-                altitude = generateAltitude(start.lat, start.lon),
-                accuracy = generateAccuracy(start.activity),
-                speed = generateSpeed(start.activity),
-                activity = start.activity
-            ))
-            
+
+            coords.add(Triple(start.lat, start.lon, start.activity))
+
             // Calculate distance and determine number of interpolation points
             val distance = haversineDistance(start.lat, start.lon, end.lat, end.lon)
             val stepSize = Random.nextDouble(5.0, 18.0) // 5-18 meters per step
-            val numSteps = (distance / stepSize).toInt()
-            
+            val numSteps = (distance / stepSize).toInt().coerceAtLeast(1)
+
             // Interpolate points between checkpoints
             for (step in 1 until numSteps) {
                 val progress = step.toDouble() / numSteps
                 val bearing = calculateBearing(start.lat, start.lon, end.lat, end.lon)
                 val stepDistance = distance * progress
-                
+
                 val interpolatedPoint = movePoint(start.lat, start.lon, bearing, stepDistance)
-                
+
                 // Add some GPS drift
                 val driftAngle = Random.nextDouble(0.0, 360.0)
                 val driftDistance = Random.nextDouble(0.0, 15.0) // Up to 15m drift
                 val driftedPoint = movePoint(interpolatedPoint.first, interpolatedPoint.second, driftAngle, driftDistance)
-                
-                points.add(LocationData(
-                    time = startTime + (points.size * 45 * 1000),
-                    lat = driftedPoint.first,
-                    lon = driftedPoint.second,
-                    altitude = generateAltitude(driftedPoint.first, driftedPoint.second),
-                    accuracy = generateAccuracy(start.activity),
-                    speed = generateSpeed(start.activity),
-                    activity = start.activity
-                ))
+
+                coords.add(Triple(driftedPoint.first, driftedPoint.second, start.activity))
             }
         }
-        
+
         // Add final checkpoint
         val lastCheckpoint = checkpoints.last()
-        points.add(LocationData(
-            time = startTime + (points.size * 45 * 1000),
-            lat = lastCheckpoint.lat,
-            lon = lastCheckpoint.lon,
-            altitude = generateAltitude(lastCheckpoint.lat, lastCheckpoint.lon),
-            accuracy = generateAccuracy(lastCheckpoint.activity),
-            speed = generateSpeed(lastCheckpoint.activity),
-            activity = lastCheckpoint.activity
-        ))
-        
-        return points
+        coords.add(Triple(lastCheckpoint.lat, lastCheckpoint.lon, lastCheckpoint.activity))
+
+        val count = coords.size
+        if (count == 0) return emptyList()
+        val denom = (count - 1).coerceAtLeast(1)
+
+        // Evenly distribute timestamps across the desired duration
+        return coords.mapIndexed { index, (lat, lon, activity) ->
+            val t = startTime + (durationMillis * index / denom)
+            LocationData(
+                time = t,
+                lat = lat,
+                lon = lon,
+                altitude = generateAltitude(lat, lon),
+                accuracy = generateAccuracy(activity),
+                speed = generateSpeed(activity),
+                activity = activity
+            )
+        }
     }
 
     /**

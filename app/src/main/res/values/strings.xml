@@ -98,6 +98,8 @@
     <string name="dummy_data_not_empty" translatable="false">Database is not empty. Dummy data can only be generated on an empty database.</string>
     <string name="dummy_data_generation_success" translatable="false">Dummy data generated.</string>
     <string name="dummy_data_generation_failed" translatable="false">Failed to generate dummy data.</string>
+    <string name="dummy_data_second_confirm_title" translatable="false">Database not empty</string>
+    <string name="dummy_data_second_confirm_message" translatable="false">Your database already has data. Do you still want to append dummy data? This is intended for development only.</string>
     <string name="settings_module_enable_key" translatable="false">modules</string>
     <string name="settings_module_enable_title">Modules</string>
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>

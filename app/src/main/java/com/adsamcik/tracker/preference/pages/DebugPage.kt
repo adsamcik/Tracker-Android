@@ -2,8 +2,11 @@ package com.adsamcik.tracker.preference.pages
 
 import android.app.NotificationManager
 import android.content.Context
+import android.util.TypedValue
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import android.content.res.ColorStateList
+import android.graphics.Color
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.BuildConfig
@@ -19,6 +22,9 @@ import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.dialog.alertDialog
 import com.afollestad.materialdialogs.MaterialDialog
+import com.afollestad.materialdialogs.WhichButton
+import com.afollestad.materialdialogs.callbacks.onShow
+import com.afollestad.materialdialogs.actions.getActionButton
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -134,21 +140,85 @@ internal class DebugPage : PreferencePage {
 					MaterialDialog(context)
 						.title(text = context.getString(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic))
 						.alertDialog(context.getString(R.string.settings_generate_dummy_data_title)) {
-							// Confirmed
+							// First confirm
 							@OptIn(DelicateCoroutinesApi::class)
 							GlobalScope.launch(Dispatchers.Default) {
-								val result = DummyDataSeeder.seedIfEmpty(context)
-								launch(Dispatchers.Main) {
-									MaterialDialog(context).show {
-										when {
-											result.inserted -> message(text = context.getString(R.string.dummy_data_generation_success))
-											result.reason == "not-empty" -> message(text = context.getString(R.string.dummy_data_not_empty))
-											else -> message(text = context.getString(R.string.dummy_data_generation_failed))
+								val probe = DummyDataSeeder.seedIfEmpty(context)
+								if (probe.inserted) {
+									launch(Dispatchers.Main) {
+										MaterialDialog(context).show {
+											message(text = context.getString(R.string.dummy_data_generation_success))
+											positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
 										}
-										positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
+									}
+								} else if (probe.reason == "not-empty") {
+									// Second destructive confirm when DB not empty
+									launch(Dispatchers.Main) {
+										MaterialDialog(context).show {
+											title(text = context.getString(R.string.dummy_data_second_confirm_title))
+											message(text = context.getString(R.string.dummy_data_second_confirm_message))
+											positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_yes)) { dialog ->
+												@OptIn(DelicateCoroutinesApi::class)
+												GlobalScope.launch(Dispatchers.Default) {
+													val forced = DummyDataSeeder.seed(context)
+													launch(Dispatchers.Main) {
+														MaterialDialog(context).show {
+															message(text = if (forced.inserted) context.getString(R.string.dummy_data_generation_success) else context.getString(R.string.dummy_data_generation_failed))
+															positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
+														}
+													}
+												}
+											}
+											negativeButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_no))
+											onShow {
+												val tvBg = TypedValue()
+												val hasBg = context.theme.resolveAttribute(
+													com.google.android.material.R.attr.colorError,
+													tvBg,
+													true
+												)
+												val tvFg = TypedValue()
+												val hasFg = context.theme.resolveAttribute(
+													com.google.android.material.R.attr.colorOnError,
+													tvFg,
+													true
+												)
+												val bg = if (hasBg) tvBg.data else ContextCompat.getColor(context, R.color.error)
+												val fg = if (hasFg) tvFg.data else Color.WHITE
+												val btn = getActionButton(WhichButton.POSITIVE)
+												btn.backgroundTintList = ColorStateList.valueOf(bg)
+												btn.setTextColor(fg)
+											}
+										}
+									}
+								} else {
+									launch(Dispatchers.Main) {
+										MaterialDialog(context).show {
+											message(text = context.getString(R.string.dummy_data_generation_failed))
+											positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
+										}
 									}
 								}
 							}
+						}
+						.onShow { dialog ->
+							val tvBg = TypedValue()
+							val hasBg = context.theme.resolveAttribute(
+								com.google.android.material.R.attr.colorError,
+								tvBg,
+								true
+							)
+							val tvFg = TypedValue()
+							val hasFg = context.theme.resolveAttribute(
+								com.google.android.material.R.attr.colorOnError,
+								tvFg,
+								true
+							)
+							val bg = if (hasBg) tvBg.data else ContextCompat.getColor(context, R.color.error)
+							val fg = if (hasFg) tvFg.data else Color.WHITE
+							val btn = dialog.getActionButton(WhichButton.POSITIVE)
+							btn.backgroundTintList = ColorStateList.valueOf(bg)
+							btn.setTextColor(fg)
 						}
 						.show()
 					false
