@@ -93,6 +93,11 @@
     <string name="settings_clear_crashes_title">Clear crashes</string>
     <string name="settings_test_crash_key" translatable="false">testCrash</string>
     <string name="settings_test_crash_title">Test crash (Debug only)</string>
+    <string name="settings_generate_dummy_data_key" translatable="false">generateDummyData</string>
+    <string name="settings_generate_dummy_data_title" translatable="false">Generate dummy data</string>
+    <string name="dummy_data_not_empty" translatable="false">Database is not empty. Dummy data can only be generated on an empty database.</string>
+    <string name="dummy_data_generation_success" translatable="false">Dummy data generated.</string>
+    <string name="dummy_data_generation_failed" translatable="false">Failed to generate dummy data.</string>
     <string name="settings_module_enable_key" translatable="false">modules</string>
     <string name="settings_module_enable_title">Modules</string>
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>

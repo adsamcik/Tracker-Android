@@ -5,7 +5,9 @@ import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.Preference
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.app.activity.debug.CrashManagerActivity
 import com.adsamcik.tracker.app.activity.debug.CrashViewerActivity
 import com.adsamcik.tracker.app.activity.debug.LogViewerActivity
@@ -18,6 +20,11 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.dialog.alertDialog
 import com.afollestad.materialdialogs.MaterialDialog
+import com.adsamcik.tracker.shared.base.debug.DummyDataSeeder
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.util.*
 
 /**
@@ -27,11 +34,22 @@ internal class DebugPage : PreferencePage {
 	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
-		caller.setOnClickListener(R.string.settings_activity_status_key) {
-			it.context.startActivity<StatusActivity> { }
-		}
+			// Hide developer-only dummy data option in non-debug builds (guarded lookup)
+			caller.preferenceScreen
+				?.findPreference<Preference>(caller.getString(R.string.settings_generate_dummy_data_key))
+				?.isVisible = BuildConfig.DEBUG
 
-		caller.findPreference(R.string.settings_hello_world_key).setOnPreferenceClickListener {
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_activity_status_key))
+			?.setOnPreferenceClickListener {
+				it.context.startActivity<StatusActivity> { }
+				false
+			}
+
+			// This preference may not exist on all builds/layouts; set handler only if present
+			caller.preferenceScreen
+				?.findPreference<Preference>(caller.getString(R.string.settings_hello_world_key))
+				?.setOnPreferenceClickListener {
 			val context = it.context
 			val resources = context.resources
 			val helloWorld = context.getString(R.string.dev_notification_dummy)
@@ -56,11 +74,12 @@ internal class DebugPage : PreferencePage {
 					Notifications.uniqueNotificationId(),
 					notificationBuilder.build()
 			)
-			false
-		}
+				false
+			}
 
-		caller.findPreference(R.string.settings_clear_preferences_key)
-				.setOnPreferenceClickListener { pref ->
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_clear_preferences_key))
+			?.setOnPreferenceClickListener { pref ->
 					val context = pref.context
 					MaterialDialog(context)
 							.alertDialog(pref.title.toString()) {
@@ -73,36 +92,68 @@ internal class DebugPage : PreferencePage {
 					false
 				}
 
-		caller.findPreference(R.string.settings_log_list_activity_key)
-				.setOnPreferenceClickListener {
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_log_list_activity_key))
+			?.setOnPreferenceClickListener {
 					it.context.startActivity<LogViewerActivity> { }
 					false
 				}
 
-		caller.findPreference(R.string.settings_crash_viewer_key)
-				.setOnPreferenceClickListener {
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_crash_viewer_key))
+			?.setOnPreferenceClickListener {
 					it.context.startActivity<CrashViewerActivity> { }
 					false
 				}
 
-		caller.findPreference(R.string.settings_export_crashes_key)
-				.setOnPreferenceClickListener { pref ->
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_export_crashes_key))
+			?.setOnPreferenceClickListener { pref ->
 					val context = pref.context
 					context.startActivity<CrashManagerActivity> { }
 					false
 				}
 
-		caller.findPreference(R.string.settings_clear_crashes_key)
-				.setOnPreferenceClickListener { pref ->
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_clear_crashes_key))
+			?.setOnPreferenceClickListener { pref ->
 					val context = pref.context
 					context.startActivity<CrashManagerActivity> { }
 					false
 				}
 
-		caller.findPreference(R.string.settings_test_crash_key)
-				.setOnPreferenceClickListener { pref ->
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_test_crash_key))
+			?.setOnPreferenceClickListener { pref ->
 					// Create a test crash for debugging purposes
 					throw RuntimeException("Test crash from debug menu - ${System.currentTimeMillis()}")
+				}
+
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_generate_dummy_data_key))
+			?.setOnPreferenceClickListener { pref ->
+					val context = pref.context
+					MaterialDialog(context)
+						.title(text = context.getString(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic))
+						.alertDialog(context.getString(R.string.settings_generate_dummy_data_title)) {
+							// Confirmed
+							@OptIn(DelicateCoroutinesApi::class)
+							GlobalScope.launch(Dispatchers.Default) {
+								val result = DummyDataSeeder.seedIfEmpty(context)
+								launch(Dispatchers.Main) {
+									MaterialDialog(context).show {
+										when {
+											result.inserted -> message(text = context.getString(R.string.dummy_data_generation_success))
+											result.reason == "not-empty" -> message(text = context.getString(R.string.dummy_data_not_empty))
+											else -> message(text = context.getString(R.string.dummy_data_generation_failed))
+										}
+										positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
+									}
+								}
+							}
+						}
+						.show()
+					false
 				}
 	}
 

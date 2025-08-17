@@ -2,6 +2,10 @@ package com.adsamcik.tracker.map.layers.registry
 
 import android.graphics.Color
 import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.map.data.GeoRepository
+import com.adsamcik.tracker.map.data.GeoRepositoryImpl
+import com.adsamcik.tracker.map.graphics.BitmapPool
+import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.impl.CellHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationPathLayer
@@ -10,12 +14,9 @@ import com.adsamcik.tracker.map.layers.impl.WifiCountHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.WifiHeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.ui.LayerEntry
+import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
-import com.adsamcik.tracker.map.graphics.BitmapPool
-import com.adsamcik.tracker.map.data.GeoRepository
-import com.adsamcik.tracker.map.data.GeoRepositoryImpl
-import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.map.MapLayerInfo
 import com.adsamcik.tracker.shared.map.MapLegend
@@ -33,7 +34,26 @@ import kotlinx.coroutines.withContext
 /** Registry for map layers: registers layers directly. */
 class DefaultLayerRegistry : LayerRegistry {
 
-    private val layers: List<LayerDescriptor> = buildList {
+    /**
+     * Simple no-op layer to avoid anonymous object expressions in lambdas, which can
+     * trigger Kotlin UAST/FIR lint crashes in some AGP/Kotlin toolchain versions.
+     */
+    private class NoMapLayer : BaseMapLayer<Unit, Unit>() {
+        override fun loadData(context: android.content.Context) = Unit
+        override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
+        override fun render(map: com.google.android.gms.maps.GoogleMap, processed: Unit) {}
+    }
+
+    private fun cellTypeColors(): List<Int> {
+        val count = CellType.values().size
+        val startHue = 0.230 // formerly CellHeatmapLogic.COLOR_START_HUE
+        return ColorGenerator.generateWithGolden(startHue, count)
+    }
+
+    private fun cellTypeLegendValues(colors: List<Int>): List<MapLegendValue> =
+        CellType.values().mapIndexed { index, type -> MapLegendValue(type.nameRes, colors[index]) }
+
+    private fun buildLayers(): List<LayerDescriptor> = buildList {
         // No layer (legend only; acts as a placeholder)
         add(
             LayerDescriptor(
@@ -43,11 +63,7 @@ class DefaultLayerRegistry : LayerRegistry {
                 capabilities = LayerCapabilities(),
                 recipe = LayerRecipe(factory = LayerFactory {
                     LayerEntry(
-                        build = { _ -> object : com.adsamcik.tracker.map.layers.base.BaseMapLayer<Unit, Unit>() {
-                            override fun loadData(context: android.content.Context) = Unit
-                            override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
-                            override fun render(map: com.google.android.gms.maps.GoogleMap, processed: Unit) {}
-                        } },
+                        build = { _ -> NoMapLayer() },
                         legend = MapLayerData(
                             info = MapLayerInfo("NoMapLayer", R.string.map_layer_none_title),
                             colorList = emptyList(),
@@ -105,23 +121,10 @@ class DefaultLayerRegistry : LayerRegistry {
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
-                            colorList = run {
-                                val count = CellType.values().size
-                                val startHue = 0.230 // formerly CellHeatmapLogic.COLOR_START_HUE
-                                ColorGenerator.generateWithGolden(startHue, count)
-                            },
+                            colorList = cellTypeColors(),
                             legend = MapLegend(
                                 description = R.string.map_layer_cell_heatmap_description,
-                                valueList = run {
-                                    val colors = run {
-                                        val count = CellType.values().size
-                                        val startHue = 0.230
-                                        ColorGenerator.generateWithGolden(startHue, count)
-                                    }
-                                    CellType.values().mapIndexed { index, type ->
-                                        MapLegendValue(type.nameRes, colors[index])
-                                    }
-                                }
+                                valueList = cellTypeLegendValues(cellTypeColors())
                             )
                         )
                     )
@@ -277,5 +280,5 @@ class DefaultLayerRegistry : LayerRegistry {
         )
     }
 
-    override fun getAllLayers(): List<LayerDescriptor> = layers
+    override fun getAllLayers(): List<LayerDescriptor> = buildLayers()
 }
