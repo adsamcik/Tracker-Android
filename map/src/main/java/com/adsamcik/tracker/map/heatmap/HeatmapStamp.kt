@@ -5,6 +5,11 @@ import kotlin.math.sqrt
 
 internal data class HeatmapStamp(var width: Int, var height: Int, val stampData: FloatArray) {
 	companion object {
+	/**
+	 * Generates a circular stamp using a custom non-linear distance function. The [distFunction]
+	 * should map the normalized distance [0, 1] to a falloff value, also in [0, 1]. The result
+	 * is inverted (1 - falloff) to represent intensity.
+	 */
 		fun generateNonlinear(radius: Int, distFunction: (Float) -> Float): HeatmapStamp {
 			assertMore(radius, 0)
 
@@ -22,6 +27,42 @@ internal data class HeatmapStamp(var width: Int, var height: Int, val stampData:
 					val distance = distFunction(baseDistance).coerceIn(0f, 1f)
 					stampData[x + yOffset] = 1f - distance
 				}
+			}
+
+			return HeatmapStamp(diameter, diameter, stampData)
+		}
+
+		/**
+		 * Generates a Gaussian stamp with the given [radius]. The Gaussian is computed using
+		 * sigma derived from the radius (default ~radius/2), producing a smooth kernel with
+		 * long tails which blends neighbouring points more naturally than a simple quadratic.
+		 *
+		 * The kernel is normalized to [0, 1] where the peak is 1 and the edge approaches 0.
+		 */
+		fun generateGaussian(radius: Int, sigmaMultiplier: Float = 0.5f): HeatmapStamp {
+			assertMore(radius, 0)
+
+			val diameter = radius * 2 + 1
+			val stampData = FloatArray(diameter * diameter)
+			val sigma = (radius.toFloat() * sigmaMultiplier).coerceAtLeast(1f)
+			val twoSigmaSq = 2f * sigma * sigma
+
+			var maxVal = 0f
+			for (y in 0 until diameter) {
+				val yOffset = y * diameter
+				val dy = (y - radius).toFloat()
+				for (x in 0 until diameter) {
+					val dx = (x - radius).toFloat()
+					val g = kotlin.math.exp(-(dx * dx + dy * dy) / twoSigmaSq)
+					stampData[x + yOffset] = g
+					if (g > maxVal) maxVal = g
+				}
+			}
+
+			// Normalize peak to 1.0 to keep consistent strength across radii
+			if (maxVal > 0f && maxVal != 1f) {
+				val inv = 1f / maxVal
+				for (i in stampData.indices) stampData[i] = (stampData[i] * inv).coerceIn(0f, 1f)
 			}
 
 			return HeatmapStamp(diameter, diameter, stampData)
