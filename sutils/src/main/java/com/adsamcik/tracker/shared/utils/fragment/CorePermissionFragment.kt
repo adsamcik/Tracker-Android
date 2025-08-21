@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.shared.utils.fragment
 
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.utils.permission.PermissionManager
 import com.adsamcik.tracker.shared.utils.permission.PermissionRequest
@@ -7,38 +9,42 @@ import com.adsamcik.tracker.shared.utils.permission.PermissionRequestResult
 
 /**
  * Fragment extending [CoreUIFragment] with permission utility.
- * Supports callbacks for permission requests.
+ * Supports callbacks for permission requests using modern Activity Result API.
  */
 abstract class CorePermissionFragment : CoreUIFragment() {
-	private val permissionRequestList = mutableListOf<Pair<Int, PermissionRequest>>()
-	private var lastPermissionRequestId = 1000
+	private var currentPermissionRequest: PermissionRequest? = null
 
-	@CallSuper
-	@Deprecated("This method is deprecated. Use registerForActivityResult() with an ActivityResultLauncher instead.")
-	@Suppress("DEPRECATION")
-	override fun onRequestPermissionsResult(
-		requestCode: Int,
-		permissions: Array<out String>,
-		grantResults: IntArray
-	) {
-		val index = permissionRequestList.indexOfFirst { it.first == requestCode }
-		require(index >= 0) { "There was no permission request with this id" }
-
-		val request = permissionRequestList.removeAt(index).second
-		val result = PermissionRequestResult.newFromResult(permissions, grantResults, request)
-		request.resultCallback.invoke(result)
-	}
+	private val permissionLauncher: ActivityResultLauncher<Array<String>> = 
+		registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+			val request = currentPermissionRequest ?: return@registerForActivityResult
+			currentPermissionRequest = null
+			
+			val permissionArray = permissions.keys.toTypedArray()
+			val grantResults = permissions.values.map { if (it) 0 else -1 }.toIntArray()
+			
+			val result = PermissionRequestResult.newFromResult(permissionArray, grantResults, request)
+			request.resultCallback.invoke(result)
+		}
 
 	/**
-	 * Simplifies permission requests to allow for better callbacks.
+	 * Simplifies permission requests to allow for better callbacks using modern Activity Result API.
 	 */
 	@Synchronized
 	fun requestPermissions(request: PermissionRequest) {
 		require(request.permissionList.isNotEmpty())
+		require(currentPermissionRequest == null) { "Another permission request is already in progress" }
 
-		val id = ++lastPermissionRequestId
-
-		permissionRequestList.add(id to request)
-		PermissionManager.checkPermissionsWithRationaleDialog(request)
+		currentPermissionRequest = request
+		
+		// Use PermissionManager for rationale dialog, but handle result with modern API
+		val requestWithModernCallback = PermissionRequest.from(request)
+			.onResult { _ ->
+				// Launch the permission request using Activity Result API
+				val permissionNames = request.permissionList.map { it.name }.toTypedArray()
+				permissionLauncher.launch(permissionNames)
+			}
+			.build()
+		
+		PermissionManager.checkPermissionsWithRationaleDialog(requestWithModernCallback)
 	}
 }
