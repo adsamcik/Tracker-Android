@@ -8,15 +8,45 @@ import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
  */
 internal object NormalizationPolicy {
 
+    // Coverage thresholds for adaptive processing
+    private const val LOW_COVERAGE_THRESHOLD = 0.05f
+    private const val MEDIUM_COVERAGE_THRESHOLD = 0.15f
+    private const val BLUR_COVERAGE_THRESHOLD = 0.25f
+    
+    // Zoom-based percentile selection
+    private const val LOW_ZOOM_THRESHOLD = 10
+    private const val MID_ZOOM_THRESHOLD = 13
+    
+    // Base percentiles for different scenarios
+    private const val BASE_PERCENTILE_LOW_ZOOM = 0.90f
+    private const val PERCENTILE_LOW_COVERAGE_MID_ZOOM = 0.92f
+    private const val PERCENTILE_LOW_COVERAGE_HIGH_ZOOM = 0.96f
+    private const val PERCENTILE_MED_COVERAGE_MID_ZOOM = 0.95f
+    private const val PERCENTILE_MED_COVERAGE_HIGH_ZOOM = 0.98f
+    private const val PERCENTILE_HIGH_COVERAGE_MID_ZOOM = 0.95f
+    private const val PERCENTILE_HIGH_COVERAGE_HIGH_ZOOM = 0.985f
+    
+    // Blur radius settings
+    private const val BLUR_RADIUS_LOW_COVERAGE = 2
+    private const val BLUR_RADIUS_MEDIUM_COVERAGE = 1
+    private const val BLUR_RADIUS_HIGH_COVERAGE = 0
+    
+    // Cutoff thresholds
+    private const val CUTOFF_LOW_COVERAGE = 0.02f
+    private const val CUTOFF_HIGH_COVERAGE = 0.01f
+    
+    // EMA smoothing parameters
+    private const val DEFAULT_SMOOTHING_TAU_MS = 800f
+
     /**
      * Choose percentile based on zoom and tile coverage (fraction of active pixels).
      * Higher zoom and lower coverage push percentile higher to preserve contrast.
      */
     fun percentileFor(zoom: Int, coverage: Float): Float = when {
-        zoom <= 10 -> 0.90f
-        coverage < 0.05f -> if (zoom <= 13) 0.92f else 0.96f
-        coverage < 0.15f -> if (zoom <= 13) 0.95f else 0.98f
-        else -> if (zoom <= 13) 0.95f else 0.985f
+        zoom <= LOW_ZOOM_THRESHOLD -> BASE_PERCENTILE_LOW_ZOOM
+        coverage < LOW_COVERAGE_THRESHOLD -> if (zoom <= MID_ZOOM_THRESHOLD) PERCENTILE_LOW_COVERAGE_MID_ZOOM else PERCENTILE_LOW_COVERAGE_HIGH_ZOOM
+        coverage < MEDIUM_COVERAGE_THRESHOLD -> if (zoom <= MID_ZOOM_THRESHOLD) PERCENTILE_MED_COVERAGE_MID_ZOOM else PERCENTILE_MED_COVERAGE_HIGH_ZOOM
+        else -> if (zoom <= MID_ZOOM_THRESHOLD) PERCENTILE_HIGH_COVERAGE_MID_ZOOM else PERCENTILE_HIGH_COVERAGE_HIGH_ZOOM
     }
 
     /**
@@ -47,7 +77,7 @@ internal object NormalizationPolicy {
         previousTimeMs: Long?,
         raw: Float,
         nowMs: Long,
-        tauMs: Float = 800f
+        tauMs: Float = DEFAULT_SMOOTHING_TAU_MS
     ): Pair<Float, Long> {
         if (previous == null || previousTimeMs == null) return raw to nowMs
         val dt = (nowMs - previousTimeMs).coerceAtLeast(0L).toFloat()
@@ -58,11 +88,79 @@ internal object NormalizationPolicy {
 
     /** Default blur radius heuristic based on active coverage fraction. */
     fun blurRadiusFor(coverage: Float): Int = when {
-        coverage < 0.10f -> 2
-        coverage < 0.25f -> 1
-        else -> 0
+        coverage < LOW_COVERAGE_THRESHOLD -> BLUR_RADIUS_LOW_COVERAGE
+        coverage < BLUR_COVERAGE_THRESHOLD -> BLUR_RADIUS_MEDIUM_COVERAGE
+        else -> BLUR_RADIUS_HIGH_COVERAGE
     }
 
     /** Default cutoff threshold in normalized [0,1] based on coverage. */
-    fun cutoffFor(coverage: Float): Float = if (coverage < 0.25f) 0.02f else 0.01f
+    fun cutoffFor(coverage: Float): Float = if (coverage < BLUR_COVERAGE_THRESHOLD) CUTOFF_LOW_COVERAGE else CUTOFF_HIGH_COVERAGE
+
+    /** Separable Gaussian blur on a float buffer using pooled scratch arrays. */
+    fun gaussianBlur(src: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
+        if (radius <= 0) return src
+        val sigma = radius / 1.5f
+        val kernelRadius = radius
+        val kernelSize = kernelRadius * 2 + 1
+        val kernel = FloatArray(kernelSize)
+        var sum = 0f
+        var i = -kernelRadius
+        var kIndex = 0
+        while (i <= kernelRadius) {
+            val v = kotlin.math.exp(-(i * i) / (2f * sigma * sigma))
+            kernel[kIndex++] = v
+            sum += v
+            i++
+        }
+        var j = 0
+        while (j < kernelSize) { kernel[j] /= sum; j++ }
+
+        val arraySize = w * h
+        val tmp = com.adsamcik.tracker.map.heatmap.ScratchBufferPool.acquire(arraySize)
+        val out = com.adsamcik.tracker.map.heatmap.ScratchBufferPool.acquire(arraySize)
+
+        try {
+            // Horizontal
+            var y = 0
+            while (y < h) {
+                val row = y * w
+                var x = 0
+                while (x < w) {
+                    var acc = 0f
+                    var k = 0
+                    var xi = x - kernelRadius
+                    while (k < kernelSize) {
+                        val xc = if (xi < 0) 0 else if (xi >= w) w - 1 else xi
+                        acc += src[row + xc] * kernel[k]
+                        k++; xi++
+                    }
+                    tmp[row + x] = acc
+                    x++
+                }
+                y++
+            }
+            // Vertical
+            var x = 0
+            while (x < w) {
+                var y2 = 0
+                while (y2 < h) {
+                    var acc = 0f
+                    var k = 0
+                    var yi = y2 - kernelRadius
+                    while (k < kernelSize) {
+                        val yc = if (yi < 0) 0 else if (yi >= h) h - 1 else yi
+                        acc += tmp[yc * w + x] * kernel[k]
+                        k++; yi++
+                    }
+                    out[y2 * w + x] = acc
+                    y2++
+                }
+                x++
+            }
+            return out.copyOf()
+        } finally {
+            com.adsamcik.tracker.map.heatmap.ScratchBufferPool.release(tmp)
+            com.adsamcik.tracker.map.heatmap.ScratchBufferPool.release(out)
+        }
+    }
 }
