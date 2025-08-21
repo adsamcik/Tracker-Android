@@ -53,14 +53,12 @@ internal class AgeWeightedHeatmap(
     val width: Int,
     val height: Int = width,
     val ageThreshold: Int = AGE_THRESHOLD_MINUTES * Time.MINUTE_IN_SECONDS.toInt(),
-    var maxHeat: Float = 0f,
-    var dynamicHeat: Boolean = true
+    var maxHeat: Float = 0f
 ) {
-    // width * height * (1+4+4+4 = 13 bytes) total array size ~= 0.85MB for 256*256 tiles
+    // width * height * (1+4+4 = 9 bytes) total array size ~= 0.65MB for 256*256 tiles
     private val alphaArray: UByteArray = UByteArray(width * height)
     private val weightArray: FloatArray = FloatArray(width * height)
     private val ageArray: IntArray = IntArray(width * height) { -ageThreshold }
-    private val lastValueArray: FloatArray = FloatArray(width * height)
 
     private var pointCount = 0
 
@@ -147,7 +145,6 @@ internal class AgeWeightedHeatmap(
                         val decayedWeight = weightValue * decay
                         val merged = weightMergeFunction(decayedWeight, alphaValue, baseStampValue, weight)
                         weightArray[heatIndex] = merged
-                        lastValueArray[heatIndex] = merged - decayedWeight
 
                         alphaArray[heatIndex] = newAlphaValue.coerceIn(EMPTY_COMPONENT, FULL_COMPONENT).toUByte()
                         ageArray[heatIndex] = ageInSeconds
@@ -155,18 +152,17 @@ internal class AgeWeightedHeatmap(
                         // Older sample arriving after a newer one: forward-decay the new contribution to stored time
                         val forwardDecay = exp(dt.toFloat() / tau) // dt < 0 -> factor in (0,1]
 
-                        // Keep existing alpha; add new contribution scaled by forwardDecay
-                        val newAlphaValue = alphaMergeFunction(alphaValue, baseStampValue, weight)
-                        assertWithin(newAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
+                        // Keep existing alpha; only weight contribution is scaled by forwardDecay
+                        val keptAlphaValue = alphaValue
+                        assertWithin(keptAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
 
                         // Do not decay existing weight, only scale the incoming contribution to current timestamp
-                        val decayedWeight = weightValue
-                        val merged = weightMergeFunction(decayedWeight, alphaValue, baseStampValue, weight)
+                        val base = weightValue
+                        val merged = weightMergeFunction(base, alphaValue, baseStampValue, weight * forwardDecay)
                         weightArray[heatIndex] = merged
-                        lastValueArray[heatIndex] = merged - decayedWeight
 
-                        alphaArray[heatIndex] = newAlphaValue.coerceIn(EMPTY_COMPONENT, FULL_COMPONENT).toUByte()
-                        // Keep the more recent timestamp to maintain consistent reference time
+                        // Preserve alpha and timestamp (the newer time already stored)
+                        alphaArray[heatIndex] = keptAlphaValue.coerceIn(EMPTY_COMPONENT, FULL_COMPONENT).toUByte()
                         ageArray[heatIndex] = valueAge
                     }
                 }
@@ -293,13 +289,15 @@ internal class AgeWeightedHeatmap(
     /**
      * Build a normalized value buffer [0,1] from current weights using [saturation], applying [transform].
      * This mirrors the normalization in renderSaturated but returns floats for post-processing.
+     * Uses pooled scratch buffer to reduce allocations.
      */
     fun buildNormalizedBuffer(
         saturation: Float,
         transform: (Float) -> Float = { it }
     ): FloatArray {
-        val out = FloatArray(width * height)
-        if (pointCount == 0) return out
+        val arraySize = width * height
+        val out = com.adsamcik.tracker.map.heatmap.ScratchBufferPool.acquire(arraySize)
+        if (pointCount == 0) return out.copyOf()
         val sat = if (saturation > 0f) saturation else 1f
         var index = 0
         for (y in 0 until height) {
@@ -310,7 +308,34 @@ internal class AgeWeightedHeatmap(
                 index++
             }
         }
-        return out
+        val result = out.copyOf()
+        com.adsamcik.tracker.map.heatmap.ScratchBufferPool.release(out)
+        return result
+    }
+
+    /**
+     * Build a normalized value buffer [0,1] using a pooled buffer to avoid copies.
+     * Returns an OwnedFloatBuffer that must be closed to return the buffer to the pool.
+     * Use this for performance-critical paths where intermediate copies aren't needed.
+     */
+    fun buildNormalizedBufferOwned(
+        saturation: Float,
+        transform: (Float) -> Float = { it }
+    ): com.adsamcik.tracker.map.heatmap.OwnedFloatBuffer {
+        val arraySize = width * height
+        val owned = com.adsamcik.tracker.map.heatmap.OwnedFloatBuffer.acquire(arraySize)
+        if (pointCount == 0) return owned
+        val sat = if (saturation > 0f) saturation else 1f
+        var index = 0
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val v = weightArray[index]
+                val n = (min(v, sat) / sat)
+                owned.data[index] = transform(n)
+                index++
+            }
+        }
+        return owned
     }
 
     /**

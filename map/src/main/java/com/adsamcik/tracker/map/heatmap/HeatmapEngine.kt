@@ -7,6 +7,7 @@ import android.graphics.Rect
 import androidx.core.graphics.scale
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
+import com.adsamcik.tracker.map.heatmap.ReadOnlyHeatmap
 import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
@@ -16,17 +17,15 @@ import kotlin.math.floor
  
 
 @ExperimentalUnsignedTypes
-internal class HeatmapTile(
+internal class HeatmapEngine(
 	val data: HeatmapTileData
 ) {
-	private val renderPolicy: RenderPolicy = data.renderPolicy ?: DefaultRenderPolicy
     private val paddedSize = data.heatmapSize + data.pad * 2
 	private val heatmap = AgeWeightedHeatmap(
 		paddedSize,
 		paddedSize,
 		data.config.ageThreshold,
-		data.config.maxHeat,
-		data.config.dynamicHeat
+		data.config.maxHeat
 	)
 
 	private val tileCount: Int = MapFunctions.getTileCount(data.zoom)
@@ -39,6 +38,8 @@ internal class HeatmapTile(
 		get() = heatmap.maxHeat
 		set(value) {
 			heatmap.maxHeat = value
+			// Changing maxHeat affects normalization; drop cached render context
+			renderContext = null
 		}
 
 	fun addAll(list: List<TimeLocation2DWeighted>) {
@@ -59,22 +60,31 @@ internal class HeatmapTile(
 
 	fun add(location: TimeLocation2DWeighted, minTime: Long) {
 	renderContext = null
-		val tx = MapFunctions.toTileX(location.longitude, tileCount)
-		val ty = MapFunctions.toTileY(location.latitude, tileCount)
-	// Seam-safe binning: prefer floor with a tiny epsilon to avoid border double-hits
-	val eps = 1e-6
-	val x = floor(((tx - data.x) * data.heatmapSize) - eps).toInt() + data.pad
-	val y = floor(((ty - data.y) * data.heatmapSize) - eps).toInt() + data.pad
+		// Seam-safe mapping via shared helper
+		val x = HeatmapMapping.lonToX(
+			lon = location.longitude,
+			tileCount = tileCount,
+			tileStartX = data.x,
+			heatmapSize = data.heatmapSize,
+			pad = data.pad
+		)
+		val y = HeatmapMapping.latToY(
+			lat = location.latitude,
+			tileCount = tileCount,
+			tileStartY = data.y,
+			heatmapSize = data.heatmapSize,
+			pad = data.pad
+		)
 
 		val ageInSeconds = ((location.time - minTime) / Time.SECOND_IN_MILLISECONDS).toInt()
 
 		val stamp = data.stampProvider?.invoke(location) ?: data.stamp
 
-		val weightPolicy = data.config.weightPolicy
-		val effectiveWeight = if (weightPolicy != null) {
-			val base = location.normalizedWeight.toFloat()
-			weightPolicy(base, heatmap, x, y, ageInSeconds)
-		} else location.normalizedWeight.toFloat()
+		val base = location.normalizedWeight.toFloat()
+		val ro: ReadOnlyHeatmap = object : ReadOnlyHeatmap {
+			override fun weightAt(x: Int, y: Int): Float = heatmap.weightAt(x, y)
+		}
+		val effectiveWeight = data.config.weightPolicyRo?.invoke(base, ro, x, y, ageInSeconds) ?: base
 
 		heatmap.addPoint(
 			x,
@@ -118,9 +128,9 @@ internal class HeatmapTile(
 
 		val normalized = heatmap.buildNormalizedBuffer(saturation) { data.config.valueCurve?.invoke(it) ?: it }
 		val coverage = preCoverage
-		val blurRadius = renderPolicy.blurRadiusFor(coverage)
-		val blurred = if (blurRadius > 0) gaussianBlur(normalized, paddedSize, paddedSize, radius = blurRadius) else normalized
-		val cutoff = renderPolicy.cutoffFor(coverage)
+	val blurRadius = NormalizationPolicy.blurRadiusFor(coverage)
+		val blurred = if (blurRadius > 0) NormalizationPolicy.gaussianBlur(normalized, paddedSize, paddedSize, radius = blurRadius) else normalized
+	val cutoff = NormalizationPolicy.cutoffFor(coverage)
 		val adjusted: FloatArray = run {
 			var anyNonZero = false
 			val out = FloatArray(blurred.size)
@@ -140,6 +150,31 @@ internal class HeatmapTile(
 		return adjusted to coverage
 	}
 
+	// Public rendering interface
+	fun renderNormalized(): Pair<FloatArray, RenderMetadata> {
+		val (adjusted, coverage) = computeAdjustedNormalized()
+		val ctx = renderContext ?: throw IllegalStateException("Render context should be available after computeAdjustedNormalized")
+		val metadata = RenderMetadata(
+			coverage = coverage,
+			saturation = ctx.saturation,
+			blurRadius = NormalizationPolicy.blurRadiusFor(coverage),
+			cutoff = NormalizationPolicy.cutoffFor(coverage)
+		)
+		return adjusted to metadata
+	}
+
+	fun renderColors(): IntArray {
+		val (adjusted, _) = computeAdjustedNormalized()
+		return heatmap.renderFromNormalized(
+			data.config.colorScheme,
+			adjusted,
+			alphaFromNormalized = data.config.alphaFromNormalized,
+			opacity = data.config.opacity
+		)
+	}
+
+	fun renderCroppedColors(): IntArray = buildCroppedColorArray()
+
 	internal fun buildCroppedColorArray(): IntArray {
 		val (adjusted, _) = computeAdjustedNormalized()
 		val full = heatmap.renderFromNormalized(
@@ -148,15 +183,14 @@ internal class HeatmapTile(
 			alphaFromNormalized = data.config.alphaFromNormalized,
 			opacity = data.config.opacity
 		)
-		// Crop to center window (remove pad)
+		// Crop to center window (remove pad) using row copy for speed
 		val out = IntArray(data.heatmapSize * data.heatmapSize)
 		var di = 0
 		for (y in 0 until data.heatmapSize) {
 			val sy = y + data.pad
 			val si = sy * paddedSize + data.pad
-			for (x in 0 until data.heatmapSize) {
-				out[di++] = full[si + x]
-			}
+			java.lang.System.arraycopy(full, si, out, di, data.heatmapSize)
+			di += data.heatmapSize
 		}
 		return out
 	}
@@ -213,58 +247,19 @@ internal class HeatmapTile(
 		}
 	}
 
-	// Simple separable Gaussian blur on a float buffer
-	private fun gaussianBlur(src: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
-		if (radius <= 0) return src
-		val sigma = radius / 1.5f
-		val kernelRadius = radius
-		val kernelSize = kernelRadius * 2 + 1
-		val kernel = FloatArray(kernelSize)
-		var sum = 0f
-		for (i in -kernelRadius..kernelRadius) {
-			val v = kotlin.math.exp(-(i * i) / (2f * sigma * sigma))
-			kernel[i + kernelRadius] = v
-			sum += v
-		}
-		for (i in 0 until kernelSize) kernel[i] /= sum
-
-		val tmp = FloatArray(w * h)
-		val out = FloatArray(w * h)
-
-		// Horizontal
-		for (y in 0 until h) {
-			val row = y * w
-			for (x in 0 until w) {
-				var acc = 0f
-				var k = 0
-				var xi = x - kernelRadius
-				while (k < kernelSize) {
-					val xc = xi.coerceIn(0, w - 1)
-					acc += src[row + xc] * kernel[k]
-					k++; xi++
-				}
-				tmp[row + x] = acc
-			}
-		}
-		// Vertical
-		for (x in 0 until w) {
-			for (y in 0 until h) {
-				var acc = 0f
-				var k = 0
-				var yi = y - kernelRadius
-				while (k < kernelSize) {
-					val yc = yi.coerceIn(0, h - 1)
-					acc += tmp[yc * w + x] * kernel[k]
-					k++; yi++
-				}
-				out[y * w + x] = acc
-			}
-		}
-		return out
-	}
+	// gaussianBlur moved to NormalizationPolicy
 
 	companion object {
 		const val BASE_HEATMAP_SIZE: Int = 128
 	}
 }
 
+/**
+ * Metadata about the rendering process.
+ */
+internal data class RenderMetadata(
+    val coverage: Float,
+    val saturation: Float,
+    val blurRadius: Int,
+    val cutoff: Float
+)

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.map.heatmap.creators
 
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.RenderPolicy
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 
@@ -22,7 +21,5 @@ internal data class HeatmapTileData(
     // Overscan padding (in heatmap pixels) added on each side; helps avoid edge clipping of stamps
     val pad: Int = 0,
     // Optional override for saturation (normalization max). If null, tile computes its own percentile.
-    val saturationOverride: Float? = null,
-    // Optional per-layer render policy; defaults to built-in if not provided.
-    val renderPolicy: RenderPolicy? = null
+    val saturationOverride: Float? = null
 )
