@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.preference.activity
 
 import android.os.Bundle
+import androidx.activity.OnBackPressedCallback
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
@@ -38,6 +39,16 @@ class SettingsActivity : DetailActivity(),
 
 	private lateinit var pageList: Map<String, PreferencePage>
 
+	private val onBackPressedCallback = object : OnBackPressedCallback(true) {
+		override fun handleOnBackPressed() {
+			if (!pop()) {
+				// Disable this callback and let the default back handling take over
+				isEnabled = false
+				onBackPressedDispatcher.onBackPressed()
+			}
+		}
+	}
+
 	override fun onConfigure(configuration: Configuration) {
 		configuration.apply {
 			elevation = 4.dp
@@ -48,6 +59,9 @@ class SettingsActivity : DetailActivity(),
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// Register back pressed callback
+		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
 		createLinearContentParent(false)
 
@@ -108,12 +122,6 @@ class SettingsActivity : DetailActivity(),
 				e.printStackTrace()
 			}
 		}
-	}
-
-	@Deprecated("deprecated in android")
-	@Suppress("DEPRECATION")
-	override fun onBackPressed() {
-		if (!pop()) super.onBackPressed()
 	}
 
 	private fun pop(): Boolean {
