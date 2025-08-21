@@ -50,19 +50,9 @@ class HeatmapTileSeamTest {
     val lonRight = MapFunctions.toLon(tileX + 1.0 + halfPixel, zoom)
     val latMid = MapFunctions.toLat(tileY + 0.5, zoom)
 
-        fun mappedX(lon: Double, tileStartX: Int): Int {
-            val tileCount = MapFunctions.getTileCount(zoom)
-            val tx = MapFunctions.toTileX(lon, tileCount)
-            val eps = 1e-6
-            return kotlin.math.floor(((tx - tileStartX) * heatmapSize) - eps).toInt() + pad
-        }
-
-        fun mappedY(lat: Double, tileStartY: Int): Int {
-            val tileCount = MapFunctions.getTileCount(zoom)
-            val ty = MapFunctions.toTileY(lat, tileCount)
-            val eps = 1e-6
-            return kotlin.math.floor(((ty - tileStartY) * heatmapSize) - eps).toInt() + pad
-        }
+        val tileCount = MapFunctions.getTileCount(zoom)
+        fun mappedX(lon: Double, tileStartX: Int): Int = HeatmapMapping.lonToX(lon, tileCount, tileStartX, heatmapSize, pad)
+        fun mappedY(lat: Double, tileStartY: Int): Int = HeatmapMapping.latToY(lat, tileCount, tileStartY, heatmapSize, pad)
 
         val xLeft = mappedX(lonLeft, tileX)
         val yLeft = mappedY(latMid, tileY)
@@ -73,15 +63,13 @@ class HeatmapTileSeamTest {
             width = paddedSize,
             height = paddedSize,
             ageThreshold = 60,
-            maxHeat = 100f,
-            dynamicHeat = false
+            maxHeat = 100f
         )
         val right = AgeWeightedHeatmap(
             width = paddedSize,
             height = paddedSize,
             ageThreshold = 60,
-            maxHeat = 100f,
-            dynamicHeat = false
+            maxHeat = 100f
         )
 
         // Same point added into both heatmaps in their local coordinates

@@ -25,8 +25,7 @@ class NormalizationPolicyTest {
             width = 32,
             height = 32,
             ageThreshold = 60,
-            maxHeat = 0f,
-            dynamicHeat = false
+            maxHeat = 0f
         )
         // Empty -> fallback positive saturation
         val pEmpty = NormalizationPolicy.robustPercentile(hm, 0.95f)

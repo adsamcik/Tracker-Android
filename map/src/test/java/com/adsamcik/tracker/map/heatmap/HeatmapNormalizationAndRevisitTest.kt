@@ -12,8 +12,7 @@ class HeatmapNormalizationAndRevisitTest {
             width = size,
             height = size,
             ageThreshold = 60,
-            maxHeat = 100f,
-            dynamicHeat = false
+            maxHeat = 100f
         )
         val stamp = HeatmapStamp.generateGaussian(radius = 3)
         val cx = size / 2

@@ -16,8 +16,7 @@ class HeatmapGenerationTest {
 
     private fun config(opacity: Float = 1f): HeatmapConfig = HeatmapConfig(
         colorScheme = HeatmapColorScheme.viridis(),
-        maxHeat = 100f,
-        dynamicHeat = false,
+    maxHeat = 100f,
         ageThreshold = 60,
         weightMergeFunction = { cur, _, sv, v -> cur + sv * v },
         alphaMergeFunction = { cur, sv, w ->
@@ -27,8 +26,7 @@ class HeatmapGenerationTest {
         },
         valueCurve = { it },
     alphaFromNormalized = true,
-    opacity = opacity,
-    weightPolicy = null
+    opacity = opacity
     )
 
     private fun alphaAt(buf: IntArray, w: Int, x: Int, y: Int): Int {
@@ -55,7 +53,7 @@ class HeatmapGenerationTest {
             area = CoordinateBounds(0.0, 0.0, 0.0, 0.0),
             pad = pad
         )
-        val tile = HeatmapTile(data)
+        val tile = HeatmapEngine(data)
 
         val lat = MapFunctions.toLat(tileY + 0.5, zoom)
         val lon = MapFunctions.toLon(tileX + 0.5, zoom)
@@ -115,7 +113,7 @@ class HeatmapGenerationTest {
             area = CoordinateBounds(0.0, 0.0, 0.0, 0.0),
             pad = pad
         )
-        val tile = HeatmapTile(data)
+        val tile = HeatmapEngine(data)
 
         val cLat = MapFunctions.toLat(tileY + 0.5, zoom)
         val cLon = MapFunctions.toLon(tileX + 0.5, zoom)
@@ -128,9 +126,7 @@ class HeatmapGenerationTest {
         // Project expected x positions in cropped space
         val tileCount = MapFunctions.getTileCount(zoom)
         fun mapX(lon: Double): Int {
-            val tx = MapFunctions.toTileX(lon, tileCount)
-            val eps = 1e-6
-            val x = floor(((tx - tileX) * heatmapSize) - eps).toInt() + pad
+            val x = HeatmapMapping.lonToX(lon, tileCount, tileX, heatmapSize, pad)
             return (x - pad).coerceIn(0, heatmapSize-1)
         }
         val x1 = mapX(p1.longitude)
@@ -168,7 +164,7 @@ class HeatmapGenerationTest {
             area = CoordinateBounds(0.0, 0.0, 0.0, 0.0),
             pad = pad
         )
-        val tile = HeatmapTile(data)
+        val tile = HeatmapEngine(data)
 
         // Place at 0.7, 0.3 within the tile
         val lat = MapFunctions.toLat(tileY + 0.3, zoom)
@@ -178,13 +174,10 @@ class HeatmapGenerationTest {
 
         val colors = tile.buildCroppedColorArray()
 
-        // Expected pixel (cropped) using same mapping as HeatmapTile.add
+        // Expected pixel (cropped) using same mapping as HeatmapEngine.add
         val tileCount = MapFunctions.getTileCount(zoom)
-        val tx = MapFunctions.toTileX(lon, tileCount)
-        val ty = MapFunctions.toTileY(lat, tileCount)
-        val eps = 1e-6
-        val px = floor(((tx - tileX) * heatmapSize) - eps).toInt()
-        val py = floor(((ty - tileY) * heatmapSize) - eps).toInt()
+        val px = HeatmapMapping.lonToX(lon, tileCount, tileX, heatmapSize, 0) // no pad for cropped coordinates
+        val py = HeatmapMapping.latToY(lat, tileCount, tileY, heatmapSize, 0) // no pad for cropped coordinates
 
         // Argmax
         var maxA = -1

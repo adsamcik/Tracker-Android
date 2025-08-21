@@ -69,8 +69,7 @@ class HeatmapTilePipelineTest {
             width = padded,
             height = padded,
             ageThreshold = 60,
-            maxHeat = 100f,
-            dynamicHeat = false
+            maxHeat = 100f
         )
 
         val now = 1_000_000L
@@ -82,15 +81,8 @@ class HeatmapTilePipelineTest {
 
         val minTime = pts.minOf { it.time }
         val tileCount = MapFunctions.getTileCount(zoom)
-        val eps = 1e-6
-        fun mapX(lon: Double): Int {
-            val tx = MapFunctions.toTileX(lon, tileCount)
-            return kotlin.math.floor(((tx - tileX) * heatmapSize) - eps).toInt() + pad
-        }
-        fun mapY(lat: Double): Int {
-            val ty = MapFunctions.toTileY(lat, tileCount)
-            return kotlin.math.floor(((ty - tileY) * heatmapSize) - eps).toInt() + pad
-        }
+        fun mapX(lon: Double): Int = HeatmapMapping.lonToX(lon, tileCount, tileX, heatmapSize, pad)
+        fun mapY(lat: Double): Int = HeatmapMapping.latToY(lat, tileCount, tileY, heatmapSize, pad)
 
         // Deposit points
         pts.sortedBy { it.time }.forEach { loc ->
@@ -121,7 +113,7 @@ class HeatmapTilePipelineTest {
         val saturation = if (localP > 0f) localP else 1f
 
         val normalized = heat.buildNormalizedBuffer(saturation)
-        val blurred = if (coverage < 0.25f) gaussianBlur(normalized, padded, padded, radius = 2) else normalized
+    val blurred = if (coverage < 0.25f) gaussianBlur(normalized, padded, padded, radius = 2) else normalized
 
         val cutoff = if (coverage < 0.25f) 0.02f else 0.01f
         var anyNonZero = false
