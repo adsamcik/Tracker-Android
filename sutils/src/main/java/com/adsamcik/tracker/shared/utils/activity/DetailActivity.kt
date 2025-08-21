@@ -10,6 +10,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.annotation.CallSuper
 import androidx.annotation.DrawableRes
 import androidx.annotation.LayoutRes
@@ -44,6 +45,12 @@ abstract class DetailActivity : CoreUIActivity() {
 	private val topPanelRoot: ViewGroup by lazy { findViewById(R.id.top_panel_root) }
 	private val contentDetailRoot: ViewGroup by lazy { findViewById(R.id.content_detail_root) }
 
+	private val onBackPressedCallback = object : OnBackPressedCallback(true) {
+		override fun handleOnBackPressed() {
+			finish()
+		}
+	}
+
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
 		val configuration = Configuration()
@@ -51,6 +58,9 @@ abstract class DetailActivity : CoreUIActivity() {
 		super.onCreate(savedInstanceState)
 
 		setContentView(R.layout.activity_content_detail)
+
+		// Register back pressed callback
+		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
 		styleController.watchNotificationBar(
 				SystemBarStyleView(
@@ -77,8 +87,7 @@ abstract class DetailActivity : CoreUIActivity() {
 		//styleController.updateOnce(StyleView(contentDetailRoot, 0), allowRecycler = false)
 
 		findViewById<View>(R.id.back_button).setOnClickListener { 
-			@Suppress("DEPRECATION")
-			onBackPressed() 
+			onBackPressedDispatcher.onBackPressed()
 		}
 
 
@@ -111,13 +120,6 @@ abstract class DetailActivity : CoreUIActivity() {
 			}
 
 		}
-	}
-
-	@Deprecated("deprecated in android")
-	@Suppress("DEPRECATION")
-	override fun onBackPressed() {
-        super.onBackPressed()
-        finish()
 	}
 
 	/**
