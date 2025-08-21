@@ -8,7 +8,7 @@ import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.graphics.BitmapPool
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.HeatmapTile
+import com.adsamcik.tracker.map.heatmap.HeatmapEngine
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
 import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
@@ -157,14 +157,13 @@ internal abstract class HeatmapTileProviderBase(
         val config = HeatmapConfig(
             colorScheme = spec.colorScheme,
             maxHeat = spec.maxHeat,
-            dynamicHeat = false,
             ageThreshold = spec.ageThresholdSec,
             weightMergeFunction = spec.weightMerge,
             alphaMergeFunction = spec.alphaMerge,
             valueCurve = spec.valueCurve,
             alphaFromNormalized = spec.alphaFromNormalized,
             opacity = spec.opacity,
-            weightPolicy = spec.weightPolicy
+            weightPolicyRo = spec.weightPolicyRo
         )
 
         val data = HeatmapTileData(
@@ -184,11 +183,10 @@ internal abstract class HeatmapTileProviderBase(
             zoom = zoom,
             area = area,
             pad = pad,
-            saturationOverride = saturationOverride,
-            renderPolicy = spec.renderPolicy
+            saturationOverride = saturationOverride
         )
 
-    val tile = HeatmapTile(data)
+    val tile = HeatmapEngine(data)
     // Sort by time once here; the tile has an addAllSorted to avoid resorting
     val sorted = points.sortedBy { it.time }
     tile.addAllSorted(sorted)

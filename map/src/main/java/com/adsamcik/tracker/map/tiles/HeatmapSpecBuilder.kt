@@ -4,8 +4,8 @@ import com.adsamcik.tracker.map.data.Aggregation
 import com.adsamcik.tracker.map.data.GeoSource
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.RenderPolicy
 import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
+import com.adsamcik.tracker.map.heatmap.ReadOnlyHeatmap
 import com.adsamcik.tracker.map.heatmap.implementation.AlphaMergeFunction
 import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
@@ -42,11 +42,10 @@ internal class HeatmapSpecBuilder {
     }
     var alphaMode: AlphaMode = AlphaMode.FromNormalized(0.9f)
 
-    // Optional per-point weight shaping (revisit/softness policies live here, not in engine)
-    var weightPolicy: ((baseWeight: Float, heatmap: AgeWeightedHeatmap, cx: Int, cy: Int, ageInSeconds: Int) -> Float)? = null
+    var weightPolicyRo: ((baseWeight: Float, heatmap: ReadOnlyHeatmap, cx: Int, cy: Int, ageInSeconds: Int) -> Float)? = null
 
     // Resolution and stamps
-    var heatmapBaseSize: Int = com.adsamcik.tracker.map.heatmap.HeatmapTile.BASE_HEATMAP_SIZE
+    var heatmapBaseSize: Int = com.adsamcik.tracker.map.heatmap.HeatmapEngine.BASE_HEATMAP_SIZE
     var scaleWithQuality: Boolean = true
     var radiusComputer: (zoom: Int, metersPerPixel: Double, hysteresisZoom: Double?) -> RadiusInfo = { _, _, _ -> RadiusInfo(4, 4) }
     var buildStamp: (radius: Int) -> HeatmapStamp = { r -> HeatmapStamp.generateGaussian(r) }
@@ -57,8 +56,6 @@ internal class HeatmapSpecBuilder {
     // Neighborhood normalization
     var neighborNormSize: Int = 64
 
-    // Render policy
-    var renderPolicy: RenderPolicy? = null
 
     fun build(): HeatmapLayerSpec {
         val (alphaFromNormalized, opacity) = when (val m = alphaMode) {
@@ -79,7 +76,7 @@ internal class HeatmapSpecBuilder {
             valueCurve = valueCurve,
             alphaFromNormalized = alphaFromNormalized,
             opacity = opacity,
-            weightPolicy = weightPolicy,
+            weightPolicyRo = weightPolicyRo,
             heatmapBaseSize = heatmapBaseSize,
             scaleWithQuality = scaleWithQuality,
             radiusComputer = radiusComputer,
@@ -87,8 +84,7 @@ internal class HeatmapSpecBuilder {
             dynamicStampProvider = dynamicStampProvider,
             ambientStampProvider = ambientStampProvider,
             ambientWeightScale = ambientWeightScale,
-            neighborNormSize = neighborNormSize,
-            renderPolicy = renderPolicy
+            neighborNormSize = neighborNormSize
         )
     }
 }

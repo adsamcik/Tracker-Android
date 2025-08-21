@@ -4,9 +4,9 @@ import com.adsamcik.tracker.map.data.Aggregation
 import com.adsamcik.tracker.map.data.GeoSource
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.RenderPolicy
 import com.adsamcik.tracker.map.heatmap.implementation.AlphaMergeFunction
 import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
+import com.adsamcik.tracker.map.heatmap.ReadOnlyHeatmap
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
 
 /**
@@ -32,8 +32,7 @@ internal data class HeatmapLayerSpec(
     val alphaFromNormalized: Boolean = true,
     val opacity: Float = 0.9f,
 
-    // Revisit gating and other shaping should be provided via HeatmapConfig.weightPolicy
-    val weightPolicy: ((baseWeight: Float, heatmap: com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap, cx: Int, cy: Int, ageInSeconds: Int) -> Float)? = null,
+    val weightPolicyRo: ((baseWeight: Float, heatmap: ReadOnlyHeatmap, cx: Int, cy: Int, ageInSeconds: Int) -> Float)? = null,
 
     // Heatmap internal resolution
     val heatmapBaseSize: Int,
@@ -49,10 +48,7 @@ internal data class HeatmapLayerSpec(
     val ambientWeightScale: Float = 0f,
 
     // Neighborhood normalization
-    val neighborNormSize: Int = 64,
-
-    // Optional per-layer render policy for blur/cutoff tuning
-    val renderPolicy: RenderPolicy? = null
+    val neighborNormSize: Int = 64
 )
 
 internal data class RadiusInfo(val baseRadius: Int, val maxRadius: Int = baseRadius)

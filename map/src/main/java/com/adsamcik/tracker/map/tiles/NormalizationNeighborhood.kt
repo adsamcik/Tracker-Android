@@ -107,7 +107,7 @@ internal class NormalizationNeighborhood(private val repo: GeoRepository) {
     val stampR = ceil((stampPolicy.baseRadiusPxAtTile * stampPolicy.metersPerPixelAtTile) / pixelMetersNeighbor)
             .toInt().coerceAtLeast(1)
 
-        val tmp = AgeWeightedHeatmap(normSize, normSize, cfg.ageThresholdSec, cfg.maxHeat, false)
+    val tmp = AgeWeightedHeatmap(normSize, normSize, cfg.ageThresholdSec, cfg.maxHeat)
         val stampN = stampPolicy.buildStamp(stampR)
         val minTimeN = neighborAgg.minOf { it.time }
 
