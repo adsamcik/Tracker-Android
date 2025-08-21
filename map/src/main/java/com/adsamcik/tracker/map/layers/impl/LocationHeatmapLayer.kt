@@ -4,7 +4,9 @@ import android.content.Context
 import com.adsamcik.tracker.map.MapConstants
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.HeatmapTile
+import com.adsamcik.tracker.map.heatmap.HeatmapEngine
+import com.adsamcik.tracker.map.heatmap.ValueCurves
+import com.adsamcik.tracker.map.heatmap.implementation.MergePolicies
 import com.adsamcik.tracker.map.data.Aggregation
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoSource
@@ -73,19 +75,11 @@ class LocationHeatmapLayer(
                 maxHeat = DEFAULT_MAX_HEAT
                 ageThresholdSec = DEFAULT_AGE_THRESHOLD_SECONDS
 
-                weightMerge = { current: Float, _: Int, stampValue: Float, value: Float -> current + stampValue * value }
-                alphaMerge = { current: Int, stampValue: Float, weight: Float ->
-                    val a = (current.coerceIn(0, 255)) / 255f
-                    val out = 1f - (1f - a) * (1f - stampValue * weight.coerceIn(0f, 1f))
-                    (out * 255f).toInt().coerceIn(0, 255)
-                }
-                valueCurve = { v ->
-                    val t = 0.65f
-                    val s = v * v * v * (v * (v * 6f - 15f) + 10f)
-                    (1f - t) * v + t * s
-                }
+                weightMerge = MergePolicies.additive
+                alphaMerge = MergePolicies.alphaOver
+                valueCurve = ValueCurves.smoothstep(0.65f)
 
-                heatmapBaseSize = HeatmapTile.BASE_HEATMAP_SIZE
+                heatmapBaseSize = HeatmapEngine.BASE_HEATMAP_SIZE
                 scaleWithQuality = true
                 radiusComputer = { z, metersPerPixel, hZoom ->
                     val targetZoom = hZoom ?: z.toDouble()

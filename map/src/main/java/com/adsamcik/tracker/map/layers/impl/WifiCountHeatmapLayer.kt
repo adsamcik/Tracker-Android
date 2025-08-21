@@ -3,7 +3,9 @@ package com.adsamcik.tracker.map.layers.impl
 import android.content.Context
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.HeatmapTile
+import com.adsamcik.tracker.map.heatmap.HeatmapEngine
+import com.adsamcik.tracker.map.heatmap.ValueCurves
+import com.adsamcik.tracker.map.heatmap.implementation.MergePolicies
 import com.adsamcik.tracker.map.heatmap.creators.APPROXIMATE_DISTANCE_IN_METERS
 import com.adsamcik.tracker.map.heatmap.creators.LOSS_EXPONENT
 import com.adsamcik.tracker.map.heatmap.creators.MAX_WIFI_HEAT
@@ -66,15 +68,11 @@ class WifiCountHeatmapLayer(
                 colorScheme = HeatmapColorScheme.viridis()
                 maxHeat = MAX_WIFI_HEAT
                 ageThresholdSec = DEFAULT_AGE_THRESHOLD_SECONDS
-                weightMerge = { current: Float, _: Int, stampValue: Float, value: Float -> current + stampValue * value }
-                alphaMerge = { current: Int, stampValue: Float, weight: Float -> ((current.toFloat() + stampValue * weight) / 2f).toInt() }
-                valueCurve = { v ->
-                    val t = 0.6f
-                    val s = v * v * v * (v * (v * 6f - 15f) + 10f)
-                    (1f - t) * v + t * s
-                }
+                weightMerge = MergePolicies.additive
+                alphaMerge = MergePolicies.alphaAverageNormalized
+                valueCurve = ValueCurves.smoothstep(0.6f)
 
-                heatmapBaseSize = HeatmapTile.BASE_HEATMAP_SIZE
+                heatmapBaseSize = HeatmapEngine.BASE_HEATMAP_SIZE
                 scaleWithQuality = true
                 radiusComputer = { _, metersPerPixel, _ ->
                     val r = ceil(APPROXIMATE_DISTANCE_IN_METERS / (metersPerPixel / VISUAL_SCALE)).toInt().coerceAtLeast(1)

@@ -5,7 +5,9 @@ import com.adsamcik.tracker.map.MapConstants
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.HeatmapTile
+import com.adsamcik.tracker.map.heatmap.HeatmapEngine
+import com.adsamcik.tracker.map.heatmap.ValueCurves
+import com.adsamcik.tracker.map.heatmap.implementation.MergePolicies
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
 import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
 import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
@@ -74,22 +76,11 @@ class SpeedHeatmapLayer(
                 maxHeat = DEFAULT_MAX_HEAT
                 ageThresholdSec = DEFAULT_AGE_THRESHOLD_SECONDS
 
-                weightMerge = { original: Float, currentAlpha: Int, _: Float, new: Float ->
-                    val alpha = currentAlpha / 255f
-                    (new * (1 - alpha)) + (original * alpha)
-                }
-                alphaMerge = { _: Int, newAlpha: Float, weight: Float ->
-                    val normalizedWeight = weight / DEFAULT_MAX_HEAT
-                    val b = (newAlpha * normalizedWeight).coerceIn(0f, 1f)
-                    (b * 255f).toInt().coerceIn(0, 255)
-                }
-                valueCurve = { v ->
-                    val t = 0.65f
-                    val s = v * v * v * (v * (v * 6f - 15f) + 10f)
-                    (1f - t) * v + t * s
-                }
+                weightMerge = MergePolicies.alphaLerp
+                alphaMerge = MergePolicies.alphaScaledByWeightDiv(DEFAULT_MAX_HEAT)
+                valueCurve = ValueCurves.smoothstep(0.65f)
 
-                heatmapBaseSize = HeatmapTile.BASE_HEATMAP_SIZE
+                heatmapBaseSize = HeatmapEngine.BASE_HEATMAP_SIZE
                 scaleWithQuality = true
                 radiusComputer = { z, metersPerPixel, _ ->
                     val baseMeterSize = BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow((MapConstants.MAX_ZOOM - z).toDouble())
