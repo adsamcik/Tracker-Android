@@ -1,5 +1,6 @@
 repositories {
 	mavenCentral()
+	//noinspection JcenterRepositoryObsolete
 	jcenter {
 		content {
 			includeGroup("com.adsamcik")

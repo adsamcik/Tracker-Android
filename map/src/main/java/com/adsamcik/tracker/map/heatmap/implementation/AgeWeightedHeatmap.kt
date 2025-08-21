@@ -6,7 +6,6 @@ import com.adsamcik.tracker.logger.assertMoreOrEqual
 import com.adsamcik.tracker.logger.assertWithin
 import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
 import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.creators.RevisitEasing
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.withAlpha
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.EMPTY_COMPONENT
@@ -14,7 +13,6 @@ import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.FULL_COMPONE
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 import kotlin.math.roundToInt
 import java.util.Arrays
 
@@ -56,10 +54,7 @@ internal class AgeWeightedHeatmap(
     val height: Int = width,
     val ageThreshold: Int = AGE_THRESHOLD_MINUTES * Time.MINUTE_IN_SECONDS.toInt(),
     var maxHeat: Float = 0f,
-    var dynamicHeat: Boolean = true,
-    var revisitIntervalSec: Int = 0,
-    var revisitEasing: RevisitEasing = RevisitEasing.Smoothstep,
-    var revisitEasingStrength: Float = 3f
+    var dynamicHeat: Boolean = true
 ) {
     // width * height * (1+4+4+4 = 13 bytes) total array size ~= 0.85MB for 256*256 tiles
     private val alphaArray: UByteArray = UByteArray(width * height)
@@ -93,7 +88,7 @@ internal class AgeWeightedHeatmap(
         weight: Float = 1f,
         stamp: HeatmapStamp = HeatmapStamp.default9x9,
         weightMergeFunction: WeightMergeFunction = this::mergeWeightDefault,
-        alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
+    alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
     ) {
         //todo validate that odd numbers don't cause some weird artifacts
         val halfStampHeight = stamp.height / 2
@@ -117,41 +112,15 @@ internal class AgeWeightedHeatmap(
         val x1 = if (x + halfStampWidth < width) stamp.width else halfStampWidth + width - x
         val y1 = if (y + halfStampHeight < height) stamp.height else halfStampHeight + height - y
 
-        // Neighbor-aware density: compute a small local mean around the stamp center
-        val densityRadius = max(2, min(halfStampWidth, halfStampHeight))
-        var densitySum = 0f
-        var densityCount = 0
-        run {
-            val offsets = intArrayOf(-densityRadius, 0, densityRadius)
-            for (dy in offsets) {
-                val sy = (y + dy).coerceIn(0, height - 1)
-                for (dx in offsets) {
-                    val sx = (x + dx).coerceIn(0, width - 1)
-                    val idx = sy * width + sx
-                    densitySum += weightArray[idx]
-                    densityCount++
-                }
-            }
-        }
-        val localMean = if (densityCount > 0) densitySum / densityCount else 0f
-    val denomBase = (maxHeat.takeIf { it > 0f } ?: 1f) * 0.12f
-    var densityGain = if (localMean > 0f) localMean / (localMean + denomBase) else 0f
-    // Ease curve and stronger floor to avoid vanishing in sparse areas
-    densityGain = kotlin.math.sqrt(densityGain)
-    val minGain = 0.45f
-    densityGain = minGain + (1f - minGain) * densityGain
-
         for (itY in y0 until y1) {
             var heatIndex = (y + itY - halfStampHeight) * width + (x + x0) - halfStampWidth
             var stampIndex = itY * stamp.width + x0
             assertMoreOrEqual(stampIndex, 0)
 
             for (itX in x0 until x1) {
-                var stampValue = stamp.stampData[stampIndex]
-                // Light cap to prevent single-sample spikes; keeps blend smoother
-                if (stampValue > 0.95f) stampValue = 0.95f
+                val baseStampValue = stamp.stampData[stampIndex]
 
-                if (stampValue > 0f) {
+                if (baseStampValue > 0f) {
                     val alphaValue = alphaArray[heatIndex].toInt()
                     val weightValue = weightArray[heatIndex]
                     val valueAge = ageArray[heatIndex]
@@ -169,25 +138,14 @@ internal class AgeWeightedHeatmap(
                         // Soften previous alpha by decay and delegate new alpha computation to merge function
                         val decayedAlpha = alphaPercentage * decay
                         val decayedAlphaValue = (decayedAlpha * FULL_COMPONENT).toInt()
-                        val newAlphaValue = alphaMergeFunction(decayedAlphaValue, stampValue, weight)
+                        // Apply optional modulation to stamp value
+                        val newAlphaValue = alphaMergeFunction(decayedAlphaValue, baseStampValue, weight)
 
                         assertWithin(newAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
 
                         // Decay the previous weight and then merge current contribution
                         val decayedWeight = weightValue * decay
-                        // Hotspot softening: compress contributions as pixel approaches saturation
-                        val saturation = (decayedWeight / (maxHeat.takeIf { it > 0f } ?: 1f)).coerceIn(0f, 1f)
-                        val softness = 1f - saturation * saturation // quadratic softening for peaks
-                        // Revisit gating: if a pixel is hit again sooner than revisitIntervalSec, reduce impact smoothly
-                        val revisitFactor = if (revisitIntervalSec > 0) {
-                            val u = (dt.toFloat() / revisitIntervalSec.toFloat()).coerceIn(0f, 1f)
-                            when (revisitEasing) {
-                                RevisitEasing.Smoothstep -> u * u * (3f - 2f * u)
-                                RevisitEasing.Exponential -> 1f - exp(-revisitEasingStrength * u)
-                                RevisitEasing.Power -> u.pow(revisitEasingStrength)
-                            }
-                        } else 1f
-                        val merged = weightMergeFunction(decayedWeight, alphaValue, stampValue * softness * densityGain * revisitFactor, weight)
+                        val merged = weightMergeFunction(decayedWeight, alphaValue, baseStampValue, weight)
                         weightArray[heatIndex] = merged
                         lastValueArray[heatIndex] = merged - decayedWeight
 
@@ -198,23 +156,12 @@ internal class AgeWeightedHeatmap(
                         val forwardDecay = exp(dt.toFloat() / tau) // dt < 0 -> factor in (0,1]
 
                         // Keep existing alpha; add new contribution scaled by forwardDecay
-                        val newAlphaValue = alphaMergeFunction(alphaValue, stampValue * forwardDecay, weight)
+                        val newAlphaValue = alphaMergeFunction(alphaValue, baseStampValue, weight)
                         assertWithin(newAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
 
                         // Do not decay existing weight, only scale the incoming contribution to current timestamp
                         val decayedWeight = weightValue
-                        val saturation = (decayedWeight / (maxHeat.takeIf { it > 0f } ?: 1f)).coerceIn(0f, 1f)
-                        val softness = 1f - saturation * saturation
-                        // Older sample relative to stored time: also apply revisit gating using |dt|
-                        val revisitFactor = if (revisitIntervalSec > 0) {
-                            val u = ((-dt).toFloat() / revisitIntervalSec.toFloat()).coerceIn(0f, 1f)
-                            when (revisitEasing) {
-                                RevisitEasing.Smoothstep -> u * u * (3f - 2f * u)
-                                RevisitEasing.Exponential -> 1f - exp(-revisitEasingStrength * u)
-                                RevisitEasing.Power -> u.pow(revisitEasingStrength)
-                            }
-                        } else 1f
-                        val merged = weightMergeFunction(decayedWeight, alphaValue, stampValue * softness * densityGain * forwardDecay * revisitFactor, weight)
+                        val merged = weightMergeFunction(decayedWeight, alphaValue, baseStampValue, weight)
                         weightArray[heatIndex] = merged
                         lastValueArray[heatIndex] = merged - decayedWeight
 
@@ -230,15 +177,7 @@ internal class AgeWeightedHeatmap(
         }
     }
 
-    private fun calculateRecencyFactor(ageInSeconds: Int, lastAgeInSeconds: Int, ageThreshold: Int): Float {
-        val ageDifference = ageInSeconds - lastAgeInSeconds
-        if (ageDifference < ageThreshold) {
-            val a = ageThreshold.toFloat()
-            val exponent = -(ageDifference / a).pow(2)
-            return exp(exponent)
-        }
-        return 0.0f
-    }
+    // Intentionally no revisit/density/softness policies here; engine remains deterministic.
 
     fun renderDefaultTo(): IntArray = render(HeatmapColorScheme.default)
 
@@ -415,6 +354,12 @@ internal class AgeWeightedHeatmap(
             i++
         }
         return active.toFloat() / total.toFloat()
+    }
+
+    // Read-only helpers for policies outside the engine
+    fun weightAt(x: Int, y: Int): Float {
+        if (x < 0 || y < 0 || x >= width || y >= height) return 0f
+        return weightArray[y * width + x]
     }
 }
 

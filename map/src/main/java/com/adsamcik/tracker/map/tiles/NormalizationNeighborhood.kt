@@ -1,0 +1,140 @@
+package com.adsamcik.tracker.map.tiles
+
+import com.adsamcik.tracker.map.MapFunctions
+import com.adsamcik.tracker.map.data.Aggregation
+import com.adsamcik.tracker.map.data.Bounds
+import com.adsamcik.tracker.map.data.GeoQuery
+import com.adsamcik.tracker.map.data.GeoRepository
+import com.adsamcik.tracker.map.data.GeoSource
+import com.adsamcik.tracker.map.heatmap.HeatmapStamp
+import com.adsamcik.tracker.map.heatmap.NormalizationPolicy
+import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
+import com.adsamcik.tracker.map.heatmap.implementation.AlphaMergeFunction
+import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlin.math.ceil
+import kotlin.math.max
+
+/**
+ * Service that computes neighborhood-based saturation overrides for heatmap tiles.
+ * Encapsulates: building a small temporary heatmap from neighbor aggregates,
+ * percentile selection via NormalizationPolicy, and EMA-based smoothing cache.
+ */
+internal class NormalizationNeighborhood(private val repo: GeoRepository) {
+
+    internal data class Config(
+        val source: GeoSource,
+        val weightColumn: String,
+        val aggregation: Aggregation,
+        val ageThresholdSec: Int,
+        val maxHeat: Float,
+        val weightMerge: WeightMergeFunction,
+        val alphaMerge: AlphaMergeFunction
+    )
+
+    /**
+     * Policy data for stamping in the neighborhood grid.
+     * baseRadiusPxAtTile and metersPerPixelAtTile come from the main tile.
+     */
+    internal data class NormalizationStampPolicy(
+        val baseRadiusPxAtTile: Int,
+        val metersPerPixelAtTile: Double,
+        val buildStamp: (radius: Int) -> HeatmapStamp
+    )
+
+    private var cfg: Config? = null
+
+    fun updateConfig(newConfig: Config) {
+        cfg = newConfig
+    }
+
+    // EMA cache for neighborhood saturation smoothing
+    private data class SatEntry(var p: Float, var t: Long)
+    private val satCache = object : java.util.LinkedHashMap<String, SatEntry>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, SatEntry>?): Boolean = size > 512
+    }
+
+    private fun smoothSaturation(key: String, raw: Float): Float {
+        val now = System.currentTimeMillis()
+        val prev = satCache[key]
+        val (smoothed, ts) = NormalizationPolicy.smoothSaturation(prev?.p, prev?.t, raw, now)
+        if (prev == null) satCache[key] = SatEntry(smoothed, ts) else { prev.p = smoothed; prev.t = ts }
+        return smoothed
+    }
+
+    /**
+     * Compute a saturation override based on a 3x3 neighborhood around the tile.
+     * Returns null if there isn't enough data nearby.
+     */
+    fun computeSaturationOverride(
+        tileKey: String,
+        zoom: Int,
+        bounds3x3: Bounds,
+        normSize: Int,
+        stampPolicy: NormalizationStampPolicy,
+        weightNormalizer: (Double) -> Float
+    ): Float? {
+        val cfg = this.cfg ?: return null
+
+    val nghCellSizeLat = (bounds3x3.north - bounds3x3.south) / normSize
+    val nghCellSizeLon = (bounds3x3.east - bounds3x3.west) / normSize
+
+        // Query aggregated neighbor weights over the 3x3 bounds
+        val neighborAgg = runBlocking(Dispatchers.IO) {
+            repo.queryWeightedAggregated(
+                query = GeoQuery(
+                    source = cfg.source,
+                    bounds = bounds3x3,
+                    timeFrom = null,
+                    timeTo = null
+                ),
+                weightColumn = cfg.weightColumn,
+                aggregation = cfg.aggregation,
+                cellSizeLatDeg = nghCellSizeLat,
+                cellSizeLonDeg = nghCellSizeLon
+            ).first()
+        }
+
+        if (neighborAgg.isEmpty()) return null
+
+        // Map tile-space stamp into neighborhood grid pixels
+        val tileCount = MapFunctions.getTileCount(zoom)
+        val pixelMetersNeighbor = com.adsamcik.tracker.shared.base.extension.LocationExtensions.EARTH_CIRCUMFERENCE.toDouble() /
+            tileCount.toDouble() * 3.0 / normSize.toDouble()
+
+    val stampR = ceil((stampPolicy.baseRadiusPxAtTile * stampPolicy.metersPerPixelAtTile) / pixelMetersNeighbor)
+            .toInt().coerceAtLeast(1)
+
+        val tmp = AgeWeightedHeatmap(normSize, normSize, cfg.ageThresholdSec, cfg.maxHeat, false)
+        val stampN = stampPolicy.buildStamp(stampR)
+        val minTimeN = neighborAgg.minOf { it.time }
+
+        neighborAgg.sortedBy { it.time }.forEach { wv ->
+            val localX = (((wv.lon - bounds3x3.west) / (bounds3x3.east - bounds3x3.west)) * normSize).toInt()
+            // Y increases downward in the grid; top has greater latitude
+            val localY = (((bounds3x3.north - wv.lat) / (bounds3x3.north - bounds3x3.south)) * normSize).toInt()
+
+            // Bound the coordinates into the grid [0, normSize)
+            val xClamped = max(0, minOf(normSize - 1, localX))
+            val yClamped = max(0, minOf(normSize - 1, localY))
+
+            val ageSec = (((wv.time - minTimeN).coerceAtLeast(0L)) / com.adsamcik.tracker.shared.base.Time.SECOND_IN_MILLISECONDS).toInt()
+            tmp.addPoint(
+                xClamped,
+                yClamped,
+                ageSec,
+                weightNormalizer(wv.weight),
+                stampN,
+                cfg.weightMerge,
+                cfg.alphaMerge
+            )
+        }
+
+        val cov = tmp.activeCoverage()
+        val p = NormalizationPolicy.percentileFor(zoom, cov)
+        val rawSat = NormalizationPolicy.robustPercentile(tmp, p).coerceAtLeast(1f)
+        return smoothSaturation(tileKey, rawSat)
+    }
+}

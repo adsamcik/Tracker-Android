@@ -33,6 +33,8 @@ class BitmapPool(
 
     fun release(bitmap: Bitmap?) {
         if (bitmap == null || bitmap.isRecycled) return
+        // Skip immutable bitmaps (can occur if misused from outside)
+        if (!bitmap.isMutable) { bitmap.recycle(); return }
         // Guard against hardware bitmaps or other unsupported configs
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && bitmap.config == Bitmap.Config.HARDWARE) return
         lock.withLock {

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.logger
 
+import android.Manifest
 import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
@@ -10,6 +11,7 @@ import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresPermission
 import androidx.lifecycle.ProcessLifecycleOwner
 import java.io.File
 import java.io.FileOutputStream
@@ -386,27 +388,17 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
         }
     }
     
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun getNetworkTypeSafely(context: Context): String {
         return try {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val network = connectivityManager.activeNetwork
-                val capabilities = connectivityManager.getNetworkCapabilities(network)
-                when {
-                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
-                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile"
-                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "Ethernet"
-                    else -> "Unknown"
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                val activeNetworkInfo = connectivityManager.activeNetworkInfo
-                when (activeNetworkInfo?.type) {
-                    ConnectivityManager.TYPE_WIFI -> "WiFi"
-                    ConnectivityManager.TYPE_MOBILE -> "Mobile"
-                    ConnectivityManager.TYPE_ETHERNET -> "Ethernet"
-                    else -> "Unknown"
-                }
+            val network = connectivityManager.activeNetwork
+            val capabilities = connectivityManager.getNetworkCapabilities(network)
+            when {
+                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
+                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile"
+                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "Ethernet"
+                else -> "Unknown"
             }
         } catch (e: Exception) {
             "Unknown"

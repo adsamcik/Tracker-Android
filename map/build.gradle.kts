@@ -37,6 +37,9 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
     namespace = "com.adsamcik.tracker.map"
 }
 
@@ -78,6 +81,7 @@ dependencies {
 
 	// Tests
 	testImplementation(libs.junit4)
+	testImplementation("org.robolectric:robolectric:4.12.2")
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.coroutines.get()}")
 	testImplementation("org.mockito:mockito-core:5.12.0")
 	testImplementation("org.mockito:mockito-inline:5.2.0")

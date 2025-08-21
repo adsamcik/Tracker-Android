@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
@@ -129,7 +128,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
         var lastActivityElapsedTimeMillis: Long = 0L
             private set
 
-        private val receiver: BroadcastReceiver by lazy { ActivityReceiver() }
         private var isSubscribed = false
 
 
@@ -244,8 +242,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
         fun stopActivityRecognition(context: Context) {
             if (!isSubscribed) return
             isSubscribed = false
-
-            context.unregisterReceiver(receiver)
 
             ActivityRecognition.getClient(context).run {
                 val intent = getActivityDetectionPendingIntent(context)
