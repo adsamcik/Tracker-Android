@@ -169,12 +169,16 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 				com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme {
 					val registry = com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry()
 					val layerManager = com.adsamcik.tracker.map.presentation.bridge.LayerManager(activity, map, registry)
-					val store = androidx.lifecycle.viewmodel.compose.viewModel(
-						key = "MapStore",
-						factory = androidx.lifecycle.viewmodel.initializer {
-							com.adsamcik.tracker.map.presentation.MapStore(layerManager)
-						}
-					)
+					val store: com.adsamcik.tracker.map.presentation.MapStore =
+						androidx.lifecycle.viewmodel.compose.viewModel(
+							key = "MapStore",
+							factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+								override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+									@Suppress("UNCHECKED_CAST")
+									return com.adsamcik.tracker.map.presentation.MapStore(layerManager) as T
+								}
+							}
+						)
 					com.adsamcik.tracker.map.ui.MapSheet(
 						registry = registry,
 						store = store,

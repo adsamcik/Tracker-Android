@@ -74,6 +74,7 @@ dependencies {
 	implementation(libs.androidx.fragment.ktx)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.androidx.lifecycle.viewmodel.ktx)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.feature.delivery)
@@ -100,6 +101,7 @@ dependencies {
 	debugImplementation(libs.compose.ui.test.manifest)
 	implementation(libs.accompanist.pager)
 	implementation(libs.accompanist.swiperefresh)
+	implementation(libs.kotlinx.collections.immutable)
 	// Maps Compose
 	implementation(libs.google.maps.compose)
 	// Material dialogs
