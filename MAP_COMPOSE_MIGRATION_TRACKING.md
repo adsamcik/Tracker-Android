@@ -109,9 +109,9 @@ sealed interface MapOverlayState {
 
 ### Phase 0 – Prep and dependencies
 
-* [ ] Add Maps Compose; align with Play Services Maps.
-* [ ] Ensure Material3 Compose theme is ready.
-* [ ] Keep legacy Map stack intact.
+* [x] Add Maps Compose; align with Play Services Maps.
+* [x] Ensure Material3 Compose theme is ready.
+* [x] Keep legacy Map stack intact.
 
 **Commit**: `docs(map): add Compose migration tracking plan (temporary)`
 
@@ -119,10 +119,10 @@ sealed interface MapOverlayState {
 
 ### Phase 1 – Establish UDF contracts + Compose sheet (remove legacy sheet)
 
-* [ ] Introduce `MapState`/`MapEvent`/`MapEffect`/`MapOverlayState` and `MapViewModel` reducer.
-* [ ] Add a `ComposeView` overlay in `FragmentMap` hosting a Compose bottom sheet wired to the VM.
-* [ ] Bridge layer toggles/search to existing `LayerController` through a **temporary** `LayerManager` interface.
-* [ ] Remove `MapSheetController` and `MapBottomSheetBehavior` and their XML.
+* [x] Introduce `MapState`/`MapEvent`/`MapEffect`/`MapOverlayState` and `MapViewModel` reducer.
+* [x] Add a `ComposeView` overlay in `FragmentMap` hosting a Compose bottom sheet wired to the VM.
+* [x] Bridge layer toggles/search to existing `LayerController` through a **temporary** `LayerManager` interface.
+* [x] Remove `MapSheetController` and `MapBottomSheetBehavior` and their XML.
 
 **Commit**: `feat(map): Phase 1 – UDF contracts + Compose sheet replaces legacy sheet`
 
