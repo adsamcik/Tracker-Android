@@ -83,6 +83,7 @@ dependencies {
 	implementation(libs.androidx.fragment.ktx)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.androidx.documentfile)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.feature.delivery)

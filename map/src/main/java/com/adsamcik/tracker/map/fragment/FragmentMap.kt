@@ -17,7 +17,7 @@ import com.adsamcik.tracker.map.MapController
 import com.adsamcik.tracker.map.MapEventListener
 import com.adsamcik.tracker.map.MapOwner
 import com.adsamcik.tracker.map.MapSensorController
-import com.adsamcik.tracker.map.MapSheetController
+// Legacy sheet controller will be decommissioned; Compose sheet used in Phase 1
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.introduction.MapIntroduction
 import com.adsamcik.tracker.shared.base.assist.Assist
@@ -37,7 +37,7 @@ import com.google.android.gms.maps.SupportMapFragment
 class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	private var locationListener: MapSensorController? = null
 	private var mapController: MapController? = null
-	private var mapSheetController: MapSheetController? = null
+	// private var mapSheetController: MapSheetController? = null
 
 	private var mapFragment: SupportMapFragment? = null
 	private var mapEventListener: MapEventListener? = null
@@ -139,7 +139,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 
 		mapController = null
 		mapEventListener = null
-		mapSheetController = null
+	// mapSheetController = null
 	}
 
 		override fun onLowMemory() {
@@ -154,7 +154,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		this.mapEventListener = mapEventListener
 
 		val inProgressTileTextView = activity.findViewById<TextView>(R.id.tile_generation_count_textview)
-		val mapController = MapController(activity, map, mapOwner, inProgressTileTextView)
+	val mapController = MapController(activity, map, mapOwner, inProgressTileTextView)
 		val locationListener = MapSensorController(activity, map, mapEventListener)
 		// Attach sensor controller to fragment view lifecycle for automatic start/stop via internal observer
 		locationListener.attachToLifecycle(viewLifecycleOwner, activity)
@@ -163,21 +163,29 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		this.locationListener = locationListener
 
 		val mapUiParent = activity.findViewById<ViewGroup>(R.id.map_ui_parent)
-
-		mapSheetController = MapSheetController(
-				activity,
-				this,
-				map,
-				mapOwner,
-				mapUiParent,
-				mapController,
-				locationListener,
-				mapEventListener
-		)
+		if (mapUiParent is androidx.compose.ui.platform.ComposeView) {
+			// Phase 1: Compose bottom sheet wired to VM + bridge
+			mapUiParent.setContent {
+				com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme {
+					val registry = com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry()
+					val layerManager = com.adsamcik.tracker.map.presentation.bridge.LayerManager(activity, map, registry)
+					val store = androidx.lifecycle.viewmodel.compose.viewModel(
+						key = "MapStore",
+						factory = androidx.lifecycle.viewmodel.initializer {
+							com.adsamcik.tracker.map.presentation.MapStore(layerManager)
+						}
+					)
+					com.adsamcik.tracker.map.ui.MapSheet(
+						registry = registry,
+						store = store,
+					)
+				}
+			}
+		}
 
 		ColorMap.addListener(activity, map)
 
-		mapUiParent.post {
+	mapUiParent.post {
 			IntroductionManager.showIntroduction(requireActivity(), MapIntroduction())
 		}
 	}

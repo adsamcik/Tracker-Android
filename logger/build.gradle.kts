@@ -61,6 +61,7 @@ android {
 dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":spreferences"))
+	implementation(libs.androidx.documentfile)
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)

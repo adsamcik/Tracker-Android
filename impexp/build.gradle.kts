@@ -55,6 +55,7 @@ dependencies {
     implementation(project(":sutils"))
     implementation(project(":spreferences"))
     implementation(project(":logger"))
+    implementation(libs.androidx.documentfile)
 
     // Compose
     implementation(platform(libs.compose.bom))
