@@ -11,7 +11,6 @@ object Dependencies {
      */
     object Versions {
     const val KOTLIN = "2.2.0"
-        const val DOKKA = "0.9.18"
     const val KSP = "2.2.0-2.0.2"
 
         const val CONSTRAINT_LAYOUT = "2.2.1"

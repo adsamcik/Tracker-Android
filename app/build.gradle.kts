@@ -1,8 +1,5 @@
-// Dokka v2: no task imports needed
-
 plugins {
 	alias(libs.plugins.android.application)
-	alias(libs.plugins.dokka)
 	alias(libs.plugins.oss.licenses)
 	alias(libs.plugins.secrets)
 	alias(libs.plugins.google.services)
@@ -94,27 +91,6 @@ android {
 	}
 	buildFeatures {
 		buildConfig = true
-	}
-}
-
-// Dokka v2 top-level DSL
-dokka {
-	// Default output goes to build/dokka; customize here if needed in the future
-	dokkaPublications.html {
-		// Keep defaults; enable if you want stricter docs
-		// failOnWarning.set(true)
-		// suppressInheritedMembers.set(true)
-	}
-	dokkaSourceSets.main {
-		skipEmptyPackages.set(true)
-		skipDeprecated.set(true)
-		jdkVersion.set(Android.JAVA_VERSION)
-		// Source links and external links can be added here if required
-		// sourceLink {
-		//     localDirectory.set(file("src/main/java"))
-		//     remoteUrl("https://example.com/src")
-		//     remoteLineSuffix.set("#L")
-		// }
 	}
 }
 
