@@ -25,6 +25,20 @@ Note: This is a temporary doc to guide the migration and will be deleted after c
 - Managers: `LocationAndSensorsManager`, `LayerManager` (refactor of `LayerController`), `CameraBehavior`.
 - Replace XML and custom behavior with Compose; replace imperative markers with Compose markers/circles where possible.
 
+## Extra simplifications we can make
+
+- Centralize to a single MapStore (ViewModel) as the source of truth. Drop ad-hoc controller state and keep all UI state in the VM.
+- Remove `MapSheetController` immediately once the Compose sheet is added (Phase 1), not later. Also remove `MapBottomSheetBehavior` from the codebase in Phase 1.
+- Dissolve `MapController` early (Phase 1/2). Map UI settings and defaults live in MapScreen and ViewModel; tile progress becomes a Flow in the VM.
+- Use `MapProperties(mapStyleOptions = ...)` from Maps Compose for styling instead of imperative `ColorMap.addListener/removeListener`. Adjust `ColorMap` to provide style JSON/MapStyleOptions.
+- Represent overlays declaratively with a sealed state (e.g., `MapOverlayState`) and Composables for Marker/Circle/Polyline; keep TileOverlay via `MapEffect` only where necessary.
+- Replace Sensor-based bearing with an optional mode: default to location bearing to simplify and reduce battery; keep device orientation as a user toggle.
+- Use `callbackFlow` for location updates; avoid manual Looper calls and imperative flags.
+- Use Compose `WindowInsets` for IME/system bars rather than padding hacks.
+- Move permission UX to Compose (e.g., accompanist-permissions or ActivityResultContracts) and drop `CorePermissionFragment` usage on the Map screen.
+- Migrate legend and layer lists fully to Compose immediately; delete RecyclerView adapters.
+- Introductions via Compose (or keep current `IntroductionManager` but trigger from Compose-only hooks) to simplify View wiring.
+
 ## Migration plan (phased)
 
 ### Phase 0 – Prep and dependencies
@@ -37,60 +51,61 @@ Commit checkpoint
 
 - Message: `docs(map): add Compose migration tracking plan (temporary)`
 
-### Phase 1 – Compose bottom sheet UI, legacy map kept
+### Phase 1 – Compose bottom sheet UI, remove legacy sheet immediately
 
 - [ ] Add a `ComposeView` overlay in `FragmentMap` hosting a Compose bottom sheet (layer selector + legend + search + buttons).
-- [ ] Bridge clicks to existing `LayerController` and legend to `MapLegendController` equivalent in Compose.
-- [ ] Replace tile progress TextView with a Compose label fed from the same source (expose via VM/Flow).
-- [ ] Control map padding from sheet offset (temporarily via existing map.setPadding or bridge function).
-- [ ] Remove `MapBottomSheetBehavior` usage from runtime path; keep code until Phase 5 cleanup.
+- [ ] Wire layer selection to a thin `LayerManager` bridge (reusing `LayerController` internals) and show legend via Compose.
+- [ ] Replace tile progress TextView with a Compose label fed from a VM `StateFlow`.
+- [ ] Control map padding from sheet offset; for legacy map, call `map.setPadding(...)` via a small bridge.
+- [ ] Delete `MapSheetController`, `layout_map_bottom_sheet*`, and `MapBottomSheetBehavior` now; remove their usages.
 
 Commit checkpoint
 
-- Message: `feat(map): Phase 1 – Compose bottom sheet scaffolding over legacy map`
+- Message: `feat(map): Phase 1 – Compose bottom sheet replaces legacy sheet (remove XML/behavior)`
 
-### Phase 2 – State centralization
+### Phase 2 – State centralization + dissolve MapController
 
 - [ ] Expand `MapViewModel` to own: selected layer id, date range, quality, search query/results, sheet state, legend, tile progress.
-- [ ] Compose sheet reads/writes VM; layer selection updates go through a thin bridge that applies overlays.
-- [ ] Remove `MapSheetController` from runtime path; keep until cleanup.
+- [ ] Compose sheet reads/writes VM; layer updates go through `LayerManager` (bridge) which applies overlays.
+- [ ] Move map UI settings (toolbar/compass/myLocationButton off) into Compose map props; delete `MapController`.
 
 Commit checkpoint
 
-- Message: `refactor(map): Phase 2 – centralize state in MapViewModel`
+- Message: `refactor(map): Phase 2 – centralize state in ViewModel and remove MapController`
 
-### Phase 3 – Replace SupportMapFragment with Maps Compose
+### Phase 3 – Replace SupportMapFragment with Maps Compose (+ style via MapProperties)
 
 - [ ] Remove `MapOwner`/`SupportMapFragment`; render with `GoogleMap` composable and `cameraPositionState`.
-- [ ] Use `MapEffect` to apply `ColorMap` style and to attach legacy overlays via `LayerManager`.
-- [ ] Follow-mode cancel on gesture via camera state or a small map callback.
-- [ ] Trigger introductions on map loaded via `MapEffect`.
+- [ ] Apply style via `MapProperties(mapStyleOptions)` using data from `ColorMap` (refactored to expose `MapStyleOptions`).
+- [ ] Attach TileOverlay/Polyline via `MapEffect` in `LayerManager` for legacy layers pending full Compose overlays.
+- [ ] Follow-mode cancel on gesture via camera state.
+- [ ] Trigger introductions on map loaded via Compose callback.
 
 Commit checkpoint
 
-- Message: `feat(map): Phase 3 – replace SupportMapFragment with Maps Compose`
+- Message: `feat(map): Phase 3 – switch to Maps Compose and MapProperties styling`
 
-### Phase 4 – Controller refactors → small managers
+### Phase 4 – Controller refactors → managers + declarative overlays
 
 - [ ] Replace `MapEventListener` with Compose-driven camera/gesture observation.
-- [ ] Move `MapSensorController` responsibilities into `LocationAndSensorsManager` (lifecycle-aware, flows).
-- [ ] Replace `MapPositionController` markers/circle with Compose `Marker`/`Circle` where feasible (fallback to `MapEffect` as needed).
-- [ ] Dissolve `MapController` (move quality/date defaults and low-memory into VM/managers).
+- [ ] Move `MapSensorController` responsibilities into `LocationAndSensorsManager` (flows via `callbackFlow`), make device-orientation-follow optional.
+- [ ] Replace `MapPositionController` with Compose `Marker`/`Circle` for user, accuracy, direction, and activity.
+- [ ] Define a `MapOverlayState` sealed class and render overlays declaratively; keep TileOverlay via `MapEffect` where required.
 
 Commit checkpoint
 
-- Message: `refactor(map): Phase 4 – migrate controllers to managers and Compose overlays`
+- Message: `refactor(map): Phase 4 – manager-based sensors and declarative overlays`
 
-### Phase 5 – Cleanup and polish
+### Phase 5 – Permissions, polish, and cleanup
 
-- [ ] Remove legacy XML (`layout_map_bottom_sheet*`), `MapSheetController`, `MapEventListener`, `MapOwner`, `MapBottomSheetBehavior`, and unused resources.
+- [ ] Replace fragment-based permission prompts with Compose permission flow; remove `CorePermissionFragment` usage from Map screen.
 - [ ] Wire low-memory trim via VM/managers (tile cache/bitmap pool).
 - [ ] Add tests: VM state, layer toggle, basic sheet behavior; smoke test heatmap overlay.
-- [ ] Remove this temporary tracking file.
+- [ ] Remove any remaining legacy classes/resources and this temporary tracking file.
 
 Commit checkpoint
 
-- Message: `chore(map): Phase 5 – cleanup legacy map XML/controllers and finalize Compose migration`
+- Message: `chore(map): Phase 5 – permissions in Compose and final cleanup`
 
 ## Risks and mitigations
 
