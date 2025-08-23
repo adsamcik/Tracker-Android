@@ -173,13 +173,13 @@ internal class DebugPage : PreferencePage {
 											onShow {
 												val tvBg = TypedValue()
 												val hasBg = context.theme.resolveAttribute(
-													com.google.android.material.R.attr.colorError,
+													R.attr.colorError,
 													tvBg,
 													true
 												)
 												val tvFg = TypedValue()
 												val hasFg = context.theme.resolveAttribute(
-													com.google.android.material.R.attr.colorOnError,
+													R.attr.colorOnError,
 													tvFg,
 													true
 												)
@@ -204,13 +204,13 @@ internal class DebugPage : PreferencePage {
 						.onShow { dialog ->
 							val tvBg = TypedValue()
 							val hasBg = context.theme.resolveAttribute(
-								com.google.android.material.R.attr.colorError,
+								R.attr.colorError,
 								tvBg,
 								true
 							)
 							val tvFg = TypedValue()
 							val hasFg = context.theme.resolveAttribute(
-								com.google.android.material.R.attr.colorOnError,
+								R.attr.colorOnError,
 								tvFg,
 								true
 							)
