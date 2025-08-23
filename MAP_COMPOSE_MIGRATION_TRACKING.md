@@ -24,20 +24,29 @@ Note: This is a temporary doc to guide the migration and will be deleted after c
 - ViewModel-centric state (layer/date range/quality/follow/search/sheet/legend/tile progress).
 - Managers: `LocationAndSensorsManager`, `LayerManager` (refactor of `LayerController`), `CameraBehavior`.
 - Replace XML and custom behavior with Compose; replace imperative markers with Compose markers/circles where possible.
+- Prefer Maps Compose overlay composables directly: `Marker`, `Circle`, `Polyline`, `Polygon`, `GroundOverlay`, and crucially `TileOverlay` with a hoisted `TileOverlayState` and our `TileProvider`. Reserve `MapEffect` for gaps only.
 
 ## Extra simplifications we can make
 
 - Centralize to a single MapStore (ViewModel) as the source of truth. Drop ad-hoc controller state and keep all UI state in the VM.
 - Remove `MapSheetController` immediately once the Compose sheet is added (Phase 1), not later. Also remove `MapBottomSheetBehavior` from the codebase in Phase 1.
 - Dissolve `MapController` early (Phase 1/2). Map UI settings and defaults live in MapScreen and ViewModel; tile progress becomes a Flow in the VM.
-- Use `MapProperties(mapStyleOptions = ...)` from Maps Compose for styling instead of imperative `ColorMap.addListener/removeListener`. Adjust `ColorMap` to provide style JSON/MapStyleOptions.
-- Represent overlays declaratively with a sealed state (e.g., `MapOverlayState`) and Composables for Marker/Circle/Polyline; keep TileOverlay via `MapEffect` only where necessary.
+- Use `MapProperties(mapStyleOptions = ...)` from Maps Compose for styling instead of imperative `ColorMap.addListener/removeListener`. Adjust `ColorMap` to provide style JSON or `MapStyleOptions`.
+- Represent overlays declaratively with a sealed state (e.g., `MapOverlayState`) and Composables for `Marker`/`Circle`/`Polyline`/`TileOverlay`. Avoid `MapEffect` for overlays; keep it only for rare interop.
 - Replace Sensor-based bearing with an optional mode: default to location bearing to simplify and reduce battery; keep device orientation as a user toggle.
 - Use `callbackFlow` for location updates; avoid manual Looper calls and imperative flags.
 - Use Compose `WindowInsets` for IME/system bars rather than padding hacks.
-- Move permission UX to Compose (e.g., accompanist-permissions or ActivityResultContracts) and drop `CorePermissionFragment` usage on the Map screen.
+- Move permission UX to Compose; prefer `rememberLauncherForActivityResult` + `ActivityResultContracts.RequestMultiplePermissions` (platform-first). Optionally wrap with `accompanist-permissions` for ergonomic state (noting it’s experimental).
 - Migrate legend and layer lists fully to Compose immediately; delete RecyclerView adapters.
 - Introductions via Compose (or keep current `IntroductionManager` but trigger from Compose-only hooks) to simplify View wiring.
+
+## Recommended APIs (2025-ready)
+
+- Maps Compose: `GoogleMap`, `CameraPositionState` (read `isMoving` and `cameraMoveStartedReason`), `MapUiSettings`, `MapProperties(mapStyleOptions = ...)`, overlay composables (`Marker`, `Circle`, `Polyline`, `Polygon`, `GroundOverlay`, `TileOverlay` + `TileOverlayState`).
+- Camera gesture handling: prefer `snapshotFlow { cameraPositionState.isMoving }` with debounce for follow-mode cancel; avoid heavy work in direct callbacks.
+- Bottom sheets (Material3): use `ModalBottomSheet` for modal behavior; if a persistent sheet is required, use Material3 `BottomSheetScaffold` if on a version where it’s stable; otherwise emulate with `ModalBottomSheet` + anchored layouts.
+- Permissions: platform `ActivityResultContracts.*` via `rememberLauncherForActivityResult`; optionally `accompanist-permissions` for simplified state, noting `@ExperimentalPermissionsApi`.
+- Insets: `WindowInsets.systemBars` and `WindowInsets.ime`, set `contentWindowInsets = WindowInsets(0)` on Scaffolds and manage paddings explicitly where needed.
 
 ## Migration plan (phased)
 
@@ -76,8 +85,8 @@ Commit checkpoint
 ### Phase 3 – Replace SupportMapFragment with Maps Compose (+ style via MapProperties)
 
 - [ ] Remove `MapOwner`/`SupportMapFragment`; render with `GoogleMap` composable and `cameraPositionState`.
-- [ ] Apply style via `MapProperties(mapStyleOptions)` using data from `ColorMap` (refactored to expose `MapStyleOptions`).
-- [ ] Attach TileOverlay/Polyline via `MapEffect` in `LayerManager` for legacy layers pending full Compose overlays.
+- [ ] Apply style via `MapProperties(mapStyleOptions)` using data from `ColorMap` (refactored to expose `MapStyleOptions` or JSON).
+- [ ] Render Tile overlays via `TileOverlay` composable with a hoisted `TileOverlayState` using our existing `TileProvider` implementation.
 - [ ] Follow-mode cancel on gesture via camera state.
 - [ ] Trigger introductions on map loaded via Compose callback.
 
@@ -90,7 +99,7 @@ Commit checkpoint
 - [ ] Replace `MapEventListener` with Compose-driven camera/gesture observation.
 - [ ] Move `MapSensorController` responsibilities into `LocationAndSensorsManager` (flows via `callbackFlow`), make device-orientation-follow optional.
 - [ ] Replace `MapPositionController` with Compose `Marker`/`Circle` for user, accuracy, direction, and activity.
-- [ ] Define a `MapOverlayState` sealed class and render overlays declaratively; keep TileOverlay via `MapEffect` where required.
+- [ ] Define a `MapOverlayState` sealed class and render overlays declaratively, including `TileOverlay` with `TileOverlayState`.
 
 Commit checkpoint
 
