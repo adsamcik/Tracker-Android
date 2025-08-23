@@ -53,4 +53,14 @@ class LayerController {
     }
 
     fun activeLegend(): MapLayerData? = activeLegend
+
+    fun activeTileProvider(): com.google.android.gms.maps.model.TileProvider? {
+        val layer = activeLayer
+        return if (layer is com.adsamcik.tracker.map.layers.base.HeatmapLayer<*, *>) {
+            layer.currentTileProvider()
+        } else null
+    }
+
+    // Temporary accessor for migration: let bridge peek at active layer type to map overlays declaratively.
+    fun activeLayerUnsafe(): BaseMapLayer<*, *>? = activeLayer
 }

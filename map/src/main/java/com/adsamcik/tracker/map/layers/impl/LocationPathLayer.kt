@@ -20,6 +20,7 @@ class LocationPathLayer(
     data class Prepared(val options: List<PolylineOptions>)
 
     private val polylines = mutableListOf<Polyline>()
+    private var lastPrepared: Prepared = Prepared(emptyList())
     override var dateRange: LongRange = LongRange(0, Long.MAX_VALUE)
 
     override fun beforeEnable(context: Context, map: GoogleMap) {}
@@ -38,7 +39,9 @@ class LocationPathLayer(
             maxPoints = budgets.maxPolylinePoints
         )
         val options = listOf(PolylineOptions().addAll(simplified).geodesic(true))
-        return Prepared(options)
+        val prepared = Prepared(options)
+        lastPrepared = prepared
+        return prepared
     }
 
     override fun render(map: GoogleMap, processed: Prepared) {
@@ -51,4 +54,7 @@ class LocationPathLayer(
         polylines.forEach { it.remove() }
         polylines.clear()
     }
+
+    /** Snapshot of the latest prepared options for declarative mapping (no map mutations here). */
+    fun currentOptionsSnapshot(): List<PolylineOptions> = lastPrepared.options
 }

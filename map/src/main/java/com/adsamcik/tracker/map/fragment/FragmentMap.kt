@@ -10,17 +10,18 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.adsamcik.tracker.map.presentation.MapViewModel
-import com.adsamcik.tracker.map.ui.MapHost
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import com.adsamcik.tracker.map.ui.MapScreen
 import kotlinx.coroutines.launch
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.tracker.map.MapController
-import com.adsamcik.tracker.map.MapEventListener
-import com.adsamcik.tracker.map.MapOwner
-import com.adsamcik.tracker.map.MapSensorController
+import com.adsamcik.tracker.map.presentation.sensors.LocationAndSensorsManager
 // Legacy sheet controller will be decommissioned; Compose sheet used in Phase 1
 import com.adsamcik.tracker.map.R
-import com.adsamcik.tracker.map.introduction.MapIntroduction
+
 import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.map.ColorMap
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
 import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
@@ -29,42 +30,34 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.OnMapsSdkInitializedCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.adsamcik.tracker.map.MapConstants
 
 /**
  * Fragment containing primary map with overlays, user location and more.
  */
 @Suppress("unused")
 class FragmentMap : CorePermissionFragment(), IOnDemandView {
-	private var locationListener: MapSensorController? = null
-	private var mapController: MapController? = null
+	// Legacy MapController removed in Phase 2; state owned by MapStore
 	// private var mapSheetController: MapSheetController? = null
 
 	private var mapFragment: SupportMapFragment? = null
-	private var mapEventListener: MapEventListener? = null
-	private var mapOwner = MapOwner()
-
-	// --- v2 scaffolding (task 2.4) ---
-	private val enableV2Scaffold = false // keep false to guarantee no behavior change by default
-	private var v2MapHost: MapHost? = null
-	private var v2ViewModel: MapViewModel? = null
-	// --- end v2 scaffolding ---
-
+	// Phase 5: MapEventListener and MapOwner removed; Compose handles all map interactions
 	private var fActivity: FragmentActivity? = null
 
 	override fun onPermissionResponse(requestCode: Int, success: Boolean): Unit = Unit
 
 	override fun onLeave(activity: FragmentActivity) {
-		mapOwner.onDisable()
+		// No-op; map lifecycle managed by Compose
 	}
 
 	override fun onPause() {
 		super.onPause()
-		mapOwner.onDisable()
+		// No-op; map lifecycle managed by Compose
 	}
 
 	override fun onResume() {
 		super.onResume()
-		mapOwner.onEnable()
+		// No-op; map lifecycle managed by Compose
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
@@ -74,33 +67,27 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		this.fActivity = activity
 
 		if (Assist.isPlayServicesAvailable(activity)) {
-			mapOwner.createMap(childFragmentManager)
+			// Phase 5: Direct SupportMapFragment creation; MapOwner removed
+			val mapFragment = SupportMapFragment.newInstance()
+			mapFragment.getMapAsync(this::onMapReady)
+			childFragmentManager.transaction {
+				replace(R.id.container_map, mapFragment)
+			}
+			this.mapFragment = mapFragment
 		}
-
-		mapOwner.onEnable()
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val context = requireContext()
 
-		mapOwner.addOnCreateListener(this::onMapReady)
-	// Removed direct MapOwner enable/disable wiring for MapSensorController; lifecycle observer now controls it.
-
+		// Phase 5: Removed MapOwner/MapSensorController lifecycle wiring; Compose manages map
 		MapsInitializer.initialize(context)
 	}
 
 	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
 		super.onViewCreated(view, savedInstanceState)
-		if (!enableV2Scaffold) return
-
-		// Initialize v2 ViewModel & MapHost (wrapping existing mapOwner) with no-op state collection
-		v2ViewModel = ViewModelProvider(this)[MapViewModel::class.java]
-		v2MapHost = MapHost(mapOwner)
-
-		viewLifecycleOwner.lifecycleScope.launch {
-			// TODO: Future UI binding for v2ViewModel state
-		}
+		// Phase 5: v2 scaffolding removed; Compose is the primary UI
 	}
 
 	override fun onCreateView(
@@ -135,63 +122,119 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 
 	override fun onDestroyView() {
 		super.onDestroyView()
-			mapFragment = null
-
-		mapController = null
-		mapEventListener = null
-	// mapSheetController = null
+		mapFragment = null
+		// Phase 5: Legacy listeners removed
 	}
 
 		override fun onLowMemory() {
 			super.onLowMemory()
-			mapController?.onLowMemory()
+			// Tile caches trimmed via providers; nothing to do here in Phase 2
 		}
 
 	private fun onMapReady(map: GoogleMap) {
 		val activity = activity ?: return
 
-		val mapEventListener = MapEventListener(map)
-		this.mapEventListener = mapEventListener
-
+		val showComposeMap = resources.getBoolean(com.adsamcik.tracker.map.R.bool.feature_flag_compose_map)
+		// Phase 5: MapEventListener removed; Compose handles all interactions
 		val inProgressTileTextView = activity.findViewById<TextView>(R.id.tile_generation_count_textview)
-	val mapController = MapController(activity, map, mapOwner, inProgressTileTextView)
-		val locationListener = MapSensorController(activity, map, mapEventListener)
-		// Attach sensor controller to fragment view lifecycle for automatic start/stop via internal observer
-		locationListener.attachToLifecycle(viewLifecycleOwner, activity)
+		// Phase 4: Flow-based sensors manager (no UI references)
+		val sensors = LocationAndSensorsManager(activity.applicationContext)
 
-		this.mapController = mapController
-		this.locationListener = locationListener
+		// Phase 2: Configure map UI settings here (until Maps Compose swap in Phase 3)
+		map.uiSettings.apply {
+			isMapToolbarEnabled = false
+			isIndoorLevelPickerEnabled = false
+			isCompassEnabled = false
+			isMyLocationButtonEnabled = false
+		}
+		map.setMaxZoomPreference(MapConstants.MAX_ZOOM)
 
 		val mapUiParent = activity.findViewById<ViewGroup>(R.id.map_ui_parent)
+		// Build registry/manager and a single MapStore owned by this Fragment
+		val registry = com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry()
+		val layerManager = com.adsamcik.tracker.map.presentation.bridge.LayerManager(activity, map, registry)
+		val storeFactory = object : androidx.lifecycle.ViewModelProvider.Factory {
+			override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+				@Suppress("UNCHECKED_CAST")
+				return com.adsamcik.tracker.map.presentation.MapStore(layerManager) as T
+			}
+		}
+		val store = ViewModelProvider(this, storeFactory)[com.adsamcik.tracker.map.presentation.MapStore::class.java]
+
+		// Forward user location updates into declarative overlays from new manager
+		viewLifecycleOwner.lifecycleScope.launch {
+			sensors.locationUpdates().collect { (lat, lng, acc) ->
+				store.dispatch(
+					com.adsamcik.tracker.map.presentation.udf.MapEvent.SetUserLocation(
+						com.adsamcik.tracker.map.presentation.udf.LatLngModel(lat, lng),
+						acc
+					)
+				)
+			}
+		}
+
+		// Forward bearing updates to store; used to rotate camera while following
+		viewLifecycleOwner.lifecycleScope.launch {
+			sensors.bearingUpdates().collect { bearing ->
+				store.dispatch(
+					com.adsamcik.tracker.map.presentation.udf.MapEvent.SetBearing(bearing)
+				)
+			}
+		}
+
 		if (mapUiParent is androidx.compose.ui.platform.ComposeView) {
-			// Phase 1: Compose bottom sheet wired to VM + bridge
+			// Phase 1/2/3: Compose UI layer over legacy map. Bottom sheet + optional MapScreen overlay.
+			// Legacy user overlays removed; Compose renders user position
 			mapUiParent.setContent {
 				com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme {
-					val registry = com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry()
-					val layerManager = com.adsamcik.tracker.map.presentation.bridge.LayerManager(activity, map, registry)
-					val store: com.adsamcik.tracker.map.presentation.MapStore =
-						androidx.lifecycle.viewmodel.compose.viewModel(
-							key = "MapStore",
-							factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-								override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-									@Suppress("UNCHECKED_CAST")
-									return com.adsamcik.tracker.map.presentation.MapStore(layerManager) as T
-								}
-							}
+					androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier) {
+						// Optional Maps Compose rendering; when enabled, let it be interactive
+						if (showComposeMap) { MapScreen(store, overlayMode = false) }
+						// Bottom sheet on top
+						com.adsamcik.tracker.map.ui.MapSheet(
+							registry = registry,
+							store = store,
 						)
-					com.adsamcik.tracker.map.ui.MapSheet(
-						registry = registry,
-						store = store,
+					}
+				}
+			}
+		}
+
+		// Initialize quality from preferences to match legacy defaults
+		val pref = com.adsamcik.tracker.shared.preferences.Preferences.getPref(activity)
+		val res = activity.resources
+		val quality = pref.getFloat(
+			res.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_key),
+			res.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_default).toFloat()
+		)
+		store.setQuality(quality)
+
+		// Observe state to apply UI settings and tile progress
+		viewLifecycleOwner.lifecycleScope.launch {
+			store.state.collect { s ->
+				map.uiSettings.apply {
+					isMapToolbarEnabled = s.uiSettings.isMapToolbarEnabled
+					isIndoorLevelPickerEnabled = s.uiSettings.isIndoorLevelPickerEnabled
+					isCompassEnabled = s.uiSettings.isCompassEnabled
+					isMyLocationButtonEnabled = s.uiSettings.isMyLocationButtonEnabled
+				}
+				// Follow state is handled by Compose map gestures/effects when Compose is active.
+				if (s.tileGenerationInProgress > 0) {
+					inProgressTileTextView.text = activity.resources.getQuantityString(
+						com.adsamcik.tracker.map.R.plurals.generating_tile_count,
+						s.tileGenerationInProgress,
+						s.tileGenerationInProgress
 					)
+					inProgressTileTextView.visibility = View.VISIBLE
+				} else {
+					inProgressTileTextView.visibility = View.GONE
 				}
 			}
 		}
 
 		ColorMap.addListener(activity, map)
 
-	mapUiParent.post {
-			IntroductionManager.showIntroduction(requireActivity(), MapIntroduction())
-		}
+		// Note: Introduction removed as UI moved to Compose
 	}
 
 	companion object {

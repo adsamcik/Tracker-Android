@@ -92,6 +92,8 @@ dependencies {
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
 	implementation(libs.compose.animation.graphics)
+	// Compose Foundation Layout (for Modifier.fillMaxSize, matchParentSize, etc.)
+	implementation("androidx.compose.foundation:foundation-layout")
 	implementation(libs.navigation.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.compose.runtime)
