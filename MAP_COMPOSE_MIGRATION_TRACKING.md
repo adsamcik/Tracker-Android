@@ -48,6 +48,19 @@ Note: This is a temporary doc to guide the migration and will be deleted after c
 - Permissions: platform `ActivityResultContracts.*` via `rememberLauncherForActivityResult`; optionally `accompanist-permissions` for simplified state, noting `@ExperimentalPermissionsApi`.
 - Insets: `WindowInsets.systemBars` and `WindowInsets.ime`, set `contentWindowInsets = WindowInsets(0)` on Scaffolds and manage paddings explicitly where needed.
 
+## Material 3 Expressive adoption
+
+- Motion physics tokens: use Material motion defaults for transitions (sheet enter/exit, content size/position changes). Where available, adopt motion tokens from Material3 and prefer higher-level APIs (AnimatedContent, animate*AsState) tuned to the motion scheme.
+- Shape library: apply contrasting container shapes to emphasize key UI (e.g., legend card, hero header). Use non-rectangular decorative shapes sparingly to draw focus per M3 Expressive tactics.
+- Emphasis and hierarchy: use larger display/title roles in the sheet header for active layer; use subdued body for descriptions. Avoid uniform emphasis across all items.
+- Expressive components:
+	- Use Material3 `SearchBar` (or DockedSearchBar) for map search.
+	- Use `FilterChip`/`AssistChip` for day-range quick picks instead of custom ChipGroup.
+	- Use `LargeFloatingActionButton` or `ExtendedFloatingActionButton` for the “My location” hero action; consider animating in on first-run hero moment.
+- Color and elevation: use `*Container` color roles (e.g., surfaceContainerHigh) and tonal elevation for the sheet; ensure dynamic color is enabled via existing theme utilities.
+- Hero moments: on first open or after selecting a new layer, create a brief hero header state (expanded sheet header with expressive color/shape/motion) that collapses after a short dwell.
+- Accessibility: maintain contrast for expressive colors; provide reduced motion option respecting system settings.
+
 ## Migration plan (phased)
 
 ### Phase 0 – Prep and dependencies
@@ -67,6 +80,7 @@ Commit checkpoint
 - [ ] Replace tile progress TextView with a Compose label fed from a VM `StateFlow`.
 - [ ] Control map padding from sheet offset; for legacy map, call `map.setPadding(...)` via a small bridge.
 - [ ] Delete `MapSheetController`, `layout_map_bottom_sheet*`, and `MapBottomSheetBehavior` now; remove their usages.
+	- M3 Expressive hooks: Use `ModalBottomSheet` with container color and expressive shape tokens. Replace Recycler/Legend card with Compose surfaces and emphasize the active layer with larger typography. Use `SearchBar` for search.
 
 Commit checkpoint
 
@@ -77,6 +91,7 @@ Commit checkpoint
 - [ ] Expand `MapViewModel` to own: selected layer id, date range, quality, search query/results, sheet state, legend, tile progress.
 - [ ] Compose sheet reads/writes VM; layer updates go through `LayerManager` (bridge) which applies overlays.
 - [ ] Move map UI settings (toolbar/compass/myLocationButton off) into Compose map props; delete `MapController`.
+	- M3 Expressive hooks: Move day-range quick picks to `FilterChip`s; promote primary actions (e.g., Follow) into `ExtendedFAB` with motion on state change.
 
 Commit checkpoint
 
@@ -89,6 +104,7 @@ Commit checkpoint
 - [ ] Render Tile overlays via `TileOverlay` composable with a hoisted `TileOverlayState` using our existing `TileProvider` implementation.
 - [ ] Follow-mode cancel on gesture via camera state.
 - [ ] Trigger introductions on map loaded via Compose callback.
+	- M3 Expressive hooks: Introduce a brief hero header animation when the map is first ready; use motion tokens for the sheet transition.
 
 Commit checkpoint
 
@@ -100,6 +116,7 @@ Commit checkpoint
 - [ ] Move `MapSensorController` responsibilities into `LocationAndSensorsManager` (flows via `callbackFlow`), make device-orientation-follow optional.
 - [ ] Replace `MapPositionController` with Compose `Marker`/`Circle` for user, accuracy, direction, and activity.
 - [ ] Define a `MapOverlayState` sealed class and render overlays declaratively, including `TileOverlay` with `TileOverlayState`.
+	- M3 Expressive hooks: Animate overlay visibility/alpha using motion tokens (e.g., fade/scale for legend value swatches) and shape accents where appropriate.
 
 Commit checkpoint
 
@@ -111,6 +128,7 @@ Commit checkpoint
 - [ ] Wire low-memory trim via VM/managers (tile cache/bitmap pool).
 - [ ] Add tests: VM state, layer toggle, basic sheet behavior; smoke test heatmap overlay.
 - [ ] Remove any remaining legacy classes/resources and this temporary tracking file.
+	- M3 Expressive hooks: Add a full-screen rationale pattern using expressive emphasis when permissions are required; respect reduced motion.
 
 Commit checkpoint
 
