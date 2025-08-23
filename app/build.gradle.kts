@@ -1,5 +1,4 @@
-import org.jetbrains.dokka.gradle.DokkaTask
-import java.net.URI
+// Dokka v2: no task imports needed
 
 plugins {
 	alias(libs.plugins.android.application)
@@ -98,20 +97,24 @@ android {
 	}
 }
 
-// Dokka configuration for modern org.jetbrains.dokka plugin (HTML output)
-tasks.withType<DokkaTask>().configureEach {
-	// Write docs into build/javadoc
-	outputDirectory.set(layout.buildDirectory.dir("javadoc"))
-
-	dokkaSourceSets.configureEach {
+// Dokka v2 top-level DSL
+dokka {
+	// Default output goes to build/dokka; customize here if needed in the future
+	dokkaPublications.html {
+		// Keep defaults; enable if you want stricter docs
+		// failOnWarning.set(true)
+		// suppressInheritedMembers.set(true)
+	}
+	dokkaSourceSets.main {
 		skipEmptyPackages.set(true)
 		skipDeprecated.set(true)
 		jdkVersion.set(Android.JAVA_VERSION)
-
-		externalDocumentationLink {
-			url.set(URI("https://developer.android.com/reference/").toURL())
-			packageListUrl.set(URI("https://developer.android.com/reference/android/support/package-list").toURL())
-		}
+		// Source links and external links can be added here if required
+		// sourceLink {
+		//     localDirectory.set(file("src/main/java"))
+		//     remoteUrl("https://example.com/src")
+		//     remoteLineSuffix.set("#L")
+		// }
 	}
 }
 
