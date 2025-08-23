@@ -1,6 +1,7 @@
 plugins {
 	alias(libs.plugins.android.dynamic.feature)
 	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
 }
@@ -31,6 +32,11 @@ android {
 
 	buildTypes {
 		create("release_nominify")
+	}
+
+	buildFeatures {
+		// Prepare for Compose-based map UI while keeping legacy stack intact
+		compose = true
 	}
 
 	lint {
@@ -75,17 +81,38 @@ dependencies {
 	implementation(libs.google.play.services.location)
 	implementation(libs.google.play.services.maps)
 	implementation(libs.components.draggable)
+
+	// Compose (Phase 0 – prep only)
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.material3)
+	implementation(libs.compose.ui.tooling.preview)
+	debugImplementation(libs.compose.ui.tooling)
+	implementation(libs.activity.compose)
+	implementation(libs.compose.material.icons.extended)
+	implementation(libs.compose.animation)
+	implementation(libs.compose.animation.graphics)
+	implementation(libs.navigation.compose)
+	implementation(libs.androidx.lifecycle.viewmodel.compose)
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.runtime.livedata)
+	implementation(libs.constraintlayout.compose)
+	androidTestImplementation(libs.compose.ui.test.junit4)
+	debugImplementation(libs.compose.ui.test.manifest)
+	implementation(libs.accompanist.pager)
+	implementation(libs.accompanist.swiperefresh)
+	// Maps Compose
+	implementation(libs.google.maps.compose)
 	// Material dialogs
 	implementation(libs.material.dialogs.core)
 	implementation(libs.spotlight)
 
 	// Tests
 	testImplementation(libs.junit4)
-	testImplementation("org.robolectric:robolectric:4.12.2")
+	testImplementation("org.robolectric:robolectric:4.15.1")
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.coroutines.get()}")
-	testImplementation("org.mockito:mockito-core:5.12.0")
+	testImplementation("org.mockito:mockito-core:5.19.0")
 	testImplementation("org.mockito:mockito-inline:5.2.0")
-	testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
+	testImplementation("org.mockito.kotlin:mockito-kotlin:6.0.0")
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)
@@ -93,8 +120,8 @@ dependencies {
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
-	androidTestImplementation("org.mockito:mockito-android:5.12.0")
-	androidTestImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
+	androidTestImplementation("org.mockito:mockito-android:5.19.0")
+	androidTestImplementation("org.mockito.kotlin:mockito-kotlin:6.0.0")
 }
 
 // Disable release unit tests for this module (minification can break mocks/types at runtime)

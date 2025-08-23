@@ -1,8 +1,8 @@
 [versions]
 # Kotlin / KSP / AGP
-kotlin = "2.2.0"
-ksp = "2.2.0-2.0.2"
-agp = "8.12.0"
+kotlin = "2.2.20-RC"
+ksp = "2.2.20-RC-2.0.2"
+agp = "8.13.0-rc01"
 
 # Tools
 benmanes = "0.52.0"
@@ -12,10 +12,10 @@ ossLicenses = "0.10.7"
 desugarJdkLibs = "2.1.5"
 
 # AndroidX / Google
-coreKtx = "1.16.0"
+coreKtx = "1.17.0"
 appcompat = "1.7.1"
-fragment = "1.8.8"
-material = "1.12.0"
+fragment = "1.8.9"
+material = "1.13.0-rc01"
 constraintLayout = "2.2.1"
 recyclerView = "1.4.0"
 preference = "1.2.1"
@@ -25,7 +25,7 @@ paging = "3.3.6"
 activityCompose = "1.11.0-rc01"
 navigationCompose = "2.9.3"
 constraintLayoutCompose = "1.1.1"
-composeBom = "2025.07.00"
+composeBom = "2025.08.00"
 accompanist = "0.36.0"
 
 # Google Play Services
@@ -33,13 +33,14 @@ playServicesBase = "18.7.2"
 playLocation = "21.3.0"
 playFeatureDelivery = "2.1.0"
 maps = "19.2.0"
+mapsCompose = "6.7.2"
 
 # KotlinX
 coroutines = "1.10.2"
 
 # JSON / DB
 moshi = "1.15.2"
-room = "2.7.2"
+room = "2.8.0-rc01"
 sqliteAndroid = "3.49.0"
 
 # Third party
@@ -54,7 +55,7 @@ xml = "1.3.3"
 stax = "1.0.1"
 jpx = "3.2.1"
 licensesdialog = "2.2.0"
-ossLicensesLib = "17.1.0"
+ossLicensesLib = "17.2.2"
 mpandroidchart = "3.1.0"
 simplify = "1.0.0"
 cardview = "1.0.0"
@@ -112,6 +113,7 @@ google-play-feature-delivery = { group = "com.google.android.play", name = "feat
 google-play-feature-delivery-ktx = { group = "com.google.android.play", name = "feature-delivery-ktx", version.ref = "playFeatureDelivery" }
 google-play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "maps" }
 google-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playLocation" }
+google-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 
 # Moshi
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }
@@ -183,4 +185,4 @@ secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugi
 oss-licenses = { id = "com.google.android.gms.oss-licenses-plugin", version.ref = "ossLicenses" }
 benmanes-versions = { id = "com.github.ben-manes.versions", version.ref = "benmanes" }
 # Modern Dokka plugin
-dokka = { id = "org.jetbrains.dokka", version = "1.9.20" }
+dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
