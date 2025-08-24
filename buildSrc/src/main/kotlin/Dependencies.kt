@@ -47,7 +47,6 @@ object Dependencies {
         const val COMPONENTS_DRAGGABLE = "1.0.4"
         const val COMPONENT_SLIDER = "2.1.0"
 
-        const val DEXTER = "6.2.3"
         const val SUNCALC = "3.11"
         
     const val DESUGAR_JDK_LIBS = "2.1.5"
@@ -138,7 +137,6 @@ object Dependencies {
         // Third-Party Libraries
         scope.implementation("com.github.adsamcik:Recycler:${Versions.COMPONENTS_RECYCLER}")
         scope.implementation("com.afollestad.material-dialogs:core:${Versions.DIALOGS}")
-        scope.implementation("com.karumi:dexter:${Versions.DEXTER}")
 
         // Work Manager
         work(scope)

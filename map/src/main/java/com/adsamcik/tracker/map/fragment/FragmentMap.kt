@@ -24,7 +24,6 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.map.ColorMap
 import com.adsamcik.tracker.shared.utils.fragment.CorePermissionFragment
-import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
 // import removed: StyleManager not used after cleanup
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapsInitializer

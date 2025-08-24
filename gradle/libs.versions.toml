@@ -47,7 +47,6 @@ sqliteAndroid = "3.49.0"
 
 # Third party
 dialogs = "3.3.0"
-dexter = "6.2.3"
 componentsRecycler = "1.0.0"
 componentsDraggable = "1.0.4"
 componentSlider = "2.1.0"
@@ -138,7 +137,6 @@ component-slider = { group = "com.github.adsamcik", name = "slider", version.ref
 material-dialogs-core = { group = "com.afollestad.material-dialogs", name = "core", version.ref = "dialogs" }
 material-dialogs-input = { group = "com.afollestad.material-dialogs", name = "input", version.ref = "dialogs" }
 material-dialogs-color = { group = "com.afollestad.material-dialogs", name = "color", version.ref = "dialogs" }
-dexter = { group = "com.karumi", name = "dexter", version.ref = "dexter" }
 
 # GPX / XML
 stax-api = { group = "stax", name = "stax-api", version.ref = "stax" }

@@ -18,7 +18,6 @@ import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.utils.introduction.Introduction
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
 import java.util.*
 
@@ -48,9 +47,10 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 		caller.findPreference(R.string.show_tips_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
 			if (newValue as Boolean) {
-				Preferences.getPref(preference.context).edit {
-					removeKeyByPrefix(Introduction.prefix)
-				}
+				// TODO: Remove introduction-related preferences cleanup after new onboarding implementation
+				// Preferences.getPref(preference.context).edit {
+				//     removeKeyByPrefix("introduction_")
+				// }
 			}
 			true
 		}
