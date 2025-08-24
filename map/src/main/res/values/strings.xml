@@ -40,6 +40,7 @@
     <string name="map_layer_none">No overlay</string>
     <string name="map_layer_none_title">No overlay</string>
     <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
+    <string name="map_layer_wifi_count_heatmap_description">Heatmap showing the density of Wi-Fi networks detected in different areas.</string>
     <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
     <string name="map_layer_wifi_heatmap_high">high density</string>
     <string name="map_layer_wifi_heatmap_low">low density</string>

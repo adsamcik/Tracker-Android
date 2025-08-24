@@ -89,13 +89,19 @@ fun MapScreen(
     val styleController = remember { StyleManager.createController() }
     DisposableEffect(styleController) {
         val listener: (StyleData) -> Unit = { sd ->
-            val updated = MapStyleProvider.fromStyleData(context, sd)
-            mapProperties = mapProperties.copy(mapStyleOptions = updated)
+            try {
+                val updated = MapStyleProvider.fromStyleData(context, sd)
+                mapProperties = mapProperties.copy(mapStyleOptions = updated)
+            } catch (e: Exception) {
+                // Fall back to default style if there's an error
+                val defaultStyle = MapStyleProvider.default(context)
+                mapProperties = mapProperties.copy(mapStyleOptions = defaultStyle)
+            }
         }
         styleController.addListener(listener)
         onDispose {
             styleController.removeListener(listener)
-            com.adsamcik.tracker.shared.utils.style.StyleManager.recycleController(styleController)
+            StyleManager.recycleController(styleController)
         }
     }
 
@@ -128,7 +134,9 @@ fun MapScreen(
                     val markerState: MarkerState = rememberUpdatedMarkerState(position = pos)
                     Marker(
                         state = markerState,
-                        icon = bitmapDescriptorFromVector(context, com.adsamcik.tracker.map.R.drawable.ic_heading_arrow, scale = 1.25f),
+                        icon = remember(overlay.bearing) { 
+                            bitmapDescriptorFromVector(context, com.adsamcik.tracker.map.R.drawable.ic_heading_arrow, scale = 1.25f)
+                        },
                         anchor = Offset(0.5f, 0.85f),
                         rotation = overlay.bearing ?: 0f,
                         flat = true
@@ -144,8 +152,10 @@ fun MapScreen(
                     )
                 }
                 is MapOverlayState.Polyline -> {
-                    val pts = overlay.points.map { p ->
-                        com.google.android.gms.maps.model.LatLng(p.lat, p.lng)
+                    val pts = remember(overlay.points) {
+                        overlay.points.map { p ->
+                            com.google.android.gms.maps.model.LatLng(p.lat, p.lng)
+                        }
                     }
                     ComposePolyline(
                         points = pts,
@@ -186,19 +196,38 @@ fun MapScreen(
         store.effects.collectLatest { effect ->
             when (effect) {
                 is com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera -> {
-                    val update = com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(effect.bounds, 32)
-                    cameraPositionState.animate(update)
+                    try {
+                        val padding = 32 // Reasonable padding in pixels
+                        val update = com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(effect.bounds, padding)
+                        cameraPositionState.animate(update, 1000) // 1 second animation
+                    } catch (e: Exception) {
+                        // Fallback to simple camera move if bounds are invalid
+                        val center = effect.bounds.center
+                        val update = com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(center, 15f)
+                        cameraPositionState.animate(update, 1000)
+                    }
                 }
                 is com.adsamcik.tracker.map.presentation.udf.MapEffect.SetCameraBearing -> {
-                    val current = cameraPositionState.position
-                    val newPos = com.google.android.gms.maps.model.CameraPosition.Builder(current)
-                        .bearing(effect.bearing)
-                        .build()
-                    val update = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(newPos)
-                    cameraPositionState.animate(update)
+                    try {
+                        val current = cameraPositionState.position
+                        val newPos = com.google.android.gms.maps.model.CameraPosition.Builder(current)
+                            .bearing(effect.bearing)
+                            .build()
+                        val update = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(newPos)
+                        cameraPositionState.animate(update, 500) // Shorter animation for bearing
+                    } catch (e: Exception) {
+                        // Ignore bearing update errors
+                    }
                 }
                 is com.adsamcik.tracker.map.presentation.udf.MapEffect.ShowFollowCanceled -> {
-                    snackbarHostState.showSnackbar("Follow canceled")
+                    try {
+                        snackbarHostState.showSnackbar("Follow canceled")
+                    } catch (e: Exception) {
+                        // Ignore snackbar errors
+                    }
+                }
+                is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode -> {
+                    // Handled by Fragment bridge; no-op here
                 }
             }
         }

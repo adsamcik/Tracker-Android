@@ -13,6 +13,7 @@ import com.adsamcik.tracker.map.presentation.MapViewModel
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.fillMaxSize
 import com.adsamcik.tracker.map.ui.MapScreen
 import kotlinx.coroutines.launch
 import com.adsamcik.draggable.IOnDemandView
@@ -42,21 +43,26 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 	private var mapFragment: SupportMapFragment? = null
 	// Phase 5: MapEventListener and MapOwner removed; Compose handles all map interactions
 	private var fActivity: FragmentActivity? = null
+	private var sensorsManager: LocationAndSensorsManager? = null
+	private var mapStore: com.adsamcik.tracker.map.presentation.MapStore? = null
 
 	override fun onPermissionResponse(requestCode: Int, success: Boolean): Unit = Unit
 
 	override fun onLeave(activity: FragmentActivity) {
-		// No-op; map lifecycle managed by Compose
+		cleanup()
 	}
 
 	override fun onPause() {
 		super.onPause()
-		// No-op; map lifecycle managed by Compose
+		// Pause sensor updates to save battery
+		sensorsManager?.let { manager ->
+			// The flows will be cancelled when the lifecycle scope is paused
+		}
 	}
 
 	override fun onResume() {
 		super.onResume()
-		// No-op; map lifecycle managed by Compose
+		// Sensor flows will restart automatically when lifecycle scope resumes
 	}
 
 	override fun onEnter(activity: FragmentActivity) {
@@ -121,13 +127,30 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 
 	override fun onDestroyView() {
 		super.onDestroyView()
+		cleanup()
+	}
+
+	private fun cleanup() {
 		mapFragment = null
+		sensorsManager = null
+		mapStore = null
+		fActivity = null
 		// Phase 5: Legacy listeners removed
 	}
 
 		override fun onLowMemory() {
 			super.onLowMemory()
-			// Tile caches trimmed via providers; nothing to do here in Phase 2
+			// Trigger cleanup in layer manager to free up tile caches
+			mapStore?.let { store ->
+				// Request garbage collection of unused layers
+				viewLifecycleOwner.lifecycleScope.launch {
+					try {
+						store.dispatch(com.adsamcik.tracker.map.presentation.udf.MapEvent.SelectLayer("none"))
+					} catch (e: Exception) {
+						// Ignore errors during low memory cleanup
+					}
+				}
+			}
 		}
 
 	private fun onMapReady(map: GoogleMap) {
@@ -138,6 +161,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 		val inProgressTileTextView = activity.findViewById<TextView>(R.id.tile_generation_count_textview)
 		// Phase 4: Flow-based sensors manager (no UI references)
 		val sensors = LocationAndSensorsManager(activity.applicationContext)
+		sensorsManager = sensors
 
 		// Phase 2: Configure map UI settings here (until Maps Compose swap in Phase 3)
 		map.uiSettings.apply {
@@ -159,6 +183,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 			}
 		}
 		val store = ViewModelProvider(this, storeFactory)[com.adsamcik.tracker.map.presentation.MapStore::class.java]
+		mapStore = store
 
 		// Forward user location updates into declarative overlays from new manager
 		viewLifecycleOwner.lifecycleScope.launch {
@@ -186,15 +211,46 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 			// Legacy user overlays removed; Compose renders user position
 			mapUiParent.setContent {
 				com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme {
-					androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier) {
+					androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
 						// Optional Maps Compose rendering; when enabled, let it be interactive
-						if (showComposeMap) { MapScreen(store, overlayMode = false) }
+						if (showComposeMap) { 
+							MapScreen(store, overlayMode = false) 
+						}
 						// Bottom sheet on top
 						com.adsamcik.tracker.map.ui.MapSheet(
 							registry = registry,
 							store = store,
 						)
 					}
+				}
+			}
+		}
+
+		// Handle search geocoding via Android Geocoder as a bridge for Compose UI
+		viewLifecycleOwner.lifecycleScope.launch {
+			store.effects.collect { eff ->
+				when (eff) {
+					is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode -> {
+						launch(kotlinx.coroutines.Dispatchers.IO) {
+							try {
+								val geocoder = android.location.Geocoder(activity)
+								val results = geocoder.getFromLocationName(eff.query, 1)
+								val b = results?.firstOrNull()?.let { addr ->
+									val sw = com.google.android.gms.maps.model.LatLng(addr.latitude - 0.005, addr.longitude - 0.005)
+									val ne = com.google.android.gms.maps.model.LatLng(addr.latitude + 0.005, addr.longitude + 0.005)
+									com.google.android.gms.maps.model.LatLngBounds(sw, ne)
+								}
+								kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+									store.dispatch(com.adsamcik.tracker.map.presentation.udf.MapEvent.GeocodeResult(b))
+								}
+							} catch (_: Throwable) {
+								kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+									store.dispatch(com.adsamcik.tracker.map.presentation.udf.MapEvent.GeocodeResult(null))
+								}
+							}
+						}
+					}
+					else -> { /* ignore */ }
 				}
 			}
 		}

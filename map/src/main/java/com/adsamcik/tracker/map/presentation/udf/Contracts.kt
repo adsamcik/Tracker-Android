@@ -79,10 +79,16 @@ data class MapState(
 sealed interface MapEvent {
     data object ToggleFollow : MapEvent
     data object FollowCanceled : MapEvent
+    data object ShowSheet : MapEvent
+    data object HideSheet : MapEvent
     data class SelectLayer(val id: String) : MapEvent
     data class CameraMoved(val position: CameraModel, val byGesture: Boolean) : MapEvent
     data class SetQuality(val value: Float) : MapEvent
     data class SetDateRange(val range: LongRange) : MapEvent
+    // Search
+    data class UpdateSearchQuery(val query: String) : MapEvent
+    data object SubmitSearch : MapEvent
+    data class GeocodeResult(val bounds: com.google.android.gms.maps.model.LatLngBounds?) : MapEvent
     // Emitted by sensor pipeline to render user marker and accuracy circle declaratively
     data class SetUserLocation(val latLng: LatLngModel, val accuracyM: Double) : MapEvent
     // Emitted by sensor pipeline to update user/device bearing in degrees [0, 360)
@@ -93,4 +99,6 @@ sealed interface MapEffect {
     data object ShowFollowCanceled : MapEffect
     data class CenterCamera(val bounds: com.google.android.gms.maps.model.LatLngBounds) : MapEffect
     data class SetCameraBearing(val bearing: Float) : MapEffect
+    // Ask host to perform geocoding for the given query (Android service)
+    data class PerformGeocode(val query: String) : MapEffect
 }

@@ -118,6 +118,9 @@ dependencies {
 	testImplementation("org.mockito:mockito-core:5.19.0")
 	testImplementation("org.mockito:mockito-inline:5.2.0")
 	testImplementation("org.mockito.kotlin:mockito-kotlin:6.0.0")
+	testImplementation("app.cash.turbine:turbine:1.0.0")
+	testImplementation(libs.arch.core.testing) // for InstantTaskExecutorRule
+	testImplementation("androidx.test:core:1.6.1") // for ApplicationProvider
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)

@@ -41,6 +41,8 @@ abstract class BaseMapLayer<I, P>(
      * Start the layer. If already enabled, the running work is cancelled and the layer restarts.
      */
     fun enable(context: Context, map: GoogleMap, quality: Float) {
+        val startTime = System.currentTimeMillis()
+        
         // Restart behavior: cancel any existing work and mark disabled before starting anew
         if (enabled) {
             disable()
@@ -52,15 +54,28 @@ abstract class BaseMapLayer<I, P>(
         runningTask = executor.submit(Callable {
             try {
                 beforeEnable(context, map)
+                
+                val loadStartTime = System.currentTimeMillis()
                 val input = loadData(context)
+                val loadDuration = System.currentTimeMillis() - loadStartTime
+                
+                val processStartTime = System.currentTimeMillis()
                 val budgets = performanceManager.budgets(quality)
                 val processed = processData(input, budgets)
+                val processDuration = System.currentTimeMillis() - processStartTime
+                
                 if (enabled) {
                     mainHandler.post {
                         if (enabled) {
                             try {
+                                val renderStartTime = System.currentTimeMillis()
                                 render(map, processed)
+                                val renderDuration = System.currentTimeMillis() - renderStartTime
+                                
                                 afterEnable(map)
+                                
+                                val totalDuration = System.currentTimeMillis() - startTime
+                                onPerformanceMetrics(loadDuration, processDuration, renderDuration, totalDuration)
                             } catch (t: Throwable) {
                                 onPipelineError(t)
                             }
@@ -113,4 +128,14 @@ abstract class BaseMapLayer<I, P>(
 
     /** Hook: background error reporting for the pipeline. */
     protected open fun onPipelineError(error: Throwable) { /* no-op by default */ }
+    
+    /** Hook: performance metrics reporting. All durations in milliseconds. */
+    protected open fun onPerformanceMetrics(
+        loadDuration: Long,
+        processDuration: Long, 
+        renderDuration: Long,
+        totalDuration: Long
+    ) { 
+        // no-op by default; subclasses can override for monitoring
+    }
 }
