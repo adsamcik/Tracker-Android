@@ -3,10 +3,7 @@
     <string name="dev_notification_dummy">Ahoj světe!</string>
     <string name="did_you_know">Věděli jste, že</string>
     <string name="error_failed_to_open_license">Nelze otevřít licenci. Pokud je automatické hlášení chyb povoleno, bylo odesláno hlášení.</string>
-    <string name="first_run_app_description">Díky, že jste dali Advention šanci. Průvodce počátečním nastavením je VYSOCE DOPORUČEN novým uživatelům. Nechť vám aplikace dobře slouží.</string>
-    <string name="first_run_app_title">Vítejte v Advention</string>
     <string name="first_run_error_reporting_description">Přejete si povolit automatické hlášení chyb? Díky němu lze lépe a bez nutnosti hlášení z vaší strany opravit pády aplikace. Pro více informací se podívejte na <a href="%1$s">zásady o ochraně osobních údajů</a>.</string>
-    <string name="first_run_error_reporting_title">Automatické hlášení chyb</string>
     <string-array name="lorem_ipsum_facts">
         <item>Lorem ipsum bylo vytvořeno podle 2000 let starého textu</item>
         <item>Lorem ipsum se používá již od roku 16. století</item>
