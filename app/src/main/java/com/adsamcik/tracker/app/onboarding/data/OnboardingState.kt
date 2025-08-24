@@ -28,9 +28,7 @@ data class UserPreferences(
     val enableAnonymousAnalytics: Boolean = false,
     val trackingProfile: TrackingProfile = TrackingProfile.BALANCED,
     val autoStartTracking: Boolean = false,
-    val enableSmartPause: Boolean = true,
-    // Stage 4 additions  
-    val enableEnhancedIndoorTracking: Boolean = false
+    val enableSmartPause: Boolean = true
 )
 
 /**

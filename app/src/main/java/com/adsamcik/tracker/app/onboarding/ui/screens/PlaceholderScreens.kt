@@ -91,9 +91,6 @@ fun SuccessScreen(
                     if (preferences.enableNotifications && Permission.NOTIFICATIONS in grantedPermissions) {
                         add("🔔 Smart notifications")
                     }
-                    if (preferences.enableEnhancedIndoorTracking) {
-                        add("🏢 Enhanced indoor detection")
-                    }
                     add("🛡️ Privacy-first data storage")
                     add("⚙️ ${preferences.trackingProfile.name.lowercase().replaceFirstChar { it.uppercase() }} tracking profile")
                 }

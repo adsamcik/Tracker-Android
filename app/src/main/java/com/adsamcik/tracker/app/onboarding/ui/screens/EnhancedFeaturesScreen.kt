@@ -21,7 +21,7 @@ import com.adsamcik.tracker.app.onboarding.data.*
 
 /**
  * Enhanced features screen for optional improvements to tracking accuracy.
- * Includes WiFi tracking, notifications, and indoor tracking enhancements.
+ * Includes WiFi tracking and notifications.
  */
 @Composable
 fun EnhancedFeaturesScreen(
@@ -146,80 +146,6 @@ fun EnhancedFeaturesScreen(
             },
             onRequestPermission = { onPermissionGranted(Permission.NOTIFICATIONS) }
         )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Indoor tracking improvements
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            border = CardDefaults.outlinedCardBorder()
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationCity,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.width(16.dp))
-                    
-                    Column {
-                        Text(
-                            text = "Indoor Tracking Improvements",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = "Enhanced algorithms for better indoor position detection",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Indoor tracking settings
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Enhanced indoor detection",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "Use sensors for better indoor tracking",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = preferences.enableEnhancedIndoorTracking,
-                        onCheckedChange = { enabled ->
-                            onPreferencesUpdate(
-                                preferences.copy(enableEnhancedIndoorTracking = enabled)
-                            )
-                        }
-                    )
-                }
-            }
-        }
         
         Spacer(modifier = Modifier.height(32.dp))
         
@@ -423,8 +349,7 @@ fun EnhancedFeaturesScreenPreview() {
         EnhancedFeaturesScreen(
             preferences = UserPreferences(
                 enableWifiTracking = true,
-                enableNotifications = false,
-                enableEnhancedIndoorTracking = true
+                enableNotifications = false
             ),
             grantedPermissions = setOf(Permission.NEARBY_WIFI_DEVICES),
             onPreferencesUpdate = {},
