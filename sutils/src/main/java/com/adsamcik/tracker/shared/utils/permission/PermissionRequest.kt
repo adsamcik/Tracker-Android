@@ -2,13 +2,12 @@ package com.adsamcik.tracker.shared.utils.permission
 
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
-import com.karumi.dexter.PermissionToken
 
 typealias PermissionResultCallback = (result: PermissionRequestResult) -> Unit
 typealias RationaleCallback = (token: PermissionRequest.Token, permissionList: List<PermissionData>) -> Unit
 
 /**
- * Permission request
+ * Permission request (temporary stub for Stage 0)
  */
 @Suppress("unused")
 class PermissionRequest private constructor(
@@ -19,118 +18,125 @@ class PermissionRequest private constructor(
 ) {
 
     /**
-     * Permission request builder
+     * Request token (temporary stub)
      */
-    class Builder(val context: Context) {
-
-        private val permissions = mutableListOf<PermissionData>()
-
-        private var onPermissionRationale: RationaleCallback? = null
-
-        private var onPermissionResult: PermissionResultCallback? = null
-
+    class Token {
         /**
-         * Sets required permissions
+         * Resumes permission request (stub)
          */
-        fun permission(permission: PermissionData): Builder {
-            this.permissions.add(permission)
-            return this
+        fun continuePermissionRequest() {
+            // TODO: Replace with Activity Result API
         }
 
         /**
-         * Sets required permissions
+         * Cancels permission request (stub)
          */
-        fun permissions(permissions: Collection<PermissionData>): Builder {
-            this.permissions.addAll(permissions)
-            return this
-        }
-
-        /**
-         * Sets required permissions
-         */
-        fun permissions(vararg permissions: Pair<String, (context: Context) -> String>): Builder {
-            permissions(permissions.map { PermissionData(it.first, it.second) })
-            return this
-        }
-
-        /**
-         * Sets callback to create rationale
-         */
-        fun onRationale(callback: RationaleCallback): Builder {
-            onPermissionRationale = callback
-            return this
-        }
-
-        /**
-         * Sets on permission result callback
-         */
-        fun onResult(callback: PermissionResultCallback): Builder {
-            onPermissionResult = callback
-            return this
-        }
-
-
-        /**
-         * Builds request
-         */
-        fun build(): PermissionRequest {
-            val permissionCallback =
-                requireNotNull(onPermissionResult) { "Permission result callback needs to be set" }
-            return PermissionRequest(
-                context,
-                permissions,
-                permissionCallback,
-                onPermissionRationale
-            )
+        fun cancelPermissionRequest() {
+            // TODO: Replace with Activity Result API
         }
     }
 
     /**
-     * Request token
+     * Builder for permission request
      */
-    class Token(private val token: PermissionToken) {
-        /**
-         * Resumes permission request
-         */
-        fun continuePermissionRequest() {
-            token.continuePermissionRequest()
+    class Builder(private val context: Context) {
+        private val permissionList = mutableListOf<PermissionData>()
+        private var resultCallback: PermissionResultCallback? = null
+        private var rationaleCallback: RationaleCallback? = null
+
+        fun permission(permissionData: PermissionData): Builder {
+            permissionList.add(permissionData)
+            return this
         }
 
-        /**
-         * Cancels permission request
-         */
-        fun cancelPermissionRequest() {
-            token.cancelPermissionRequest()
+        fun permissions(vararg permissionData: PermissionData): Builder {
+            permissionList.addAll(permissionData)
+            return this
         }
 
+        fun permissions(permissionDataList: List<PermissionData>): Builder {
+            permissionList.addAll(permissionDataList)
+            return this
+        }
+
+        fun onResult(callback: PermissionResultCallback): Builder {
+            resultCallback = callback
+            return this
+        }
+
+        fun onRationale(callback: RationaleCallback): Builder {
+            rationaleCallback = callback
+            return this
+        }
+
+        fun build(): PermissionRequest {
+            return PermissionRequest(
+                context = context,
+                permissionList = permissionList,
+                resultCallback = requireNotNull(resultCallback),
+                rationaleCallback = rationaleCallback
+            )
+        }
     }
 
     companion object {
         /**
          * Creates permission request with [FragmentActivity].
          */
-        fun with(activity: FragmentActivity): Builder = Builder(activity)
+        fun newInstance(context: FragmentActivity): Builder {
+            return Builder(context)
+        }
 
         /**
          * Creates permission request with [Context].
          */
-        fun with(context: Context): Builder = Builder(context)
+        fun newInstance(context: Context): Builder {
+            return Builder(context)
+        }
 
         /**
-         * Creates builder from active request
+         * Creates permission request with context (alias for newInstance)
          */
-        fun from(request: PermissionRequest): Builder = Builder(request.context).apply {
-            permissions(request.permissionList)
-            request.rationaleCallback?.let { onRationale(it) }
-            onResult(request.resultCallback)
+        fun with(context: Context): Builder {
+            return Builder(context)
+        }
+
+        /**
+         * Creates a builder from existing request
+         */
+        fun from(request: PermissionRequest): Builder {
+            return Builder(request.context).apply {
+                permissions(*request.permissionList.toTypedArray())
+                request.rationaleCallback?.let { onRationale(it) }
+            }
+        }
+
+        /**
+         * Creates permission request with legacy callback
+         */
+        fun newInstance(
+            context: Context,
+            permissionData: PermissionData,
+            callback: PermissionResultCallback
+        ): PermissionRequest {
+            return Builder(context)
+                .permission(permissionData)
+                .onResult(callback)
+                .build()
+        }
+
+        /**
+         * Creates permission request with legacy callback
+         */
+        fun newInstance(
+            context: Context,
+            permissionList: List<PermissionData>,
+            callback: PermissionResultCallback
+        ): PermissionRequest {
+            return Builder(context)
+                .permissions(*permissionList.toTypedArray())
+                .onResult(callback)
+                .build()
         }
     }
 }
-
-/**
- * Permission data
- *
- * @param name Permission name (from manifest)
- * @param rationaleBuilder Rationale text builder
- */
-data class PermissionData(val name: String, val rationaleBuilder: (context: Context) -> String)

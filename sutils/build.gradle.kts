@@ -92,7 +92,6 @@ dependencies {
 	implementation(libs.spotlight)
 	implementation(libs.suncalc)
 	implementation(libs.material.dialogs.core)
-	implementation(libs.dexter)
 
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)
