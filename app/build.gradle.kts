@@ -113,7 +113,6 @@ dependencies {
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.components.recycler)
 	implementation(libs.material.dialogs.core)
-	implementation(libs.dexter)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.androidx.constraintlayout)

@@ -9,14 +9,6 @@
     <string name="error_failed_to_open_license">Failed to open license. If auto reporting is enabled, report was sent.</string>
 
 
-    <string name="first_run_app_description">Thank you for trying Advention. This initial setup is HIGHLY RECOMMENDED for new users. May Advention serve you well.</string>
-    <string name="first_run_app_title">Welcome to Advention</string>
-    <string name="first_run_error_reporting_description">Would you like to enable automatic error reporting? It is very important for issue resolving as it provides crucial information about the issue. For more information see <a href="%1$s">privacy policy</a>.</string>
-    <string name="first_run_error_reporting_title">Automatic error reporting</string>
-    <string name="first_run_notifications_description">Enable notifications to get notified about the current state of tracking and reached goals!</string>
-    <string name="first_run_notifications_title">Get notified!</string>
-
-
     <string name="key_last_app_version" translatable="false">lastVersion</string>
 
     <string-array name="lorem_ipsum_facts">
@@ -58,7 +50,6 @@
     <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
     <string name="settings_error_reporting_title">Automatic error reporting</string>
 
-    <string name="settings_first_run_key" translatable="false">firstRun</string>
     <string name="settings_hello_world_key" translatable="false">helloWorld</string>
     <string name="settings_hello_world_title">Hello world!</string>
 
@@ -134,4 +125,63 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+
+    <!-- Onboarding Strings -->
+    <string name="onboarding_button_back">Back</string>
+    <string name="onboarding_button_continue">Continue</string>
+    <string name="onboarding_button_get_started">Get Started</string>
+    <string name="onboarding_button_next">Next</string>
+    <string name="onboarding_button_finish">Finish Setup</string>
+
+    <!-- Welcome Screen -->
+    <string name="onboarding_welcome_title">Welcome to Tracker</string>
+    <string name="onboarding_welcome_subtitle">Privacy-first location and activity tracking designed for your peace of mind</string>
+    <string name="welcome_privacy_highlight">🔒 Your data stays on your device</string>
+    <string name="welcome_offline_highlight">📱 Works completely offline</string>
+    <string name="welcome_control_highlight">🎯 You control what gets tracked</string>
+
+    <!-- What to Track Screen -->
+    <string name="onboarding_what_to_track_title">What Would You Like to Track?</string>
+    <string name="onboarding_what_to_track_subtitle">Choose the data types that matter to you. You can always change these later.</string>
+    <string name="tracking_option_location_title">Location</string>
+    <string name="tracking_option_location_description">Track your movement and visited places</string>
+    <string name="tracking_option_activity_title">Activity</string>
+    <string name="tracking_option_activity_description">Detect walking, driving, cycling, and more</string>
+    <string name="tracking_option_wifi_title">Wi-Fi Networks</string>
+    <string name="tracking_option_wifi_description">Log nearby networks for location context</string>
+    <string name="tracking_option_steps_title">Step Count</string>
+    <string name="tracking_option_steps_description">Count your daily steps and movement</string>
+    <string name="onboarding_steps_not_available">Step counting is not available on this device</string>
+
+    <!-- Auto-Tracking Setup Screen -->
+    <string name="onboarding_auto_tracking_title">Auto-Tracking Setup</string>
+    <string name="onboarding_auto_tracking_subtitle">Configure how Tracker monitors your activities automatically</string>
+    <string name="onboarding_enable_auto_tracking">Enable Auto-Tracking</string>
+    <string name="onboarding_auto_tracking_description">Automatically detect and log activities without manual intervention</string>
+    <string name="onboarding_tracking_profile_title">Tracking Profile</string>
+    <string name="onboarding_tracking_profile_subtitle">Choose how aggressively Tracker monitors your activities</string>
+    <string name="tracking_profile_eco">ECO - Minimal battery usage</string>
+    <string name="tracking_profile_eco_description">Best for battery life. Reduced accuracy and sampling frequency.</string>
+    <string name="tracking_profile_balanced">BALANCED - Good accuracy with reasonable battery usage</string>
+    <string name="tracking_profile_balanced_description">Balanced between accuracy and battery usage. Recommended for most users.</string>
+    <string name="tracking_profile_precise">PRECISE - Maximum accuracy and detail</string>
+    <string name="tracking_profile_precise_description">Highest accuracy and detail. Increased battery consumption.</string>
+    <string name="auto_tracking_explanation">Auto-tracking uses device sensors and activity recognition to detect activities. All processing happens on your device.</string>
+
+    <!-- Privacy Screen -->
+    <string name="onboarding_privacy_title">Privacy First</string>
+    <string name="onboarding_privacy_subtitle">Your data, your control. We believe privacy is a fundamental right.</string>
+    <string name="privacy_local_storage_title">Local Storage Only</string>
+    <string name="privacy_local_storage_description">All your tracking data stays on your device. Nothing is uploaded to our servers.</string>
+    <string name="privacy_no_cloud_title">No Cloud Sync</string>
+    <string name="privacy_no_cloud_description">We don\'t collect, analyze, or share your personal movement patterns.</string>
+    <string name="privacy_open_source_title">Open Source</string>
+    <string name="privacy_open_source_description">Our code is transparent and auditable. You can verify exactly what we do.</string>
+    <string name="privacy_your_control_title">Full Control</string>
+    <string name="privacy_your_control_description">Export, delete, or modify your data anytime. You own it completely.</string>
+    <string name="privacy_data_storage_preferences">Data Storage Preferences</string>
+    <string name="privacy_auto_cleanup_title">Auto-cleanup old data</string>
+    <string name="privacy_auto_cleanup_description">Automatically remove data older than 1 year</string>
+    <string name="privacy_export_reminder">You can export your data anytime from the settings menu</string>
+    <string name="privacy_footer_note">Tracker is designed with privacy by design. Your location data never leaves your device unless you explicitly choose to export it.</string>
 </resources>
