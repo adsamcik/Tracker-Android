@@ -74,6 +74,45 @@ Tracker Android is a privacy-focused, open-source location and activity tracking
 - Build variants for different releases (Alpha, Beta, Release)
 - Gradle version catalogs for dependency management
 
+### Dependency Management (must follow)
+- Use the Gradle Version Catalog exclusively. All dependencies and plugins must be declared in `gradle/libs.versions.toml` and referenced via `libs.*` aliases in Gradle scripts.
+- Do not hardcode coordinates or versions inside `build.gradle.kts` files. That includes test dependencies, Compose artifacts, BOMs, and tools.
+- When you need a new library:
+	1) Add or update a version under `[versions]` in `libs.versions.toml`.
+	2) Add a library entry under `[libraries]` (or a plugin under `[plugins]`).
+	3) Reference it from module `build.gradle.kts` using the generated alias (e.g., `implementation(libs.androidx.core.ktx)`).
+- Prefer BOMs via the catalog as well. Declare a platform entry in the catalog and use `implementation(platform(libs.compose.bom))` (or similar) from modules.
+- Keep comments in `libs.versions.toml` when pinning or temporarily overriding versions, and remove the pin when upstream is compatible.
+
+Example (catalog):
+
+```toml
+[versions]
+compose = "2024.06.00"
+
+[libraries]
+compose-foundation-layout = { module = "androidx.compose.foundation:foundation-layout", version.ref = "compose" }
+robolectric = { module = "org.robolectric:robolectric", version = "4.15.1" }
+
+[plugins]
+kotlin-android = { id = "org.jetbrains.kotlin.android", version = "2.0.0" }
+```
+
+Example (usage in build.gradle.kts):
+
+```kotlin
+plugins {
+		alias(libs.plugins.kotlin.android)
+}
+
+dependencies {
+		implementation(libs.compose.foundation.layout)
+		testImplementation(libs.robolectric)
+}
+```
+
+Migration note: If you see any hardcoded dependencies in modules (e.g., `implementation("androidx.compose.foundation:foundation-layout")` or explicit versions in tests), migrate them to the catalog in the same change.
+
 ## Privacy & Security
 - No network data collection - purely local processing
 - Optional Android backup only
