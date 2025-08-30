@@ -26,6 +26,10 @@ android {
 	androidResources {
 		localeFilters.addAll(listOf("en", "cs-rCZ"))
 	}
+
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
 	
 	compileOptions {
 		sourceCompatibility = Android.javaTarget
@@ -200,6 +204,12 @@ dependencies {
 	implementation(libs.androidx.room.paging)
 	implementation(libs.sqlite.android)
 	androidTestImplementation(libs.androidx.room.testing)
+
+	// Unit test deps
+	testImplementation(libs.junit4)
+	testImplementation(libs.androidx.test.core)
+	testImplementation(libs.androidx.work.testing)
+	testImplementation(libs.robolectric)
 
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
