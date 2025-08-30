@@ -214,6 +214,19 @@
             app:icon="@drawable/ic_import" />
 
         <androidx.preference.PreferenceCategory>
+            <androidx.preference.SwitchPreferenceCompat
+                android:key="@string/settings_auto_cleanup_old_data_key"
+                android:title="@string/settings_auto_cleanup_old_data_title"
+                android:summary="@string/settings_auto_cleanup_old_data_summary"
+                android:defaultValue="@string/settings_auto_cleanup_old_data_default" />
+
+            <com.adsamcik.tracker.preference.component.DialogListPreference
+                android:key="@string/settings_data_retention_years_key"
+                android:title="@string/settings_data_retention_years_title"
+                android:defaultValue="@string/settings_data_retention_years_default"
+                app:keys="@array/settings_data_retention_years_values"
+                app:titles="@array/settings_data_retention_years_titles" />
+
             <androidx.preference.Preference
                 android:key="@string/settings_remove_all_collected_data_key"
                 android:summary="@string/settings_remove_all_collected_data_summary"

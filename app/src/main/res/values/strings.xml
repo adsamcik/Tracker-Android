@@ -184,4 +184,30 @@
     <string name="privacy_auto_cleanup_description">Automatically remove data older than 1 year</string>
     <string name="privacy_export_reminder">You can export your data anytime from the settings menu</string>
     <string name="privacy_footer_note">Tracker is designed with privacy by design. Your location data never leaves your device unless you explicitly choose to export it.</string>
+
+    <!-- Data retention setting (also used by onboarding toggle) -->
+    <string name="settings_auto_cleanup_old_data_key" translatable="false">autoCleanupOldData</string>
+    <string name="settings_auto_cleanup_old_data_title">Auto-cleanup old data</string>
+    <string name="settings_auto_cleanup_old_data_summary">Automatically remove data older than 1 year</string>
+    <string name="settings_auto_cleanup_old_data_default" translatable="false">false</string>
+
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_key" translatable="false">dataRetentionYears</string>
+    <string name="settings_data_retention_years_title">Keep data for</string>
+    <string name="settings_data_retention_years_default" translatable="false">1</string>
+
+    <string-array name="settings_data_retention_years_titles">
+        <item>1 year</item>
+        <item>2 years</item>
+        <item>3 years</item>
+        <item>5 years</item>
+        <item>10 years</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
 </resources>

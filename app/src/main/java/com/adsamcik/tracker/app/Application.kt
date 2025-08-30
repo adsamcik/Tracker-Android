@@ -11,12 +11,14 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.points.PointsInitializer
+import com.adsamcik.tracker.maintenance.DataRetentionWorker
 import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.google.android.play.core.splitcompat.SplitCompatApplication
+import android.util.Log
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -57,9 +59,23 @@ class Application : SplitCompatApplication() {
 		CrashHandler(this).initialize()
 	}
 
-	@WorkerThread
+	@MainThread
 	private fun initializeDatabaseMaintenance() {
-		DatabaseMaintenanceWorker.schedule(this)
+		// Schedule periodic DB maintenance if WorkManager is available
+		try {
+			DatabaseMaintenanceWorker.schedule(this)
+		} catch (e: IllegalStateException) {
+			// In unit tests (Robolectric), WorkManager might not be initialized yet.
+			Log.w("App", "Skipping DatabaseMaintenanceWorker.schedule during unit tests: ${e.message}")
+		}
+		// Ensure weekly auto-cleanup job is in sync with preference
+		try {
+			DataRetentionWorker.initialize(this)
+		} catch (e: IllegalStateException) {
+			// In unit tests (Robolectric), WorkManager might not be initialized yet.
+			// Tests that need it will initialize WorkManager manually.
+			Log.w("App", "Skipping DataRetentionWorker.initialize during unit tests: ${e.message}")
+		}
 	}
 
 	@WorkerThread
@@ -76,10 +92,12 @@ class Application : SplitCompatApplication() {
 		super.onCreate()
 		initializeImportantSingletons()
 
-		GlobalScope.launch(Dispatchers.Default) {
+	// Preference observers must be registered on main thread
+	initializeDatabaseMaintenance()
+
+	GlobalScope.launch(Dispatchers.Default) {
 			initializeClasses()
 			initializeModules()
-			initializeDatabaseMaintenance()
 			initializeFeatures()
 		}
 
