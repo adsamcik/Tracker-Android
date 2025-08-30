@@ -24,7 +24,7 @@ data class UserPreferences(
     val dataStorageLocal: Boolean = true,
     val enableCloudBackup: Boolean = false,
     // Stage 2 additions
-    val autoCleanupOldData: Boolean = true,
+    val autoCleanupOldData: Boolean = false,
     val enableAnonymousAnalytics: Boolean = false,
     val trackingProfile: TrackingProfile = TrackingProfile.BALANCED,
     val autoStartTracking: Boolean = false,

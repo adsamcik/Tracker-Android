@@ -17,7 +17,21 @@ import com.adsamcik.tracker.app.onboarding.data.Permission
  * Modern permission manager using Activity Result API.
  * Replaces the legacy Dexter-based permission system.
  */
-class OnboardingPermissionManager(val activity: ComponentActivity) {
+/**
+ * Contract used by onboarding UI to check/request permissions.
+ * Keep this minimal to allow stable fakes in instrumentation tests.
+ */
+interface IOnboardingPermissionManager {
+    val activity: ComponentActivity
+    fun isPermissionGranted(permission: Permission): Boolean
+    fun shouldShowRequestPermissionRationale(permission: Permission): Boolean
+    suspend fun requestPermission(permission: Permission): PermissionResult
+    fun getGrantedPermissions(): Set<Permission>
+    fun getPermissionDisplayName(permission: Permission): String
+    fun getPermissionDescription(permission: Permission): String
+}
+
+class OnboardingPermissionManager(override val activity: ComponentActivity) : IOnboardingPermissionManager {
 
     private var currentCallback: ((PermissionResult) -> Unit)? = null
     
@@ -48,7 +62,7 @@ class OnboardingPermissionManager(val activity: ComponentActivity) {
     /**
      * Check if a permission is currently granted
      */
-    fun isPermissionGranted(permission: Permission): Boolean {
+    override fun isPermissionGranted(permission: Permission): Boolean {
         val manifestPermissions = getManifestPermissions(permission)
         return if (permission == com.adsamcik.tracker.app.onboarding.data.Permission.NEARBY_WIFI_DEVICES &&
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
@@ -67,7 +81,7 @@ class OnboardingPermissionManager(val activity: ComponentActivity) {
     /**
      * Check if permission rationale should be shown
      */
-    fun shouldShowRequestPermissionRationale(permission: Permission): Boolean {
+    override fun shouldShowRequestPermissionRationale(permission: Permission): Boolean {
         val manifestPermissions = getManifestPermissions(permission)
         return manifestPermissions.any { manifestPermission ->
             activity.shouldShowRequestPermissionRationale(manifestPermission)
@@ -77,7 +91,7 @@ class OnboardingPermissionManager(val activity: ComponentActivity) {
     /**
      * Request a single permission
      */
-    suspend fun requestPermission(permission: Permission): PermissionResult {
+    override suspend fun requestPermission(permission: Permission): PermissionResult {
         return suspendCancellableCoroutine { continuation ->
             val manifestPermissions = getManifestPermissions(permission)
             
@@ -104,7 +118,7 @@ class OnboardingPermissionManager(val activity: ComponentActivity) {
     /**
      * Get all currently granted onboarding permissions
      */
-    fun getGrantedPermissions(): Set<Permission> {
+    override fun getGrantedPermissions(): Set<Permission> {
         return Permission.values().filter { permission ->
             isPermissionGranted(permission)
         }.toSet()
@@ -160,7 +174,7 @@ class OnboardingPermissionManager(val activity: ComponentActivity) {
     /**
      * Get user-friendly permission names for UI display
      */
-    fun getPermissionDisplayName(permission: Permission): String {
+    override fun getPermissionDisplayName(permission: Permission): String {
         return when (permission) {
             Permission.LOCATION_FOREGROUND -> "Location Access"
             Permission.LOCATION_BACKGROUND -> "Background Location"
@@ -173,7 +187,7 @@ class OnboardingPermissionManager(val activity: ComponentActivity) {
     /**
      * Get permission description for rationale dialogs
      */
-    fun getPermissionDescription(permission: Permission): String {
+    override fun getPermissionDescription(permission: Permission): String {
         return when (permission) {
             Permission.LOCATION_FOREGROUND -> 
                 "Location access is needed to track your routes and movement patterns."
@@ -206,4 +220,12 @@ sealed class PermissionResult {
  */
 fun ComponentActivity.createOnboardingPermissionManager(): OnboardingPermissionManager {
     return OnboardingPermissionManager(this)
+}
+
+/**
+ * Simple provider to allow swapping permission manager factory in tests.
+ */
+object OnboardingPermissionManagerProvider {
+    @Volatile
+    var factory: (ComponentActivity) -> IOnboardingPermissionManager = { it.createOnboardingPermissionManager() }
 }

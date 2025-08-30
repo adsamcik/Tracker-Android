@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.app.onboarding.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -10,6 +12,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
+import androidx.compose.ui.platform.testTag
 
 /**
  * Placeholder screens for the remaining onboarding steps
@@ -26,7 +29,9 @@ fun SuccessScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
+            .testTag("onboarding_success_root"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -142,7 +147,9 @@ fun SuccessScreen(
         
         Button(
             onClick = onComplete,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("onboarding_cta_done")
         ) {
             Text("Start Tracking!")
         }

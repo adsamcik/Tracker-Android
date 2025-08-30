@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
+import androidx.compose.ui.platform.testTag
 
 /**
  * Background location permission screen with careful explanation and user control.
@@ -236,7 +237,9 @@ fun BackgroundLocationScreen(
                 onClick = { 
                     onPermissionGranted(Permission.LOCATION_BACKGROUND)
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text("Enable Background Tracking")
             }
@@ -245,7 +248,9 @@ fun BackgroundLocationScreen(
             
             OutlinedButton(
                 onClick = onSkip,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_skip")
             ) {
                 Text("Skip - Track manually")
             }
@@ -291,7 +296,9 @@ fun BackgroundLocationScreen(
             
             Button(
                 onClick = onContinue,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text("Complete Setup")
             }
@@ -307,7 +314,9 @@ fun BackgroundLocationScreen(
         ) {
             OutlinedButton(
                 onClick = onBack,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("onboarding_cta_back")
             ) {
                 Text("Back")
             }
@@ -316,14 +325,18 @@ fun BackgroundLocationScreen(
                 Button(
                     onClick = onContinue,
                     enabled = false,
-                    modifier = Modifier.weight(2f)
+                    modifier = Modifier
+                        .weight(2f)
+                        .testTag("onboarding_cta_primary")
                 ) {
                     Text("Continue")
                 }
             } else if (hasLocationPermission) {
                 Button(
                     onClick = onContinue,
-                    modifier = Modifier.weight(2f)
+                    modifier = Modifier
+                        .weight(2f)
+                        .testTag("onboarding_cta_primary")
                 ) {
                     Text("Continue")
                 }

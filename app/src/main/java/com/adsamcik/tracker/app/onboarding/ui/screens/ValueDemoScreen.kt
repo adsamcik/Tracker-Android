@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 
 /**
  * Value demonstration screen - Stage 2 of onboarding
@@ -115,14 +116,18 @@ fun ValueDemoScreen(
         ) {
             OutlinedButton(
                 onClick = onBack,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("onboarding_cta_back")
             ) {
                 Text("Back")
             }
             
             Button(
                 onClick = onContinue,
-                modifier = Modifier.weight(2f)
+                modifier = Modifier
+                    .weight(2f)
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text("Set up my tracking")
             }

@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.data.*
+import androidx.compose.ui.platform.testTag
 
 /**
  * Location setup screen explaining location benefits and requesting permission.
@@ -168,7 +169,9 @@ fun LocationSetupScreen(
                     // Request location permission
                     onPermissionGranted(Permission.LOCATION_FOREGROUND)
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text("Enable Location Access")
             }
@@ -177,7 +180,9 @@ fun LocationSetupScreen(
             
             OutlinedButton(
                 onClick = onSkip,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_skip")
             ) {
                 Text("Skip for now")
             }
@@ -223,7 +228,9 @@ fun LocationSetupScreen(
             
             Button(
                 onClick = onContinue,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text("Continue Setup")
             }
@@ -240,7 +247,9 @@ fun LocationSetupScreen(
             ) {
                 OutlinedButton(
                     onClick = onBack,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("onboarding_cta_back")
                 ) {
                     Text("Back")
                 }
@@ -249,7 +258,9 @@ fun LocationSetupScreen(
                 Button(
                     onClick = onContinue,
                     enabled = false,
-                    modifier = Modifier.weight(2f)
+                    modifier = Modifier
+                        .weight(2f)
+                        .testTag("onboarding_cta_primary")
                 ) {
                     Text("Continue")
                 }
@@ -258,7 +269,9 @@ fun LocationSetupScreen(
             // Show back button when permission is granted
             OutlinedButton(
                 onClick = onBack,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_back")
             ) {
                 Text("Back")
             }

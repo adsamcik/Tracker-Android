@@ -20,14 +20,15 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.adsamcik.tracker.app.activity.MainActivity
 import com.adsamcik.tracker.app.onboarding.data.*
-import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManager
-import com.adsamcik.tracker.app.onboarding.permission.createOnboardingPermissionManager
+import com.adsamcik.tracker.app.onboarding.permission.IOnboardingPermissionManager
+import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManagerProvider
 import com.adsamcik.tracker.app.onboarding.permission.PermissionResult
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.maintenance.DataRetentionWorker
 
 /**
  * Coordinator activity for the new onboarding flow.
@@ -36,13 +37,13 @@ import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 class OnboardingActivity : ComponentActivity() {
     
     private val viewModel: OnboardingViewModel by viewModels()
-    private lateinit var permissionManager: OnboardingPermissionManager
+    private lateinit var permissionManager: IOnboardingPermissionManager
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Initialize permission manager
-        permissionManager = createOnboardingPermissionManager()
+    // Initialize permission manager (swappable in tests via provider)
+    permissionManager = OnboardingPermissionManagerProvider.factory(this)
         
         setContent {
             // Use app theme - you might want to create a specific onboarding theme
@@ -206,6 +207,9 @@ class OnboardingActivity : ComponentActivity() {
             if (timerKey != null) {
                 setString(R.string.settings_tracker_timer_key, timerKey)
             }
+
+            // Persist auto-cleanup setting (default off unless user explicitly enabled)
+            setBoolean(R.string.settings_auto_cleanup_old_data_key, prefs.autoCleanupOldData)
         }
 
         // Apply side-effects for auto tracking changes
@@ -217,6 +221,9 @@ class OnboardingActivity : ComponentActivity() {
             // Ensure watcher evaluates immediately
             ActivityWatcherService.poke(this)
         }
+
+    // Sync weekly data retention schedule with preference
+    DataRetentionWorker.initialize(this)
     }
 
     private fun markOnboardingCompleted() {
@@ -245,7 +252,7 @@ class OnboardingActivity : ComponentActivity() {
 @Composable
 fun OnboardingFlow(
     viewModel: OnboardingViewModel,
-    permissionManager: OnboardingPermissionManager,
+    permissionManager: IOnboardingPermissionManager,
     onNavigateToMainApp: () -> Unit,
     onRequestPermission: (Permission) -> Unit = {}
 ) {

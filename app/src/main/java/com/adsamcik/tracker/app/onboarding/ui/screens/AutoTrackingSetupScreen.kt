@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.data.UserPreferences
 import com.adsamcik.tracker.app.onboarding.data.TrackingProfile
+import androidx.compose.ui.platform.testTag
 
 /**
  * Auto-tracking configuration screen that explains the app's background tracking capabilities
@@ -177,10 +178,10 @@ fun AutoTrackingSetupScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f).testTag("onboarding_cta_back")) {
                 Text(stringResource(R.string.generic_back))
             }
-            Button(onClick = onContinue, modifier = Modifier.weight(2f)) {
+            Button(onClick = onContinue, modifier = Modifier.weight(2f).testTag("onboarding_cta_primary")) {
                 Text(stringResource(R.string.generic_continue))
             }
         }

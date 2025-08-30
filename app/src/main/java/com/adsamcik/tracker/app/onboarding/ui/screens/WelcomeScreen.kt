@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
+import androidx.compose.ui.platform.testTag
 
 /**
  * Welcome screen - Stage 1 of onboarding
@@ -126,6 +127,7 @@ fun WelcomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text(
                     text = "Get Started",
@@ -137,7 +139,9 @@ fun WelcomeScreen(
             
             TextButton(
                 onClick = onSkip,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_skip")
             ) {
                 Text(
                     text = "Skip setup",

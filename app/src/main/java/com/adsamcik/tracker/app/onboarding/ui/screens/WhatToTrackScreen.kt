@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.UserPreferences
+import androidx.compose.ui.platform.testTag
 
 @Composable
 fun WhatToTrackScreen(
@@ -133,10 +134,10 @@ fun WhatToTrackScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f).testTag("onboarding_cta_back")) {
                 Text(stringResource(R.string.generic_back))
             }
-            Button(onClick = onContinue, modifier = Modifier.weight(2f)) {
+            Button(onClick = onContinue, modifier = Modifier.weight(2f).testTag("onboarding_cta_primary")) {
                 Text(stringResource(R.string.generic_continue))
             }
         }

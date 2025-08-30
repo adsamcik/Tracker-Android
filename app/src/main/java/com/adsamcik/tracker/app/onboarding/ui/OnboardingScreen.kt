@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +22,10 @@ fun OnboardingScreen(
     onEvent: (OnboardingEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Handle system back to move to previous step when not on the first screen
+    BackHandler(enabled = state.currentStep != OnboardingStep.Welcome) {
+        onEvent(OnboardingEvent.PreviousStep)
+    }
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing
     ) { contentPadding ->

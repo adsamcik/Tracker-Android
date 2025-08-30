@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
+import androidx.compose.ui.platform.testTag
 
 /**
  * Activity recognition setup screen explaining activity detection benefits.
@@ -166,7 +167,9 @@ fun ActivitySetupScreen(
                 onClick = { 
                     onPermissionGranted(Permission.ACTIVITY_RECOGNITION)
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text("Enable Activity Detection")
             }
@@ -175,7 +178,9 @@ fun ActivitySetupScreen(
             
             OutlinedButton(
                 onClick = onSkip,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_skip")
             ) {
                 Text("Skip for now")
             }
@@ -221,7 +226,9 @@ fun ActivitySetupScreen(
             
             Button(
                 onClick = onContinue,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_primary")
             ) {
                 Text("Continue Setup")
             }
@@ -238,7 +245,9 @@ fun ActivitySetupScreen(
             ) {
                 OutlinedButton(
                     onClick = onBack,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("onboarding_cta_back")
                 ) {
                     Text("Back")
                 }
@@ -246,7 +255,9 @@ fun ActivitySetupScreen(
                 Button(
                     onClick = onContinue,
                     enabled = false,
-                    modifier = Modifier.weight(2f)
+                    modifier = Modifier
+                        .weight(2f)
+                        .testTag("onboarding_cta_primary")
                 ) {
                     Text("Continue")
                 }
@@ -254,7 +265,9 @@ fun ActivitySetupScreen(
         } else {
             OutlinedButton(
                 onClick = onBack,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_back")
             ) {
                 Text("Back")
             }
