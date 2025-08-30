@@ -8,6 +8,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.google.android.gms.maps.model.TileProvider
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -52,10 +53,13 @@ class MapStore(
     fun dispatch(event: MapEvent) {
         when (event) {
             is MapEvent.ShowSheet -> {
-                _state.update { it.copy(sheet = it.sheet.copy(isVisible = true)) }
+                _state.update { it.copy(sheet = it.sheet.copy(visibility = SheetVisibility.Expanded)) }
             }
             is MapEvent.HideSheet -> {
-                _state.update { it.copy(sheet = it.sheet.copy(isVisible = false)) }
+                _state.update { it.copy(sheet = it.sheet.copy(visibility = SheetVisibility.Hidden)) }
+            }
+            is MapEvent.SetSheet -> {
+                _state.update { it.copy(sheet = it.sheet.copy(visibility = event.visibility)) }
             }
             is MapEvent.SelectLayer -> {
                 selectedLayerId = event.id
@@ -107,6 +111,9 @@ class MapStore(
             }
             is MapEvent.UpdateSearchQuery -> {
                 _state.update { it.copy(search = it.search.copy(query = event.query)) }
+            }
+            is MapEvent.SetSearchFocus -> {
+                _state.update { it.copy(search = it.search.copy(hasFocus = event.hasFocus)) }
             }
             is MapEvent.SubmitSearch -> {
                 val q = _state.value.search.query.trim()

@@ -99,3 +99,23 @@ dependencies {
 	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
 }
+
+// Workaround for intermittent KSP wiring on Windows with AGP/Kotlin RCs:
+// - Ensure the KSP output directory exists before consumers read it
+// - Enforce task ordering so processDebugJavaRes waits for kspDebugKotlin
+afterEvaluate {
+	// Precreate expected KSP output folder to avoid NoSuchFileException
+	val ensureKspDir = tasks.register("ensureKspDir") {
+		doLast {
+			file("$buildDir/generated/ksp/debug").mkdirs()
+		}
+	}
+
+	tasks.matching { it.name == "kspDebugKotlin" }.configureEach {
+		dependsOn(ensureKspDir)
+	}
+
+	tasks.matching { it.name == "processDebugJavaRes" }.configureEach {
+		dependsOn("kspDebugKotlin")
+	}
+}

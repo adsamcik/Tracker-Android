@@ -55,6 +55,22 @@ android {
 			applicationIdSuffix = ".debug"
 		}
 
+		// Installable alongside production: non-debuggable, unique appId/label
+		create("dev") {
+			// Base on release settings for closer-to-prod behavior
+			initWith(getByName("release"))
+			// Use debug dependencies if a matching dev variant doesn't exist in deps
+			matchingFallbacks += listOf("debug", "release")
+			// Distinct identity on device and in Play/adb lists
+			applicationIdSuffix = ".dev"
+			versionNameSuffix = "-dev"
+			// Clear label marker so users can tell builds apart
+			resValue("string", "app_name", "Advention Dev")
+			// Sign with debug key for easy local installs (customize if you have a dev keystore)
+			signingConfig = signingConfigs.getByName("debug")
+			isDebuggable = false
+		}
+
 		create("release_nominify") {
 			isMinifyEnabled = false
 		}

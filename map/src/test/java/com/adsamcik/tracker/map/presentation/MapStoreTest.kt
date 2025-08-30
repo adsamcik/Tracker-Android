@@ -6,6 +6,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SheetStateModel
+import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.shared.map.MapLayerData
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -66,7 +67,7 @@ class MapStoreTest {
         
         assertEquals(persistentSetOf<String>(), initialState.activeLayerIds)
         assertFalse(initialState.isFollowing)
-        assertTrue(initialState.sheet.isVisible)
+    assertEquals(SheetVisibility.Peek, initialState.sheet.visibility)
         assertEquals(persistentListOf<com.adsamcik.tracker.map.presentation.udf.MapOverlayState>(), initialState.overlays)
         assertEquals(persistentListOf<MapLayerData>(), initialState.legend)
         assertEquals(1f, initialState.quality)
@@ -82,14 +83,14 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         val hiddenState = mapStore.state.first()
-        assertFalse(hiddenState.sheet.isVisible)
+    assertEquals(SheetVisibility.Hidden, hiddenState.sheet.visibility)
 
         // Show sheet
         mapStore.dispatch(MapEvent.ShowSheet)
         testDispatcher.scheduler.advanceUntilIdle()
         
         val visibleState = mapStore.state.first()
-        assertTrue(visibleState.sheet.isVisible)
+    assertEquals(SheetVisibility.Expanded, visibleState.sheet.visibility)
     }
 
     @Test

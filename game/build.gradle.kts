@@ -33,6 +33,10 @@ android {
 
 	buildTypes {
 		create("release_nominify")
+		create("dev") {
+			initWith(getByName("release"))
+			matchingFallbacks += listOf("debug", "release")
+		}
 	}
 
 	lint {

@@ -32,6 +32,11 @@ android {
 
 	buildTypes {
 		create("release_nominify")
+		// Provide a dev variant to match :app's dev buildType
+		create("dev") {
+			initWith(getByName("release"))
+			matchingFallbacks += listOf("debug", "release")
+		}
 	}
 
 	buildFeatures {
@@ -94,7 +99,7 @@ dependencies {
 	implementation(libs.compose.animation)
 	implementation(libs.compose.animation.graphics)
 	// Compose Foundation Layout (for Modifier.fillMaxSize, matchParentSize, etc.)
-	implementation("androidx.compose.foundation:foundation-layout")
+	implementation(libs.compose.foundation.layout)
 	implementation(libs.navigation.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.compose.runtime)
@@ -113,14 +118,14 @@ dependencies {
 
 	// Tests
 	testImplementation(libs.junit4)
-	testImplementation("org.robolectric:robolectric:4.15.1")
-	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.coroutines.get()}")
-	testImplementation("org.mockito:mockito-core:5.19.0")
-	testImplementation("org.mockito:mockito-inline:5.2.0")
-	testImplementation("org.mockito.kotlin:mockito-kotlin:6.0.0")
-	testImplementation("app.cash.turbine:turbine:1.0.0")
+	testImplementation(libs.robolectric)
+	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.mockito.core)
+	testImplementation(libs.mockito.inline)
+	testImplementation(libs.mockito.kotlin)
+	testImplementation(libs.turbine)
 	testImplementation(libs.arch.core.testing) // for InstantTaskExecutorRule
-	testImplementation("androidx.test:core:1.6.1") // for ApplicationProvider
+	testImplementation(libs.androidx.test.core) // for ApplicationProvider
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)
@@ -128,8 +133,8 @@ dependencies {
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
-	androidTestImplementation("org.mockito:mockito-android:5.19.0")
-	androidTestImplementation("org.mockito.kotlin:mockito-kotlin:6.0.0")
+	androidTestImplementation(libs.mockito.android)
+	androidTestImplementation(libs.mockito.kotlin)
 }
 
 // Disable release unit tests for this module (minification can break mocks/types at runtime)

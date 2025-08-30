@@ -213,14 +213,27 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 				com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme {
 					androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
 						// Optional Maps Compose rendering; when enabled, let it be interactive
-						if (showComposeMap) { 
-							MapScreen(store, overlayMode = false) 
+						if (showComposeMap) {
+							// Shared state for map padding reported by the sheet
+							val paddingPxState = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+							// Render map first; padding starts at 0 and updates when the sheet reports changes
+							MapScreen(store, overlayMode = false, bottomPaddingPx = paddingPxState.value)
+							// Render sheet on top so it’s visible above the map
+							com.adsamcik.tracker.map.ui.MapSheet(
+								registry = registry,
+								store = store,
+								bottomInsetPx = try {
+									val insets = mapUiParent.rootWindowInsets
+									if (android.os.Build.VERSION.SDK_INT >= 30) {
+										insets?.getInsets(android.view.WindowInsets.Type.navigationBars())?.bottom ?: 0
+									} else {
+										@Suppress("DEPRECATION")
+										insets?.systemWindowInsetBottom ?: 0
+									}
+								} catch (_: Throwable) { 0 },
+								onBottomPaddingChanged = { padding -> paddingPxState.value = padding }
+							)
 						}
-						// Bottom sheet on top
-						com.adsamcik.tracker.map.ui.MapSheet(
-							registry = registry,
-							store = store,
-						)
 					}
 				}
 			}

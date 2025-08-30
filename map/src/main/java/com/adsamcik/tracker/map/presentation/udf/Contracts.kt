@@ -18,8 +18,11 @@ data class CameraModel(
 
 @Immutable
 data class SheetStateModel(
-    val isVisible: Boolean = true
+    val visibility: SheetVisibility = SheetVisibility.Peek
 )
+
+@Immutable
+enum class SheetVisibility { Hidden, Peek, Expanded }
 
 @Immutable
 data class LegendItem(
@@ -79,14 +82,17 @@ data class MapState(
 sealed interface MapEvent {
     data object ToggleFollow : MapEvent
     data object FollowCanceled : MapEvent
-    data object ShowSheet : MapEvent
-    data object HideSheet : MapEvent
+    data object ShowSheet : MapEvent // kept for compatibility; maps to Expanded
+    data object HideSheet : MapEvent // kept for compatibility; maps to Hidden
+    data class SetSheet(val visibility: SheetVisibility) : MapEvent
+    // Search UI
     data class SelectLayer(val id: String) : MapEvent
     data class CameraMoved(val position: CameraModel, val byGesture: Boolean) : MapEvent
     data class SetQuality(val value: Float) : MapEvent
     data class SetDateRange(val range: LongRange) : MapEvent
     // Search
     data class UpdateSearchQuery(val query: String) : MapEvent
+    data class SetSearchFocus(val hasFocus: Boolean) : MapEvent
     data object SubmitSearch : MapEvent
     data class GeocodeResult(val bounds: com.google.android.gms.maps.model.LatLngBounds?) : MapEvent
     // Emitted by sensor pipeline to render user marker and accuracy circle declaratively

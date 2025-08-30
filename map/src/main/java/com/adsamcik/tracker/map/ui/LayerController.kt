@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.TileProvider
+import com.adsamcik.tracker.map.ui.LayerEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -50,23 +51,19 @@ class LayerController {
                 // Set new layer if provided
                 if (descriptor != null) {
                     Log.d(TAG, "Setting new layer: ${descriptor.id}")
-                    
-                    // Create layer instance
-                    val layerInstance = descriptor.recipe.factory.create()
-                    currentLayer = layerInstance
+                    // Create entry from factory and build the actual layer instance
+                    val entry = descriptor.recipe.factory.create() as LayerEntry
+                    // Build the concrete layer with Context and set legend
+                    val builtLayer = entry.build(context)
+                    currentLegend = entry.legend
+                    currentLayer = builtLayer
                     currentLayerDescriptor = descriptor
-                    // TODO: Need to get legend data from layer instance
-                    currentLegend = null
-                    
+
                     // Enable the layer
-                    if (layerInstance is BaseMapLayer<*, *>) {
-                        layerInstance.enable(context, map, quality)
-                    }
-                    
-                    // Set tile provider if available
-                    currentTileProvider = if (layerInstance is TileProvider) {
-                        layerInstance
-                    } else null
+                    builtLayer.enable(context, map, quality)
+
+                    // Capture tile provider if implemented by layer
+                    currentTileProvider = (builtLayer as? TileProvider)
                     
                 } else {
                     // Clear everything

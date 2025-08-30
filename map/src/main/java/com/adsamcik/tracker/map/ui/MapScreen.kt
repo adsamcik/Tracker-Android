@@ -50,6 +50,7 @@ import androidx.compose.ui.geometry.Offset
 fun MapScreen(
     store: MapStore,
     overlayMode: Boolean = false,
+    bottomPaddingPx: Int = 0,
 ) {
     val state by store.state.collectAsState()
 
@@ -124,6 +125,12 @@ fun MapScreen(
                     store.dispatch(MapEvent.FollowCanceled)
                 }
             }
+        }
+        // Update Google Map padding when the bottom sheet visible height changes
+        MapEffect(bottomPaddingPx) { gMap ->
+            try {
+                gMap.setPadding(0, 0, 0, bottomPaddingPx)
+            } catch (_: Throwable) { /* ignore */ }
         }
         // Declarative overlays
         val overlays = state.overlays
