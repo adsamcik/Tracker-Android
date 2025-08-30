@@ -101,3 +101,10 @@ app/.externalNativeBuild
 *.iml
 crowdin.properties
 *.salive
+
+# Secrets / Credentials
+# Ignore any Firebase google-services files in any module or sourceSet
+**/google-services.json
+# Ignore common Android keystore file types
+*.jks
+*.keystore
