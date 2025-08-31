@@ -157,6 +157,8 @@
     <string name="tracking_option_activity_description">Detect walking, driving, cycling, and more</string>
     <string name="tracking_option_wifi_title">Wi-Fi Networks</string>
     <string name="tracking_option_wifi_description">Log nearby networks for location context</string>
+    <string name="tracking_option_cell_title">Cell Towers</string>
+    <string name="tracking_option_cell_description">Record cellular network information for coverage analysis</string>
     <string name="tracking_option_steps_title">Step Count</string>
     <string name="tracking_option_steps_description">Count your daily steps and movement</string>
     <string name="onboarding_steps_not_available">Step counting is not available on this device</string>

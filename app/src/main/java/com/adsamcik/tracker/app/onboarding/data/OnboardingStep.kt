@@ -39,18 +39,18 @@ sealed class OnboardingStep {
         get() = when (this) {
             Welcome -> 1
             ValueDemo -> 2
-            Privacy -> 3
-            WhatToTrack -> 4
-            AutoTrackingSetup -> 5
-            LocationSetup -> 6
-            ActivitySetup -> 7
-            EnhancedFeatures -> 8
-            BackgroundLocation -> 9
-            Success -> 10
+            Privacy -> 3 // Deprecated, should not be used
+            WhatToTrack -> 3
+            AutoTrackingSetup -> 4
+            LocationSetup -> 5
+            ActivitySetup -> 6
+            EnhancedFeatures -> 7
+            BackgroundLocation -> 8 // Deprecated, handled within LocationSetup
+            Success -> 8
         }
     
     companion object {
-        val totalSteps = 10
+        val totalSteps = 8 // Reduced by 1 since BackgroundLocation is handled within LocationSetup
         
         fun fromName(name: String): OnboardingStep? = when (name) {
             "welcome" -> Welcome

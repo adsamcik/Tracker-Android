@@ -1,18 +1,19 @@
 package com.adsamcik.tracker.app.onboarding.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -96,43 +97,61 @@ fun AutoTrackingSetupScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.auto_tracking_options_summary, autoTrackingTitles[selectedMode]),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
 
-                Spacer(modifier = Modifier.height(12.dp))
-                Column(modifier = Modifier.selectableGroup()) {
-                    autoTrackingTitles.forEachIndexed { idx, title ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = selectedMode == idx,
-                                    onClick = {
-                                        onPreferencesUpdate(
-                                            preferences.copy(
-                                                autoTrackingModeIndex = idx,
-                                                // Derive enableAutomaticTracking for flow logic elsewhere
-                                                enableAutomaticTracking = idx > 0
-                                            )
-                                        )
-                                    },
-                                    role = Role.RadioButton
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Three icon buttons for auto-tracking modes
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Disabled mode
+                    AutoTrackingModeButton(
+                        modifier = Modifier.weight(1f),
+                        title = autoTrackingTitles[0],
+                        icon = Icons.Default.Block,
+                        isSelected = selectedMode == 0,
+                        onClick = {
+                            onPreferencesUpdate(
+                                preferences.copy(
+                                    autoTrackingModeIndex = 0,
+                                    enableAutomaticTracking = false
                                 )
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = selectedMode == idx, onClick = null)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.bodyLarge
                             )
                         }
-                    }
+                    )
+                    
+                    // On foot mode
+                    AutoTrackingModeButton(
+                        modifier = Modifier.weight(1f),
+                        title = autoTrackingTitles[1],
+                        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+                        isSelected = selectedMode == 1,
+                        onClick = {
+                            onPreferencesUpdate(
+                                preferences.copy(
+                                    autoTrackingModeIndex = 1,
+                                    enableAutomaticTracking = true
+                                )
+                            )
+                        }
+                    )
+                    
+                    // In motion mode
+                    AutoTrackingModeButton(
+                        modifier = Modifier.weight(1f),
+                        title = autoTrackingTitles[2],
+                        icon = Icons.AutoMirrored.Filled.DirectionsRun,
+                        isSelected = selectedMode == 2,
+                        onClick = {
+                            onPreferencesUpdate(
+                                preferences.copy(
+                                    autoTrackingModeIndex = 2,
+                                    enableAutomaticTracking = true
+                                )
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -219,6 +238,66 @@ fun AutoTrackingSetupScreen(
             Button(onClick = onContinue, modifier = Modifier.weight(2f).testTag("onboarding_cta_primary")) {
                 Text(stringResource(R.string.generic_continue))
             }
+        }
+    }
+}
+
+@Composable
+private fun AutoTrackingModeButton(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    
+    val borderColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outline
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = borderColor
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = contentColor
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor,
+                textAlign = TextAlign.Center,
+                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+            )
         }
     }
 }

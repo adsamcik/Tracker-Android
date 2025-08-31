@@ -61,14 +61,13 @@ fun OnboardingScreen(
                     onBack = { onEvent(OnboardingEvent.PreviousStep) }
                 )
                 
-                OnboardingStep.Privacy -> PrivacyScreen(
-                    preferences = state.userPreferences,
-                    onPreferencesUpdate = { prefs -> 
-                        onEvent(OnboardingEvent.UpdatePreferences(prefs))
-                    },
-                    onContinue = { onEvent(OnboardingEvent.NextStep) },
-                    onBack = { onEvent(OnboardingEvent.PreviousStep) }
-                )
+                OnboardingStep.Privacy -> {
+                    // Privacy step has been removed from the flow
+                    // Skip directly to the next step
+                    LaunchedEffect(Unit) {
+                        onEvent(OnboardingEvent.NextStep)
+                    }
+                }
                 
                 OnboardingStep.WhatToTrack -> WhatToTrackScreen(
                     preferences = state.userPreferences,
@@ -90,6 +89,7 @@ fun OnboardingScreen(
                 
                 OnboardingStep.LocationSetup -> LocationSetupScreen(
                     grantedPermissions = state.grantedPermissions,
+                    userPreferences = state.userPreferences,
                     onPermissionGranted = { permission -> 
                         onEvent(OnboardingEvent.RequestPermission(permission))
                     },

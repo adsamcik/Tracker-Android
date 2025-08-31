@@ -240,6 +240,7 @@ class OnboardingActivity : ComponentActivity() {
             setBoolean(R.string.settings_location_enabled_key, prefs.enableLocationTracking)
             setBoolean(R.string.settings_activity_enabled_key, prefs.enableActivityTracking)
             setBoolean(R.string.settings_wifi_enabled_key, prefs.enableWifiTracking)
+            setBoolean(R.string.settings_cell_enabled_key, prefs.enableCellTracking)
             setBoolean(R.string.settings_steps_enabled_key, prefs.enableStepsTracking)
 
             // Notification styling as a proxy user-visible toggle (no global enable switch exists)

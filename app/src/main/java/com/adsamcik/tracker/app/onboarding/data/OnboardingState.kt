@@ -14,11 +14,12 @@ enum class SkipReason {
  * User preferences collected during onboarding
  */
 data class UserPreferences(
-    val enableLocationTracking: Boolean = false,
-    val enableActivityTracking: Boolean = false,
-    val enableAutomaticTracking: Boolean = false,
+    val enableLocationTracking: Boolean = true,
+    val enableActivityTracking: Boolean = true,
+    val enableAutomaticTracking: Boolean = true,
     val enableWifiTracking: Boolean = false,
     val enableStepsTracking: Boolean = true,
+    val enableCellTracking: Boolean = false,
     val enableNotifications: Boolean = false,
     val trackingFrequency: TrackingFrequency = TrackingFrequency.BALANCED,
     val dataStorageLocal: Boolean = true,
@@ -33,7 +34,7 @@ data class UserPreferences(
     val activityWatcherEnabled: Boolean = true,
     val pauseWhileCharging: Boolean = false,
     // New: expose the same tuning as Settings
-    val autoTrackingModeIndex: Int = 0, // 0 Disabled, 1 On foot, 2 In motion
+    val autoTrackingModeIndex: Int = 1, // 0 Disabled, 1 On foot, 2 In motion
     val trackingMinDistanceMeters: Int? = null, // if null, keep default
     val trackingMinTimeSeconds: Int? = null // if null, keep default
 )
@@ -82,8 +83,8 @@ data class OnboardingState(
     fun getNextStep(): OnboardingStep? {
         return when (currentStep) {
             OnboardingStep.Welcome -> OnboardingStep.ValueDemo
-            OnboardingStep.ValueDemo -> OnboardingStep.Privacy
-            OnboardingStep.Privacy -> OnboardingStep.WhatToTrack
+            OnboardingStep.ValueDemo -> OnboardingStep.WhatToTrack
+            OnboardingStep.Privacy -> OnboardingStep.WhatToTrack // Should not reach here after removal
             OnboardingStep.WhatToTrack -> OnboardingStep.AutoTrackingSetup
             OnboardingStep.AutoTrackingSetup -> {
                 // Conditional flow based on user preferences
@@ -96,6 +97,8 @@ data class OnboardingState(
                 }
             }
             OnboardingStep.LocationSetup -> {
+                // After location setup, go to enhanced features or success
+                // Background location is now handled within LocationSetup
                 if (userPreferences.enableActivityTracking) {
                     OnboardingStep.ActivitySetup
                 } else if (userPreferences.enableWifiTracking) {
@@ -105,10 +108,9 @@ data class OnboardingState(
                 }
             }
             OnboardingStep.ActivitySetup -> {
-                val autoModeEnabled = userPreferences.autoTrackingModeIndex > 0 || userPreferences.enableAutomaticTracking
-                if (autoModeEnabled) {
-                    OnboardingStep.BackgroundLocation
-                } else if (userPreferences.enableWifiTracking) {
+                // Activity setup no longer needs to go to background location
+                // since it's handled in location setup
+                if (userPreferences.enableWifiTracking) {
                     OnboardingStep.EnhancedFeatures
                 } else {
                     OnboardingStep.Success
@@ -133,9 +135,7 @@ data class OnboardingState(
         return when (step) {
             OnboardingStep.LocationSetup -> userPreferences.enableLocationTracking
             OnboardingStep.ActivitySetup -> userPreferences.enableActivityTracking
-            OnboardingStep.BackgroundLocation ->
-                // Show when auto-tracking is enabled via new mode selector or legacy toggle
-                (userPreferences.autoTrackingModeIndex > 0) || userPreferences.enableAutomaticTracking
+            OnboardingStep.BackgroundLocation -> false // No longer needed as separate step
             OnboardingStep.EnhancedFeatures -> userPreferences.enableWifiTracking
             else -> true // Always show core steps
         }

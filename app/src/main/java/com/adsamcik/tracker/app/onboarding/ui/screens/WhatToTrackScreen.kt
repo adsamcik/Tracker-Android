@@ -112,6 +112,17 @@ fun WhatToTrackScreen(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 ToggleRow(
+                    title = stringResource(R.string.tracking_option_cell_title),
+                    subtitle = stringResource(R.string.tracking_option_cell_description),
+                    checked = preferences.enableCellTracking,
+                    onCheckedChange = { checked ->
+                        onPreferencesUpdate(preferences.copy(enableCellTracking = checked))
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                ToggleRow(
                     title = stringResource(R.string.tracking_option_steps_title),
                     subtitle = if (stepSensorAvailable) {
                         stringResource(R.string.tracking_option_steps_description)
@@ -175,6 +186,7 @@ private fun WhatToTrackScreenPreview() {
                 enableLocationTracking = true,
                 enableActivityTracking = false,
                 enableWifiTracking = true,
+                enableCellTracking = false,
                 enableStepsTracking = true
             ),
             onPreferencesUpdate = {},
