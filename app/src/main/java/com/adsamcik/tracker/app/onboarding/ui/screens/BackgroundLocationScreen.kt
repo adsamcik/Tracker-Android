@@ -20,6 +20,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 
 /**
  * Background location permission screen with careful explanation and user control.
@@ -63,9 +65,9 @@ fun BackgroundLocationScreen(
         
         Text(
             text = if (hasBackgroundPermission) {
-                "Background Tracking Enabled!"
+                stringResource(R.string.onboarding_bg_enabled_title)
             } else {
-                "Background Location Tracking"
+                stringResource(R.string.onboarding_bg_title)
             },
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
@@ -76,11 +78,11 @@ fun BackgroundLocationScreen(
         
         Text(
             text = if (hasBackgroundPermission) {
-                "Automatic tracking is now enabled. The app can track your movements even when minimized."
+                stringResource(R.string.onboarding_bg_enabled_subtitle)
             } else if (!hasLocationPermission) {
-                "Location permission is required before enabling background tracking."
+                stringResource(R.string.onboarding_bg_needs_location_subtitle)
             } else {
-                "Enable automatic tracking when the app is in the background for seamless movement logging."
+                stringResource(R.string.onboarding_bg_subtitle)
             },
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
@@ -111,11 +113,20 @@ fun BackgroundLocationScreen(
                     Spacer(modifier = Modifier.width(16.dp))
                     
                     Text(
-                        text = "Location access is required before enabling background tracking. Please go back and enable location first.",
+                        text = stringResource(R.string.onboarding_bg_grant_location_first_message),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = { onPermissionGranted(Permission.LOCATION_FOREGROUND) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("onboarding_cta_primary")
+            ) {
+                Text(stringResource(R.string.onboarding_bg_grant_location_first_cta))
             }
             
         } else if (!hasBackgroundPermission) {
@@ -130,7 +141,7 @@ fun BackgroundLocationScreen(
                     modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
-                        text = "Why enable background tracking?",
+                        text = stringResource(R.string.onboarding_bg_benefits_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -139,24 +150,24 @@ fun BackgroundLocationScreen(
                     
                     BackgroundBenefitItem(
                         icon = Icons.Default.Schedule,
-                        title = "Automatic Tracking",
-                        description = "No need to manually start/stop tracking sessions"
+                        title = stringResource(R.string.onboarding_bg_benefit_automatic_title),
+                        description = stringResource(R.string.onboarding_bg_benefit_automatic_desc)
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     BackgroundBenefitItem(
                         icon = Icons.Default.GpsFixed,
-                        title = "Complete Journey Capture",
-                        description = "Track entire trips even when switching between apps"
+                        title = stringResource(R.string.onboarding_bg_benefit_complete_title),
+                        description = stringResource(R.string.onboarding_bg_benefit_complete_desc)
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     BackgroundBenefitItem(
                         icon = Icons.Default.Schedule,
-                        title = "Better Insights",
-                        description = "More complete data for better movement patterns"
+                        title = stringResource(R.string.onboarding_bg_benefit_insights_title),
+                        description = stringResource(R.string.onboarding_bg_benefit_insights_desc)
                     )
                 }
             }
@@ -188,12 +199,12 @@ fun BackgroundLocationScreen(
                         
                         Column {
                             Text(
-                                text = "Battery Usage",
+                                text = stringResource(R.string.onboarding_bg_battery_title),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Background tracking uses more battery. The app is optimized to minimize impact, but you may notice increased battery usage.",
+                                text = stringResource(R.string.onboarding_bg_battery_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -216,12 +227,12 @@ fun BackgroundLocationScreen(
                         
                         Column {
                             Text(
-                                text = "Privacy Protected",
+                                text = stringResource(R.string.onboarding_bg_privacy_title),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "All location data remains on your device. We never upload or share your location information.",
+                                text = stringResource(R.string.onboarding_bg_privacy_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -241,7 +252,7 @@ fun BackgroundLocationScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Enable Background Tracking")
+                Text(stringResource(R.string.onboarding_bg_allow_cta))
             }
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -252,7 +263,7 @@ fun BackgroundLocationScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_skip")
             ) {
-                Text("Skip - Track manually")
+                Text(stringResource(R.string.onboarding_bg_skip))
             }
             
         } else {
@@ -277,14 +288,14 @@ fun BackgroundLocationScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     Text(
-                        text = "Background tracking is ready!",
+                        text = stringResource(R.string.onboarding_bg_ready_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     
                     Text(
-                        text = "The app will now automatically track your movements even when running in the background.",
+                        text = stringResource(R.string.onboarding_bg_ready_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         textAlign = TextAlign.Center
@@ -318,7 +329,7 @@ fun BackgroundLocationScreen(
                     .weight(1f)
                     .testTag("onboarding_cta_back")
             ) {
-                Text("Back")
+                Text(stringResource(R.string.generic_back))
             }
             
             if (!hasBackgroundPermission && hasLocationPermission) {
@@ -329,7 +340,7 @@ fun BackgroundLocationScreen(
                         .weight(2f)
                         .testTag("onboarding_cta_primary")
                 ) {
-                    Text("Continue")
+                    Text(stringResource(R.string.generic_continue))
                 }
             } else if (hasLocationPermission) {
                 Button(
@@ -338,7 +349,7 @@ fun BackgroundLocationScreen(
                         .weight(2f)
                         .testTag("onboarding_cta_primary")
                 ) {
-                    Text("Continue")
+                    Text(stringResource(R.string.generic_continue))
                 }
             }
         }

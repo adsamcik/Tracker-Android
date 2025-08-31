@@ -29,7 +29,6 @@ import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManage
 import com.adsamcik.tracker.app.onboarding.permission.PermissionResult
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
-import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
@@ -246,33 +245,36 @@ class OnboardingActivity : ComponentActivity() {
             // Notification styling as a proxy user-visible toggle (no global enable switch exists)
             setBoolean(R.string.settings_notification_styled_key, prefs.enableNotifications)
 
-            // Auto/background tracking maps to integer option: 0 = disabled, default (>0) = enabled
-            val autoTrackingValue = if (prefs.enableAutomaticTracking && this@OnboardingActivity.hasActivityPermission) {
-                resources.getString(R.string.settings_tracking_activity_default).toInt()
-            } else 0
+            // Auto/background tracking mode: use selected index when available; fall back to default/disabled
+            val selectedMode = prefs.autoTrackingModeIndex
+            val autoTrackingValue = when {
+                selectedMode > 0 && this@OnboardingActivity.hasActivityPermission -> selectedMode
+                prefs.enableAutomaticTracking && this@OnboardingActivity.hasActivityPermission ->
+                    resources.getString(R.string.settings_tracking_activity_default).toInt()
+                else -> 0
+            }
             setInt(R.string.settings_tracking_activity_key, autoTrackingValue)
 
-            // Optional: map tracking profile to a timer choice when available
-            val timerKey = when (prefs.trackingProfile) {
-                TrackingProfile.PRECISE -> TrackerTimerManager.availableTimerData
-                    .firstOrNull { it.second == R.string.settings_tracker_timer_fused }?.first
-                TrackingProfile.BALANCED -> TrackerTimerManager.availableTimerData
-                    .firstOrNull { it.second == R.string.settings_tracker_timer_location }?.first
-                TrackingProfile.ECO -> TrackerTimerManager.availableTimerData
-                    .firstOrNull { it.second == R.string.settings_tracker_timer_clock }?.first
-            }
-            if (timerKey != null) {
-                setString(R.string.settings_tracker_timer_key, timerKey)
-            }
+            // Map additional auto-tracking toggles to Settings screen keys so onboarding matches Settings
+            setBoolean(R.string.settings_auto_tracking_transition_key, prefs.autoTransitionsEnabled)
+            setBoolean(R.string.settings_activity_watcher_key, prefs.activityWatcherEnabled)
+            setBoolean(R.string.settings_disabled_recharge_key, prefs.pauseWhileCharging)
+
+            // Apply min distance/time if set
+            prefs.trackingMinDistanceMeters?.let { setInt(R.string.settings_tracking_min_distance_key, it) }
+            prefs.trackingMinTimeSeconds?.let { setInt(R.string.settings_tracking_min_time_key, it) }
+
+            // Tracking profiles removed; rely on explicit distance/time and internal defaults
 
             // Persist auto-cleanup setting (default off unless user explicitly enabled)
             setBoolean(R.string.settings_auto_cleanup_old_data_key, prefs.autoCleanupOldData)
         }
 
         // Apply side-effects for auto tracking changes
-    val desiredAuto = if (prefs.enableAutomaticTracking && this.hasActivityPermission) {
-            resources.getString(R.string.settings_tracking_activity_default).toInt()
-        } else 0
+        val desiredAuto = preferences.getIntResString(
+            R.string.settings_tracking_activity_key,
+            R.string.settings_tracking_activity_default
+        )
         ActivityWatcherService.onAutoTrackingPreferenceChange(this, desiredAuto)
         if (desiredAuto > 0) {
             // Ensure watcher evaluates immediately

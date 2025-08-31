@@ -62,6 +62,7 @@ fun PrivacyScreen(
 
 		Spacer(modifier = Modifier.height(24.dp))
 
+		// Keep this screen concise: 3 quick principles
 		PrivacyPrincipleCard(
 			icon = Icons.Default.PhoneAndroid,
 			title = stringResource(R.string.privacy_local_storage_title),
@@ -83,59 +84,6 @@ fun PrivacyScreen(
 			title = stringResource(R.string.privacy_open_source_title),
 			description = stringResource(R.string.privacy_open_source_description)
 		)
-
-		Spacer(modifier = Modifier.height(12.dp))
-
-		PrivacyPrincipleCard(
-			icon = Icons.Default.Lock,
-			title = stringResource(R.string.privacy_your_control_title),
-			description = stringResource(R.string.privacy_your_control_description)
-		)
-
-		Spacer(modifier = Modifier.height(24.dp))
-
-		// Data storage preferences
-		Card(
-			modifier = Modifier.fillMaxWidth(),
-			colors = CardDefaults.cardColors(
-				containerColor = MaterialTheme.colorScheme.surfaceVariant
-			)
-		) {
-			Column(modifier = Modifier.padding(16.dp)) {
-				Text(
-					text = stringResource(R.string.privacy_data_storage_preferences),
-					style = MaterialTheme.typography.titleMedium,
-					fontWeight = FontWeight.SemiBold
-				)
-
-				Spacer(modifier = Modifier.height(12.dp))
-
-				Row(
-					modifier = Modifier.fillMaxWidth(),
-					horizontalArrangement = Arrangement.SpaceBetween,
-					verticalAlignment = Alignment.CenterVertically
-				) {
-					Column(modifier = Modifier.weight(1f)) {
-						Text(
-							text = stringResource(R.string.privacy_auto_cleanup_title),
-							style = MaterialTheme.typography.bodyMedium,
-							fontWeight = FontWeight.Medium
-						)
-						Text(
-							text = stringResource(R.string.privacy_auto_cleanup_description),
-							style = MaterialTheme.typography.bodySmall,
-							color = MaterialTheme.colorScheme.onSurfaceVariant
-						)
-					}
-					Switch(
-						checked = preferences.autoCleanupOldData,
-						onCheckedChange = { enabled ->
-							onPreferencesUpdate(preferences.copy(autoCleanupOldData = enabled))
-						}
-					)
-				}
-			}
-		}
 
 		Spacer(modifier = Modifier.height(16.dp))
 

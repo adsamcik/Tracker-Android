@@ -22,8 +22,8 @@ fun OnboardingScreen(
     onEvent: (OnboardingEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Handle system back to move to previous step when not on the first screen
-    BackHandler(enabled = state.currentStep != OnboardingStep.Welcome) {
+    // Handle system back: enabled when we have history to pop
+    BackHandler(enabled = state.stepHistory.isNotEmpty()) {
         onEvent(OnboardingEvent.PreviousStep)
     }
     Scaffold(

@@ -175,6 +175,38 @@
     <string name="tracking_profile_precise">PRECISE - Maximum accuracy and detail</string>
     <string name="tracking_profile_precise_description">Highest accuracy and detail. Increased battery consumption.</string>
     <string name="auto_tracking_explanation">Auto-tracking uses device sensors and activity recognition to detect activities. All processing happens on your device.</string>
+    <string name="onboarding_auto_tracking_more_title">Advanced auto-tracking options</string>
+    <string name="onboarding_auto_tracking_more_subtitle">These map to Settings so you can fine-tune behavior later</string>
+    <string name="onboarding_auto_tracking_transition_title">Use activity transitions</string>
+    <string name="onboarding_auto_tracking_transition_summary">React to system-detected activity transitions when available</string>
+    <string name="onboarding_activity_watcher_title">Enable periodic activity checks</string>
+    <string name="onboarding_activity_watcher_summary">Occasionally check activity to improve detection when transitions miss</string>
+    <string name="onboarding_pause_while_charging_title">Pause while charging</string>
+    <string name="onboarding_pause_while_charging_summary">Disable auto-tracking when device is charging to save battery</string>
+
+    <!-- Background Location Screen -->
+    <string name="onboarding_bg_title">Background Location Tracking</string>
+    <string name="onboarding_bg_enabled_title">Background Tracking Enabled!</string>
+    <string name="onboarding_bg_subtitle">Enable automatic tracking when the app is in the background for seamless movement logging.</string>
+    <string name="onboarding_bg_needs_location_subtitle">Location permission is required before enabling background tracking.</string>
+    <string name="onboarding_bg_enabled_subtitle">Automatic tracking is now enabled. The app can track your movements even when minimized.</string>
+    <string name="onboarding_bg_grant_location_first_message">Grant location first, then allow background. We\'ll guide you step-by-step.</string>
+    <string name="onboarding_bg_grant_location_first_cta">Grant Location First</string>
+    <string name="onboarding_bg_benefits_title">Why enable background tracking?</string>
+    <string name="onboarding_bg_benefit_automatic_title">Automatic Tracking</string>
+    <string name="onboarding_bg_benefit_automatic_desc">No need to manually start/stop tracking sessions</string>
+    <string name="onboarding_bg_benefit_complete_title">Complete Journey Capture</string>
+    <string name="onboarding_bg_benefit_complete_desc">Track entire trips even when switching between apps</string>
+    <string name="onboarding_bg_benefit_insights_title">Better Insights</string>
+    <string name="onboarding_bg_benefit_insights_desc">More complete data for better movement patterns</string>
+    <string name="onboarding_bg_battery_title">Battery Usage</string>
+    <string name="onboarding_bg_battery_desc">Background tracking uses more battery. The app is optimized to minimize impact, but you may notice increased battery usage.</string>
+    <string name="onboarding_bg_privacy_title">Privacy Protected</string>
+    <string name="onboarding_bg_privacy_desc">All location data remains on your device. We never upload or share your location information.</string>
+    <string name="onboarding_bg_allow_cta">Allow Background Location</string>
+    <string name="onboarding_bg_skip">Skip - Track manually</string>
+    <string name="onboarding_bg_ready_title">Background tracking is ready!</string>
+    <string name="onboarding_bg_ready_desc">The app will now automatically track your movements even when running in the background.</string>
 
     <!-- Privacy Screen -->
     <string name="onboarding_privacy_title">Privacy First</string>

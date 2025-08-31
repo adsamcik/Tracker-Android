@@ -76,10 +76,11 @@ class OnboardingViewModel : ViewModel() {
         if (nextStep != null) {
             // Mark current step as completed
             val updatedCompletedSteps = currentState.completedSteps + currentState.currentStep
-            
+            val updatedHistory = currentState.stepHistory + currentState.currentStep
             _state.value = currentState.copy(
                 currentStep = nextStep,
-                completedSteps = updatedCompletedSteps
+                completedSteps = updatedCompletedSteps,
+                stepHistory = updatedHistory
             )
             
             // Track step transition
@@ -94,26 +95,18 @@ class OnboardingViewModel : ViewModel() {
     
     private fun handlePreviousStep() {
         val currentState = _state.value
-        // Simple previous step logic - can be enhanced based on flow
-        val previousStep = when (currentState.currentStep) {
-            OnboardingStep.ValueDemo -> OnboardingStep.Welcome
-            OnboardingStep.Privacy -> OnboardingStep.ValueDemo
-            OnboardingStep.WhatToTrack -> OnboardingStep.Privacy
-            OnboardingStep.LocationSetup -> OnboardingStep.WhatToTrack
-            OnboardingStep.ActivitySetup -> OnboardingStep.LocationSetup
-            OnboardingStep.EnhancedFeatures -> OnboardingStep.ActivitySetup
-            OnboardingStep.BackgroundLocation -> OnboardingStep.ActivitySetup
-            OnboardingStep.Success -> OnboardingStep.WhatToTrack
-            else -> null
-        }
-        
-        if (previousStep != null) {
-            _state.value = currentState.copy(currentStep = previousStep)
+        val history = currentState.stepHistory
+        if (history.isNotEmpty()) {
+            val previousStep = history.last()
+            val newHistory = history.dropLast(1)
+            _state.value = currentState.copy(currentStep = previousStep, stepHistory = newHistory)
         }
     }
     
     private fun handleGoToStep(step: OnboardingStep) {
-        _state.value = _state.value.copy(currentStep = step)
+    val cur = _state.value
+    val updatedHistory = cur.stepHistory + cur.currentStep
+    _state.value = cur.copy(currentStep = step, stepHistory = updatedHistory)
     }
     
     private fun handleSkipStep(reason: SkipReason) {
@@ -122,12 +115,13 @@ class OnboardingViewModel : ViewModel() {
         
         val updatedSkipReasons = currentState.skipReasons + (currentState.currentStep to reason)
         val updatedSkippedSteps = currentState.skippedSteps + currentState.currentStep
-        
+    val updatedHistory = currentState.stepHistory + currentState.currentStep
         if (nextStep != null) {
             _state.value = currentState.copy(
                 currentStep = nextStep,
                 skippedSteps = updatedSkippedSteps,
-                skipReasons = updatedSkipReasons
+        skipReasons = updatedSkipReasons,
+        stepHistory = updatedHistory
             )
         } else {
             handleCompleteOnboarding()

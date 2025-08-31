@@ -26,9 +26,16 @@ data class UserPreferences(
     // Stage 2 additions
     val autoCleanupOldData: Boolean = false,
     val enableAnonymousAnalytics: Boolean = false,
-    val trackingProfile: TrackingProfile = TrackingProfile.BALANCED,
     val autoStartTracking: Boolean = false,
-    val enableSmartPause: Boolean = true
+    val enableSmartPause: Boolean = true,
+    // Auto-tracking settings mapped to real Settings screen options
+    val autoTransitionsEnabled: Boolean = true,
+    val activityWatcherEnabled: Boolean = true,
+    val pauseWhileCharging: Boolean = false,
+    // New: expose the same tuning as Settings
+    val autoTrackingModeIndex: Int = 0, // 0 Disabled, 1 On foot, 2 In motion
+    val trackingMinDistanceMeters: Int? = null, // if null, keep default
+    val trackingMinTimeSeconds: Int? = null // if null, keep default
 )
 
 /**
@@ -40,14 +47,7 @@ enum class TrackingFrequency {
     POWER_SAVER     // Low battery usage, reduced accuracy
 }
 
-/**
- * Tracking profile options (Stage 2)
- */
-enum class TrackingProfile {
-    PRECISE,    // Best accuracy, higher battery usage
-    BALANCED,   // Good accuracy, moderate battery usage  
-    ECO         // Basic tracking, minimal battery usage
-}
+// Removed TrackingProfile in favor of direct distance/time tuning and auto-tracking mode
 
 /**
  * Permissions that can be granted during onboarding
@@ -70,6 +70,8 @@ data class OnboardingState(
     val userPreferences: UserPreferences = UserPreferences(),
     val grantedPermissions: Set<Permission> = emptySet(),
     val skipReasons: Map<OnboardingStep, SkipReason> = emptyMap(),
+    // History stack to support proper back navigation across conditional flows
+    val stepHistory: List<OnboardingStep> = emptyList(),
     val isCompleted: Boolean = false,
     val startTime: Long = System.currentTimeMillis()
 ) {
@@ -103,7 +105,8 @@ data class OnboardingState(
                 }
             }
             OnboardingStep.ActivitySetup -> {
-                if (userPreferences.enableAutomaticTracking) {
+                val autoModeEnabled = userPreferences.autoTrackingModeIndex > 0 || userPreferences.enableAutomaticTracking
+                if (autoModeEnabled) {
                     OnboardingStep.BackgroundLocation
                 } else if (userPreferences.enableWifiTracking) {
                     OnboardingStep.EnhancedFeatures
@@ -130,7 +133,9 @@ data class OnboardingState(
         return when (step) {
             OnboardingStep.LocationSetup -> userPreferences.enableLocationTracking
             OnboardingStep.ActivitySetup -> userPreferences.enableActivityTracking
-            OnboardingStep.BackgroundLocation -> userPreferences.enableAutomaticTracking
+            OnboardingStep.BackgroundLocation ->
+                // Show when auto-tracking is enabled via new mode selector or legacy toggle
+                (userPreferences.autoTrackingModeIndex > 0) || userPreferences.enableAutomaticTracking
             OnboardingStep.EnhancedFeatures -> userPreferences.enableWifiTracking
             else -> true // Always show core steps
         }

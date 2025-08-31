@@ -19,8 +19,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.data.UserPreferences
-import com.adsamcik.tracker.app.onboarding.data.TrackingProfile
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * Auto-tracking configuration screen that explains the app's background tracking capabilities
@@ -33,6 +33,19 @@ fun AutoTrackingSetupScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val autoTrackingTitles = remember { context.resources.getStringArray(R.array.auto_tracking_options_values) }
+    val distanceOptions = remember { context.resources.getIntArray(R.array.settings_tracking_min_distance_values).toList() }
+    val timeOptions = remember { context.resources.getIntArray(R.array.settings_tracking_min_time_values).toList() }
+
+    // Resolve current values or sensible defaults from resources
+    val defaultMode = remember { context.resources.getString(R.string.settings_tracking_activity_default).toInt() }
+    val selectedMode = preferences.autoTrackingModeIndex.takeIf { it in 0..2 } ?: defaultMode
+    val defaultDistance = remember { context.resources.getInteger(R.integer.settings_tracking_min_distance_default) }
+    val defaultTime = remember { context.resources.getInteger(R.integer.settings_tracking_min_time_default) }
+    val selectedDistance = preferences.trackingMinDistanceMeters ?: defaultDistance
+    val selectedTime = preferences.trackingMinTimeSeconds ?: defaultTime
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -69,7 +82,7 @@ fun AutoTrackingSetupScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Auto tracking toggle
+    // Automatic tracking mode selector (mirrors Settings)
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -77,97 +90,119 @@ fun AutoTrackingSetupScreen(
             ),
             border = CardDefaults.outlinedCardBorder()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.onboarding_enable_auto_tracking),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.onboarding_auto_tracking_description),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Switch(
-                    checked = preferences.enableAutomaticTracking,
-                    onCheckedChange = { checked ->
-                        onPreferencesUpdate(preferences.copy(enableAutomaticTracking = checked))
-                    }
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = stringResource(R.string.auto_tracking_options_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.auto_tracking_options_summary, autoTrackingTitles[selectedMode]),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(modifier = Modifier.selectableGroup()) {
+                    autoTrackingTitles.forEachIndexed { idx, title ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = selectedMode == idx,
+                                    onClick = {
+                                        onPreferencesUpdate(
+                                            preferences.copy(
+                                                autoTrackingModeIndex = idx,
+                                                // Derive enableAutomaticTracking for flow logic elsewhere
+                                                enableAutomaticTracking = idx > 0
+                                            )
+                                        )
+                                    },
+                                    role = Role.RadioButton
+                                )
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = selectedMode == idx, onClick = null)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        if (preferences.enableAutomaticTracking) {
-            Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Spacer(modifier = Modifier.height(16.dp))
 
-            // Tracking profile selection
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                border = CardDefaults.outlinedCardBorder()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = stringResource(R.string.onboarding_tracking_profile_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.onboarding_tracking_profile_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Column(modifier = Modifier.selectableGroup()) {
-                        TrackingProfileOption(
-                            profile = TrackingProfile.ECO,
-                            title = stringResource(R.string.tracking_profile_eco),
-                            subtitle = stringResource(R.string.tracking_profile_eco_description),
-                            selected = preferences.trackingProfile == TrackingProfile.ECO,
-                            onSelect = { 
-                                onPreferencesUpdate(preferences.copy(trackingProfile = TrackingProfile.ECO))
-                            }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        TrackingProfileOption(
-                            profile = TrackingProfile.BALANCED,
-                            title = stringResource(R.string.tracking_profile_balanced),
-                            subtitle = stringResource(R.string.tracking_profile_balanced_description),
-                            selected = preferences.trackingProfile == TrackingProfile.BALANCED,
-                            onSelect = { 
-                                onPreferencesUpdate(preferences.copy(trackingProfile = TrackingProfile.BALANCED))
-                            }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        TrackingProfileOption(
-                            profile = TrackingProfile.PRECISE,
-                            title = stringResource(R.string.tracking_profile_precise),
-                            subtitle = stringResource(R.string.tracking_profile_precise_description),
-                            selected = preferences.trackingProfile == TrackingProfile.PRECISE,
-                            onSelect = { 
-                                onPreferencesUpdate(preferences.copy(trackingProfile = TrackingProfile.PRECISE))
-                            }
-                        )
+        // Sliders mirroring Settings (min distance and min delay)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = CardDefaults.outlinedCardBorder()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_tracking_min_distance_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${selectedDistance} m",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val distIndex = distanceOptions.indexOfFirst { it == selectedDistance }.coerceAtLeast(0)
+                Slider(
+                    value = distIndex.toFloat(),
+                    onValueChange = { newVal ->
+                        val newIdx = newVal.toInt().coerceIn(0, distanceOptions.lastIndex)
+                        onPreferencesUpdate(preferences.copy(trackingMinDistanceMeters = distanceOptions[newIdx]))
+                    },
+                    valueRange = 0f..distanceOptions.lastIndex.toFloat(),
+                    steps = (distanceOptions.size - 2).coerceAtLeast(0)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = stringResource(R.string.settings_tracking_min_time_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val timeLabel = remember(selectedTime) {
+                    when {
+                        selectedTime >= 60 && selectedTime % 60 == 0 -> "${selectedTime / 60} min"
+                        else -> "${selectedTime} s"
                     }
                 }
+                Text(
+                    text = timeLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val timeIndex = timeOptions.indexOfFirst { it == selectedTime }.coerceAtLeast(0)
+                Slider(
+                    value = timeIndex.toFloat(),
+                    onValueChange = { newVal ->
+                        val newIdx = newVal.toInt().coerceIn(0, timeOptions.lastIndex)
+                        onPreferencesUpdate(preferences.copy(trackingMinTimeSeconds = timeOptions[newIdx]))
+                    },
+                    valueRange = 0f..timeOptions.lastIndex.toFloat(),
+                    steps = (timeOptions.size - 2).coerceAtLeast(0)
+                )
             }
         }
 
@@ -188,46 +223,6 @@ fun AutoTrackingSetupScreen(
     }
 }
 
-@Composable
-private fun TrackingProfileOption(
-    profile: TrackingProfile,
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .selectable(
-                selected = selected,
-                onClick = onSelect,
-                role = Role.RadioButton
-            )
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(
-            selected = selected,
-            onClick = null
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
 @Preview(showBackground = true)
 @Composable
 private fun AutoTrackingSetupScreenPreview() {
@@ -235,7 +230,9 @@ private fun AutoTrackingSetupScreenPreview() {
         AutoTrackingSetupScreen(
             preferences = UserPreferences(
                 enableAutomaticTracking = true,
-                trackingProfile = TrackingProfile.BALANCED
+                autoTrackingModeIndex = 1,
+                trackingMinDistanceMeters = 10,
+                trackingMinTimeSeconds = 2
             ),
             onPreferencesUpdate = {},
             onContinue = {},

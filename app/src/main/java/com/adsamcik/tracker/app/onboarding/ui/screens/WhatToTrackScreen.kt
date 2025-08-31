@@ -87,7 +87,7 @@ fun WhatToTrackScreen(
                     }
                 )
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 ToggleRow(
                     title = stringResource(R.string.tracking_option_activity_title),
@@ -98,7 +98,7 @@ fun WhatToTrackScreen(
                     }
                 )
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 ToggleRow(
                     title = stringResource(R.string.tracking_option_wifi_title),
@@ -109,7 +109,7 @@ fun WhatToTrackScreen(
                     }
                 )
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 ToggleRow(
                     title = stringResource(R.string.tracking_option_steps_title),

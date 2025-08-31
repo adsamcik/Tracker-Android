@@ -55,7 +55,7 @@ fun ValueDemoScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Here's a preview of the insights you'll discover",
+            text = "A quick peek at the insights Tracker can surface for you",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -70,8 +70,8 @@ fun ValueDemoScreen(
         ) {
             FeaturePreviewCard(
                 icon = Icons.Default.LocationOn,
-                title = "See where you go",
-                description = "Visualize your daily journeys and discover patterns in your movement",
+                title = "Your movement, visualized",
+                description = "See your daily paths, time at places, and how your days flow",
                 previewContent = {
                     LocationPreview()
                 }
@@ -79,8 +79,8 @@ fun ValueDemoScreen(
             
             FeaturePreviewCard(
                 icon = Icons.AutoMirrored.Filled.DirectionsRun,
-                title = "Track your activities",
-                description = "Automatically detect walking, driving, and stationary time",
+                title = "Automatic activity detection",
+                description = "Walk, drive, stay still — Tracker classifies it for you",
                 previewContent = {
                     ActivityPreview()
                 }
@@ -88,8 +88,8 @@ fun ValueDemoScreen(
             
             FeaturePreviewCard(
                 icon = Icons.Default.Analytics,
-                title = "Discover insights",
-                description = "Get meaningful statistics about your daily patterns",
+                title = "Meaningful insights",
+                description = "Daily and weekly summaries help you spot trends and changes",
                 previewContent = {
                     InsightsPreview()
                 }
@@ -100,7 +100,7 @@ fun ValueDemoScreen(
         
         // Call to action
         Text(
-            text = "Ready to start tracking your life?",
+            text = "Ready to set up tracking your way?",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
@@ -129,7 +129,7 @@ fun ValueDemoScreen(
                     .weight(2f)
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Set up my tracking")
+                Text("Continue")
             }
         }
         

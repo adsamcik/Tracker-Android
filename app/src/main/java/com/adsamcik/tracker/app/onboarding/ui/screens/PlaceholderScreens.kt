@@ -97,7 +97,6 @@ fun SuccessScreen(
                         add("🔔 Smart notifications")
                     }
                     add("🛡️ Privacy-first data storage")
-                    add("⚙️ ${preferences.trackingProfile.name.lowercase().replaceFirstChar { it.uppercase() }} tracking profile")
                 }
                 
                 enabledFeatures.forEach { feature ->
