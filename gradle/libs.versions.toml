@@ -124,6 +124,7 @@ androidx-work-testing = { group = "androidx.work", name = "work-testing", versio
 
 # Paging
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
+androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
 
 # Google Material
 google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }

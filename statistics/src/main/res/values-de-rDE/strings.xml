@@ -33,6 +33,11 @@
     <string name="stats_walk">walk</string>
     <string name="stats_weekly_title">Last 7 days</string>
     <string name="stats_wifi_count">Wi-Fi count</string>
+    <string name="stats_wifi_label">Wi‑Fi</string>
+    <string name="stats_error_generic">Etwas ist schiefgelaufen</string>
+    <string name="stats_failed_to_load">Laden fehlgeschlagen</string>
+    <string name="stats_append_error">Weiteres Laden fehlgeschlagen</string>
+    <string name="action_retry">Erneut versuchen</string>
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>
     <string name="wifilist_filter_capabilities">Capabilities</string>
