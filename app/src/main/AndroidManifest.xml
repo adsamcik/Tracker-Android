@@ -24,6 +24,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- API 33+: Required for Wi‑Fi scanning without location; see Onboarding permission mapping -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
     <application
         android:name="com.adsamcik.tracker.app.Application"
@@ -57,13 +59,19 @@
             android:launchMode="singleInstance"
             android:resizeableActivity="true"
             android:theme="@style/AppTheme.Launcher"
-            android:windowSoftInputMode="adjustResize"
-            tools:targetApi="n">
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        
+        <activity
+            android:name="com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme"
+            android:screenOrientation="portrait" />
+            
         <activity
             android:name="com.adsamcik.tracker.impexp.exporter.activity.ExportActivity"
             android:exported="false"
@@ -77,6 +85,20 @@
                 <data android:mimeType="application/zip" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity"
+            android:exported="false"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.PICK" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.OPENABLE" />
+
+                <data android:mimeType="application/zip" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name="com.adsamcik.tracker.license.LicenseActivity"
             android:screenOrientation="portrait" />
@@ -102,10 +124,6 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
-
-        <service
-            android:name="com.adsamcik.tracker.impexp.importer.service.ImportService"
-            android:exported="false" />
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"

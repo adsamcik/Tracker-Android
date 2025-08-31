@@ -1,16 +1,20 @@
 plugins {
-	id("com.android.library")
-	Dependencies.corePlugins(this)
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.ksp)
 }
 
 android {
-	compileSdk = Android.compile
-	buildToolsVersion = Android.buildTools
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = Android.min
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+		
+		consumerProguardFiles("consumer-rules.pro")
 
 		ksp {
 			arg("room.schemaLocation", "$projectDir/schemas")
@@ -24,20 +28,19 @@ android {
 	}
 
 	compileOptions {
-		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
 	}
 
 	kotlin {
-		jvmToolchain(Android.javaVersion)
+		jvmToolchain(Android.JAVA_VERSION)
 	}
 
 	java {
 		toolchain {
-			languageVersion.set(JavaLanguageVersion.of(Android.javaVersion))
-			setSourceCompatibility(Android.javaVersion)
-			setTargetCompatibility(Android.javaVersion)
+			languageVersion.set(JavaLanguageVersion.of(Android.JAVA_VERSION))
+			setSourceCompatibility(Android.JAVA_VERSION)
+			setTargetCompatibility(Android.JAVA_VERSION)
 		}
 	}
 
@@ -66,11 +69,52 @@ android {
 }
 
 dependencies {
-	Dependencies.core(this)
-	Dependencies.json(this)
-	Dependencies.database(this)
-	Dependencies.location(this)
-	Dependencies.paging(this)
+	// Core
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.androidx.recyclerview)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.service)
+	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.fragment)
+	implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.preference)
+	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.androidx.documentfile)
+	implementation(libs.google.material)
+	implementation(libs.google.play.services.base)
+	implementation(libs.google.play.feature.delivery)
+	implementation(libs.google.play.feature.delivery.ktx)
+	implementation(libs.google.play.services.location)
 
-	Dependencies.test(this)
+	// JSON
+	implementation(libs.moshi)
+	ksp(libs.moshi.kotlin.codegen)
+
+	// DB (api to expose RoomDatabase supertype to consumers of sbase)
+	api(libs.androidx.room.runtime)
+	ksp(libs.androidx.room.compiler)
+	implementation(libs.androidx.room.ktx)
+	implementation(libs.androidx.room.paging)
+	implementation(libs.sqlite.android)
+	androidTestImplementation(libs.androidx.room.testing)
+
+	// Paging
+	implementation(libs.androidx.paging.runtime)
+
+	// WorkManager
+	implementation(libs.androidx.work.runtime.ktx)
+	androidTestImplementation(libs.androidx.work.testing)
+
+	// Tests
+	androidTestImplementation(libs.junit4)
+	androidTestImplementation(libs.androidx.test.runner)
+	androidTestImplementation(libs.uiautomator)
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.arch.core.testing)
+	androidTestImplementation(libs.livedata.testing.ktx)
+	androidTestImplementation(libs.espresso)
 }

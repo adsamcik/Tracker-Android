@@ -181,9 +181,8 @@
     <string name="wifi_count_title">Wi-Fi count</string>
     <string name="wifi_count_value">Wi-Fi %d</string>
 
-    <string name="first_run_automatic_tracking_title">Automatic tracking based on activity</string>
-    <string name="first_run_automatic_tracking_description">Requires activity permission.</string>
-
-    <string name="first_run_background_tracking_permission_title">Background tracking permission required!</string>
+    <!-- Soft hint when Wi‑Fi permission is missing -->
+    <string name="wifi_permission_hint_title">Allow Wi‑Fi for better indoor accuracy</string>
+    <string name="wifi_permission_hint_text">Grant Wi‑Fi permission in app to improve signal-based location indoors. You can do this from onboarding or app settings.</string>
 
 </resources>

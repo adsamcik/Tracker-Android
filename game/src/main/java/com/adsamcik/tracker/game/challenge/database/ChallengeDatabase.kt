@@ -1,11 +1,17 @@
 package com.adsamcik.tracker.game.challenge.database
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.AutoMigrationSpec
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.adsamcik.tracker.game.challenge.data.entity.ActiveTimeChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
+import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase.VersionOneToTwoMigration
+import com.adsamcik.tracker.game.challenge.database.dao.ActiveTimeChallengeDao
 import com.adsamcik.tracker.game.challenge.database.dao.ChallengeEntryDao
 import com.adsamcik.tracker.game.challenge.database.dao.ExplorerChallengeDao
 import com.adsamcik.tracker.game.challenge.database.dao.SessionChallengeDataDao
@@ -20,34 +26,55 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
  * Challenge database
  */
 @Database(
-		entities = [
-			ChallengeSessionData::class,
-			ChallengeEntry::class,
-			ExplorerChallengeEntity::class,
-			WalkDistanceChallengeEntity::class,
-			StepChallengeEntity::class
-		],
-		version = 1
+    entities = [
+        ChallengeSessionData::class,
+        ChallengeEntry::class,
+        ExplorerChallengeEntity::class,
+        WalkDistanceChallengeEntity::class,
+        StepChallengeEntity::class,
+        ActiveTimeChallengeEntity::class
+    ],
+    autoMigrations = [
+		AutoMigration(from = 1, to = 2, spec = VersionOneToTwoMigration::class)
+	],
+    version = 2
 )
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
 
-	abstract fun entryDao(): ChallengeEntryDao
+    abstract fun entryDao(): ChallengeEntryDao
 
-	abstract fun sessionDao(): SessionChallengeDataDao
+    abstract fun sessionDao(): SessionChallengeDataDao
 
-	abstract fun explorerDao(): ExplorerChallengeDao
+    abstract fun explorerDao(): ExplorerChallengeDao
 
-	abstract fun walkDistanceDao(): WalkDistanceChallengeDao
+    abstract fun walkDistanceDao(): WalkDistanceChallengeDao
 
-	abstract fun stepDao(): StepChallengeDao
+    abstract fun stepDao(): StepChallengeDao
 
-	companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
-		override fun setupDatabase(database: Builder<ChallengeDatabase>): Unit = Unit
+    abstract fun activeTimeDao(): ActiveTimeChallengeDao
 
-		override val databaseName: String get() = DATABASE_NAME
+    companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
+        override fun setupDatabase(database: Builder<ChallengeDatabase>): Unit = Unit
 
-		private const val DATABASE_NAME = "challenge_database"
-	}
+        override val databaseName: String get() = DATABASE_NAME
+
+        private const val DATABASE_NAME = "challenge_database"
+    }
+
+
+    class VersionOneToTwoMigration : AutoMigrationSpec {
+        override fun onPostMigrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+            CREATE TABLE IF NOT EXISTS challenge_active_time (
+                id INTEGER NOT NULL PRIMARY KEY,
+                activeTimeInMinutes INTEGER NOT NULL,
+                completed INTEGER NOT NULL,
+                requiredActiveTimeInMinutes INTEGER NOT NULL,
+                entry_id INTEGER NOT NULL
+            )
+        """)
+        }
+    }
 }
 

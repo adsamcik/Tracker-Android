@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.widget.LinearLayoutCompat
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -26,6 +28,7 @@ import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeightDeferred
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -51,7 +54,7 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 		recycler.clipToOutline = false
 		//updateChallenges()
 
-		val context = requireContext()
+		val activity = requireActivity()
 		val adapter = GameAdapter(
 				styleController
 		).apply {
@@ -60,26 +63,26 @@ class FragmentGame : CoreUIFragment(), IOnDemandView {
 			registerType(GameRecyclerType.Steps, StepsCreator(layer = 1))
 		}.also { recycler.adapter = it }
 		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
-		recycler.layoutManager = LinearLayoutManager(context)
+		recycler.layoutManager = LinearLayoutManager(activity)
 
-
-		val contentPadding = context.resources.getDimension(com.adsamcik.tracker.shared.base.R.dimen.content_padding)
+		activity.window.getStatusBarHeightDeferred { statusBarHeight ->
+			val contentPadding = activity.resources.getDimension(com.adsamcik.tracker.shared.base.R.dimen.content_padding)
 				.toInt()
-		val statusBarHeight = DisplayAssist.getStatusBarHeight(context)
-		val navBarSize = DisplayAssist.getNavigationBarSize(context)
-		val navBarHeight = navBarSize.second.y
-
-		recycler.addItemDecoration(
+			val navBarSize = DisplayAssist.getNavigationBarSize(activity)
+			val navBarHeight = navBarSize.second.y
+			recycler.addItemDecoration(
 				MarginDecoration(
-						firstLineMargin = statusBarHeight + contentPadding,
-						lastLineMargin = navBarHeight + contentPadding
+					firstLineMargin = statusBarHeight + contentPadding,
+					lastLineMargin = navBarHeight + contentPadding
 				)
-		)
+			)
+		}
+
 
 		initializeStyle(rootView, recycler)
-		initializePoints(context, adapter)
+		initializePoints(activity, adapter)
 		initializeGoals(adapter)
-		initializeChallenges(context, adapter)
+		initializeChallenges(activity, adapter)
 
 		return rootView
 	}

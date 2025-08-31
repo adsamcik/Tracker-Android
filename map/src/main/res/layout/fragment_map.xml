@@ -27,27 +27,11 @@
         app:layout_anchor="@id/container_map"
         app:layout_anchorGravity="bottom|right" />
 
-    <FrameLayout
+    <androidx.compose.ui.platform.ComposeView
         android:id="@+id/map_ui_parent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/background_map_menu"
-        android:clickable="true"
-        android:focusable="true"
-        android:paddingStart="@dimen/content_padding"
-        android:paddingEnd="@dimen/content_padding"
-        android:visibility="invisible"
-        app:behavior_hideable="false"
-        app:layout_behavior="com.adsamcik.tracker.map.MapBottomSheetBehavior"
-        tools:behavior_peekHeight="94dp">
-
-
-        <androidx.appcompat.widget.LinearLayoutCompat
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <include layout="@layout/layout_map_bottom_sheet" />
-        </androidx.appcompat.widget.LinearLayoutCompat>
-    </FrameLayout>
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="visible" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

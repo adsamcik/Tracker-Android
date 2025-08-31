@@ -236,13 +236,29 @@ class StatsDetailActivity : DetailActivity() {
 			endCalendar
 		)
 	}
-
-	private fun addStats(session: TrackerSession, adapter: StatsDetailAdapter) {
-		val context = this
+	private fun addStats(session: TrackerSession, adapter: StatsDetailAdapter) {		val context = this
 		launch(Dispatchers.Default) {
-			StatisticDataManager().getForSession(context, session.id, true) {
-				launch(Dispatchers.Main) {
-					adapter.add(convertToDisplayData(it))
+			// Get session activity for unit system context
+			val activityId = session.sessionActivityId
+			val sessionActivity = when {
+				activityId == null -> null
+				activityId < -1 -> NativeSessionActivity.entries
+					.find { it.id == activityId }
+					?.getSessionActivity(context)
+				else -> if (activityId == 0L || activityId == -1L) {
+					null
+				} else {
+					val activityDao = AppDatabase.database(context).activityDao()
+					activityDao.get(activityId)
+				}
+			} ?: SessionActivity.UNKNOWN
+
+			// Set session activity context for distance formatting
+			com.adsamcik.tracker.statistics.preference.SessionActivityContext.withSessionActivity(sessionActivity) {
+				StatisticDataManager().getForSession(context, session.id, true) {
+					launch(Dispatchers.Main) {
+						adapter.add(convertToDisplayData(it))
+					}
 				}
 			}
 		}
@@ -250,11 +266,10 @@ class StatsDetailActivity : DetailActivity() {
 
 	private fun setTitle(session: TrackerSession) {
 		val activityId = session.sessionActivityId
-
 		launch(Dispatchers.Default) {
 			val sessionActivity = when {
 				activityId == null -> null
-				activityId < -1 -> NativeSessionActivity.values()
+				activityId < -1 -> NativeSessionActivity.entries
 					.find { it.id == activityId }
 					?.getSessionActivity(
 						this@StatsDetailActivity

@@ -11,6 +11,11 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
@@ -19,6 +24,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private var wifiDao: WifiDataDao? = null
+	private var scope: CoroutineScope? = null
 
 	private var isEnabled = false
 
@@ -39,10 +45,16 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 			wifiData.inRange.map { DatabaseWifiData(wifiData.time, it) }
 		}
 
-		requireNotNull(wifiDao).upsert(map)
+		scope?.launch(Dispatchers.IO) {
+			try {
+				requireNotNull(wifiDao).upsert(map)
+			} catch (_: Throwable) { /* ignore individual failures */ }
+		}
 	}
 
 	override suspend fun onDisable(context: Context) {
+		scope?.cancel()
+		scope = null
 		wifiDao = null
 		this.isEnabled = false
 	}
@@ -57,6 +69,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		this.isEnabled = isEnabled
 		if (isEnabled) {
 			wifiDao = AppDatabase.database(context).wifiDao()
+			scope = CoroutineScope(Job() + Dispatchers.Default)
 		}
 	}
 }

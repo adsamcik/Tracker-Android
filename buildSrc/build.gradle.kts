@@ -1,6 +1,12 @@
 repositories {
 	mavenCentral()
-	jcenter()
+	//noinspection JcenterRepositoryObsolete
+	jcenter {
+		content {
+			includeGroup("com.adsamcik")
+			includeGroup("com.github.adsamcik")
+		}
+	}
 }
 
 plugins {

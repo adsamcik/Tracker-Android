@@ -1,21 +1,7 @@
 import java.util.Locale
 
 buildscript {
-	repositories {
-		google()
-	}
-	dependencies {
-		classpath("com.android.tools.build:gradle:8.4.2")
-		classpath("com.google.gms:google-services:4.4.2")
-		classpath("com.google.android.gms:oss-licenses-plugin:0.10.6")
-
-		classpath("org.jetbrains.dokka:dokka-android-gradle-plugin:${Dependencies.Versions.dokka}")
-		classpath(kotlin("gradle-plugin", Dependencies.Versions.kotlin))
-	}
-
-	plugins {
-		id("com.google.devtools.ksp") version Dependencies.Versions.ksp apply false
-	}
+	repositories { google() }
 }
 
 allprojects {
@@ -23,11 +9,23 @@ allprojects {
 		google()
 		maven("https://jitpack.io")
 		mavenCentral()
-		jcenter()
+		jcenter {
+			content {
+				includeGroup("com.adsamcik")
+				includeGroup("com.github.adsamcik")
+			}
+		}
 	}
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {
 			options.compilerArgs = listOf("-Xlint:unchecked", "-Xlint:deprecation")
+		}
+	}
+	
+	// Configure Kotlin compiler options for all projects
+	tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+		compilerOptions {
+			freeCompilerArgs.add("-Xannotation-default-target=param-property")
 		}
 	}
 }
@@ -38,7 +36,17 @@ tasks.register("clean", Delete::class) {
 
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
-	id("com.github.ben-manes.versions") version ("0.51.0")
+	alias(libs.plugins.benmanes.versions)
+	alias(libs.plugins.android.application) apply false
+	alias(libs.plugins.android.library) apply false
+	alias(libs.plugins.android.dynamic.feature) apply false
+	alias(libs.plugins.kotlin.android) apply false
+	alias(libs.plugins.kotlin.parcelize) apply false
+	alias(libs.plugins.kotlin.compose) apply false
+	alias(libs.plugins.ksp) apply false
+	alias(libs.plugins.google.services) apply false
+	alias(libs.plugins.secrets) apply false
+	alias(libs.plugins.oss.licenses) apply false
 }
 
 /**

@@ -10,7 +10,13 @@ import com.adsamcik.tracker.shared.base.data.Location
 /**
  * Database location object containing various location data and activity info.
  */
-@Entity(tableName = "location_data", indices = [Index("lat"), Index("lon"), Index("time")])
+@Entity(
+	tableName = "location_data",
+	indices = [
+		Index(value = ["time", "lat", "lon"], name = "idx_location_time_lat_lon"),
+		Index(value = ["lat", "lon"], name = "idx_location_lat_lon")
+	]
+)
 data class DatabaseLocation(
 		@Embedded val location: Location,
 		@Embedded val activityInfo: ActivityInfo

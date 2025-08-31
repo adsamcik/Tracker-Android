@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.exporter.activity
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
@@ -135,7 +136,12 @@ class ExportActivity : DetailActivity() {
 
 		shareableDir = File(filesDir, SHARABLE_DIR_NAME)
 
-		val exporterType = requireNotNull(intent.extras)[EXPORTER_KEY] as Class<*>
+		val exporterType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			requireNotNull(intent.extras).getSerializable(EXPORTER_KEY, Class::class.java) as Class<*>
+		} else {
+			@Suppress("DEPRECATION")
+			requireNotNull(intent.extras).getSerializable(EXPORTER_KEY) as Class<*>
+		}
 		exporter = exporterType.getConstructor().newInstance() as Exporter
 
 		root = inflateContent<ConstraintLayout>(R.layout.layout_data_export)

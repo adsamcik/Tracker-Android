@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_6_7
 import com.adsamcik.tracker.shared.base.database.MIGRATION_7_8
 import com.adsamcik.tracker.shared.base.database.MIGRATION_8_9
 import com.adsamcik.tracker.shared.base.database.MIGRATION_9_10
+import com.adsamcik.tracker.shared.base.database.MIGRATION_10_11
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -271,7 +272,6 @@ class MigrationTest {
 		helper.runMigrationsAndValidate(TEST_DB, 9, true, MIGRATION_8_9).apply {
 		}
 	}
-
 	@Test
 	@Throws(IOException::class)
 	fun migrate9To10() {
@@ -280,6 +280,56 @@ class MigrationTest {
 		db.close()
 
 		helper.runMigrationsAndValidate(TEST_DB, 10, true, MIGRATION_8_9, MIGRATION_9_10)
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate10To11() {
+		val db = helper.createDatabase(TEST_DB, 10)
+
+		// Insert test data with old activity IDs to verify migration
+		db.execSQL(
+			"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle, session_activity_id) VALUES (1, 200, 300, 1, 10, 1000, 50, 0, 0, -23)"  // SKI -> SLOPE_SPORTS
+		)
+		db.execSQL(
+			"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle, session_activity_id) VALUES (2, 400, 600, 1, 20, 2000, 100, 0, 0, -6)"   // SWIM -> WATER_VEHICLE
+		)
+		db.execSQL(
+			"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle, session_activity_id) VALUES (3, 600, 800, 1, 30, 3000, 150, 0, 0, -19)"  // HIKING -> WALKING
+		)
+		db.execSQL(
+			"INSERT INTO tracker_session (id, start, `end`, user_initiated, collections, distance, steps, distance_on_foot, distance_in_vehicle, session_activity_id) VALUES (4, 800, 1000, 1, 40, 4000, 200, 0, 0, -21)" // RACE -> LAND_VEHICLE
+		)
+
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 11, true, MIGRATION_10_11).apply {
+			val cursor = query("SELECT id, session_activity_id FROM tracker_session ORDER BY id")
+
+			with(cursor) {
+				// Verify SKI(-23) -> SLOPE_SPORTS(-22)
+				assertTrue(moveToNext())
+				assertEquals(1, getInt(0))
+				assertEquals(-22, getInt(1))
+
+				// Verify SWIM(-6) -> WATER_VEHICLE(-26)
+				assertTrue(moveToNext())
+				assertEquals(2, getInt(0))
+				assertEquals(-26, getInt(1))
+
+				// Verify HIKING(-19) -> WALKING(-2)
+				assertTrue(moveToNext())
+				assertEquals(3, getInt(0))
+				assertEquals(-2, getInt(1))
+
+				// Verify RACE(-21) -> LAND_VEHICLE(-34)
+				assertTrue(moveToNext())
+				assertEquals(4, getInt(0))
+				assertEquals(-34, getInt(1))
+			}
+
+			cursor.close()
+		}
 	}
 
 	companion object {

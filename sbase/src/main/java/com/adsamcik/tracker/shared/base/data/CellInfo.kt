@@ -2,13 +2,11 @@ package com.adsamcik.tracker.shared.base.data
 
 import android.os.Parcelable
 import android.telephony.CellIdentity
-import android.telephony.CellIdentityCdma
 import android.telephony.CellIdentityGsm
 import android.telephony.CellIdentityLte
 import android.telephony.CellIdentityNr
 import android.telephony.CellIdentityWcdma
 import android.telephony.CellSignalStrength
-import android.telephony.CellSignalStrengthCdma
 import android.telephony.CellSignalStrengthGsm
 import android.telephony.CellSignalStrengthLte
 import android.telephony.CellSignalStrengthNr
@@ -97,26 +95,7 @@ data class CellInfo
 	)
 
 
-	/**
-	 * Creates new instance of CellInfo from CDMA cell info
-	 *
-	 * @param identity         Identity of the cell
-	 * @param signalStrength Signal strength of the cell
-	 * @return new CellInfo if successful, null otherwise
-	 */
-	constructor(
-			identity: CellIdentityCdma,
-			signalStrength: CellSignalStrengthCdma,
-			networkOperator: NetworkOperator
-	)
-			: this(
-			networkOperator,
-			identity.basestationId.toLong(),
-			CellType.CDMA,
-			signalStrength.asuLevel,
-			signalStrength.dbm,
-			signalStrength.level
-	)
+
 
 	/**
 	 * Creates new instance of CellInfo from WCDMA cell info
@@ -184,6 +163,33 @@ data class CellInfo
 			signalStrength.dbm,
 			signalStrength.level
 	)
+
+	companion object {
+		/**
+		 * Creates new instance of CellInfo from CDMA cell info
+		 *
+		 * @param identity         Identity of the cell
+		 * @param signalStrength Signal strength of the cell
+		 * @param networkOperator Network operator of the cell
+		 * @return new CellInfo if successful, null otherwise
+		 */
+		@Suppress("DEPRECATION")
+		fun fromCdma(
+				identity: android.telephony.CellIdentityCdma,
+				signalStrength: android.telephony.CellSignalStrengthCdma,
+				networkOperator: NetworkOperator
+		): CellInfo {
+			return CellInfo(
+					networkOperator,
+					@Suppress("DEPRECATION") 
+					identity.basestationId.toLong(),
+					CellType.CDMA,
+					signalStrength.asuLevel,
+					signalStrength.dbm,
+					signalStrength.level
+			)
+		}
+	}
 }
 
 enum class CellType {

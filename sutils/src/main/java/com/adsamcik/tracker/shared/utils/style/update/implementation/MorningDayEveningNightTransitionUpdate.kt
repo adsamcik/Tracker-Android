@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColorData
 import com.adsamcik.tracker.shared.utils.style.update.data.DefaultColors
 import com.adsamcik.tracker.shared.utils.style.update.data.UpdateData
 import org.shredzone.commons.suncalc.SunTimes
+import kotlin.math.abs
 import java.time.Duration
 import java.time.ZonedDateTime
 
@@ -83,71 +84,74 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 		)
 	}
 
-	private fun betweenMidnightAndSunrise(
-			now: ZonedDateTime,
-			midnight: ZonedDateTime,
-			sunrise: ZonedDateTime
-	): UpdateData {
-		assertTrue(now.isAfterOrEqual(midnight))
-		assertTrue(midnight.isBeforeOrEqual(sunrise))
-		assertTrue(now.isBeforeOrEqual(sunrise))
-		return UpdateData(
-				fromColor = MIDNIGHT,
-				toColor = SUNRISE,
-				duration = Duration.between(midnight, sunrise).toMillis(),
-				progress = Duration.between(midnight, now).toMillis()
-		)
+    private fun betweenMidnightAndSunrise(
+	    now: ZonedDateTime,
+	    midnight: ZonedDateTime,
+	    sunrise: ZonedDateTime
+    ): UpdateData {
+		val (duration, progress) = progressForInterval(midnight, sunrise, now)
+	return UpdateData(
+		fromColor = MIDNIGHT,
+		toColor = SUNRISE,
+		duration = duration,
+		progress = progress
+	)
+    }
+
+    private fun betweenSunsetAndMidnight(
+	    now: ZonedDateTime,
+	    sunset: ZonedDateTime,
+	    midnight: ZonedDateTime
+    ): UpdateData {
+		val (duration, progress) = progressForInterval(sunset, midnight, now)
+	return UpdateData(
+		fromColor = SUNSET,
+		toColor = MIDNIGHT,
+		duration = duration,
+		progress = progress
+	)
+    }
+
+    private fun betweenNoonAndSunset(
+	    now: ZonedDateTime,
+	    noon: ZonedDateTime,
+	    sunset: ZonedDateTime
+    ): UpdateData {
+		val (duration, progress) = progressForInterval(noon, sunset, now)
+	return UpdateData(
+		fromColor = NOON,
+		toColor = SUNSET,
+		duration = duration,
+		progress = progress
+	)
+    }
+
+    private fun betweenSunriseAndNoon(
+	    now: ZonedDateTime,
+	    sunrise: ZonedDateTime,
+	    noon: ZonedDateTime
+    ): UpdateData {
+		val (duration, progress) = progressForInterval(sunrise, noon, now)
+	return UpdateData(
+		fromColor = SUNRISE,
+		toColor = NOON,
+		duration = duration,
+		progress = progress
+	)
+    }
+
+	private fun positiveModulo(value: Long, mod: Long): Long = ((value % mod) + mod) % mod
+
+	private fun cycleDurationMillis(start: ZonedDateTime, end: ZonedDateTime): Long {
+		val diff = Duration.between(start, end).toMillis()
+		return positiveModulo(diff, Time.DAY_IN_MILLISECONDS)
 	}
 
-	private fun betweenSunsetAndMidnight(
-			now: ZonedDateTime,
-			sunset: ZonedDateTime,
-			midnight: ZonedDateTime
-	): UpdateData {
-		assertTrue(now.isAfterOrEqual(sunset)) { "now $now, sunset $sunset, midnight $midnight" }
-		assertTrue(sunset.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
-		assertTrue(now.isBeforeOrEqual(midnight)) { "now $now, sunset $sunset, midnight $midnight" }
-
-		return UpdateData(
-				fromColor = SUNSET,
-				toColor = MIDNIGHT,
-				duration = Duration.between(sunset, midnight).toMillis(),
-				progress = Duration.between(sunset, now).toMillis()
-		)
-	}
-
-	private fun betweenNoonAndSunset(
-			now: ZonedDateTime,
-			noon: ZonedDateTime,
-			sunset: ZonedDateTime
-	): UpdateData {
-		assertTrue(now.isAfterOrEqual(noon))
-		assertTrue(noon.isBeforeOrEqual(sunset))
-		assertTrue(now.isBeforeOrEqual(sunset))
-		return UpdateData(
-				fromColor = NOON,
-				toColor = SUNSET,
-				duration = Duration.between(noon, sunset).toMillis(),
-				progress = Duration.between(noon, now).toMillis()
-		)
-	}
-
-	private fun betweenSunriseAndNoon(
-			now: ZonedDateTime,
-			sunrise: ZonedDateTime,
-			noon: ZonedDateTime
-	): UpdateData {
-		assertTrue(now.isAfterOrEqual(sunrise))
-		assertTrue(sunrise.isBeforeOrEqual(noon))
-		assertTrue(now.isBeforeOrEqual(noon)) {
-			"Now: $now Noon: $noon Sunrise: $sunrise"
-		}
-		return UpdateData(
-				fromColor = SUNRISE,
-				toColor = NOON,
-				duration = Duration.between(sunrise, noon).toMillis(),
-				progress = Duration.between(sunrise, now).toMillis()
-		)
+	private fun progressForInterval(start: ZonedDateTime, end: ZonedDateTime, now: ZonedDateTime): Pair<Long, Long> {
+		val duration = cycleDurationMillis(start, end)
+		val rawProgress = positiveModulo(Duration.between(start, now).toMillis(), Time.DAY_IN_MILLISECONDS)
+		val progress = rawProgress.coerceIn(0L, duration)
+		return duration to progress
 	}
 
 	private fun calculateProgress(
@@ -170,32 +174,74 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 				DayPartData(midnight, midnightDist, PartOfDay.MIDNIGHT)
 		)
 
-		val sortedDayPartList = dayPartList.sortedBy { it.distance }
+		val sortedDayPartList = dayPartList.sortedBy { abs(it.distance) }
 		val first = sortedDayPartList[0]
 
-		val historicSunTimes = sunSetRise.sunDataFor(first.time.minusDays(1))
-
 		return when (first.partOfDay) {
-			PartOfDay.SUNRISE -> betweenMidnightAndSunrise(
-					time,
-					requireNotNull(historicSunTimes.nadir),
-					first.time
-			)
-			PartOfDay.NOON -> betweenSunriseAndNoon(
-					time,
-					requireNotNull(historicSunTimes.rise),
-					first.time
-			)
-			PartOfDay.SUNSET -> betweenNoonAndSunset(
-					time,
-					requireNotNull(historicSunTimes.noon),
-					first.time
-			)
-			PartOfDay.MIDNIGHT -> betweenSunsetAndMidnight(
-					time,
-					requireNotNull(historicSunTimes.set),
-					first.time
-			)
+			PartOfDay.SUNRISE -> {
+				// If we're before sunrise, we're between midnight -> sunrise, otherwise sunrise -> noon
+				if (time.isBeforeOrEqual(first.time)) {
+					betweenMidnightAndSunrise(
+							time,
+							requireNotNull(sunTimes.nadir),
+							first.time
+					)
+				} else {
+					betweenSunriseAndNoon(
+							time,
+							first.time,
+							requireNotNull(sunTimes.noon)
+					)
+				}
+			}
+			PartOfDay.NOON -> {
+				// If we're before noon, sunrise -> noon, otherwise noon -> sunset
+				if (time.isBeforeOrEqual(first.time)) {
+					betweenSunriseAndNoon(
+							time,
+							requireNotNull(sunTimes.rise),
+							first.time
+					)
+				} else {
+					betweenNoonAndSunset(
+							time,
+							first.time,
+							requireNotNull(sunTimes.set)
+					)
+				}
+			}
+			PartOfDay.SUNSET -> {
+				// If we're before sunset, noon -> sunset, otherwise sunset -> midnight
+				if (time.isBeforeOrEqual(first.time)) {
+					betweenNoonAndSunset(
+							time,
+							requireNotNull(sunTimes.noon),
+							first.time
+					)
+				} else {
+					betweenSunsetAndMidnight(
+							time,
+							first.time,
+							requireNotNull(sunTimes.nadir)
+					)
+				}
+			}
+			PartOfDay.MIDNIGHT -> {
+				// If we're before midnight, sunset -> midnight, otherwise midnight -> sunrise
+				if (time.isBeforeOrEqual(first.time)) {
+					betweenSunsetAndMidnight(
+							time,
+							requireNotNull(sunTimes.set),
+							first.time
+					)
+				} else {
+					betweenMidnightAndSunrise(
+							time,
+							first.time,
+							requireNotNull(sunTimes.rise)
+					)
+				}
+			}
 		}
 	}
 

@@ -7,25 +7,34 @@ import com.adsamcik.tracker.game.challenge.data.entity.ExplorerChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.instance.ExplorerChallengeInstance
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
-import com.adsamcik.tracker.shared.base.extension.additiveInverse
-import com.adsamcik.tracker.shared.base.extension.rescale
+import com.adsamcik.tracker.shared.base.Time
 
 class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefinition) :
-		ChallengeBuilder<ExplorerChallengeInstance>(
-				definition
-		) {
+	ChallengeBuilder<ExplorerChallengeInstance>(definition) {
+
 	private var requiredLocationCount: Int = 0
 
 	private fun selectLocationCount() {
-		val min = 0.8 - 0.4 * (1.0 - durationMultiplierNormalized)
-		val max = 1.25 + 4.75 * durationMultiplierNormalized
-		val countMultiplier = normalRandom(min..max)
+		val minMultiplier = 0.5
+		val maxMultiplier = 2.0
+
+		// Adjust min and max multipliers slightly based on duration
+		val adjustment = 0.3 * (durationMultiplierNormalized - 0.5)
+		val adjustedMin = minMultiplier + adjustment
+		val adjustedMax = maxMultiplier + adjustment
+
+		val countMultiplier = normalRandom(adjustedMin..adjustedMax)
 		requiredLocationCount = (definition.defaultLocationCount * countMultiplier).toInt()
-		addDifficulty(
-				countMultiplier
-						.additiveInverse(min..max)
-						.rescale(min..max, 0.4..2.5)
-		)
+
+		// Calculate rate (locations per day)
+		val durationDays = duration.toDouble() / Time.DAY_IN_MILLISECONDS
+		val rate = requiredLocationCount / durationDays
+
+		// Normalize rate against default rate
+		val defaultRate = definition.defaultLocationCount / (definition.defaultDuration.toDouble() / Time.DAY_IN_MILLISECONDS)
+		val difficultyValue = rate / defaultRate
+
+		addDifficulty(difficultyValue)
 	}
 
 	override fun selectChallengeSpecificParameters() {
@@ -33,12 +42,12 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 	}
 
 	override fun buildChallenge(
-			context: Context,
-			entry: ChallengeEntry
+		context: Context,
+		entry: ChallengeEntry
 	): ExplorerChallengeInstance {
 		return ExplorerChallengeInstance(
-				entry, definition,
-				ExplorerChallengeEntity(entry.id, false, requiredLocationCount, 0)
+			entry, definition,
+			ExplorerChallengeEntity(entry.id, false, requiredLocationCount, 0)
 		)
 	}
 
@@ -46,4 +55,5 @@ class ExplorerChallengeBuilder(private val definition: ExplorerChallengeDefiniti
 		database.explorerDao().insert(challenge.extra)
 	}
 }
+
 

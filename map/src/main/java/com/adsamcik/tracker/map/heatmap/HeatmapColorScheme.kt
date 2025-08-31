@@ -20,6 +20,51 @@ internal data class HeatmapColorScheme constructor(val colors: IntArray) {
 	}
 
 	companion object {
+		/** Build a 256-color gradient from [stops], where each stop is [position 0..1, r, g, b] in sRGB 0..255. */
+		private fun gradient256(vararg stops: FloatArray): IntArray {
+			val s = stops.sortedBy { it[0] }
+			val out = IntArray(256)
+			var j = 0
+			for (i in 0 until 256) {
+				val t = i / 255f
+				while (j < s.size - 2 && t > s[j + 1][0]) j++
+				val a = s[j]
+				val b = s[min(j + 1, s.size - 1)]
+				val t0 = a[0]
+				val t1 = b[0]
+				val u = if (t1 > t0) (t - t0) / (t1 - t0) else 0f
+				val r = (a[1] + (b[1] - a[1]) * u).toInt().coerceIn(0,255)
+				val g = (a[2] + (b[2] - a[2]) * u).toInt().coerceIn(0,255)
+				val bch = (a[3] + (b[3] - a[3]) * u).toInt().coerceIn(0,255)
+				out[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or bch
+			}
+			return out
+		}
+
+		/** Perceptually uniform Viridis palette (approx via key stops). */
+		fun viridis(): HeatmapColorScheme {
+			val arr = gradient256(
+				floatArrayOf(0.00f, 68f, 1f, 84f),
+				floatArrayOf(0.25f, 59f, 82f, 139f),
+				floatArrayOf(0.50f, 33f, 145f, 140f),
+				floatArrayOf(0.75f, 94f, 201f, 98f),
+				floatArrayOf(1.00f, 253f, 231f, 37f)
+			)
+			return HeatmapColorScheme(arr)
+		}
+
+		/** Perceptually uniform Inferno palette (approx via key stops). */
+		fun inferno(): HeatmapColorScheme {
+			val arr = gradient256(
+				floatArrayOf(0.00f, 0f, 0f, 4f),
+				floatArrayOf(0.25f, 87f, 13f, 109f),
+				floatArrayOf(0.50f, 187f, 55f, 84f),
+				floatArrayOf(0.75f, 249f, 142f, 8f),
+				floatArrayOf(1.00f, 252f, 255f, 164f)
+			)
+			return HeatmapColorScheme(arr)
+		}
+
 		val mixed_data: IntArray = intArrayOf(
 				0,
 				6180770,

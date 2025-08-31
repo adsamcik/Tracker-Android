@@ -6,6 +6,7 @@ import com.adsamcik.tracker.impexp.exporter.DatabaseExporter
 import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.impexp.exporter.KmlExporter
 import com.adsamcik.tracker.impexp.exporter.activity.ExportActivity
+import com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity
 import com.adsamcik.tracker.preference.setOnClickListener
 import com.adsamcik.tracker.shared.base.extension.startActivity
 
@@ -18,20 +19,20 @@ internal class ExportPage : PreferencePage {
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
 			setOnClickListener(R.string.settings_export_gpx_key) {
-				startActivity<ExportActivity> {
-					putExtra(ExportActivity.EXPORTER_KEY, GpxExporter::class.java)
+				startActivity<ImportExportComposeActivity> {
+					putExtra(ImportExportComposeActivity.EXPORTER_KEY, GpxExporter::class.java)
 				}
 			}
 
 			setOnClickListener(R.string.settings_export_kml_key) {
-				startActivity<ExportActivity> {
-					putExtra(ExportActivity.EXPORTER_KEY, KmlExporter::class.java)
+				startActivity<ImportExportComposeActivity> {
+					putExtra(ImportExportComposeActivity.EXPORTER_KEY, KmlExporter::class.java)
 				}
 			}
 
 			setOnClickListener(R.string.settings_export_sqlite_key) {
-				startActivity<ExportActivity> {
-					putExtra(ExportActivity.EXPORTER_KEY, DatabaseExporter::class.java)
+				startActivity<ImportExportComposeActivity> {
+					putExtra(ImportExportComposeActivity.EXPORTER_KEY, DatabaseExporter::class.java)
 				}
 			}
 		}

@@ -34,10 +34,33 @@ object LengthConstants {
 	 *  Number of feet in a mile.
 	 */
 	const val FEET_IN_MILE: Double = 5280.0
-
 	/**
 	 * Number of passus in mile passus.
 	 * Ancient roman unit.
 	 */
 	const val PASSUS_IN_MILE_PASSUS: Double = 1000.0
+
+	/**
+	 * Meters in a fathom.
+	 * Sailing unit.
+	 */
+	const val METERS_IN_FATHOM: Double = 1.8288
+
+	/**
+	 * Number of fathoms in a cable length.
+	 * Sailing unit.
+	 */
+	const val FATHOMS_IN_CABLE: Double = 100.0
+
+	/**
+	 * Meters in feet.
+	 * Flying unit.
+	 */
+	const val METERS_IN_FOOT: Double = 0.3048
+
+	/**
+	 * Number of feet in flight level.
+	 * Flying unit (flight levels are in 100ft increments).
+	 */
+	const val FEET_IN_FLIGHT_LEVEL: Double = 100.0
 }

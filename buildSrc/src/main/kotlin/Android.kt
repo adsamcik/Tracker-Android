@@ -1,16 +1,15 @@
 import org.gradle.api.JavaVersion
-import org.gradle.jvm.toolchain.JavaLanguageVersion
 
 /**
  * Android specific build properties
  */
 object Android {
-	const val min: Int = 24
-	const val compile: Int = 34
-	const val target: Int = 34
+	const val MIN_VERSION: Int = 26
+	const val COMPILE_VERSION: Int = 36
+	const val TARGET_VERSION: Int = 35
 
-	const val buildTools: String = "34.0.0"
+	const val BUILD_TOOLS_VERSION: String = "35.0.0"
 
-	val javaVersion: Int = 17
-	val javaTarget: JavaVersion = JavaVersion.toVersion(javaVersion)
+	const val JAVA_VERSION: Int = 17
+	val javaTarget: JavaVersion = JavaVersion.toVersion(JAVA_VERSION)
 }

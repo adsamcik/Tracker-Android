@@ -1,47 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources>
-    <string name="accessibility_add_new">Add new</string>
-
-    <string name="activity_airballoon">air balloon</string>
-    <string name="activity_airplane">airplane</string>
-    <string name="activity_badminton">badminton</string>
-    <string name="activity_baseball">baseball</string>
-    <string name="activity_basketball">basketball</string>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_canoe">canoe</string>
-    <string name="activity_cricket">cricket</string>
-    <string name="activity_dive">dive</string>
-    <string name="activity_ferry">ferry</string>
-    <string name="activity_football">football</string>
-    <string name="activity_golf">golf</string>
-    <string name="activity_handball">handball</string>
-    <string name="activity_hiking">hiking</string>
-    <string name="activity_hockey">hockey</string>
-    <string name="activity_horseride">horse ride</string>
+    <string name="accessibility_add_new">Add new</string>    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">Walking</string>
+    <string name="activity_running">Running</string>
+    <string name="activity_bicycle">Bicycle</string>
+    <string name="activity_slope_sports">Slope Sports</string>
+    <string name="activity_land_vehicle">Land Vehicle</string>
+    <string name="activity_water_vehicle">Water Vehicle</string>
+    <string name="activity_air_vehicle">Air Vehicle</string>
+    
+    <!-- Legacy/system activities -->
     <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_kayak">kayak</string>
-    <string name="activity_martial_arts">martial arts</string>
-    <string name="activity_name">Activity name</string>
     <string name="activity_on_foot">On foot</string>
-    <string name="activity_race">race</string>
+    <string name="activity_name">Activity name</string>
     <string name="activity_raw_still">Still</string>
     <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_rowing">rowing</string>
-    <string name="activity_rugby">rugby</string>
-    <string name="activity_run">run</string>
-    <string name="activity_sailing">sailing</string>
-    <string name="activity_skate">skate</string>
-    <string name="activity_ski">ski</string>
-    <string name="activity_snowboard">snowboard</string>
-    <string name="activity_softball">softball</string>
     <string name="activity_still">Still</string>
-    <string name="activity_swim">swim</string>
-    <string name="activity_tennis">tennis</string>
-    <string name="activity_train">train</string>
     <string name="activity_unknown">Unknown</string>
     <string name="activity_vehicle">vehicle</string>
-    <string name="activity_volleyball">volleyball</string>
-    <string name="activity_walk">walk</string>
 
     <string name="alert_confirm">Are you sure you want to %1$s?</string>
     <string name="alert_confirm_generic">Are you sure?</string>
@@ -113,7 +89,6 @@
     <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
     <string name="settings_color_update_single_title">Static color</string>
 
-    <string name="skip_introduction">skip</string>
 
     <string name="wifi">Wi-Fi</string>
 </resources>

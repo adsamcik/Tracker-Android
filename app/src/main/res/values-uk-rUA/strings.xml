@@ -10,10 +10,7 @@
     <string name="export_gpx_description">Export of location data from %1$s to %2$s tracked with Advention.</string>
     <string name="export_error_stream_failed">Could not create stream to file %s</string>
     <string name="export_gpx_error">GPX export failed with error: %s</string>
-    <string name="first_run_app_description">Thank you for trying Advention. This initial setup is HIGHLY RECOMMENDED for new users. May Advention serve you well.</string>
-    <string name="first_run_app_title">Welcome to Advention</string>
     <string name="first_run_error_reporting_description">Would you like to enable automatic error reporting? It is very important for issue resolving as it provides crucial information about the issue. For more information see <a href="%1$s">privacy policy</a>.</string>
-    <string name="first_run_error_reporting_title">Automatic error reporting</string>
     <string name="import_notification_error_failed_open_database">Failed to open database file %s</string>
     <string name="import_notification_extracting">Extracting %s …</string>
     <plurals name="import_notification_finished">
@@ -105,4 +102,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Скасувати</string>
+    <string name="onboarding_perm_rationale_title">Потрібен дозвіл</string>
+    <string name="onboarding_open_settings_title">Відкрийте налаштування, щоб надати дозвіл</string>
+    <string name="onboarding_open_settings_generic_message">Надайте цей дозвіл у системних налаштуваннях.</string>
+    <string name="onboarding_background_location_settings_message">Щоб увімкнути автоматичне відстеження, встановіть «Місцезнаходження» на «Дозволяти завжди» в Інформація про застосунок &gt; Дозволи.</string>
+    <string name="onboarding_open_settings_confirm">Відкрити налаштування</string>
 </resources>

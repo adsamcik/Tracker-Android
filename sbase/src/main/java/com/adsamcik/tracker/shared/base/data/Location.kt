@@ -122,15 +122,11 @@ data class Location(
 			precisionLatitudeInMeters: Double,
 			precisionLongitudeInMeters: Double = precisionLatitudeInMeters
 	): Location {
-		val accLatitude = latitudeAccuracy(precisionLatitudeInMeters)
-		val roundedLatitude = (latitude - latitude % accLatitude).round(ROUND_TO_DECIMALS)
-
-		val accLongitude = longitudeAccuracy(precisionLongitudeInMeters, roundedLatitude)
-		val roundedLongitude = (longitude - longitude % accLongitude).round(ROUND_TO_DECIMALS)
+		val roundedCoordinates = Companion.roundTo(latitude, precisionLatitudeInMeters, longitude, precisionLongitudeInMeters);
 		return Location(
 				time,
-				roundedLatitude,
-				roundedLongitude,
+				roundedCoordinates.latitude,
+				roundedCoordinates.longitude,
 				altitude,
 				horizontalAccuracy,
 				verticalAccuracy,
@@ -234,8 +230,32 @@ data class Location(
 		 */
 		fun latitudeAccuracy(precisionInMeters: Double): Double =
 				(METER_DEGREE_LATITUDE * precisionInMeters).round(ROUND_TO_DECIMALS)
+
+		/**
+		 * Creates new location with rounded latitude to [precisionLatitudeInMeters]
+		 * and longitude to [precisionLongitudeInMeters]
+		 *
+		 * @param precisionLatitudeInMeters Round latitude coordinate to meters
+		 * @param precisionLongitudeInMeters Round longitude coordinate to meters
+		 * @return New location containing rounded latitude and longitude and the rest of the original location data
+		 */
+		fun roundTo(
+			latitude: Double,
+			precisionLatitudeInMeters: Double,
+			longitude: Double,
+			precisionLongitudeInMeters: Double = precisionLatitudeInMeters
+		): Coordinates {
+			val accLatitude = latitudeAccuracy(precisionLatitudeInMeters)
+			val roundedLatitude = (latitude - latitude % accLatitude).round(ROUND_TO_DECIMALS)
+
+			val accLongitude = longitudeAccuracy(precisionLongitudeInMeters, roundedLatitude)
+			val roundedLongitude = (longitude - longitude % accLongitude).round(ROUND_TO_DECIMALS)
+			return Coordinates(roundedLatitude, roundedLongitude)
+		}
 	}
 }
+
+data class Coordinates(val latitude: Double, val longitude: Double)
 
 /**
  * Base location data object

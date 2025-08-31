@@ -60,6 +60,17 @@ object Probability {
 	}
 
 	/**
+	 * Returns a single random number from a truncated normal distribution between [lower, upper]
+	 */
+	fun truncatedNormal(mean: Double, standardDeviation: Double, lower: Double, upper: Double): Double {
+		var value: Double
+		do {
+			value = normal(mean, standardDeviation).first()
+		} while (value < lower || value > upper)
+		return value
+	}
+
+	/**
 	 * Returns number with exponential distribution between 0 and 1
 	 */
 	fun exponential(lambda: Double = 1.0): Double {

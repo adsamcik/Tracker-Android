@@ -12,6 +12,7 @@ import androidx.preference.PreferenceManager
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
+import com.adsamcik.tracker.shared.preferences.extension.getPreferredLengthSystem
 
 /**
  * Object that simplifies access to some preferences
@@ -335,7 +336,6 @@ open class Preferences {
 						PreferenceObserver.initialize(it.sharedPreferences)
 					}
 		}
-
 		/**
 		 * Utility method to get current [LengthSystem] preference.
 		 *
@@ -351,6 +351,33 @@ open class Preferences {
 					R.string.settings_length_system_default
 			)
 			return LengthSystem.valueOf(preference)
+		}
+		/**
+		 * Utility method to get effective [LengthSystem] preference, considering session activity.
+		 * If auto-switch is enabled and the session activity has a preferred length system,
+		 * it will be used instead of the default preference.
+		 *
+		 * @param context Context
+		 * @param sessionActivity Session activity to consider for auto-switching (optional)
+		 *
+		 * @return Effective [LengthSystem] preference
+		 */
+		fun getLengthSystem(context: Context, sessionActivity: com.adsamcik.tracker.shared.base.data.SessionActivity?): LengthSystem {
+			val defaultLengthSystem = getLengthSystem(context)
+			
+			// Check if auto-switch is enabled
+			val autoSwitchEnabled = getPref(context).getBooleanRes(
+				R.string.settings_statistics_auto_unit_switch_key,
+				R.string.settings_statistics_auto_unit_switch_default
+			)
+			
+			// If auto-switch is disabled or no session activity, use default
+			if (!autoSwitchEnabled || sessionActivity == null) {
+				return defaultLengthSystem
+			}
+			
+			// Check if activity has a preferred length system
+			return sessionActivity.getPreferredLengthSystem() ?: defaultLengthSystem
 		}
 
 		/**

@@ -13,8 +13,8 @@ import com.adsamcik.tracker.shared.utils.style.color.ColorConstants.FULL_COMPONE
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 import kotlin.math.roundToInt
+import java.util.Arrays
 
 /* heatmap - High performance heatmap creation in C. (Rewritten to Kotlin)
  *
@@ -53,14 +53,12 @@ internal class AgeWeightedHeatmap(
     val width: Int,
     val height: Int = width,
     val ageThreshold: Int = AGE_THRESHOLD_MINUTES * Time.MINUTE_IN_SECONDS.toInt(),
-    var maxHeat: Float = 0f,
-    var dynamicHeat: Boolean = true
+    var maxHeat: Float = 0f
 ) {
-    // width * height * (1+4+4+4 = 13 bytes) total array size ~= 0.85MB for 256*256 tiles
+    // width * height * (1+4+4 = 9 bytes) total array size ~= 0.65MB for 256*256 tiles
     private val alphaArray: UByteArray = UByteArray(width * height)
     private val weightArray: FloatArray = FloatArray(width * height)
     private val ageArray: IntArray = IntArray(width * height) { -ageThreshold }
-    private val lastValueArray: FloatArray = FloatArray(width * height)
 
     private var pointCount = 0
 
@@ -88,7 +86,7 @@ internal class AgeWeightedHeatmap(
         weight: Float = 1f,
         stamp: HeatmapStamp = HeatmapStamp.default9x9,
         weightMergeFunction: WeightMergeFunction = this::mergeWeightDefault,
-        alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
+    alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
     ) {
         //todo validate that odd numbers don't cause some weird artifacts
         val halfStampHeight = stamp.height / 2
@@ -118,9 +116,9 @@ internal class AgeWeightedHeatmap(
             assertMoreOrEqual(stampIndex, 0)
 
             for (itX in x0 until x1) {
-                val stampValue = stamp.stampData[stampIndex]
+                val baseStampValue = stamp.stampData[stampIndex]
 
-                if (stampValue > 0f) {
+                if (baseStampValue > 0f) {
                     val alphaValue = alphaArray[heatIndex].toInt()
                     val weightValue = weightArray[heatIndex]
                     val valueAge = ageArray[heatIndex]
@@ -128,38 +126,45 @@ internal class AgeWeightedHeatmap(
 
                     assertWithin(alphaPercentage, 0f, 1f)
 
-                    val newAlphaPercentage = max(alphaPercentage, stampValue)
-                    val newAlphaValue = (newAlphaPercentage * FULL_COMPONENT).toInt()
+                    // Temporal decay handling with order-independence
+                    val dt = ageInSeconds - valueAge
+                    val tau = ageThreshold.toFloat().coerceAtLeast(1f)
+                    if (dt >= 0) {
+                        // Newer or same-time sample: decay existing to the new time, then add new
+                        val decay = exp(-dt.toFloat() / tau)
 
-                    assertWithin(
-                        newAlphaValue,
-                        EMPTY_COMPONENT,
-                        FULL_COMPONENT
-                    )
+                        // Soften previous alpha by decay and delegate new alpha computation to merge function
+                        val decayedAlpha = alphaPercentage * decay
+                        val decayedAlphaValue = (decayedAlpha * FULL_COMPONENT).toInt()
+                        // Apply optional modulation to stamp value
+                        val newAlphaValue = alphaMergeFunction(decayedAlphaValue, baseStampValue, weight)
 
-                    // Calculate the change in weight since the last update
-                    val previousChange = weightValue - lastValueArray[heatIndex]
+                        assertWithin(newAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
 
-                    // Calculate the new weight value
-                    val newWeightValue =
-                        weightMergeFunction(previousChange, alphaValue, stampValue, weight)
+                        // Decay the previous weight and then merge current contribution
+                        val decayedWeight = weightValue * decay
+                        val merged = weightMergeFunction(decayedWeight, alphaValue, baseStampValue, weight)
+                        weightArray[heatIndex] = merged
 
-                    // Calculate the exponential recency factor
-                    val recencyFactor = calculateRecencyFactor(ageInSeconds, valueAge, ageThreshold)
+                        alphaArray[heatIndex] = newAlphaValue.coerceIn(EMPTY_COMPONENT, FULL_COMPONENT).toUByte()
+                        ageArray[heatIndex] = ageInSeconds
+                    } else {
+                        // Older sample arriving after a newer one: forward-decay the new contribution to stored time
+                        val forwardDecay = exp(dt.toFloat() / tau) // dt < 0 -> factor in (0,1]
 
-                    // Adjust the new weight value based on recency
-                    val adjustmentFactor =
-                        if (ageInSeconds - valueAge < ageThreshold) 1.0f - recencyFactor else 1.0f
-                    val adjustedWeightValue =
-                        weightValue + (newWeightValue - weightValue) * adjustmentFactor
+                        // Keep existing alpha; only weight contribution is scaled by forwardDecay
+                        val keptAlphaValue = alphaValue
+                        assertWithin(keptAlphaValue, EMPTY_COMPONENT, FULL_COMPONENT)
 
-                    // Update the weight array unconditionally
-                    weightArray[heatIndex] = adjustedWeightValue
-                    lastValueArray[heatIndex] = adjustedWeightValue - weightValue
+                        // Do not decay existing weight, only scale the incoming contribution to current timestamp
+                        val base = weightValue
+                        val merged = weightMergeFunction(base, alphaValue, baseStampValue, weight * forwardDecay)
+                        weightArray[heatIndex] = merged
 
-
-                    alphaArray[heatIndex] = newAlphaValue.toUByte()
-                    ageArray[heatIndex] = ageInSeconds
+                        // Preserve alpha and timestamp (the newer time already stored)
+                        alphaArray[heatIndex] = keptAlphaValue.coerceIn(EMPTY_COMPONENT, FULL_COMPONENT).toUByte()
+                        ageArray[heatIndex] = valueAge
+                    }
                 }
 
                 heatIndex++
@@ -168,17 +173,52 @@ internal class AgeWeightedHeatmap(
         }
     }
 
-    private fun calculateRecencyFactor(ageInSeconds: Int, lastAgeInSeconds: Int, ageThreshold: Int): Float {
-        val ageDifference = ageInSeconds - lastAgeInSeconds
-        if (ageDifference < ageThreshold) {
-            val a = ageThreshold.toFloat()
-            val exponent = -(ageDifference / a).pow(2)
-            return exp(exponent)
-        }
-        return 0.0f
-    }
+    // Intentionally no revisit/density/softness policies here; engine remains deterministic.
 
     fun renderDefaultTo(): IntArray = render(HeatmapColorScheme.default)
+
+    /**
+     * Estimate the p-th percentile of current heat values using down-sampling
+     * to at most [maxSamples] items for speed. Returns 0f if no points.
+     */
+    fun estimatePercentile(p: Float, maxSamples: Int = 2048): Float {
+        if (pointCount == 0) return 0f
+        val total = width * height
+        val step = (total / maxSamples).coerceAtLeast(1)
+        val arr = FloatArray((total + step - 1) / step)
+        var idx = 0
+        var i = 0
+        while (i < total) {
+            val v = weightArray[i]
+            if (v > 0f) {
+                arr[idx++] = v
+            }
+            i += step
+        }
+        if (idx == 0) return 0f
+        Arrays.sort(arr, 0, idx)
+        val pos = ((idx - 1) * p.coerceIn(0f, 1f)).toInt()
+        return arr[pos]
+    }
+
+    /** Fast histogram-based percentile on all pixels (optionally downsampled bins). */
+    fun estimatePercentileHist(p: Float, bins: Int = 1024): Float {
+        if (pointCount == 0) return 0f
+        val total = width * height
+        var minV = Float.POSITIVE_INFINITY
+        var maxV = Float.NEGATIVE_INFINITY
+        var i = 0
+        while (i < total) { val v = weightArray[i]; if (v < minV) minV = v; if (v > maxV) maxV = v; i++ }
+        if (!minV.isFinite() || !maxV.isFinite() || minV == maxV) return maxV
+        val hist = IntArray(bins)
+        val scale = (bins - 1) / (maxV - minV)
+        i = 0
+        while (i < total) { val v = weightArray[i]; val b = (((v - minV) * scale).toInt()).coerceIn(0, bins - 1); hist[b]++; i++ }
+        val target = (p.coerceIn(0f,1f) * total).toInt()
+        var cum = 0
+        for (b in 0 until bins) { cum += hist[b]; if (cum >= target) return minV + b / scale }
+        return maxV
+    }
 
     /* If the heatmap is empty, h->max (and thus the saturation value) is 0.0, resulting in a 0-by-0 division.
      * In that case, we should set the saturation to anything but 0, since we want the result of the division to be 0.
@@ -244,6 +284,107 @@ internal class AgeWeightedHeatmap(
         }
 
         return buffer
+    }
+
+    /**
+     * Build a normalized value buffer [0,1] from current weights using [saturation], applying [transform].
+     * This mirrors the normalization in renderSaturated but returns floats for post-processing.
+     * Uses pooled scratch buffer to reduce allocations.
+     */
+    fun buildNormalizedBuffer(
+        saturation: Float,
+        transform: (Float) -> Float = { it }
+    ): FloatArray {
+        val arraySize = width * height
+        val out = com.adsamcik.tracker.map.heatmap.ScratchBufferPool.acquire(arraySize)
+        if (pointCount == 0) return out.copyOf()
+        val sat = if (saturation > 0f) saturation else 1f
+        var index = 0
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val v = weightArray[index]
+                val n = (min(v, sat) / sat)
+                out[index] = transform(n)
+                index++
+            }
+        }
+        val result = out.copyOf()
+        com.adsamcik.tracker.map.heatmap.ScratchBufferPool.release(out)
+        return result
+    }
+
+    /**
+     * Build a normalized value buffer [0,1] using a pooled buffer to avoid copies.
+     * Returns an OwnedFloatBuffer that must be closed to return the buffer to the pool.
+     * Use this for performance-critical paths where intermediate copies aren't needed.
+     */
+    fun buildNormalizedBufferOwned(
+        saturation: Float,
+        transform: (Float) -> Float = { it }
+    ): com.adsamcik.tracker.map.heatmap.OwnedFloatBuffer {
+        val arraySize = width * height
+        val owned = com.adsamcik.tracker.map.heatmap.OwnedFloatBuffer.acquire(arraySize)
+        if (pointCount == 0) return owned
+        val sat = if (saturation > 0f) saturation else 1f
+        var index = 0
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val v = weightArray[index]
+                val n = (min(v, sat) / sat)
+                owned.data[index] = transform(n)
+                index++
+            }
+        }
+        return owned
+    }
+
+    /**
+     * Render a color buffer from a normalized [0,1] float buffer (same size), using internal alpha.
+     */
+    fun renderFromNormalized(
+        colorScheme: HeatmapColorScheme,
+        normalized: FloatArray,
+        alphaFromNormalized: Boolean = false,
+        opacity: Float = 1f
+    ): IntArray {
+        val buffer = IntArray(width * height)
+        if (normalized.size != width * height) return buffer
+        var index = 0
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val n = normalized[index].coerceIn(0f, 1f)
+                val colorId = ((colorScheme.colors.size - 1) * n).roundToInt()
+                val alpha = if (alphaFromNormalized) {
+                    (opacity * n * FULL_COMPONENT).roundToInt().coerceIn(EMPTY_COMPONENT, FULL_COMPONENT)
+                } else {
+                    alphaArray[index].toInt().coerceIn(EMPTY_COMPONENT, FULL_COMPONENT)
+                }
+                buffer[index] = colorScheme.colors[colorId].withAlpha(alpha)
+                index++
+            }
+        }
+        return buffer
+    }
+
+    /**
+     * Fraction of pixels with non-zero weights; used to detect low-content tiles.
+     */
+    fun activeCoverage(epsilon: Float = 1e-6f): Float {
+        if (pointCount == 0) return 0f
+        val total = width * height
+        var active = 0
+        var i = 0
+        while (i < total) {
+            if (weightArray[i] > epsilon) active++
+            i++
+        }
+        return active.toFloat() / total.toFloat()
+    }
+
+    // Read-only helpers for policies outside the engine
+    fun weightAt(x: Int, y: Int): Float {
+        if (x < 0 || y < 0 || x >= width || y >= height) return 0f
+        return weightArray[y * width + x]
     }
 }
 

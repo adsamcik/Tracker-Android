@@ -10,6 +10,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.annotation.CallSuper
 import androidx.annotation.DrawableRes
 import androidx.annotation.LayoutRes
@@ -20,7 +21,7 @@ import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.assist.Assist
-import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeightDeferred
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.shared.utils.style.StyleView
@@ -44,6 +45,12 @@ abstract class DetailActivity : CoreUIActivity() {
 	private val topPanelRoot: ViewGroup by lazy { findViewById(R.id.top_panel_root) }
 	private val contentDetailRoot: ViewGroup by lazy { findViewById(R.id.content_detail_root) }
 
+	private val onBackPressedCallback = object : OnBackPressedCallback(true) {
+		override fun handleOnBackPressed() {
+			finish()
+		}
+	}
+
 	@CallSuper
 	override fun onCreate(savedInstanceState: Bundle?) {
 		val configuration = Configuration()
@@ -51,6 +58,9 @@ abstract class DetailActivity : CoreUIActivity() {
 		super.onCreate(savedInstanceState)
 
 		setContentView(R.layout.activity_content_detail)
+
+		// Register back pressed callback
+		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
 		styleController.watchNotificationBar(
 				SystemBarStyleView(
@@ -76,7 +86,9 @@ abstract class DetailActivity : CoreUIActivity() {
 		window.decorView.background = ColorDrawable(StyleManager.styleData.backgroundColor())
 		//styleController.updateOnce(StyleView(contentDetailRoot, 0), allowRecycler = false)
 
-		findViewById<View>(R.id.back_button).setOnClickListener { onBackPressed() }
+		findViewById<View>(R.id.back_button).setOnClickListener { 
+			onBackPressedDispatcher.onBackPressed()
+		}
 
 
 		val desiredElevation = configuration.elevation
@@ -101,14 +113,13 @@ abstract class DetailActivity : CoreUIActivity() {
 					)
 			)
 		} else {
-			topPanelRoot.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
-				height += DisplayAssist.getStatusBarHeight(this@DetailActivity)
+			window.getStatusBarHeightDeferred { statusBarHeight ->
+				topPanelRoot.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
+					height += statusBarHeight
+				}
 			}
-		}
-	}
 
-	override fun onBackPressed() {
-		finish()
+		}
 	}
 
 	/**

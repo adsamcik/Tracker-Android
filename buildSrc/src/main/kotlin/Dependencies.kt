@@ -1,231 +1,251 @@
 import org.gradle.api.artifacts.dsl.DependencyHandler
 import org.gradle.kotlin.dsl.kotlin
+import org.gradle.kotlin.dsl.*
 
 /**
  * Object with common dependency groups for easy and central dependency management.
  */
-@Suppress("TooManyFunctions", "SpellCheckingInspection")
 object Dependencies {
     /**
      * Object containing versions for various dependencies.
-     * Dependencies that are not project are required to be internal.
      */
     object Versions {
-        const val kotlin: String = "2.0.0"
-        const val dokka: String = "0.9.18"
-        const val ksp = "${kotlin}-1.0.21"
+    const val KOTLIN = "2.2.0"
+    const val KSP = "2.2.0-2.0.2"
 
-        internal const val constraintLayout = "2.1.4"
-        internal const val coreKtx = "1.13.1"
-        internal const val appcompat = "1.7.0"
-        internal const val fragment = "1.8.1"
-        internal const val moshi = "1.15.1"
-        internal const val work = "2.9.0"
-        internal const val lifecycle = "2.8.3"
-        internal const val preference = "1.2.1"
-        internal const val material = "1.12.0"
-        internal const val desugar = "2.0.4"
+        const val CONSTRAINT_LAYOUT = "2.2.1"
+        const val CORE_KTX = "1.16.0"
+        const val APPCOMPAT = "1.7.1"
+        const val FRAGMENT = "1.8.8"
+        const val MOSHI = "1.15.2"
+    const val WORK = "2.10.3"
+    const val LIFECYCLE = "2.9.2"
+        const val PREFERENCE = "1.2.1"
+        const val MATERIAL = "1.12.0"
 
-        internal const val coroutines = "1.8.1"
+        const val COROUTINES = "1.10.2"
 
-        internal const val sqlite = "3.45.0"
-        internal const val room = "2.6.1"
+        const val SQLITE = "3.49.0"
+        const val ROOM = "2.7.2"
 
-        internal const val recyclerView = "1.3.2"
-        internal const val paging = "3.3.0"
+        const val RECYCLER_VIEW = "1.4.0"
+        const val PAGING = "3.3.6"
 
-        internal const val playServicesBase = "18.5.0"
-        internal const val playLocation = "21.3.0"
-        internal const val playFeatureDelivery = "2.1.0"
-        internal const val maps = "19.0.0"
+    const val PLAY_SERVICES_BASE = "18.7.2"
+        const val PLAY_LOCATION = "21.3.0"
+        const val PLAY_FEATURE_DELIVERY = "2.1.0"
+        const val MAPS = "19.2.0"
 
-        internal const val stax = "1.0.1"
-        internal const val jpx = "3.1.0"
-        internal const val xml = "1.3.3"
+        const val STAX = "1.0.1"
+        const val JPX = "3.2.1"
+        const val XML = "1.3.3"
 
-        internal const val spotlight = "2.2.3"
-        internal const val dialogs = "3.3.0"
+        const val SPOTLIGHT = "2.2.3"
+        const val DIALOGS = "3.3.0"
 
-        internal const val componentsRecycler = "1.0.0"
-        internal const val componentsDraggable = "1.0.4"
-        internal const val componentSlider = "2.1.0"
+        const val COMPONENTS_RECYCLER = "1.0.0"
+        const val COMPONENTS_DRAGGABLE = "1.0.4"
+        const val COMPONENT_SLIDER = "2.1.0"
 
-        internal const val dexter = "6.2.3"
+        const val SUNCALC = "3.11"
+        
+    const val DESUGAR_JDK_LIBS = "2.1.5"
 
-        internal const val suncalc = "3.11"
+    const val COMPOSE_BOM = "2025.07.00"
+        const val ACTIVITY_COMPOSE = "1.11.0-rc01"
+    const val NAVIGATION_COMPOSE = "2.9.3"
+        const val CONSTRAINT_LAYOUT_COMPOSE = "1.1.1"
+        const val ACCOMPANIST = "0.36.0"
 
         /**
          * Testing specific dependencies
          */
-        internal object Test {
-            internal const val rules: String = "1.5.0"
-            internal const val runner: String = "1.5.2"
-            internal const val espresso: String = "3.5.1"
-            internal const val coreTesting: String = "2.2.0"
-            internal const val testingKtx: String = "1.3.0"
+        object Test {
+            const val JUNIT = "4.13.2"
+            const val JUNIT_EXT = "1.3.0"
+            const val UIAUTOMATOR = "2.3.0"
+            const val RULES = "1.6.2"
+            const val RUNNER = "1.7.0"
+            const val ESPRESSO = "3.7.0"
+            const val CORE_TESTING = "2.2.0"
+            const val TESTING_KTX = "1.3.0"
         }
     }
 
-    private fun DependencyHandler.api(name: String) = add("api", name)
-    private fun DependencyHandler.implementation(name: Any) = add("implementation", name)
-    private fun DependencyHandler.ksp(name: String) = add("ksp", name)
-    private fun DependencyHandler.androidTestImplementation(name: String) =
-        add("androidTestImplementation", name)
+    private fun DependencyHandlerScope.implementation(dependency: Any) =
+        add("implementation", dependency)
 
-    private fun DependencyHandler.compileOnly(name: String) = add("compileOnly", name)
-    private fun DependencyHandler.coreLibraryDesugaring(dependencyNotation: Any) =
-        add("coreLibraryDesugaring", dependencyNotation)
+    private fun DependencyHandlerScope.api(dependency: Any) =
+        add("api", dependency)
 
-    fun json(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.squareup.moshi:moshi:${Versions.moshi}")
-            ksp("com.squareup.moshi:moshi-kotlin-codegen:${Versions.moshi}")
-        }
+    private fun DependencyHandlerScope.ksp(dependency: Any) =
+        add("ksp", dependency)
+
+    private fun DependencyHandlerScope.androidTestImplementation(dependency: Any) =
+        add("androidTestImplementation", dependency)
+
+    private fun DependencyHandlerScope.debugImplementation(dependency: Any) =
+        add(
+            "debugImplementation",
+            dependency
+        )    // Extension functions on DependencyHandlerScope for adding dependencies
+
+    fun json(scope: DependencyHandlerScope) {
+        scope.implementation("com.squareup.moshi:moshi:${Versions.MOSHI}")
+        scope.ksp("com.squareup.moshi:moshi-kotlin-codegen:${Versions.MOSHI}")
     }
 
-    fun database(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            val roomBaseString = "androidx.room:room"
-            api("$roomBaseString-runtime:${Versions.room}")
-            ksp("$roomBaseString-compiler:${Versions.room}")
-            implementation("$roomBaseString-ktx:${Versions.room}")
-            implementation("$roomBaseString-paging:${Versions.room}")
-            implementation("com.github.requery:sqlite-android:${Versions.sqlite}")
-            androidTestImplementation("androidx.room:room-testing:${Versions.room}")
-        }
+    fun database(scope: DependencyHandlerScope) {
+        val roomBase = "androidx.room:room"
+        scope.api("$roomBase-runtime:${Versions.ROOM}")
+        scope.ksp("$roomBase-compiler:${Versions.ROOM}")
+        scope.implementation("$roomBase-ktx:${Versions.ROOM}")
+        scope.implementation("$roomBase-paging:${Versions.ROOM}")
+        scope.implementation("com.github.requery:sqlite-android:${Versions.SQLITE}")
+        scope.androidTestImplementation("$roomBase-testing:${Versions.ROOM}")
     }
 
-    fun core(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:${Versions.desugar}")
-            implementation("com.google.devtools.ksp:symbol-processing-api:${Versions.ksp}")
+    fun core(scope: DependencyHandlerScope) {
+        // Kotlin Symbol Processing API
+        scope.implementation("com.google.devtools.ksp:symbol-processing-api:${Versions.KSP}")
 
-            implementation("androidx.appcompat:appcompat:${Versions.appcompat}")
-            implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.kotlin}")
-            implementation("androidx.core:core-ktx:${Versions.coreKtx}")
-            implementation("androidx.constraintlayout:constraintlayout:${Versions.constraintLayout}")
+        // AndroidX Libraries
+        scope.implementation("androidx.appcompat:appcompat:${Versions.APPCOMPAT}")
+        scope.implementation("androidx.core:core-ktx:${Versions.CORE_KTX}")
+        scope.implementation("androidx.constraintlayout:constraintlayout:${Versions.CONSTRAINT_LAYOUT}")
+        scope.implementation("androidx.recyclerview:recyclerview:${Versions.RECYCLER_VIEW}")
+        scope.implementation("androidx.lifecycle:lifecycle-runtime-ktx:${Versions.LIFECYCLE}")
+        scope.implementation("androidx.lifecycle:lifecycle-service:${Versions.LIFECYCLE}")
+        scope.implementation("androidx.lifecycle:lifecycle-process:${Versions.LIFECYCLE}")
+        scope.implementation("androidx.fragment:fragment:${Versions.FRAGMENT}")
+        scope.implementation("androidx.fragment:fragment-ktx:${Versions.FRAGMENT}")
+        scope.implementation("androidx.preference:preference:${Versions.PREFERENCE}")
+        scope.implementation("androidx.lifecycle:lifecycle-common-java8:${Versions.LIFECYCLE}")
 
-            // Recycler
-            implementation("com.github.adsamcik:Recycler:${Versions.componentsRecycler}")
-            implementation("androidx.recyclerview:recyclerview:${Versions.recyclerView}")
+        // Google Play Services
+        scope.implementation("com.google.android.gms:play-services-base:${Versions.PLAY_SERVICES_BASE}")
+        scope.implementation("com.google.android.play:feature-delivery:${Versions.PLAY_FEATURE_DELIVERY}")
+        scope.implementation("com.google.android.play:feature-delivery-ktx:${Versions.PLAY_FEATURE_DELIVERY}")
 
-            implementation("androidx.lifecycle:lifecycle-runtime-ktx:${Versions.lifecycle}")
-            implementation("androidx.lifecycle:lifecycle-service:${Versions.lifecycle}")
-            implementation("androidx.lifecycle:lifecycle-process:${Versions.lifecycle}")
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.coroutines}")
-            implementation("androidx.fragment:fragment:${Versions.fragment}")
-            implementation("androidx.fragment:fragment-ktx:${Versions.fragment}")
-            implementation("com.google.android.material:material:${Versions.material}")
-            implementation("com.google.android.gms:play-services-base:${Versions.playServicesBase}")
-            implementation("com.google.android.play:feature-delivery:${Versions.playFeatureDelivery}")
-            implementation("com.google.android.play:feature-delivery-ktx:${Versions.playFeatureDelivery}")
+        // Material Design Components
+        scope.implementation("com.google.android.material:material:${Versions.MATERIAL}")
 
+        // Kotlin Libraries
+        scope.implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${Versions.KOTLIN}")
+        scope.implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}")
 
-            implementation("com.afollestad.material-dialogs:core:${Versions.dialogs}")
+        // Third-Party Libraries
+        scope.implementation("com.github.adsamcik:Recycler:${Versions.COMPONENTS_RECYCLER}")
+        scope.implementation("com.afollestad.material-dialogs:core:${Versions.DIALOGS}")
 
-            implementation("com.karumi:dexter:${Versions.dexter}")
+        // Work Manager
+        work(scope)
+    }
 
-            work(this)
+    fun work(scope: DependencyHandlerScope) {
+        scope.implementation("androidx.work:work-runtime-ktx:${Versions.WORK}")
+        scope.androidTestImplementation("androidx.work:work-testing:${Versions.WORK}")
+    }
 
-            implementation("androidx.lifecycle:lifecycle-common-java8:${Versions.lifecycle}")
+    fun map(scope: DependencyHandlerScope) {
+        scope.implementation("com.google.android.gms:play-services-maps:${Versions.MAPS}")
+    }
 
-        }
+    fun location(scope: DependencyHandlerScope) {
+        scope.implementation("com.google.android.gms:play-services-location:${Versions.PLAY_LOCATION}")
+    }
+
+    fun draggable(scope: DependencyHandlerScope) {
+        scope.implementation("com.github.adsamcik:Draggable:${Versions.COMPONENTS_DRAGGABLE}")
+    }
+
+    fun slider(scope: DependencyHandlerScope) {
+        scope.implementation("com.github.adsamcik:slider:${Versions.COMPONENT_SLIDER}")
+    }
+
+    fun preference(scope: DependencyHandlerScope) {
+        scope.implementation("androidx.preference:preference:${Versions.PREFERENCE}")
+    }
+
+    fun inputDialog(scope: DependencyHandlerScope) {
+        scope.implementation("com.afollestad.material-dialogs:input:${Versions.DIALOGS}")
+    }
+
+    fun colorChooser(scope: DependencyHandlerScope) {
+        scope.implementation("com.afollestad.material-dialogs:color:${Versions.DIALOGS}")
+    }
+
+    fun gpx(scope: DependencyHandlerScope) {
+        scope.implementation("stax:stax-api:${Versions.STAX}")
+        scope.implementation("com.fasterxml:aalto-xml:${Versions.XML}")
+        scope.implementation("io.jenetics:jpx:${Versions.JPX}")
+    }
+
+    fun introduction(scope: DependencyHandlerScope) {
+        scope.implementation("com.github.adsamcik:spotlight:${Versions.SPOTLIGHT}")
+    }
+
+    fun sunCalculator(scope: DependencyHandlerScope) {
+        scope.implementation("org.shredzone.commons:commons-suncalc:${Versions.SUNCALC}")
+    }
+
+    fun paging(scope: DependencyHandlerScope) {
+        scope.implementation("androidx.paging:paging-runtime:${Versions.PAGING}")
+    }
+
+    fun compose(scope: DependencyHandlerScope) {
+        // Import the Compose BOM (Bill of Materials) to manage versions
+        val composeBom = scope.platform("androidx.compose:compose-bom:${Versions.COMPOSE_BOM}")
+        scope.implementation(composeBom)
+        scope.androidTestImplementation(composeBom)
+
+        // Core Compose libraries
+        scope.implementation("androidx.compose.material3:material3")
+        scope.implementation("androidx.compose.ui:ui-tooling-preview")
+        scope.debugImplementation("androidx.compose.ui:ui-tooling")
+        scope.implementation("androidx.activity:activity-compose:${Versions.ACTIVITY_COMPOSE}")
+        scope.implementation("androidx.compose.material:material-icons-extended")
+
+        // Additional Compose libraries
+        scope.implementation("androidx.compose.animation:animation")
+        scope.implementation("androidx.compose.animation:animation-graphics")
+        scope.implementation("androidx.navigation:navigation-compose:${Versions.NAVIGATION_COMPOSE}")
+        scope.implementation("androidx.lifecycle:lifecycle-viewmodel-compose:${Versions.LIFECYCLE}")
+        scope.implementation("androidx.compose.runtime:runtime")
+        scope.implementation("androidx.compose.runtime:runtime-livedata")
+        scope.implementation("androidx.constraintlayout:constraintlayout-compose:${Versions.CONSTRAINT_LAYOUT_COMPOSE}")
+
+        // Testing
+        scope.androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+        scope.debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+        // Updated Accompanist libraries
+        scope.implementation("com.google.accompanist:accompanist-pager:${Versions.ACCOMPANIST}")
+        scope.implementation("com.google.accompanist:accompanist-swiperefresh:${Versions.ACCOMPANIST}")
+    }
+
+    fun test(scope: DependencyHandlerScope) {
+        scope.androidTestImplementation("junit:junit:${Versions.Test.JUNIT}")
+        scope.androidTestImplementation("androidx.test:runner:${Versions.Test.RUNNER}")
+        scope.androidTestImplementation("androidx.test.uiautomator:uiautomator:${Versions.Test.UIAUTOMATOR}")
+        scope.androidTestImplementation("androidx.test.ext:junit:${Versions.Test.JUNIT_EXT}")
+        scope.androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.CORE_TESTING}")
+        scope.androidTestImplementation("com.jraska.livedata:testing-ktx:${Versions.Test.TESTING_KTX}")
+        scope.androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.ESPRESSO}")
+        scope.androidTestImplementation("androidx.test.espresso:espresso-contrib:${Versions.Test.ESPRESSO}")
     }
 
     fun corePlugins(scope: org.gradle.plugin.use.PluginDependenciesSpec) {
         with(scope) {
             kotlin("android")
             id("org.jetbrains.kotlin.plugin.parcelize")
-            id("com.google.devtools.ksp")
+            id("com.google.devtools.ksp") version Versions.KSP
         }
     }
 
-    private fun work(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("androidx.work:work-runtime-ktx:${Versions.work}")
-            androidTestImplementation("androidx.work:work-testing:${Versions.work}")
-        }
-    }
-
-    fun map(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.google.android.gms:play-services-maps:${Versions.maps}")
-        }
-    }
-
-    fun location(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.google.android.gms:play-services-location:${Versions.playLocation}")
-        }
-    }
-
-    fun draggable(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.github.adsamcik:Draggable:${Versions.componentsDraggable}")
-        }
-    }
-
-    fun slider(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.github.adsamcik:slider:${Versions.componentSlider}")
-        }
-    }
-
-    fun preference(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("androidx.preference:preference:${Versions.preference}")
-        }
-    }
-
-    fun inputDialog(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.afollestad.material-dialogs:input:${Versions.dialogs}")
-        }
-    }
-
-    fun colorChooser(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.afollestad.material-dialogs:color:${Versions.dialogs}")
-        }
-    }
-
-    fun gpx(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("stax:stax-api:${Versions.stax}")
-            implementation("com.fasterxml:aalto-xml:${Versions.xml}")
-            implementation("io.jenetics:jpx:${Versions.jpx}")
-        }
-    }
-
-    fun introduction(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("com.github.adsamcik:spotlight:${Versions.spotlight}")
-        }
-    }
-
-    fun sunCalculator(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("org.shredzone.commons:commons-suncalc:${Versions.suncalc}")
-        }
-    }
-
-    fun paging(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            implementation("androidx.paging:paging-runtime:${Versions.paging}")
-        }
-    }
-
-    fun test(dependencyHandler: DependencyHandler) {
-        with(dependencyHandler) {
-            androidTestImplementation("junit:junit:4.12")
-            androidTestImplementation("androidx.test:runner:${Versions.Test.rules}")
-            androidTestImplementation("androidx.test:rules:${Versions.Test.runner}")
-            androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
-            androidTestImplementation("androidx.test.ext:junit:1.1.5")
-            androidTestImplementation("androidx.arch.core:core-testing:${Versions.Test.coreTesting}")
-            androidTestImplementation("com.jraska.livedata:testing-ktx:${Versions.Test.testingKtx}")
-            androidTestImplementation("androidx.test.espresso:espresso-core:${Versions.Test.espresso}")
-            androidTestImplementation("androidx.test.espresso:espresso-contrib:${Versions.Test.espresso}")
+    fun composePlugins(scope: org.gradle.plugin.use.PluginDependenciesSpec) {
+        with(scope) {
+            id("org.jetbrains.kotlin.plugin.compose") version Dependencies.Versions.KOTLIN
         }
     }
 }

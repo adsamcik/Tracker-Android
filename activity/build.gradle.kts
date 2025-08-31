@@ -1,16 +1,16 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-	id("com.android.library")
-	Dependencies.corePlugins(this)
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.ksp)
 }
 
 android {
-	compileSdk = Android.compile
-	buildToolsVersion = Android.buildTools
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = Android.min
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -20,13 +20,12 @@ android {
 	}
 
 	compileOptions {
-		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
 	}
 
 	kotlin {
-		jvmToolchain(Android.javaVersion)
+		jvmToolchain(Android.JAVA_VERSION)
 	}
 
 	buildTypes {
@@ -39,7 +38,7 @@ android {
 			isMinifyEnabled = false
 		}
 		getByName("release") {
-			isMinifyEnabled = true
+			isMinifyEnabled = false
 		}
 	}
 
@@ -56,7 +55,39 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 
-	Dependencies.core(this)
-	Dependencies.location(this)
-	Dependencies.test(this)
+	// Core
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.androidx.recyclerview)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.service)
+	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.fragment)
+	implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.preference)
+	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.google.material)
+	implementation(libs.google.play.services.base)
+	implementation(libs.google.play.feature.delivery)
+	implementation(libs.google.play.feature.delivery.ktx)
+	implementation(libs.google.play.services.location)
+
+	// 1st/3rd party
+	implementation(libs.components.recycler)
+
+	// WorkManager
+	implementation(libs.androidx.work.runtime.ktx)
+	androidTestImplementation(libs.androidx.work.testing)
+
+	// Tests
+	androidTestImplementation(libs.junit4)
+	androidTestImplementation(libs.androidx.test.runner)
+	androidTestImplementation(libs.uiautomator)
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.arch.core.testing)
+	androidTestImplementation(libs.livedata.testing.ktx)
+	androidTestImplementation(libs.espresso)
 }

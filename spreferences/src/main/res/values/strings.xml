@@ -11,4 +11,16 @@
     <string name="mile_abbr">%s mi</string>
 
     <string name="millepassus">%s roman mile</string>
+
+    <!-- Sailing units -->
+    <string name="fathom_abbr">%s fathom</string>
+    <string name="cable_abbr">%s cable</string>
+    <string name="nautical_mile_abbr">%s nmi</string>    <!-- Flying units -->
+    <string name="flight_level_abbr">FL%s</string>
+
+    <!-- Auto unit switch preference -->
+    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
+    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
+    <string name="settings_statistics_auto_unit_switch_title">Auto-switch unit system</string>
+    <string name="settings_statistics_auto_unit_switch_summary">Automatically switch to sailing/flying units when viewing sessions with those activities</string>
 </resources>

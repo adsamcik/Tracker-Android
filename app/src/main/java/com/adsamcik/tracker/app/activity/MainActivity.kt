@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.activity
 
 import android.content.Intent
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Point
 import android.graphics.Rect
@@ -10,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import androidx.activity.OnBackPressedCallback
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
@@ -19,8 +21,6 @@ import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.app.HomeIntroduction
-import com.adsamcik.tracker.module.AppFirstRun
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.shared.base.Time
@@ -31,15 +31,12 @@ import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
-import com.adsamcik.tracker.shared.utils.dialog.FirstRunDialogBuilder
-import com.adsamcik.tracker.shared.utils.introduction.IntroductionManager
-import com.adsamcik.tracker.shared.utils.module.FirstRun
 import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
-import com.adsamcik.tracker.tracker.module.TrackerFirstRun
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
+import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
 import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 import java.util.*
 
@@ -82,37 +79,38 @@ class MainActivity : CoreUIActivity() {
 				)
 			}
 		}
+
+		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+			override fun handleOnBackPressed() {
+				when {
+					buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
+						DraggableImageButton.State.INITIAL, true
+					)
+					buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
+						DraggableImageButton.State.INITIAL, true
+					)
+					buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
+						DraggableImageButton.State.INITIAL, true
+					)
+					else -> {
+						// If no custom behavior, allow the default behavior
+						isEnabled = false
+						onBackPressedDispatcher.onBackPressed()
+					}
+				}
+			}
+		})
 	}
 
 	override fun onStart() {
 		super.onStart()
-		if (!Preferences.getPref(this).getBooleanRes(R.string.settings_first_run_key, false)) {
-			firstRun()
-		} else {
-			uiIntroduction()
-		}
-	}
-
-	private fun uiIntroduction() {
-		root.post {
-			IntroductionManager.showIntroduction(this, HomeIntroduction())
-		}
-	}
-
-	private fun firstRun() {
-		FirstRunDialogBuilder().let { builder ->
-			builder.addData(AppFirstRun())
-			builder.addData(TrackerFirstRun())
-			ModuleClassLoader.invokeInEachActiveModule<FirstRun>(this@MainActivity) {
-				builder.addData(it)
-			}
-			builder.onFirstRunFinished = {
-				Preferences.getPref(this@MainActivity).edit {
-					setBoolean(R.string.settings_first_run_key, true)
-				}
-				uiIntroduction()
-			}
-			builder.show(this@MainActivity)
+		
+		// Check if onboarding is completed using the helper method
+		if (!OnboardingActivity.isOnboardingCompleted(this)) {
+			// Launch onboarding flow
+			val intent = OnboardingActivity.createIntent(this)
+			startActivity(intent)
+			// Don't finish() here - let onboarding complete and return
 		}
 	}
 
@@ -385,26 +383,10 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-		return if (!IntroductionManager.anyShown && root.touchDelegate?.onTouchEvent(event) == true) {
+		return if (root.touchDelegate?.onTouchEvent(event) == true) {
 			true
 		} else {
 			super.dispatchTouchEvent(event)
-		}
-	}
-
-	@Deprecated("Deprecated in Java")
-	override fun onBackPressed() {
-		when {
-			buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
-				DraggableImageButton.State.INITIAL, true
-			)
-			buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
-				DraggableImageButton.State.INITIAL, true
-			)
-			buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
-				DraggableImageButton.State.INITIAL, true
-			)
-			else -> super.onBackPressed()
 		}
 	}
 }

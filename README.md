@@ -22,7 +22,7 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 - Export data to GPX, KML, JSON and Sqlite
 - Import data from GPX and batch import from zip
 - Supported languages: English, Czech
-- Supported length systems: metric, imperial (USC), ancient roman
+- Supported length systems: metric, imperial (USC), ancient roman, sailing, flying
 - Does not upload your tracked data anywhere (well except for automatic Android backup which sometimes works)
 
 ## Contributions

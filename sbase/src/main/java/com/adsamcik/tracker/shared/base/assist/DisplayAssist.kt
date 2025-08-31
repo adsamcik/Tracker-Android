@@ -1,10 +1,19 @@
 package com.adsamcik.tracker.shared.base.assist
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.Point
 import android.os.Build
+import android.util.TypedValue
 import android.view.Surface
+import android.view.View
+import android.view.Window
 import android.view.WindowInsets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnAttach
+import androidx.core.view.doOnPreDraw
+import com.adsamcik.tracker.shared.base.BuildConfig
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.windowManager
 import com.adsamcik.tracker.shared.base.misc.Int2
@@ -123,14 +132,11 @@ object DisplayAssist {
 		}
 	}
 
-	//todo consider using WindowInsets
-	@Suppress("MagicNumber")
-	fun getStatusBarHeight(context: Context): Int {
-		val resources = context.resources
-		val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
-		return when {
-			resourceId > 0 -> resources.getDimensionPixelSize(resourceId)
-			else -> 24.dp
+	fun Window.getStatusBarHeightDeferred(callback: (Int) -> Unit) {
+		decorView.doOnPreDraw {
+			val insets = ViewCompat.getRootWindowInsets(it)
+			val height = insets?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+			callback(height)
 		}
 	}
 

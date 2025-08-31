@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.draggable.IOnDemandView
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
+import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeightDeferred
 import com.adsamcik.tracker.shared.utils.extension.isEmpty
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
@@ -49,9 +50,6 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 		val contentPadding = activity.resources.getDimension(
 				com.adsamcik.tracker.shared.base.R.dimen.content_padding
 		).toInt()
-		val statusBarHeight = DisplayAssist.getStatusBarHeight(activity)
-		val navBarSize = DisplayAssist.getNavigationBarSize(activity)
-		val navBarHeight = navBarSize.second.y
 
 		val adapter = SessionSectionedRecyclerAdapter()
 		val recyclerView = fragmentView.findViewById<RecyclerView>(R.id.recycler_stats).apply {
@@ -59,15 +57,19 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
 			val layoutManager = LinearLayoutManager(activity)
 			this.layoutManager = layoutManager
 
-
-			addItemDecoration(
+			activity.window.getStatusBarHeightDeferred { statusBarHeight ->
+				val navBarSize = DisplayAssist.getNavigationBarSize(activity)
+				val navBarHeight = navBarSize.second.y
+				addItemDecoration(
 					MarginDecoration(
-							verticalMargin = 0,
-							horizontalMargin = 0,
-							firstLineMargin = statusBarHeight,
-							lastLineMargin = navBarHeight + contentPadding * 2
+						verticalMargin = 0,
+						horizontalMargin = 0,
+						firstLineMargin = statusBarHeight,
+						lastLineMargin = navBarHeight + contentPadding * 2
 					)
-			)
+				)
+			}
+
 		}
 
 		adapter.addLoadStateListener { loadState ->

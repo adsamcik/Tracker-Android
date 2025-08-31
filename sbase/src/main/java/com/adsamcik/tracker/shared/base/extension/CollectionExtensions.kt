@@ -10,7 +10,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Find if collection contains any item satisfying [func]
@@ -281,4 +283,9 @@ fun <Data, Result> Collection<Data>.forEachParallelBlocking(
  */
 fun <K, V : Any> Map<K, V>.require(key: K): V {
 	return requireNotNull(get(key)) { "No value with key $key found" }
+}
+
+fun List<Double>.standardDeviation(): Double {
+	val mean = this.average()
+	return sqrt(this.map { (it - mean).pow(2) }.average())
 }

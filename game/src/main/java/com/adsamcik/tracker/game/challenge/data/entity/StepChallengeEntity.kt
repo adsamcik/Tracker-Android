@@ -9,6 +9,5 @@ class StepChallengeEntity(
 		isCompleted: Boolean,
 		val requiredStepCount: Int,
 		var stepCount: Int
-) :
-		ChallengeEntryExtra(entryId, isCompleted)
+) : ChallengeEntryExtra(entryId, isCompleted)
 

@@ -1,14 +1,16 @@
 plugins {
-	id("com.android.library")
-	Dependencies.corePlugins(this)
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.ksp)
 }
 
 android {
-	compileSdk = Android.compile
-	buildToolsVersion = Android.buildTools
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = Android.min
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -18,7 +20,6 @@ android {
 	}
 
 	compileOptions {
-		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
 	}
@@ -53,15 +54,68 @@ android {
 	}
 
 	kotlin {
-		jvmToolchain(Android.javaVersion)
+		jvmToolchain(Android.JAVA_VERSION)
 	}
 }
 
 dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":spreferences"))
+	implementation(libs.androidx.documentfile)
 
-	Dependencies.core(this)
-	Dependencies.database(this)
-	Dependencies.test(this)
+	// Core
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.androidx.recyclerview)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.service)
+	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.fragment)
+	implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.preference)
+	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.google.material)
+	implementation(libs.google.play.services.base)
+	implementation(libs.google.play.feature.delivery)
+	implementation(libs.google.play.feature.delivery.ktx)
+
+	// DB
+	implementation(libs.androidx.room.runtime)
+	ksp(libs.androidx.room.compiler)
+	implementation(libs.androidx.room.ktx)
+	implementation(libs.androidx.room.paging)
+	implementation(libs.sqlite.android)
+	androidTestImplementation(libs.androidx.room.testing)
+
+	// Tests
+	androidTestImplementation(libs.junit4)
+	androidTestImplementation(libs.androidx.test.runner)
+	androidTestImplementation(libs.uiautomator)
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.arch.core.testing)
+	androidTestImplementation(libs.livedata.testing.ktx)
+	androidTestImplementation(libs.espresso)
+}
+
+// Workaround for intermittent KSP wiring on Windows with AGP/Kotlin RCs:
+// - Ensure the KSP output directory exists before consumers read it
+// - Enforce task ordering so processDebugJavaRes waits for kspDebugKotlin
+afterEvaluate {
+	// Precreate expected KSP output folder to avoid NoSuchFileException
+	val ensureKspDir = tasks.register("ensureKspDir") {
+		doLast {
+			file("$buildDir/generated/ksp/debug").mkdirs()
+		}
+	}
+
+	tasks.matching { it.name == "kspDebugKotlin" }.configureEach {
+		dependsOn(ensureKspDir)
+	}
+
+	tasks.matching { it.name == "processDebugJavaRes" }.configureEach {
+		dependsOn("kspDebugKotlin")
+	}
 }

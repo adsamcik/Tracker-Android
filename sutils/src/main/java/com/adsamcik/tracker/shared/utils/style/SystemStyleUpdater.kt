@@ -1,8 +1,10 @@
 package com.adsamcik.tracker.shared.utils.style
 
 import android.annotation.SuppressLint
+import android.graphics.Color
 import android.os.Build
 import android.view.View
+import android.view.Window
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.annotation.AnyThread
@@ -21,7 +23,7 @@ internal class SystemStyleUpdater {
 					view,
 					luminance
 			)
-			else -> updateSystemBarAppearanceMQ(
+			else -> updateSystemBarAppearancePreR(
 					view,
 					luminance
 			)
@@ -30,45 +32,42 @@ internal class SystemStyleUpdater {
 
 	@RequiresApi(Build.VERSION_CODES.R)
 	private fun updateSystemBarAppearanceR(view: View, luminance: Int) {
-		val insetsController = requireNotNull(view.windowInsetsController)
+		val windowInsetsController = view.windowInsetsController ?: return
 
-		val statusBarAppearance: Int
-		val navBarAppearance: Int
+		val isLight = luminance > 0
 
-		if (luminance > 0) {
-			statusBarAppearance = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-			navBarAppearance = WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+		val appearance = if (isLight) {
+			WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+			WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
 		} else {
-			statusBarAppearance = 0
-			navBarAppearance = 0
+			0
 		}
 
-		insetsController.setSystemBarsAppearance(
-				statusBarAppearance,
-				WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-		)
-
-		insetsController.setSystemBarsAppearance(
-				navBarAppearance,
-				WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+		windowInsetsController.setSystemBarsAppearance(
+			appearance,
+			WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+					WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
 		)
 	}
 
-	@SuppressLint("InlinedApi")
-	private fun updateSystemBarAppearanceMQ(view: View, luminance: Int) {
-		require(Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
 
+	@SuppressLint("InlinedApi")
+	private fun updateSystemBarAppearancePreR(view: View, luminance: Int) {
+		val isLight = luminance > 0
+
+		@Suppress("DEPRECATION")
 		view.post {
-			@Suppress("DEPRECATION")
-			view.systemUiVisibility = if (luminance > 0) {
-				view.systemUiVisibility or
-						View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-						View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+			var flags = view.systemUiVisibility
+
+			if (isLight) {
+				flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+				flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
 			} else {
-				view.systemUiVisibility and
-						(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-								View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR).inv()
+				flags = flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+				flags = flags and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
 			}
+
+			view.systemUiVisibility = flags
 		}
 	}
 
@@ -110,6 +109,7 @@ internal class SystemStyleUpdater {
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
 		if (color != null) {
 			styleView.view.runOnUiThread {
+				@Suppress("DEPRECATION")
 				styleView.window.navigationBarColor = color
 			}
 		}
@@ -122,6 +122,7 @@ internal class SystemStyleUpdater {
 		val color = getSystemBarColor(styleView, styleData, perceivedLuminance)
 		if (color != null) {
 			styleView.view.runOnUiThread {
+				@Suppress("DEPRECATION")
 				styleView.window.statusBarColor = color
 			}
 		}
@@ -129,113 +130,98 @@ internal class SystemStyleUpdater {
 	}
 
 	fun updateSystemBarStyle(
-			notificationStyleView: SystemBarStyleView?,
-			navigationStyleView: SystemBarStyleView?
+		notificationStyleView: SystemBarStyleView?,
+		navigationStyleView: SystemBarStyleView?
 	) {
+		val window = notificationStyleView?.window ?: navigationStyleView?.window ?: return
+
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			updateFlagsR(notificationStyleView, navigationStyleView)
+			updateFlagsR(window, notificationStyleView?.style, navigationStyleView?.style)
 		} else {
-			updateFlagsPreR(notificationStyleView, navigationStyleView)
+			updateFlagsPreR(window, notificationStyleView?.style, navigationStyleView?.style)
 		}
 	}
 
-	@Suppress("ComplexMethod", "ComplexCondition")
 	@RequiresApi(Build.VERSION_CODES.R)
 	private fun updateFlagsR(
-			notificationStyleView: SystemBarStyleView?,
-			navigationStyleView: SystemBarStyleView?
+		window: Window,
+		notificationStyle: SystemBarStyle?,
+		navigationStyle: SystemBarStyle?
 	) {
-		require(notificationStyleView != null || navigationStyleView != null)
-		val navigationStyle = navigationStyleView?.style ?: SystemBarStyle.Translucent
-		val notificationStyle = notificationStyleView?.style ?: SystemBarStyle.Translucent
-		var addFlags = 0
-		var clearFlags = 0
+		var flags = window.attributes.flags
 
-		when (navigationStyle) {
-			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-			}
-			else -> Unit
+		// Clear deprecated flags
+		@Suppress("DEPRECATION")
+		flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS.inv()
+		@Suppress("DEPRECATION")
+		flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION.inv()
+
+		// Add necessary flags
+		flags = flags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
+
+		// Apply layout parameters
+		window.attributes.flags = flags
+
+		// Handle transparent status bar
+		if (notificationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
+			window.setDecorFitsSystemWindows(false)
+			@Suppress("DEPRECATION")
+			window.statusBarColor = Color.TRANSPARENT
 		}
 
-		when (notificationStyle) {
-			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-			}
-			else -> Unit
+		// Handle transparent navigation bar
+		if (navigationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
+			window.setDecorFitsSystemWindows(false)
+			@Suppress("DEPRECATION")
+			window.navigationBarColor = Color.TRANSPARENT
 		}
-
-		if (notificationStyle.isBackgroundHandledBySystem && navigationStyle.isBackgroundHandledBySystem) {
-			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-		}
-
-		if ((notificationStyle == SystemBarStyle.Transparent && navigationStyle != SystemBarStyle.Translucent) ||
-				(navigationStyle == SystemBarStyle.Transparent && notificationStyle != SystemBarStyle.Translucent)) {
-			addFlags = addFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-		} else {
-			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-		}
-
-		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
-
-		window.addFlags(addFlags)
-		window.clearFlags(clearFlags)
 	}
 
 
-	@Suppress("ComplexMethod", "ComplexCondition", "Deprecation")
+	@Suppress("DEPRECATION")
 	private fun updateFlagsPreR(
-			notificationStyleView: SystemBarStyleView?,
-			navigationStyleView: SystemBarStyleView?
+		window: Window,
+		notificationStyle: SystemBarStyle?,
+		navigationStyle: SystemBarStyle?
 	) {
-		require(notificationStyleView != null || navigationStyleView != null)
-		val navigationStyle = navigationStyleView?.style ?: SystemBarStyle.Translucent
-		val notificationStyle = notificationStyleView?.style ?: SystemBarStyle.Translucent
-		var addFlags = 0
-		var clearFlags = 0
+		var flags = window.attributes.flags
 
-		when (navigationStyle) {
-			SystemBarStyle.Translucent -> {
-				addFlags = addFlags or
-						WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
-			}
-			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
-			}
-			SystemBarStyle.Default -> Unit
-		}
-
-		when (notificationStyle) {
-			SystemBarStyle.Translucent -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-			}
-			SystemBarStyle.Transparent, SystemBarStyle.LayerColor -> {
-				addFlags = addFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-			}
-			SystemBarStyle.Default -> {
-				clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-			}
-		}
-
-		if (notificationStyle.isBackgroundHandledBySystem && navigationStyle.isBackgroundHandledBySystem) {
-			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
-		}
-
-		if ((notificationStyle == SystemBarStyle.Transparent && navigationStyle != SystemBarStyle.Translucent) ||
-				(navigationStyle == SystemBarStyle.Transparent && notificationStyle != SystemBarStyle.Translucent)) {
-			addFlags = addFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+		// Handle translucent status bar
+		if (notificationStyle == SystemBarStyle.Translucent) {
+			@Suppress("DEPRECATION")
+			flags = flags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
 		} else {
-			clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+			@Suppress("DEPRECATION")
+			flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS.inv()
 		}
 
-		addFlags = addFlags or WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN
-		clearFlags = clearFlags or WindowManager.LayoutParams.FLAG_FULLSCREEN
+		// Handle translucent navigation bar
+		if (navigationStyle == SystemBarStyle.Translucent) {
+			@Suppress("DEPRECATION")
+			flags = flags or WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
+		} else {
+			@Suppress("DEPRECATION")
+			flags = flags and WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION.inv()
+		}
 
-		val window = notificationStyleView?.window ?: requireNotNull(navigationStyleView?.window)
+		// Add necessary flags
+		flags = flags or WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
 
-		window.addFlags(addFlags)
-		window.clearFlags(clearFlags)
+		// Apply layout parameters
+		window.attributes.flags = flags
+
+		// Handle transparent status bar
+		if (notificationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
+			window.statusBarColor = Color.TRANSPARENT
+		}
+
+		// Handle transparent navigation bar
+		if (navigationStyle == SystemBarStyle.Transparent) {
+			@Suppress("DEPRECATION")
+			window.navigationBarColor = Color.TRANSPARENT
+		}
 	}
 }

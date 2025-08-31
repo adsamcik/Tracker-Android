@@ -95,6 +95,5 @@
     <string name="settings_color_update_light_transition_title">Day/Night light based transition</string>
     <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
     <string name="settings_color_update_single_title">Static color</string>
-    <string name="skip_introduction">skip</string>
     <string name="wifi">Wi-Fi</string>
 </resources>

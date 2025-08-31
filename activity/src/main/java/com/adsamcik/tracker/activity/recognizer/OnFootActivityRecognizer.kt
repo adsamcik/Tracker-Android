@@ -37,14 +37,13 @@ internal class OnFootActivityRecognizer : ActivityRecognizer() {
 		if (other.count > onFoot.count + walk.count + run.count) {
 			return ActivityRecognitionResult(null, 0)
 		}
-
 		// check if large enough portion consisted of running
 		if (run.confidenceSum > walk.confidenceSum / WALK_DENOMINATOR) {
 			val confidence = (run.count.toDouble() / locationCollection.size.toDouble()) * run.confidence
-			return ActivityRecognitionResult(NativeSessionActivity.RUN, confidence.roundToInt())
+			return ActivityRecognitionResult(NativeSessionActivity.RUNNING, confidence.roundToInt())
 		}
 
-		return ActivityRecognitionResult(NativeSessionActivity.WALK, walk.confidence)
+		return ActivityRecognitionResult(NativeSessionActivity.WALKING, walk.confidence)
 	}
 
 	companion object {

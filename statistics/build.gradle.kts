@@ -1,17 +1,17 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-	id("com.android.dynamic-feature")
-	Dependencies.corePlugins(this)
+	alias(libs.plugins.android.dynamic.feature)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.ksp)
 }
 
 
 android {
-	compileSdk = Android.compile
-	buildToolsVersion = Android.buildTools
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = Android.min
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -23,17 +23,20 @@ android {
 	}
 
 	compileOptions {
-		isCoreLibraryDesugaringEnabled = true
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
 	}
 
 	kotlin {
-		jvmToolchain(Android.javaVersion)
+		jvmToolchain(Android.JAVA_VERSION)
 	}
 
 	buildTypes {
 		create("release_nominify")
+		create("dev") {
+			initWith(getByName("release"))
+			matchingFallbacks += listOf("debug", "release")
+		}
 	}
 
 	lint {
@@ -51,14 +54,56 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 
-	Dependencies.core(this)
-	Dependencies.draggable(this)
-	Dependencies.database(this)
-	Dependencies.map(this)
-	Dependencies.json(this)
-	Dependencies.test(this)
-	Dependencies.paging(this)
+	// Core
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.androidx.recyclerview)
+	// Recycler helpers (CardListAdapter, MultiType, etc.)
+	implementation(libs.components.recycler)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
+	implementation(libs.androidx.lifecycle.service)
+	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.fragment)
+	implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.preference)
+	implementation(libs.androidx.lifecycle.common.java8)
+	implementation(libs.google.material)
+	implementation(libs.google.play.services.base)
+	implementation(libs.google.play.feature.delivery)
+	implementation(libs.google.play.feature.delivery.ktx)
+	implementation(libs.google.play.services.location)
+	implementation(libs.google.play.services.maps)
+	implementation(libs.components.draggable)
+	// Material dialogs
+	implementation(libs.material.dialogs.core)
 
-	implementation("com.github.PhilJay:MPAndroidChart:3.1.0")
-	implementation("com.goebl:simplify:1.0.0")
+	// JSON
+	implementation(libs.moshi)
+	ksp(libs.moshi.kotlin.codegen)
+
+	// DB
+	implementation(libs.androidx.room.runtime)
+	ksp(libs.androidx.room.compiler)
+	implementation(libs.androidx.room.ktx)
+	implementation(libs.androidx.room.paging)
+	implementation(libs.sqlite.android)
+	androidTestImplementation(libs.androidx.room.testing)
+
+	// Paging
+	implementation(libs.androidx.paging.runtime)
+
+	// Tests
+	androidTestImplementation(libs.junit4)
+	androidTestImplementation(libs.androidx.test.runner)
+	androidTestImplementation(libs.uiautomator)
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.arch.core.testing)
+	androidTestImplementation(libs.livedata.testing.ktx)
+	androidTestImplementation(libs.espresso)
+
+	implementation(libs.mpandroidchart)
+	implementation(libs.simplify)
 }

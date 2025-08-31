@@ -182,29 +182,5 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	 */
 	@Query("SELECT MIN(time) as start, MAX(time) as endInclusive from location_data")
 	fun range(): DateRange
-
-	/**
-	 * Get all new locations since time.
-	 * It is considered new location if it is first record within [accuracy].
-	 */
-	@RewriteQueriesToDropUnusedColumns
-	fun newLocations(
-			list: List<Pair<Double, Double>>,
-			time: Long,
-			accuracy: Double
-	): List<Pair<Double, Double>> {
-		return list.filter {
-			val halfAccuracyLatitude = Location.latitudeAccuracy(accuracy) / 2.0
-			val halfAccuracyLongitude = Location.longitudeAccuracy(accuracy, it.first) / 2.0
-			countInsideAndBetween(
-					0,
-					time,
-					it.first + halfAccuracyLatitude,
-					it.second + halfAccuracyLongitude,
-					it.first - halfAccuracyLatitude,
-					it.second - halfAccuracyLongitude
-			) == 0
-		}
-	}
 }
 
