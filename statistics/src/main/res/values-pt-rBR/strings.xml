@@ -34,10 +34,10 @@
     <string name="stats_weekly_title">Last 7 days</string>
     <string name="stats_wifi_count">Wi-Fi count</string>
     <string name="stats_wifi_label">Wi‑Fi</string>
-    <string name="stats_error_generic">Something went wrong</string>
-    <string name="stats_failed_to_load">Failed to load</string>
-    <string name="stats_append_error">Load more failed</string>
-    <string name="action_retry">Retry</string>
+    <string name="stats_error_generic">Algo deu errado</string>
+    <string name="stats_failed_to_load">Falha ao carregar</string>
+    <string name="stats_append_error">Falha ao carregar mais</string>
+    <string name="action_retry">Tentar novamente</string>
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>
     <string name="wifilist_filter_capabilities">Capabilities</string>
