@@ -101,4 +101,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Anulează</string>
+    <string name="onboarding_perm_rationale_title">Permisiune necesară</string>
+    <string name="onboarding_open_settings_title">Deschide setările pentru a acorda permisiunea</string>
+    <string name="onboarding_open_settings_generic_message">Acordă această permisiune din setările sistemului.</string>
+    <string name="onboarding_background_location_settings_message">Pentru urmărire automată, setează Locația la „Permite întotdeauna” în Informații aplicație &gt; Permisiuni.</string>
+    <string name="onboarding_open_settings_confirm">Deschide setările</string>
 </resources>

@@ -102,4 +102,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Отмена</string>
+    <string name="onboarding_perm_rationale_title">Требуется разрешение</string>
+    <string name="onboarding_open_settings_title">Откройте настройки, чтобы предоставить разрешение</string>
+    <string name="onboarding_open_settings_generic_message">Предоставьте это разрешение в настройках системы.</string>
+    <string name="onboarding_background_location_settings_message">Чтобы включить автоотслеживание, установите разрешение «Местоположение» на «Всегда разрешать» в Информация о приложении &gt; Разрешения.</string>
+    <string name="onboarding_open_settings_confirm">Открыть настройки</string>
 </resources>

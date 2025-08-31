@@ -101,4 +101,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Откажи</string>
+    <string name="onboarding_perm_rationale_title">Потребна је дозвола</string>
+    <string name="onboarding_open_settings_title">Отвори подешавања да одобриш дозволу</string>
+    <string name="onboarding_open_settings_generic_message">Одобри ову дозволу у системским подешавањима.</string>
+    <string name="onboarding_background_location_settings_message">Да би омогућио аутоматско праћење, постави дозволу за локацију на „Увек дозволи“ у Информације о апликацији &gt; Дозволе.</string>
+    <string name="onboarding_open_settings_confirm">Отвори подешавања</string>
 </resources>

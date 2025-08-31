@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Cancel·la</string>
+    <string name="onboarding_perm_rationale_title">Permís necessari</string>
+    <string name="onboarding_open_settings_title">Obre la configuració per concedir el permís</string>
+    <string name="onboarding_open_settings_generic_message">Concedeix aquest permís des de la configuració del sistema.</string>
+    <string name="onboarding_background_location_settings_message">Per habilitar el seguiment automàtic, estableix el permís d ubicació a (Permetre sempre) a Informació de l aplicació &gt; Permisos.</string>
+    <string name="onboarding_open_settings_confirm">Obrir configuració</string>
 </resources>

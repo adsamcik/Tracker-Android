@@ -3,6 +3,8 @@ package com.adsamcik.tracker.app.onboarding.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -16,6 +18,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.adsamcik.tracker.app.activity.MainActivity
@@ -54,15 +58,17 @@ class OnboardingActivity : ComponentActivity() {
                 ) {
                     // Rationale dialog state
                     val rationalePermission = remember { mutableStateOf<Permission?>(null) }
+                    // Settings redirect dialog state (used for background location policy)
+                    val settingsPermission = remember { mutableStateOf<Permission?>(null) }
 
                     // Rationale dialog UI
                     val rp = rationalePermission.value
                     if (rp != null) {
                         androidx.compose.material3.AlertDialog(
                             onDismissRequest = { rationalePermission.value = null },
-                            title = { androidx.compose.material3.Text("Permission required") },
+                            title = { Text(stringResource(id = R.string.onboarding_perm_rationale_title)) },
                             text = {
-                                androidx.compose.material3.Text(
+                                Text(
                                     permissionManager.getPermissionDescription(rp)
                                 )
                             },
@@ -92,7 +98,7 @@ class OnboardingActivity : ComponentActivity() {
                                         }
                                     }
                                 }) {
-                                    androidx.compose.material3.Text("Continue")
+                                    Text(stringResource(id = R.string.onboarding_button_continue))
                                 }
                             },
                             dismissButton = {
@@ -100,7 +106,43 @@ class OnboardingActivity : ComponentActivity() {
                                     rationalePermission.value = null
                                     viewModel.onEvent(OnboardingEvent.PermissionDenied(rp, "Rationale dismissed"))
                                 }) {
-                                    androidx.compose.material3.Text("Cancel")
+                                    Text(stringResource(id = R.string.onboarding_button_cancel))
+                                }
+                            }
+                        )
+                    }
+
+                    // Settings redirect dialog UI (e.g., for Background Location "Allow all the time")
+                    val sp = settingsPermission.value
+                    if (sp != null) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { settingsPermission.value = null },
+                            title = { Text(stringResource(id = R.string.onboarding_open_settings_title)) },
+                            text = {
+                                val message = when (sp) {
+                                    Permission.LOCATION_BACKGROUND -> stringResource(id = R.string.onboarding_background_location_settings_message)
+                                    else -> stringResource(id = R.string.onboarding_open_settings_generic_message)
+                                }
+                                Text(message)
+                            },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    settingsPermission.value = null
+                                    val intent = Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.parse("package:" + packageName)
+                                    )
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    startActivity(intent)
+                                }) {
+                                    Text(stringResource(id = R.string.onboarding_open_settings_confirm))
+                                }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    settingsPermission.value = null
+                                }) {
+                                    Text(stringResource(id = R.string.onboarding_button_cancel))
                                 }
                             }
                         )
@@ -123,7 +165,13 @@ class OnboardingActivity : ComponentActivity() {
                                             PermissionResult.Granted ->
                                                 viewModel.onEvent(OnboardingEvent.PermissionGranted(perm))
                                             PermissionResult.Denied ->
-                                                viewModel.onEvent(OnboardingEvent.PermissionDenied(perm, "User denied"))
+                                                run {
+                                                    if (perm == Permission.LOCATION_BACKGROUND) {
+                                                        // Offer a settings redirect to comply with background location guidance
+                                                        settingsPermission.value = Permission.LOCATION_BACKGROUND
+                                                    }
+                                                    viewModel.onEvent(OnboardingEvent.PermissionDenied(perm, "User denied"))
+                                                }
                                             is PermissionResult.PartiallyGranted -> {
                                                 val acceptPartial = when (perm) {
                                                     Permission.LOCATION_FOREGROUND -> result.grantedPermissions.isNotEmpty()
@@ -156,6 +204,15 @@ class OnboardingActivity : ComponentActivity() {
             OnboardingStep.fromName(stepName)?.let { step ->
                 viewModel.onEvent(OnboardingEvent.GoToStep(step))
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // After returning from settings, re-check permissions and update state
+        val granted = permissionManager.getGrantedPermissions()
+        granted.forEach { perm ->
+            viewModel.onEvent(OnboardingEvent.PermissionGranted(perm))
         }
     }
     

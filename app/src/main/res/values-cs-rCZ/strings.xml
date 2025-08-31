@@ -69,4 +69,10 @@
     <string name="tutorial_settings_title">Nastavení</string>
     <string name="tutorial_stats_description">Statistiky najdete vlevo</string>
     <string name="tutorial_stats_title">Statistiky</string>
+    <string name="onboarding_button_cancel">Zrušit</string>
+    <string name="onboarding_perm_rationale_title">Je vyžadováno oprávnění</string>
+    <string name="onboarding_open_settings_title">Otevřít nastavení pro udělení oprávnění</string>
+    <string name="onboarding_open_settings_generic_message">Udělte toto oprávnění v systémovém nastavení.</string>
+    <string name="onboarding_background_location_settings_message">Pro povolení automatického sledování nastavte oprávnění Poloha na „Vždy povolit“ v Informace o aplikaci &gt; Oprávnění.</string>
+    <string name="onboarding_open_settings_confirm">Otevřít nastavení</string>
 </resources>

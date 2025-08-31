@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Cancelar</string>
+    <string name="onboarding_perm_rationale_title">Permissão necessária</string>
+    <string name="onboarding_open_settings_title">Abrir configurações para conceder a permissão</string>
+    <string name="onboarding_open_settings_generic_message">Conceda esta permissão nas configurações do sistema.</string>
+    <string name="onboarding_background_location_settings_message">Para ativar o rastreamento automático, defina a permissão de Localização como “Permitir sempre” em Informações do app &gt; Permissões.</string>
+    <string name="onboarding_open_settings_confirm">Abrir configurações</string>
 </resources>

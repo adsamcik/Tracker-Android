@@ -102,4 +102,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Cancel</string>
+    <string name="onboarding_perm_rationale_title">Permission required</string>
+    <string name="onboarding_open_settings_title">Open settings to grant permission</string>
+    <string name="onboarding_open_settings_generic_message">Grant this permission from the system settings.</string>
+    <string name="onboarding_background_location_settings_message">To enable automatic tracking, set Location permission to &quot;Allow all the time&quot; in App info &gt; Permissions.</string>
+    <string name="onboarding_open_settings_confirm">Open Settings</string>
 </resources>

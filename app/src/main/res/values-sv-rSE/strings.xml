@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Avbryt</string>
+    <string name="onboarding_perm_rationale_title">Behörighet krävs</string>
+    <string name="onboarding_open_settings_title">Öppna inställningar för att ge behörighet</string>
+    <string name="onboarding_open_settings_generic_message">Ge denna behörighet i systeminställningarna.</string>
+    <string name="onboarding_background_location_settings_message">För att aktivera automatisk spårning, ställ in platsbehörigheten på ”Tillåt alltid” i Appinformation &gt; Behörigheter.</string>
+    <string name="onboarding_open_settings_confirm">Öppna inställningar</string>
 </resources>

@@ -102,4 +102,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Anuluj</string>
+    <string name="onboarding_perm_rationale_title">Wymagane uprawnienie</string>
+    <string name="onboarding_open_settings_title">Otwórz ustawienia, aby nadać uprawnienie</string>
+    <string name="onboarding_open_settings_generic_message">Nadaj to uprawnienie w ustawieniach systemu.</string>
+    <string name="onboarding_background_location_settings_message">Aby włączyć automatyczne śledzenie, ustaw uprawnienie Lokalizacja na „Zawsze zezwalaj” w Informacje o aplikacji &gt; Uprawnienia.</string>
+    <string name="onboarding_open_settings_confirm">Otwórz ustawienia</string>
 </resources>

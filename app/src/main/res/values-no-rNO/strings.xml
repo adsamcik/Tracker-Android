@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Avbryt</string>
+    <string name="onboarding_perm_rationale_title">Tillatelse kreves</string>
+    <string name="onboarding_open_settings_title">Åpne innstillinger for å gi tillatelse</string>
+    <string name="onboarding_open_settings_generic_message">Gi denne tillatelsen i systeminnstillingene.</string>
+    <string name="onboarding_background_location_settings_message">For å aktivere automatisk sporing, sett posisjonstillatelsen til «Tillat alltid» i App-info &gt; Tillatelser.</string>
+    <string name="onboarding_open_settings_confirm">Åpne innstillinger</string>
 </resources>

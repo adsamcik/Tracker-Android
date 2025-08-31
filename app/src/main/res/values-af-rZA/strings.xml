@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Kanselleer</string>
+    <string name="onboarding_perm_rationale_title">Toestemming benodig</string>
+    <string name="onboarding_open_settings_title">Maak instellings oop om toestemming te verleen</string>
+    <string name="onboarding_open_settings_generic_message">Verleen hierdie toestemming in die stelselinstellings.</string>
+    <string name="onboarding_background_location_settings_message">Om outomatiese nasporing te aktiveer, stel die Ligging-toestemming op “Laat altyd toe” in App-inligting &gt; Toestemmings.</string>
+    <string name="onboarding_open_settings_confirm">Maak instellings oop</string>
 </resources>

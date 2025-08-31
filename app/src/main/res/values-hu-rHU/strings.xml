@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Mégse</string>
+    <string name="onboarding_perm_rationale_title">Engedély szükséges</string>
+    <string name="onboarding_open_settings_title">Nyisd meg a beállításokat az engedély megadásához</string>
+    <string name="onboarding_open_settings_generic_message">Add meg ezt az engedélyt a rendszerbeállításokban.</string>
+    <string name="onboarding_background_location_settings_message">Az automatikus követéshez állítsd a Hely engedélyt „Mindig engedélyezve” értékre az Alkalmazás adatai &gt; Engedélyek menüben.</string>
+    <string name="onboarding_open_settings_confirm">Beállítások megnyitása</string>
 </resources>

@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Άκυρο</string>
+    <string name="onboarding_perm_rationale_title">Απαιτείται άδεια</string>
+    <string name="onboarding_open_settings_title">Ανοίξτε τις ρυθμίσεις για να δώσετε άδεια</string>
+    <string name="onboarding_open_settings_generic_message">Δώστε αυτήν την άδεια από τις ρυθμίσεις συστήματος.</string>
+    <string name="onboarding_background_location_settings_message">Για να ενεργοποιήσετε την αυτόματη παρακολούθηση, ορίστε την άδεια τοποθεσίας σε «Να επιτρέπεται πάντα» στις Πληροφορίες εφαρμογής &gt; Δικαιώματα.</string>
+    <string name="onboarding_open_settings_confirm">Άνοιγμα ρυθμίσεων</string>
 </resources>

@@ -104,4 +104,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">إلغاء</string>
+    <string name="onboarding_perm_rationale_title">يلزم إذن</string>
+    <string name="onboarding_open_settings_title">افتح الإعدادات لمنح الإذن</string>
+    <string name="onboarding_open_settings_generic_message">امنح هذا الإذن من إعدادات النظام.</string>
+    <string name="onboarding_background_location_settings_message">لتمكين التتبع التلقائي، عيّن إذن الموقع إلى "السماح دائمًا" في معلومات التطبيق &gt; الأذونات.</string>
+    <string name="onboarding_open_settings_confirm">افتح الإعدادات</string>
 </resources>

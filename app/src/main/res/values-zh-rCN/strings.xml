@@ -99,4 +99,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">取消</string>
+    <string name="onboarding_perm_rationale_title">需要权限</string>
+    <string name="onboarding_open_settings_title">打开设置以授予权限</string>
+    <string name="onboarding_open_settings_generic_message">请在系统设置中授予此权限。</string>
+    <string name="onboarding_background_location_settings_message">要启用自动跟踪，请在 应用信息 &gt; 权限 中将位置权限设置为“始终允许”。</string>
+    <string name="onboarding_open_settings_confirm">打开设置</string>
 </resources>

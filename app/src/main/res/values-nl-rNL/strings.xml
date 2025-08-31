@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Annuleren</string>
+    <string name="onboarding_perm_rationale_title">Machtiging vereist</string>
+    <string name="onboarding_open_settings_title">Instellingen openen om machtiging te verlenen</string>
+    <string name="onboarding_open_settings_generic_message">Verleen deze machtiging via de systeeminstellingen.</string>
+    <string name="onboarding_background_location_settings_message">Stel voor automatisch volgen de locatiemachtiging in op &quot;Altijd toestaan&quot; in App-info &gt; Machtigingen.</string>
+    <string name="onboarding_open_settings_confirm">Instellingen openen</string>
 </resources>

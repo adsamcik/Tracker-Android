@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Annulla</string>
+    <string name="onboarding_perm_rationale_title">Autorizzazione necessaria</string>
+    <string name="onboarding_open_settings_title">Apri impostazioni per concedere l autorizzazione</string>
+    <string name="onboarding_open_settings_generic_message">Concedi questa autorizzazione dalle impostazioni di sistema.</string>
+    <string name="onboarding_background_location_settings_message">Per abilitare il tracciamento automatico, imposta la posizione su (Consenti sempre) in Info app &gt; Autorizzazioni.</string>
+    <string name="onboarding_open_settings_confirm">Apri impostazioni</string>
 </resources>

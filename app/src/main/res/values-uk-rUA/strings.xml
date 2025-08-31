@@ -102,4 +102,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Скасувати</string>
+    <string name="onboarding_perm_rationale_title">Потрібен дозвіл</string>
+    <string name="onboarding_open_settings_title">Відкрийте налаштування, щоб надати дозвіл</string>
+    <string name="onboarding_open_settings_generic_message">Надайте цей дозвіл у системних налаштуваннях.</string>
+    <string name="onboarding_background_location_settings_message">Щоб увімкнути автоматичне відстеження, встановіть «Місцезнаходження» на «Дозволяти завжди» в Інформація про застосунок &gt; Дозволи.</string>
+    <string name="onboarding_open_settings_confirm">Відкрити налаштування</string>
 </resources>

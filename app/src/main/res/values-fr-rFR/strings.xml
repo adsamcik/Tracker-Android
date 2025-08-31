@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Annuler</string>
+    <string name="onboarding_perm_rationale_title">Autorisation requise</string>
+    <string name="onboarding_open_settings_title">Ouvrir les paramètres pour accorder l’autorisation</string>
+    <string name="onboarding_open_settings_generic_message">Accordez cette autorisation dans les paramètres du système.</string>
+    <string name="onboarding_background_location_settings_message">Pour activer le suivi automatique, définissez l’autorisation de localisation sur « Toujours autoriser » dans Infos sur l’application &gt; Autorisations.</string>
+    <string name="onboarding_open_settings_confirm">Ouvrir les paramètres</string>
 </resources>

@@ -100,4 +100,10 @@
     <string name="tutorial_settings_title">Settings</string>
     <string name="tutorial_stats_description">You can find statistics on the left</string>
     <string name="tutorial_stats_title">Statistics</string>
+    <string name="onboarding_button_cancel">Abbrechen</string>
+    <string name="onboarding_perm_rationale_title">Berechtigung erforderlich</string>
+    <string name="onboarding_open_settings_title">Einstellungen öffnen, um Berechtigung zu erteilen</string>
+    <string name="onboarding_open_settings_generic_message">Erteilen Sie diese Berechtigung in den Systemeinstellungen.</string>
+    <string name="onboarding_background_location_settings_message">Um das automatische Tracking zu aktivieren, setzen Sie die Standortberechtigung in App-Info &gt; Berechtigungen auf „Immer zulassen“.</string>
+    <string name="onboarding_open_settings_confirm">Einstellungen öffnen</string>
 </resources>
