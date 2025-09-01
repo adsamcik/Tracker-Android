@@ -1,6 +1,5 @@
 plugins {
 	alias(libs.plugins.android.application)
-	alias(libs.plugins.oss.licenses)
 	alias(libs.plugins.secrets)
 	alias(libs.plugins.google.services)
 	alias(libs.plugins.kotlin.android)
@@ -127,6 +126,8 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 	implementation(project(":impexp"))
+	implementation(project(":statistics"))
+	implementation(project(":game"))
 
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 

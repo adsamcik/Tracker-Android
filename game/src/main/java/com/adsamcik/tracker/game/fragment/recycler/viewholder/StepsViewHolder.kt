@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.utils.style.StyleController
 /**
  * View holder for steps in game recycler.
  */
+@Deprecated("Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters with StyleController")
 internal class StepsViewHolder(
 		rootView: View,
 		layer: Int,
@@ -19,6 +20,8 @@ internal class StepsViewHolder(
 		private val weeklyStepsTitle: AppCompatTextView,
 		private val weeklyStepsText: AppCompatTextView
 ) : AutoStyledMultiTypeViewHolder<StepsRecyclerData>(rootView, layer) {
+	@Deprecated("Use Compose LazyColumn with Material 3 theming instead of StyleController-based ViewHolders")
+	@Suppress("DEPRECATION")
 	override fun bind(data: StepsRecyclerData, styleController: StyleController) {
 		super.bind(data, styleController)
 		val resources = itemView.context.resources

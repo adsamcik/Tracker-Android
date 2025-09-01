@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.utils.style.StyleController
 /**
  * View Holder for list based items in Game Recycler View.
  */
+@Deprecated("Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters with StyleController")
 abstract class ListRecyclerViewHolder<DataType : ListRecyclerData<*>>(
 		rootView: View,
 		private val title: TextView,
@@ -22,6 +23,8 @@ abstract class ListRecyclerViewHolder<DataType : ListRecyclerData<*>>(
 	 */
 	abstract fun bindRecycler(value: DataType, recycler: RecyclerView)
 
+	@Deprecated("Use Compose LazyColumn with Material 3 theming instead of StyleController-based ViewHolders")
+	@Suppress("DEPRECATION")
 	override fun bind(data: DataType, styleController: StyleController) {
 		title.setText(data.title)
 
@@ -30,6 +33,8 @@ abstract class ListRecyclerViewHolder<DataType : ListRecyclerData<*>>(
 		styleController.watchRecyclerView(RecyclerStyleView(recycler, layer))
 	}
 
+	@Deprecated("Use Compose LazyColumn with Material 3 theming instead of StyleController-based ViewHolders")
+	@Suppress("DEPRECATION")
 	override fun onRecycle(styleController: StyleController) {
 		styleController.stopWatchingRecyclerView(recycler)
 	}

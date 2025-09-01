@@ -383,9 +383,7 @@ abstract class ManageActivity : DetailActivity() {
 	open fun onManageConfigure(configuration: ManageConfiguration): Unit = Unit
 
 	private fun initializeColorController() {
-		styleController.watchRecyclerView(RecyclerStyleView(findViewById(R.id.recycler), 0))
-		styleController.watchView(StyleView(findViewById(R.id.fab), 1, isInverted = true))
-		styleController.watchView(StyleView(addItemLayout, 2))
+	// No-op: legacy StyleController removed; views use Material theming
 	}
 
 	/**

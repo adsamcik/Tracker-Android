@@ -210,7 +210,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 			// Phase 1/2/3: Compose UI layer over legacy map. Bottom sheet + optional MapScreen overlay.
 			// Legacy user overlays removed; Compose renders user position
 			mapUiParent.setContent {
-				com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme {
+				com.adsamcik.tracker.map.ui.theme.MapTheme {
 					androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
 						// Optional Maps Compose rendering; when enabled, let it be interactive
 						if (showComposeMap) {

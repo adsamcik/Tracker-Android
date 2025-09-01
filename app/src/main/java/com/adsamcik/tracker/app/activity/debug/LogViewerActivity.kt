@@ -15,7 +15,6 @@ import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.LogDatabase
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -52,7 +51,7 @@ internal class LogViewerActivity : DetailActivity() {
 		}
 		rootView.addView(recyclerView)
 
-		styleController.watchRecyclerView(RecyclerStyleView(recyclerView))
+		// Legacy StyleController Recycler styling removed; rely on default theme
 	}
 
 	internal class Adapter : BaseRecyclerAdapter<LogData, Adapter.ViewHolder>() {

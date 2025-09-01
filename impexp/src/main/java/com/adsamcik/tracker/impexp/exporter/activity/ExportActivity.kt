@@ -34,7 +34,6 @@ import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
@@ -120,7 +119,7 @@ class ExportActivity : DetailActivity() {
 					range.endInclusive.toEpochMillis()
 			)
 			launch(Dispatchers.Main) {
-				createDateTimeDialog(styleController, availableRange, selectedRange) {
+				createDateTimeDialog(availableRange, selectedRange) {
 					range = Time.ofEpochMilli(it.first)..Time.roundToDate(Time.ofEpochMilli(it.last))
 							.with { time ->
 								time.plus(1L, ChronoUnit.DAYS)
@@ -227,7 +226,6 @@ class ExportActivity : DetailActivity() {
 						positiveButton(res = com.adsamcik.tracker.shared.base.R.string.generic_ok) {
 							finish()
 						}
-						dynamicStyle()
 					}
 				}
 			}
@@ -299,7 +297,6 @@ class ExportActivity : DetailActivity() {
 							/*val incremented = directory.autoIncrementFileName(fileNameWithExtension)
 							exportToNewFile(directory, incremented, onPick)*/
 						}
-						dynamicStyle()
 					}
 		} else {
 			exportToNewFile(directory, fileNameWithExtension, onPick)

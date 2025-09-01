@@ -14,7 +14,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.ui.TrackerViewModel
 import org.junit.Before
@@ -53,7 +54,7 @@ class TrackerDashboardTest {
     private fun setDashboardContent() {
         composeRule.setContent {
             CompositionLocalProvider(LocalHapticFeedback provides testHapticFeedback) {
-                TrackerTheme {
+                MaterialTheme(colorScheme = lightColorScheme()) {
                     TrackerDashboard(
                         viewModel = viewModel,
                         onSettingsClick = { settingsClicked = true },

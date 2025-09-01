@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.utils.activity
 
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -18,15 +17,12 @@ import androidx.annotation.MainThread
 import androidx.annotation.StringRes
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.LinearLayoutCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.updateLayoutParams
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeightDeferred
 import com.adsamcik.tracker.shared.base.extension.dp
-import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.utils.style.StyleView
-import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
-import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
 
 
 /**
@@ -62,29 +58,12 @@ abstract class DetailActivity : CoreUIActivity() {
 		// Register back pressed callback
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
-		styleController.watchNotificationBar(
-				SystemBarStyleView(
-						window,
-						layer = configuration.titleBarLayer,
-						style = SystemBarStyle.LayerColor
-				)
-		)
-
-		val navigationBarStyleView = configuration.navigationBarStyleView ?: SystemBarStyleView(
-				window,
-				layer = configuration.titleBarLayer,
-				style = if (configuration.fitSystemWindows) {
-					SystemBarStyle.LayerColor
-				} else {
-					SystemBarStyle.Translucent
-				}
-		)
-
-		styleController.watchNavigationBar(navigationBarStyleView)
-
-
-		window.decorView.background = ColorDrawable(StyleManager.styleData.backgroundColor())
-		//styleController.updateOnce(StyleView(contentDetailRoot, 0), allowRecycler = false)
+		// Edge-to-edge: rely on Material 3 theme and transparent system bars when drawing behind
+		WindowCompat.setDecorFitsSystemWindows(window, configuration.fitSystemWindows)
+		if (!configuration.fitSystemWindows) {
+			window.statusBarColor = Color.TRANSPARENT
+			window.navigationBarColor = Color.TRANSPARENT
+		}
 
 		findViewById<View>(R.id.back_button).setOnClickListener { 
 			onBackPressedDispatcher.onBackPressed()
@@ -95,23 +74,11 @@ abstract class DetailActivity : CoreUIActivity() {
 			?: (DEFAULT_TITLE_BAR_ELEVATION.dp * configuration.titleBarLayer)
 		topPanelRoot.elevation = kotlin.math.max(0, desiredElevation).toFloat()
 
-		val topBarStyleView = StyleView(topPanelRoot, configuration.titleBarLayer)
-		styleController.watchView(topBarStyleView)
-
-		if (configuration.useColorControllerForContent) {
-			styleController.watchView(StyleView(contentDetailRoot, 0))
-		}
+		// Legacy StyleController view watchers removed; rely on theme colors
 
 		if (configuration.fitSystemWindows) {
 			val root = findViewById<ViewGroup>(R.id.detail_root)
 			root.fitsSystemWindows = true
-			styleController.watchView(
-					StyleView(
-							root,
-							0,
-							maxDepth = 0
-					)
-			)
 		} else {
 			window.getStatusBarHeightDeferred { statusBarHeight ->
 				topPanelRoot.updateLayoutParams<LinearLayoutCompat.LayoutParams> {
@@ -291,7 +258,7 @@ abstract class DetailActivity : CoreUIActivity() {
 	protected fun <RootView : View> inflateContent(@LayoutRes resource: Int): RootView {
 		val rootContentView = layoutInflater.inflate(resource, contentDetailRoot, false)
 		contentDetailRoot.addView(rootContentView)
-		styleController.forceUpdate()
+		// Legacy StyleController forceUpdate removed
 		@Suppress("unchecked_cast")
 		return rootContentView as RootView
 	}
@@ -309,8 +276,7 @@ abstract class DetailActivity : CoreUIActivity() {
 			var titleBarLayer: Int = 0,
 			var elevation: Int? = null,
 			var useColorControllerForContent: Boolean = false,
-			var fitSystemWindows: Boolean = true,
-			var navigationBarStyleView: SystemBarStyleView? = null
+			var fitSystemWindows: Boolean = true
 	)
 }
 

@@ -17,8 +17,7 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
-import com.adsamcik.tracker.shared.utils.style.StyleView
+// Legacy StyleController styling removed; rely on Material theme
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 import de.psdev.licensesdialog.LicensesDialog
 import de.psdev.licensesdialog.licenses.ApacheSoftwareLicense20
@@ -118,8 +117,7 @@ class LicenseActivity : DetailActivity() {
 
 		setTitle(R.string.open_source_licenses)
 
-		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
-		styleController.watchView(StyleView(frameLayout, 0, 0))
+		// No-op: removed StyleController watchers
 	}
 
 	private class Adapter : RecyclerView.Adapter<Adapter.ViewHolder>(),

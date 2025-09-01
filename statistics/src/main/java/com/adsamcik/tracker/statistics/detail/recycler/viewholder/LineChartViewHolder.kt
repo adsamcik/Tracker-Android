@@ -15,6 +15,7 @@ import com.github.mikephil.charting.data.LineDataSet
 /**
  * View holder for line chart view
  */
+@Deprecated("Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters with StyleController")
 class LineChartViewHolder(
 		root: View,
 		val title: TextView,
@@ -37,6 +38,8 @@ class LineChartViewHolder(
 		}
 	}
 
+	@Deprecated("Use Compose LazyColumn with Material 3 theming instead of StyleController-based ViewHolders")
+	@Suppress("DEPRECATION")
 	override fun bind(data: LineChartStatisticsData, styleController: StyleController) {
 		val context = itemView.context
 		val resources = context.resources
@@ -59,6 +62,8 @@ class LineChartViewHolder(
 		chart.invalidate()
 	}
 
+	@Deprecated("Use Compose LazyColumn with Material 3 theming instead of StyleController-based ViewHolders")
+	@Suppress("DEPRECATION")
 	override fun onRecycle(styleController: StyleController) {
 		chart.clear()
 		styleController.removeListener(this::onColorChange)

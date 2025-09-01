@@ -5,13 +5,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.preferences.Preferences
-
-import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
@@ -127,7 +126,15 @@ class TrackerNotificationManager(
 					)
 				}).also {
 					if (useStyle) {
-						it.setColor(StyleManager.styleData.backgroundColor(isInverted = false))
+						// Use Material 3 colors based on system theme instead of legacy StyleManager
+						val isDarkTheme = context.resources.configuration.uiMode and 
+							Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+						val backgroundColor = if (isDarkTheme) {
+							0xFF1C1B1F.toInt() // Material 3 dark surface
+						} else {
+							0xFFFEF7FF.toInt() // Material 3 light surface  
+						}
+						it.setColor(backgroundColor)
 							.setColorized(true)
 					}
 				}

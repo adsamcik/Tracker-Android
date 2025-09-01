@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.activity.ui.recycler
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
@@ -10,16 +11,13 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.adsamcik.tracker.shared.base.data.SessionActivity
-import com.adsamcik.tracker.shared.utils.style.StyleData
-import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.utils.style.color.ColorFunctions
 
 /**
  * Contextual swipe touch helper.
  * Provides basic swipe functionality to RecyclerView items.
  */
 class ContextualSwipeTouchHelper(
-		context: Context,
+		private val context: Context,
 		val adapter: ActivityRecyclerAdapter,
 		private val canSwipeCallback: (SessionActivity) -> Boolean
 ) : ItemTouchHelper.SimpleCallback(
@@ -32,40 +30,36 @@ class ContextualSwipeTouchHelper(
 			)
 	)
 
-	private val colorController = StyleManager.createController()
-
 	private val backgroundPaint = Paint()
 	private val foregroundPaint = Paint()
 
 	var onSwipedCallback: ((position: Int) -> Unit)? = null
 
 	init {
-		colorController.addListener {
-			updateColor(it)
-		}
-		updateColor(StyleManager.styleData)
+		updateColors()
 	}
 
-	private fun updateColor(styleData: StyleData) {
-		val backgroundColor = styleData.backgroundColor(false)
-		val foregroundColor = styleData.foregroundColor(false)
-		val luminance = styleData.perceivedLuminance(false)
-
-		backgroundPaint.color = ColorFunctions.getBackgroundLayerColor(
-				backgroundColor,
-				luminance,
-				1
-		)
-		foregroundPaint.color = foregroundColor
-
-		icon.setTint(foregroundColor)
+	private fun updateColors() {
+		val nightMask = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+		val isNight = nightMask == Configuration.UI_MODE_NIGHT_YES
+		
+		// Simple Material 3-like colors based on theme
+		if (isNight) {
+			backgroundPaint.color = 0xFF2D2D2D.toInt() // Dark surface variant
+			foregroundPaint.color = 0xFFE0E0E0.toInt() // Light on-surface
+			icon.setTint(0xFFE0E0E0.toInt())
+		} else {
+			backgroundPaint.color = 0xFFF5F5F5.toInt() // Light surface variant
+			foregroundPaint.color = 0xFF1C1C1C.toInt() // Dark on-surface
+			icon.setTint(0xFF1C1C1C.toInt())
+		}
 	}
 
 	/**
 	 * Called before touch helper is destroyed
 	 */
 	fun onDestroy() {
-		StyleManager.recycleController(colorController)
+		// No longer need to recycle controllers
 	}
 
 	override fun onMove(

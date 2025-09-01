@@ -13,13 +13,17 @@ import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 
 /**
  * Multi-type adapter implementation with IViewChange implemented for proper style changes.
+ * 
+ * @deprecated Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters
  */
+@Deprecated("Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters")
 open class StyleMultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<DataTypeEnum>>(
 		val styleController: StyleController
 ) : BaseMultiTypeAdapter<Data, StyleMultiTypeViewHolder<Data>>(), IViewChange {
 	override var onViewChangedListener: ((View) -> Unit)? = null
 
 	override fun onBindViewHolder(holder: StyleMultiTypeViewHolder<Data>, position: Int) {
+		@Suppress("DEPRECATION")
 		holder.bind(getItem(position), styleController)
 	}
 
@@ -32,6 +36,7 @@ open class StyleMultiTypeAdapter<DataTypeEnum : Enum<*>, Data : MultiTypeData<Da
 	@CallSuper
 	override fun onViewRecycled(holder: StyleMultiTypeViewHolder<Data>) {
 		super.onViewRecycled(holder)
+		@Suppress("DEPRECATION")
 		holder.onRecycle(styleController)
 	}
 

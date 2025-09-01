@@ -27,4 +27,14 @@ object MapStyleProvider {
             return MapStyleOptions(it.readText())
         }
     }
+
+    /** Lightweight selector based on dark/light mode. */
+    fun fromIsDark(context: Context, isDark: Boolean): MapStyleOptions {
+        val resId = if (isDark) com.adsamcik.tracker.shared.map.R.raw.map_style_dark else com.adsamcik.tracker.shared.map.R.raw.map_style_light
+        return try {
+            context.resources.openRawResource(resId).bufferedReader().use { MapStyleOptions(it.readText()) }
+        } catch (_: Exception) {
+            default(context)
+        }
+    }
 }

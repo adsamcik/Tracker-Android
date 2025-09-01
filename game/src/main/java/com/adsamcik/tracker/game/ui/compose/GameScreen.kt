@@ -35,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
 import androidx.compose.ui.res.stringResource
-import com.adsamcik.tracker.shared.utils.style.compose.TrackerTheme
 
 data class StepsSummaryUi(
     val stepsToday: Int,
@@ -58,24 +57,22 @@ fun GameScreen(
     challenges: List<ChallengeUi>,
     modifier: Modifier = Modifier
 ) {
-    TrackerTheme {
-        LazyColumn(
-            modifier = modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing),
-            contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                PointsCard(pointsToday)
-            }
-            item {
-                steps?.let { StepsCard(it) }
-            }
-            item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
-            items(challenges, key = { it.id }) { ch ->
-                ChallengeCard(ch)
-            }
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+        contentPadding = PaddingValues(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PointsCard(pointsToday)
+        }
+        item {
+            steps?.let { StepsCard(it) }
+        }
+        item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
+        items(challenges, key = { it.id }) { ch ->
+            ChallengeCard(ch)
         }
     }
 }

@@ -14,9 +14,12 @@ import com.google.android.gms.maps.model.PolylineOptions
 /**
  * ViewHolder for map displaying in statistics.
  */
+@Deprecated("Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters with StyleController")
 class MapViewHolder(val map: MapView) : StyleMultiTypeViewHolder<MapStatisticsData>(map) {
 	private var googleMap: GoogleMap? = null
 
+	@Deprecated("Use Compose LazyColumn with Material 3 theming instead of StyleController-based ViewHolders")
+	@Suppress("DEPRECATION")
 	override fun bind(data: MapStatisticsData, styleController: StyleController) {
 		map.onCreate(null)
 		map.getMapAsync {
@@ -42,6 +45,8 @@ class MapViewHolder(val map: MapView) : StyleMultiTypeViewHolder<MapStatisticsDa
 		}
 	}
 
+	@Deprecated("Use Compose LazyColumn with Material 3 theming instead of StyleController-based ViewHolders")
+	@Suppress("DEPRECATION")
 	override fun onRecycle(styleController: StyleController) {
 		googleMap?.let {
 			ColorMap.removeListener(it)

@@ -109,6 +109,8 @@ dependencies {
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.compose.ui.tooling.preview)
+	// Maps Compose for in-detail map preview
+	implementation(libs.google.maps.compose)
 
 	// Tests
 	androidTestImplementation(libs.junit4)

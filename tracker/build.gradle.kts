@@ -97,6 +97,8 @@ dependencies {
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
 	implementation(libs.compose.runtime.livedata)
+	// Required for rememberLauncherForActivityResult and setContent in main source
+	implementation(libs.activity.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.compose.ui.tooling.preview)
@@ -104,7 +106,7 @@ dependencies {
 	// UI Tests
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
-	// Needed for ComponentActivity.setContent in androidTest
+	// Needed for ComponentActivity.setContent in androidTest (also added to main above)
 	androidTestImplementation(libs.activity.compose)
 
 	// DB

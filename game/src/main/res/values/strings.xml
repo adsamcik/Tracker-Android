@@ -22,7 +22,7 @@
     <string name="goals_monthly_goal">monthly</string>
     <string name="goals_steps_daily">daily steps</string>
     <string name="goals_steps_weekly">weekly steps</string>
-    <string name="goals_value">%s of %s</string>
+    <string name="goals_value">%1$s of %2$s</string>
     <string-array name="goals_encouragement">
         <item>Good job</item>
         <item>Well done</item>

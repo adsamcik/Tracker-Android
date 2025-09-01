@@ -1,45 +1,43 @@
 package com.adsamcik.tracker.map.ui
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.adsamcik.tracker.map.presentation.MapStore
+import com.adsamcik.tracker.map.presentation.style.MapStyleProvider
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
+import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
+import com.adsamcik.tracker.map.ui.bitmapDescriptorFromVector
+import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
-import com.google.maps.android.compose.MapUiSettings as ComposeMapUiSettings
 import com.google.maps.android.compose.Marker
-import com.adsamcik.tracker.map.ui.bitmapDescriptorFromVector
 import com.google.maps.android.compose.MarkerState
-import com.google.maps.android.compose.rememberUpdatedMarkerState
-import com.google.maps.android.compose.Circle
-import com.google.maps.android.compose.Polyline as ComposePolyline
 import com.google.maps.android.compose.TileOverlay
 import com.google.maps.android.compose.TileOverlayState
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberUpdatedMarkerState
+import com.google.maps.android.compose.MapUiSettings as ComposeMapUiSettings
+import com.google.maps.android.compose.Polyline as ComposePolyline
 import kotlinx.coroutines.flow.collectLatest
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.platform.LocalContext
-import com.adsamcik.tracker.map.presentation.style.MapStyleProvider
-import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
-import com.adsamcik.tracker.shared.utils.style.StyleManager
-import com.adsamcik.tracker.shared.utils.style.StyleController
-import com.adsamcik.tracker.shared.utils.style.StyleData
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Scaffold
-import androidx.compose.ui.geometry.Offset
 
 /**
  * Phase 3 scaffolding: Compose-based MapScreen using Maps Compose.
@@ -73,7 +71,8 @@ fun MapScreen(
     }
 
     val context = LocalContext.current
-    val initialStyle = remember { MapStyleProvider.default(context) }
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val initialStyle = remember { MapStyleProvider.fromIsDark(context, isDark) }
     var mapProperties by remember {
         mutableStateOf(
             MapProperties(
@@ -82,27 +81,13 @@ fun MapScreen(
         )
     }
 
-    // Observe shared style changes and update Compose map style reactively
-    LaunchedEffect(Unit) {
-        // Ensure StyleManager is initialized with preferences at least once in app lifecycle.
-        // If already initialized elsewhere, this is a no-op path via listeners.
-    }
-    val styleController = remember { StyleManager.createController() }
-    DisposableEffect(styleController) {
-        val listener: (StyleData) -> Unit = { sd ->
-            try {
-                val updated = MapStyleProvider.fromStyleData(context, sd)
-                mapProperties = mapProperties.copy(mapStyleOptions = updated)
-            } catch (e: Exception) {
-                // Fall back to default style if there's an error
-                val defaultStyle = MapStyleProvider.default(context)
-                mapProperties = mapProperties.copy(mapStyleOptions = defaultStyle)
-            }
-        }
-        styleController.addListener(listener)
-        onDispose {
-            styleController.removeListener(listener)
-            StyleManager.recycleController(styleController)
+    // Update map style when theme mode changes
+    LaunchedEffect(isDark) {
+        try {
+            val updated = MapStyleProvider.fromIsDark(context, isDark)
+            mapProperties = mapProperties.copy(mapStyleOptions = updated)
+        } catch (_: Exception) {
+            mapProperties = mapProperties.copy(mapStyleOptions = MapStyleProvider.default(context))
         }
     }
 

@@ -7,7 +7,10 @@ import com.adsamcik.tracker.shared.utils.style.StyleController
 
 /**
  * View holder for multiple type style adapters.
+ * 
+ * @deprecated Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters
  */
+@Deprecated("Use Compose LazyColumn with Material 3 theming instead of legacy View-based adapters")
 abstract class StyleMultiTypeViewHolder<Data : BaseMultiTypeData>(
 		rootView: View
 ) : MultiTypeViewHolder<Data>(rootView) {
@@ -18,11 +21,17 @@ abstract class StyleMultiTypeViewHolder<Data : BaseMultiTypeData>(
 
 	/**
 	 * Called instead of standard bind to allow style controller mapping.
+	 * 
+	 * @deprecated Use Compose with Material 3 theming instead of StyleController
 	 */
+	@Deprecated("Use Compose with Material 3 theming instead of StyleController")
 	abstract fun bind(data: Data, styleController: StyleController)
 
 	/**
 	 * Called when view is recycler.
+	 * 
+	 * @deprecated Use Compose with Material 3 theming instead of StyleController
 	 */
+	@Deprecated("Use Compose with Material 3 theming instead of StyleController") 
 	open fun onRecycle(styleController: StyleController) {}
 }

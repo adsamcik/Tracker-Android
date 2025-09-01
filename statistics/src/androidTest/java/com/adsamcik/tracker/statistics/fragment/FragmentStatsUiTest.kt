@@ -26,7 +26,8 @@ import androidx.activity.ComponentActivity
 import android.app.Instrumentation
 import android.app.Instrumentation.ActivityResult
 import android.content.Intent
-import com.adsamcik.tracker.shared.utils.style.compose.DynamicTrackerTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
 import org.junit.Assert.assertTrue
@@ -47,7 +48,7 @@ class FragmentStatsUiTest {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
         val refreshState = mutableStateOf(RefreshUiState.Error)
         composeRule.setContent {
-            DynamicTrackerTheme {
+            androidx.compose.material3.MaterialTheme(colorScheme = lightColorScheme()) {
                 StatsScreenTestHost(
                     refreshState = refreshState.value,
                     appendState = AppendUiState.NotLoading,
@@ -71,7 +72,7 @@ class FragmentStatsUiTest {
         var wifiClicked = false
 
         composeRule.setContent {
-            DynamicTrackerTheme {
+            MaterialTheme(colorScheme = lightColorScheme()) {
                 StatsScreenTestHost(
                     refreshState = RefreshUiState.Content,
                     appendState = AppendUiState.NotLoading,
@@ -104,7 +105,7 @@ class FragmentStatsUiTest {
     fun appendPlaceholders_areVisible_whenAppending() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
         composeRule.setContent {
-            DynamicTrackerTheme {
+            MaterialTheme(colorScheme = lightColorScheme()) {
                 StatsScreenTestHost(
                     refreshState = RefreshUiState.Content,
                     appendState = AppendUiState.Loading,
@@ -127,7 +128,7 @@ class FragmentStatsUiTest {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
         var retried = false
         composeRule.setContent {
-            DynamicTrackerTheme {
+            MaterialTheme(colorScheme = lightColorScheme()) {
                 StatsScreenTestHost(
                     refreshState = RefreshUiState.Content,
                     appendState = AppendUiState.Error,
@@ -149,7 +150,7 @@ class FragmentStatsUiTest {
     fun sessionRow_click_opensDetails_callbackInvoked() {
         var opened = false
         composeRule.setContent {
-            DynamicTrackerTheme {
+            MaterialTheme(colorScheme = lightColorScheme()) {
                 StatsScreenTestHost(
                     refreshState = RefreshUiState.Content,
                     appendState = AppendUiState.NotLoading,

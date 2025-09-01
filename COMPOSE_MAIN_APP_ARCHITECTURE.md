@@ -40,7 +40,7 @@ Each Route:
 
 - `AppTheme(darkTheme = isSystemInDarkTheme(), useDynamicColor = true)` at the root.
 - Edge-to-edge via WindowInsets APIs and padding modifiers.
-- StyleController/StyleManager deprecated and removed next release.
+- StyleController/StyleManager deprecated and removed next release. MapScreen no longer consumes StyleManager; it follows AppTheme (dark/light) for the map style.
 
 ## State management
 
@@ -86,7 +86,12 @@ Each Route:
 
 - [ ] Stop attaching `FragmentTracker`; render tracker in Compose.
 - [ ] Remove `activity_ui.xml` and draggable nav assets.
-- [ ] Remove StyleController/StyleManager usages; delete classes next release.
+- [x] Remove StyleController/StyleManager usages from MapScreen; map follows AppTheme dark/light.
+- [ ] Remove remaining usages across sutils/smap/statistics/activity; delete classes next release.
+
+## CI additions
+
+- Added dedicated map unit test jobs (Linux + Windows with flake guards). Windows disables Kotlin incremental and Gradle build cache for tests to avoid file-lock races.
 - [ ] Route `openGame` to NavController.
 - [ ] Verify back parity via tests.
 

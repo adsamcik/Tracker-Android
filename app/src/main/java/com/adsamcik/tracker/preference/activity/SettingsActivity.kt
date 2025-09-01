@@ -22,7 +22,6 @@ import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import java.util.*
 
 /**
@@ -72,7 +71,6 @@ class SettingsActivity : DetailActivity(),
 		supportFragmentManager.transaction {
 			replace(CONTENT_ID, fragment, TAG)
 			runOnCommit {
-				styleController.watchRecyclerView(RecyclerStyleView(fragment.listView, 0))
 				setPage(fragment, RootPage(moduleSettingsList))
 			}
 		}

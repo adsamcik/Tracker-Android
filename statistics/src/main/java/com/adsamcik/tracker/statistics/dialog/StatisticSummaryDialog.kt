@@ -6,9 +6,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.shared.utils.dialog.setLoading
 import com.adsamcik.tracker.shared.utils.dialog.setLoadingFinished
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
-import com.adsamcik.tracker.shared.utils.style.StyleController
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.list.recycler.SessionSummaryAdapter
 import com.afollestad.materialdialogs.MaterialDialog
@@ -23,6 +20,7 @@ import kotlin.coroutines.CoroutineContext
 /**
  * Statistic summary dialog to display summary data over a period of time.
  */
+@Deprecated("Use Compose AlertDialog with Material 3 theming instead of MaterialDialog with StyleController")
 class StatisticSummaryDialog : CoroutineScope {
 	companion object {
 		private const val DIALOG_LAYER = 2
@@ -40,19 +38,17 @@ class StatisticSummaryDialog : CoroutineScope {
 	 * @param titleRes Title string resource
 	 * @param dataLoader Asynchronously called function on work thread that returns stat collection
 	 */
+	@Deprecated("Use Compose AlertDialog with Material 3 theming instead of MaterialDialog with StyleController")
+	@Suppress("DEPRECATION")
 	fun show(
 			context: Context,
 			@StringRes titleRes: Int,
 			dataLoader: (context: Context) -> Collection<Stat>
 	) {
 		val adapter = SessionSummaryAdapter()
-		var styleController: StyleController? = null
 		val dialog = MaterialDialog(context).apply {
 			title(res = titleRes)
 			setLoading()
-			dynamicStyle(DIALOG_LAYER) {
-				styleController = it
-			}
 		}
 
 		dialog.show()
@@ -65,11 +61,6 @@ class StatisticSummaryDialog : CoroutineScope {
 					setLoadingFinished()
 					customListAdapter(adapter, LinearLayoutManager(context))
 					getRecyclerView().addItemDecoration(MarginDecoration())
-					requireNotNull(styleController).watchRecyclerView(
-							RecyclerStyleView(
-									getRecyclerView()
-							)
-					)
 				}
 			}
 		}

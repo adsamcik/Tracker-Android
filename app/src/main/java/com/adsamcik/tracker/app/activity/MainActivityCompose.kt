@@ -30,7 +30,6 @@ import com.adsamcik.tracker.app.ui.MainRoot
 import com.adsamcik.tracker.app.ui.navigation.Routes
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 // StyleController system bar hooks are obsolete; rely on AppTheme + default insets
-import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
 import android.view.View
 
 /**
@@ -39,7 +38,7 @@ import android.view.View
 class MainActivityCompose : CoreUIActivity() {
 
     private val selectedTab = mutableStateOf("map")
-    private var trackerFragmentAttached = false
+    private var trackerFragmentAttached = false // kept for state restore compatibility; no longer used
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.AppTheme_Translucent)
@@ -55,9 +54,6 @@ class MainActivityCompose : CoreUIActivity() {
         handleIntent(intent)
 
     setContent { ComposeRoot(selectedTab) }
-
-    // Ensure background tracker fragment is attached after views exist
-    window?.decorView?.post { ensureTrackerFragmentAttached() }
 
     // Back handling is implemented in Compose via BackHandler in MainRoot
     }
@@ -86,10 +82,7 @@ class MainActivityCompose : CoreUIActivity() {
         AppTheme {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Box(Modifier.fillMaxSize()) {
-                    // Host legacy XML/fragment layout in the background
-                    AndroidViewBinding(com.adsamcik.tracker.databinding.ActivityUiBinding::inflate)
-                    // Try attaching tracker fragment as soon as layout is in the tree
-                    LaunchedEffect(Unit) { window?.decorView?.post { ensureTrackerFragmentAttached() } }
+                    // Tracker content is now fully Compose via NavHost (TrackerRoute).
 
                     // Compose Navigation root; content layers above background
                     MainRoot(startDestination = selected.value) { route ->
@@ -100,19 +93,7 @@ class MainActivityCompose : CoreUIActivity() {
         }
     }
 
-    private fun ensureTrackerFragmentAttached() {
-        if (trackerFragmentAttached) return
-        val container: View? = findViewById(R.id.tracker_placeholder)
-        if (container == null) return
-        val tag = FragmentTracker::class.java.simpleName
-        val current = supportFragmentManager.findFragmentByTag(tag)
-        val fragment = current ?: FragmentTracker()
-        supportFragmentManager
-            .beginTransaction()
-            .replace(R.id.tracker_placeholder, fragment, tag)
-            .commitAllowingStateLoss()
-        trackerFragmentAttached = true
-    }
+    // Legacy fragment attachment removed.
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)

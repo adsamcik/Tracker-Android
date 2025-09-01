@@ -70,7 +70,7 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
-import com.adsamcik.tracker.shared.utils.style.compose.DynamicTrackerTheme
+// Theme bridge removed; rely on app-level Material 3 theme
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
@@ -85,6 +85,7 @@ import kotlinx.coroutines.withContext
  * Fragment containing summary list of recent tracker sessions.
  */
 @Suppress("unused")
+@Deprecated("Use StatsRoute() composable instead of FragmentStats", ReplaceWith("StatsRoute()"))
 class FragmentStats : CoreUIFragment(), IOnDemandView {
     private var viewModel: StatsViewModel? = null
 
@@ -104,10 +105,8 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
         return ComposeView(activity).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                DynamicTrackerTheme {
-                    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                        StatsScreen(viewModel = requireViewModel())
-                    }
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    StatsScreen(viewModel = requireViewModel())
                 }
             }
         }
@@ -118,6 +117,15 @@ class FragmentStats : CoreUIFragment(), IOnDemandView {
     override fun onLeave(activity: FragmentActivity): Unit = Unit
 
     override fun onPermissionResponse(requestCode: Int, success: Boolean): Unit = Unit
+}
+
+// Compose entry point for Statistics feature (replacement for FragmentStats)
+@Composable
+fun StatsRoute() {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        val vm: StatsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+        StatsScreen(viewModel = vm)
+    }
 }
 
 @Composable

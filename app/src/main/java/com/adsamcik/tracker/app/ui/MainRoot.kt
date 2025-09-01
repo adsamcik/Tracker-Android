@@ -27,6 +27,9 @@ import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -57,13 +60,14 @@ fun MainRoot(startDestination: String = Routes.Map, onRouteChanged: (String) -> 
     Box(Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = startDestination, modifier = Modifier.fillMaxSize()) {
             composable(Routes.Map) {
-                // Temporary: leave content empty; legacy background map/tracker is attached by Activity.
+                // Show Tracker route as the main content while the map overlay remains as legacy background.
+                com.adsamcik.tracker.tracker.ui.fragment.TrackerRoute()
             }
             composable(Routes.Stats) {
-                // TODO: wire statistics module composable entry point
+                com.adsamcik.tracker.statistics.fragment.StatsRoute()
             }
             composable(Routes.Game) {
-                // TODO: wire game module composable entry point
+                com.adsamcik.tracker.game.fragment.GameRoute()
             }
         }
 
@@ -98,7 +102,12 @@ fun MainRoot(startDestination: String = Routes.Map, onRouteChanged: (String) -> 
                             launchSingleTop = true
                             restoreState = true
                         }
-                    }, modifier = Modifier.scale(statsScale).alpha(statsAlpha)) {
+                    }, modifier = Modifier
+                        .scale(statsScale)
+                        .alpha(statsAlpha)
+                        .testTag("nav_stats")
+                        .semantics { selected = current == Routes.Stats }
+                    ) {
                         Icon(Icons.Filled.BarChart, contentDescription = "Stats")
                     }
 
@@ -124,7 +133,12 @@ fun MainRoot(startDestination: String = Routes.Map, onRouteChanged: (String) -> 
                                 launchSingleTop = true
                                 restoreState = true
                             }
-                        }, modifier = Modifier.size(64.dp).scale(mapScale)) {
+                        }, modifier = Modifier
+                            .size(64.dp)
+                            .scale(mapScale)
+                            .testTag("nav_map")
+                            .semantics { selected = current == Routes.Map }
+                        ) {
                             Icon(Icons.Filled.Map, contentDescription = "Map")
                         }
                     }
@@ -144,7 +158,12 @@ fun MainRoot(startDestination: String = Routes.Map, onRouteChanged: (String) -> 
                             launchSingleTop = true
                             restoreState = true
                         }
-                    }, modifier = Modifier.scale(gameScale).alpha(gameAlpha)) {
+                    }, modifier = Modifier
+                        .scale(gameScale)
+                        .alpha(gameAlpha)
+                        .testTag("nav_game")
+                        .semantics { selected = current == Routes.Game }
+                    ) {
                         Icon(Icons.Filled.VideogameAsset, contentDescription = "Game")
                     }
                 }

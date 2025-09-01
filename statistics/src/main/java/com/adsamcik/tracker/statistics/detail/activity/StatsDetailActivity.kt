@@ -2,34 +2,50 @@ package com.adsamcik.tracker.statistics.detail.activity
 
 import android.content.Context
 import android.os.Bundle
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
-import androidx.annotation.MainThread
+// removed unused rememberLauncher/activity result imports
+import androidx.annotation.StringRes
 import androidx.annotation.WorkerThread
-import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.DefaultItemAnimator
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.adsamcik.recycler.adapter.implementation.sort.callback.SortCallback
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.requireValue
 import com.adsamcik.tracker.shared.base.extension.toCalendar
-import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
-import com.adsamcik.tracker.shared.utils.multitype.StyleSortMultiTypeAdapter
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
-import com.adsamcik.tracker.shared.utils.style.StyleView
+import com.adsamcik.tracker.shared.utils.activity.ComposeDetailActivity
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.StatsFormat
@@ -38,266 +54,259 @@ import com.adsamcik.tracker.statistics.data.source.StatisticDataManager
 import com.adsamcik.tracker.statistics.detail.SessionActivitySelection
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
 import com.adsamcik.tracker.statistics.detail.recycler.StatisticsDetailData
-import com.adsamcik.tracker.statistics.detail.recycler.creator.InformationViewHolderCreator
-import com.adsamcik.tracker.statistics.detail.recycler.creator.LineChartViewHolderCreator
-import com.adsamcik.tracker.statistics.detail.recycler.creator.MapViewHolderCreator
 import com.adsamcik.tracker.statistics.detail.recycler.data.InformationStatisticsData
 import com.adsamcik.tracker.statistics.detail.recycler.data.LineChartStatisticsData
 import com.adsamcik.tracker.statistics.detail.recycler.data.MapStatisticsData
-import com.afollestad.materialdialogs.MaterialDialog
+import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.Entry
-import com.google.android.gms.maps.MapsInitializer
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.*
-
-typealias StatsDetailAdapter = StyleSortMultiTypeAdapter<StatisticDisplayType, StatisticsDetailData>
+import kotlinx.coroutines.withContext
+import java.util.Date
 
 /**
- * Activity for statistic details
+ * Activity for statistic details (Compose)
  */
-class StatsDetailActivity : DetailActivity() {
-	private lateinit var viewModel: ViewModel
-
-	val recycler: RecyclerView by lazy { findViewById(R.id.recycler) }
-
-	override fun onConfigure(configuration: Configuration) {
-		configuration.elevation = 0
-		configuration.titleBarLayer = 1
-	}
+class StatsDetailActivity : ComposeDetailActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		// Title set later once session is loaded
+		onConfigure(Configuration(showBackButton = true, title = ""))
+	}
 
-		MapsInitializer.initialize(this)
+	@Composable
+	override fun Content() {
+		val context = LocalContext.current
+		val vm: ViewModel = viewModel()
 
-		val rootContentView = inflateContent<ViewGroup>(R.layout.activity_stats_detail)
-
-		styleController.watchView(
-			StyleView(
-				rootContentView.findViewById(R.id.root_stats_detail),
-				0
-			)
-		)
-
-		val sessionId = intent.getLongExtra(ARG_SESSION_ID, -1)
-
+		val sessionId = remember { intent.getLongExtra(ARG_SESSION_ID, -1) }
 		require(sessionId > 0L) { "Argument $ARG_SESSION_ID must be set with valid value!" }
 
-		viewModel = ViewModelProvider(this)[ViewModel::class.java].also {
-			launch(Dispatchers.Default) {
-				it.initialize(this@StatsDetailActivity, sessionId)
-			}
+		LaunchedEffect(sessionId) {
+			vm.initialize(context, sessionId)
 		}
 
-		viewModel.run {
-			session.observe(this@StatsDetailActivity) {
-				if (it == null) {
-					finish()
-					return@observe
-				}
+		val session = vm.session.observeAsStateCompat()
 
-				initializeSessionData(it)
-			}
-		}
+		var items by remember { mutableStateOf<List<StatisticsDetailData>>(emptyList()) }
+		var showDelete by remember { mutableStateOf(false) }
 
-
-
-		addAction(
-			com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_edit,
-			R.string.edit_session
-		) {
-			val addItemLayout = findViewById<View>(R.id.add_item_layout)
-			val headerRoot = findViewById<ViewGroup>(R.id.header_root)
-			if (addItemLayout.isVisible) {
-				addItemLayout.visibility = View.GONE
-				headerRoot.updatePadding(top = 0)
-			} else {
-				addItemLayout.visibility = View.VISIBLE
-				headerRoot.updatePadding(top = HEADER_ROOT_PADDING.dp)
-				findViewById<View>(
-					R.id.button_change_activity
-				).setOnClickListener { showActivitySelectionDialog() }
-				findViewById<View>(R.id.button_remove_session).setOnClickListener { showDeleteConfirmDialog() }
-			}
-		}
-
-		styleController.forceUpdate()
-	}
-
-	private fun showDeleteConfirmDialog() {
-		MaterialDialog(this)
-			.message(
-				text = getString(
-					com.adsamcik.tracker.shared.base.R.string.alert_confirm,
-					getString(R.string.remove_session)
-				)
+		LaunchedEffect(session.value?.id) {
+			val s = session.value ?: return@LaunchedEffect
+			// Update title once we have session
+			val sessionActivity = withContext(Dispatchers.IO) { resolveSessionActivity(context, s) }
+			val title = StatsFormat.createTitle(
+				context,
+				s.start,
+				s.end,
+				sessionActivity,
+				vm.sunSetRise
 			)
-			.title(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)
-			.positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_yes) { removeSession() }
-			.negativeButton(com.adsamcik.tracker.shared.base.R.string.generic_no)
-			.dynamicStyle()
-			.show()
-	}
+			setActivityTitle(title)
 
-	private fun removeSession() {
-		launch(Dispatchers.Default) {
-			val dao = AppDatabase.database(this@StatsDetailActivity).sessionDao()
-			dao.delete(viewModel.session.requireValue)
-			finish()
-		}
-	}
-
-	private fun showActivitySelectionDialog() {
-		launch(Dispatchers.Default) {
-			val activities = SessionActivity.getAll(this@StatsDetailActivity)
-			SessionActivitySelection(
-				this@StatsDetailActivity,
-				activities,
-				viewModel.session.requireValue
-			)
-				.showActivitySelectionDialog()
-		}
-	}
-
-	@MainThread
-	private fun initializeSessionData(session: TrackerSession) {
-		// recycler.addItemDecoration(StatisticsDetailDecorator(16.dpAsPx, 0))
-		val layoutManager = LinearLayoutManager(this)
-		recycler.layoutManager = layoutManager
-
-		(recycler.itemAnimator as? DefaultItemAnimator)?.apply {
-			supportsChangeAnimations = false
-		}
-
-		val callback = object : SortCallback<StatisticsDetailData> {
-			override fun areContentsTheSame(
-				a: StatisticsDetailData,
-				b: StatisticsDetailData
-			): Boolean {
-				return areItemsTheSame(a, b)
-			}
-
-			override fun areItemsTheSame(
-				a: StatisticsDetailData,
-				b: StatisticsDetailData
-			): Boolean = a == b
-
-			override fun compare(a: StatisticsDetailData, b: StatisticsDetailData): Int {
-				return a::class.java.simpleName.compareTo(b::class.java.simpleName)
-			}
-
-		}
-
-		val adapter = StatsDetailAdapter(
-			styleController,
-			callback,
-			StatisticsDetailData::class.java
-		).apply {
-			registerType(StatisticDisplayType.Information, InformationViewHolderCreator())
-			registerType(StatisticDisplayType.Map, MapViewHolderCreator())
-			registerType(StatisticDisplayType.LineChart, LineChartViewHolderCreator())
-			//todo add Wi-Fi and Cell
-
-			addStats(session, this)
-		}
-
-		adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-			override fun onChanged() = Unit
-
-			override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = Unit
-
-			override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) = Unit
-
-			override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-				if (layoutManager.findFirstCompletelyVisibleItemPosition() == 0) {
-					recycler.smoothScrollToPosition(0)
-				}
-			}
-
-			override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = Unit
-
-			override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) =
-				Unit
-		})
-
-		val recycler = findViewById<RecyclerView>(R.id.recycler)
-		recycler.adapter = adapter
-
-		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
-
-		val endCalendar = Date(session.end).toCalendar()
-		val startCalendar = Date(session.start).toCalendar()
-
-		setTitle(session)
-
-		findViewById<TextView>(R.id.date_time).text = StatsFormat.formatRange(
-			startCalendar,
-			endCalendar
-		)
-	}
-	private fun addStats(session: TrackerSession, adapter: StatsDetailAdapter) {		val context = this
-		launch(Dispatchers.Default) {
-			// Get session activity for unit system context
-			val activityId = session.sessionActivityId
-			val sessionActivity = when {
-				activityId == null -> null
-				activityId < -1 -> NativeSessionActivity.entries
-					.find { it.id == activityId }
-					?.getSessionActivity(context)
-				else -> if (activityId == 0L || activityId == -1L) {
-					null
-				} else {
-					val activityDao = AppDatabase.database(context).activityDao()
-					activityDao.get(activityId)
-				}
-			} ?: SessionActivity.UNKNOWN
-
-			// Set session activity context for distance formatting
-			com.adsamcik.tracker.statistics.preference.SessionActivityContext.withSessionActivity(sessionActivity) {
-				StatisticDataManager().getForSession(context, session.id, true) {
-					launch(Dispatchers.Main) {
-						adapter.add(convertToDisplayData(it))
+			// Load stats for content
+			withContext(Dispatchers.IO) {
+				com.adsamcik.tracker.statistics.preference.SessionActivityContext.withSessionActivity(sessionActivity) {
+					StatisticDataManager().getForSession(context, s.id, true) { stat ->
+						// Switch back to main when updating Compose state
+						launchMain {
+							items = items + convertToDisplayData(stat)
+						}
 					}
 				}
 			}
 		}
-	}
 
-	private fun setTitle(session: TrackerSession) {
-		val activityId = session.sessionActivityId
-		launch(Dispatchers.Default) {
-			val sessionActivity = when {
-				activityId == null -> null
-				activityId < -1 -> NativeSessionActivity.entries
-					.find { it.id == activityId }
-					?.getSessionActivity(
-						this@StatsDetailActivity
-					)
-				else -> if (activityId == 0L || activityId == -1L) {
-					null
-				} else {
-					val activityDao = AppDatabase.database(this@StatsDetailActivity)
-						.activityDao()
-					activityDao.get(activityId)
-				}
-			} ?: SessionActivity.UNKNOWN
+		val startEnd = remember(session.value?.start, session.value?.end) {
+			session.value?.let {
+				val endCalendar = Date(it.end).toCalendar()
+				val startCalendar = Date(it.start).toCalendar()
+				StatsFormat.formatRange(startCalendar, endCalendar)
+			} ?: ""
+		}
 
-			val title = StatsFormat.createTitle(
-				this@StatsDetailActivity,
-				session.start,
-				session.end,
-				sessionActivity,
-				viewModel.sunSetRise
+		// App bar actions: edit session, delete session
+		LaunchedEffect(Unit) {
+			updateActions(
+				listOf(
+					{ IconButton(onClick = { showEditSession(context, vm) }) { Icon(Icons.Default.Edit, contentDescription = stringResource(id = R.string.edit_session)) } },
+					{ IconButton(onClick = { showDelete = true }) { Icon(Icons.Default.Delete, contentDescription = stringResource(id = R.string.remove_session)) } }
+				)
 			)
+		}
 
-			val drawable = sessionActivity.getIcon(this@StatsDetailActivity)
+		if (session.value == null) {
+			// If session not found, close activity
+			LaunchedEffect(Unit) { finish() }
+			return
+		}
 
-			launch(Dispatchers.Main) {
-				setTitle(title)
-				findViewById<ImageView>(R.id.activity).setImageDrawable(drawable)
+		Column(modifier = Modifier.fillMaxSize()) {
+			if (startEnd.isNotEmpty()) {
+				Text(
+					text = startEnd,
+					style = MaterialTheme.typography.bodyMedium,
+					modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+				)
+			}
+
+			LazyColumn(
+				modifier = Modifier.fillMaxSize()
+			) {
+				items(items) { item ->
+					when (item) {
+						is InformationStatisticsData -> InformationItem(item)
+						is MapStatisticsData -> MapItem(item)
+						is LineChartStatisticsData -> LineChartItem(item)
+					}
+				}
+				item { Spacer(modifier = Modifier.height(24.dp)) }
 			}
 		}
+
+		if (showDelete) {
+			AlertDialog(
+				onDismissRequest = { showDelete = false },
+				title = { Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic)) },
+				text = {
+					Text(
+						text = stringResource(
+							id = com.adsamcik.tracker.shared.base.R.string.alert_confirm,
+							stringResource(id = R.string.remove_session)
+						)
+					)
+				},
+				confirmButton = {
+					IconButton(onClick = {
+						removeSession(vm) { finish() }
+						showDelete = false
+					}) { Icon(Icons.Default.Delete, contentDescription = "Confirm delete") }
+				},
+				dismissButton = {
+					IconButton(onClick = { showDelete = false }) { Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_no)) }
+				}
+			)
+		}
+	}
+
+	private fun showEditSession(context: Context, vm: ViewModel) {
+		val activities = SessionActivity.getAll(context)
+		SessionActivitySelection(
+			context,
+			activities,
+			vm.session.value ?: return
+		).showActivitySelectionDialog()
+	}
+
+	private fun removeSession(vm: ViewModel, onDone: () -> Unit) {
+		// Offload to IO
+		launchMainIO {
+			val dao = AppDatabase.database(this@StatsDetailActivity).sessionDao()
+			dao.delete(vm.session.requireValue)
+			launchMain { onDone() }
+		}
+	}
+
+	@Composable
+	private fun InformationItem(data: InformationStatisticsData) {
+		androidx.compose.material3.ListItem(
+			leadingContent = {
+				Icon(
+					painter = painterResource(id = data.iconRes),
+					contentDescription = null,
+					tint = MaterialTheme.colorScheme.primary
+				)
+			},
+			headlineContent = { Text(text = stringResource(id = data.titleRes)) },
+			supportingContent = { Text(text = data.value) }
+		)
+	}
+
+	@Composable
+	private fun MapItem(data: MapStatisticsData) {
+		val cameraPositionState = rememberCameraPositionState()
+
+		LaunchedEffect(data.bounds) {
+			val bounds = LatLngBounds.Builder()
+				.include(LatLng(data.bounds.bottom, data.bounds.left))
+				.include(LatLng(data.bounds.top, data.bounds.right))
+				.build()
+			cameraPositionState.move(CameraUpdateFactory.newLatLngBounds(bounds, 32))
+		}
+
+		val points = remember(data.locations) {
+			data.locations.map { LatLng(it.latitude, it.longitude) }
+		}
+
+		Box(
+			modifier = Modifier
+				.fillMaxWidth()
+				.height(220.dp)
+				.padding(horizontal = 16.dp, vertical = 8.dp)
+		) {
+			GoogleMap(
+				modifier = Modifier.fillMaxSize(),
+				cameraPositionState = cameraPositionState,
+				uiSettings = MapUiSettings(zoomControlsEnabled = false)
+			) {
+				if (points.isNotEmpty()) {
+					Polyline(points = points)
+				}
+			}
+		}
+	}
+
+	@Composable
+	private fun LineChartItem(data: LineChartStatisticsData) {
+		val label = stringResource(id = data.titleRes)
+		val color = MaterialTheme.colorScheme.primary.toArgb()
+		androidx.compose.ui.viewinterop.AndroidView(
+			modifier = Modifier
+				.fillMaxWidth()
+				.height(200.dp)
+				.padding(horizontal = 16.dp, vertical = 8.dp),
+			factory = { ctx ->
+				LineChart(ctx).apply {
+					description.isEnabled = false
+				}
+			},
+			update = { chart ->
+				val dataSet = LineDataSet(data.values, label).apply {
+					setDrawCircles(false)
+					setDrawValues(false)
+					setDrawFilled(false)
+					lineWidth = 1f
+					mode = LineDataSet.Mode.LINEAR
+					this.color = color
+				}
+				chart.data = LineData(dataSet)
+				chart.invalidate()
+			}
+		)
+	}
+
+	private suspend fun resolveSessionActivity(context: Context, session: TrackerSession): SessionActivity {
+		val activityId = session.sessionActivityId
+		return when {
+			activityId == null -> null
+			activityId < -1 -> NativeSessionActivity.entries.find { it.id == activityId }?.getSessionActivity(context)
+			else -> if (activityId == 0L || activityId == -1L) {
+				null
+			} else {
+				val activityDao = AppDatabase.database(context).activityDao()
+				activityDao.get(activityId)
+			}
+		} ?: SessionActivity.UNKNOWN
 	}
 
 	@Suppress("UNCHECKED_CAST")
@@ -317,24 +326,14 @@ class StatsDetailActivity : DetailActivity() {
 		}
 	}
 
-
-	/**
-	 * View model for statistics detail activity
-	 */
 	class ViewModel : androidx.lifecycle.ViewModel() {
 		private var initialized = false
 		private val sessionMutable: MutableLiveData<TrackerSession?> = MutableLiveData()
 
 		val sunSetRise = SunSetRise()
 
-		/**
-		 * Returns LiveData containing tracker sessions
-		 */
 		val session: LiveData<TrackerSession?> get() = sessionMutable
 
-		/**
-		 * Initializes view model
-		 */
 		@WorkerThread
 		fun initialize(context: Context, sessionId: Long) {
 			if (initialized) return
@@ -347,11 +346,32 @@ class StatsDetailActivity : DetailActivity() {
 	}
 
 	companion object {
-		/**
-		 * Session id argument identifier
-		 */
 		const val ARG_SESSION_ID: String = "session_id"
-		private const val HEADER_ROOT_PADDING = 16
 	}
 }
+
+// region Compose helpers
+@Composable
+private fun <T> LiveData<T>.observeAsStateCompat(): androidx.compose.runtime.State<T?> {
+	val state = androidx.compose.runtime.remember { mutableStateOf<T?>(null) }
+	androidx.compose.runtime.DisposableEffect(this) {
+		val observer = androidx.lifecycle.Observer<T> { value -> state.value = value }
+		observeForever(observer)
+		onDispose { removeObserver(observer) }
+	}
+	return state
+}
+
+private fun launchMain(block: suspend () -> Unit) {
+	kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+		block()
+	}
+}
+
+private fun launchMainIO(block: suspend () -> Unit) {
+	kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+		block()
+	}
+}
+// endregion
 

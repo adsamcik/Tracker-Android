@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.shared.utils.extension
 
+import android.content.res.Configuration
 import android.view.ViewGroup
 import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
@@ -16,7 +17,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 /**
  * Creates new [StyleController] for the dialog and manages it's lifecycle.
  * Automatically removes dialog when closed.
+ * 
+ * @deprecated Use Compose dialogs with Material 3 theming instead of legacy StyleController
  */
+@Deprecated("Use Compose dialogs with Material 3 theming instead of legacy StyleController")
 inline fun MaterialDialog.dynamicStyle(
     layer: Int = 1,
     applyStyle: (StyleController) -> Unit = {}
@@ -39,14 +43,19 @@ inline fun MaterialDialog.dynamicStyle(
 /**
  * Creates new [StyleController] for the dialog and manages it's lifecycle.
  * Automatically removes dialog when closed.
+ * 
+ * @deprecated Use Compose dialogs with Material 3 theming instead of legacy StyleController
  */
+@Deprecated("Use Compose dialogs with Material 3 theming instead of legacy StyleController")
 inline fun MaterialDialog.dynamicBaseStyle(
     layer: Int = 1,
     applyStyle: (StyleController) -> Unit
 ): MaterialDialog {
+    @Suppress("DEPRECATION")
     val styleController = StyleManager.createController()
     try {
         val recycler = getRecyclerView()
+        @Suppress("DEPRECATION")
         styleController.watchRecyclerView(RecyclerStyleView(recycler, layer))
     } catch (e: IllegalStateException) {
         // it's fine, just don't add it to recycler
@@ -55,6 +64,7 @@ inline fun MaterialDialog.dynamicBaseStyle(
     applyStyle(styleController)
 
     onDismiss {
+        @Suppress("DEPRECATION")
         StyleManager.recycleController(styleController)
     }
 
@@ -73,7 +83,10 @@ inline fun MaterialDialog.dynamicBaseStyle(
  * [StyleController]. Default is an empty lambda.
  *
  * @return The styled [AlertDialog] instance for chaining calls.
+ * 
+ * @deprecated Use Compose dialogs with Material 3 theming instead of legacy StyleController
  */
+@Deprecated("Use Compose dialogs with Material 3 theming instead of legacy StyleController")
 inline fun AlertDialog.dynamicStyle(
     layer: Int = 1,
     applyStyle: (StyleController) -> Unit = {}
@@ -81,8 +94,10 @@ inline fun AlertDialog.dynamicStyle(
     return dynamicBaseStyle(layer) { styleController ->
         val decorView = window?.decorView
         if (decorView != null) {
+            @Suppress("DEPRECATION")
             styleController.watchView(StyleView(decorView, layer))
         }
+        @Suppress("DEPRECATION")
         styleController.addListener { styleData ->
             getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
                 this.setTextColor(styleData.foregroundColor())
@@ -112,25 +127,41 @@ inline fun AlertDialog.dynamicStyle(
  * [StyleController]. This parameter is mandatory to facilitate custom styling logic.
  *
  * @return The styled [AlertDialog] instance for chaining calls.
+ * 
+ * @deprecated Use Compose dialogs with Material 3 theming instead of legacy StyleController
  */
+@Deprecated("Use Compose dialogs with Material 3 theming instead of legacy StyleController")
 inline fun AlertDialog.dynamicBaseStyle(
     layer: Int = 1,
     applyStyle: (StyleController) -> Unit
 ): AlertDialog {
+    @Suppress("DEPRECATION")
     val styleController = StyleManager.createController()
 
     val contentView = window?.decorView as? ViewGroup
     val recyclerView = contentView?.findRecyclerView()
     if (recyclerView != null) {
+        @Suppress("DEPRECATION")
         styleController.watchRecyclerView(RecyclerStyleView(recyclerView, layer))
     }
 
     applyStyle(styleController)
 
     setOnDismissListener {
+        @Suppress("DEPRECATION")
         StyleManager.recycleController(styleController)
     }
 
+    return this
+}
+
+/**
+ * Simple theming utility for dialogs that automatically adapts to dark/light mode.
+ * Use this instead of deprecated StyleController-based methods.
+ */
+fun AlertDialog.applyMaterial3Theme(): AlertDialog {
+    val isDark = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    // Material 3 automatically handles theming, so this is mostly for consistency
     return this
 }
 

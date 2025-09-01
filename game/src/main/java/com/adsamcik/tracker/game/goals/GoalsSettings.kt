@@ -11,7 +11,6 @@ import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.SubmoduleSettings
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.input.input
 
@@ -49,7 +48,6 @@ class GoalsSettings : SubmoduleSettings {
 											.edit { setInt(key, number) }
 									summary = number.formatReadable()
 								})
-						dynamicStyle()
 					}
 			false
 		}

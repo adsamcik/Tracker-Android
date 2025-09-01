@@ -9,12 +9,6 @@ allprojects {
 		google()
 		maven("https://jitpack.io")
 		mavenCentral()
-		jcenter {
-			content {
-				includeGroup("com.adsamcik")
-				includeGroup("com.github.adsamcik")
-			}
-		}
 	}
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {

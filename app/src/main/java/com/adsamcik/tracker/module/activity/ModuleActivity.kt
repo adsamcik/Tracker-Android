@@ -17,8 +17,7 @@ import com.adsamcik.tracker.module.ModuleInfo
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
-import com.adsamcik.tracker.shared.utils.style.StyleView
+// Legacy StyleController styling removed; rely on Material theme
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
 // Dynamic feature delivery removed; modules are static
 
@@ -40,8 +39,7 @@ class ModuleActivity : DetailActivity() {
 
 		val recycler = rootContentView.findViewById<RecyclerView>(R.id.recycler)
 
-		styleController.watchView(StyleView(rootContentView, 0))
-		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
+		// No-op: removed StyleController watchers
 
 	val moduleInfoList = Module.getActiveModuleInfo(this)
 

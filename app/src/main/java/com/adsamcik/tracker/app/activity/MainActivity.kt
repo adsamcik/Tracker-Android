@@ -70,10 +70,8 @@ import com.adsamcik.tracker.shared.base.extension.guidelineEnd
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
-import com.adsamcik.tracker.shared.utils.style.StyleView
-import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
-import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
+import androidx.core.view.WindowCompat
 
 /**
  * MainActivity containing the core of the App
@@ -367,27 +365,14 @@ class MainActivity : CoreUIActivity() {
 	}
 
 	private fun initializeSystemBars() {
-		styleController.watchNotificationBar(
-			SystemBarStyleView(
-				window,
-				layer = 1,
-				style = SystemBarStyle.Transparent
-			)
-		)
-
-		styleController.watchNavigationBar(
-			SystemBarStyleView(
-				window,
-				layer = 1,
-				style = SystemBarStyle.Transparent
-			)
-		)
+	// Use edge-to-edge with transparent system bars; rely on Material 3 for colors
+	WindowCompat.setDecorFitsSystemWindows(window, false)
+	window.statusBarColor = Color.TRANSPARENT
+	window.navigationBarColor = Color.TRANSPARENT
 	}
 
 	private fun initializeColorElements() {
-		styleController.watchView(StyleView(buttonStats, 1, maxDepth = 0, isInverted = true))
-		styleController.watchView(StyleView(buttonMap, 1, maxDepth = 0, isInverted = true))
-		styleController.watchView(StyleView(buttonGame, 1, maxDepth = 0, isInverted = true))
+	// No-op: legacy StyleController color watchers removed. Buttons use default styles.
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {

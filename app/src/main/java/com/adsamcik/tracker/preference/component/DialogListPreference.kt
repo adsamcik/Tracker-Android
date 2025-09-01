@@ -6,7 +6,6 @@ import android.util.AttributeSet
 import androidx.preference.Preference
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.logger.assertEqual
-import com.adsamcik.tracker.shared.utils.extension.dynamicStyle
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
 import java.util.*
@@ -120,7 +119,6 @@ open class DialogListPreference : Preference {
 			) { _, index, _ ->
 				setIndex(index)
 			}
-			dynamicStyle()
 		}
 	}
 }

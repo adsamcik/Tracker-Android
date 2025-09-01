@@ -18,12 +18,16 @@ import com.adsamcik.tracker.shared.utils.style.StyleManager
 
 /**
  * Tracker app theme that integrates with the existing StyleManager system
+ * 
+ * @deprecated Use AppTheme with Material 3 theming instead of legacy StyleManager bridge
  */
+@Deprecated("Use AppTheme with Material 3 theming instead of legacy StyleManager bridge")
 @Composable
 fun TrackerTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    @Suppress("DEPRECATION")
     val styleData = StyleManager.styleData
     val isSystemDark = isSystemInDarkTheme()
     

@@ -2,11 +2,9 @@ package com.adsamcik.tracker.shared.map
 
 import android.content.Context
 import android.content.res.Resources
+import android.content.res.Configuration
 import androidx.annotation.RawRes
 import com.adsamcik.tracker.shared.base.extension.remove
-import com.adsamcik.tracker.shared.utils.style.StyleController
-import com.adsamcik.tracker.shared.utils.style.StyleData
-import com.adsamcik.tracker.shared.utils.style.StyleManager
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -21,18 +19,17 @@ import java.lang.ref.WeakReference
 object ColorMap {
 	private val styleChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
 	private var resources: Resources? = null
-	private var styleController: StyleController? = null
 
 	private var activeMapStyle: MapStyleOptions? = null
 	private var activeMapStyleRes: Int = 0
 
 	private fun init(context: Context) {
 		if (resources == null) resources = context.resources
-		if (styleController == null) {
-			StyleManager.createController().also {
-				styleController = it
-				it.addListener(this::onColorChange)
-			}
+		// Initialize current style based on UI mode
+		val resId = getMapStyleRes(context)
+		if (resId != activeMapStyleRes) {
+			activeMapStyleRes = resId
+			activeMapStyle = loadMapStyleRes(resId)
 		}
 	}
 
@@ -42,19 +39,21 @@ object ColorMap {
 			synchronized(styleChangeListeners) {
 				if (styleChangeListeners.isEmpty()) {
 					resources = null
-					styleController?.let { StyleManager.recycleController(it) }
-					styleController = null
 					activeMapStyle = null
 				}
 			}
 		}
 	}
 
-	private fun onColorChange(styleData: StyleData) {
-		val newStyle = getMapStyleRes(styleData)
+	/**
+	 * Public hook to update theme manually (e.g., when app theme toggles).
+	 */
+	fun updateTheme(context: Context) {
+		val newStyle = getMapStyleRes(context)
 		if (newStyle != activeMapStyleRes) {
 			activeMapStyleRes = newStyle
-			activeMapStyle = loadMapStyleRes(newStyle).also { onStyleChange(it) }
+			activeMapStyle = loadMapStyleRes(newStyle)
+			onStyleChange(requireNotNull(activeMapStyle))
 		}
 	}
 
@@ -105,13 +104,11 @@ object ColorMap {
 	}
 
 	@RawRes
-	private fun getMapStyleRes(styleData: StyleData): Int {
-		val perceivedLuminance = styleData.perceivedLuminance(false)
-		return when {
-			styleData.saturation > 0.5f && perceivedLuminance > -70 -> R.raw.map_style_vibrant
-			styleData.saturation > 0.2f && perceivedLuminance > -48 -> R.raw.map_style_default
-			perceivedLuminance > 60 -> R.raw.map_style_light
-			perceivedLuminance < -48 -> R.raw.map_style_dark
+	private fun getMapStyleRes(context: Context): Int {
+		val nightMask = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+		return when (nightMask) {
+			Configuration.UI_MODE_NIGHT_YES -> R.raw.map_style_dark
+			Configuration.UI_MODE_NIGHT_NO -> R.raw.map_style_default
 			else -> R.raw.map_style_grey
 		}
 	}
