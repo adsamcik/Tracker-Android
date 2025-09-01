@@ -14,9 +14,9 @@ class SessionTrackerInfo(var session: TrackerSession) : TrackerInfo(NAME_RESOURC
 		get() {
 			val ageInMinutes = (Time.nowMillis - session.start) / Time.MINUTE_IN_MILLISECONDS
 			return when {
-				ageInMinutes < 15 -> R.drawable.seed_outline
-				ageInMinutes < 40 -> R.drawable.sprout_outline
-				else -> R.drawable.tree_outline
+				ageInMinutes < 15 -> com.adsamcik.tracker.shared.base.R.drawable.seed_outline
+				ageInMinutes < 40 -> com.adsamcik.tracker.shared.base.R.drawable.sprout_outline
+				else -> com.adsamcik.tracker.shared.base.R.drawable.tree_outline
 			}
 		}
 

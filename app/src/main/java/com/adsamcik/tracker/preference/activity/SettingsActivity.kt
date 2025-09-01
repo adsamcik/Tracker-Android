@@ -6,6 +6,8 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceScreen
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.tracker.R as TrackerR
+import com.adsamcik.tracker.impexp.R as ImpexpR
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.preference.fragment.FragmentSettings
@@ -75,15 +77,15 @@ class SettingsActivity : DetailActivity(),
 			}
 		}
 
-		title = getString(R.string.settings_title)
+	title = getString(R.string.settings_title)
 
 		val resources = resources
 		pageList = mapOf(
 			resources.getString(R.string.settings_debug_title) to DebugPage(),
 			resources.getString(R.string.settings_style_title) to StylePage(),
-			resources.getString(R.string.settings_tracking_title) to TrackerPreferencePage(),
+			resources.getString(TrackerR.string.settings_tracking_title) to TrackerPreferencePage(),
 			resources.getString(R.string.settings_data_title) to DataPage(),
-			resources.getString(R.string.settings_export_title) to ExportPage()
+			resources.getString(ImpexpR.string.settings_export_title) to ExportPage()
 		)
 
 		pageList.forEach { (_, value) ->

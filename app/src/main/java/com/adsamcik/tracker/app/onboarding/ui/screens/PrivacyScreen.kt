@@ -102,10 +102,10 @@ fun PrivacyScreen(
 			horizontalArrangement = Arrangement.spacedBy(12.dp)
 		) {
 			OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f).testTag("onboarding_cta_back")) {
-				Text(stringResource(R.string.generic_back))
+				Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_back))
 			}
 			Button(onClick = onContinue, modifier = Modifier.weight(2f).testTag("onboarding_cta_primary")) {
-				Text(stringResource(R.string.generic_continue))
+				Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_continue))
 			}
 		}
 	}

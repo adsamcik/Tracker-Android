@@ -157,10 +157,10 @@ fun ExportScreen(
     if (showNoDataDialog.value) {
         AlertDialog(
             onDismissRequest = { activity.finish() },
-            title = { Text(text = stringResource(id = R.string.settings_export_no_data)) },
+        title = { Text(text = stringResource(id = R.string.settings_export_no_data)) },
             confirmButton = {
                 TextButton(onClick = { activity.finish() }) {
-                    Text(text = stringResource(id = R.string.generic_ok))
+            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
                 }
             }
         )
@@ -184,7 +184,7 @@ fun ExportScreen(
             // Filename field with image
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_outline_name),
+                    painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_name),
                     contentDescription = null,
                     modifier = Modifier.size(48.dp)
                 )
@@ -217,7 +217,7 @@ fun ExportScreen(
             if (canSelectDateRange) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_date_range_black_24dp),
+                        painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
                         contentDescription = null,
                         modifier = Modifier.size(48.dp)
                     )
@@ -234,7 +234,7 @@ fun ExportScreen(
                                 IconButton(onClick = {
                                     showFromDatePicker.value = true
                                 }) {
-                                    Icon(painterResource(R.drawable.ic_date_range_black_24dp), contentDescription = null)
+                                    Icon(painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp), contentDescription = null)
                                 }
                             }
                         )
@@ -249,7 +249,7 @@ fun ExportScreen(
                                 IconButton(onClick = {
                                     showToDatePicker.value = true
                                 }) {
-                                    Icon(painterResource(R.drawable.ic_date_range_black_24dp), contentDescription = null)
+                                    Icon(painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp), contentDescription = null)
                                 }
                             }
                         )
@@ -275,12 +275,12 @@ fun ExportScreen(
                                 showFromDatePicker.value = false
                             }
                         ) {
-                            Text(text = stringResource(id = R.string.generic_ok))
+                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showFromDatePicker.value = false }) {
-                            Text(text = stringResource(id = R.string.generic_cancel))
+                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
                         }
                     }
                 ) {
@@ -305,12 +305,12 @@ fun ExportScreen(
                                 showToDatePicker.value = false
                             }
                         ) {
-                            Text(text = stringResource(id = R.string.generic_ok))
+                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showToDatePicker.value = false }) {
-                            Text(text = stringResource(id = R.string.generic_cancel))
+                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
                         }
                     }
                 ) {

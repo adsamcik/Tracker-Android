@@ -25,8 +25,8 @@ import kotlin.concurrent.withLock
 
 internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
     TrackerDataProducerComponent(changeReceiver) {
-    override val keyRes: Int = R.string.settings_wifi_enabled_key
-    override val defaultRes: Int = R.string.settings_wifi_enabled_default
+    override val keyRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_enabled_key
+    override val defaultRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_enabled_default
 
     private lateinit var wifiManager: WifiManager
     private var receiver: WifiReceiver = WifiReceiver()

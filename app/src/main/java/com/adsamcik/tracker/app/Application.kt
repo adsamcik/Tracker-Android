@@ -17,7 +17,7 @@ import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
-import com.google.android.play.core.splitcompat.SplitCompatApplication
+import android.app.Application as AndroidApplication
 import android.util.Log
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
  */
 @Suppress("unused")
 @ExperimentalStdlibApi
-class Application : SplitCompatApplication() {
+class Application : AndroidApplication() {
 
 	private val styleObserver = StyleLifecycleObserver(this)
 

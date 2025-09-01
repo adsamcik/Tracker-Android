@@ -8,12 +8,12 @@ class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
 
 	override val iconRes: Int
 		get() = when (cellData.registeredCells.firstOrNull()?.type) {
-			null, CellType.None -> R.drawable.signal_off
-			CellType.Unknown -> R.drawable.signal
-			CellType.GSM, CellType.CDMA -> R.drawable.signal_2g
-			CellType.WCDMA -> R.drawable.signal_3g
-			CellType.LTE -> R.drawable.signal_4g
-			CellType.NR -> R.drawable.signal_5g
+			null, CellType.None -> com.adsamcik.tracker.shared.base.R.drawable.signal_off
+			CellType.Unknown -> com.adsamcik.tracker.shared.base.R.drawable.signal
+			CellType.GSM, CellType.CDMA -> com.adsamcik.tracker.shared.base.R.drawable.signal_2g
+			CellType.WCDMA -> com.adsamcik.tracker.shared.base.R.drawable.signal_3g
+			CellType.LTE -> com.adsamcik.tracker.shared.base.R.drawable.signal_4g
+			CellType.NR -> com.adsamcik.tracker.shared.base.R.drawable.signal_5g
 		}
 
 	override fun bindContent(holder: InfoFieldHolder) {
@@ -32,6 +32,6 @@ class CellTrackerInfo(var cellData: CellData) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		val NAME_RESOURCE: Int = R.string.cell
+	val NAME_RESOURCE: Int = com.adsamcik.tracker.shared.base.R.string.cell
 	}
 }

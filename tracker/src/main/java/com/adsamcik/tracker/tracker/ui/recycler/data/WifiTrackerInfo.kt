@@ -4,7 +4,7 @@ import com.adsamcik.tracker.shared.base.data.WifiData
 import com.adsamcik.tracker.tracker.R
 
 class WifiTrackerInfo(var wifiData: WifiData) : TrackerInfo(NAME_RESOURCE) {
-	override val iconRes: Int = R.drawable.ic_outline_network_wifi_24px
+	override val iconRes: Int = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px
 
 	override fun bindContent(holder: InfoFieldHolder) {
 		holder.getBoldText().apply {
@@ -14,6 +14,6 @@ class WifiTrackerInfo(var wifiData: WifiData) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		val NAME_RESOURCE: Int = R.string.wifi
+	val NAME_RESOURCE: Int = com.adsamcik.tracker.shared.base.R.string.wifi
 	}
 }

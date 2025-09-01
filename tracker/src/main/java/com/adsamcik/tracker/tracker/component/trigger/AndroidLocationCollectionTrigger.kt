@@ -44,15 +44,15 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger() {
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		super.onEnable(context, receiver)
 
-		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(
-				R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default
-		)
-		val minDistanceInMeters = preferences.getIntRes(
-				R.string.settings_tracking_min_distance_key,
-				R.integer.settings_tracking_min_distance_default
-		)
+	val preferences = Preferences.getPref(context)
+	val minUpdateDelayInSeconds = preferences.getIntRes(
+		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
+		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
+	)
+	val minDistanceInMeters = preferences.getIntRes(
+		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
+		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
+	)
 
 		val locationManager = context.locationManager
 		//It is checked by the component system

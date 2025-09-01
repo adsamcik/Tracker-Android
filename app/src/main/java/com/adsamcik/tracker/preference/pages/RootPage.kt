@@ -19,6 +19,8 @@ import com.adsamcik.tracker.shared.base.misc.SnackMaker
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
+import com.adsamcik.tracker.activity.R as ActivityR
+import com.adsamcik.tracker.shared.preferences.R as PrefR
 import java.util.*
 
 /**
@@ -40,11 +42,11 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 			it.context.startActivity<LicenseActivity> {}
 		}
 
-		caller.setOnClickListener(R.string.settings_activity_key) {
+		caller.setOnClickListener(ActivityR.string.settings_activity_key) {
 			it.context.startActivity<SessionActivityActivity> { }
 		}
 
-		caller.findPreference(R.string.show_tips_key)
+		caller.findPreference(PrefR.string.show_tips_key)
 				.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { preference, newValue ->
 			if (newValue as Boolean) {
 				// TODO: Remove introduction-related preferences cleanup after new onboarding implementation
@@ -87,7 +89,7 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 	}
 
 	private fun initializeLanguage(caller: PreferenceFragmentCompat) {
-		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_language_key).apply {
+		caller.findPreferenceTyped<DialogListPreference>(PrefR.string.settings_language_key).apply {
 			val languages = LocaleManager.getLocaleList()
 
 			val localeList = languages.map { 

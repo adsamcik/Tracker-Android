@@ -5,169 +5,81 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.widget.LinearLayoutCompat
-import androidx.core.view.updateLayoutParams
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.FragmentActivity
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import androidx.lifecycle.observe
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import com.adsamcik.draggable.IOnDemandView
-import com.adsamcik.recycler.decoration.MarginDecoration
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.ChallengeManager
-import com.adsamcik.tracker.game.challenge.adapter.ChallengeAdapter
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
-import com.adsamcik.tracker.game.fragment.recycler.GameRecyclerType
-import com.adsamcik.tracker.game.fragment.recycler.creator.ChallengeRecyclerCreator
-import com.adsamcik.tracker.game.fragment.recycler.creator.PointsRecyclerCreator
-import com.adsamcik.tracker.game.fragment.recycler.creator.StepsCreator
-import com.adsamcik.tracker.game.fragment.recycler.data.ChallengeRecyclerData
-import com.adsamcik.tracker.game.fragment.recycler.data.PointsRecyclerData
-import com.adsamcik.tracker.game.fragment.recycler.data.StepsRecyclerData
-import com.adsamcik.tracker.game.fragment.recycler.data.abstraction.GameRecyclerData
 import com.adsamcik.tracker.game.goals.GoalTracker
+import com.adsamcik.tracker.game.ui.compose.ChallengeUi
+import com.adsamcik.tracker.game.ui.compose.GameScreen
+import com.adsamcik.tracker.game.ui.compose.StepsSummaryUi
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.assist.DisplayAssist
-import com.adsamcik.tracker.shared.base.assist.DisplayAssist.getStatusBarHeightDeferred
 import com.adsamcik.tracker.shared.utils.fragment.CoreUIFragment
-import com.adsamcik.tracker.shared.utils.multitype.StyleMultiTypeAdapter
-import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
-import com.adsamcik.tracker.shared.utils.style.StyleView
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-typealias GameAdapter = StyleMultiTypeAdapter<GameRecyclerType, GameRecyclerData>
-
 /**
- * Root fragment for game component
+ * Compose-hosted Game fragment (Material 3 expressive)
  */
 @Suppress("unused")
 class FragmentGame : CoreUIFragment(), IOnDemandView {
 	override fun onCreateView(
-			inflater: LayoutInflater,
-			container: ViewGroup?,
-			savedInstanceState: Bundle?
-	): View? {
-		val rootView = inflater.inflate(R.layout.fragment_game, container, false)
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?
+	): View {
+		val ctx = requireContext()
 
-		val recycler = rootView.findViewById<RecyclerView>(R.id.recycler)
-		recycler.clipToOutline = false
-		//updateChallenges()
+		// Ensure goal/challenge systems are initialized
+		GoalTracker.initialize(ctx)
+		ChallengeManager.initialize(ctx)
 
-		val activity = requireActivity()
-		val adapter = GameAdapter(
-				styleController
-		).apply {
-			registerType(GameRecyclerType.List, ChallengeRecyclerCreator())
-			registerType(GameRecyclerType.Points, PointsRecyclerCreator(layer = 1))
-			registerType(GameRecyclerType.Steps, StepsCreator(layer = 1))
-		}.also { recycler.adapter = it }
-		//recyclerView.adapter = ChallengeAdapter(context, arrayOf())
-		recycler.layoutManager = LinearLayoutManager(activity)
+		return ComposeView(ctx).apply {
+			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+			setContent {
+				val pointsToday by PointsDatabase
+					.database(ctx)
+					.pointsAwardedDao()
+					.countBetweenLive(Time.todayMillis, Time.tomorrowMillis)
+					.observeAsState(initial = 0)
 
-		activity.window.getStatusBarHeightDeferred { statusBarHeight ->
-			val contentPadding = activity.resources.getDimension(com.adsamcik.tracker.shared.base.R.dimen.content_padding)
-				.toInt()
-			val navBarSize = DisplayAssist.getNavigationBarSize(activity)
-			val navBarHeight = navBarSize.second.y
-			recycler.addItemDecoration(
-				MarginDecoration(
-					firstLineMargin = statusBarHeight + contentPadding,
-					lastLineMargin = navBarHeight + contentPadding
+				val stepsToday by GoalTracker.stepsDay.observeAsState()
+				val stepsWeek by GoalTracker.stepsWeek.observeAsState()
+				val goalDay by GoalTracker.goalDay.observeAsState()
+				val goalWeek by GoalTracker.goalWeek.observeAsState()
+
+				val steps = if (stepsToday != null && stepsWeek != null && goalDay != null && goalWeek != null) {
+					StepsSummaryUi(stepsToday!!, stepsWeek!!, goalDay!!, goalWeek!!)
+				} else null
+
+				val challengeLive = ChallengeManager.activeChallenges
+				val challengeList by challengeLive.observeAsState(initial = emptyList())
+				val challenges = challengeList.map { it.toUi(ctx) }
+
+				GameScreen(
+					pointsToday = pointsToday,
+					steps = steps,
+					challenges = challenges
 				)
-			)
-		}
-
-
-		initializeStyle(rootView, recycler)
-		initializePoints(activity, adapter)
-		initializeGoals(adapter)
-		initializeChallenges(activity, adapter)
-
-		return rootView
-	}
-
-	private fun initializeStyle(rootView: View, recycler: RecyclerView) {
-		styleController.watchView(StyleView(rootView, layer = 1, maxDepth = 0))
-		styleController.watchRecyclerView(
-				RecyclerStyleView(
-						recycler,
-						onlyChildren = true,
-						childrenLayer = 2
-				)
-		)
-	}
-
-	private fun initializePoints(context: Context, adapter: GameAdapter) {
-		adapter.add(PointsRecyclerData(-1))
-		val pointsIndex = adapter.itemCount - 1
-		PointsDatabase
-				.database(context)
-				.pointsAwardedDao()
-				.countBetweenLive(Time.todayMillis, Time.tomorrowMillis)
-				.observe(viewLifecycleOwner) { pointsEarned ->
-					adapter.updateAt(pointsIndex, PointsRecyclerData(pointsEarned ?: 0))
-				}
-	}
-
-	private fun initializeGoals(adapter: GameAdapter) {
-		adapter.add(StepsRecyclerData(0, 0, 0, 0))
-		val pointsIndex = adapter.itemCount - 1
-
-		GoalTracker.stepsDay.observe(viewLifecycleOwner) {
-			adapter.updateGoals(pointsIndex, stepsToday = it)
-		}
-
-		GoalTracker.stepsWeek.observe(viewLifecycleOwner) {
-			adapter.updateGoals(pointsIndex, stepsWeek = it)
-		}
-
-		GoalTracker.goalDay.observe(viewLifecycleOwner) {
-			adapter.updateGoals(pointsIndex, goalDay = it)
-		}
-
-		GoalTracker.goalWeek.observe(viewLifecycleOwner) {
-			adapter.updateGoals(pointsIndex, goalWeek = it)
+			}
 		}
 	}
 
-	private fun GameAdapter.updateGoals(
-			index: Int,
-			stepsToday: Int? = GoalTracker.stepsDay.value,
-			stepsWeek: Int? = GoalTracker.stepsWeek.value,
-			goalDay: Int? = GoalTracker.goalDay.value,
-			goalWeek: Int? = GoalTracker.goalWeek.value
-	) = updateAt(index, StepsRecyclerData(stepsToday, stepsWeek, goalDay, goalWeek))
+	private fun ChallengeInstance<*, *>.toUi(context: Context): ChallengeUi = ChallengeUi(
+		id = data.id,
+		title = getTitle(context),
+		description = getDescription(context),
+		progress = progress.toFloat().coerceIn(0f, 1f)
+	)
 
-	private fun initializeChallenges(context: Context, adapter: GameAdapter) {
-		val challengeAdapter = ChallengeAdapter(context, arrayOf())
-		adapter.add(ChallengeRecyclerData(R.string.challenge_list_title, challengeAdapter))
-
-		ChallengeManager.activeChallenges.observe(viewLifecycleOwner) { updateChallenges(challengeAdapter, it) }
-
-		val challengeList = ChallengeManager.activeChallenges.value
-		if (challengeList.isEmpty()) {
-			ChallengeManager.initialize(context)
-		} else {
-			updateChallenges(challengeAdapter, challengeList)
-		}
-	}
-
-	private fun updateChallenges(
-			challengeAdapter: ChallengeAdapter,
-			challengeList: List<ChallengeInstance<*, *>>
-	) {
-		val challengeArray = challengeList.toTypedArray()
-
-		launch(Dispatchers.Main) {
-			challengeAdapter.updateData(challengeArray)
-		}
-	}
-
-	override fun onEnter(activity: FragmentActivity): Unit = Unit
-
-	override fun onLeave(activity: FragmentActivity): Unit = Unit
-
-	override fun onPermissionResponse(requestCode: Int, success: Boolean): Unit = Unit
+	override fun onEnter(activity: FragmentActivity) {}
+	override fun onLeave(activity: FragmentActivity) {}
+	override fun onPermissionResponse(requestCode: Int, success: Boolean) {}
 }
 

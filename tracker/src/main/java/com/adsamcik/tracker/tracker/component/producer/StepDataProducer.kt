@@ -21,9 +21,9 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 	private var stepCountSinceLastCollection = 0
 
 	override val keyRes: Int
-		get() = R.string.settings_steps_enabled_key
+		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_steps_enabled_key
 	override val defaultRes: Int
-		get() = R.string.settings_steps_enabled_default
+		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_steps_enabled_default
 
 	override fun onDataRequest(tempData: MutableCollectionTempData) {
 		if (stepCountSinceLastCollection >= 0) {

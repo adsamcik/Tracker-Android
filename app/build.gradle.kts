@@ -57,6 +57,7 @@ android {
 			enableAndroidTestCoverage = true
 			enableUnitTestCoverage = true
 			applicationIdSuffix = ".debug"
+			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 
 		// Installable alongside production: non-debuggable, unique appId/label
@@ -73,6 +74,7 @@ android {
 			// Sign with debug key for easy local installs (customize if you have a dev keystore)
 			signingConfig = signingConfigs.getByName("debug")
 			isDebuggable = false
+			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 
 		create("release_nominify") {
@@ -83,11 +85,13 @@ android {
 			// TODO: Re-enable and fix by adding proper keep rules / adjusting dynamic feature class access
 			isMinifyEnabled = false
 			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+			buildConfigField("boolean", "COMPOSE_MAIN", "false")
 		}
 	}
 
 	buildFeatures {
 		compose = true
+		viewBinding = true
 	}
 
 	lint {
@@ -101,9 +105,7 @@ android {
 		resources.pickFirsts.add("META-INF/atomicfu.kotlin_module")
 	}
 
-	dynamicFeatures.add(":statistics")
-	dynamicFeatures.add(":game")
-	dynamicFeatures.add(":map")
+	// dynamicFeatures removed; modules are now statically linked libraries
 	namespace = "com.adsamcik.tracker"
 	dependenciesInfo {
 		includeInApk = true
@@ -146,8 +148,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
-	implementation(libs.google.play.feature.delivery)
-	implementation(libs.google.play.feature.delivery.ktx)
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)
 	androidTestImplementation(libs.androidx.work.testing)
@@ -162,6 +162,7 @@ dependencies {
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
 	implementation(libs.compose.animation.graphics)
+	implementation(libs.compose.ui.viewbinding)
 	implementation(libs.navigation.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.compose.runtime)

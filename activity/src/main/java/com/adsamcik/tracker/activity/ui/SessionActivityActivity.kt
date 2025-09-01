@@ -87,7 +87,7 @@ class SessionActivityActivity : ManageActivity() {
 	}
 
 	override fun getEmptyEditData(): Collection<EditData> {
-		return listOf(EditData(NAME_FIELD, EditType.EditText, R.string.activity_name, true))
+		return listOf(EditData(NAME_FIELD, EditType.EditText, com.adsamcik.tracker.shared.base.R.string.activity_name, true))
 	}
 
 	override fun onConfigure(configuration: Configuration) {

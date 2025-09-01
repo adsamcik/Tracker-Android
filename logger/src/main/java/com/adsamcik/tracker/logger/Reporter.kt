@@ -5,12 +5,14 @@ import android.util.Log
 import androidx.lifecycle.Observer
 import com.adsamcik.tracker.shared.base.BuildConfig
 import com.adsamcik.tracker.shared.base.isEmulator
+import com.adsamcik.tracker.shared.base.logging.ErrorReporter
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
 
 /**
  * Object that handles reporting of any message, error or exception that is passed to it.
  */
-object Reporter {
+object Reporter : ErrorReporter {
 	private var isInitialized = false
 	private var isEnabled = false
 	private const val TAG = "com.adsamcik.tracker-error"
@@ -36,6 +38,9 @@ object Reporter {
 				com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_default,
 				loggingObserver
 		)
+
+	// Register as facade delegate so other modules can log without depending on :logger
+	ReporterFacade.setDelegate(this)
 	}
 
 	private fun checkInitialized() {
@@ -44,7 +49,7 @@ object Reporter {
 		}
 	}
 
-	fun report(exception: Throwable) {
+	override fun report(exception: Throwable) {
 		@Suppress("TooGenericExceptionThrown")
 		if (BuildConfig.DEBUG) throw Exception(exception)
 
@@ -60,7 +65,7 @@ object Reporter {
 	 * @param message Message that is reported
 	 */
 	@Suppress("TooGenericExceptionThrown")
-	fun report(message: String) {
+	override fun report(message: String) {
 		if (BuildConfig.DEBUG) {
 			throw Exception(message)
 		}
@@ -77,7 +82,7 @@ object Reporter {
 	 * @param message Message that is logged
 	 */
 	@Suppress("TooGenericExceptionThrown")
-	fun log(message: String) {
+	override fun log(message: String) {
 		if (BuildConfig.DEBUG) {
 			throw Exception(message)
 		}

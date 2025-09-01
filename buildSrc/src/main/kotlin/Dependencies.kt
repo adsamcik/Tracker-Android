@@ -122,10 +122,10 @@ object Dependencies {
         scope.implementation("androidx.preference:preference:${Versions.PREFERENCE}")
         scope.implementation("androidx.lifecycle:lifecycle-common-java8:${Versions.LIFECYCLE}")
 
-        // Google Play Services
+        // Google Play Services (feature delivery removed)
         scope.implementation("com.google.android.gms:play-services-base:${Versions.PLAY_SERVICES_BASE}")
-        scope.implementation("com.google.android.play:feature-delivery:${Versions.PLAY_FEATURE_DELIVERY}")
-        scope.implementation("com.google.android.play:feature-delivery-ktx:${Versions.PLAY_FEATURE_DELIVERY}")
+    // Removed dynamic feature delivery; keep constant here only if referenced elsewhere
+    // const val PLAY_FEATURE_DELIVERY = "2.1.0"
 
         // Material Design Components
         scope.implementation("com.google.android.material:material:${Versions.MATERIAL}")

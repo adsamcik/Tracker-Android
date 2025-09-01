@@ -2,6 +2,7 @@ package com.adsamcik.tracker.preference.pages
 
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.impexp.R as ImpexpR
 import com.adsamcik.tracker.impexp.exporter.DatabaseExporter
 import com.adsamcik.tracker.impexp.exporter.GpxExporter
 import com.adsamcik.tracker.impexp.exporter.KmlExporter
@@ -18,19 +19,19 @@ internal class ExportPage : PreferencePage {
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
-			setOnClickListener(R.string.settings_export_gpx_key) {
+			setOnClickListener(ImpexpR.string.settings_export_gpx_key) {
 				startActivity<ImportExportComposeActivity> {
 					putExtra(ImportExportComposeActivity.EXPORTER_KEY, GpxExporter::class.java)
 				}
 			}
 
-			setOnClickListener(R.string.settings_export_kml_key) {
+			setOnClickListener(ImpexpR.string.settings_export_kml_key) {
 				startActivity<ImportExportComposeActivity> {
 					putExtra(ImportExportComposeActivity.EXPORTER_KEY, KmlExporter::class.java)
 				}
 			}
 
-			setOnClickListener(R.string.settings_export_sqlite_key) {
+			setOnClickListener(ImpexpR.string.settings_export_sqlite_key) {
 				startActivity<ImportExportComposeActivity> {
 					putExtra(ImportExportComposeActivity.EXPORTER_KEY, DatabaseExporter::class.java)
 				}

@@ -11,6 +11,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.app.activity.debug.CrashManagerActivity
 import com.adsamcik.tracker.app.activity.debug.CrashViewerActivity
 import com.adsamcik.tracker.app.activity.debug.LogViewerActivity
@@ -60,12 +61,11 @@ internal class DebugPage : PreferencePage {
 			val color = ContextCompat.getColor(context, R.color.color_primary)
 			val rng = Random(Time.nowMillis)
 			val facts = resources.getStringArray(R.array.lorem_ipsum_facts)
-			val notificationBuilder = NotificationCompat.Builder(
-					context,
-					resources.getString(R.string.channel_other_id)
-			)
-					.setSmallIcon(R.drawable.ic_signals)
-					.setTicker(helloWorld)
+		val notificationBuilder = NotificationCompat.Builder(
+			context,
+			resources.getString(BaseR.string.channel_other_id)
+		)
+			.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals_launcher)
 					.setColor(color)
 					.setLights(color, 2000, 5000)
 					.setContentTitle(resources.getString(R.string.did_you_know))
@@ -138,7 +138,7 @@ internal class DebugPage : PreferencePage {
 			?.setOnPreferenceClickListener { pref ->
 					val context = pref.context
 					MaterialDialog(context)
-						.title(text = context.getString(com.adsamcik.tracker.shared.base.R.string.alert_confirm_generic))
+						.title(text = context.getString(BaseR.string.alert_confirm_generic))
 						.alertDialog(context.getString(R.string.settings_generate_dummy_data_title)) {
 							// First confirm
 							@OptIn(DelicateCoroutinesApi::class)
@@ -157,34 +157,23 @@ internal class DebugPage : PreferencePage {
 										MaterialDialog(context).show {
 											title(text = context.getString(R.string.dummy_data_second_confirm_title))
 											message(text = context.getString(R.string.dummy_data_second_confirm_message))
-											positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_yes)) { dialog ->
+											positiveButton(text = context.getString(BaseR.string.generic_yes)) { dialog ->
 												@OptIn(DelicateCoroutinesApi::class)
 												GlobalScope.launch(Dispatchers.Default) {
 													val forced = DummyDataSeeder.seed(context)
 													launch(Dispatchers.Main) {
 														MaterialDialog(context).show {
 															message(text = if (forced.inserted) context.getString(R.string.dummy_data_generation_success) else context.getString(R.string.dummy_data_generation_failed))
-															positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
+															positiveButton(text = context.getString(BaseR.string.generic_ok))
 														}
 													}
 												}
 											}
-											negativeButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_no))
+											negativeButton(text = context.getString(BaseR.string.generic_no))
 											onShow {
-												val tvBg = TypedValue()
-												val hasBg = context.theme.resolveAttribute(
-													R.attr.colorError,
-													tvBg,
-													true
-												)
-												val tvFg = TypedValue()
-												val hasFg = context.theme.resolveAttribute(
-													R.attr.colorOnError,
-													tvFg,
-													true
-												)
-												val bg = if (hasBg) tvBg.data else ContextCompat.getColor(context, R.color.error)
-												val fg = if (hasFg) tvFg.data else Color.WHITE
+												val bg = ContextCompat.getColor(context, R.color.error)
+												val luminance = (0.299 * Color.red(bg) + 0.587 * Color.green(bg) + 0.114 * Color.blue(bg)) / 255.0
+												val fg = if (luminance < 0.5) Color.WHITE else Color.BLACK
 												val btn = getActionButton(WhichButton.POSITIVE)
 												btn.backgroundTintList = ColorStateList.valueOf(bg)
 												btn.setTextColor(fg)
@@ -202,20 +191,9 @@ internal class DebugPage : PreferencePage {
 							}
 						}
 						.onShow { dialog ->
-							val tvBg = TypedValue()
-							val hasBg = context.theme.resolveAttribute(
-								R.attr.colorError,
-								tvBg,
-								true
-							)
-							val tvFg = TypedValue()
-							val hasFg = context.theme.resolveAttribute(
-								R.attr.colorOnError,
-								tvFg,
-								true
-							)
-							val bg = if (hasBg) tvBg.data else ContextCompat.getColor(context, R.color.error)
-							val fg = if (hasFg) tvFg.data else Color.WHITE
+							val bg = ContextCompat.getColor(context, R.color.error)
+							val luminance = (0.299 * Color.red(bg) + 0.587 * Color.green(bg) + 0.114 * Color.blue(bg)) / 255.0
+							val fg = if (luminance < 0.5) Color.WHITE else Color.BLACK
 							val btn = dialog.getActionButton(WhichButton.POSITIVE)
 							btn.backgroundTintList = ColorStateList.valueOf(bg)
 							btn.setTextColor(fg)

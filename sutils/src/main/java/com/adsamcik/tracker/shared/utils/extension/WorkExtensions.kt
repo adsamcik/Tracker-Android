@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.extension
 
 import androidx.work.Data
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.shared.base.extension.tryGetLong
 
 /**
@@ -12,9 +12,9 @@ fun Data.getPositiveLongReportNull(key: String): Long? {
 	val value = getLong(key, -1)
 	return if (value < 0) {
 		if (keyValueMap.contains(key)) {
-			Reporter.report(IllegalArgumentException("Argument $key had invalid negative value of $value"))
+			ReporterFacade.report(IllegalArgumentException("Argument $key had invalid negative value of $value"))
 		} else {
-			Reporter.report(IllegalArgumentException("Argument $key was not specified"))
+			ReporterFacade.report(IllegalArgumentException("Argument $key was not specified"))
 		}
 		null
 	} else {
@@ -29,7 +29,7 @@ fun Data.getPositiveLongReportNull(key: String): Long? {
 fun Data.getLongReportNull(key: String): Long? {
 	val value = tryGetLong(key)
 	if (value == null) {
-		Reporter.report(IllegalArgumentException("Argument $key was not specified"))
+		ReporterFacade.report(IllegalArgumentException("Argument $key was not specified"))
 	}
 	return value
 }

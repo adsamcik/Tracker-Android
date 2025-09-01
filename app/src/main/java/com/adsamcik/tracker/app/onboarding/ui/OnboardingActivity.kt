@@ -22,14 +22,20 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import com.adsamcik.tracker.app.activity.MainActivity
+// import removed: legacy MainActivity no longer used
+import com.adsamcik.tracker.app.ui.theme.AppTheme
 import com.adsamcik.tracker.app.onboarding.data.*
 import com.adsamcik.tracker.app.onboarding.permission.IOnboardingPermissionManager
 import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManagerProvider
 import com.adsamcik.tracker.app.onboarding.permission.PermissionResult
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
+import com.adsamcik.tracker.shared.preferences.R as PrefR
+import com.adsamcik.tracker.app.activity.MainActivityCompose
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.R as BaseR
+import com.adsamcik.tracker.activity.R as ActivityR
+import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
 
@@ -49,8 +55,8 @@ class OnboardingActivity : ComponentActivity() {
     permissionManager = OnboardingPermissionManagerProvider.factory(this)
         
         setContent {
-            // Use app theme - you might want to create a specific onboarding theme
-            MaterialTheme {
+            // Use app-wide AppTheme (Material3 + dynamic colors)
+            AppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -227,7 +233,7 @@ class OnboardingActivity : ComponentActivity() {
         markOnboardingCompleted()
         
         // Navigate to main app
-        val intent = Intent(this, MainActivity::class.java)
+    val intent = Intent(this, MainActivityCompose::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
         finish()
@@ -237,44 +243,44 @@ class OnboardingActivity : ComponentActivity() {
     val preferences = Preferences.getPref(this)
         preferences.edit {
             // Core enable toggles
-            setBoolean(R.string.settings_location_enabled_key, prefs.enableLocationTracking)
-            setBoolean(R.string.settings_activity_enabled_key, prefs.enableActivityTracking)
-            setBoolean(R.string.settings_wifi_enabled_key, prefs.enableWifiTracking)
-            setBoolean(R.string.settings_cell_enabled_key, prefs.enableCellTracking)
-            setBoolean(R.string.settings_steps_enabled_key, prefs.enableStepsTracking)
+            setBoolean(PrefR.string.settings_location_enabled_key, prefs.enableLocationTracking)
+            setBoolean(PrefR.string.settings_activity_enabled_key, prefs.enableActivityTracking)
+            setBoolean(PrefR.string.settings_wifi_enabled_key, prefs.enableWifiTracking)
+            setBoolean(PrefR.string.settings_cell_enabled_key, prefs.enableCellTracking)
+            setBoolean(PrefR.string.settings_steps_enabled_key, prefs.enableStepsTracking)
 
             // Notification styling as a proxy user-visible toggle (no global enable switch exists)
-            setBoolean(R.string.settings_notification_styled_key, prefs.enableNotifications)
+            setBoolean(PrefR.string.settings_notification_styled_key, prefs.enableNotifications)
 
             // Auto/background tracking mode: use selected index when available; fall back to default/disabled
             val selectedMode = prefs.autoTrackingModeIndex
             val autoTrackingValue = when {
                 selectedMode > 0 && this@OnboardingActivity.hasActivityPermission -> selectedMode
                 prefs.enableAutomaticTracking && this@OnboardingActivity.hasActivityPermission ->
-                    resources.getString(R.string.settings_tracking_activity_default).toInt()
+                    resources.getString(PrefR.string.settings_tracking_activity_default).toInt()
                 else -> 0
             }
-            setInt(R.string.settings_tracking_activity_key, autoTrackingValue)
+            setInt(PrefR.string.settings_tracking_activity_key, autoTrackingValue)
 
             // Map additional auto-tracking toggles to Settings screen keys so onboarding matches Settings
-            setBoolean(R.string.settings_auto_tracking_transition_key, prefs.autoTransitionsEnabled)
-            setBoolean(R.string.settings_activity_watcher_key, prefs.activityWatcherEnabled)
-            setBoolean(R.string.settings_disabled_recharge_key, prefs.pauseWhileCharging)
+            setBoolean(PrefR.string.settings_auto_tracking_transition_key, prefs.autoTransitionsEnabled)
+            setBoolean(ActivityR.string.settings_activity_watcher_key, prefs.activityWatcherEnabled)
+            setBoolean(TrackerR.string.settings_disabled_recharge_key, prefs.pauseWhileCharging)
 
             // Apply min distance/time if set
-            prefs.trackingMinDistanceMeters?.let { setInt(R.string.settings_tracking_min_distance_key, it) }
-            prefs.trackingMinTimeSeconds?.let { setInt(R.string.settings_tracking_min_time_key, it) }
+            prefs.trackingMinDistanceMeters?.let { setInt(PrefR.string.settings_tracking_min_distance_key, it) }
+            prefs.trackingMinTimeSeconds?.let { setInt(PrefR.string.settings_tracking_min_time_key, it) }
 
             // Tracking profiles removed; rely on explicit distance/time and internal defaults
 
             // Persist auto-cleanup setting (default off unless user explicitly enabled)
-            setBoolean(R.string.settings_auto_cleanup_old_data_key, prefs.autoCleanupOldData)
+            setBoolean(com.adsamcik.tracker.R.string.settings_auto_cleanup_old_data_key, prefs.autoCleanupOldData)
         }
 
         // Apply side-effects for auto tracking changes
         val desiredAuto = preferences.getIntResString(
-            R.string.settings_tracking_activity_key,
-            R.string.settings_tracking_activity_default
+            PrefR.string.settings_tracking_activity_key,
+            PrefR.string.settings_tracking_activity_default
         )
         ActivityWatcherService.onAutoTrackingPreferenceChange(this, desiredAuto)
         if (desiredAuto > 0) {

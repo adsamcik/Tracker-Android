@@ -90,6 +90,7 @@ arch-core-testing = { group = "androidx.arch.core", name = "core-testing", versi
 livedata-testing-ktx = { group = "com.jraska.livedata", name = "testing-ktx", version.ref = "livedataTestingKtx" }
 espresso = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 espresso-contrib = { group = "androidx.test.espresso", name = "espresso-contrib", version.ref = "espresso" }
+espresso-intents = { group = "androidx.test.espresso", name = "espresso-intents", version.ref = "espresso" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockitoInline" }
@@ -131,8 +132,6 @@ google-material = { group = "com.google.android.material", name = "material", ve
 
 # Play Services & Maps
 google-play-services-base = { group = "com.google.android.gms", name = "play-services-base", version.ref = "playServicesBase" }
-google-play-feature-delivery = { group = "com.google.android.play", name = "feature-delivery", version.ref = "playFeatureDelivery" }
-google-play-feature-delivery-ktx = { group = "com.google.android.play", name = "feature-delivery-ktx", version.ref = "playFeatureDelivery" }
 google-play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "maps" }
 google-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playLocation" }
 google-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
@@ -175,6 +174,8 @@ compose-material-icons-extended = { group = "androidx.compose.material", name = 
 compose-animation = { group = "androidx.compose.animation", name = "animation" }
 compose-animation-graphics = { group = "androidx.compose.animation", name = "animation-graphics" }
 compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
+compose-ui-viewbinding = { group = "androidx.compose.ui", name = "ui-viewbinding" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 compose-runtime = { group = "androidx.compose.runtime", name = "runtime" }

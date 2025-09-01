@@ -32,8 +32,8 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 		withContext(coroutineContext) {
 			PreferenceObserver.observeIntRes(
 				context,
-				keyRes = R.string.settings_tracking_required_accuracy_key,
-				defaultRes = R.integer.settings_tracking_required_accuracy_default,
+				keyRes = com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
+				defaultRes = com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default,
 				observer = observer
 			)
 		}
@@ -43,7 +43,7 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 		withContext(coroutineContext) {
 			PreferenceObserver.removeObserver(
 				context,
-				R.string.settings_tracking_required_accuracy_key,
+				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
 				observer
 			)
 		}

@@ -3,8 +3,6 @@ package com.adsamcik.tracker.module
 import android.content.Context
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
-import com.google.android.play.core.splitinstall.SplitInstallManager
-import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
 
 enum class Module {
 	STATISTICS {
@@ -42,46 +40,35 @@ enum class Module {
 		 * Returns information about all active modules.
 		 */
 		fun getActiveModuleInfo(context: Context): List<ModuleInfo> {
-			val manager = SplitInstallManagerFactory.create(context)
-			return getActiveModuleInfo(manager)
+			return values()
+					.asSequence()
+					.filter { it.enabled }
+					.map { ModuleInfo(it, shouldBeInstalled = true, isInstalled = true) }
+					.toList()
 		}
 
 		/**
 		 * Returns information about all active modules.
+		 * Kept for legacy API compatibility when a dynamic features manager used to be passed.
 		 */
-		fun getActiveModuleInfo(manager: SplitInstallManager): List<ModuleInfo> {
-			val installedModules = manager.installedModules
+		fun getActiveModuleInfo(@Suppress("UNUSED_PARAMETER") manager: Any? = null): List<ModuleInfo> {
 			return values()
-					.asSequence()
-					.filter { it.enabled }
-					.map { ModuleInfo(it) }
-					.toList()
-					.onEach {
-						if (installedModules.contains(it.module.moduleName)) {
-							it.isInstalled = true
-							it.shouldBeInstalled = true
-						}
-					}
+				.asSequence()
+				.filter { it.enabled }
+				.map { ModuleInfo(it, shouldBeInstalled = true, isInstalled = true) }
+				.toList()
 		}
 
 		/**
 		 * Returns info for a specific module.
 		 */
-		fun getModuleInfo(context: Context, module: Module): ModuleInfo {
-			val manager = SplitInstallManagerFactory.create(context)
-			return getModuleInfo(manager, module)
-		}
+		fun getModuleInfo(@Suppress("UNUSED_PARAMETER") context: Context?, module: Module): ModuleInfo =
+			ModuleInfo(module, shouldBeInstalled = true, isInstalled = true)
 
 		/**
 		 * Returns info for a specific module.
 		 */
-		fun getModuleInfo(manager: SplitInstallManager, module: Module): ModuleInfo {
-			val moduleInfo = ModuleInfo(module)
-			if (manager.installedModules.contains(module.moduleName)) {
-				moduleInfo.isInstalled = true
-				moduleInfo.shouldBeInstalled = true
-			}
-			return moduleInfo
-		}
+		fun getModuleInfo(@Suppress("UNUSED_PARAMETER") manager: Any?, module: Module): ModuleInfo =
+			ModuleInfo(module, shouldBeInstalled = true, isInstalled = true)
 	}
 }

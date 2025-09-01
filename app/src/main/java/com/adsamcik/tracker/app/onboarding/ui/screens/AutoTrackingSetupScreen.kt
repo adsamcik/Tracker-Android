@@ -19,6 +19,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.tracker.R as TrackerR
+import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.app.onboarding.data.UserPreferences
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
@@ -35,15 +37,15 @@ fun AutoTrackingSetupScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val autoTrackingTitles = remember { context.resources.getStringArray(R.array.auto_tracking_options_values) }
-    val distanceOptions = remember { context.resources.getIntArray(R.array.settings_tracking_min_distance_values).toList() }
-    val timeOptions = remember { context.resources.getIntArray(R.array.settings_tracking_min_time_values).toList() }
+    val autoTrackingTitles = remember { context.resources.getStringArray(TrackerR.array.auto_tracking_options_values) }
+    val distanceOptions = remember { context.resources.getIntArray(TrackerR.array.settings_tracking_min_distance_values).toList() }
+    val timeOptions = remember { context.resources.getIntArray(TrackerR.array.settings_tracking_min_time_values).toList() }
 
     // Resolve current values or sensible defaults from resources
-    val defaultMode = remember { context.resources.getString(R.string.settings_tracking_activity_default).toInt() }
+    val defaultMode = remember { context.resources.getString(PrefR.string.settings_tracking_activity_default).toInt() }
     val selectedMode = preferences.autoTrackingModeIndex.takeIf { it in 0..2 } ?: defaultMode
-    val defaultDistance = remember { context.resources.getInteger(R.integer.settings_tracking_min_distance_default) }
-    val defaultTime = remember { context.resources.getInteger(R.integer.settings_tracking_min_time_default) }
+    val defaultDistance = remember { context.resources.getInteger(PrefR.integer.settings_tracking_min_distance_default) }
+    val defaultTime = remember { context.resources.getInteger(PrefR.integer.settings_tracking_min_time_default) }
     val selectedDistance = preferences.trackingMinDistanceMeters ?: defaultDistance
     val selectedTime = preferences.trackingMinTimeSeconds ?: defaultTime
 
@@ -93,7 +95,7 @@ fun AutoTrackingSetupScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = stringResource(R.string.auto_tracking_options_title),
+                    text = stringResource(TrackerR.string.auto_tracking_options_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium
                 )
@@ -170,7 +172,7 @@ fun AutoTrackingSetupScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = stringResource(R.string.settings_tracking_min_distance_title),
+                    text = stringResource(TrackerR.string.settings_tracking_min_distance_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium
                 )
@@ -195,7 +197,7 @@ fun AutoTrackingSetupScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = stringResource(R.string.settings_tracking_min_time_title),
+                    text = stringResource(TrackerR.string.settings_tracking_min_time_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium
                 )
@@ -233,10 +235,10 @@ fun AutoTrackingSetupScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f).testTag("onboarding_cta_back")) {
-                Text(stringResource(R.string.generic_back))
+                Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_back))
             }
             Button(onClick = onContinue, modifier = Modifier.weight(2f).testTag("onboarding_cta_primary")) {
-                Text(stringResource(R.string.generic_continue))
+                Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_continue))
             }
         }
     }

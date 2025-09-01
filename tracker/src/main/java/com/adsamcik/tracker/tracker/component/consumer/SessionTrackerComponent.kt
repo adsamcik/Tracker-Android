@@ -107,11 +107,11 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	override suspend fun onDisable(context: Context) {
 		PreferenceObserver.removeObserver(
-			context, R.string.settings_tracking_min_distance_key,
+			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
 			minDistanceInMetersObserver
 		)
 		PreferenceObserver.removeObserver(
-			context, R.string.settings_tracking_min_time_key,
+			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
 			minUpdateDelayInSecondsObserver
 		)
 
@@ -126,12 +126,12 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	override suspend fun onEnable(context: Context) {
 		PreferenceObserver.observeIntRes(
-			context, R.string.settings_tracking_min_distance_key,
-			R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver
+			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver
 		)
 		PreferenceObserver.observeIntRes(
-			context, R.string.settings_tracking_min_time_key,
-			R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver
+			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver
 		)
 
 		withContext(coroutineContext) {

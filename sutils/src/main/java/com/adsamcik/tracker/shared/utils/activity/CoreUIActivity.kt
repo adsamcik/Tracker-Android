@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.utils.style.StyleManager
  * Abstract activity class implementing style and language support on top of [CoreActivity].
  */
 abstract class CoreUIActivity : CoreActivity() {
+	@Deprecated("Obsolete: StyleController will be removed; avoid new usages.")
 	protected val styleController: StyleController = StyleManager.createController()
 
 	private var language = ""

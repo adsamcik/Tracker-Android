@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.app.activity
 
 import android.content.Intent
-import android.content.Context
 import android.graphics.Color
 import android.graphics.Point
 import android.graphics.Rect
@@ -12,6 +11,44 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.VideogameAsset
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidViewBinding
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
@@ -20,26 +57,23 @@ import com.adsamcik.draggable.DragTargetAnchor
 import com.adsamcik.draggable.DraggableImageButton
 import com.adsamcik.draggable.DraggablePayload
 import com.adsamcik.draggable.Offset
+import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
+import com.adsamcik.tracker.app.ui.theme.AppTheme
 import com.adsamcik.tracker.module.Module
 import com.adsamcik.tracker.module.PayloadFragment
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.DisplayAssist
-import com.adsamcik.tracker.shared.base.extension.dp
+import com.adsamcik.tracker.shared.base.extension.dp as px
 import com.adsamcik.tracker.shared.base.extension.guidelineEnd
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.base.misc.NavBarPosition
-import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
-import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyle
 import com.adsamcik.tracker.shared.utils.style.SystemBarStyleView
 import com.adsamcik.tracker.tracker.ui.fragment.FragmentTracker
-import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
-import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
-import java.util.*
-
 
 /**
  * MainActivity containing the core of the App
@@ -61,45 +95,51 @@ class MainActivity : CoreUIActivity() {
 		setTheme(R.style.AppTheme_Translucent)
 		initializeSystemBars()
 		super.onCreate(savedInstanceState)
-		setContentView(R.layout.activity_ui)
 
-		initializeButtons()
-		initializeColorElements()
-		initializeButtonsPosition()
-
-		trackerFragment =
-			supportFragmentManager.findFragmentByTag(FragmentTracker::class.java.simpleName)
-		if (trackerFragment == null) {
-			trackerFragment = FragmentTracker()
-			supportFragmentManager.transaction {
-				replace(
-					R.id.tracker_placeholder,
-					requireNotNull(trackerFragment),
-					FragmentTracker::class.java.simpleName
-				)
+		if (BuildConfig.COMPOSE_MAIN) {
+			setContent {
+				ComposeMain()
 			}
-		}
+		} else {
+			setContentView(R.layout.activity_ui)
+			initializeButtons()
+			initializeColorElements()
+			initializeButtonsPosition()
 
-		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-			override fun handleOnBackPressed() {
-				when {
-					buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
-						DraggableImageButton.State.INITIAL, true
+			trackerFragment =
+				supportFragmentManager.findFragmentByTag(FragmentTracker::class.java.simpleName)
+			if (trackerFragment == null) {
+				trackerFragment = FragmentTracker()
+				supportFragmentManager.transaction {
+					replace(
+						R.id.tracker_placeholder,
+						requireNotNull(trackerFragment),
+						FragmentTracker::class.java.simpleName
 					)
-					buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
-						DraggableImageButton.State.INITIAL, true
-					)
-					buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
-						DraggableImageButton.State.INITIAL, true
-					)
-					else -> {
-						// If no custom behavior, allow the default behavior
-						isEnabled = false
-						onBackPressedDispatcher.onBackPressed()
-					}
 				}
 			}
-		})
+
+			onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+				override fun handleOnBackPressed() {
+					when {
+						buttonMap.state == DraggableImageButton.State.TARGET -> buttonMap.moveToState(
+							DraggableImageButton.State.INITIAL, true
+						)
+						buttonStats.state == DraggableImageButton.State.TARGET -> buttonStats.moveToState(
+							DraggableImageButton.State.INITIAL, true
+						)
+						buttonGame.state == DraggableImageButton.State.TARGET -> buttonGame.moveToState(
+							DraggableImageButton.State.INITIAL, true
+						)
+						else -> {
+							// If no custom behavior, allow the default behavior
+							isEnabled = false
+							onBackPressedDispatcher.onBackPressed()
+						}
+					}
+				}
+			})
+		}
 	}
 
 	override fun onStart() {
@@ -134,8 +174,8 @@ class MainActivity : CoreUIActivity() {
 			dragAxis = DragAxis.X
 			setTarget(root, DragTargetAnchor.RightTop)
 			setTargetOffsetDp(Offset(56))
-			targetTranslationZ = 8.dp.toFloat()
-			extendTouchAreaBy(56.dp, 0, 40.dp, 0)
+			targetTranslationZ = 8.px.toFloat()
+			extendTouchAreaBy(56.px, 0, 40.px, 0)
 			onEnterStateListener = { _, state, _, _ ->
 				if (state == DraggableImageButton.State.TARGET) hideBottomLayer()
 			}
@@ -148,7 +188,7 @@ class MainActivity : CoreUIActivity() {
 				height = MATCH_PARENT
 				initialTranslation = Point(-size.x, 0)
 				backgroundColor = Color.WHITE
-				targetTranslationZ = 7.dp.toFloat()
+				targetTranslationZ = 7.px.toFloat()
 				destroyPayloadAfter = 15 * Time.SECOND_IN_MILLISECONDS
 			}.let { payload ->
 				addPayload(payload)
@@ -160,7 +200,7 @@ class MainActivity : CoreUIActivity() {
 	private fun initializeMapButton(realSize: Point) {
 		buttonMap.apply {
 			visibility = View.VISIBLE
-			extendTouchAreaBy(32.dp)
+			extendTouchAreaBy(32.px)
 			onEnterStateListener = { _, state, _, _ ->
 				if (state == DraggableImageButton.State.TARGET) {
 					hideBottomLayer()
@@ -186,7 +226,7 @@ class MainActivity : CoreUIActivity() {
 				height = MATCH_PARENT
 				initialTranslation = Point(0, realSize.y)
 				backgroundColor = Color.WHITE
-				setTranslationZ(16.dp.toFloat())
+				setTranslationZ(16.px.toFloat())
 				destroyPayloadAfter = 30 * Time.SECOND_IN_MILLISECONDS
 			}.let { payload ->
 				addPayload(payload)
@@ -201,8 +241,8 @@ class MainActivity : CoreUIActivity() {
 			dragAxis = DragAxis.X
 			setTarget(root, DragTargetAnchor.LeftTop)
 			setTargetOffsetDp(Offset(-56))
-			targetTranslationZ = 8.dp.toFloat()
-			extendTouchAreaBy(0, 0, 56.dp, 0)
+			targetTranslationZ = 8.px.toFloat()
+			extendTouchAreaBy(0, 0, 56.px, 0)
 			onEnterStateListener = { _, state, _, _ ->
 				if (state == DraggableImageButton.State.TARGET) {
 					hideBottomLayer()
@@ -219,7 +259,7 @@ class MainActivity : CoreUIActivity() {
 				height = MATCH_PARENT
 				initialTranslation = Point(size.x, 0)
 				backgroundColor = Color.WHITE
-				targetTranslationZ = 7.dp.toFloat()
+				targetTranslationZ = 7.px.toFloat()
 				destroyPayloadAfter = 15 * Time.SECOND_IN_MILLISECONDS
 			}.let { payload ->
 				addPayload(payload)
@@ -231,26 +271,10 @@ class MainActivity : CoreUIActivity() {
 		val realSize = DisplayAssist.getRealArea(this).toPoint()
 		val size = DisplayAssist.getUsableArea(this).toPoint()
 
-		val splitInstallManager = SplitInstallManagerFactory.create(this)
-		val installedModules = splitInstallManager.installedModules
-
-		if (installedModules.contains(Module.STATISTICS.moduleName)) {
-			initializeStatsButton(size)
-		} else {
-			buttonStats.visibility = View.GONE
-		}
-
-		if (installedModules.contains(Module.GAME.moduleName)) {
-			initializeGameButton(size)
-		} else {
-			buttonGame.visibility = View.GONE
-		}
-
-		if (installedModules.contains(Module.MAP.moduleName)) {
-			initializeMapButton(realSize)
-		} else {
-			buttonMap.visibility = View.GONE
-		}
+		// All modules are now static; initialize buttons unconditionally
+		initializeStatsButton(size)
+		initializeGameButton(size)
+		initializeMapButton(realSize)
 
 		initializeExclusionZones()
 
@@ -387,6 +411,91 @@ class MainActivity : CoreUIActivity() {
 			true
 		} else {
 			super.dispatchTouchEvent(event)
+		}
+	}
+
+	// Compose shell hosting existing fragments (v1)
+	@Composable
+	private fun ComposeMain() {
+		AppTheme {
+			Surface(color = MaterialTheme.colorScheme.background) {
+				var selected by remember { mutableStateOf("map") }
+
+				Box(Modifier.fillMaxSize()) {
+					// Tracker background (existing fragment)
+					AndroidViewBinding(com.adsamcik.tracker.databinding.ActivityUiBinding::inflate)
+
+					// Bottom navigation with center prominence and parity-leaning animations
+					Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
+						// Slightly raise the bar when Map is active
+						val barElevation by animateDpAsState(
+							if (selected == "map") 10.dp else 4.dp,
+							animationSpec = spring(stiffness = Spring.StiffnessLow), label = "bar-elev"
+						)
+						Surface(tonalElevation = barElevation) {
+							Row(
+								Modifier
+									.fillMaxWidth()
+									.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
+									.navigationBarsPadding()
+									.padding(horizontal = 16.dp, vertical = 12.dp),
+								horizontalArrangement = Arrangement.SpaceBetween,
+								verticalAlignment = Alignment.CenterVertically
+							) {
+								// Left: Stats
+								val statsScale by animateFloatAsState(
+									if (selected == "stats") 1.1f else 0.95f,
+									animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "stats-scale"
+								)
+								val statsAlpha by animateFloatAsState(
+									if (selected == "map") 0.9f else 1f,
+									animationSpec = spring(stiffness = Spring.StiffnessLow), label = "stats-alpha"
+								)
+								IconButton(onClick = { selected = "stats" }, modifier = Modifier.scale(statsScale).alpha(statsAlpha)) {
+									Icon(Icons.Filled.BarChart, contentDescription = "Stats")
+								}
+
+								// Center: Map (prominent)
+								val mapScale by animateFloatAsState(
+									if (selected == "map") 1.25f else 1.0f,
+									animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.6f), label = "map-scale"
+								)
+								val mapLift by animateDpAsState(
+									if (selected == "map") 6.dp else 0.dp,
+									animationSpec = spring(stiffness = Spring.StiffnessLow), label = "map-lift"
+								)
+								Box(
+									Modifier
+										.size(72.dp)
+										.padding(bottom = mapLift)
+										.shadow(elevation = if (selected == "map") 8.dp else 0.dp, shape = MaterialTheme.shapes.large),
+									contentAlignment = Alignment.Center
+								) {
+									IconButton(
+										onClick = { selected = "map" },
+										modifier = Modifier.size(64.dp).scale(mapScale)
+									) {
+										Icon(Icons.Filled.Map, contentDescription = "Map")
+									}
+								}
+
+								// Right: Game
+								val gameScale by animateFloatAsState(
+									if (selected == "game") 1.1f else 0.95f,
+									animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "game-scale"
+								)
+								val gameAlpha by animateFloatAsState(
+									if (selected == "map") 0.9f else 1f,
+									animationSpec = spring(stiffness = Spring.StiffnessLow), label = "game-alpha"
+								)
+								IconButton(onClick = { selected = "game" }, modifier = Modifier.scale(gameScale).alpha(gameAlpha)) {
+									Icon(Icons.Filled.VideogameAsset, contentDescription = "Game")
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }

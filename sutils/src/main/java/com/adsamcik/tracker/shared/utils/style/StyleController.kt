@@ -27,6 +27,7 @@ typealias OnStyleChangeListener = (styleData: StyleData) -> Unit
 //todo add support for local custom Views
 //todo refactor so the class is smaller
 @Suppress("Unused", "WeakerAccess", "TooManyFunctions")
+@Deprecated("Obsolete: will be removed in the next release. Prefer Material3/AppTheme and WindowInsetsController.")
 class StyleController : CoroutineScope {
 	private val job = SupervisorJob()
 

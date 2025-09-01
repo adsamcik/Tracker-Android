@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.shared.utils.style.update.implementation
 
-import com.adsamcik.tracker.logger.assertEqual
-import com.adsamcik.tracker.logger.assertMore
-import com.adsamcik.tracker.logger.assertTrue
+import com.adsamcik.tracker.shared.base.logging.Asserts
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.isAfterOrEqual
@@ -47,7 +45,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 			styleList: List<Int>,
 			sunSetRise: SunSetRise
 	): UpdateData {
-		assertEqual(styleList.size, defaultColors.list.size)
+		Asserts.assertEqual(styleList.size, defaultColors.list.size)
 
 		val localDate = time.toLocalDate()
 		val sunData = sunSetRise.sunDataFor(time)
@@ -72,7 +70,7 @@ internal class MorningDayEveningNightTransitionUpdate : DayTimeStyleUpdate() {
 
 		val localUpdateData = calculateProgress(time, sunData, sunSetRise)
 
-		assertMore(localUpdateData.duration, 0) {
+		Asserts.assertMore(localUpdateData.duration, 0L) {
 			"Duration was negative with sunrise of $sunrise, sunset of $sunset and current time $time"
 		}
 

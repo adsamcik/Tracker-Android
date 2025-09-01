@@ -55,13 +55,13 @@ class TrackerNotificationManager(
 		)
 		if (isUserInitiatedSession) {
 			addAction(
-				R.drawable.ic_pause_circle_filled_black_24dp,
+				com.adsamcik.tracker.shared.base.R.drawable.ic_pause_circle_filled_black_24dp,
 				resources.getString(R.string.notification_stop),
 				stop
 			)
 		} else {
 			addAction(
-				R.drawable.ic_battery_alert_black,
+				com.adsamcik.tracker.shared.base.R.drawable.ic_battery_alert_black,
 				resources.getString(R.string.notification_stop_til_recharge),
 				stop
 			)
@@ -82,7 +82,7 @@ class TrackerNotificationManager(
 				PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
 			)
 			addAction(
-				R.drawable.ic_stop_black_24dp,
+				com.adsamcik.tracker.shared.base.R.drawable.ic_stop_black_24dp,
 				resources.getString(
 					R.string.notification_stop_for_minutes,
 					NotificationComponent.stopForMinutes
@@ -102,8 +102,8 @@ class TrackerNotificationManager(
 
 		private fun getNotificationStylePreference(context: Context): Boolean =
 			Preferences.getPref(context).getBooleanRes(
-				R.string.settings_notification_styled_key,
-				R.string.settings_notification_styled_default
+				com.adsamcik.tracker.shared.preferences.R.string.settings_notification_styled_key,
+				com.adsamcik.tracker.shared.preferences.R.string.settings_notification_styled_default
 			)
 
 		private fun createBuilder(context: Context, useStyle: Boolean): NotificationCompat.Builder {
@@ -115,7 +115,7 @@ class TrackerNotificationManager(
 				resources.getString(com.adsamcik.tracker.shared.base.R.string.channel_track_id)
 			)
 				.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-				.setSmallIcon(R.drawable.ic_signals) // the done icon
+				.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals) // the done icon
 				.setTicker(resources.getString(R.string.notification_tracker_active_ticker)) // the done text
 				.setWhen(Time.nowMillis) // the time stamp
 				.setOngoing(true)

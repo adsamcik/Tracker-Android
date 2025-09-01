@@ -9,7 +9,7 @@ import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.tracker.R
 
 class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
-	override val iconRes: Int = R.drawable.ic_outline_location_on_24px
+	override val iconRes: Int = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px
 
 	override fun bindContent(holder: InfoFieldHolder) {
 		val context = holder.context
@@ -61,6 +61,6 @@ class LocationTrackerInfo(var location: Location) : TrackerInfo(NAME_RESOURCE) {
 	}
 
 	companion object {
-		val NAME_RESOURCE: Int = R.string.location
+	val NAME_RESOURCE: Int = com.adsamcik.tracker.shared.base.R.string.location
 	}
 }

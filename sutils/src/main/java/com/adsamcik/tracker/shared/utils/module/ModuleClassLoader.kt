@@ -1,8 +1,7 @@
 package com.adsamcik.tracker.shared.utils.module
 
 import android.content.Context
-import com.adsamcik.tracker.logger.Reporter
-import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import java.util.*
 
 /**
@@ -34,11 +33,11 @@ object ModuleClassLoader {
 			} catch (e: ClassNotFoundException) {
 				//it's fine, do nothing
 			} catch (e: InstantiationException) {
-				Reporter.report(e)
+				ReporterFacade.report(e)
 			} catch (e: IllegalAccessException) {
-				Reporter.report(e)
+				ReporterFacade.report(e)
 			} catch (e: ClassCastException) {
-				Reporter.report(e)
+				ReporterFacade.report(e)
 			}
 		}
 	}
@@ -86,20 +85,20 @@ object ModuleClassLoader {
 	 * Returns list of all modules (static and dynamic) that are enabled in the app.
 	 */
 	fun getEnabledModuleNames(context: Context): List<String> {
-		return getInstalledDynamicModuleNames(context) + getStaticModuleNames()
+		// Dynamic features are no longer used; return static modules only.
+		return getStaticModuleNames()
 	}
 
 	/**
-	 * Returns list of installed dynamic modules.
+	 * Returns list of installed dynamic modules. No-op with static modules.
 	 */
-	fun getInstalledDynamicModuleNames(context: Context): List<String> {
-		return SplitInstallManagerFactory.create(context).installedModules.toList()
-	}
+	fun getInstalledDynamicModuleNames(context: Context): List<String> = emptyList()
 
 	/**
 	 * Returns list of select static modules.
 	 */
 	fun getStaticModuleNames(): List<String> {
-		return listOf("activity", "tracker")
+		// Include modules that provide ModuleInitializer implementations; others are safe to list.
+		return listOf("activity", "tracker", "points", "game")
 	}
 }

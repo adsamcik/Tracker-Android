@@ -114,8 +114,8 @@ object BackgroundTrackingApi {
 
 		val preference = Preferences.getPref(context)
 			.getIntResString(
-				R.string.settings_tracking_activity_key,
-				R.string.settings_tracking_activity_default
+				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
 			)
 		val prefActivity = GroupedActivity.values()[preference]
 		return prefActivity != GroupedActivity.STILL &&
@@ -143,8 +143,8 @@ object BackgroundTrackingApi {
 
 	private fun getBackgroundTrackingActivityRequirement(context: Context) =
 		Preferences.getPref(context).getIntResString(
-			R.string.settings_tracking_activity_key,
-			R.string.settings_tracking_activity_default
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
 		)
 
 	private fun buildTransitions(context: Context): List<ActivityTransitionData> {
@@ -195,8 +195,8 @@ object BackgroundTrackingApi {
 	private fun getActivityRequest(context: Context): ActivityChangeRequestData {
 		val interval = Preferences.getPref(context)
 			.getIntResString(
-				R.string.settings_activity_freq_key,
-				R.string.settings_activity_freq_default
+				com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
+				com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
 			)
 		return ActivityChangeRequestData(interval, callback)
 	}
@@ -220,8 +220,8 @@ object BackgroundTrackingApi {
 
 		val useTransitionApi = Preferences.getPref(context)
 			.getBooleanRes(
-				R.string.settings_auto_tracking_transition_key,
-				R.string.settings_auto_tracking_transition_default
+				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
+				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default
 			)
 		reinitializeRequest(context, useTransitionApi)
 	}
@@ -246,15 +246,15 @@ object BackgroundTrackingApi {
 
 		PreferenceObserver.observe(
 			context,
-			R.string.settings_tracking_activity_key,
-			R.string.settings_tracking_activity_default,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default,
 			observer
 		)
 
 		PreferenceObserver.observe(
 			context,
-			R.string.settings_auto_tracking_transition_key,
-			R.string.settings_auto_tracking_transition_default,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default,
 			transitionObserver
 		)
 	}

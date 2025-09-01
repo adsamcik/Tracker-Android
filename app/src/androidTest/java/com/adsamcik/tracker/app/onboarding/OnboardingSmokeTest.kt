@@ -7,7 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
-import com.adsamcik.tracker.app.activity.MainActivity
+import com.adsamcik.tracker.app.activity.MainActivityCompose
 import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -36,7 +36,7 @@ private fun clearOnboardingPrefs() {
 @RunWith(AndroidJUnit4::class)
 class FreshLaunchShowsOnboardingTest {
     @get:Rule
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val composeRule = createAndroidComposeRule<MainActivityCompose>()
 
     @Before
     fun setUp() {

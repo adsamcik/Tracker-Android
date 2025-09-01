@@ -14,7 +14,7 @@
         android:layout_height="match_parent"
         android:clipChildren="false"
         tools:background="#166f72"
-        tools:context="com.adsamcik.tracker.app.activity.MainActivity">
+    tools:context="com.adsamcik.tracker.app.activity.MainActivityCompose">
 
         <FrameLayout
             android:id="@+id/tracker_placeholder"

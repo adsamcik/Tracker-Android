@@ -23,6 +23,9 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.notification.NotificationManagementActivity
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
+import com.adsamcik.tracker.shared.preferences.R as PrefR
+import com.adsamcik.tracker.activity.R as ActivityR
+import com.adsamcik.tracker.tracker.R as TrackerR
 
 /**
  * Tracker preference page.
@@ -38,23 +41,23 @@ class TrackerPreferencePage : PreferencePage {
 
 	private fun initializeEnableTrackingPreferences(caller: PreferenceFragmentCompat) {
 		val locationPreference =
-			caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_location_enabled_key)
+			caller.findPreferenceTyped<CheckBoxPreference>(PrefR.string.settings_location_enabled_key)
 		val wifiPreference =
-			caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_wifi_enabled_key)
+			caller.findPreferenceTyped<CheckBoxPreference>(PrefR.string.settings_wifi_enabled_key)
 		val cellPreference =
-			caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_cell_enabled_key)
+			caller.findPreferenceTyped<CheckBoxPreference>(PrefR.string.settings_cell_enabled_key)
 		val activityPreference =
-			caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_activity_enabled_key)
+			caller.findPreferenceTyped<CheckBoxPreference>(PrefR.string.settings_activity_enabled_key)
 		val stepCountPreference =
-			caller.findPreferenceTyped<CheckBoxPreference>(R.string.settings_steps_enabled_key)
+			caller.findPreferenceTyped<CheckBoxPreference>(PrefR.string.settings_steps_enabled_key)
 
 		val locationWarning = caller.findPreference(R.string.settings_location_warning_key)
 
 		val trackerPreference =
-			caller.findPreferenceTyped<DialogListPreference>(R.string.settings_tracker_timer_key)
+			caller.findPreferenceTyped<DialogListPreference>(PrefR.string.settings_tracker_timer_key)
 
 		val autoTracking =
-			caller.findPreferenceTyped<IndicesDialogListPreference>(R.string.settings_tracking_activity_key)
+			caller.findPreferenceTyped<IndicesDialogListPreference>(PrefR.string.settings_tracking_activity_key)
 
 		val context = caller.requireContext()
 		val packageManager = context.packageManager
@@ -123,7 +126,7 @@ class TrackerPreferencePage : PreferencePage {
 		fun onValidated(isValid: Boolean): Boolean {
 			if (!isValid) {
 				snackMaker.addMessage(
-					R.string.error_nothing_to_track,
+					TrackerR.string.error_nothing_to_track,
 					priority = SnackMaker.SnackbarPriority.IMPORTANT
 				)
 			}
@@ -153,7 +156,7 @@ class TrackerPreferencePage : PreferencePage {
 	}
 
 	private fun initializeTrackingTickerPreference(caller: PreferenceFragmentCompat) {
-		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_tracker_timer_key)
+		caller.findPreferenceTyped<DialogListPreference>(PrefR.string.settings_tracker_timer_key)
 			.apply {
 				val values = TrackerTimerManager.availableTimerData
 				val resources = context.resources
@@ -171,7 +174,7 @@ class TrackerPreferencePage : PreferencePage {
 	}
 
 	private fun initializeAutoTrackingPreferences(caller: PreferenceFragmentCompat) {
-		caller.findPreference(R.string.settings_tracking_activity_key)
+		caller.findPreference(PrefR.string.settings_tracking_activity_key)
 			.onPreferenceChangeListener =
 			Preference.OnPreferenceChangeListener { preference, newValue ->
 				ActivityWatcherService.onAutoTrackingPreferenceChange(
@@ -184,7 +187,7 @@ class TrackerPreferencePage : PreferencePage {
 						if (!it.isSuccess) {
 							Preferences
 								.getPref(context)
-								.edit { setInt(R.string.settings_tracking_activity_key, 0) }
+								.edit { setInt(PrefR.string.settings_tracking_activity_key, 0) }
 						} else {
 							ActivityWatcherService.poke(context)
 						}
@@ -193,7 +196,7 @@ class TrackerPreferencePage : PreferencePage {
 				return@OnPreferenceChangeListener true
 			}
 
-		caller.findPreference(R.string.settings_activity_watcher_key)
+		caller.findPreference(ActivityR.string.settings_activity_watcher_key)
 			.onPreferenceChangeListener =
 			Preference.OnPreferenceChangeListener { preference, newValue ->
 				ActivityWatcherService.onWatcherPreferenceChange(
@@ -203,7 +206,7 @@ class TrackerPreferencePage : PreferencePage {
 				return@OnPreferenceChangeListener true
 			}
 
-		caller.findPreference(R.string.settings_activity_freq_key)
+		caller.findPreference(ActivityR.string.settings_activity_freq_key)
 			.onPreferenceChangeListener =
 			Preference.OnPreferenceChangeListener { preference, newValue ->
 				ActivityWatcherService.onActivityIntervalPreferenceChange(
@@ -213,7 +216,7 @@ class TrackerPreferencePage : PreferencePage {
 				return@OnPreferenceChangeListener true
 			}
 
-		caller.findPreference(R.string.settings_disabled_recharge_key)
+		caller.findPreference(TrackerR.string.settings_disabled_recharge_key)
 			.onPreferenceChangeListener =
 			Preference.OnPreferenceChangeListener { preference, newValue ->
 				if (newValue as Boolean) {
@@ -227,7 +230,7 @@ class TrackerPreferencePage : PreferencePage {
 	}
 
 	private fun initializeNotificationPreference(caller: PreferenceFragmentCompat) {
-		caller.findPreference(R.string.settings_notification_customize_key)
+		caller.findPreference(TrackerR.string.settings_notification_customize_key)
 			.setOnPreferenceClickListener {
 				it.context.startActivity<NotificationManagementActivity> { }
 				false

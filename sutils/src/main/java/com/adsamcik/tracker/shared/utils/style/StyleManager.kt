@@ -29,6 +29,7 @@ import kotlin.concurrent.withLock
 //  for example someone could choose between x colors and the system would divide the day by them
 //  and updates as needed while reusing existing transition functions
 @AnyThread
+@Deprecated("Obsolete: will be removed in the next release. Prefer Compose theming and system bars via WindowInsetsController.")
 object StyleManager {
 	//Lock order colorList, colorManagerLock, timer
 

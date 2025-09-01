@@ -62,8 +62,8 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 	override suspend fun onEnable(context: Context) {
 		val isEnabled = Preferences.getPref(context)
 				.getBooleanRes(
-						R.string.settings_wifi_network_enabled_key,
-						R.string.settings_wifi_network_enabled_default
+						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_network_enabled_key,
+						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_network_enabled_default
 				)
 
 		this.isEnabled = isEnabled

@@ -62,8 +62,11 @@ class ImportWorker(
     }
 
     private fun createNotification(text: String, inProgress: Boolean): Notification =
-        NotificationCompat.Builder(context, context.getString(R.string.channel_other_id))
-            .setSmallIcon(R.drawable.ic_signals)
+        NotificationCompat.Builder(
+            context,
+            context.getString(com.adsamcik.tracker.shared.base.R.string.channel_other_id)
+        )
+            .setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
             .setOngoing(inProgress)
             .setContentTitle(text)
             .build()

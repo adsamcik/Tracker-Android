@@ -74,7 +74,7 @@ class ActivityWatcherService : CoreService() {
 
 		val builder = NotificationCompat.Builder(
 			this,
-			getString(R.string.channel_activity_watcher_id)
+			getString(com.adsamcik.tracker.shared.base.R.string.channel_activity_watcher_id)
 		)
 			.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 			.setTicker(
@@ -112,20 +112,22 @@ class ActivityWatcherService : CoreService() {
 		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(
 			context
 		).getBooleanRes(
-			R.string.settings_activity_watcher_key, R.string.settings_activity_watcher_default
+			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_key,
+			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		)
 
 		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(
 			context
 		).getIntResString(
-			R.string.settings_tracking_activity_key,
-			R.string.settings_tracking_activity_default
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
 		)
 
 		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(
 			context
 		).getIntResString(
-			R.string.settings_activity_freq_key, R.string.settings_activity_freq_default
+			com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
+			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
 		)
 
 		/**

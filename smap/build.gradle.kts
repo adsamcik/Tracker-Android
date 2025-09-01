@@ -64,8 +64,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
-	implementation(libs.google.play.feature.delivery)
-	implementation(libs.google.play.feature.delivery.ktx)
 	implementation(libs.google.play.services.maps)
 
 	// Tests

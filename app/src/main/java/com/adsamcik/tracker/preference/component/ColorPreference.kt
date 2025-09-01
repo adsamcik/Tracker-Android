@@ -9,7 +9,8 @@ import androidx.appcompat.widget.AppCompatImageView
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import com.adsamcik.tracker.R
+import com.adsamcik.tracker.R as AppR
+import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
@@ -53,7 +54,7 @@ class ColorPreference : Preference, CoroutineScope {
 	constructor(context: Context) : super(context)
 
 	init {
-		layoutResource = R.layout.layout_color_picker
+		layoutResource = AppR.layout.layout_color_picker
 	}
 
 	private var recyclerColorData: RecyclerColorData? = null
@@ -79,7 +80,7 @@ class ColorPreference : Preference, CoroutineScope {
 
 		Preferences.getPref(context).edit {
 			val key = context.getString(
-					R.string.settings_color_key,
+					PrefR.string.settings_color_key,
 					position
 			)
 			remove(key)
@@ -179,7 +180,7 @@ class ColorPreference : Preference, CoroutineScope {
 	private fun updatePreference(color: Int) {
 		Preferences.getPref(context).edit {
 			val key = context.getString(
-					R.string.settings_color_key,
+					PrefR.string.settings_color_key,
 					position
 			)
 			setInt(key, color)
@@ -191,11 +192,11 @@ class ColorPreference : Preference, CoroutineScope {
 
 		val colorData = requireNotNull(recyclerColorData)
 
-		(holder.findViewById(R.id.title) as AppCompatTextView).apply {
+		(holder.findViewById(AppR.id.title) as AppCompatTextView).apply {
 			setText(colorData.default.nameRes)
 		}
 
-		val colorView = (holder.findViewById(R.id.color) as AppCompatImageView)
+		val colorView = (holder.findViewById(AppR.id.color) as AppCompatImageView)
 
 		colorImageView = colorView
 

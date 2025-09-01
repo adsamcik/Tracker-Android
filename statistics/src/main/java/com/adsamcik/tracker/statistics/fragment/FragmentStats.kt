@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -172,7 +173,90 @@ private sealed class SummaryReq(val titleRes: Int) {
     data object Week : SummaryReq(R.string.stats_weekly_title)
 }
 
-private enum class RefreshUiState { Loading, Error, Empty, Content }
+internal enum class RefreshUiState { Loading, Error, Empty, Content }
+
+internal enum class AppendUiState { Loading, Error, NotLoading }
+
+@androidx.annotation.VisibleForTesting
+@Composable
+internal fun StatsScreenTestHost(
+    refreshState: RefreshUiState,
+    appendState: AppendUiState,
+    onRetry: () -> Unit,
+    onShowSummary: () -> Unit,
+    onShowWeek: () -> Unit,
+    onOpenWifi: () -> Unit,
+    includeSampleSessionRow: Boolean = false,
+    onOpenDetails: () -> Unit = {},
+) {
+    Crossfade(targetState = refreshState, animationSpec = tween(durationMillis = 200), label = "stats-refresh-test") { state ->
+        when (state) {
+            RefreshUiState.Loading -> LoadingContent()
+            RefreshUiState.Error -> ErrorContent(onRetry = onRetry)
+            RefreshUiState.Empty -> EmptyContent()
+            RefreshUiState.Content -> {
+                // Show just the header actions to keep test surface minimal
+                Column(modifier = Modifier.fillMaxSize()) {
+                    ListHeaderRow(onShowSummary, onShowWeek, onOpenWifi, header = SessionUiModel.ListHeader(Time.todayMillis))
+
+                    if (includeSampleSessionRow) {
+                        TestSessionItemRow(onClick = onOpenDetails)
+                    }
+
+                    when (appendState) {
+                        AppendUiState.Loading -> {
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(animationSpec = tween(200)),
+                                exit = fadeOut(animationSpec = tween(150))
+                            ) {
+                                Column {
+                                    repeat(3) { index ->
+                                        Box(Modifier.testTag("stats_placeholder_$index")) {
+                                            PlaceholderSessionRow()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        AppendUiState.Error -> FooterErrorRow(onRetry = onRetry)
+                        AppendUiState.NotLoading -> Unit
+                    }
+                }
+            }
+        }
+    }
+}
+
+@androidx.annotation.VisibleForTesting
+@Composable
+internal fun TestSessionItemRow(onClick: () -> Unit) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = StatsSpacing.h, vertical = StatsSpacing.cardV)
+            .testTag("stats_session_row"),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = StatsSpacing.h, vertical = 12.dp)
+                .semantics(mergeDescendants = true) { role = Role.Button }
+        ) {
+            Text(
+                text = stringResource(id = R.string.stats_sum_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Sample Session",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
 
 @Composable
 private fun SummaryStatsDialog(req: SummaryReq, onDismiss: () -> Unit) {
@@ -346,7 +430,8 @@ private fun FooterErrorRow(onRetry: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("stats_append_error"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -370,6 +455,7 @@ private fun PlaceholderSessionRow() {
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(12.dp)
             )
+            .testTag("stats_placeholder")
     )
                 // .animateItemPlacement()
 }

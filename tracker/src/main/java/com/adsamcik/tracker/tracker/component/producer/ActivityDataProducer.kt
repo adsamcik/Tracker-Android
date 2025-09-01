@@ -19,9 +19,9 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 				changeReceiver
 		) {
 	override val keyRes: Int
-		get() = R.string.settings_activity_enabled_key
+		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_activity_enabled_key
 	override val defaultRes: Int
-		get() = R.string.settings_activity_enabled_default
+		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_activity_enabled_default
 
 	private var lastActivity: ActivityInfo = ActivityInfo.UNKNOWN
 
@@ -53,10 +53,10 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
 		val preferences = Preferences.getPref(context)
-		val minUpdateDelayInSeconds = preferences.getIntRes(
-				R.string.settings_tracking_min_time_key,
-				R.integer.settings_tracking_min_time_default
-		)
+	val minUpdateDelayInSeconds = preferences.getIntRes(
+		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
+		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
+	)
 		ActivityRequestManager.requestActivity(
 				context,
 				ActivityRequestData(

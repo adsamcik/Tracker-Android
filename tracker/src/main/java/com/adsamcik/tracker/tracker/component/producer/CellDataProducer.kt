@@ -33,8 +33,8 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		TrackerDataProducerComponent(
 				changeReceiver
 		) {
-	override val keyRes: Int = R.string.settings_cell_enabled_key
-	override val defaultRes: Int = R.string.settings_cell_enabled_default
+	override val keyRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_cell_enabled_key
+	override val defaultRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_cell_enabled_default
 
 	private var telephonyManager: TelephonyManager? = null
 	private var subscriptionManager: SubscriptionManager? = null

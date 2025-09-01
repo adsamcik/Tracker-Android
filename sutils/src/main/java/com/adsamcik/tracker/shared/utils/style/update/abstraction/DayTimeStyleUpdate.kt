@@ -3,7 +3,7 @@ package com.adsamcik.tracker.shared.utils.style.update.abstraction
 import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.misc.BlendFunctions
 import com.adsamcik.tracker.shared.utils.style.SunSetRise
@@ -117,7 +117,7 @@ internal abstract class DayTimeStyleUpdate : StyleUpdate() {
 				)
 
 				if (data.duration < 0) {
-					Reporter.report("Duration was negative while using ${this::class.java.simpleName}")
+					ReporterFacade.report("Duration was negative while using ${this::class.java.simpleName}")
 					return@withLock
 				}
 

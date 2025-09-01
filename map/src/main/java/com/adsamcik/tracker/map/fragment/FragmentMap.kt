@@ -206,7 +206,7 @@ class FragmentMap : CorePermissionFragment(), IOnDemandView {
 			}
 		}
 
-		if (mapUiParent is androidx.compose.ui.platform.ComposeView) {
+	if (mapUiParent is androidx.compose.ui.platform.ComposeView) {
 			// Phase 1/2/3: Compose UI layer over legacy map. Bottom sheet + optional MapScreen overlay.
 			// Legacy user overlays removed; Compose renders user position
 			mapUiParent.setContent {

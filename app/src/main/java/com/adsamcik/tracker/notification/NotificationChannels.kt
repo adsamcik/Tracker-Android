@@ -7,7 +7,7 @@ import android.graphics.Color
 import androidx.annotation.RequiresApi
 import androidx.annotation.StringRes
 
-import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.R
 
 @RequiresApi(26)
 /**

@@ -20,91 +20,21 @@ import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.style.RecyclerStyleView
 import com.adsamcik.tracker.shared.utils.style.StyleView
 import com.adsamcik.tracker.shared.utils.style.marker.IViewChange
-import com.google.android.play.core.splitinstall.SplitInstallManager
-import com.google.android.play.core.splitinstall.SplitInstallManagerFactory
-import com.google.android.play.core.splitinstall.SplitInstallRequest
-import com.google.android.play.core.splitinstall.SplitInstallSessionState
-import com.google.android.play.core.splitinstall.SplitInstallStateUpdatedListener
-import com.google.android.play.core.splitinstall.model.SplitInstallSessionStatus
+// Dynamic feature delivery removed; modules are static
 
 /**
  * Module activity for managing modules.
  */
 class ModuleActivity : DetailActivity() {
-	private lateinit var manager: SplitInstallManager
-
 	private lateinit var adapter: ModuleAdapter
 
-	private val listener = SplitInstallStateUpdatedListener { state ->
-		val hasLanguages = state.languages().isNotEmpty()
-
-		when (state.status()) {
-			SplitInstallSessionStatus.DOWNLOADING -> {
-				//  In order to see this, the application has to be uploaded to the Play Store.
-				displayLoadingState(
-						state, getString(
-						R.string.module_download_progress,
-						Assist.humanReadableByteCount(state.bytesDownloaded(), true),
-						Assist.humanReadableByteCount(state.totalBytesToDownload(), true)
-				)
-				)
-			}
-			SplitInstallSessionStatus.REQUIRES_USER_CONFIRMATION -> {
-				/*
-				  This may occur when attempting to download a sufficiently large module.
-				  In order to see this, the application has to be uploaded to the Play Store.
-				  Then features can be requested until the confirmation path is triggered.
-				 */
-				manager.startConfirmationDialogForResult(state, this, CONFIRMATION_REQUEST_CODE)
-			}
-			SplitInstallSessionStatus.INSTALLED -> {
-				if (hasLanguages) {
-					//onSuccessfulLanguageLoad(names)
-				} else {
-					onLoadSuccess()
-				}
-
-				finish()
-			}
-
-			SplitInstallSessionStatus.INSTALLING -> displayLoadingState(
-					state,
-					getString(R.string.module_installing, state.moduleNames().joinToString())
-			)
-			SplitInstallSessionStatus.FAILED -> {
-				toast(getString(R.string.module_error, state.moduleNames(), state.errorCode()))
-			}
-			else -> Unit
-		}
-	}
-
-	private fun displayLoadingState(state: SplitInstallSessionState, message: String) {
-		findViewById<View>(R.id.progress_layout).visibility = View.VISIBLE
-
-		findViewById<ContentLoadingProgressBar>(R.id.progress).apply {
-			max = state.totalBytesToDownload().toInt()
-			progress = state.bytesDownloaded().toInt()
-		}
-
-		findViewById<TextView>(R.id.progress_title).text = message
-	}
-
-	private fun onLoadSuccess() {
-		toast(getString(R.string.module_success))
-		finish()
-	}
-
-	private fun toast(text: String) {
-		Toast.makeText(this, text, Toast.LENGTH_LONG).show()
-	}
+	private fun toast(text: String) { Toast.makeText(this, text, Toast.LENGTH_LONG).show() }
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val rootContentView = inflateContent<ViewGroup>(R.layout.activity_module)
 
 		setTitle(R.string.settings_module_group_title)
-
-		manager = SplitInstallManagerFactory.create(this)
 
 		val adapter = ModuleAdapter()
 
@@ -113,7 +43,7 @@ class ModuleActivity : DetailActivity() {
 		styleController.watchView(StyleView(rootContentView, 0))
 		styleController.watchRecyclerView(RecyclerStyleView(recycler, 0))
 
-		val moduleInfoList = Module.getActiveModuleInfo(manager)
+	val moduleInfoList = Module.getActiveModuleInfo(this)
 
 		adapter.addModules(moduleInfoList)
 
@@ -137,36 +67,14 @@ class ModuleActivity : DetailActivity() {
 
 		findViewById<View>(R.id.button_cancel).setOnClickListener { finish() }
 
-		findViewById<View>(R.id.button_ok).setOnClickListener { updateModules() }
+		findViewById<View>(R.id.button_ok).setOnClickListener { finish() }
 	}
 
-	private fun updateModules() {
-		val toInstall = adapter.modulesToInstall
-		val toRemove = adapter.modulesToUninstall
-
-		if (toInstall.isNotEmpty()) {
-			val request = SplitInstallRequest.newBuilder()
-			toInstall.forEach { request.addModule(it.module.moduleName) }
-			manager.startInstall(request.build())
-		}
-
-		if (toRemove.isNotEmpty()) {
-			manager.deferredUninstall(toRemove.map { it.module.moduleName })
-		}
-
-		if (toInstall.isEmpty()) finish()
-	}
+	private fun updateModules() { /* no-op in static build */ }
 
 
-	override fun onResume() {
-		super.onResume()
-		manager.registerListener(listener)
-	}
-
-	override fun onPause() {
-		super.onPause()
-		manager.unregisterListener(listener)
-	}
+	override fun onResume() { super.onResume() }
+	override fun onPause() { super.onPause() }
 
 	class ModuleAdapter : RecyclerView.Adapter<ModuleAdapter.ViewHolder>(),
 			IViewChange {
@@ -174,13 +82,8 @@ class ModuleActivity : DetailActivity() {
 
 		private val modules = mutableListOf<ModuleInfo>()
 
-		val modulesToInstall: List<ModuleInfo> get() = modules.filter { it.shouldBeInstalled.and(!it.isInstalled) }
-		val modulesToUninstall: List<ModuleInfo>
-			get() = modules.filter {
-				(!it.shouldBeInstalled).and(
-						it.isInstalled
-				)
-			}
+	val modulesToInstall: List<ModuleInfo> get() = emptyList()
+	val modulesToUninstall: List<ModuleInfo> get() = emptyList()
 
 		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
 			val view = LayoutInflater.from(parent.context)
@@ -213,8 +116,6 @@ class ModuleActivity : DetailActivity() {
 		) : RecyclerView.ViewHolder(view)
 	}
 
-	companion object {
-		private const val CONFIRMATION_REQUEST_CODE = 1
-	}
+	companion object
 }
 

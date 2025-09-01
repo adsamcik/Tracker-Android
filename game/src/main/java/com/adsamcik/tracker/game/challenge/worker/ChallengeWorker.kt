@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.work.Worker
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
@@ -57,12 +57,12 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 			logGame(LogData(message = title, source = CHALLENGE_LOG_SOURCE))
 			notificationManager.notify(
 					NOTIFICATION_ID,
-					NotificationCompat.Builder(
-							applicationContext,
-							resources.getString(R.string.channel_challenges_id)
-					)
-							.setContentTitle(title)
-							.setSmallIcon(R.drawable.ic_signals)
+		    NotificationCompat.Builder(
+			    applicationContext,
+			    resources.getString(R.string.channel_challenges_id)
+		    )
+			    .setContentTitle(title)
+			    .setSmallIcon(com.adsamcik.tracker.game.R.drawable.ic_challenge_icon)
 							.build()
 			)
 		}

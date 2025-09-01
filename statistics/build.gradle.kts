@@ -1,5 +1,5 @@
 plugins {
-	alias(libs.plugins.android.dynamic.feature)
+	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
@@ -54,7 +54,7 @@ android {
 
 dependencies {
 	implementation(project(":smap"))
-	implementation(project(":app"))
+	// Removed :app dependency as part of converting to a library module
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
@@ -78,8 +78,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
-	implementation(libs.google.play.feature.delivery)
-	implementation(libs.google.play.feature.delivery.ktx)
 	implementation(libs.google.play.services.location)
 	implementation(libs.google.play.services.maps)
 	implementation(libs.components.draggable)
@@ -120,6 +118,10 @@ dependencies {
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
+	androidTestImplementation(libs.espresso.intents)
+	androidTestImplementation(platform(libs.compose.bom))
+	androidTestImplementation(libs.compose.ui.test.junit4)
+	debugImplementation(libs.compose.ui.test.manifest)
 
 	implementation(libs.mpandroidchart)
 	implementation(libs.simplify)

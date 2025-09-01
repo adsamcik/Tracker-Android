@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
-import com.adsamcik.tracker.app.activity.MainActivity
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.logger.Reporter
@@ -135,20 +134,23 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 		val encouragement = context.getStringArray(R.array.goals_encouragement).random()
 		val periodString = context.getString(period.stringResource)
 
+		// Build an intent to open the app without a compile-time dependency on :app
+		// Use the default launch intent and pass the extra recognized by MainActivity
+		val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+			putExtra("openGame", true)
+			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+		}
 		val pendingIntent = PendingIntent.getActivity(
-				context,
-				0,
-				Intent(context, MainActivity::class.java).apply {
-					putExtra("openGame", true)
-					flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-				},
-				PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_IMMUTABLE)
+			context,
+			0,
+			launchIntent,
+			PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 		)
 
-		return NotificationCompat.Builder(
-				context,
-				context.getString(com.adsamcik.tracker.R.string.channel_goals_id)
-		)
+	return NotificationCompat.Builder(
+		context,
+		context.getString(com.adsamcik.tracker.shared.base.R.string.channel_goals_id)
+	)
 				.setContentTitle(
 						context.getString(
 								R.string.goals_reached_notification,

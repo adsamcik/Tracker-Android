@@ -66,7 +66,7 @@ internal object WifiPermissionHintNotifier {
     // Reuse existing notification manager flow to post a single, low-priority notification
     val manager = TrackerNotificationManager(context, isUserInitiatedSession = true)
     manager.notify(NotificationCompat.Builder(context, channelId).also {
-            it.setSmallIcon(R.drawable.ic_signals)
+            it.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
             it.setContentTitle(title)
             it.setContentText(text)
             it.setStyle(NotificationCompat.BigTextStyle().bigText(text))

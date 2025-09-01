@@ -58,8 +58,8 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 	override suspend fun onEnable(context: Context) {
 		val isEnabled = Preferences.getPref(context)
 				.getBooleanRes(
-						R.string.settings_wifi_location_count_enabled_key,
-						R.string.settings_wifi_location_count_enabled_default
+						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_location_count_enabled_key,
+						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_location_count_enabled_default
 				)
 
 		this.isEnabled = isEnabled

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.permission
 
 import android.content.pm.PackageManager
-import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 
 /**
  * Results from permission request
@@ -57,7 +57,7 @@ data class PermissionRequestResult(
                             isForeverDenied = true
                         )
                     )
-                    else -> Reporter.report("Unknown result ${grantResults[i]}")
+                    else -> ReporterFacade.report("Unknown result ${grantResults[i]}")
                 }
             }
             return PermissionRequestResult(granted, denied)

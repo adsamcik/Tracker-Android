@@ -9,6 +9,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.impexp.R as ImpexpR
+import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.preference.findPreference
@@ -27,7 +29,7 @@ internal class DataPage : PreferencePage {
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		with(caller) {
-			initializeImport(findPreference(R.string.settings_import_key))
+			initializeImport(findPreference(ImpexpR.string.settings_import_key))
 
 			initializeDelete(findPreference(R.string.settings_remove_all_collected_data_key))
 		}
@@ -38,10 +40,10 @@ internal class DataPage : PreferencePage {
 		deletePreference.setOnPreferenceClickListener { preference ->
 			val context = preference.context
 			MaterialDialog(context).show {
-				title(text = context.getString(R.string.alert_confirm_generic))
+				title(text = context.getString(R.string.settings_remove_all_collected_data_title))
 				message(
 						text = context.getString(
-								R.string.alert_confirm,
+								BaseR.string.alert_confirm,
 								context.getString(R.string.settings_remove_all_collected_data_title)
 						)
 				)
@@ -63,7 +65,7 @@ internal class DataPage : PreferencePage {
 			val supportedExtensions = dataImport.supportedImporterExtensions
 
 			if (supportedExtensions.isEmpty()) {
-				setSummary(R.string.settings_import_no_types)
+				setSummary(ImpexpR.string.settings_import_no_types)
 				isEnabled = false
 			} else {
 				val archiveExtensions = dataImport
@@ -72,8 +74,8 @@ internal class DataPage : PreferencePage {
 
 				val fileExtensions = supportedExtensions.joinToString(separator = SEPARATOR)
 
-				summary = importPreference.context.getString(
-						R.string.settings_import_summary,
+		summary = importPreference.context.getString(
+			ImpexpR.string.settings_import_summary,
 						fileExtensions,
 						archiveExtensions
 				)

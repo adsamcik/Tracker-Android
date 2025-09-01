@@ -1,6 +1,7 @@
 plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
 }
@@ -26,6 +27,11 @@ android {
 
 	kotlin {
 		jvmToolchain(Android.JAVA_VERSION)
+	}
+
+	buildFeatures {
+		// Enable Jetpack Compose for tracker UI migration
+		compose = true
 	}
 
 	buildTypes {
@@ -74,8 +80,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
-	implementation(libs.google.play.feature.delivery)
-	implementation(libs.google.play.feature.delivery.ktx)
 	implementation(libs.google.play.services.location)
 
 	// Recycler components used by tracker UIs
@@ -83,6 +87,25 @@ dependencies {
 
 	// Material Dialogs (list APIs)
 	implementation(libs.material.dialogs.core)
+
+	// Compose (UI migration)
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.material3)
+	implementation(libs.compose.material.icons.extended)
+	implementation(libs.compose.animation)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.foundation.layout)
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.runtime.livedata)
+	implementation(libs.androidx.lifecycle.viewmodel.compose)
+	debugImplementation(libs.compose.ui.tooling)
+	implementation(libs.compose.ui.tooling.preview)
+
+	// UI Tests
+	androidTestImplementation(libs.compose.ui.test.junit4)
+	debugImplementation(libs.compose.ui.test.manifest)
+	// Needed for ComponentActivity.setContent in androidTest
+	androidTestImplementation(libs.activity.compose)
 
 	// DB
 	implementation(libs.androidx.room.runtime)

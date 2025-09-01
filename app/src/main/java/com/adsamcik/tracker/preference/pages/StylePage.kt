@@ -9,6 +9,7 @@ import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
 import com.adsamcik.tracker.shared.utils.style.ActiveColorData
 import com.adsamcik.tracker.shared.utils.style.StyleManager
+import com.adsamcik.tracker.shared.preferences.R as PrefR
 
 /**
  * Preference page for style.
@@ -26,7 +27,7 @@ class StylePage : PreferencePage {
 
 		this.parent = caller.findPreferenceTyped(R.string.settings_style_color_category_key)
 
-		caller.findPreferenceTyped<DialogListPreference>(R.string.settings_style_mode_key).apply {
+		caller.findPreferenceTyped<DialogListPreference>(PrefR.string.settings_style_mode_key).apply {
 			val entries = enabledUpdateInfoList.map { context.getString(it.nameRes) }
 			val keys = enabledUpdateInfoList.map { it.id }
 
