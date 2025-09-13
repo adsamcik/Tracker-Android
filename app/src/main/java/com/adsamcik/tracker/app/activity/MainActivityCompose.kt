@@ -22,19 +22,23 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidViewBinding
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
-import com.adsamcik.tracker.app.ui.theme.AppTheme
 import com.adsamcik.tracker.app.ui.MainRoot
 import com.adsamcik.tracker.app.ui.navigation.Routes
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import androidx.compose.foundation.isSystemInDarkTheme
+
 // StyleController system bar hooks are obsolete; rely on AppTheme + default insets
 import android.view.View
 
 /**
  * Dedicated Compose-first Main activity. Keeps legacy MainActivity intact.
  */
+@OptIn(ExperimentalStdlibApi::class)
 class MainActivityCompose : CoreUIActivity() {
 
     private val selectedTab = mutableStateOf("map")
@@ -77,9 +81,11 @@ class MainActivityCompose : CoreUIActivity() {
 
     // Obsolete: style controller system bar integration removed
 
+    @OptIn(ExperimentalStdlibApi::class)
     @Composable
     private fun ComposeRoot(selected: MutableState<String>) {
-        AppTheme {
+        val dark = isSystemInDarkTheme()
+        AppTheme(dark = dark) {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Box(Modifier.fillMaxSize()) {
                     // Tracker content is now fully Compose via NavHost (TrackerRoute).

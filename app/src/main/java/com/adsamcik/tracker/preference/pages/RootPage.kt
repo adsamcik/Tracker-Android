@@ -5,11 +5,9 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.activity.ui.SessionActivityActivity
-import com.adsamcik.tracker.license.LicenseActivity
+import com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.module.Module
-import com.adsamcik.tracker.module.activity.ModuleActivity
 import com.adsamcik.tracker.preference.component.DialogListPreference
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.preference.findPreferenceTyped
@@ -34,16 +32,11 @@ class RootPage(private val modules: Map<Module, ModuleSettings>) : PreferencePag
 	override fun onEnter(caller: PreferenceFragmentCompat) {
 		snackMaker = SnackMaker(caller.listView)
 
-		caller.setOnClickListener(R.string.settings_module_enable_key) {
-			it.context.startActivity<ModuleActivity> {}
-		}
-
-		caller.setOnClickListener(R.string.settings_licenses_key) {
-			it.context.startActivity<LicenseActivity> {}
-		}
+		// Note: Module and License activities removed as part of Compose migration
+		// These preferences will be implemented as Compose screens in future
 
 		caller.setOnClickListener(ActivityR.string.settings_activity_key) {
-			it.context.startActivity<SessionActivityActivity> { }
+			it.context.startActivity<SessionActivityActivityCompose> { }
 		}
 
 		caller.findPreference(PrefR.string.show_tips_key)

@@ -5,6 +5,9 @@ import android.content.Intent
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -15,10 +18,10 @@ import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.preference.findPreference
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.afollestad.materialdialogs.MaterialDialog
-import kotlinx.coroutines.DelicateCoroutinesApi
+import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -26,8 +29,11 @@ import kotlinx.coroutines.launch
  */
 internal class DataPage : PreferencePage {
 	private lateinit var importRequest: ActivityResultLauncher<Intent>
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+	private lateinit var caller: PreferenceFragmentCompat
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
+		this.caller = caller
 		with(caller) {
 			initializeImport(findPreference(ImpexpR.string.settings_import_key))
 
@@ -35,25 +41,38 @@ internal class DataPage : PreferencePage {
 		}
 	}
 
-	@OptIn(DelicateCoroutinesApi::class)
 	private fun initializeDelete(deletePreference: Preference) {
 		deletePreference.setOnPreferenceClickListener { preference ->
 			val context = preference.context
-			MaterialDialog(context).show {
-				title(text = context.getString(R.string.settings_remove_all_collected_data_title))
-				message(
-						text = context.getString(
+			val activity = caller.requireActivity()
+			val decor = activity.window.decorView as? android.view.ViewGroup
+			if (decor != null) {
+				val host = ComposeView(context).apply {
+					setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+					setContent {
+						var showDialog by remember { mutableStateOf(true) }
+						ConfirmDialog(
+							visible = showDialog,
+							title = context.getString(R.string.settings_remove_all_collected_data_title),
+							message = context.getString(
 								BaseR.string.alert_confirm,
 								context.getString(R.string.settings_remove_all_collected_data_title)
+							),
+							confirmLabel = context.getString(BaseR.string.generic_delete),
+							dismissLabel = context.getString(BaseR.string.generic_cancel),
+							onConfirm = {
+								scope.launch {
+									AppDatabase.deleteAllCollectedData(context)
+								}
+							},
+							onDismiss = {
+								showDialog = false
+								decor.removeView(this@apply)
+							}
 						)
-				)
-
-				positiveButton {
-					GlobalScope.launch(Dispatchers.Default) {
-						AppDatabase.deleteAllCollectedData(context)
 					}
 				}
-				negativeButton { it.dismiss() }
+				decor.addView(host)
 			}
 			true
 		}

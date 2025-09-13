@@ -3,15 +3,17 @@ package com.adsamcik.tracker.preference.component
 import android.content.Context
 import android.content.res.TypedArray
 import android.util.AttributeSet
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.preference.Preference
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.logger.assertEqual
-import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.list.listItemsSingleChoice
+import com.adsamcik.tracker.shared.utils.compose.SingleChoiceDialog
 import java.util.*
 
 /**
- * Dialog list preference
+ * Dialog list preference using Compose SingleChoiceDialog
  */
 open class DialogListPreference : Preference {
 	@Suppress("unused")
@@ -112,13 +114,31 @@ open class DialogListPreference : Preference {
 	}
 
 	override fun onClick() {
-		MaterialDialog(context).show {
-			listItemsSingleChoice(
-				items = valueList,
-				initialSelection = selectedValueIndex
-			) { _, index, _ ->
-				setIndex(index)
+		val activity = context as? androidx.activity.ComponentActivity
+			?: throw IllegalArgumentException("Context must be ComponentActivity for Compose dialog")
+		
+		val decor = activity.window.decorView as? android.view.ViewGroup
+			?: throw IllegalStateException("Cannot access window decorView")
+
+		val host = ComposeView(context).apply {
+			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+			setContent {
+				var showDialog by remember { mutableStateOf(true) }
+				SingleChoiceDialog(
+					visible = showDialog,
+					title = title?.toString(),
+					items = valueList,
+					selectedIndex = selectedValueIndex,
+					onItemSelected = { index ->
+						setIndex(index)
+					},
+					onDismiss = {
+						showDialog = false
+						decor.removeView(this@apply)
+					}
+				)
 			}
 		}
+		decor.addView(host)
 	}
 }

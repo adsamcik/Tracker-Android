@@ -23,7 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 // import removed: legacy MainActivity no longer used
-import com.adsamcik.tracker.app.ui.theme.AppTheme
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.app.onboarding.data.*
 import com.adsamcik.tracker.app.onboarding.permission.IOnboardingPermissionManager
 import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManagerProvider
@@ -38,11 +38,15 @@ import com.adsamcik.tracker.activity.R as ActivityR
 import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
+import com.adsamcik.tracker.app.Application
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import androidx.compose.foundation.isSystemInDarkTheme
 
 /**
  * Coordinator activity for the new onboarding flow.
  * Replaces the old first-run dialog system with a modern Compose-based experience.
  */
+@OptIn(ExperimentalStdlibApi::class)
 class OnboardingActivity : ComponentActivity() {
     
     private val viewModel: OnboardingViewModel by viewModels()
@@ -55,8 +59,8 @@ class OnboardingActivity : ComponentActivity() {
     permissionManager = OnboardingPermissionManagerProvider.factory(this)
         
         setContent {
-            // Use app-wide AppTheme (Material3 + dynamic colors)
-            AppTheme {
+            val dark = isSystemInDarkTheme()
+            AppTheme(dark = dark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

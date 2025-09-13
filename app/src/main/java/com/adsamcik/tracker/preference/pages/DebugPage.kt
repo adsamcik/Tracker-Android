@@ -2,11 +2,8 @@ package com.adsamcik.tracker.preference.pages
 
 import android.app.NotificationManager
 import android.content.Context
-import android.util.TypedValue
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import android.content.res.ColorStateList
-import android.graphics.Color
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.adsamcik.tracker.BuildConfig
@@ -21,21 +18,31 @@ import com.adsamcik.tracker.shared.base.debug.DummyDataSeeder
 import com.adsamcik.tracker.shared.base.extension.startActivity
 import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.utils.dialog.alertDialog
-import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.WhichButton
-import com.afollestad.materialdialogs.callbacks.onShow
-import com.afollestad.materialdialogs.actions.getActionButton
-import kotlinx.coroutines.DelicateCoroutinesApi
+// Copilot: First migration step away from MaterialDialog – simple confirm uses ConfirmDialog composable.
+import androidx.compose.runtime.*
+import androidx.compose.material3.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+// Removed unused semantics/test imports from previous draft.
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.*
+// No list usage in this file; removed LazyColumn imports.
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
+import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.util.*
+import kotlinx.coroutines.withContext
+import java.util.Random
 
 /**
  * Page with debug preferences.
  */
 internal class DebugPage : PreferencePage {
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 	override fun onExit(caller: PreferenceFragmentCompat): Unit = Unit
 
 	override fun onEnter(caller: PreferenceFragmentCompat) {
@@ -51,157 +58,170 @@ internal class DebugPage : PreferencePage {
 				false
 			}
 
-			// This preference may not exist on all builds/layouts; set handler only if present
+			// Optional hello world notification preference
 			caller.preferenceScreen
 				?.findPreference<Preference>(caller.getString(R.string.settings_hello_world_key))
 				?.setOnPreferenceClickListener {
-			val context = it.context
-			val resources = context.resources
-			val helloWorld = context.getString(R.string.dev_notification_dummy)
-			val color = ContextCompat.getColor(context, R.color.color_primary)
-			val rng = Random(Time.nowMillis)
-			val facts = resources.getStringArray(R.array.lorem_ipsum_facts)
-		val notificationBuilder = NotificationCompat.Builder(
-			context,
-			resources.getString(BaseR.string.channel_other_id)
-		)
-			.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals_launcher)
-					.setColor(color)
-					.setLights(color, 2000, 5000)
-					.setContentTitle(resources.getString(R.string.did_you_know))
-					.setContentText(facts[rng.nextInt(facts.size)])
-					.setWhen(Time.nowMillis)
-			val notificationManager = it.context.getSystemService(
-					Context.NOTIFICATION_SERVICE
-			) as NotificationManager
-			notificationManager.notify(
-					Notifications.uniqueNotificationId(),
-					notificationBuilder.build()
-			)
-				false
-			}
+					val context = it.context
+					val resources = context.resources
+					val color = ContextCompat.getColor(context, R.color.color_primary)
+					val rng = Random(Time.nowMillis)
+					val facts = resources.getStringArray(R.array.lorem_ipsum_facts)
+					val notificationBuilder = NotificationCompat.Builder(
+						context,
+						resources.getString(BaseR.string.channel_other_id)
+					)
+						.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals_launcher)
+						.setColor(color)
+						.setLights(color, 2000, 5000)
+						.setContentTitle(resources.getString(R.string.did_you_know))
+						.setContentText(facts[rng.nextInt(facts.size)])
+						.setWhen(Time.nowMillis)
+					val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+					notificationManager.notify(Notifications.uniqueNotificationId(), notificationBuilder.build())
+					false
+				}
 
-		caller.preferenceScreen
-			?.findPreference<Preference>(caller.getString(R.string.settings_clear_preferences_key))
-			?.setOnPreferenceClickListener { pref ->
+			// Dummy data generation preference -> Compose state machine dialogs
+			caller.preferenceScreen
+				?.findPreference<Preference>(caller.getString(R.string.settings_generate_dummy_data_key))
+				?.setOnPreferenceClickListener { pref ->
 					val context = pref.context
-					MaterialDialog(context)
-							.alertDialog(pref.title.toString()) {
-								Preferences.getPref(context).edit {
-									clear()
-								}
-							}
-							.show()
-
-					false
-				}
-
-		caller.preferenceScreen
-			?.findPreference<Preference>(caller.getString(R.string.settings_log_list_activity_key))
-			?.setOnPreferenceClickListener {
-					it.context.startActivity<LogViewerActivity> { }
-					false
-				}
-
-		caller.preferenceScreen
-			?.findPreference<Preference>(caller.getString(R.string.settings_crash_viewer_key))
-			?.setOnPreferenceClickListener {
-					it.context.startActivity<CrashViewerActivity> { }
-					false
-				}
-
-		caller.preferenceScreen
-			?.findPreference<Preference>(caller.getString(R.string.settings_export_crashes_key))
-			?.setOnPreferenceClickListener { pref ->
-					val context = pref.context
-					context.startActivity<CrashManagerActivity> { }
-					false
-				}
-
-		caller.preferenceScreen
-			?.findPreference<Preference>(caller.getString(R.string.settings_clear_crashes_key))
-			?.setOnPreferenceClickListener { pref ->
-					val context = pref.context
-					context.startActivity<CrashManagerActivity> { }
-					false
-				}
-
-		caller.preferenceScreen
-			?.findPreference<Preference>(caller.getString(R.string.settings_test_crash_key))
-			?.setOnPreferenceClickListener { pref ->
-					// Create a test crash for debugging purposes
-					throw RuntimeException("Test crash from debug menu - ${System.currentTimeMillis()}")
-				}
-
-		caller.preferenceScreen
-			?.findPreference<Preference>(caller.getString(R.string.settings_generate_dummy_data_key))
-			?.setOnPreferenceClickListener { pref ->
-					val context = pref.context
-					MaterialDialog(context)
-						.title(text = context.getString(BaseR.string.alert_confirm_generic))
-						.alertDialog(context.getString(R.string.settings_generate_dummy_data_title)) {
-							// First confirm
-							@OptIn(DelicateCoroutinesApi::class)
-							GlobalScope.launch(Dispatchers.Default) {
-								val probe = DummyDataSeeder.seedIfEmpty(context)
-								if (probe.inserted) {
-									launch(Dispatchers.Main) {
-										MaterialDialog(context).show {
-											message(text = context.getString(R.string.dummy_data_generation_success))
-											positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
-										}
-									}
-								} else if (probe.reason == "not-empty") {
-									// Second destructive confirm when DB not empty
-									launch(Dispatchers.Main) {
-										MaterialDialog(context).show {
-											title(text = context.getString(R.string.dummy_data_second_confirm_title))
-											message(text = context.getString(R.string.dummy_data_second_confirm_message))
-											positiveButton(text = context.getString(BaseR.string.generic_yes)) { dialog ->
-												@OptIn(DelicateCoroutinesApi::class)
-												GlobalScope.launch(Dispatchers.Default) {
-													val forced = DummyDataSeeder.seed(context)
-													launch(Dispatchers.Main) {
-														MaterialDialog(context).show {
-															message(text = if (forced.inserted) context.getString(R.string.dummy_data_generation_success) else context.getString(R.string.dummy_data_generation_failed))
-															positiveButton(text = context.getString(BaseR.string.generic_ok))
+					val activity = caller.requireActivity()
+					val decor = activity.window.decorView as? android.view.ViewGroup
+					if (decor != null) {
+						val host = ComposeView(context).apply {
+							setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+							setContent {
+								var state by remember { mutableStateOf<DummyDataSeedState>(DummyDataSeedState.FirstConfirm) }
+								val localScope = remember { scope }
+								when (val s = state) {
+									DummyDataSeedState.FirstConfirm -> AlertDialog(
+										modifier = Modifier.testTag("dummyDataDialogFirstConfirm"),
+										onDismissRequest = { state = DummyDataSeedState.Dismissed },
+										title = { Text(text = context.getString(BaseR.string.alert_confirm_generic)) },
+										text = { Text(text = context.getString(R.string.settings_generate_dummy_data_title)) },
+										confirmButton = {
+											Button(colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), onClick = {
+												state = DummyDataSeedState.Seeding
+												localScope.launch {
+													val probe = DummyDataSeeder.seedIfEmpty(context)
+													withContext(Dispatchers.Main) {
+														state = if (probe.inserted) {
+															DummyDataSeedState.Result(success = true)
+														} else if (probe.reason == "not-empty") {
+															DummyDataSeedState.SecondConfirm
+														} else {
+															DummyDataSeedState.Result(success = false)
 														}
 													}
 												}
-											}
-											negativeButton(text = context.getString(BaseR.string.generic_no))
-											onShow {
-												val bg = ContextCompat.getColor(context, R.color.error)
-												val luminance = (0.299 * Color.red(bg) + 0.587 * Color.green(bg) + 0.114 * Color.blue(bg)) / 255.0
-												val fg = if (luminance < 0.5) Color.WHITE else Color.BLACK
-												val btn = getActionButton(WhichButton.POSITIVE)
-												btn.backgroundTintList = ColorStateList.valueOf(bg)
-												btn.setTextColor(fg)
-											}
+											}) { Text(text = context.getString(BaseR.string.generic_yes)) }
+										},
+										dismissButton = {
+											TextButton(onClick = { state = DummyDataSeedState.Dismissed }) { Text(text = context.getString(BaseR.string.generic_no)) }
 										}
-									}
-								} else {
-									launch(Dispatchers.Main) {
-										MaterialDialog(context).show {
-											message(text = context.getString(R.string.dummy_data_generation_failed))
-											positiveButton(text = context.getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
+									)
+
+									DummyDataSeedState.Seeding -> AlertDialog(
+										modifier = Modifier.testTag("dummyDataDialogProgress"),
+										onDismissRequest = { /* disabled during seeding */ },
+										title = { Text(text = context.getString(R.string.settings_generate_dummy_data_title)) },
+										text = {
+											Row(verticalAlignment = Alignment.CenterVertically) {
+												CircularProgressIndicator(modifier = Modifier.size(24.dp))
+												Spacer(Modifier.width(16.dp))
+												Text(text = context.getString(R.string.dummy_data_generation_title_progress))
+											}
+										},
+										confirmButton = {},
+										dismissButton = {}
+									)
+
+									DummyDataSeedState.SecondConfirm -> AlertDialog(
+										modifier = Modifier.testTag("dummyDataDialogSecondConfirm"),
+										onDismissRequest = { state = DummyDataSeedState.Dismissed },
+										title = { Text(text = context.getString(R.string.dummy_data_second_confirm_title)) },
+										text = { Text(text = context.getString(R.string.dummy_data_second_confirm_message)) },
+										confirmButton = {
+											Button(colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), onClick = {
+												state = DummyDataSeedState.Seeding
+												localScope.launch {
+													val forced = DummyDataSeeder.seed(context)
+													withContext(Dispatchers.Main) {
+														state = DummyDataSeedState.Result(success = forced.inserted)
+													}
+												}
+											}) { Text(text = context.getString(BaseR.string.generic_yes)) }
+										},
+										dismissButton = {
+											TextButton(onClick = { state = DummyDataSeedState.Dismissed }) { Text(text = context.getString(BaseR.string.generic_no)) }
 										}
+									)
+
+									is DummyDataSeedState.Result -> AlertDialog(
+										modifier = Modifier.testTag("dummyDataDialogResult_${if (s.success) "success" else "failure"}"),
+										onDismissRequest = { state = DummyDataSeedState.Dismissed },
+										title = { Text(text = context.getString(if (s.success) R.string.dummy_data_generation_success else R.string.dummy_data_generation_failed)) },
+										text = { /* message only in title */ },
+										confirmButton = {
+											TextButton(onClick = { state = DummyDataSeedState.Dismissed }) { Text(text = context.getString(BaseR.string.generic_ok)) }
+										},
+										dismissButton = {}
+									)
+
+									DummyDataSeedState.Dismissed -> {
+										// Remove host view exactly once when dismissed.
+										LaunchedEffect(Unit) { decor.removeView(this@apply) }
 									}
 								}
 							}
 						}
-						.onShow { dialog ->
-							val bg = ContextCompat.getColor(context, R.color.error)
-							val luminance = (0.299 * Color.red(bg) + 0.587 * Color.green(bg) + 0.114 * Color.blue(bg)) / 255.0
-							val fg = if (luminance < 0.5) Color.WHITE else Color.BLACK
-							val btn = dialog.getActionButton(WhichButton.POSITIVE)
-							btn.backgroundTintList = ColorStateList.valueOf(bg)
-							btn.setTextColor(fg)
-						}
-						.show()
+						decor.addView(host)
+					}
 					false
 				}
+
+		// Crash list viewer
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_crash_viewer_key))
+			?.setOnPreferenceClickListener { pref ->
+				pref.context.startActivity<CrashViewerActivity> {}
+				false
+			}
+
+		// Export crashes activity
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_export_crashes_key))
+			?.setOnPreferenceClickListener { pref ->
+				pref.context.startActivity<CrashManagerActivity> {}
+				false
+			}
+
+		// Clear crashes (same CrashManager target currently)
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_clear_crashes_key))
+			?.setOnPreferenceClickListener { pref ->
+				pref.context.startActivity<CrashManagerActivity> {}
+				false
+			}
+
+		// Test crash
+		caller.preferenceScreen
+			?.findPreference<Preference>(caller.getString(R.string.settings_test_crash_key))
+			?.setOnPreferenceClickListener {
+				throw RuntimeException("Test crash from debug menu - ${System.currentTimeMillis()}")
+			}
 	}
 
+}
+
+// Dialog state machine representing progress through dummy data seeding flow.
+private sealed interface DummyDataSeedState {
+	data object FirstConfirm : DummyDataSeedState
+	data object Seeding : DummyDataSeedState
+	data object SecondConfirm : DummyDataSeedState
+	data class Result(val success: Boolean) : DummyDataSeedState
+	data object Dismissed : DummyDataSeedState
 }
 
