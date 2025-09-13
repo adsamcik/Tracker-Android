@@ -2,7 +2,6 @@ package com.adsamcik.tracker.module
 
 import android.content.Context
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 
 enum class Module {
 	STATISTICS {
@@ -27,10 +26,7 @@ enum class Module {
 	abstract val titleRes: Int
 	abstract val enabled: Boolean
 
-	@Throws(ClassNotFoundException::class)
-	@Suppress("unchecked_cast")
-	fun <T> loadClass(className: String): Class<T> =
-			ModuleClassLoader.loadClass(moduleName, className)
+	// Reflection-based class loading removed; modules are statically linked and referenced directly.
 
 
 	companion object {

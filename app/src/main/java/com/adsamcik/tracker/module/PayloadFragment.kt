@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.module
 
 import androidx.fragment.app.Fragment
-import com.adsamcik.draggable.IOnDemandView
 
-abstract class PayloadFragment : Fragment(), IOnDemandView
+@Deprecated("Draggable payloads removed; this is kept only for binary/source compatibility until all references are gone.")
+abstract class PayloadFragment : Fragment()

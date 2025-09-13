@@ -16,13 +16,15 @@ import com.adsamcik.tracker.preference.pages.DebugPage
 import com.adsamcik.tracker.preference.pages.ExportPage
 import com.adsamcik.tracker.preference.pages.PreferencePage
 import com.adsamcik.tracker.preference.pages.RootPage
-import com.adsamcik.tracker.preference.pages.StylePage
 import com.adsamcik.tracker.preference.pages.TrackerPreferencePage
 import com.adsamcik.tracker.shared.base.extension.dp
 import com.adsamcik.tracker.shared.base.extension.transaction
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import java.util.*
+import com.adsamcik.tracker.map.preference.MapSettings
+import com.adsamcik.tracker.game.preference.GameSettings
+import com.adsamcik.tracker.statistics.preference.StatisticsSettings
 
 /**
  * Settings Activity contains local settings and hosts debugging features
@@ -80,7 +82,7 @@ class SettingsActivity : DetailActivity(),
 		val resources = resources
 		pageList = mapOf(
 			resources.getString(R.string.settings_debug_title) to DebugPage(),
-			resources.getString(R.string.settings_style_title) to StylePage(),
+			// Removed Style page: runtime theming customization deprecated
 			resources.getString(TrackerR.string.settings_tracking_title) to TrackerPreferencePage(),
 			resources.getString(R.string.settings_data_title) to DataPage(),
 			resources.getString(ImpexpR.string.settings_export_title) to ExportPage()
@@ -92,36 +94,13 @@ class SettingsActivity : DetailActivity(),
 	}
 
 	private fun initializeModuleSettingsList() {
-		val modules = Module.getActiveModuleInfo(this)
-		modules.forEach { module ->
-			try {
-				val tClass = module.module.loadClass<ModuleSettings>(
-					"preference.${
-						module.module.moduleName.replaceFirstChar {
-							if (it.isLowerCase()) {
-								it.titlecase(Locale.ROOT)
-							} else {
-								it.toString()
-							}
-						}
-					}Settings"
-				)
-				val instance = tClass.getConstructor().newInstance()
-				moduleSettingsList[module.module] = instance
-			} catch (e: ClassNotFoundException) {
-				//e.printStackTrace()
-				//this exception is ok, just don't add anything
-			} catch (e: InstantiationException) {
-				Reporter.report(e)
-				e.printStackTrace()
-			} catch (e: IllegalAccessException) {
-				Reporter.report(e)
-				e.printStackTrace()
-			} catch (e: ClassCastException) {
-				Reporter.report(e)
-				e.printStackTrace()
-			}
-		}
+		// Static modules: build a direct registry instead of reflection
+		val registry: Map<Module, ModuleSettings> = mapOf(
+			Module.MAP to MapSettings(),
+			Module.GAME to GameSettings(),
+			Module.STATISTICS to StatisticsSettings(),
+		)
+		moduleSettingsList.putAll(registry)
 	}
 
 	private fun pop(): Boolean {
