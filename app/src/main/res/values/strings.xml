@@ -39,6 +39,7 @@
     <string name="settings_app_version_key" translatable="false">appVersion</string>
     <string name="settings_clear_preferences_key" translatable="false">clearPreferences</string>
     <string name="settings_clear_preferences_title">Clear preferences</string>
+    <string name="settings_clear_preferences_message">This will remove all stored app preferences (feature toggles, local UI settings). Tracking data is unaffected. Continue?</string>
     <string name="settings_color_default_key" translatable="false">defaultColors</string>
     <string name="settings_color_default_title">Default colors</string>
     <string name="settings_data_title">Data</string>
@@ -89,6 +90,7 @@
     <string name="dummy_data_not_empty" translatable="false">Database is not empty. Dummy data can only be generated on an empty database.</string>
     <string name="dummy_data_generation_success" translatable="false">Dummy data generated.</string>
     <string name="dummy_data_generation_failed" translatable="false">Failed to generate dummy data.</string>
+    <string name="dummy_data_generation_title_progress" translatable="false">Generating dummy data…</string>
     <string name="dummy_data_second_confirm_title" translatable="false">Database not empty</string>
     <string name="dummy_data_second_confirm_message" translatable="false">Your database already has data. Do you still want to append dummy data? This is intended for development only.</string>
     <string name="settings_module_enable_key" translatable="false">modules</string>
@@ -114,6 +116,17 @@
     <string name="settings_style_mode_title">Style mode</string>
     <string name="settings_style_title">Style</string>
     <string name="settings_title">Settings</string>
+
+    <!-- Color picker dialog -->
+    <string name="settings_color_dialog_title">Select color</string>
+    <string name="settings_color_picker_select_label">Select a color</string>
+    <string name="settings_color_picker_shades_label">Shade variants</string>
+    <string name="settings_color_picker_apply">Apply</string>
+    <string name="settings_color_picker_reset">Reset</string>
+    <string name="settings_color_picker_cancel">Cancel</string>
+    <string name="settings_color_picker_swatch_cd">%1$s color %2$s</string>
+    <string name="settings_color_picker_shade_cd">%1$s shade %2$s</string>
+    <string name="settings_color_picker_selected_prefix">Selected</string>
 
     <string name="show_tips_title">Show tips</string>
 

@@ -12,7 +12,6 @@
         <item name="colorPrimaryDark">@color/color_primary_dark</item>
         <item name="colorAccent">@color/color_accent</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
-        <item name="md_corner_radius">@dimen/dialog_corner_radius</item>
         <item name="android:windowBackground">@drawable/background_loading</item>
     </style>
 
