@@ -88,7 +88,6 @@ dependencies {
 	implementation(libs.component.slider)
 	implementation(libs.spotlight)
 	implementation(libs.suncalc)
-	implementation(libs.material.dialogs.core)
 
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)
@@ -114,7 +113,14 @@ dependencies {
 	implementation(libs.accompanist.pager)
 	implementation(libs.accompanist.swiperefresh)
 
-	// Tests
+	// Unit Tests
+	testImplementation(libs.junit4)
+	testImplementation(libs.robolectric)
+	testImplementation(libs.androidx.test.core)
+	testImplementation(libs.arch.core.testing)
+	testImplementation(libs.kotlinx.coroutines.test)
+
+	// Instrumented Tests
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)

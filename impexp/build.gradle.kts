@@ -106,7 +106,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.common.java8)
     implementation(libs.google.material)
     implementation(libs.google.play.services.base)
-    implementation(libs.material.dialogs.core)
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)

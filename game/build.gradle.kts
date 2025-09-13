@@ -111,11 +111,8 @@ dependencies {
 	androidTestImplementation(libs.androidx.room.testing)
 
 	// UI utils
-	// Material dialogs
-	implementation(libs.material.dialogs.core)
-	implementation(libs.material.dialogs.input)
 	implementation(libs.component.slider)
-	implementation(libs.components.draggable)
+	// Draggable overlay removed
 
 	// Tests
 	androidTestImplementation(libs.junit4)

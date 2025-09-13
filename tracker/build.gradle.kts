@@ -82,12 +82,6 @@ dependencies {
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
 
-	// Recycler components used by tracker UIs
-	implementation(libs.components.recycler)
-
-	// Material Dialogs (list APIs)
-	implementation(libs.material.dialogs.core)
-
 	// Compose (UI migration)
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.material3)
@@ -97,6 +91,7 @@ dependencies {
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
 	implementation(libs.compose.runtime.livedata)
+	implementation(libs.androidx.datastore.preferences)
 	// Required for rememberLauncherForActivityResult and setContent in main source
 	implementation(libs.activity.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)

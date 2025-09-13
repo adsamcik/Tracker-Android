@@ -80,10 +80,7 @@ dependencies {
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
 	implementation(libs.google.play.services.maps)
-	implementation(libs.components.draggable)
-	// Material dialogs
-	implementation(libs.material.dialogs.core)
-
+	// Draggable overlay removed
 	// JSON
 	implementation(libs.moshi)
 	ksp(libs.moshi.kotlin.codegen)
@@ -106,6 +103,7 @@ dependencies {
 	implementation(libs.compose.animation)
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
+	implementation(libs.activity.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.compose.ui.tooling.preview)

@@ -84,7 +84,7 @@ dependencies {
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
 	implementation(libs.google.play.services.maps)
-	implementation(libs.components.draggable)
+	// Draggable overlay removed
 
 	// Compose (Phase 0 – prep only)
 	implementation(platform(libs.compose.bom))
@@ -110,8 +110,6 @@ dependencies {
 	implementation(libs.kotlinx.collections.immutable)
 	// Maps Compose
 	implementation(libs.google.maps.compose)
-	// Material dialogs
-	implementation(libs.material.dialogs.core)
 	implementation(libs.spotlight)
 
 	// Tests

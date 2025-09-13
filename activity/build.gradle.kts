@@ -1,6 +1,7 @@
 plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
 }
@@ -26,6 +27,10 @@ android {
 
 	kotlin {
 		jvmToolchain(Android.JAVA_VERSION)
+	}
+
+	buildFeatures {
+		compose = true
 	}
 
 	buildTypes {
@@ -76,11 +81,28 @@ dependencies {
 	// 1st/3rd party
 	implementation(libs.components.recycler)
 
+	// Compose (for migrating to Compose UI)
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.material3)
+	implementation(libs.compose.material.icons.extended)
+	implementation(libs.compose.animation)
+	implementation(libs.compose.foundation.layout)
+	implementation(libs.compose.runtime)
+	implementation(libs.activity.compose)
+	implementation(libs.androidx.lifecycle.viewmodel.compose)
+	debugImplementation(libs.compose.ui.tooling)
+	implementation(libs.compose.ui.tooling.preview)
+
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)
 	androidTestImplementation(libs.androidx.work.testing)
 
 	// Tests
+	testImplementation(libs.junit4)
+	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.arch.core.testing)
+	testImplementation(libs.androidx.test.core)
+	testImplementation(libs.robolectric)
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)

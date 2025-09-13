@@ -28,6 +28,7 @@ constraintLayoutCompose = "1.1.1"
 composeBom = "2025.08.00"
 accompanist = "0.36.0"
 documentfile = "1.1.0"
+datastore = "1.1.1"
 
 # Google Play Services
 playServicesBase = "18.7.2"
@@ -46,7 +47,6 @@ room = "2.8.0-rc01"
 sqliteAndroid = "3.49.0"
 
 # Third party
-dialogs = "3.3.0"
 componentsRecycler = "1.0.0"
 componentsDraggable = "1.0.4"
 componentSlider = "2.1.0"
@@ -152,9 +152,6 @@ sqlite-android = { group = "com.github.requery", name = "sqlite-android", versio
 components-recycler = { group = "com.github.adsamcik", name = "Recycler", version.ref = "componentsRecycler" }
 components-draggable = { group = "com.github.adsamcik", name = "Draggable", version.ref = "componentsDraggable" }
 component-slider = { group = "com.github.adsamcik", name = "slider", version.ref = "componentSlider" }
-material-dialogs-core = { group = "com.afollestad.material-dialogs", name = "core", version.ref = "dialogs" }
-material-dialogs-input = { group = "com.afollestad.material-dialogs", name = "input", version.ref = "dialogs" }
-material-dialogs-color = { group = "com.afollestad.material-dialogs", name = "color", version.ref = "dialogs" }
 
 # GPX / XML
 stax-api = { group = "stax", name = "stax-api", version.ref = "stax" }
@@ -186,6 +183,7 @@ compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 accompanist-pager = { group = "com.google.accompanist", name = "accompanist-pager", version.ref = "accompanist" }
 accompanist-swiperefresh = { group = "com.google.accompanist", name = "accompanist-swiperefresh", version.ref = "accompanist" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 # Misc
 androidx-cardview = { group = "androidx.cardview", name = "cardview", version.ref = "cardview" }

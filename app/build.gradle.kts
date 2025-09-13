@@ -80,17 +80,17 @@ android {
 			isMinifyEnabled = false
 		}
 		getByName("release") {
-			// Temporarily disable minification due to unresolved R8 missing class issues across feature modules
-			// TODO: Re-enable and fix by adding proper keep rules / adjusting dynamic feature class access
+			// Keep minification disabled for now; Compose-only main is enforced across variants
 			isMinifyEnabled = false
 			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
-			buildConfigField("boolean", "COMPOSE_MAIN", "false")
+			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 	}
 
 	buildFeatures {
 		compose = true
-		viewBinding = true
+		// viewBinding no longer used; Compose-only UI
+		viewBinding = false
 	}
 
 	lint {
@@ -127,6 +127,7 @@ dependencies {
 	implementation(project(":logger"))
 	implementation(project(":impexp"))
 	implementation(project(":statistics"))
+	implementation(project(":map"))
 	implementation(project(":game"))
 
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
@@ -135,7 +136,6 @@ dependencies {
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.components.recycler)
-	implementation(libs.material.dialogs.core)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.androidx.constraintlayout)
@@ -163,7 +163,7 @@ dependencies {
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
 	implementation(libs.compose.animation.graphics)
-	implementation(libs.compose.ui.viewbinding)
+	// AndroidViewBinding is no longer used
 	implementation(libs.navigation.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.compose.runtime)
@@ -175,14 +175,11 @@ dependencies {
 	implementation(libs.accompanist.swiperefresh)
 	// 1st party dependencies
 	implementation(libs.component.slider)
-	implementation(libs.components.draggable)
+	// Draggable overlay removed with legacy fallback
 
 	implementation(libs.spotlight)
 
 	// 3rd party dependencies
-	implementation(libs.material.dialogs.color)
-	implementation(libs.material.dialogs.input)
-
 	implementation(libs.moshi)
 	ksp(libs.moshi.kotlin.codegen)
 
