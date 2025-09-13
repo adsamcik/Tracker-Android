@@ -17,9 +17,15 @@ import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWei
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.cancelAndJoin
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -30,10 +36,111 @@ import kotlin.math.max
 internal abstract class HeatmapTileProviderBase(
     private val repo: GeoRepository,
     private val pool: BitmapPool,
-    perf: PerformanceManager
+    perf: PerformanceManager,
+    invalidateTiles: () -> Unit = {}, // initial no-op; layer wires later
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val prefetchDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val externalScope: CoroutineScope? = null,
 ) : OptimizedTileProvider(perf) {
 
-    private val neighborhood = NormalizationNeighborhood(repo)
+    // Mutable so layer can inject overlay.clearTileCache() after overlay created
+    private var invalidateTilesCb: () -> Unit = invalidateTiles
+    fun setInvalidateTilesCallback(cb: () -> Unit) { invalidateTilesCb = cb }
+
+    private val cacheScope: CoroutineScope = externalScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var invalidateJob: Job? = null
+    private var firstDebounceAt: Long = 0L
+    private fun scheduleInvalidate() {
+        val now = System.currentTimeMillis()
+        if (invalidateJob?.isActive == true) {
+            // Force flush if waiting too long (max wait 300ms)
+            if (now - firstDebounceAt > 300) {
+                invalidateJob?.cancel()
+            } else return
+        }
+        firstDebounceAt = now
+        invalidateJob = cacheScope.launch {
+            delay(150)
+            invalidateTilesCb()
+        }
+    }
+    private val dataCache = HeatmapDataCache(repo, cacheScope, onEntryReady = { scheduleInvalidate() }, ioDispatcher = ioDispatcher)
+    private val neighborhood = NormalizationNeighborhood(repo, cacheScope, { scheduleInvalidate() }, dispatcher = ioDispatcher)
+
+    // Active prefetch job (viewport). Cancels previous when a new one starts.
+    private var prefetchJob: Job? = null
+    @Volatile internal var testPrefetchEnsures: Int = 0 // test hook
+
+    /** Prefetch tiles covering the given geographic bounds (lat/lon degrees) at zoom plus a border. */
+    private var lastPrefetchMs: Long = -1L
+    fun prefetchViewport(bounds: CoordinateBounds, zoom: Int, borderTiles: Int = 1, inline: Boolean = false) {
+        if (zoom < 5) return // skip overly broad prefetch
+
+        suspend fun doWork() {
+            // Cancel any previous prefetch first
+            prefetchJob?.cancel()
+            val tileCount = MapFunctions.getTileCount(zoom)
+            fun lonToX(lon: Double): Int = ((lon + 180.0) / 360.0 * tileCount).toInt().coerceIn(0, tileCount - 1)
+            fun latToY(lat: Double): Int {
+                val latRad = Math.toRadians(lat)
+                val n = Math.log(Math.tan(Math.PI / 4 + latRad / 2))
+                return (((1 - n / Math.PI) / 2 * tileCount).toInt()).coerceIn(0, tileCount - 1)
+            }
+            // Compute tile span; Mercator Y decreases as latitude increases, so order may invert.
+            val minX = lonToX(bounds.left) - borderTiles
+            val maxX = lonToX(bounds.right) + borderTiles
+            val ySouth = latToY(bounds.bottom)
+            val yNorth = latToY(bounds.top)
+            val rawMinY = kotlin.math.min(ySouth, yNorth) - borderTiles
+            val rawMaxY = kotlin.math.max(ySouth, yNorth) + borderTiles
+            val minY = rawMinY
+            val maxY = rawMaxY
+            val candidateCount = (maxX - minX + 1) * (maxY - minY + 1)
+            val now = System.currentTimeMillis()
+            if (candidateCount > 20 && lastPrefetchMs >= 0 && (now - lastPrefetchMs) < 250) return
+            lastPrefetchMs = now
+            val activeJob = prefetchJob
+            for (x in minX..maxX) {
+                if (activeJob?.isActive == false) return
+                if (x < 0 || x >= tileCount) continue
+                for (y in minY..maxY) {
+                    if (y < 0 || y >= tileCount) continue
+                    // Derive a lightweight spec to compute cell sizes & query; we only need normalization of grid sizes.
+                    val spec = specFor(x, y, zoom)
+                    val baseSize = spec.heatmapBaseSize
+                    val heatmapSize = if (spec.scaleWithQuality) {
+                        max(64, (currentQuality() * baseSize).toInt().coerceAtMost(baseSize))
+                    } else baseSize
+                    val left = MapFunctions.toLon(x.toDouble(), zoom)
+                    val top = MapFunctions.toLat(y.toDouble(), zoom)
+                    val right = MapFunctions.toLon((x + 1).toDouble(), zoom)
+                    val bottom = MapFunctions.toLat((y + 1).toDouble(), zoom)
+                    val cellSizeLat = (top - bottom) / heatmapSize
+                    val cellSizeLon = (right - left) / heatmapSize
+                    // Minimal ensure to start async fetch; ignore return state.
+                    dataCache.ensure(
+                        query = GeoQuery(spec.source, Bounds(top, right, bottom, left), null, null),
+                        weightColumn = spec.weightColumn,
+                        aggregation = spec.aggregation::class.simpleName ?: spec.aggregation.toString(),
+                        zoom = zoom,
+                        x = x,
+                        y = y,
+                        cellLatDeg = cellSizeLat,
+                        cellLonDeg = cellSizeLon,
+                        aggregationEnum = spec.aggregation
+                    )
+                    testPrefetchEnsures++
+                }
+            }
+        }
+
+        if (inline) {
+            // Run synchronously for deterministic unit tests.
+            kotlinx.coroutines.runBlocking(prefetchDispatcher) { doWork() }
+        } else {
+            prefetchJob = cacheScope.launch(prefetchDispatcher) { doWork() }
+        }
+    }
 
     protected abstract fun specFor(x: Int, y: Int, zoom: Int): HeatmapLayerSpec
 
@@ -87,20 +194,41 @@ internal abstract class HeatmapTileProviderBase(
             west = left - extendLongitude
         )
 
-        // Query aggregated points
-        val weighted = runBlocking(Dispatchers.IO) {
-            repo.queryWeightedAggregated(
-                query = GeoQuery(
-                    source = spec.source,
-                    bounds = queryBounds,
-                    timeFrom = null,
-                    timeTo = null
-                ),
-                weightColumn = spec.weightColumn,
-                aggregation = spec.aggregation,
-                cellSizeLatDeg = cellSizeLat,
-                cellSizeLonDeg = cellSizeLon
-            ).first()
+        val query = GeoQuery(
+            source = spec.source,
+            bounds = queryBounds,
+            timeFrom = null,
+            timeTo = null
+        )
+        val entry = dataCache.get(
+            source = spec.source.ordinal,
+            weightColumn = spec.weightColumn,
+            aggregation = spec.aggregation::class.simpleName ?: spec.aggregation.toString(),
+            zoom = zoom,
+            x = x,
+            y = y,
+            cellLatDeg = cellSizeLat,
+            cellLonDeg = cellSizeLon,
+        )
+        val weighted = when (entry) {
+            is HeatmapDataCache.EntryState.Ready -> entry.data
+            is HeatmapDataCache.EntryState.Empty -> return TileProvider.NO_TILE
+            null, HeatmapDataCache.EntryState.Loading -> {
+                // Trigger async fetch then return NO_TILE as a temporary placeholder.
+                // Maps SDK will request again (it retries missing tiles with backoff).
+                dataCache.ensure(
+                    query = query,
+                    weightColumn = spec.weightColumn,
+                    aggregation = spec.aggregation::class.simpleName ?: spec.aggregation.toString(),
+                    zoom = zoom,
+                    x = x,
+                    y = y,
+                    cellLatDeg = cellSizeLat,
+                    cellLonDeg = cellSizeLon,
+                    aggregationEnum = spec.aggregation
+                )
+                return TileProvider.NO_TILE
+            }
         }
         if (weighted.isEmpty()) return TileProvider.NO_TILE
 
@@ -126,7 +254,7 @@ internal abstract class HeatmapTileProviderBase(
             west = left - lonDelta
         )
 
-        val saturationOverride = neighborhood.computeSaturationOverride(
+        val saturationOverride = neighborhood.ensureAndGetOverride(
             tileKey = "$zoom/$x/$y",
             zoom = zoom,
             bounds3x3 = bounds3x3,

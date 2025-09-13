@@ -11,8 +11,10 @@ import com.adsamcik.tracker.map.heatmap.NormalizationPolicy
 import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
 import com.adsamcik.tracker.map.heatmap.implementation.AlphaMergeFunction
 import com.adsamcik.tracker.map.heatmap.implementation.WeightMergeFunction
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.math.ceil
 import kotlin.math.max
@@ -22,7 +24,14 @@ import kotlin.math.max
  * Encapsulates: building a small temporary heatmap from neighbor aggregates,
  * percentile selection via NormalizationPolicy, and EMA-based smoothing cache.
  */
-internal class NormalizationNeighborhood(private val repo: GeoRepository) {
+internal class NormalizationNeighborhood(
+    private val repo: GeoRepository,
+    private val scope: CoroutineScope,
+    private val scheduleInvalidate: () -> Unit,
+    private val dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    // Test hook: when true, compute neighborhood synchronously without launching coroutine.
+    private val inlineMode: Boolean = false,
+) {
 
     internal data class Config(
         val source: GeoSource,
@@ -68,7 +77,10 @@ internal class NormalizationNeighborhood(private val repo: GeoRepository) {
      * Compute a saturation override based on a 3x3 neighborhood around the tile.
      * Returns null if there isn't enough data nearby.
      */
-    fun computeSaturationOverride(
+    private sealed interface SatState { object Loading: SatState; data class Ready(val value: Float): SatState }
+    private val neighborhoodStates = java.util.concurrent.ConcurrentHashMap<String, SatState>()
+
+    fun ensureAndGetOverride(
         tileKey: String,
         zoom: Int,
         bounds3x3: Bounds,
@@ -77,64 +89,72 @@ internal class NormalizationNeighborhood(private val repo: GeoRepository) {
         weightNormalizer: (Double) -> Float
     ): Float? {
         val cfg = this.cfg ?: return null
-
-    val nghCellSizeLat = (bounds3x3.north - bounds3x3.south) / normSize
-    val nghCellSizeLon = (bounds3x3.east - bounds3x3.west) / normSize
-
-        // Query aggregated neighbor weights over the 3x3 bounds
-        val neighborAgg = runBlocking(Dispatchers.IO) {
-            repo.queryWeightedAggregated(
-                query = GeoQuery(
-                    source = cfg.source,
-                    bounds = bounds3x3,
-                    timeFrom = null,
-                    timeTo = null
-                ),
-                weightColumn = cfg.weightColumn,
-                aggregation = cfg.aggregation,
-                cellSizeLatDeg = nghCellSizeLat,
-                cellSizeLonDeg = nghCellSizeLon
-            ).first()
+        when (val st = neighborhoodStates[tileKey]) {
+            is SatState.Ready -> return st.value
+            SatState.Loading -> return null
+            null -> {
+                neighborhoodStates[tileKey] = SatState.Loading
+                val compute: suspend () -> Float? = {
+                    try {
+                        val nghCellSizeLat = (bounds3x3.north - bounds3x3.south) / normSize
+                        val nghCellSizeLon = (bounds3x3.east - bounds3x3.west) / normSize
+                        val neighborAgg = repo.queryWeightedAggregated(
+                            query = GeoQuery(
+                                source = cfg.source,
+                                bounds = bounds3x3,
+                                timeFrom = null,
+                                timeTo = null
+                            ),
+                            weightColumn = cfg.weightColumn,
+                            aggregation = cfg.aggregation,
+                            cellSizeLatDeg = nghCellSizeLat,
+                            cellSizeLonDeg = nghCellSizeLon
+                        ).first()
+                        if (neighborAgg.isEmpty()) {
+                            neighborhoodStates.remove(tileKey)
+                            scheduleInvalidate()
+                            // No data; exit with null
+                            null
+                        } else {
+                            val tileCount = MapFunctions.getTileCount(zoom)
+                            val pixelMetersNeighbor = com.adsamcik.tracker.shared.base.extension.LocationExtensions.EARTH_CIRCUMFERENCE.toDouble() /
+                                tileCount.toDouble() * 3.0 / normSize.toDouble()
+                            val stampR = ceil((stampPolicy.baseRadiusPxAtTile * stampPolicy.metersPerPixelAtTile) / pixelMetersNeighbor)
+                                .toInt().coerceAtLeast(1)
+                            val tmp = AgeWeightedHeatmap(normSize, normSize, cfg.ageThresholdSec, cfg.maxHeat)
+                            val stampN = stampPolicy.buildStamp(stampR)
+                            val minTimeN = neighborAgg.minOf { it.time }
+                            neighborAgg.sortedBy { it.time }.forEach { wv ->
+                                val localX = (((wv.lon - bounds3x3.west) / (bounds3x3.east - bounds3x3.west)) * normSize).toInt()
+                                val localY = (((bounds3x3.north - wv.lat) / (bounds3x3.north - bounds3x3.south)) * normSize).toInt()
+                                val xClamped = max(0, minOf(normSize - 1, localX))
+                                val yClamped = max(0, minOf(normSize - 1, localY))
+                                val ageSec = (((wv.time - minTimeN).coerceAtLeast(0L)) / com.adsamcik.tracker.shared.base.Time.SECOND_IN_MILLISECONDS).toInt()
+                                tmp.addPoint(xClamped, yClamped, ageSec, weightNormalizer(wv.weight), stampN, cfg.weightMerge, cfg.alphaMerge)
+                            }
+                            val cov = tmp.activeCoverage()
+                            val p = NormalizationPolicy.percentileFor(zoom, cov)
+                            val rawSat = NormalizationPolicy.robustPercentile(tmp, p).coerceAtLeast(1f)
+                            val smoothed = smoothSaturation(tileKey, rawSat)
+                            neighborhoodStates[tileKey] = SatState.Ready(smoothed)
+                            scheduleInvalidate()
+                            smoothed
+                        }
+                    } catch (_: Throwable) {
+                        neighborhoodStates.remove(tileKey)
+                        scheduleInvalidate()
+                        null
+                    }
+                }
+                // Avoid non-local return inside inline runBlocking by computing into a local variable first
+                val immediate: Float? = if (inlineMode) {
+                    runBlocking(dispatcher) { compute() }
+                } else {
+                    scope.launch(dispatcher) { compute() }
+                    null
+                }
+                return immediate
+            }
         }
-
-        if (neighborAgg.isEmpty()) return null
-
-        // Map tile-space stamp into neighborhood grid pixels
-        val tileCount = MapFunctions.getTileCount(zoom)
-        val pixelMetersNeighbor = com.adsamcik.tracker.shared.base.extension.LocationExtensions.EARTH_CIRCUMFERENCE.toDouble() /
-            tileCount.toDouble() * 3.0 / normSize.toDouble()
-
-    val stampR = ceil((stampPolicy.baseRadiusPxAtTile * stampPolicy.metersPerPixelAtTile) / pixelMetersNeighbor)
-            .toInt().coerceAtLeast(1)
-
-    val tmp = AgeWeightedHeatmap(normSize, normSize, cfg.ageThresholdSec, cfg.maxHeat)
-        val stampN = stampPolicy.buildStamp(stampR)
-        val minTimeN = neighborAgg.minOf { it.time }
-
-        neighborAgg.sortedBy { it.time }.forEach { wv ->
-            val localX = (((wv.lon - bounds3x3.west) / (bounds3x3.east - bounds3x3.west)) * normSize).toInt()
-            // Y increases downward in the grid; top has greater latitude
-            val localY = (((bounds3x3.north - wv.lat) / (bounds3x3.north - bounds3x3.south)) * normSize).toInt()
-
-            // Bound the coordinates into the grid [0, normSize)
-            val xClamped = max(0, minOf(normSize - 1, localX))
-            val yClamped = max(0, minOf(normSize - 1, localY))
-
-            val ageSec = (((wv.time - minTimeN).coerceAtLeast(0L)) / com.adsamcik.tracker.shared.base.Time.SECOND_IN_MILLISECONDS).toInt()
-            tmp.addPoint(
-                xClamped,
-                yClamped,
-                ageSec,
-                weightNormalizer(wv.weight),
-                stampN,
-                cfg.weightMerge,
-                cfg.alphaMerge
-            )
-        }
-
-        val cov = tmp.activeCoverage()
-        val p = NormalizationPolicy.percentileFor(zoom, cov)
-        val rawSat = NormalizationPolicy.robustPercentile(tmp, p).coerceAtLeast(1f)
-        return smoothSaturation(tileKey, rawSat)
     }
 }
