@@ -12,17 +12,18 @@ import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.points.PointsInitializer
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
-import com.adsamcik.tracker.shared.utils.module.ModuleClassLoader
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
-import com.adsamcik.tracker.shared.utils.style.StyleLifecycleObserver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
+import com.adsamcik.tracker.activity.ActivityModuleInitializer
+import com.adsamcik.tracker.tracker.module.TrackerModuleInitializer
+import com.adsamcik.tracker.game.GameModuleInitializer
 import android.app.Application as AndroidApplication
 import android.util.Log
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+
 
 /**
  * Main application
@@ -31,14 +32,27 @@ import kotlinx.coroutines.launch
 @ExperimentalStdlibApi
 class Application : AndroidApplication() {
 
-	private val styleObserver = StyleLifecycleObserver(this)
+	// Simple composition root start (incremental). Later evolve into full AppGraph.
+	lateinit var dispatchers: DispatchersProvider
+		private set
+
+	lateinit var appScope: CoroutineScope
+		private set
+
+	// Minimal composition root placeholder. Extend with repositories/services gradually.
+	lateinit var appGraph: AppGraph
+		private set
 
 	@SuppressLint("DefaultLocale")
 	@WorkerThread
 	private fun initializeModules() {
-		ModuleClassLoader.invokeInEachActiveModule<ModuleInitializer>(this) {
-			it.initialize(this)
-		}
+		// Static modules: directly initialize known initializers instead of reflection
+		val initializers: List<ModuleInitializer> = listOf(
+			ActivityModuleInitializer(),
+			TrackerModuleInitializer(),
+			GameModuleInitializer(),
+		)
+		initializers.forEach { it.initialize(this) }
 	}
 
 	@WorkerThread
@@ -87,25 +101,23 @@ class Application : AndroidApplication() {
 		ActivityWatcherService.poke(this)
 	}
 
-	@OptIn(DelicateCoroutinesApi::class)
 	override fun onCreate() {
 		super.onCreate()
 		initializeImportantSingletons()
 
-	// Preference observers must be registered on main thread
-	initializeDatabaseMaintenance()
+		// Initialize dispatchers & application scope (Supervisor for isolation)
+		dispatchers = DefaultDispatchersProvider
+		appScope = CoroutineScope(SupervisorJob() + dispatchers.default)
+		appGraph = AppGraph(dispatchers, appScope)
 
-	GlobalScope.launch(Dispatchers.Default) {
+		// Preference observers must be registered on main thread
+		initializeDatabaseMaintenance()
+
+		appScope.launch {
 			initializeClasses()
 			initializeModules()
 			initializeFeatures()
 		}
-
-		setupLifecycleListener()
-	}
-
-	private fun setupLifecycleListener() {
-		ProcessLifecycleOwner.get().lifecycle.addObserver(styleObserver)
 	}
 
 }
