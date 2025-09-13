@@ -2,7 +2,7 @@
 
 This document tracks the end-to-end migration of `MainActivity` to Jetpack Compose, redesigning navigation with a Material 3 bottom bar and a prominent center Map pill, and decommissioning Dynamic Feature modules in favor of statically linked modules.
 
-Last updated: 2025-08-31
+Last updated: 2025-09-02
 
 ## Goals
 
@@ -89,12 +89,12 @@ Rationale: Dynamic delivery wasn’t used reliably and app size is modest. We wi
 
 ### Phase A – Repo Prep & Static Modules
 
-- [ ] Switch `:statistics`, `:game`, `:map` plugins to `com.android.library`.
-- [ ] Remove `dynamicFeatures.add` from `:app`.
-- [ ] Remove `implementation(project(":app"))` from feature modules; compile-fix by moving shared code into `:sbase`/`:sutils` (or new `:appcore`).
-- [ ] Remove SplitInstallManager usage and module gating in app code (e.g., `MainActivity`, `Module` helper, installers/UI).
-- [ ] Replace reflective loading via `ModuleClassLoader` with direct references; mark helper as deprecated (cleanup follow-up).
-- [ ] Build passes for `:app`, `:statistics`, `:game`, `:map`.
+- [x] Switch `:statistics`, `:game`, `:map` plugins to `com.android.library`.
+- [x] Remove `dynamicFeatures.add` from `:app`.
+- [x] Remove `implementation(project(":app"))` from feature modules; compile-fix by moving shared code into `:sbase`/`:sutils` (or new `:appcore`).
+- [x] Remove SplitInstallManager usage and module gating in app code (e.g., `MainActivity`, `Module` helper, installers/UI).
+- [x] Replace reflective loading via `ModuleClassLoader` with direct references; mark helper as deprecated (cleanup follow-up).
+- [x] Build passes for `:app`, `:statistics`, `:game`, `:map`.
 
 ### Phase B – Compose Shell for MainActivity
 
@@ -157,7 +157,7 @@ Rationale: Dynamic delivery wasn’t used reliably and app size is modest. We wi
 
 ## Progress
 
-Overall status: In planning
+Overall status: Phases A–C complete; proceeding to Phase D
 
 - Fragments Compose migrations: Tracker ✅, Stats ✅, Game ✅ (per `COMPOSE_MIGRATION_PROGRESS.md`).
 - Decision log:
@@ -166,9 +166,9 @@ Overall status: In planning
 
 ### Checklist snapshot
 
-- [ ] Phase A – Repo Prep & Static Modules
-- [ ] Phase B – Compose Shell for MainActivity
-- [ ] Phase C – Content Hosting
+- [x] Phase A – Repo Prep & Static Modules
+- [x] Phase B – Compose Shell for MainActivity
+- [x] Phase C – Content Hosting
 - [ ] Phase D – Animations, A11y, Back
 - [ ] Phase E – Cleanup Dynamic Artifacts
 - [ ] Phase F – Tests & Quality Gates

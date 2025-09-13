@@ -9,7 +9,10 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 1. **OnboardingActivity** - Modern Compose-based onboarding flow that replaced the old first-run dialog system
 2. **ImportExportComposeActivity** - Compose version of the import/export functionality
 3. **CrashViewerActivity** - Debug crash viewer using ComposeDetailActivity
-4. **Map Fragment (Partial)** - Some UI components are Compose-based (MapSheet, MapScreen) but fragment container is still traditional
+4. **WifiBrowseActivityCompose** - Compose implementation
+5. **SessionActivityActivityCompose** - Compose implementation
+6. **NotificationManagementActivityCompose** (if present) – modernized management UI
+7. **Map Fragment (Partial)** - Some UI components are Compose-based (MapSheet, MapScreen) but fragment container is still traditional
 
 ### 🔄 In Progress / Partial
 
@@ -69,13 +72,9 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 **Context:** Primary user interface for the app's core functionality - users start/stop tracking, view current data, manage permissions, and see real-time tracking information. This is where users spend most of their active time in the app.  
 **Complexity:** Very High - Complex tracking state management, permissions, real-time data display, RecyclerView with multiple component types
 
-### 7. FragmentStats
+### 7. (Was) FragmentStats
 
-**File:** `statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/FragmentStats.kt`  
-**Current State:** Traditional View-based (extends CoreUIFragment)  
-**Purpose:** Statistics overview showing recent tracking sessions in a list format. Users can view session summaries, dates, distances, and tap to see detailed statistics.  
-**Context:** Key module for data analysis - users review their tracking history, see patterns in their data, and access detailed session information.  
-**Complexity:** High - Complex paged data loading, RecyclerView with sectioned adapters, ViewFlipper for different states
+Replaced by pure Compose `StatsRoute` + paging list. Legacy Fragment + RecyclerView adapter, dialog, and XML layouts removed (sectioned adapter + MaterialDialog summary). Session UI models retained in lightweight `SessionUiModel` sealed set for paging separators.
 
 ### 8. FragmentGame
 
@@ -111,23 +110,11 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 **Context:** Data portability - users export their data for backup, analysis in other tools, or migration. Critical for data ownership and privacy.  
 **Complexity:** High - File system operations, multiple export formats, date selection, progress tracking
 
-### 12. NotificationManagementActivity
+### 12. (Was) NotificationManagementActivity
 
-**File:** `tracker/src/main/java/com/adsamcik/tracker/tracker/notification/NotificationManagementActivity.kt`  
-**Current State:** Traditional View-based (extends ManageActivity)  
-**Purpose:** Manages tracking notification content. Allows users to customize what information appears in the persistent notification during tracking (location, speed, distance, etc.).  
-**Context:** Notification customization - users control what tracking data is visible in notifications for privacy and personalization.  
-**Complexity:** High - Drag-and-drop reordering, dynamic notification preview, complex preference management
+Replaced by Compose implementation. Legacy ManageActivity variant removed. Section retained for historical trace until next doc pruning.
 
-### 13. WifiBrowseActivity
-
-**File:** `statistics/src/main/java/com/adsamcik/tracker/statistics/wifi/WifiBrowseActivity.kt`  
-**Current State:** Traditional View-based (extends ManageActivity)  
-**Purpose:** Browse and filter collected WiFi network data. Shows SSID, BSSID, signal strength, frequency, and other WiFi metadata with advanced filtering options.  
-**Context:** Data exploration for WiFi tracking component - users can browse collected WiFi data for analysis or debugging.  
-**Complexity:** High - Database queries, filtering UI, large dataset management, horizontal scrolling
-
-### 14. ShortcutActivity
+### 13. ShortcutActivity
 
 **File:** `tracker/src/main/java/com/adsamcik/tracker/tracker/shortcut/ShortcutActivity.kt`  
 **Current State:** Traditional View-based (extends AppCompatActivity)  
@@ -137,7 +124,7 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 
 ## Base Activity Classes (Infrastructure)
 
-### 15. DetailActivity
+### 14. DetailActivity
 
 **File:** `sutils/src/main/java/com/adsamcik/tracker/shared/utils/activity/DetailActivity.kt`  
 **Current State:** Traditional View-based base class  
@@ -145,15 +132,11 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 **Context:** Infrastructure component - provides consistent styling and behavior across detail screens.  
 **Complexity:** Medium - Base class requiring careful migration to maintain consistency
 
-### 16. ManageActivity
+### 15. ManageActivity (Removed)
 
-**File:** `sutils/src/main/java/com/adsamcik/tracker/shared/utils/activity/ManageActivity.kt`  
-**Current State:** Traditional View-based base class  
-**Purpose:** Base class for management screens with RecyclerView, FAB, and CRUD operations. Provides common patterns for list management with add/edit/delete functionality.  
-**Context:** Infrastructure for data management screens - provides consistent patterns for managing lists of data.  
-**Complexity:** High - Complex base class with FAB, dialogs, RecyclerView management, drag-and-drop
+Legacy base class fully eliminated after final migrations (Wifi, Session Activities, Notification management). Compose screens now own their own scoped state & patterns; shared behavior will be factored into lightweight reusable composables as needed.
 
-### 17. CoreUIActivity
+### 16. CoreUIActivity
 
 **File:** `sutils/src/main/java/com/adsamcik/tracker/shared/utils/activity/CoreUIActivity.kt`  
 **Current State:** Traditional View-based base class  
@@ -182,9 +165,8 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 1. **Base Activity Classes** - After main screens
 2. **ModuleActivity** - Administrative
 3. **LicenseActivity** - Legal compliance
-4. **WifiBrowseActivity** - Data exploration
-5. **StatusActivity** - Debug tools
-6. **ShortcutActivity** - System integration
+4. **StatusActivity** - Debug tools
+5. **ShortcutActivity** - System integration
 
 ## Migration Considerations
 
