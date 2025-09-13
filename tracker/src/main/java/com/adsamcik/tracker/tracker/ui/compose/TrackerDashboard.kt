@@ -75,8 +75,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
-import androidx.preference.PreferenceManager
-import android.content.SharedPreferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -297,22 +300,20 @@ private fun TrackingContent(
     }
 }
 
+private val android.content.Context.trackingTogglesDataStore by preferencesDataStore(name = "tracking_toggles")
+
 @Composable
 private fun rememberPrefBoolean(keyRes: Int, defaultRes: Int): Boolean {
     val context = LocalContext.current
-    val prefs = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
-    val key = remember(context, keyRes) { context.getString(keyRes) }
+    val keyName = remember(context, keyRes) { context.getString(keyRes) }
     val default = remember(context, defaultRes) { context.resources.getString(defaultRes).toBoolean() }
-    val state = remember { mutableStateOf(prefs.getBoolean(key, default)) }
-
-    androidx.compose.runtime.DisposableEffect(prefs, key) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, changedKey ->
-            if (changedKey == key) state.value = sp.getBoolean(key, default)
-        }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    val ds = remember(context) { context.trackingTogglesDataStore }
+    val flow = remember(ds, keyName, default) {
+        val prefKey = booleanPreferencesKey(keyName)
+        ds.data.map { it[prefKey] ?: default }
     }
-    return state.value
+    val value = flow.collectAsState(initial = default).value
+    return value
 }
 
 @Composable

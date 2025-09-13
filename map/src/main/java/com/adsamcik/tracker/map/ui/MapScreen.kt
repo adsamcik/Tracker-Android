@@ -20,11 +20,11 @@ import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.adsamcik.tracker.map.presentation.MapStore
-import com.adsamcik.tracker.map.presentation.style.MapStyleProvider
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.ui.bitmapDescriptorFromVector
+import com.google.android.gms.maps.GoogleMap
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapEffect
@@ -49,6 +49,7 @@ fun MapScreen(
     store: MapStore,
     overlayMode: Boolean = false,
     bottomPaddingPx: Int = 0,
+    onGoogleMapReady: ((GoogleMap) -> Unit)? = null,
 ) {
     val state by store.state.collectAsState()
 
@@ -72,24 +73,15 @@ fun MapScreen(
 
     val context = LocalContext.current
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val initialStyle = remember { MapStyleProvider.fromIsDark(context, isDark) }
     var mapProperties by remember {
         mutableStateOf(
             MapProperties(
-                mapStyleOptions = initialStyle
+                mapStyleOptions = null
             )
         )
     }
 
-    // Update map style when theme mode changes
-    LaunchedEffect(isDark) {
-        try {
-            val updated = MapStyleProvider.fromIsDark(context, isDark)
-            mapProperties = mapProperties.copy(mapStyleOptions = updated)
-        } catch (_: Exception) {
-            mapProperties = mapProperties.copy(mapStyleOptions = MapStyleProvider.default(context))
-        }
-    }
+    // Map style removed - using default Google Maps styling
 
     val snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 
@@ -103,11 +95,30 @@ fun MapScreen(
             onMapLongClick = { /* no-op */ },
             onPOIClick = { /* no-op */ },
         ) {
-        // Imperative interop: cancel follow on user gesture using GoogleMap listener
+        // Expose GoogleMap instance when available and set up listeners
         MapEffect(Unit) { gMap ->
+            try { onGoogleMapReady?.invoke(gMap) } catch (_: Throwable) {}
             gMap.setOnCameraMoveStartedListener { reason ->
                 if (!overlayMode && reason == com.google.android.gms.maps.GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
                     store.dispatch(MapEvent.FollowCanceled)
+                }
+            }
+            // Camera idle -> prefetch surrounding tiles if heatmap provider active
+            gMap.setOnCameraIdleListener {
+                val provider = state.tileProvider
+                val hp = provider as? com.adsamcik.tracker.map.tiles.HeatmapTileProviderBase
+                if (hp != null) {
+                    try {
+                        val vr = gMap.projection.visibleRegion.latLngBounds
+                        val bounds = com.adsamcik.tracker.shared.map.CoordinateBounds(
+                            vr.northeast.latitude,
+                            vr.northeast.longitude,
+                            vr.southwest.latitude,
+                            vr.southwest.longitude
+                        )
+                        val zoom = gMap.cameraPosition.zoom.toInt()
+                        hp.prefetchViewport(bounds, zoom, borderTiles = 1)
+                    } catch (_: Throwable) {}
                 }
             }
         }

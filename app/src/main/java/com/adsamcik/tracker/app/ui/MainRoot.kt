@@ -60,14 +60,11 @@ fun MainRoot(startDestination: String = Routes.Map, onRouteChanged: (String) -> 
     Box(Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = startDestination, modifier = Modifier.fillMaxSize()) {
             composable(Routes.Map) {
-                // Show Tracker route as the main content while the map overlay remains as legacy background.
-                com.adsamcik.tracker.tracker.ui.fragment.TrackerRoute()
+                // Compose-native Map route
+                com.adsamcik.tracker.map.ui.MapRoute()
             }
-            composable(Routes.Stats) {
-                com.adsamcik.tracker.statistics.fragment.StatsRoute()
-            }
-            composable(Routes.Game) {
-                com.adsamcik.tracker.game.fragment.GameRoute()
+            composable(Routes.Debug) {
+                com.adsamcik.tracker.app.debug.DebugRoute()
             }
         }
 

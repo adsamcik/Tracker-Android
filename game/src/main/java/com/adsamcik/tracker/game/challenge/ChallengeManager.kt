@@ -22,9 +22,9 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -34,6 +34,8 @@ import kotlin.random.Random
  * Singleton class that manages saving and loading of challenges from cache storage or network
  */
 object ChallengeManager {
+	// Replace GlobalScope with a supervised singleton scope (still global but cancellable in tests)
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(
 		ExplorerChallengeDefinition(),
 		WalkDistanceChallengeDefinition(),
@@ -72,10 +74,9 @@ object ChallengeManager {
 		}
 	}
 
-	@OptIn(DelicateCoroutinesApi::class)
 	@AnyThread
 	fun initialize(context: Context, onInitialized: (() -> Unit)? = null) {
-		GlobalScope.launch(Dispatchers.Default) {
+		scope.launch {
 			val active = initFromDb(context)
 
 			activeChallengeLock.withLock {
