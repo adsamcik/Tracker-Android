@@ -16,6 +16,8 @@ import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
 import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
@@ -204,6 +206,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				?: DEFAULT_IS_USER_INITIATED
 
 		isServiceRunningMutable.value = true
+        _isServiceRunningFlow.value = true
 
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
 		sessionInfoMutable.value = this.sessionInfo
@@ -295,6 +298,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private fun onDestroyServiceMetaData() {
 		isServiceRunningMutable.value = false
+        _isServiceRunningFlow.value = false
 		sessionInfoMutable.value = null
 	}
 
@@ -337,9 +341,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	companion object {
-		private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(
-				false
-		)
+	private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
+	private val _isServiceRunningFlow = MutableStateFlow(false)
+	val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunningFlow
 
 		/**
 		 * LiveData containing information about whether the service is currently running

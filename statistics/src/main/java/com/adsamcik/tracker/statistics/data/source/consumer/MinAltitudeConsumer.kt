@@ -7,7 +7,7 @@ import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataDistanceConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedAltitudeProducer
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.adsamcik.tracker.statistics.extension.requireData
 import kotlin.reflect.KClass
 
@@ -20,7 +20,7 @@ class MinAltitudeConsumer : StatDataDistanceConsumer {
 	override val iconRes: Int
 		get() = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_terrain
 	override val displayType: StatisticDisplayType
-		get() = StatisticDisplayType.Information
+		get() = StatisticDisplayType.INFORMATION
 
 	override fun getDistance(context: Context, data: StatDataMap): Double {
 		val locationData = data.requireData<List<Double2>>(OptimizedAltitudeProducer::class)

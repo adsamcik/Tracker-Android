@@ -56,6 +56,9 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 				context.applicationContext,
 				type
 		)
+				// Tests run on JVM / Robolectric main thread; allow main thread queries to simplify
+				// synchronous DAO access. Production database keeps default threading safeguards.
+				.allowMainThreadQueries()
 				.build()
 	}
 }

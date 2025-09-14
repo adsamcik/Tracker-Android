@@ -7,7 +7,7 @@ import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataDistanceConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.adsamcik.tracker.statistics.extension.requireData
 import kotlin.reflect.KClass
 
@@ -22,7 +22,7 @@ class DistanceInVehicleConsumer : StatDataDistanceConsumer {
 		get() = com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_commute
 
 	override val displayType: StatisticDisplayType
-		get() = StatisticDisplayType.Information
+		get() = StatisticDisplayType.INFORMATION
 
 
 	override fun getDistance(context: Context, data: StatDataMap): Double {

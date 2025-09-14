@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.detail.activity.StatsDetailActivity
+import com.adsamcik.tracker.statistics.test.StatsScreenTestHost
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

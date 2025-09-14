@@ -7,7 +7,7 @@ import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataSpeedConsumer
 import com.adsamcik.tracker.statistics.data.source.producer.LocationDataProducer
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.adsamcik.tracker.statistics.extension.requireData
 import kotlin.reflect.KClass
 
@@ -19,7 +19,7 @@ class AvgSpeedConsumer : StatDataSpeedConsumer {
 
 	override val iconRes: Int = com.adsamcik.tracker.shared.base.R.drawable.ic_speedometer
 
-	override val displayType: StatisticDisplayType = StatisticDisplayType.Information
+	override val displayType: StatisticDisplayType = StatisticDisplayType.INFORMATION
 
 	override fun getSpeed(context: Context, data: StatDataMap): Double {
 		val locationData = data.requireData<List<Location>>(LocationDataProducer::class)

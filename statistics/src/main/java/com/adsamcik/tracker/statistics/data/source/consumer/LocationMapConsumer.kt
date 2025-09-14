@@ -8,7 +8,7 @@ import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedLocationDataProducer
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.adsamcik.tracker.statistics.extension.requireData
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
@@ -24,7 +24,7 @@ class LocationMapConsumer : StatDataConsumer {
 		get() = ResourcesConstants.ID_NULL
 
 	override val displayType: StatisticDisplayType
-		get() = StatisticDisplayType.Map
+		get() = StatisticDisplayType.MAP
 
 	override fun getData(context: Context, data: StatDataMap): Any {
 		return data.requireData<List<Location>>(OptimizedLocationDataProducer::class)

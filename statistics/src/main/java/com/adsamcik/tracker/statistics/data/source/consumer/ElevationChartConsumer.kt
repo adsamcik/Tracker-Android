@@ -8,7 +8,7 @@ import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.OptimizedAltitudeProducer
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.adsamcik.tracker.statistics.extension.requireData
 import com.github.mikephil.charting.data.Entry
 import com.squareup.moshi.Moshi
@@ -25,7 +25,7 @@ class ElevationChartConsumer : StatDataConsumer {
 		get() = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_terrain
 
 	override val displayType: StatisticDisplayType
-		get() = StatisticDisplayType.LineChart
+		get() = StatisticDisplayType.LINE_CHART
 
 	override fun getData(context: Context, data: StatDataMap): Any {
 		val altitudeList = data.requireData<List<Double2>>(OptimizedAltitudeProducer::class)

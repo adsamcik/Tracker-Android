@@ -1,148 +1,269 @@
 package com.adsamcik.tracker.tracker.notification
 
 import android.os.Bundle
-import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.ItemTouchHelper.DOWN
-import androidx.recyclerview.widget.ItemTouchHelper.END
-import androidx.recyclerview.widget.ItemTouchHelper.START
-import androidx.recyclerview.widget.ItemTouchHelper.UP
-import androidx.recyclerview.widget.RecyclerView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DragIndicator
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.shared.base.database.PreferenceDatabase
-import com.adsamcik.tracker.shared.base.database.dao.NotificationPreferenceDao
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
-import com.adsamcik.tracker.shared.utils.activity.ManageActivity
 import com.adsamcik.tracker.tracker.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-/**
- * Notification management activity that allows user to customize notification content.
- */
-class NotificationManagementActivity : ManageActivity(), OnStartDragListener {
-	private lateinit var dao: NotificationPreferenceDao
-
-	private val adapter = NotificationRecyclerAdapter(this, this::onEdit)
-
-	private val simpleItemTouchCallback =
-			object : ItemTouchHelper.SimpleCallback(
-					UP or DOWN or START or END,
-					0
-			) {
-
-				override fun onMove(
-						recyclerView: RecyclerView,
-						viewHolder: RecyclerView.ViewHolder,
-						target: RecyclerView.ViewHolder
-				): Boolean {
-
-					val adapter = recyclerView.adapter as NotificationRecyclerAdapter
-					val from = viewHolder.absoluteAdapterPosition
-					val to = target.absoluteAdapterPosition
-					adapter.moveItemPersistent(this@NotificationManagementActivity, from, to)
-
-					return true
-				}
-
-				override fun onSwiped(
-						viewHolder: RecyclerView.ViewHolder,
-						direction: Int
-				) {
-					// 4. Code block for horizontal swipe.
-					//    ItemTouchHelper handles horizontal swipe as well, but
-					//    it is not relevant with reordering. Ignoring here.
-				}
-			}
-
-	private val touchHelper = ItemTouchHelper(simpleItemTouchCallback)
-
-	override fun onStartDrag(viewHolder: RecyclerView.ViewHolder) {
-		touchHelper.startDrag(viewHolder)
-	}
-
-	private fun onEdit(position: Int) {
-		val data = adapter.getItem(position).preference
-		val editList = generateEditDataList(data)
-		edit(data.id, editList)
-	}
-
-	private fun generateEditDataList(preference: NotificationPreference): Collection<EditDataInstance> {
-		return listOf(
-				EditDataInstance(SHOW_IN_TITLE, preference.isInTitle),
-				EditDataInstance(SHOW_IN_CONTENT, preference.isInContent)
-		)
-	}
-
-	override fun getAdapter(): RecyclerView.Adapter<RecyclerView.ViewHolder> {
-		@Suppress("unchecked_cast")
-		return adapter as RecyclerView.Adapter<RecyclerView.ViewHolder>
-	}
-
-	override fun onCreateRecycler(recyclerView: RecyclerView) {
-		dao = PreferenceDatabase.database(this).getNotificationDao()
-
-		launch(Dispatchers.Default) {
-			TrackerNotificationProvider.updatePreferences(this@NotificationManagementActivity)
-			val activeComponentList = TrackerNotificationProvider.internalActiveList
-
-			val collection = activeComponentList.sortedBy { it.preference.order }
-			collection.forEachIndexed { index, trackerNotificationComponent ->
-				trackerNotificationComponent.preference = trackerNotificationComponent.preference.copy(
-						order = index
-				)
-			}
-			launch(Dispatchers.Main) { adapter.addAll(collection) }
-		}
-
-		touchHelper.attachToRecyclerView(recyclerView)
-	}
-
-	override fun onDataConfirmed(tag: String?, dataCollection: List<EditDataInstance>) {
-		require(dataCollection.size == 2)
-		require(tag != null)
-
-		val isInTitle = requireNotNull(dataCollection.find { it.id == SHOW_IN_TITLE })
-		val isInContent = requireNotNull(dataCollection.find { it.id == SHOW_IN_CONTENT })
-
-		launch(Dispatchers.Default) {
-			val id = tag.toString()
-			val index = adapter.indexOf { it.id == id }
-			require(index >= 0)
-			val preference = NotificationPreference(
-					id,
-					index,
-					isInTitle.value.toBoolean(),
-					isInContent.value.toBoolean()
-			)
-			adapter.updateItemPersistent(this@NotificationManagementActivity, preference)
-		}
-	}
-
-	override fun getEmptyEditData(): Collection<EditData> {
-		return listOf(
-				EditData(
-						SHOW_IN_TITLE,
-						EditType.Checkbox,
-						R.string.hint_customize_notification_show_in_title
-				),
-				EditData(
-						SHOW_IN_CONTENT,
-						EditType.Checkbox,
-						R.string.hint_customize_notification_show_in_content
-				)
-		)
-	}
-
-	override fun onManageConfigure(configuration: ManageConfiguration) {
-		configuration.isAddEnabled = false
-	}
+/** Compose replacement for legacy NotificationManagementActivity (Recycler/ManageActivity). */
+class NotificationManagementActivity : ComponentActivity() {
+	private val viewModel: NotificationManagementViewModel by viewModels()
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		setTitle(R.string.settings_notification_customize_title)
-	}
-
-	companion object {
-		private const val SHOW_IN_TITLE = "showInTitle"
-		private const val SHOW_IN_CONTENT = "showInContent"
+		setContent {
+			MaterialTheme { // Uses app theme (inherits from parent activity theme)
+				NotificationManagementRoute(
+					viewModel = viewModel,
+					onBack = { finish() }
+				)
+			}
+		}
 	}
 }
+
+internal data class UiItem(
+	val id: String,
+	val titleRes: Int,
+	val isInTitle: Boolean,
+	val isInContent: Boolean,
+)
+
+private fun TrackerNotificationComponent.toUiItem(): UiItem =
+	UiItem(id = id, titleRes = titleRes, isInTitle = preference.isInTitle, isInContent = preference.isInContent)
+
+class NotificationManagementViewModel : ViewModel() {
+	// Backing state kept internal; expose as read-only list to callers
+	internal var items: List<UiItem> by mutableStateOf(emptyList())
+		private set
+
+	// Drag state
+	var draggingIndex by mutableStateOf<Int?>(null)
+		private set
+
+	fun load(context: android.content.Context) {
+		if (items.isNotEmpty()) return
+		viewModelScope.launch(Dispatchers.Default) {
+			TrackerNotificationProvider.updatePreferences(context)
+			val raw = TrackerNotificationProvider.internalActiveList
+				.sortedBy { it.preference.order }
+				.onEachIndexed { index, comp ->
+					comp.preference = comp.preference.copy(order = index)
+				}
+			withContext(Dispatchers.Main) { items = raw.map { it.toUiItem() } }
+		}
+	}
+
+	fun setDragging(index: Int?) { draggingIndex = index }
+
+	fun moveItem(from: Int, to: Int) {
+		if (from == to) return
+		val mutable = items.toMutableList()
+		val item = mutable.removeAt(from)
+		mutable.add(to, item)
+		items = mutable
+		draggingIndex = to
+	}
+
+	fun persistOrder(context: android.content.Context) {
+		viewModelScope.launch(Dispatchers.IO) {
+			val dao = PreferenceDatabase.database(context).getNotificationDao()
+			val update = items.mapIndexed { index, ui ->
+				NotificationPreference(
+					id = ui.id,
+					order = index,
+					isInTitle = ui.isInTitle,
+					isInContent = ui.isInContent
+				)
+			}
+			dao.upsert(update)
+		}
+	}
+
+	fun updateFlags(context: android.content.Context, id: String, inTitle: Boolean, inContent: Boolean) {
+		items = items.map { if (it.id == id) it.copy(isInTitle = inTitle, isInContent = inContent) else it }
+		viewModelScope.launch(Dispatchers.IO) {
+			val index = items.indexOfFirst { it.id == id }
+			if (index >= 0) {
+				PreferenceDatabase.database(context).getNotificationDao().upsert(
+					NotificationPreference(id, index, inTitle, inContent)
+				)
+			}
+		}
+	}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotificationManagementRoute(
+	viewModel: NotificationManagementViewModel,
+	onBack: () -> Unit,
+) {
+	val context = androidx.compose.ui.platform.LocalContext.current
+	LaunchedEffect(Unit) { viewModel.load(context) }
+	val items: List<UiItem> = viewModel.items
+	var editTarget by remember { mutableStateOf<UiItem?>(null) }
+
+	Scaffold(
+		topBar = {
+			TopAppBar(
+				title = { Text(stringResource(id = R.string.settings_notification_customize_title)) },
+				navigationIcon = {
+					IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+				}
+			)
+		}
+	) { padding ->
+		if (items.isEmpty()) {
+			Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+				CircularProgressIndicator()
+			}
+		} else {
+			val rowHeight = 56.dp
+			val rowHeightPx = with(LocalDensity.current) { rowHeight.toPx() }
+			LazyColumn(
+				modifier = Modifier
+					.fillMaxSize()
+					.padding(padding)
+			) {
+				itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
+					val isDragging = index == viewModel.draggingIndex
+					NotificationItemRow(
+						item = item,
+						rowHeight = rowHeight,
+						isDragging = isDragging,
+						onEdit = { editTarget = item },
+						modifier = Modifier.pointerInput(items) {
+							detectDragGesturesAfterLongPress(
+								onDragStart = { viewModel.setDragging(index) },
+								onDragEnd = {
+									viewModel.setDragging(null)
+									viewModel.persistOrder(context)
+								},
+								onDragCancel = { viewModel.setDragging(null) },
+								onDrag = { change, dragAmount ->
+									change.consume()
+									val current = viewModel.draggingIndex ?: return@detectDragGesturesAfterLongPress
+									val offsetY = dragAmount.y
+									if (offsetY > rowHeightPx / 2 && current < items.lastIndex) {
+										viewModel.moveItem(current, current + 1)
+									} else if (offsetY < -rowHeightPx / 2 && current > 0) {
+										viewModel.moveItem(current, current - 1)
+									}
+								}
+							)
+						}
+					)
+				}
+			}
+		}
+	}
+
+	val target = editTarget
+	if (target != null) {
+		var inTitle by remember(target) { mutableStateOf(target.isInTitle) }
+		var inContent by remember(target) { mutableStateOf(target.isInContent) }
+		AlertDialog(
+			onDismissRequest = { editTarget = null },
+			confirmButton = {
+				TextButton(onClick = {
+					viewModel.updateFlags(context, target.id, inTitle, inContent)
+					editTarget = null
+				}) { Text(stringResource(android.R.string.ok)) }
+			},
+			dismissButton = {
+				TextButton(onClick = { editTarget = null }) { Text(stringResource(android.R.string.cancel)) }
+			},
+			title = { Text(stringResource(R.string.settings_notification_customize_title)) },
+			text = {
+				Column {
+					Row(verticalAlignment = Alignment.CenterVertically) {
+						Checkbox(checked = inTitle, onCheckedChange = { inTitle = it })
+						Text(text = stringResource(R.string.hint_customize_notification_show_in_title))
+					}
+					Row(verticalAlignment = Alignment.CenterVertically) {
+						Checkbox(checked = inContent, onCheckedChange = { inContent = it })
+						Text(text = stringResource(R.string.hint_customize_notification_show_in_content))
+					}
+				}
+			}
+		)
+	}
+}
+
+@Composable
+private fun NotificationItemRow(
+	item: UiItem,
+	rowHeight: androidx.compose.ui.unit.Dp,
+	isDragging: Boolean,
+	onEdit: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val bg = if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent
+	Row(
+		modifier
+			.fillMaxWidth()
+			.height(rowHeight)
+			.background(bg)
+			.padding(horizontal = 8.dp),
+		verticalAlignment = Alignment.CenterVertically
+	) {
+		Icon(Icons.Filled.DragIndicator, contentDescription = "Drag", modifier = Modifier.size(32.dp))
+		Spacer(Modifier.width(4.dp))
+		Text(
+			text = stringResource(id = item.titleRes),
+			modifier = Modifier.weight(1f)
+		)
+		if (item.isInTitle) {
+			Icon(painterResource(id = R.drawable.ic_format_title), contentDescription = "Title", modifier = Modifier.size(20.dp))
+		}
+		if (item.isInContent) {
+			Spacer(Modifier.width(4.dp))
+			Icon(painterResource(id = R.drawable.ic_subtitles_outline), contentDescription = "Content", modifier = Modifier.size(20.dp))
+		}
+		Spacer(Modifier.width(8.dp))
+		IconButton(onClick = onEdit) {
+			Icon(Icons.Filled.Edit, contentDescription = "Edit")
+		}
+	}
+}
+

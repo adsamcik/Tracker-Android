@@ -11,7 +11,6 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
-import com.afollestad.materialdialogs.utils.MDUtil.getStringArray
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -131,7 +130,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	protected abstract fun getGoalTime(day: ZonedDateTime): Int
 
 	override fun buildNotification(context: Context): Notification {
-		val encouragement = context.getStringArray(R.array.goals_encouragement).random()
+		val encouragement = context.resources.getStringArray(R.array.goals_encouragement).random()
 		val periodString = context.getString(period.stringResource)
 
 		// Build an intent to open the app without a compile-time dependency on :app

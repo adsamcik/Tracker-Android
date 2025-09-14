@@ -1,6 +1,24 @@
 package com.adsamcik.tracker.game.goals
 
 import android.text.InputType
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.SwitchPreferenceCompat
@@ -11,14 +29,53 @@ import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.SubmoduleSettings
-import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.input.input
 
 /**
  * Creates settings for goals.
  */
 class GoalsSettings : SubmoduleSettings {
 	override val categoryTitleRes: Int = R.string.settings_game_goals_category_title
+
+	@Composable
+	private fun NumberInputDialog(
+		title: String,
+		currentValue: String,
+		onDismiss: () -> Unit,
+		onConfirm: (String) -> Unit
+	) {
+		var inputValue by remember { mutableStateOf(currentValue) }
+
+		AlertDialog(
+			onDismissRequest = onDismiss,
+			title = { Text(title) },
+			text = {
+				Column {
+					OutlinedTextField(
+						value = inputValue,
+						onValueChange = { inputValue = it },
+						label = { Text(title) },
+						keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+						modifier = Modifier.fillMaxWidth()
+					)
+				}
+			},
+			confirmButton = {
+				TextButton(
+					onClick = {
+						onConfirm(inputValue)
+						onDismiss()
+					}
+				) {
+					Text(stringResource(com.adsamcik.tracker.shared.base.R.string.generic_done))
+				}
+			},
+			dismissButton = {
+				TextButton(onClick = onDismiss) {
+					Text(stringResource(android.R.string.cancel))
+				}
+			}
+		)
+	}
 
 	private fun Preference.initializeEditNumberDialogPreference(
 			preferences: Preferences,
@@ -34,21 +91,31 @@ class GoalsSettings : SubmoduleSettings {
 				.getInt(key, default)
 				.formatReadable()
 		setOnPreferenceClickListener { preference ->
-			MaterialDialog(preference.context)
-					.show {
-						positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_done)
-						input(
-								hint = title.toString(),
-								prefill = preferences.getInt(key, default).toString(),
-								inputType = InputType.TYPE_CLASS_NUMBER,
-								waitForPositiveButton = true,
-								callback = { dialog, input ->
-									val number = input.toString().toInt()
-									Preferences.getPref(dialog.windowContext)
-											.edit { setInt(key, number) }
-									summary = number.formatReadable()
-								})
+			val composeView = ComposeView(preference.context).apply {
+				setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(findViewTreeLifecycleOwner()!!))
+				var showDialog by mutableStateOf(true)
+				
+				setContent {
+					if (showDialog) {
+						NumberInputDialog(
+							title = title.toString(),
+							currentValue = preferences.getInt(key, default).toString(),
+							onDismiss = { showDialog = false },
+							onConfirm = { inputValue ->
+								val number = inputValue.toIntOrNull() ?: default
+								Preferences.getPref(preference.context)
+									.edit { setInt(key, number) }
+								summary = number.formatReadable()
+							}
+						)
 					}
+				}
+			}
+			
+			// Add to view hierarchy temporarily
+			val parentViewGroup = preference.parent as? android.view.ViewGroup
+			parentViewGroup?.addView(composeView)
+			
 			false
 		}
 	}

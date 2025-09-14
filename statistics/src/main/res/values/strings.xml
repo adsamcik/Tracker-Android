@@ -44,6 +44,9 @@
     <string name="stats_append_error">Load more failed</string>
     <string name="action_retry">Retry</string>
 
+    <string name="stats_session_activity_selection_title">Select Activity</string>
+    <string name="stats_session_activity_selection_empty">No activities available</string>
+
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>
     <string name="wifilist_filter_capabilities">Capabilities</string>

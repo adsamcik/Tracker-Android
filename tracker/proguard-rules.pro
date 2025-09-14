@@ -41,7 +41,5 @@
 -keep class com.adsamcik.tracker.shared.preferences.MutablePreferences { *; }
 -keep class com.adsamcik.tracker.shared.preferences.Preferences { *; }
 -keep class com.adsamcik.tracker.shared.preferences.Preferences$Companion { *; }
--keep class com.adsamcik.tracker.shared.utils.activity.ManageActivity { *; }
--keep class com.adsamcik.tracker.shared.utils.activity.ManageActivity$EditDataInstance { *; }
 -keep class com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver { *; }
 -keep class com.adsamcik.tracker.shared.utils.style.marker.IViewChange { *; }

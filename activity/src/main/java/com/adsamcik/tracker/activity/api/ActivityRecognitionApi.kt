@@ -10,19 +10,19 @@ import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.logger.LogData
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
  * Activity recognition API class, providing access to special activity recognition functions.
  */
 object ActivityRecognitionApi {
-    @OptIn(DelicateCoroutinesApi::class)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     fun rerunRecognitionForAll(context: Context) {
         logActivity(LogData(message = "requesting recognition rerun", source = ACTIVITY_LOG_SOURCE))
-        GlobalScope.launch(Dispatchers.Default) {
+        scope.launch {
             val sessionDao = AppDatabase.database(context).sessionDao()
             val workManager = WorkManager.getInstance(context)
             sessionDao.getAll().filter { it.id < 0 }.forEach {

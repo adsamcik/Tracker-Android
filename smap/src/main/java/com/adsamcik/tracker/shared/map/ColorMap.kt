@@ -7,16 +7,14 @@ import androidx.annotation.RawRes
 import com.adsamcik.tracker.shared.base.extension.remove
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.MapStyleOptions
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
 /**
  * Object that provides color updates to maps.
  */
 object ColorMap {
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 	private val styleChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
 	private var resources: Resources? = null
 
@@ -33,9 +31,8 @@ object ColorMap {
 		}
 	}
 
-	@OptIn(DelicateCoroutinesApi::class)
 	private fun destroy() {
-		GlobalScope.launch {
+		scope.launch {
 			synchronized(styleChangeListeners) {
 				if (styleChangeListeners.isEmpty()) {
 					resources = null
@@ -64,10 +61,9 @@ object ColorMap {
 		}
 	}
 
-	@OptIn(DelicateCoroutinesApi::class)
 	private fun onStyleChange(style: MapStyleOptions) {
 		removeNullMaps()
-		GlobalScope.launch(Dispatchers.Main) {
+		scope.launch(Dispatchers.Main) {
 			synchronized(styleChangeListeners) {
 				styleChangeListeners.forEach {
 					it.get()?.setMapStyle(style)

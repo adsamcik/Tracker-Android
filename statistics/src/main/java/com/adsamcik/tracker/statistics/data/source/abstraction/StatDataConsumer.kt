@@ -2,7 +2,7 @@ package com.adsamcik.tracker.statistics.data.source.abstraction
 
 import android.content.Context
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.squareup.moshi.Moshi
 
 /**

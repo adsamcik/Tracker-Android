@@ -32,9 +32,17 @@ import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
 import com.adsamcik.tracker.shared.base.misc.SnackMaker
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.adsamcik.tracker.shared.utils.activity.DetailActivity
 import com.adsamcik.tracker.shared.utils.dialog.createDateTimeDialog
-import com.afollestad.materialdialogs.MaterialDialog
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -221,11 +229,27 @@ class ExportActivity : DetailActivity() {
 			if (availableRange.isEmpty()) {
 				launch(Dispatchers.Main) {
 					Assist.ensureLooper()
-					MaterialDialog(this@ExportActivity).show {
-						title(res = R.string.settings_export_no_data)
-						positiveButton(res = com.adsamcik.tracker.shared.base.R.string.generic_ok) {
-							finish()
+					val decor = window.decorView as? android.view.ViewGroup
+					if (decor != null) {
+						val host = ComposeView(this@ExportActivity).apply {
+							setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+							setContent {
+								var showDialog by remember { mutableStateOf(true) }
+								if (showDialog) {
+									AlertDialog(
+										onDismissRequest = { showDialog = false; finish() },
+										title = { Text(text = getString(R.string.settings_export_no_data)) },
+										text = { Text(text = getString(R.string.settings_export_no_data)) },
+										confirmButton = {
+											TextButton(onClick = { showDialog = false; finish() }) {
+												Text(text = getString(com.adsamcik.tracker.shared.base.R.string.generic_ok))
+											}
+										}
+									)
+								}
+							}
 						}
+						decor.addView(host)
 					}
 				}
 			}
@@ -286,18 +310,40 @@ class ExportActivity : DetailActivity() {
 
 		if (!forceOverride && foundFile != null) {
 			Assist.ensureLooper()
-			MaterialDialog(this@ExportActivity)
-					.show {
-						message(text = "Do you want to override the existing file $fileNameWithExtension?")
-						title(text = "File already exists!")
-						positiveButton(com.adsamcik.tracker.shared.base.R.string.generic_yes) {
-							startExport(foundFile, onPick)
-						}
-						negativeButton(com.adsamcik.tracker.shared.base.R.string.generic_no) {
-							/*val incremented = directory.autoIncrementFileName(fileNameWithExtension)
-							exportToNewFile(directory, incremented, onPick)*/
+			val decor = window.decorView as? android.view.ViewGroup
+			if (decor != null) {
+				val host = ComposeView(this@ExportActivity).apply {
+					setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+					setContent {
+						var showDialog by remember { mutableStateOf(true) }
+						if (showDialog) {
+							AlertDialog(
+								onDismissRequest = { showDialog = false; decor.removeView(this@apply) },
+								title = { Text(text = "File already exists!") },
+								text = { Text(text = "Do you want to override the existing file $fileNameWithExtension?") },
+								confirmButton = {
+									TextButton(onClick = { 
+										showDialog = false
+										decor.removeView(this@apply)
+										startExport(foundFile, onPick)
+									}) {
+										Text(text = getString(com.adsamcik.tracker.shared.base.R.string.generic_yes))
+									}
+								},
+								dismissButton = {
+									TextButton(onClick = { 
+										showDialog = false
+										decor.removeView(this@apply)
+									}) {
+										Text(text = getString(com.adsamcik.tracker.shared.base.R.string.generic_no))
+									}
+								}
+							)
 						}
 					}
+				}
+				decor.addView(host)
+			}
 		} else {
 			exportToNewFile(directory, fileNameWithExtension, onPick)
 		}

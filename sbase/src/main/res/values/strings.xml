@@ -54,9 +54,12 @@
     <string name="error_missing_permission">App does not have required permission</string>
     <string name="error_play_services_not_available">Play services are not available</string>
 
+    <string name="generic_add">Add</string>
     <string name="generic_back">Back</string>
     <string name="generic_cancel">Cancel</string>
     <string name="generic_continue">Continue</string>
+    <string name="generic_delete">Delete</string>
+    <string name="generic_edit">Edit</string>
     <string name="generic_enable">Enable</string>
     <string name="generic_no">No</string>
     <string name="generic_ok">OK</string>

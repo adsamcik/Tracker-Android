@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.statistics.data
 
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 
 /**
  * Object containing all necessary information for construction of UI objects for statistic.

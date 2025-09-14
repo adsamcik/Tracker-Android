@@ -6,9 +6,17 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.lifecycle.findViewTreeLifecycleOwner
 import com.adsamcik.tracker.logger.CrashExporter
-import com.adsamcik.tracker.shared.utils.dialog.alertDialog
-import com.afollestad.materialdialogs.MaterialDialog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,29 +49,56 @@ class CrashExportActivity : AppCompatActivity(), CoroutineScope {
         directoryPicker.launch(null)
     }
     
+    @Composable
+    private fun StatusDialog(
+        message: String,
+        onDismiss: () -> Unit
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    private fun showStatusDialog(message: String) {
+        val composeView = ComposeView(this).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@CrashExportActivity))
+            var showDialog by mutableStateOf(true)
+            
+            setContent {
+                if (showDialog) {
+                    StatusDialog(
+                        message = message,
+                        onDismiss = {
+                            showDialog = false
+                            finish()
+                        }
+                    )
+                }
+            }
+        }
+        
+        setContentView(composeView)
+    }
+
     private fun exportCrashes(uri: Uri) {
         launch {
             try {
                 val exportedCount = CrashExporter.exportCrashData(this@CrashExportActivity, uri)
                 
-                MaterialDialog(this@CrashExportActivity)
-                    .message(text = if (exportedCount > 0) {
-                        "Successfully exported $exportedCount crash reports."
-                    } else {
-                        "No crashes to export."
-                    })
-                    .positiveButton(text = "OK") {
-                        finish()
-                    }
-                    .show()
+                showStatusDialog(if (exportedCount > 0) {
+                    "Successfully exported $exportedCount crash reports."
+                } else {
+                    "No crashes to export."
+                })
                     
             } catch (e: Exception) {
-                MaterialDialog(this@CrashExportActivity)
-                    .message(text = "Failed to export crashes: ${e.message}")
-                    .positiveButton(text = "OK") {
-                        finish()
-                    }
-                    .show()
+                showStatusDialog("Failed to export crashes: ${e.message}")
             }
         }
     }

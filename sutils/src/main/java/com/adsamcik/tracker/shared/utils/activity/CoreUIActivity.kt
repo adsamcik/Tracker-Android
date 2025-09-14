@@ -6,32 +6,26 @@ import androidx.annotation.CallSuper
 import com.adsamcik.tracker.shared.base.activity.CoreActivity
 import com.adsamcik.tracker.shared.utils.language.LocaleContextWrapper
 import com.adsamcik.tracker.shared.utils.language.LocaleManager
-import com.adsamcik.tracker.shared.utils.style.StyleController
-import com.adsamcik.tracker.shared.utils.style.StyleManager
 
 /**
- * Abstract activity class implementing style and language support on top of [CoreActivity].
+ * Abstract activity class implementing language support on top of [CoreActivity].
+ * Note: StyleController support removed - migrate to Compose with ThemeRepository for theming.
  */
 abstract class CoreUIActivity : CoreActivity() {
-	@Deprecated("Obsolete: StyleController will be removed; avoid new usages.")
-	protected val styleController: StyleController = StyleManager.createController()
-
 	private var language = ""
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		StyleManager.initializeFromPreferences(this)
+		// Theme initialization handled by ThemeRepository in Application.kt
 	}
 
 	@CallSuper
 	override fun onDestroy() {
-		StyleManager.recycleController(styleController)
 		super.onDestroy()
 	}
 
 	@CallSuper
 	override fun onPause() {
-		styleController.isSuspended = true
 		super.onPause()
 	}
 
@@ -45,7 +39,6 @@ abstract class CoreUIActivity : CoreActivity() {
 
 	@CallSuper
 	override fun onResume() {
-		styleController.isSuspended = false
 		super.onResume()
 		recreateIfLanguageChanged()
 	}

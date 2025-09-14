@@ -6,7 +6,7 @@
 
     <application>
         <activity
-            android:name="com.adsamcik.tracker.activity.ui.SessionActivityActivity"
+            android:name="com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose"
             android:windowSoftInputMode="adjustResize" />
 
         <activity android:name="com.adsamcik.tracker.app.activity.debug.LogViewerActivity" />

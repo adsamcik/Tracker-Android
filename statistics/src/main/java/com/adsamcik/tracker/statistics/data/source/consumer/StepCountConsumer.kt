@@ -8,7 +8,7 @@ import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataConsumer
 import com.adsamcik.tracker.statistics.data.source.abstraction.StatDataProducer
 import com.adsamcik.tracker.statistics.data.source.producer.TrackerSessionProducer
-import com.adsamcik.tracker.statistics.detail.recycler.StatisticDisplayType
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.adsamcik.tracker.statistics.extension.requireData
 import com.squareup.moshi.Moshi
 import kotlin.reflect.KClass
@@ -24,7 +24,7 @@ class StepCountConsumer : StatDataConsumer {
 		get() = com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print
 
 	override val displayType: StatisticDisplayType
-		get() = StatisticDisplayType.Information
+		get() = StatisticDisplayType.INFORMATION
 
 	override fun getData(context: Context, data: StatDataMap): Any {
 		val session = data.requireData<TrackerSession>(TrackerSessionProducer::class)

@@ -5,9 +5,9 @@ import com.adsamcik.tracker.shared.base.Process
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -15,10 +15,10 @@ import kotlinx.coroutines.launch
  */
 @Suppress("unused")
 class TrackerModuleInitializer : ModuleInitializer {
-	@OptIn(DelicateCoroutinesApi::class)
 	override fun initialize(context: Context) {
 		if (Process.isMainProcess(context)) {
-			GlobalScope.launch(Dispatchers.Main) {
+			// Use a lightweight module scope tied to app process; caller holds no reference so rely on process lifetime.
+			CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
 				BackgroundTrackingApi.initialize(context)
 				TrackerLocker.initializeFromPersistence(context)
 			}
