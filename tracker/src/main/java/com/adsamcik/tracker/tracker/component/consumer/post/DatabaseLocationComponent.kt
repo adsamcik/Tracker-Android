@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicInteger
 
 internal class DatabaseLocationComponent : PostTrackerComponent {
@@ -25,10 +26,11 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 
 	private var locationDao: LocationDataDao? = null
 
-	// Lightweight buffer to prepare for future batching (size 1 currently) and offload DB writes to IO
+	// Batching buffer (flush on size or time). Thread safety ensured by service-level serialization.
 	private val pending = ArrayList<DatabaseLocation>(16)
 	private val enqueueCount = AtomicInteger(0)
 	private var scope: CoroutineScope? = null
+	private var scheduledFlushJob: Job? = null
 
 
 	override fun onNewData(
@@ -44,33 +46,51 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 
 	private fun saveLocation(location: Location, activityInfo: ActivityInfo) {
 		val dao = locationDao ?: return
-		val item = DatabaseLocation(location, activityInfo)
-		pending.add(item)
-		if (pending.size >= 1) { // threshold 1: behaves same as before, placeholder for future batching
-			val toInsert = ArrayList(pending)
-			pending.clear()
-			scope?.launch(Dispatchers.IO) {
-				val start = System.nanoTime()
-				try {
-					dao.insert(toInsert)
-				} catch (t: Throwable) {
-					// Swallow here; reporter is higher level (avoid dependency cycle)
-				} finally {
-					val durationMs = (System.nanoTime() - start) / 1_000_000
-					// Simple coarse instrumentation via atomic counter every 100 inserts
-					val c = enqueueCount.incrementAndGet()
-					if (c % 100 == 0) {
-						// Placeholder: hook to a diagnostics logger (left as comment to avoid overhead)
-						// Logger.d("LocationDB", "Inserted $c locations avg batch=${toInsert.size} lastDurationMs=$durationMs")
-					}
-				}
+		pending.add(DatabaseLocation(location, activityInfo))
+		if (pending.size >= BATCH_SIZE) {
+			// Flush immediately; cancel any scheduled delayed flush.
+			scheduledFlushJob?.cancel(); scheduledFlushJob = null
+			flushAsync(dao)
+		} else if (scheduledFlushJob == null) {
+			// Schedule time-based flush if not already scheduled.
+			scheduledFlushJob = scope?.launch {
+				delay(FLUSH_INTERVAL_MS)
+				val d = locationDao // re-check after delay
+				if (d != null) flushAsync(d)
 			}
 		}
 	}
 
+	private fun flushAsync(dao: LocationDataDao) {
+		if (pending.isEmpty()) return
+		val toInsert = ArrayList(pending)
+		pending.clear()
+		// Insert on IO dispatcher
+		scope?.launch(Dispatchers.IO) {
+			val start = System.nanoTime()
+			try { dao.insert(toInsert) } catch (_: Throwable) { /* ignore individual failures */ } finally {
+				val c = enqueueCount.addAndGet(toInsert.size)
+				if (c % 100 == 0) { /* optional diagnostic hook */ }
+			}
+		}
+	}
+
+	private suspend fun flushImmediate() {
+		val dao = locationDao ?: return
+		if (pending.isEmpty()) return
+		val toInsert = ArrayList(pending)
+		pending.clear()
+		withContext(Dispatchers.IO) { try { dao.insert(toInsert) } catch (_: Throwable) {} }
+	}
+
+	// Exposed for service shutdown to guarantee persistence before component disable.
+	suspend fun flushPending() = flushImmediate()
+
 	override suspend fun onDisable(context: Context) {
-		scope?.cancel()
-		scope = null
+		// Ensure any scheduled flush does not run after disable and flush remaining immediately.
+		scheduledFlushJob?.cancel(); scheduledFlushJob = null
+		flushImmediate()
+		scope?.cancel(); scope = null
 		locationDao = null
 		pending.clear()
 	}
@@ -78,6 +98,12 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 	override suspend fun onEnable(context: Context) {
 		locationDao = AppDatabase.database(context).locationDao()
 		scope = CoroutineScope(Job() + Dispatchers.Default)
+		scheduledFlushJob = null
+	}
+
+	companion object {
+		private const val BATCH_SIZE = 10
+		private const val FLUSH_INTERVAL_MS = 5_000L
 	}
 }
 

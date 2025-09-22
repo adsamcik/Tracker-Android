@@ -3,6 +3,7 @@ plugins {
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
+    alias(libs.plugins.protobuf)
 }
 
 android {
@@ -72,6 +73,10 @@ dependencies {
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
 
+	// DataStore proto settings (full protobuf runtime for GeneratedMessageV3)
+	implementation(libs.androidx.datastore.core)
+	implementation(libs.protobuf.java)
+
 	// UI components used by preference sliders
 	implementation(libs.component.slider)
 
@@ -91,4 +96,27 @@ dependencies {
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
+
+	// JVM unit tests (Robolectric + coroutine test utilities)
+	testImplementation(libs.junit4)
+	testImplementation(libs.robolectric)
+	testImplementation(libs.androidx.test.core)
+	testImplementation(libs.kotlinx.coroutines.test)
+}
+
+// Temporary workaround for intermittent Windows file locking on classes.jar during unit test runs.
+// Disables packaging jar for debug variant; unit tests rely on compiled classes, not the aggregated jar.
+afterEvaluate {
+	tasks.matching { it.name == "bundleLibCompileToJarDebug" }.configureEach {
+		enabled = false
+	}
+}
+
+protobuf {
+	protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}" }
+	generateProtoTasks {
+		all().forEach { task ->
+			task.builtins { create("java") }
+		}
+	}
 }

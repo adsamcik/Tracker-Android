@@ -49,6 +49,20 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+
+	testOptions {
+		unitTests {
+			// Disable Android resources in pure unit tests to avoid accidental instrumentation-only imports
+			isIncludeAndroidResources = false
+			all {
+				// Exclude any stray compose UI tests that might still reside in unit test source set
+				it.filter.apply {
+					excludeTestsMatching("*SummaryDialogTest")
+					excludeTestsMatching("*WeekDialogTest")
+				}
+			}
+		}
+	}
 	namespace = "com.adsamcik.tracker.statistics"
 }
 
@@ -125,4 +139,10 @@ dependencies {
 
 	implementation(libs.mpandroidchart)
 	implementation(libs.simplify)
+}
+
+// Exclude any compose UI dialog tests (they live in androidTest now) from unit test source set
+android.sourceSets.named("test") {
+	java.srcDir("src/test/java")
+	java.exclude("**/ui/compose/**")
 }

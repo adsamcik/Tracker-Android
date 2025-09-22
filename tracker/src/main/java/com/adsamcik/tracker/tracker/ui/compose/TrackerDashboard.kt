@@ -89,6 +89,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.ui.TrackerViewModel
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.collectAsState
 import com.google.android.gms.location.DetectedActivity
 import com.adsamcik.tracker.tracker.ui.receiver.SessionUpdateReceiver
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
@@ -105,7 +106,7 @@ internal fun TrackerDashboard(
     modifier: Modifier = Modifier
 ) {
     // Bridge existing LiveData to Compose
-    val isTracking = com.adsamcik.tracker.tracker.service.TrackerService.isServiceRunning.observeAsState(false).value
+    val isTracking = com.adsamcik.tracker.tracker.service.TrackerService.isServiceRunningFlow.collectAsState().value
     val isLocked = TrackerLocker.isLocked.observeAsState(false).value
     val sessionData: TrackerSession? = SessionUpdateReceiver.sessionData.observeAsState().value
     val collectionData: CollectionData? = SessionUpdateReceiver.collectionData.observeAsState().value

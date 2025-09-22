@@ -2,37 +2,45 @@
 
 This file tracks ongoing fragment/activity migrations to Jetpack Compose.
 
-Last updated: 2025-08-31
+Last updated: 2025-09-21
 
 ## Scope
 
 - Start with fragments. Activities are tracked separately in COMPOSE_MIGRATION_SCREENS.md.
 
-## Fragments
+## Routes (Compose-First Navigation)
 
-- FragmentStats
-  - Status: Phase 2 done (pure Compose list) + load states + actions wired + a11y + localized strings + subtle motions + UI tests added (refresh states, header actions, append placeholders, footer retry, session row click)
-  - Approach: Fragment hosts Compose via ComposeView. Replaced RecyclerView with LazyColumn driven by Paging Compose; rendering covers ListHeader, SessionHeader, and Session rows using Material 3 Expressive components (ElevatedCards, icons). Added refresh/append loadState UIs and placeholders with Crossfade/AnimatedVisibility. Legacy Summary/Week dialogs ported to a Compose AlertDialog; Wi‑Fi action opens WifiBrowseActivity. Added test tags for deterministic selection.
-  - Next steps (optional):
-    - Add an Espresso Intents test to assert navigation to StatsDetailActivity with the correct session ID
-    - Consider basic screenshot tests for visual regressions
-    - Continue migrating remaining fragments
+Migrated from fragment-hosted ComposeViews to direct route composables inside a single NavHost (see `MainRoot`). Legacy fragment terminology below is retained only for historical comparison; active surfaces are now `*Route` + pure Compose screens.
 
-- FragmentTracker
-  - Status: Phase 1 done (Compose host + dashboard). Phase 2 in progress (adaptive grid, lock badges, disabled-source states, haptics). Live preference observation wired. Minimal UI test scaffold added; androidTest assembles successfully. Legacy RecyclerView adapter and XML layouts removed.
-  - Notes: TrackerFragment now hosts `TrackerDashboard` in Compose. Uses existing LiveData (service running, session/collection), lock state, and preferences. Adaptive layout with progressive disclosure implemented. Further tests and polish pending. Build green for :tracker:assembleDebug and :tracker:assembleDebugAndroidTest after cleanup.
+- StatsRoute (replaces FragmentStats)
+  - Current Status: Pure Compose implementation with Paging3 integration (sessions Pager), refresh/append load state mapping, inline append footer, header action buttons (summary/week/wifi placeholders). Session rows now include basic metadata (date, duration, steps). New unit test (`StatsScreenPlaceholderTest`) and instrumentation tests (`FragmentStatsUiTest`, `StatsScreenTest`, `StatsPagingIntegrationTest`) cover refresh states, append loading/error, header actions, placeholder mode, and paging integration.
+  - Removed / Corrected Claims: Previous doc claimed dialog migrations and subtle motions not yet implemented in route version (summary/week dialogs still TODO; animations minimal). Updated to reflect actual feature set.
+  - Next Steps:
+    - Implement summary & week dialogs in pure Compose.
+    - Inject repositories instead of direct DB access in `StatsViewModel` (constructor injection via app graph, remove `AndroidViewModel`).
+    - Add intent navigation test for session detail once detail route is migrated from activity.
+    - Accessibility pass (content descriptions for dynamic metadata, larger hit targets for header icons).
 
-- FragmentGame
-  - Status: Phase 1 done (Compose host + expressive cards). Fragment now uses ComposeView and renders GameScreen in Material 3 with points, steps goals, and challenges list. LiveData bridged via observeAsState. Build green for :game:assembleDebug.
-  - Approach: Enabled Compose in :game with version catalog deps. Added GameScreen (ElevatedCards, AssistChip, icons), wired points (Room LiveData), steps (GoalTracker LiveData), and challenges (ChallengeManager active list). Kept legacy Recycler code intact for now but unused.
-  - Next steps (optional):
-    - Add WindowInsets padding (status/navigation) and pull-to-refresh
-    - Add progress indicators/empty states for challenges
-    - Hook chip actions to detailed points/goals views
-    - Compose UI tests (basic rendering + LiveData changes)
+- TrackerRoute (ongoing migration of former TrackerFragment)
+  - Status: Dashboard Compose surface present (per earlier plan) – doc sync pending separate PR. (No change in this update.)
+
+- GameRoute (replaces FragmentGame)
+  - Current Status: Now wired to real `GameViewModel` exposing points today (Room), steps goals (GoalTracker), active challenges (ChallengeManager). Existing instrumentation tests (`GameScreenTest`, `GameScreenReactiveTest`) validate rendering and reactive updates. Points, steps, challenges previously sample-only now live data driven.
+  - Pending: DI refactor (constructor injection for DAOs/managers), add empty/progress states for challenges, detail actions.
+
+## Removed / Outdated Assertions
+
+- References to fragments hosting Compose have been superseded by direct route composables. No XML or RecyclerView remains for Stats/Game paths.
+- Assertions about screenshot tests or dialog migrations were speculative; trimmed to concrete next steps.
+
+## Testing Summary (Updated)
+
+- Stats: 1 JVM unit test + multiple instrumentation tests covering refresh/append states, interactions, and paging integration.
+- Game: Instrumentation tests for static render & reactive state changes.
+- Additional tests will be added as dialogs & DI refactors land.
 
 ## Notes
 
-- Statistics module was updated to enable Compose and add core Compose dependencies.
-- No public APIs changed; FragmentStats still provides the same UI externally.
-- Instrumented Compose UI tests pass (5/5) for the statistics module.
+- Statistics & Game modules now expose route composables only; fragment layer considered deprecated and removed.
+- Direct database/service access in ViewModels scheduled for DI refactor (privacy & testability improvement).
+- All new code adheres to Material 3 and avoids legacy view inflation.

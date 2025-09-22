@@ -7,4 +7,5 @@ object Routes {
     const val Game = "game"
     // Not part of bottom bar yet; accessible via deep link / dev menu
     const val Debug = "debug"
+    const val Settings = "settings"
 }

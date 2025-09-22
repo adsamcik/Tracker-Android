@@ -2,7 +2,7 @@ package com.adsamcik.tracker.statistics.data.source.abstraction
 
 import android.content.Context
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.squareup.moshi.Moshi
@@ -26,7 +26,7 @@ interface StatDataDistanceConsumer : StatDataConsumer {
 		val distance = getDistance(context, data)
 		// Get session activity from thread-local context if available
 		val sessionActivity = com.adsamcik.tracker.statistics.preference.SessionActivityContext.getSessionActivity()
-		val lengthSystem = Preferences.getLengthSystem(context, sessionActivity)
+		val lengthSystem = TrackerSettingsQuick.effectiveLengthSystem(context, sessionActivity)
 		return context.resources.formatDistance(distance, 1, lengthSystem)
 	}
 }

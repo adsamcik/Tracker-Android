@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
 
@@ -33,7 +33,7 @@ internal class HorizontalAccuracyNotificationComponent : TrackerNotificationComp
 
 		return context.getString(
 				R.string.horizontal_accuracy_value,
-				context.resources.formatDistance(altitude, 0, Preferences.getLengthSystem(context))
+				context.resources.formatDistance(altitude, 0, TrackerSettingsQuick.lengthSystem(context))
 		)
 	}
 }

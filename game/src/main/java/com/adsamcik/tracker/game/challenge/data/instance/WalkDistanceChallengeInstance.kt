@@ -7,7 +7,7 @@ import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEnti
 import com.adsamcik.tracker.game.challenge.data.persistence.WalkDistanceChallengePersistence
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
 
@@ -24,8 +24,8 @@ internal class WalkDistanceChallengeInstance(
 	override val persistence
 		get() = WalkDistanceChallengePersistence()
 
-	override fun getDescription(context: Context): String {
-		val lengthSystem = Preferences.getLengthSystem(context)
+		override fun getDescription(context: Context): String {
+			val lengthSystem = TrackerSettingsQuick.lengthSystem(context)
 		val resources = context.resources
 		return resources.getString(
 				definition.descriptionRes,

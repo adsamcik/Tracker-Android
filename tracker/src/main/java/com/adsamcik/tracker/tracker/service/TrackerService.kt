@@ -170,9 +170,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			onEnable(this@TrackerService)
 		}
 
-		dataProducerManager = DataProducerManager(this).apply {
-			onEnable()
-		}
+		// DispatchersProvider injection from AppGraph intentionally avoided to keep tracker module
+		// independent of app module. DataProducerManager falls back to its internal default provider.
+		dataProducerManager = DataProducerManager(this).apply { onEnable() }
 
 		preComponentList.apply {
 			add(LocationPreTrackerComponent())
@@ -205,8 +205,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
 				?: DEFAULT_IS_USER_INITIATED
 
-		isServiceRunningMutable.value = true
-        _isServiceRunningFlow.value = true
+		_isServiceRunning.value = true
 
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
 		sessionInfoMutable.value = this.sessionInfo
@@ -255,7 +254,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	override fun onUpdate(tempData: MutableCollectionTempData): Job = launch {
 		componentMutex.lock()
 
-		if (!isServiceRunning.value) {
+		if (!isServiceRunning) {
 			componentMutex.unlock()
 			return@launch
 		}
@@ -297,8 +296,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	private fun onDestroyServiceMetaData() {
-		isServiceRunningMutable.value = false
-        _isServiceRunningFlow.value = false
+		_isServiceRunning.value = false
 		sessionInfoMutable.value = null
 	}
 
@@ -318,20 +316,25 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val context = this
 		launch(Dispatchers.Main) {
 			componentMutex.withLock {
+				// Flush pending batched location inserts before disabling for durability.
+				postComponentList.filterIsInstance<DatabaseLocationComponent>().firstOrNull()?.let { comp ->
+					launch { comp.flushPending() }
+				}
+
 				timerComponent.onDisable(context)
 
 				ActivityWatcherService.poke(context, trackerRunning = false)
 
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
 					Shortcuts.updateShortcut(
-							context,
-							ShortcutData(
-									Shortcuts.TRACKING_ID,
-									R.string.shortcut_start_tracking,
-									R.string.shortcut_start_tracking_long,
-									com.adsamcik.tracker.shared.base.R.drawable.ic_play_circle_filled_black_24dp,
-									Shortcuts.ShortcutAction.START_COLLECTION
-							)
+						context,
+						ShortcutData(
+							Shortcuts.TRACKING_ID,
+							R.string.shortcut_start_tracking,
+							R.string.shortcut_start_tracking_long,
+							com.adsamcik.tracker.shared.base.R.drawable.ic_play_circle_filled_black_24dp,
+							Shortcuts.ShortcutAction.START_COLLECTION
+						)
 					)
 				}
 
@@ -341,14 +344,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	companion object {
-	private val isServiceRunningMutable: NonNullLiveMutableData<Boolean> = NonNullLiveMutableData(false)
-	private val _isServiceRunningFlow = MutableStateFlow(false)
-	val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunningFlow
-
-		/**
-		 * LiveData containing information about whether the service is currently running
-		 */
-		val isServiceRunning: NonNullLiveData<Boolean> get() = isServiceRunningMutable
+	private val _isServiceRunning = MutableStateFlow(false)
+	val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
+	val isServiceRunning: Boolean get() = _isServiceRunning.value
 
 
 		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo?> = MutableLiveData()

@@ -109,6 +109,7 @@ class Application : AndroidApplication() {
 		dispatchers = DefaultDispatchersProvider
 		appScope = CoroutineScope(SupervisorJob() + dispatchers.default)
 		appGraph = AppGraph(dispatchers, appScope)
+		appGraph.initialize(this)
 
 		// Preference observers must be registered on main thread
 		initializeDatabaseMaintenance()

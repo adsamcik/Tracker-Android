@@ -3,7 +3,7 @@ package com.adsamcik.tracker.preference.sliders
 import android.content.Context
 import android.util.AttributeSet
 import androidx.preference.PreferenceViewHolder
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.local.FormatHelpers
 
@@ -32,8 +32,8 @@ class DistanceValueSliderPreference : BaseIntValueSliderPreference {
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
 
-        slider?.let { slider ->
-            lengthSystem = Preferences.getLengthSystem(context)
+            slider?.let { slider ->
+                lengthSystem = TrackerSettingsQuick.lengthSystem(context)
 
             slider.setLabelFormatter { value ->
                 // value is meters as Float

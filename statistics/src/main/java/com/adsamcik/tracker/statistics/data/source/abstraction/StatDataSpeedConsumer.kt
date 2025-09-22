@@ -2,7 +2,7 @@ package com.adsamcik.tracker.statistics.data.source.abstraction
 
 import android.content.Context
 import androidx.annotation.CallSuper
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.squareup.moshi.Moshi
@@ -21,8 +21,8 @@ interface StatDataSpeedConsumer : StatDataConsumer {
 		val speed = getSpeed(context, data)
 		// Get session activity from thread-local context if available
 		val sessionActivity = com.adsamcik.tracker.statistics.preference.SessionActivityContext.getSessionActivity()
-		val lengthSystem = Preferences.getLengthSystem(context, sessionActivity)
-		val speedFormat = Preferences.getSpeedFormat(context)
+		val lengthSystem = TrackerSettingsQuick.effectiveLengthSystem(context, sessionActivity)
+		val speedFormat = TrackerSettingsQuick.snapshot(context).speedFormat
 		return context.resources.formatSpeed(speed, 1, lengthSystem, speedFormat)
 	}
 

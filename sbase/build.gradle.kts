@@ -92,6 +92,10 @@ dependencies {
 	implementation(libs.moshi)
 	ksp(libs.moshi.kotlin.codegen)
 
+	// Compose runtime for CompositionLocal DI support
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.runtime)
+
 	// DB (api to expose RoomDatabase supertype to consumers of sbase)
 	api(libs.androidx.room.runtime)
 	ksp(libs.androidx.room.compiler)

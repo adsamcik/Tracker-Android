@@ -18,7 +18,7 @@ object TrackerServiceApi {
 	/**
 	 * Indicates whether tracker service is active.
 	 */
-	val isActive: Boolean get() = TrackerService.isServiceRunning.value
+	val isActive: Boolean get() = TrackerService.isServiceRunning
 
 	/**
 	 * Starts tracker service in foreground.

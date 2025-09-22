@@ -25,14 +25,13 @@ import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
+import android.os.SystemClock
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.utility.TelephonyUtils
 import java.util.*
 
 internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
-		TrackerDataProducerComponent(
-				changeReceiver
-		) {
+    TrackerDataProducerComponent(changeReceiver) {
 	override val keyRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_cell_enabled_key
 	override val defaultRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_cell_enabled_default
 
@@ -41,15 +40,26 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
 	private var context: Context? = null
 
+	// Simple TTL cache to avoid expensive telephonyManager.allCellInfo calls every collection tick.
+	private var lastCellScanData: CellScanData? = null
+	private var lastCellScanElapsedRealtimeMillis: Long = -1L
+
 	override fun onDataRequest(tempData: MutableCollectionTempData) {
 		val context = requireNotNull(context)
-		if (!Assist.isAirplaneModeEnabled(context)) {
-			val telephonyManager = requireNotNull(telephonyManager)
+		// If airplane mode is enabled do not provide stale data.
+		if (Assist.isAirplaneModeEnabled(context)) {
+			lastCellScanData = null
+			return
+		}
 
+		val now = SystemClock.elapsedRealtime()
+		val telephonyManager = requireNotNull(telephonyManager)
+		val needsRefresh = lastCellScanData == null || now - lastCellScanElapsedRealtimeMillis > CELL_SCAN_CACHE_TTL_MS
+
+		if (needsRefresh) {
 			val scanData = if (context.hasReadPhonePermission) {
 				val subscriptionManager = requireNotNull(subscriptionManager)
-
-				//Requires suppress missing permission because lint does not properly work with context.hasReadPhonePermission
+				// Requires suppress missing permission because lint does not properly work with context.hasReadPhonePermission
 				@Suppress("MissingPermission")
 				getScanData(telephonyManager, subscriptionManager)
 			} else {
@@ -57,9 +67,12 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			}
 
 			if (scanData != null) {
-				tempData.setCellData(scanData)
+				lastCellScanData = scanData
+				lastCellScanElapsedRealtimeMillis = now
 			}
 		}
+
+		lastCellScanData?.let { tempData.setCellData(it) }
 	}
 
 	@Suppress("MagicNumber")
@@ -198,7 +211,6 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		super.onEnable(context)
 		this.context = context
 		telephonyManager = context.telephonyManager
-
 		subscriptionManager = context.getSystemServiceTyped(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
 	}
 
@@ -207,6 +219,13 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		this.context = null
 		telephonyManager = null
 		subscriptionManager = null
+		lastCellScanData = null
+		lastCellScanElapsedRealtimeMillis = -1L
+	}
+
+	companion object {
+		// Chosen to balance freshness vs radio / framework overhead. Adjust after profiling if needed.
+		private const val CELL_SCAN_CACHE_TTL_MS = 60_000L
 	}
 }
 

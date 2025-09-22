@@ -7,7 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerSessionSummary
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
@@ -25,6 +25,7 @@ object SummaryGenerator {
 			sessionSummary: TrackerSessionSummary
 	): List<Stat> {
 		val resources = context.resources
+		val lengthSystem = TrackerSettingsQuick.lengthSystem(context)
 		return listOf(
 				Stat(
 						R.string.stats_time,
@@ -38,7 +39,7 @@ object SummaryGenerator {
 						resources.formatDistance(
 								sessionSummary.distanceInM,
 								SUMMARY_DECIMAL_PLACES,
-								Preferences.getLengthSystem(context)
+								lengthSystem
 						)
 				),				Stat(
 						R.string.stats_distance_on_foot,
@@ -47,7 +48,7 @@ object SummaryGenerator {
 						resources.formatDistance(
 								sessionSummary.distanceOnFootInM,
 								SUMMARY_DECIMAL_PLACES,
-								Preferences.getLengthSystem(context)
+								lengthSystem
 						)
 				),				Stat(
 						R.string.stats_distance_in_vehicle,
@@ -56,7 +57,7 @@ object SummaryGenerator {
 						resources.formatDistance(
 								sessionSummary.distanceInVehicleInM,
 								SUMMARY_DECIMAL_PLACES,
-								Preferences.getLengthSystem(context)
+								lengthSystem
 						)
 				),
 				Stat(

@@ -5,6 +5,8 @@ import com.adsamcik.tracker.tracker.component.producer.ActivityDataProducer
 import com.adsamcik.tracker.tracker.component.producer.CellDataProducer
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,12 +17,22 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
-internal class DataProducerManager(context: Context) : TrackerDataProducerObserver, CoroutineScope {
+/**
+ * Manages enabled data producers (Wi‑Fi, cell, activity, steps) and runs their collection concurrently.
+ *
+ * Performance: Previously this scope was bound to Dispatchers.Main which risked doing telephony
+ * and wifi polling work on the main thread. We now switch to an injected Default dispatcher to
+ * avoid UI thread contention and potential jank. DispatchersProvider is used for testability.
+ */
+internal class DataProducerManager(
+	context: Context,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider
+) : TrackerDataProducerObserver, CoroutineScope {
 	private val appContext = context.applicationContext
 
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
+		get() = dispatchers.default + job
 
 	/**
 	 * Keeps all producers from being recycled. Producers should take only very little memory so this is fine.
@@ -70,9 +82,10 @@ internal class DataProducerManager(context: Context) : TrackerDataProducerObserv
 	}
 
 	suspend fun getData(tempData: MutableCollectionTempData) {
+		// Run all active producers in parallel on a background dispatcher to keep main thread free.
 		withContext(coroutineContext) {
-			activeProducerList.map {
-				async { it.onDataRequest(tempData) }
+			activeProducerList.map { producer ->
+				async { producer.onDataRequest(tempData) }
 			}.awaitAll()
 		}
 	}

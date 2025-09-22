@@ -2,7 +2,7 @@ package com.adsamcik.tracker.shared.preferences.local
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.constant.LengthConstants
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatAncientRome
 import com.adsamcik.tracker.shared.preferences.extension.formatFlying
 import com.adsamcik.tracker.shared.preferences.extension.formatMetric
@@ -17,7 +17,7 @@ import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 object FormatHelpers {
     fun formatDistance(context: Context, meters: Int, digits: Int): String {
         val res = context.resources
-        val system = Preferences.getLengthSystem(context)
+        val system = TrackerSettingsQuick.lengthSystem(context)
         return when (system) {
             LengthSystem.Metric -> res.formatMetric(meters.toDouble(), digits)
             LengthSystem.Imperial -> {

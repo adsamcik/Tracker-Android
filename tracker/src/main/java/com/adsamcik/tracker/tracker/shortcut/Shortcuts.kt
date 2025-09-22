@@ -34,7 +34,7 @@ object Shortcuts {
 
 		val shortcutManager = context.shortcutManager
 		val shortcuts = ArrayList<ShortcutInfo>(1)
-		if (!TrackerService.isServiceRunning.value) {
+		if (!TrackerService.isServiceRunning) {
 			shortcuts.add(
 					createShortcut(
 							context,

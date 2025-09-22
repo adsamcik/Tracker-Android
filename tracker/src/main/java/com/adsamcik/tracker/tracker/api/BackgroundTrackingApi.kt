@@ -103,7 +103,7 @@ object BackgroundTrackingApi {
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 		val preferences = Preferences.getPref(context)
 		if (groupedActivity.isStillOrUnknown ||
-			TrackerService.isServiceRunning.value ||
+			TrackerService.isServiceRunning ||
 			preferences.getBooleanRes(
 				R.string.settings_disabled_recharge_key,
 				R.string.settings_disabled_recharge_default

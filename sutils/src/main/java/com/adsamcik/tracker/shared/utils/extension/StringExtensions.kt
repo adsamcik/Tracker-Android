@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.res.Resources
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.constant.LengthConstants
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.R
 import com.adsamcik.tracker.shared.preferences.extension.formatAncientRome
 import com.adsamcik.tracker.shared.preferences.extension.formatMetric
@@ -23,9 +23,8 @@ import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
  * @return Formatted speed.
  */
 fun Resources.formatSpeed(context: Context, metersPerSecond: Double, digits: Int): String {
-	val lengthSystem = Preferences.getLengthSystem(context)
-	val speedFormat = Preferences.getSpeedFormat(context)
-	return formatSpeed(metersPerSecond, digits, lengthSystem, speedFormat)
+	val snapshot = TrackerSettingsQuick.snapshot(context)
+	return formatSpeed(metersPerSecond, digits, snapshot.lengthSystem, snapshot.speedFormat)
 }
 
 /**

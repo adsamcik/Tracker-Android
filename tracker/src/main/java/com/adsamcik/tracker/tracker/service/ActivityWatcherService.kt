@@ -167,7 +167,7 @@ class ActivityWatcherService : CoreService() {
 			updateInterval: Int = getActivityIntervalPreference(context),
 			autoTracking: Int = getAutoTrackingPreference(context),
 			trackerLocked: Boolean = TrackerLocker.isLocked.value,
-			trackerRunning: Boolean = TrackerService.isServiceRunning.value
+			trackerRunning: Boolean = TrackerService.isServiceRunning
 		) {
 
 			if (updateInterval > 0 && autoTracking > 0) {

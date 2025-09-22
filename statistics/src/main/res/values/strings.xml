@@ -43,6 +43,9 @@
     <string name="stats_failed_to_load">Failed to load</string>
     <string name="stats_append_error">Load more failed</string>
     <string name="action_retry">Retry</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_session_header">Session %1$d</string>
+    <string name="stats_session_subtitle_placeholder">Tap to open details</string>
 
     <string name="stats_session_activity_selection_title">Select Activity</string>
     <string name="stats_session_activity_selection_empty">No activities available</string>

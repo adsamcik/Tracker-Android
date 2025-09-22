@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+option java_package = "com.adsamcik.tracker.shared.preferences.settings";
+option java_multiple_files = true;
+
+// Proto for tracker application settings. Extend with new optional fields; never reuse field numbers.
+message TrackerSettingsProto {
+  // Whether automatic unit switching is enabled (statistics length system adapts to activity)
+  bool auto_unit_switch = 1;
+  // Preferred length system selection (legacy key lengthSystem)
+  enum LengthSystemProto {
+    LENGTH_SYSTEM_UNSPECIFIED = 0; // fallback -> Metric
+    LENGTH_SYSTEM_METRIC = 1;
+    LENGTH_SYSTEM_IMPERIAL = 2;
+    LENGTH_SYSTEM_ANCIENT_ROMAN = 3;
+    LENGTH_SYSTEM_SAILING = 4;
+    LENGTH_SYSTEM_FLYING = 5;
+  }
+  LengthSystemProto length_system = 2;
+
+  // Preferred speed format (Hour, Minute, Second)
+  enum SpeedFormatProto {
+    SPEED_FORMAT_UNSPECIFIED = 0; // fallback -> Hour
+    SPEED_FORMAT_SECOND = 1;
+    SPEED_FORMAT_MINUTE = 2;
+    SPEED_FORMAT_HOUR = 3;
+  }
+  SpeedFormatProto speed_format = 3;
+  // Internal migration marker so legacy SharedPreferences import runs only once.
+  bool legacy_migrated = 1000;
+}

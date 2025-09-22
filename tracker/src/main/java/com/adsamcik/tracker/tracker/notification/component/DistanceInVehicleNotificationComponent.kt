@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 
 import com.adsamcik.tracker.tracker.R
@@ -32,7 +32,7 @@ internal class DistanceInVehicleNotificationComponent : TrackerNotificationCompo
 				context.resources.formatDistance(
 						session.distanceInVehicleInM,
 						0,
-						Preferences.getLengthSystem(context)
+						TrackerSettingsQuick.lengthSystem(context)
 				)
 		)
 	}

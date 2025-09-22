@@ -59,13 +59,11 @@ fun MainRoot(startDestination: String = Routes.Map, onRouteChanged: (String) -> 
 
     Box(Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = startDestination, modifier = Modifier.fillMaxSize()) {
-            composable(Routes.Map) {
-                // Compose-native Map route
-                com.adsamcik.tracker.map.ui.MapRoute()
-            }
-            composable(Routes.Debug) {
-                com.adsamcik.tracker.app.debug.DebugRoute()
-            }
+            composable(Routes.Map) { com.adsamcik.tracker.map.ui.MapRoute() }
+            composable(Routes.Stats) { com.adsamcik.tracker.statistics.fragment.StatsRoute() }
+            composable(Routes.Game) { com.adsamcik.tracker.game.ui.compose.GameRoute() }
+            composable(Routes.Debug) { com.adsamcik.tracker.app.debug.DebugRoute() }
+            composable(Routes.Settings) { com.adsamcik.tracker.app.settings.SettingsRoute() }
         }
 
         // Bottom navigation with center prominence

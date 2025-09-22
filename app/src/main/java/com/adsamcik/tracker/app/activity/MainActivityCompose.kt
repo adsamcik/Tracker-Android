@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app.activity
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.Spring
@@ -30,10 +31,17 @@ import com.adsamcik.tracker.app.ui.navigation.Routes
 import com.adsamcik.tracker.shared.utils.activity.CoreUIActivity
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.base.di.LocalViewModelFactory
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+
+// Local DI access (keeping for future use)
+val LocalAppGraph = staticCompositionLocalOf<com.adsamcik.tracker.app.AppGraph> { 
+    error("AppGraph not provided") 
+}
 
 // StyleController system bar hooks are obsolete; rely on AppTheme + default insets
-import android.view.View
 
 /**
  * Dedicated Compose-first Main activity. Keeps legacy MainActivity intact.
@@ -85,14 +93,21 @@ class MainActivityCompose : CoreUIActivity() {
     @Composable
     private fun ComposeRoot(selected: MutableState<String>) {
         val dark = isSystemInDarkTheme()
+        val appGraph = (application as Application).appGraph
+        
         AppTheme(dark = dark) {
-            Surface(color = MaterialTheme.colorScheme.background) {
-                Box(Modifier.fillMaxSize()) {
-                    // Tracker content is now fully Compose via NavHost (TrackerRoute).
+            CompositionLocalProvider(
+                LocalAppGraph provides appGraph,
+                LocalViewModelFactory provides appGraph.viewModelFactory
+            ) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    Box(Modifier.fillMaxSize()) {
+                        // Tracker content is now fully Compose via NavHost (TrackerRoute).
 
-                    // Compose Navigation root; content layers above background
-                    MainRoot(startDestination = selected.value) { route ->
-                        if (selected.value != route) selected.value = route
+                        // Compose Navigation root; content layers above background
+                        MainRoot(startDestination = selected.value) { route ->
+                            if (selected.value != route) selected.value = route
+                        }
                     }
                 }
             }
