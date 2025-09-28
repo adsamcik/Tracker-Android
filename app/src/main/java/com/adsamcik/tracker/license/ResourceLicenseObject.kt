@@ -46,12 +46,6 @@ class ResourceLicenseObject(
 					"Copyright 2018 Adsamcik",
 					resolvedLicense
 			)
-			"draggable" -> Notice(
-					"Draggable",
-					"https://github.com/adsamcik/Draggable",
-					"Copyright 2018 Adsamcik",
-					resolvedLicense
-			)
 			"table" -> Notice(
 					"Table",
 					"https://github.com/adsamcik/Table",

@@ -2,7 +2,7 @@
 
 This file tracks ongoing fragment/activity migrations to Jetpack Compose.
 
-Last updated: 2025-09-21
+Last updated: 2025-09-28
 
 ## Scope
 
@@ -32,6 +32,7 @@ Migrated from fragment-hosted ComposeViews to direct route composables inside a 
 
 - References to fragments hosting Compose have been superseded by direct route composables. No XML or RecyclerView remains for Stats/Game paths.
 - Assertions about screenshot tests or dialog migrations were speculative; trimmed to concrete next steps.
+- Legacy draggable payload artifacts, maps overlay drawables, and ModuleActivity resources removed in Phase E cleanup (Sept 2025).
 
 ## Testing Summary (Updated)
 

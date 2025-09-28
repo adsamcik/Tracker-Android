@@ -50,7 +50,6 @@ sqliteAndroid = "3.49.0"
 
 # Third party
 componentsRecycler = "1.0.0"
-componentsDraggable = "1.0.4"
 componentSlider = "2.1.0"
 spotlight = "2.2.3"
 suncalc = "3.11"
@@ -152,7 +151,6 @@ sqlite-android = { group = "com.github.requery", name = "sqlite-android", versio
 
 # Recycler & UI utils
 components-recycler = { group = "com.github.adsamcik", name = "Recycler", version.ref = "componentsRecycler" }
-components-draggable = { group = "com.github.adsamcik", name = "Draggable", version.ref = "componentsDraggable" }
 component-slider = { group = "com.github.adsamcik", name = "slider", version.ref = "componentSlider" }
 
 # GPX / XML

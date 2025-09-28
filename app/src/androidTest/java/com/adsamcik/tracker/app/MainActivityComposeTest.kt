@@ -1,36 +1,95 @@
 package com.adsamcik.tracker.app
 
-import androidx.compose.ui.test.assertIsDisplayed
+import android.content.Intent
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.activity.MainActivityCompose
+import com.adsamcik.tracker.app.testing.markOnboardingCompletedForTests
+import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
 
+@RunWith(AndroidJUnit4::class)
 class MainActivityComposeTest {
+
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivityCompose>()
 
-    @Test
-    fun stats_and_game_overlays_toggle() {
-        // Stats overlay appears when stats tab clicked
-        composeRule.onNodeWithTag("btn_stats").performClick()
-        composeRule.onNodeWithTag("overlay_stats").assertIsDisplayed()
+    private val context get() = composeRule.activity
 
-        // Game overlay appears when game tab clicked
-        composeRule.onNodeWithTag("btn_game").performClick()
-        composeRule.onNodeWithTag("overlay_game").assertIsDisplayed()
+    @Before
+    fun ensureOnboardingCompleted() {
+        markOnboardingCompletedForTests()
     }
 
     @Test
-    fun map_expand_and_collapse() {
-        // Expand map
-        composeRule.onNodeWithTag("btn_map").performClick()
-        composeRule.onNodeWithTag("overlay_map_visible").assertIsDisplayed()
-        // Collapse map
-        composeRule.onNodeWithTag("btn_map").performClick()
-        // After collapse, map marker should be absent
-        composeRule.onNodeWithTag("overlay_map_visible").assertDoesNotExist()
+    fun map_expanded_by_default_has_expanded_state_description() {
+        val expandedDescription = context.getString(R.string.main_nav_map_state_expanded)
+
+        composeRule.onNodeWithTag("nav_map")
+            .assertIsSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expandedDescription))
+
+        composeRule.onNodeWithTag("nav_stats").assertIsNotSelected()
+        composeRule.onNodeWithTag("nav_game").assertIsNotSelected()
+    }
+
+    @Test
+    fun map_toggle_collapses_then_re_expands_and_updates_state_description() {
+        val collapsedDescription = context.getString(R.string.main_nav_map_state_collapsed)
+        val expandedDescription = context.getString(R.string.main_nav_map_state_expanded)
+
+        composeRule.onNodeWithTag("nav_map").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("nav_map")
+            .assertIsNotSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, collapsedDescription))
+        composeRule.onNodeWithTag("nav_stats").assertIsSelected()
+
+        composeRule.onNodeWithTag("nav_map").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("nav_map")
+            .assertIsSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expandedDescription))
+    }
+
+    @Test
+    fun openGame_intent_selects_game_and_collapses_map() {
+        val collapsedDescription = context.getString(R.string.main_nav_map_state_collapsed)
+
+        composeRule.runOnIdle {
+            val intent = Intent(context, MainActivityCompose::class.java).apply {
+                putExtra("openGame", true)
+            }
+            composeRule.activity.onNewIntent(intent)
+        }
+
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("nav_game").assertIsSelected()
+        composeRule.onNodeWithTag("nav_stats").assertIsNotSelected()
+        composeRule.onNodeWithTag("nav_map")
+            .assertIsNotSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, collapsedDescription))
+    }
+
+    companion object {
+        @JvmStatic
+        @BeforeClass
+        fun markOnboardingCompleted() {
+            markOnboardingCompletedForTests()
+        }
     }
 }

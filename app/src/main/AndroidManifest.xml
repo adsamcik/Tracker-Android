@@ -37,8 +37,6 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
         tools:targetApi="q">
-        <activity android:name="com.adsamcik.tracker.module.activity.ModuleActivity" />
-
         <meta-data
             android:name="android.max_aspect"
             android:value="10" />

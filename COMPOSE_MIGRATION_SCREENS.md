@@ -6,13 +6,14 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 
 ### ✅ Already Migrated to Compose
 
-1. **OnboardingActivity** - Modern Compose-based onboarding flow that replaced the old first-run dialog system
-2. **ImportExportComposeActivity** - Compose version of the import/export functionality
-3. **CrashViewerActivity** - Debug crash viewer using ComposeDetailActivity
-4. **WifiBrowseActivityCompose** - Compose implementation
-5. **SessionActivityActivityCompose** - Compose implementation
-6. **NotificationManagementActivityCompose** (if present) – modernized management UI
-7. **Map Fragment (Partial)** - Some UI components are Compose-based (MapSheet, MapScreen) but fragment container is still traditional
+1. **MainActivityCompose** – Compose navigation shell replacing the legacy draggable hub; owns bottom navigation, map overlay, and back handling.
+2. **OnboardingActivity** - Modern Compose-based onboarding flow that replaced the old first-run dialog system
+3. **ImportExportComposeActivity** - Compose version of the import/export functionality
+4. **CrashViewerActivity** - Debug crash viewer using ComposeDetailActivity
+5. **WifiBrowseActivityCompose** - Compose implementation
+6. **SessionActivityActivityCompose** - Compose implementation
+7. **NotificationManagementActivityCompose** (if present) – modernized management UI
+8. **Map Fragment (Partial)** - Some UI components are Compose-based (MapSheet, MapScreen) but fragment container is still traditional
 
 ### 🔄 In Progress / Partial
 
@@ -22,15 +23,7 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 
 ## Core App Screens
 
-### 1. MainActivity
-
-**File:** `app/src/main/java/com/adsamcik/tracker/app/activity/MainActivity.kt`  
-**Current State:** Traditional View-based (extends CoreUIActivity)  
-**Purpose:** The main screen users spend most time in. Contains the core app UI with draggable navigation buttons for Stats, Game, and Map modules. Hosts the tracker fragment and manages module switching.  
-**Context:** This is the central hub of the app - users launch tracking, navigate between modules (Statistics, Game, Map), and access core functionality from here. Contains complex draggable UI elements and module loading logic.  
-**Complexity:** High - Complex layout with draggable components, fragment management, and module integration
-
-### 2. SettingsActivity
+### 1. SettingsActivity
 
 **File:** `app/src/main/java/com/adsamcik/tracker/preference/activity/SettingsActivity.kt`  
 **Current State:** Traditional View-based (extends DetailActivity)  
@@ -38,7 +31,7 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 **Context:** Critical for app configuration - users set tracking preferences, privacy settings, debug options, and customize app behavior. Uses Android's preference system with custom page navigation.  
 **Complexity:** High - Preference-based UI with complex navigation and multiple setting categories
 
-### 3. LicenseActivity
+### 2. LicenseActivity
 
 **File:** `app/src/main/java/com/adsamcik/tracker/license/LicenseActivity.kt`  
 **Current State:** Traditional View-based (extends DetailActivity)  
@@ -46,15 +39,13 @@ This document lists all screens/activities/fragments in the Tracker Android app 
 **Context:** Legal compliance screen - shows all open source licenses for transparency and legal requirements. Important for app store compliance.  
 **Complexity:** Medium - RecyclerView with license data, some dynamic content loading
 
-### 4. ModuleActivity
+### 3. ModuleActivity (Removed)
 
-**File:** `app/src/main/java/com/adsamcik/tracker/module/activity/ModuleActivity.kt`  
-**Current State:** Traditional View-based (extends DetailActivity)  
-**Purpose:** Manages dynamic feature modules (Statistics, Game, Map). Allows users to install/uninstall optional app components using Google Play's Dynamic Delivery.  
-**Context:** Module management for the app's modular architecture - users can download/remove optional features to save space or add functionality.  
-**Complexity:** High - Complex module installation flow with progress tracking and error handling
+**Status:** Dynamic feature delivery retired; ModuleActivity class and layouts removed from the project.  
+**Notes:** Keep this section for historical reference only. Any future module management UI would be a fresh Compose surface if reintroduced.  
+**Actions:** Clean up lingering documentation or strings referencing module downloads as new Compose flows replace them.  
 
-### 5. StatusActivity (Debug)
+### 4. StatusActivity (Debug)
 
 **File:** `app/src/main/java/com/adsamcik/tracker/app/activity/debug/StatusActivity.kt`  
 **Current State:** Traditional View-based (extends DetailActivity)  
@@ -148,10 +139,8 @@ Legacy base class fully eliminated after final migrations (Wifi, Session Activit
 
 ### High Priority (Core User Experience)
 
-1. **MainActivity** - Central hub, most user interaction
-2. **FragmentTracker** - Primary app functionality
-3. **FragmentStats** - Key data viewing
-4. **FragmentGame** - User engagement
+1. **FragmentTracker** - Primary app functionality (pending full Compose route parity)
+2. **FragmentGame** - User engagement
 
 ### Medium Priority (Secondary Features)
 
@@ -163,7 +152,7 @@ Legacy base class fully eliminated after final migrations (Wifi, Session Activit
 ### Lower Priority (Infrastructure & Utilities)
 
 1. **Base Activity Classes** - After main screens
-2. **ModuleActivity** - Administrative
+2. **ModuleActivity** - Administrative (legacy flow removed; keep for historical tracking)
 3. **LicenseActivity** - Legal compliance
 4. **StatusActivity** - Debug tools
 5. **ShortcutActivity** - System integration

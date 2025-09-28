@@ -114,16 +114,16 @@ Rationale: Dynamic delivery wasn’t used reliably and app size is modest. We wi
 
 ### Phase D – Animations, A11y, Back
 
-- [ ] Center pill animation: scale/elevation/color synchronized to overlay expand/collapse; tap toggles.
-- [ ] Overlay animation: spring/tween from collapsed to expanded; optional Peek later. No drag gestures in v1.
-- [ ] A11y: add content descriptions (Statistics, Map, Game), pill labeled “Open map/Close map”.
-- [ ] Back handling: expanded → collapse overlay; non-Tracker tab → switch to Tracker; else default.
+- [x] Center pill animation: scale/elevation/color synchronized to overlay expand/collapse; tap toggles.
+- [x] Overlay animation: spring/tween from collapsed to expanded; optional Peek later. No drag gestures in v1.
+- [x] A11y: add content descriptions (Statistics, Map, Game), pill labeled “Open map/Close map”.
+- [x] Back handling: expanded → collapse overlay; non-Tracker tab → switch to Tracker; else default.
 
 ### Phase E – Cleanup Dynamic Artifacts
 
-- [ ] Remove draggable button code, payload system bits, and exclusion rects no longer used.
-- [ ] Remove now-dead resources/layouts tied to old `activity_ui` and draggable nav.
-- [ ] Update `COMPOSE_MIGRATION_SCREENS.md` and `COMPOSE_MIGRATION_PROGRESS.md` with new status.
+- [x] Remove draggable button code, payload system bits, and exclusion rects no longer used.
+- [x] Remove now-dead resources/layouts tied to old `activity_ui` and draggable nav.
+- [x] Update `COMPOSE_MIGRATION_SCREENS.md` and `COMPOSE_MIGRATION_PROGRESS.md` with new status.
 
 ### Phase F – Tests & Quality Gates
 
@@ -163,14 +163,16 @@ Overall status: Phases A–C complete; proceeding to Phase D
 - Decision log:
   - 2025-08-31: v1 removes middle-pill drag; tap-only with synchronized animation. ✅
   - 2025-08-31: Remove dynamic features; link modules statically. ✅ (decision)
+  - 2025-09-28: Animated map overlay + accessibility + back handling shipped in Compose MainRoot. ✅
+  - 2025-09-28: Removed legacy draggable payload resources and layouts; documentation synced. ✅
 
 ### Checklist snapshot
 
 - [x] Phase A – Repo Prep & Static Modules
 - [x] Phase B – Compose Shell for MainActivity
 - [x] Phase C – Content Hosting
-- [ ] Phase D – Animations, A11y, Back
-- [ ] Phase E – Cleanup Dynamic Artifacts
+- [x] Phase D – Animations, A11y, Back
+- [x] Phase E – Cleanup Dynamic Artifacts
 - [ ] Phase F – Tests & Quality Gates
 
 ## Next Steps (upcoming PRs)

@@ -85,7 +85,7 @@ Each Route:
 ## Removal checklist
 
 - [ ] Stop attaching `FragmentTracker`; render tracker in Compose.
-- [ ] Remove `activity_ui.xml` and draggable nav assets.
+- [x] Remove `activity_ui.xml` and draggable nav assets.
 - [x] Remove StyleController/StyleManager usages from MapScreen; map follows AppTheme dark/light.
 - [ ] Remove remaining usages across sutils/smap/statistics/activity; delete classes next release.
 

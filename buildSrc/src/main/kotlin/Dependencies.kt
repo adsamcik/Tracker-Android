@@ -43,8 +43,7 @@ object Dependencies {
         const val SPOTLIGHT = "2.2.3"
         const val DIALOGS = "3.3.0"
 
-        const val COMPONENTS_RECYCLER = "1.0.0"
-        const val COMPONENTS_DRAGGABLE = "1.0.4"
+    const val COMPONENTS_RECYCLER = "1.0.0"
         const val COMPONENT_SLIDER = "2.1.0"
 
         const val SUNCALC = "3.11"
@@ -153,10 +152,6 @@ object Dependencies {
 
     fun location(scope: DependencyHandlerScope) {
         scope.implementation("com.google.android.gms:play-services-location:${Versions.PLAY_LOCATION}")
-    }
-
-    fun draggable(scope: DependencyHandlerScope) {
-        scope.implementation("com.github.adsamcik:Draggable:${Versions.COMPONENTS_DRAGGABLE}")
     }
 
     fun slider(scope: DependencyHandlerScope) {

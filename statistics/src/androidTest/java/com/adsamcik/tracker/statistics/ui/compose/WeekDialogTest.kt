@@ -1,7 +1,13 @@
 package com.adsamcik.tracker.statistics.ui.compose
 
+import androidx.activity.ComponentActivity
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -16,71 +22,60 @@ import org.junit.runner.RunWith
 class WeekDialogTest {
 
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+    private val sampleStats = listOf(
+        Stat(
+            nameRes = R.string.stats_distance_total,
+            iconRes = 0,
+            displayType = StatisticDisplayType.INFORMATION,
+            data = "50.2 km"
+        ),
+        Stat(
+            nameRes = R.string.stats_session_count,
+            iconRes = 0,
+            displayType = StatisticDisplayType.INFORMATION,
+            data = "7"
+        )
+    )
+
+    private fun setContent(visible: Boolean, stats: List<Stat>) {
+        composeRule.setContent {
+            MaterialTheme(colorScheme = lightColorScheme()) {
+                Surface {
+                    WeekDialog(
+                        visible = visible,
+                        stats = stats,
+                        onDismiss = {}
+                    )
+                }
+            }
+        }
+    }
 
     @Test
     fun weekDialog_whenVisible_showsDialog() {
-        val testStats = listOf(
-            Stat(
-                nameRes = R.string.stats_distance,
-                iconRes = R.drawable.ic_stats_distance,
-                displayType = StatisticDisplayType.Text,
-                data = "50.2 km"
-            ),
-            Stat(
-                nameRes = R.string.stats_sessions,
-                iconRes = R.drawable.ic_stats_session_count,
-                displayType = StatisticDisplayType.Text,
-                data = "7"
-            )
-        )
+        setContent(visible = true, stats = sampleStats)
 
-        composeTestRule.setContent {
-            WeekDialog(
-                visible = true,
-                stats = testStats,
-                onDismiss = { }
-            )
-        }
-
-        composeTestRule.onNodeWithTag("week_dialog").assertIsDisplayed()
-        composeTestRule.onNodeWithText("50.2 km").assertIsDisplayed()
-        composeTestRule.onNodeWithText("7").assertIsDisplayed()
+        composeRule.onNodeWithTag("weekDialog").assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.stats_weekly_title)).assertIsDisplayed()
+        composeRule.onNodeWithText("50.2 km").assertIsDisplayed()
+        composeRule.onNodeWithText("7").assertIsDisplayed()
     }
 
     @Test
     fun weekDialog_whenNotVisible_hidesDialog() {
-        val testStats = listOf(
-            Stat(
-                nameRes = R.string.stats_distance,
-                iconRes = R.drawable.ic_stats_distance,
-                displayType = StatisticDisplayType.Text,
-                data = "50.2 km"
-            )
-        )
+        setContent(visible = false, stats = sampleStats)
 
-        composeTestRule.setContent {
-            WeekDialog(
-                visible = false,
-                stats = testStats,
-                onDismiss = { }
-            )
-        }
-
-        composeTestRule.onNodeWithTag("week_dialog").assertDoesNotExist()
+        composeRule.onAllNodesWithTag("weekDialog").assertCountEquals(0)
     }
 
     @Test
-    fun weekDialog_withEmptyStats_showsEmptyMessage() {
-        composeTestRule.setContent {
-            WeekDialog(
-                visible = true,
-                stats = emptyList(),
-                onDismiss = { }
-            )
-        }
+    fun weekDialog_withEmptyStats_showsDismissButton() {
+        setContent(visible = true, stats = emptyList())
 
-        composeTestRule.onNodeWithTag("week_dialog").assertIsDisplayed()
-        composeTestRule.onNodeWithText("No weekly statistics available").assertIsDisplayed()
+        composeRule.onNodeWithTag("weekDialog").assertIsDisplayed()
+        composeRule.onNodeWithTag("weekDialog_dismiss").assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(android.R.string.ok)).assertIsDisplayed()
     }
 }

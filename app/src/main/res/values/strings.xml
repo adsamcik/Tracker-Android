@@ -32,6 +32,13 @@
     <string name="module_statistics_title">statistics</string>
     <string name="module_success">Installation completed successfully</string>
 
+    <string name="main_nav_stats">Statistics</string>
+    <string name="main_nav_game">Game</string>
+    <string name="main_nav_map_expand">Open map</string>
+    <string name="main_nav_map_collapse">Close map</string>
+    <string name="main_nav_map_state_expanded">Map expanded</string>
+    <string name="main_nav_map_state_collapsed">Map collapsed</string>
+
     <string name="open_source_licenses">Open source licenses</string>
 
     <string name="settings_activity_status_key" translatable="false">activityStatus</string>
