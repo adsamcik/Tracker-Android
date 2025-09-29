@@ -3,38 +3,49 @@ package com.adsamcik.tracker.shared.utils.style.compose
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.materialkolor.PaletteStyle
+import com.materialkolor.dynamiccolor.ColorSpec
+import com.materialkolor.dynamicColorScheme
+
+private val ExpressiveSeedColor = Color(0xFF6750A4)
 
 /**
- * Unified app theme using Material 3 with dynamic color support.
- * This is the north-star theme for all Compose screens across modules.
- * 
- * Relocated from app module to sutils for cross-module accessibility.
- * All new Compose screens should use this instead of TrackerTheme or direct MaterialTheme.
+ * Unified app theme using Material 3 with dynamic color support and a Material Expressive fallback.
+ *
+ * - Android 12+ (S): system dynamic colors (Monet) when [useDynamicColor] is true.
+ * - Pre-Android 12: generated Expressive palette derived from [seedColor].
  */
 @Composable
 fun AppTheme(
     useDynamicColor: Boolean = true,
     darkTheme: Boolean = isSystemInDarkTheme(),
+    seedColor: Color = ExpressiveSeedColor,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
 
-    val colorScheme = if (useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        // Dynamic color on Android 12+
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        // Simple light/dark fallback
-        if (darkTheme) darkColorScheme() else lightColorScheme()
+    val colorScheme = remember(useDynamicColor, darkTheme, seedColor, context) {
+        when {
+            useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+
+            else -> expressiveColorScheme(seedColor = seedColor, darkTheme = darkTheme)
+        }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
+    MaterialTheme(colorScheme = colorScheme, content = content)
 }
+
+private fun expressiveColorScheme(seedColor: Color, darkTheme: Boolean) =
+    dynamicColorScheme(
+        seedColor = seedColor,
+        isDark = darkTheme,
+        style = PaletteStyle.Expressive,
+        specVersion = ColorSpec.SpecVersion.SPEC_2025
+    )

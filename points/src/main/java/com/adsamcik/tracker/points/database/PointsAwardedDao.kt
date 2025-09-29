@@ -14,12 +14,12 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 	/**
 	 * Returns number of points earned between two time intervals.
 	 */
-	@Query("SELECT SUM(value) FROM points_awarded WHERE time >= :from AND time <= :to")
+	@Query("SELECT COALESCE(SUM(value), 0) FROM points_awarded WHERE time >= :from AND time <= :to")
 	fun countBetween(from: Long, to: Long): Int
 
 	/**
 	 * Returns number of points earned between two time intervals.
 	 */
-	@Query("SELECT SUM(value) FROM points_awarded WHERE time >= :from AND time <= :to")
+	@Query("SELECT COALESCE(SUM(value), 0) FROM points_awarded WHERE time >= :from AND time <= :to")
 	fun countBetweenLive(from: Long, to: Long): LiveData<Int>
 }

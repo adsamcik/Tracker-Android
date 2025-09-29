@@ -177,7 +177,7 @@ Legacy base class fully eliminated after final migrations (Wifi, Session Activit
 
 ### Existing Compose Infrastructure
 
-- **TrackerTheme** - Custom theming system already in place
+- **AppTheme** - Material 3 dynamic Monet on Android 12+ with Expressive fallback elsewhere
 - **ComposeDetailActivity** - Base class for Compose detail screens
 - **StyleUtils** - Compose utility functions for styling
 - **OnboardingActivity** - Reference implementation of modern Compose patterns

@@ -38,10 +38,12 @@ Migrated from fragment-hosted ComposeViews to direct route composables inside a 
 
 - Stats: 1 JVM unit test + multiple instrumentation tests covering refresh/append states, interactions, and paging integration.
 - Game: Instrumentation tests for static render & reactive state changes.
+- Main shell: `MainActivityComposeTest` + `MainActivityBackBehaviorTest` (JVM) rerun; map module unit suite executed via `./gradlew.bat :map:testDebugUnitTest`.
+- Tooling: `./gradlew.bat lint` now clean after adding default locale strings for extended activity list.
 - Additional tests will be added as dialogs & DI refactors land.
 
 ## Notes
 
 - Statistics & Game modules now expose route composables only; fragment layer considered deprecated and removed.
 - Direct database/service access in ViewModels scheduled for DI refactor (privacy & testability improvement).
-- All new code adheres to Material 3 and avoids legacy view inflation.
+- All new code adheres to Material 3; `AppTheme` provides dynamic Monet on Android 12+ and Expressive fallback elsewhere via MaterialKolor (single entry point across modules).

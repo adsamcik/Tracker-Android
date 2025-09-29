@@ -31,6 +31,7 @@ documentfile = "1.1.0"
 datastore = "1.1.1"
 protobuf = "3.25.3"
 protobufPlugin = "0.9.4"
+materialKolor = "3.0.1"
 
 # Google Play Services
 playServicesBase = "18.7.2"
@@ -136,6 +137,7 @@ google-play-services-base = { group = "com.google.android.gms", name = "play-ser
 google-play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "maps" }
 google-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playLocation" }
 google-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+material-kolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
 
 # Moshi
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }

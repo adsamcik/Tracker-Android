@@ -108,6 +108,7 @@ dependencies {
 	implementation(libs.compose.runtime)
 	implementation(libs.compose.runtime.livedata)
 	implementation(libs.constraintlayout.compose)
+	implementation(libs.material.kolor)
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
 	implementation(libs.accompanist.pager)

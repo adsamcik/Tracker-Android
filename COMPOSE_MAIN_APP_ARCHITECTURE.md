@@ -7,7 +7,7 @@ This proposes a Jetpack Compose–first architecture that replaces all UI previo
 - Single-activity app with Navigation Compose; no new fragments.
 - Bottom bar with 3 top-level destinations: Stats (left), Map (center, prominent), Game (right).
 - Keep features in their modules; expose Composable entry points (small contracts).
-- Material 3 dynamic color via `AppTheme`; edge-to-edge with insets (no StyleController).
+- Material 3 dynamic/deterministic Expressive theme via `AppTheme`; edge-to-edge with insets (no StyleController).
 - Preserve non-transitive R; fully qualify cross-module resources.
 
 ## High-level structure
@@ -40,7 +40,7 @@ Each Route:
 
 - `AppTheme(darkTheme = isSystemInDarkTheme(), useDynamicColor = true)` at the root.
 - Edge-to-edge via WindowInsets APIs and padding modifiers.
-- StyleController/StyleManager deprecated and removed next release. MapScreen no longer consumes StyleManager; it follows AppTheme (dark/light) for the map style.
+- StyleController/StyleManager deprecated and removed next release. MapScreen now follows `AppTheme` (dynamic/expressive) for the map style.
 
 ## State management
 
@@ -92,7 +92,7 @@ Each Route:
 ## CI additions
 
 - Added dedicated map unit test jobs (Linux + Windows with flake guards). Windows disables Kotlin incremental and Gradle build cache for tests to avoid file-lock races.
-- [ ] Route `openGame` to NavController.
+- [x] Route `openGame` to NavController.
 - [ ] Verify back parity via tests.
 
 This design removes fragments from the main UI path, unifies navigation in Compose, and keeps modules independent by exposing small Composable contracts.

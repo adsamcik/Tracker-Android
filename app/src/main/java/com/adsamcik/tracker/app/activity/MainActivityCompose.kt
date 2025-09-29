@@ -73,7 +73,7 @@ class MainActivityCompose : CoreUIActivity() {
         val dark = isSystemInDarkTheme()
         val appGraph = (application as Application).appGraph
         
-        AppTheme(dark = dark) {
+    AppTheme(darkTheme = dark) {
             CompositionLocalProvider(
                 LocalAppGraph provides appGraph,
                 LocalViewModelFactory provides appGraph.viewModelFactory

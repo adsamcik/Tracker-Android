@@ -2,7 +2,7 @@
 
 This document tracks the end-to-end migration of `MainActivity` to Jetpack Compose, redesigning navigation with a Material 3 bottom bar and a prominent center Map pill, and decommissioning Dynamic Feature modules in favor of statically linked modules.
 
-Last updated: 2025-09-02
+Last updated: 2025-09-28
 
 ## Goals
 
@@ -18,25 +18,20 @@ Last updated: 2025-09-02
 
 ## Design System Migration (Material 3 Expressive + Dynamic)
 
-We will retire the legacy StyleManager-driven dynamic styling and adopt a Material 3 Expressive theme with dynamic color support on Android 12+.
+We retired the legacy StyleManager-driven dynamic styling in Compose entry points and now rely on a Material 3 theme with dynamic color support on Android 12+ plus an Expressive fallback everywhere else.
 
 Key points:
 
-- Dynamic color (Android 12+): use `dynamicLightColorScheme` / `dynamicDarkColorScheme` directly (system-provided Monet palette). This satisfies “dynamic theming” support.
-- Expressive fallback (pre-Android 12, or when dynamic disabled): compute a Material color scheme using Material Color Utilities “Expressive” algorithm from a seed color (brand or user-selected). Implementation via `SchemeExpressive` (material-color-utilities).
-- Single theme entry point: `ExpressiveTheme` replaces `TrackerTheme`/`DynamicTrackerTheme`. All Compose UIs consume `MaterialTheme` tokens.
-- Transitional bridge: minimize/remove `StyleManager` usage; keep only where needed until View screens are migrated.
+- Dynamic color (Android 12+): `dynamicLightColorScheme` / `dynamicDarkColorScheme` continue to supply Monet palettes when available.
+- Expressive fallback (pre-Android 12, or when dynamic disabled): `AppTheme` now computes a Material color scheme via Material Color Utilities `SchemeExpressive` from a stable seed.
+- Single theme entry point: `AppTheme` (expressive-aware) replaces legacy wrappers. All Compose UIs consume `MaterialTheme` tokens only.
+- Transitional bridge: minimize/remove `StyleManager` usage; keep only where needed until remaining View screens migrate.
 
 ### Phase G – Theming Migration to Material 3 Expressive
 
-- [ ] Add dependencies to version catalog (no hardcoded coords):
-  - `com.google.android.material:material-color-utilities`
-  - (optional) `androidx.compose.material3:material3-adaptive` for future large-screen work
-- [ ] Create `sutils/.../style/compose/ExpressiveTheme.kt`:
-  - Detect Android 12+: if enabled, use `dynamicLightColorScheme(context)` / `dynamicDarkColorScheme(context)`.
-  - Else compute expressive scheme from a seed color using Material Color Utilities `SchemeExpressive` and map to `ColorScheme`.
-  - Provide a small API: `ExpressiveTheme(dynamic: Boolean = true, seed: Color? = null, content: @Composable () -> Unit)`.
-- [ ] Replace usages of `TrackerTheme`/`DynamicTrackerTheme` in Compose with `ExpressiveTheme`.
+- [x] Evaluate need for additional dependencies (adopted `com.materialkolor:material-kolor` for stable Expressive palettes on non-dynamic devices).
+- [x] Update `sutils/.../style/compose/AppTheme.kt` to generate Expressive palettes when dynamic color is unavailable (pre-Android 12 or manually disabled).
+- [ ] Replace any lingering `TrackerTheme`/`DynamicTrackerTheme` usages in legacy modules with `AppTheme`.
 - [ ] Remove `StyleManager` color listeners from Compose entry points (e.g., `ComposeDetailActivity`, fragments using Compose) and stop translating `StyleData` into M3 colors.
 - [ ] Optional preference for seed color (or default to brand/app icon color); wire a lightweight storage in `Preferences`.
 - [ ] Verify contrast and legibility (onPrimary/onSurface) across light/dark + expressive.
@@ -52,7 +47,7 @@ Key points:
 #### Risks & Notes (Theming)
 
 - System dynamic color style can differ from Expressive; we accept this (Expressive is used as fallback).*
-- If we later want Expressive even on 12+ sourced from wallpaper seed, we can read seed from `material-color-utilities` inputs when feasible; v1 keeps system dynamic as-is.
+- If we later want Expressive even on 12+ sourced from wallpaper seed, we can inspect Material Color Utilities APIs (or Compose adapters) to derive palettes from wallpaper metadata; v1 keeps system dynamic as-is.
 - Remove legacy system bar color watchers after verifying edge-to-edge looks acceptable; otherwise add a small bridge that sets system bar colors from `MaterialTheme`.
 
 ## Non-Goals (for v1)
@@ -63,7 +58,7 @@ Key points:
 
 ## Architecture Overview
 
-- Activity: `MainActivity : CoreUIActivity`, calls `setContent { TrackerTheme { … } }` to host Compose.
+- Activity: `MainActivity : CoreUIActivity`, calls `setContent { AppTheme { … } }` to host Compose.
 - Layered layout inside Compose:
   1) Base content layer: Tracker (default “home”).
   2) Tab content layer: Stats OR Game (full-screen swap, independent of Map).
@@ -127,10 +122,11 @@ Rationale: Dynamic delivery wasn’t used reliably and app size is modest. We wi
 
 ### Phase F – Tests & Quality Gates
 
-- [ ] Unit/UI tests for MainActivity Compose shell: tab selection, `openGame` intent, pill toggling overlay, back behavior.
-- [ ] Map unit tests: run `:map:testDebugUnitTest` and fix regressions if any (overlay padding path).
-- [ ] Build: assemble debug for `:app`, `:statistics`, `:game`, `:map`.
-- [ ] Lint/Detekt: run and triage.
+- [x] Unit/UI tests for MainActivity Compose shell: `MainActivityComposeTest` (`tabSelection_updatesRoute`, `mapPill_collapsesOnBack`, deep link coverage) and `MainActivityBackBehaviorTest` executed on JVM.
+- [x] Map unit tests: `./gradlew.bat :map:testDebugUnitTest --no-daemon --console=plain`.
+- [x] Build: `./gradlew.bat :app:assembleDebug --no-daemon --console=plain` (covers `:statistics`, `:game`, `:map` via dependencies).
+- [x] Lint/Detekt: `./gradlew.bat lint --no-daemon --console=plain` (warnings resolved by adding missing default strings).
+- Follow-up: schedule instrumentation run `./gradlew.bat :app:connectedDebugAndroidTest --no-daemon --console=plain` on Pixel 6 (Android 14) to validate onboarding + map flows under expressive theme, including toggling dynamic color at runtime to confirm MaterialKolor fallback (pending device slot).
 
 ## Interaction Details
 
@@ -157,7 +153,7 @@ Rationale: Dynamic delivery wasn’t used reliably and app size is modest. We wi
 
 ## Progress
 
-Overall status: Phases A–C complete; proceeding to Phase D
+Overall status: Phases A–F complete; theming migration (Phase G) underway
 
 - Fragments Compose migrations: Tracker ✅, Stats ✅, Game ✅ (per `COMPOSE_MIGRATION_PROGRESS.md`).
 - Decision log:
@@ -173,7 +169,7 @@ Overall status: Phases A–C complete; proceeding to Phase D
 - [x] Phase C – Content Hosting
 - [x] Phase D – Animations, A11y, Back
 - [x] Phase E – Cleanup Dynamic Artifacts
-- [ ] Phase F – Tests & Quality Gates
+- [x] Phase F – Tests & Quality Gates
 
 ## Next Steps (upcoming PRs)
 

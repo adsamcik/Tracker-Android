@@ -90,6 +90,10 @@ dependencies {
 	androidTestImplementation(libs.androidx.work.testing)
 
 	// Tests
+	testImplementation(libs.junit4)
+	testImplementation(libs.robolectric)
+	testImplementation(libs.arch.core.testing)
+	testImplementation(libs.androidx.test.core)
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)

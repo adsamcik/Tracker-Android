@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,8 +40,6 @@ import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
 import com.adsamcik.tracker.app.Application
-import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
-import androidx.compose.foundation.isSystemInDarkTheme
 
 /**
  * Coordinator activity for the new onboarding flow.
@@ -60,7 +59,7 @@ class OnboardingActivity : ComponentActivity() {
         
         setContent {
             val dark = isSystemInDarkTheme()
-            AppTheme(dark = dark) {
+            AppTheme(darkTheme = dark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
