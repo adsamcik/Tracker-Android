@@ -12,18 +12,27 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(private val repo: TrackerSettingsRepository) : ViewModel() {
-    val settings: StateFlow<TrackerSettingsState> = repo.data
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = TrackerSettingsState(
-                autoUnitSwitch = false,
-                lengthSystem = LengthSystem.Metric,
-                speedFormat = SpeedFormat.Hour
-            )
+    val settings: StateFlow<TrackerSettingsState> = repo.data.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = TrackerSettingsState(
+            autoUnitSwitch = false,
+            lengthSystem = LengthSystem.Metric,
+            speedFormat = SpeedFormat.Hour
         )
+    )
 
     fun setAutoUnitSwitch(enabled: Boolean) {
         viewModelScope.launch { repo.setAutoUnitSwitch(enabled) }
+    }
+
+    fun setLengthSystem(system: String) {
+        val lengthSystem = LengthSystem.valueOf(system)
+        viewModelScope.launch { repo.setLengthSystem(lengthSystem) }
+    }
+
+    fun setSpeedFormat(format: String) {
+        val speedFormat = SpeedFormat.valueOf(format)
+        viewModelScope.launch { repo.setSpeedFormat(speedFormat) }
     }
 }

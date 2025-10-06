@@ -1,0 +1,46 @@
+package com.adsamcik.tracker.app.settings
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.preferences.Preferences
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+// Contract: ViewModel for data & export settings screen
+// Inputs: Context for Preferences access
+// Outputs: StateFlows for auto-cleanup and data retention settings
+// Errors: None (preferences default to safe values)
+class DataSettingsViewModel(private val context: Context) : ViewModel() {
+    
+    private val prefs = Preferences.getPref(context)
+    
+    // Auto-cleanup old data
+    private val _autoCleanupEnabled = MutableStateFlow(
+        prefs.getBooleanRes(R.string.settings_auto_cleanup_old_data_key, R.string.settings_auto_cleanup_old_data_default)
+    )
+    val autoCleanupEnabled: StateFlow<Boolean> = _autoCleanupEnabled.asStateFlow()
+    
+    // Data retention years (stored as string in preferences)
+    private val _dataRetentionYears = MutableStateFlow(
+        prefs.getStringRes(R.string.settings_data_retention_years_key, R.string.settings_data_retention_years_default) ?: "1"
+    )
+    val dataRetentionYears: StateFlow<String> = _dataRetentionYears.asStateFlow()
+    
+    fun setAutoCleanupEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.edit { setBoolean(R.string.settings_auto_cleanup_old_data_key, enabled) }
+            _autoCleanupEnabled.value = enabled
+        }
+    }
+    
+    fun setDataRetentionYears(years: String) {
+        viewModelScope.launch {
+            prefs.edit { setString(R.string.settings_data_retention_years_key, years) }
+            _dataRetentionYears.value = years
+        }
+    }
+}

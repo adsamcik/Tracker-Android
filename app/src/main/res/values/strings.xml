@@ -62,7 +62,21 @@
     <string name="settings_hello_world_title">Hello world!</string>
 
     <string name="settings_language_summary">Current language: %s</string>
-    <string name="settings_language_title">Application language</string>    <string-array name="settings_length_system_names">
+    <string name="settings_language_title">Application language</string>
+
+    <string name="settings_units_section_title">Units</string>
+    <string name="settings_units_auto_summary_on">Adapts length system to detected activities</string>
+    <string name="settings_units_auto_summary_off">Applies the selected length system everywhere</string>
+    <string name="settings_units_length_metric_summary">Kilometers and meters</string>
+    <string name="settings_units_length_imperial_summary">Miles and feet</string>
+    <string name="settings_units_length_ancient_roman_summary">Passus and mille passus</string>
+    <string name="settings_units_length_sailing_summary">Nautical miles and fathoms</string>
+    <string name="settings_units_length_flying_summary">Flight levels and nautical miles</string>
+    <string name="settings_units_speed_hour_summary">Speed per hour (km/h, mph)</string>
+    <string name="settings_units_speed_minute_summary">Pace per distance (min/km, min/mi)</string>
+    <string name="settings_units_speed_second_summary">Speed per second (m/s)</string>
+
+    <string-array name="settings_length_system_names">
         <item>Metric</item>
         <item>Imperial (USC)</item>
         <item>Ancient Roman</item>
