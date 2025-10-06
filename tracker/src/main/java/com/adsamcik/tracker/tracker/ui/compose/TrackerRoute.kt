@@ -44,12 +44,11 @@ fun TrackerRoute(
     // Observe session info (LiveData → Flow via asFlow())
     val sessionInfo by TrackerService.sessionInfo.asFlow().collectAsState(initial = null)
     
-    // Derive session data from sessionInfo
-    // TODO: Full TrackerSession exposure requires service-level Flow (blocked by LiveData migration)
-    val sessionData = null // Placeholder until service exposes session Flow
+    // Observe session data (Flow - native)
+    val sessionData by TrackerService.sessionFlow.collectAsState()
     
-    // TODO: collectionData Flow exposure requires TrackerService refactoring
-    val collectionData = null
+    // Observe collection data (Flow - native)
+    val collectionData by TrackerService.collectionDataFlow.collectAsState()
     
     TrackerDashboard(
         state = TrackerDashboardUiState(
