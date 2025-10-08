@@ -9,13 +9,15 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
+import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 
 /**
  * Collection trigger that uses handler to periodically trigger collections.
+ * Supports dynamic interval updates for policy-based adaptation.
  */
-internal class HandlerCollectionTrigger : CollectionTriggerComponent {
+internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String> get() = emptyList()
 
 	override val titleRes: Int
@@ -57,6 +59,13 @@ internal class HandlerCollectionTrigger : CollectionTriggerComponent {
 
 	override fun onDisable(context: Context) {
 		handler.removeCallbacks(handlerCallback)
+	}
+
+	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
+		// Update interval and restart handler timer
+		handler.removeCallbacks(handlerCallback)
+		repeatEveryMs = intervalSeconds * Time.SECOND_IN_MILLISECONDS
+		handler.postDelayed(handlerCallback, repeatEveryMs)
 	}
 
 }

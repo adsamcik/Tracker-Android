@@ -286,4 +286,91 @@
         <item>5</item>
         <item>10</item>
     </string-array>
+
+    <!-- Common Buttons -->
+    <string name="button_ok">OK</string>
+    <string name="button_cancel">Cancel</string>
+    <string name="button_back">Back</string>
+    <string name="button_continue">Continue</string>
+    <string name="button_skip">Skip for now</string>
+    <string name="loading_text">Loading…</string>
+
+    <!-- Onboarding: Location Setup -->
+    <string name="onboarding_location_enable_button">Enable Location Access</string>
+    <string name="onboarding_location_benefits_title">What you\'ll get:</string>
+    <string name="onboarding_privacy_protected_title">Your privacy is protected</string>
+    <string name="onboarding_privacy_message">All location data stays on your device. We never upload or share your routes.</string>
+    <string name="onboarding_background_location_required_title">Background Location Required</string>
+    <string name="onboarding_background_location_required_message">Since automatic tracking is enabled, background location permission is needed for the app to track movements when minimized.</string>
+    <string name="onboarding_background_location_enable_button">Enable Background Location</string>
+    <string name="onboarding_continue_without_background_button">Continue without background tracking</string>
+    <string name="onboarding_background_benefits_title">Background tracking benefits:</string>
+    <string name="onboarding_battery_usage_title">Battery Usage</string>
+    <string name="onboarding_battery_usage_message">Background tracking uses additional battery, but the app is optimized to minimize impact.</string>
+
+    <!-- Onboarding: Enhanced Features -->
+    <string name="onboarding_enhanced_features_title">Enhanced Features</string>
+    <string name="onboarding_enhanced_features_subtitle">Optional features to improve tracking accuracy and user experience.</string>
+    <string name="onboarding_wifi_permission_title">Wi‑Fi permission needed</string>
+    <string name="onboarding_wifi_permission_message">Grant Wi‑Fi permission to improve indoor accuracy.</string>
+    <string name="onboarding_wifi_grant_button">Grant Wi‑Fi permission</string>
+    <string name="onboarding_skip_enhanced_features">Skip enhanced features</string>
+    <string name="onboarding_grant_permission_button">Grant Permission</string>
+    <string name="onboarding_enhanced_features_privacy_note">All these features are optional and can be enabled or disabled anytime in settings. Your privacy remains protected.</string>
+
+    <!-- Onboarding: Basic Preferences -->
+    <string name="onboarding_preferences_title">Preferences</string>
+    <string name="onboarding_preferences_subtitle">Adjust defaults. You can always change these later in Settings.</string>
+    <string name="onboarding_additional_settings_title">Additional Settings</string>
+    <string name="onboarding_auto_start_title">Auto-start tracking</string>
+    <string name="onboarding_auto_start_summary">Start tracking automatically when you move</string>
+    <string name="onboarding_smart_pause_title">Smart pause</string>
+    <string name="onboarding_smart_pause_summary">Pause tracking when stationary for extended periods</string>
+
+    <!-- Onboarding: Activity Setup -->
+    <string name="onboarding_activity_detects_title">Automatically detects:</string>
+    <string name="onboarding_activity_why_title">Why this helps:</string>
+    <string name="onboarding_activity_benefits">• Better insights into your daily movement patterns\n• Accurate distance and calorie calculations\n• Smart detection of driving, walking, and cycling\n• Enhanced route visualization with activity context</string>
+    <string name="onboarding_activity_ready_title">Activity detection is ready!</string>
+    <string name="onboarding_activity_ready_message">The app will now automatically detect your movement type and provide better insights.</string>
+    <string name="onboarding_activity_enable_button">Enable Activity Detection</string>
+    <string name="onboarding_continue_setup_button">Continue Setup</string>
+
+    <!-- Onboarding: Auto Tracking Setup -->
+    <string name="onboarding_distance_meters">%d m</string>
+
+    <!-- Onboarding: Completion -->
+    <string name="onboarding_start_tracking_button">Start Tracking!</string>
+    <string name="onboarding_complete_setup_button">Complete Setup</string>
+
+    <!-- Onboarding: Progress -->
+    <string name="onboarding_progress_step">Step %1$d of %2$d</string>
+    <string name="onboarding_progress_percent">%d%%</string>
+
+    <!-- Debug: General -->
+    <string name="debug_system_status_title">System Status</string>
+    <string name="debug_log_viewer_title">Log Viewer</string>
+    <string name="debug_no_logs">No logs available</string>
+    <string name="debug_showing_logs_count">Showing last %d logs:</string>
+
+    <!-- Debug: Crash Viewer -->
+    <string name="debug_loading_crashes">Loading crashes…</string>
+    <string name="debug_no_crashes">No crashes found!</string>
+    <string name="debug_crash_number">Crash #%d</string>
+    <string name="debug_file_name">File: %s</string>
+    <string name="debug_file_modified">Modified: %s</string>
+    <string name="debug_failed_read_file">Failed to read file</string>
+
+    <!-- Debug: Crash Manager -->
+    <string name="debug_loading_crash_data">Loading crash data…</string>
+    <string name="debug_crash_statistics_title">Crash Statistics</string>
+    <string name="debug_total_crashes">Total crashes: %d</string>
+    <string name="debug_crash_storage_note">These crashes are stored locally and can be exported for analysis.</string>
+    <string name="debug_information_title">ℹ️ Information</string>
+    <string name="debug_crash_info_message">• Crashes are automatically captured when the app unexpectedly terminates\n• Data is stored securely on your device\n• No data is sent automatically\n• You can export crash logs for debugging</string>
+    <string name="debug_clear_crashes_title">Clear All Crashes</string>
+    <string name="debug_clear_crashes_confirm">Are you sure you want to clear all crash data? This action cannot be undone.</string>
+    <string name="debug_clear_button">Clear</string>
+    <string name="debug_cancel_button">Cancel</string>
+
 </resources>

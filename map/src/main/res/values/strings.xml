@@ -72,4 +72,16 @@
     <string name="tips_map_search_title">Search</string>
     <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
     <string name="tips_map_sheet_title">More options</string>
+
+    <!-- Map Sheet Controls -->
+    <string name="map_search_placeholder">Search…</string>
+    <string name="map_date_range_button">Date range</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Cancel</string>
+    <string name="map_controls_title">Map Controls</string>
+    <string name="map_filters_title">Filters</string>
+    <string name="map_layers_title">Map Layers</string>
+    <string name="map_legend_button">Legend</string>
+    <string name="map_generating_tiles">Generating %d tiles…</string>
+
 </resources>

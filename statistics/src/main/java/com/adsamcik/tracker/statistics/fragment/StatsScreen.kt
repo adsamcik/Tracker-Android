@@ -158,18 +158,44 @@ private fun HeaderActions(onShowSummary: () -> Unit, onShowWeek: () -> Unit, onO
         val summaryLabel = stringResource(R.string.stats_sum_title)
         val weekLabel = stringResource(R.string.stats_weekly_title)
         val wifiLabel = stringResource(R.string.stats_wifi_label)
+        
+        // Larger hit targets (48dp minimum) for better accessibility
         IconButton(
             onClick = onShowSummary,
-            modifier = Modifier.semantics { contentDescription = summaryLabel }
-        ) { Icon(Icons.Filled.Summarize, contentDescription = null) }
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = summaryLabel }
+        ) { 
+            Icon(
+                Icons.Filled.Summarize,
+                contentDescription = null,
+                modifier = Modifier.padding(8.dp)
+            ) 
+        }
         IconButton(
             onClick = onShowWeek,
-            modifier = Modifier.semantics { contentDescription = weekLabel }
-        ) { Icon(Icons.Filled.DateRange, contentDescription = null) }
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = weekLabel }
+        ) { 
+            Icon(
+                Icons.Filled.DateRange,
+                contentDescription = null,
+                modifier = Modifier.padding(8.dp)
+            ) 
+        }
         IconButton(
             onClick = onOpenWifi,
-            modifier = Modifier.semantics { contentDescription = wifiLabel }
-        ) { Icon(Icons.Filled.Wifi, contentDescription = null) }
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = wifiLabel }
+        ) { 
+            Icon(
+                Icons.Filled.Wifi,
+                contentDescription = null,
+                modifier = Modifier.padding(8.dp)
+            ) 
+        }
     }
 }
 

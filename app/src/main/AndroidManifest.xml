@@ -73,19 +73,6 @@
             android:screenOrientation="portrait" />
             
         <activity
-            android:name="com.adsamcik.tracker.impexp.exporter.activity.ExportActivity"
-            android:exported="false"
-            android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.intent.action.PICK" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.OPENABLE" />
-
-                <data android:mimeType="application/zip" />
-            </intent-filter>
-        </activity>
-        <activity
             android:name="com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity"
             android:exported="false"
             android:screenOrientation="portrait">
@@ -102,13 +89,6 @@
         <activity
             android:name="com.adsamcik.tracker.license.LicenseActivity"
             android:screenOrientation="portrait" />
-        <activity
-            android:name="com.adsamcik.tracker.preference.activity.SettingsActivity"
-            android:parentActivityName="com.adsamcik.tracker.app.activity.MainActivityCompose" />
-
-        <activity
-            android:name="com.adsamcik.tracker.app.activity.debug.StatusActivity"
-            android:exported="true" />
 
         <receiver
             android:name="com.adsamcik.tracker.app.receiver.BootReceiver"

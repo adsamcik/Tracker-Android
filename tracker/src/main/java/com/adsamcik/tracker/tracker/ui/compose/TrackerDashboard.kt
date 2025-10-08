@@ -20,7 +20,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,44 +72,45 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.map
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.ui.TrackerViewModel
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.collectAsState
-import com.google.android.gms.location.DetectedActivity
-import com.adsamcik.tracker.tracker.ui.receiver.SessionUpdateReceiver
-import com.adsamcik.tracker.tracker.locker.TrackerLocker
-import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 
+@Immutable
+internal data class TrackerDashboardUiState(
+    val isTracking: Boolean = false,
+    val isLocked: Boolean = false,
+    val sessionData: TrackerSession? = null,
+    val collectionData: CollectionData? = null,
+    val hasLocationPermission: Boolean = false
+)
+
 @Composable
 internal fun TrackerDashboard(
-    viewModel: TrackerViewModel,
+    state: TrackerDashboardUiState,
     onSettingsClick: () -> Unit,
-    onRequestPermission: (String) -> Unit,
-    onToggleTracking: (Boolean) -> Unit = {},
+    onRequestPermission: () -> Unit,
+    onToggleTracking: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Bridge existing LiveData to Compose
-    val isTracking = com.adsamcik.tracker.tracker.service.TrackerService.isServiceRunningFlow.collectAsState().value
-    val isLocked = TrackerLocker.isLocked.observeAsState(false).value
-    val sessionData: TrackerSession? = SessionUpdateReceiver.sessionData.observeAsState().value
-    val collectionData: CollectionData? = SessionUpdateReceiver.collectionData.observeAsState().value
-    val hasLocationPermission = LocalContext.current.hasLocationPermission
+    val isTracking = state.isTracking
+    val isLocked = state.isLocked
+    val sessionData = state.sessionData
+    val collectionData = state.collectionData
+    val hasLocationPermission = state.hasLocationPermission
 
     val haptics = LocalHapticFeedback.current
 
@@ -119,6 +119,7 @@ internal fun TrackerDashboard(
         topBar = {
             TrackerTopBar(
                 isTracking = isTracking,
+                isLocked = isLocked,
                 onSettingsClick = onSettingsClick
             )
         },
@@ -133,7 +134,7 @@ internal fun TrackerDashboard(
                 },
                 onRequestPermission = {
                     haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                    onRequestPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    onRequestPermission()
                 }
             )
         },
@@ -159,6 +160,7 @@ internal fun TrackerDashboard(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun TrackerTopBar(
     isTracking: Boolean,
+    isLocked: Boolean,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -171,8 +173,7 @@ private fun TrackerTopBar(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         BadgedBox(badge = {
-                            val locked = TrackerLocker.isLocked.observeAsState(false).value
-                            if (locked) { Badge { Text("🔒") } }
+                            if (isLocked) { Badge { Text("🔒") } }
                         }) {
                             Text(
                                 text = if (isTracking) stringResource(R.string.notification_tracking_active) else stringResource(R.string.settings_tracking_title),

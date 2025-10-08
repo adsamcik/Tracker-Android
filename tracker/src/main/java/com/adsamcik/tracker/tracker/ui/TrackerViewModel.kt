@@ -12,8 +12,15 @@ import com.adsamcik.tracker.tracker.TRACKER_LOG_SOURCE
 import com.adsamcik.tracker.tracker.ui.receiver.SessionUpdateReceiver
 
 /**
- * View model for tracker fragment.
+ * View model for tracker fragment (legacy, deprecated).
+ * 
+ * @deprecated Used in legacy Fragment architecture. Migrate to Compose route with constructor-injected dependencies.
+ * See TrackerRoute for Compose-based alternative with proper DI via AppGraph.
  */
+@Deprecated(
+	message = "Legacy AndroidViewModel. Migrate to Compose route with constructor-injected repository.",
+	level = DeprecationLevel.WARNING
+)
 internal class TrackerViewModel(application: Application) : AndroidViewModel(application) {
 
 	init {

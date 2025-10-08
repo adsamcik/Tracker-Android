@@ -30,6 +30,11 @@
     <string name="game_steps_today">Today</string>
     <string name="game_steps_week">Week</string>
     
+    <!-- Game empty states -->
+    <string name="game_challenges_empty">No active challenges</string>
+    <string name="game_challenges_empty_subtitle">Complete tracking sessions to unlock new challenges</string>
+    <string name="game_loading">Loading…</string>
+    
     <string-array name="goals_encouragement">
         <item>Good job</item>
         <item>Well done</item>
@@ -44,6 +49,9 @@
         <item>Breathtaking</item>
         <item>Splendid</item>
     </string-array>
+
+    <!-- Game progress formatting -->
+    <string name="game_progress_format">%1$d / %2$d</string>
 
     <string name="notification_challenge_done_description">Congratulations on completing %1$s challenge</string>
     <string name="notification_challenge_done_title">%1$s challenge completed</string>

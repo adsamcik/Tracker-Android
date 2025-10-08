@@ -472,9 +472,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo?> = MutableLiveData()
 
 		/**
-		 * Current information about session.
+		 * Current information about session (LiveData, deprecated).
 		 * Null when no session is active.
+		 * 
+		 * @deprecated Use [sessionFlow] for Flow-based reactivity. LiveData will be removed in a future release.
+		 * Migration: Replace `sessionInfo.observe(owner) { ... }` with `lifecycleScope.launch { sessionFlow.collectLatest { ... } }`
 		 */
+		@Deprecated(
+			message = "Use sessionFlow instead for Flow-based reactivity",
+			replaceWith = ReplaceWith("sessionFlow"),
+			level = DeprecationLevel.WARNING
+		)
 		val sessionInfo: LiveData<TrackerSessionInfo?> get() = sessionInfoMutable
 
 		// Flow-based state exposure (evergreen migration from LiveData)

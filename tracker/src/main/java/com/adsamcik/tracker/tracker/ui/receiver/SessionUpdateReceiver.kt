@@ -21,7 +21,28 @@ internal class SessionUpdateReceiver : TrackerUpdateReceiver {
 		private val mutableCollectionData = MutableLiveData<CollectionData>()
 		private val mutableSessionData = MutableLiveData<TrackerSession>()
 
+		/**
+		 * Collection data from tracking updates (LiveData, deprecated).
+		 * 
+		 * @deprecated LiveData-based update receiver. Migrate to Flow-based TrackerService.sessionFlow
+		 * or inject a repository abstraction. Will be removed in a future release.
+		 */
+		@Deprecated(
+			message = "LiveData-based update receiver. Use TrackerService.sessionFlow or repository abstraction.",
+			level = DeprecationLevel.WARNING
+		)
 		val collectionData: LiveData<CollectionData> get() = mutableCollectionData
+		
+		/**
+		 * Session data from tracking updates (LiveData, deprecated).
+		 * 
+		 * @deprecated LiveData-based update receiver. Migrate to Flow-based TrackerService.sessionFlow
+		 * or inject a repository abstraction. Will be removed in a future release.
+		 */
+		@Deprecated(
+			message = "LiveData-based update receiver. Use TrackerService.sessionFlow or repository abstraction.",
+			level = DeprecationLevel.WARNING
+		)
 		val sessionData: LiveData<TrackerSession> get() = mutableSessionData
 	}
 

@@ -198,3 +198,261 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
 	}
 }
 
+// Migration to sessionless tracking architecture.
+// Creates new time-series tables (location_sample, step_interval, activity_snapshot, etc.)
+// and migrates data from legacy tables with coordinate conversion to E7 format.
+val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// 1. Create location_sample table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS location_sample (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					time_ms INTEGER NOT NULL,
+					elapsedRealtimeNanos INTEGER NOT NULL,
+					lat_e7 INTEGER,
+					lon_e7 INTEGER,
+					alt_m REAL,
+					h_acc_m REAL,
+					v_acc_m REAL,
+					speed_mps REAL,
+					speed_accuracy_mps REAL,
+					provider TEXT NOT NULL,
+					quality TEXT NOT NULL,
+					motionState TEXT,
+					policy TEXT,
+					bucketId INTEGER,
+					createdAt INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_time ON location_sample(time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_coords ON location_sample(lat_e7, lon_e7)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_bucket ON location_sample(bucketId)")
+
+			// 2. Create step_interval table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS step_interval (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					stepCount INTEGER NOT NULL,
+					sensorValueStart INTEGER NOT NULL,
+					sensorValueEnd INTEGER NOT NULL,
+					sensorReset INTEGER NOT NULL,
+					createdAt INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_step_interval_time_range ON step_interval(start_time_ms, end_time_ms)")
+
+			// 3. Create activity_snapshot table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS activity_snapshot (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					time_ms INTEGER NOT NULL,
+					activity_type INTEGER NOT NULL,
+					confidence INTEGER NOT NULL,
+					isTransition INTEGER NOT NULL,
+					createdAt INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_activity_snapshot_time ON activity_snapshot(time_ms)")
+
+			// 4. Create cell_sample table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS cell_sample (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					time_ms INTEGER NOT NULL,
+					cell_id INTEGER NOT NULL,
+					lac INTEGER NOT NULL,
+					mcc INTEGER NOT NULL,
+					mnc INTEGER NOT NULL,
+					networkType INTEGER NOT NULL,
+					signalStrength INTEGER NOT NULL,
+					lat_e7 INTEGER,
+					lon_e7 INTEGER,
+					provenance TEXT NOT NULL,
+					createdAt INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_time ON cell_sample(time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_cell_id ON cell_sample(cell_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_coords ON cell_sample(lat_e7, lon_e7)")
+
+			// 5. Create wifi_observation table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS wifi_observation (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					time_ms INTEGER NOT NULL,
+					bssid TEXT NOT NULL,
+					ssid TEXT NOT NULL,
+					capabilities TEXT NOT NULL,
+					frequency INTEGER NOT NULL,
+					level INTEGER NOT NULL,
+					lat_e7 INTEGER,
+					lon_e7 INTEGER,
+					provenance TEXT NOT NULL,
+					createdAt INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_time ON wifi_observation(time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_bssid ON wifi_observation(bssid)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_coords ON wifi_observation(lat_e7, lon_e7)")
+
+			// 6. Create tracker_run table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS tracker_run (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER,
+					policy TEXT NOT NULL,
+					policyParams TEXT,
+					userInitiated INTEGER NOT NULL,
+					createdAt INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_tracker_run_time_range ON tracker_run(start_time_ms, end_time_ms)")
+
+			// 7. Create session_segment table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS session_segment (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					distance_m REAL NOT NULL,
+					steps INTEGER,
+					primary_activity INTEGER,
+					activity_confidence INTEGER,
+					sample_count INTEGER NOT NULL,
+					source TEXT NOT NULL,
+					inferenceVersion TEXT,
+					createdAt INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_time_range ON session_segment(start_time_ms, end_time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_source ON session_segment(source)")
+
+			// 8. Migrate data from location_data to location_sample
+			// Convert lat/lon from Double to E7 integers (degrees * 1e7)
+			// Classify quality based on horizontal accuracy
+			val currentTimeMs = System.currentTimeMillis()
+			execSQL("""
+				INSERT INTO location_sample (
+					time_ms,
+					elapsedRealtimeNanos,
+					lat_e7,
+					lon_e7,
+					alt_m,
+					h_acc_m,
+					v_acc_m,
+					speed_mps,
+					speed_accuracy_mps,
+					provider,
+					quality,
+					motionState,
+					policy,
+					bucketId,
+					createdAt
+				)
+				SELECT
+					time,
+					0,
+					CAST(lat * 10000000 AS INTEGER),
+					CAST(lon * 10000000 AS INTEGER),
+					alt,
+					hor_acc,
+					ver_acc,
+					speed,
+					s_acc,
+					'legacy',
+					CASE
+						WHEN hor_acc IS NULL THEN 'COARSE'
+						WHEN hor_acc < 10 THEN 'HIGH'
+						WHEN hor_acc < 50 THEN 'MEDIUM'
+						ELSE 'LOW'
+					END,
+					CASE
+						WHEN activity IN (0, 3) THEN 'STILL'
+						WHEN activity IN (2, 7, 8) THEN 'MOVING'
+						ELSE 'UNKNOWN'
+					END,
+					NULL,
+					NULL,
+					$currentTimeMs
+				FROM location_data
+				ORDER BY time
+			""".trimIndent())
+
+			// 9. Migrate tracker_session to session_segment
+			// Mark all legacy sessions with LEGACY_MIGRATION source
+			execSQL("""
+				INSERT INTO session_segment (
+					start_time_ms,
+					end_time_ms,
+					distance_m,
+					steps,
+					primary_activity,
+					activity_confidence,
+					sample_count,
+					source,
+					inferenceVersion,
+					createdAt
+				)
+				SELECT
+					start,
+					end,
+					distance,
+					steps,
+					NULL,
+					NULL,
+					collections,
+					'LEGACY_MIGRATION',
+					'v12_migration',
+					$currentTimeMs
+				FROM tracker_session
+				WHERE start < end AND collections > 1
+				ORDER BY start
+			""".trimIndent())
+
+			// 10. Migrate activity data from location_data to activity_snapshot
+			// Extract unique activity changes (transitions)
+			execSQL("""
+				INSERT INTO activity_snapshot (
+					time_ms,
+					activity_type,
+					confidence,
+					isTransition,
+					createdAt
+				)
+				SELECT DISTINCT
+					time,
+					activity,
+					confidence,
+					0,
+					$currentTimeMs
+				FROM location_data
+				WHERE activity IS NOT NULL
+				ORDER BY time
+			""".trimIndent())
+
+			// 11. Validation: Count migrated records
+			val locationCount = query("SELECT COUNT(*) FROM location_data").use { cursor ->
+				if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+			}
+			val sampleCount = query("SELECT COUNT(*) FROM location_sample").use { cursor ->
+				if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+			}
+
+			// Fail migration if counts don't match (data loss check)
+			if (locationCount != sampleCount) {
+				throw IllegalStateException(
+					"Migration validation failed: location_data count ($locationCount) != " +
+					"location_sample count ($sampleCount)"
+				)
+			}
+
+			// Log successful migration (visible in logcat during migration)
+			android.util.Log.i("AppDatabase", "Migration 12→13: Migrated $sampleCount location samples successfully")
+		}
+	}
+}
+

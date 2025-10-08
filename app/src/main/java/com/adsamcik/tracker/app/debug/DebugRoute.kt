@@ -1,62 +1,116 @@
 package com.adsamcik.tracker.app.debug
 
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.LogDatabase
 import com.adsamcik.tracker.shared.base.R as BaseR
+import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
+import com.adsamcik.tracker.tracker.locker.TrackerLocker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * Compose wrapper for a subset of Debug actions. This is the first step in replacing the old
- * PreferenceFragment-based DebugPage. Additional actions (dummy data seeding, crash tools, etc.)
- * will be migrated incrementally.
+ * Compose-based debug tooling screen integrating system status display and log viewer.
+ * Replaces legacy StatusActivity and LogViewerActivity with reactive Compose UI.
  */
 @Composable
 fun DebugRoute() {
     val ctx = LocalContext.current
     val clearDialog = remember { mutableStateOf(false) }
+    var statusExpanded by remember { mutableStateOf(false) }
+    var logsExpanded by remember { mutableStateOf(false) }
 
     Scaffold { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = ctx.getString(R.string.settings_debug_title),
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.testTag("debug_route_title")
-            )
+            item {
+                Text(
+                    text = ctx.getString(R.string.settings_debug_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.testTag("debug_route_title")
+                )
+            }
 
-            Button(
-                onClick = { clearDialog.value = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { role = Role.Button }
-                    .testTag("debug_clear_preferences_button")
-            ) {
-                Text(ctx.getString(R.string.settings_clear_preferences_title))
+            item {
+                Button(
+                    onClick = { clearDialog.value = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { role = Role.Button }
+                        .testTag("debug_clear_preferences_button")
+                ) {
+                    Text(ctx.getString(R.string.settings_clear_preferences_title))
+                }
+            }
+
+            item {
+                SystemStatusSection(
+                    expanded = statusExpanded,
+                    onToggle = { statusExpanded = !statusExpanded }
+                )
+            }
+
+            item {
+                LogViewerSection(
+                    expanded = logsExpanded,
+                    onToggle = { logsExpanded = !logsExpanded }
+                )
             }
         }
     }
@@ -70,6 +124,251 @@ fun DebugRoute() {
         onConfirm = { clearPreferences(ctx) },
         onDismiss = { clearDialog.value = false },
     )
+}
+
+@Composable
+private fun SystemStatusSection(
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    val context = LocalContext.current
+    val isLocked by TrackerLocker.isLocked.observeAsState(initial = false)
+    val isTimeLocked = TrackerLocker.isTimeLocked
+    val isChargeLocked = TrackerLocker.isChargeLocked
+    
+    var hasRechargeJob by remember { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            val workManager = WorkManager.getInstance(context)
+            val workInfos = workManager.getWorkInfosByTag(TrackerLocker.WORK_DISABLE_TILL_RECHARGE_TAG).get()
+            hasRechargeJob = workInfos.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("debug_system_status_card"),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "System Status",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onToggle) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand"
+                    )
+                }
+            }
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                StatusRow("Is time locked", isTimeLocked)
+                StatusRow("Is locked until recharge", isChargeLocked)
+                StatusRow("Is locked", isLocked)
+                
+                when (hasRechargeJob) {
+                    null -> StatusRow("Has active wait for recharge job", null)
+                    else -> StatusRow("Has active wait for recharge job", hasRechargeJob!!)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusRow(label: String, value: Boolean?) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        
+        when (value) {
+            true -> Text(
+                text = "true",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            false -> Text(
+                text = "false",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Bold
+            )
+            null -> CircularProgressIndicator(
+                modifier = Modifier
+                    .width(16.dp)
+                    .height(16.dp),
+                strokeWidth = 2.dp
+            )
+        }
+    }
+}
+
+@Composable
+private fun LogViewerSection(
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    val context = LocalContext.current
+    var logs by remember { mutableStateOf<List<LogData>?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(expanded) {
+        if (expanded && logs == null) {
+            scope.launch(Dispatchers.IO) {
+                val data = LogDatabase
+                    .database(context)
+                    .genericLogDao()
+                    .getLastOrderedDesc(1000)
+                withContext(Dispatchers.Main) {
+                    logs = data
+                }
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("debug_log_viewer_card"),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Log Viewer",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onToggle) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand"
+                    )
+                }
+            }
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                when (val logList = logs) {
+                    null -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    else -> {
+                        if (logList.isEmpty()) {
+                            Text(
+                                text = "No logs available",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "Showing last ${logList.size} logs:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                logList.forEach { log ->
+                                    LogItem(log)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogItem(log: LogData) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("debug_log_item_${log.id}"),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Text(
+                text = "${log.timeStamp.formatAsDateTime()} ${log.source} - ${log.message}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (log.data.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = log.data,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
 }
 
 private fun clearPreferences(context: Context) {

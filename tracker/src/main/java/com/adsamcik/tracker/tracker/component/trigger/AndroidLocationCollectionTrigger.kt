@@ -12,14 +12,16 @@ import com.adsamcik.tracker.shared.base.extension.locationManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 
 /**
  * Collection trigger that uses native Android location manager.
+ * Supports dynamic interval updates for policy-based adaptation.
  */
-internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger() {
+internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String>
 		get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
@@ -70,6 +72,22 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger() {
 		super.onDisable(context)
 
 		context.locationManager.removeUpdates(locationListener)
+	}
+
+	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
+		// Update location request interval dynamically by restarting with new parameters
+		val locationManager = context.locationManager
+		locationManager.removeUpdates(locationListener)
+
+		// checked by component system
+		@Suppress("MissingPermission")
+		locationManager.requestLocationUpdates(
+			LocationManager.GPS_PROVIDER,
+			intervalSeconds * Time.SECOND_IN_MILLISECONDS,
+			minDistanceMeters.toFloat(),
+			locationListener,
+			Looper.getMainLooper()
+		)
 	}
 }
 

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.CellData
 import com.adsamcik.tracker.shared.base.data.CellInfo
@@ -10,6 +11,9 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
+import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
+import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import kotlinx.coroutines.CoroutineScope
@@ -25,7 +29,11 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 
 	private var cellLocationDao: CellLocationDao? = null
 	private var cellOperatorDao: CellOperatorDao? = null
+	private var cellSampleDao: CellSampleDao? = null // New: sessionless table
 	private var scope: CoroutineScope? = null
+	
+	// Dual-write mode: write to both old and new tables during migration period
+	private var enableDualWrite: Boolean = true
 
 	private fun toOwnLocation(location: android.location.Location?): Location? {
 		return if (location != null) {
@@ -41,12 +49,16 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 			collectionData: CollectionData,
 			tempData: CollectionTempData
 	) {
-		// todo add tracking without location
 		val cellData = collectionData.cell ?: return
 		val location = collectionData.location ?: toOwnLocation(tempData.tryGetLocation())
-		if (location != null) {
+		
+		// Legacy table write (only if location available)
+		if (enableDualWrite && location != null) {
 			saveLocation(collectionData.time, cellData, location)
 		}
+		
+		// New table write (always, even without location)
+		saveCellSamples(collectionData.time, cellData, location)
 
 		saveOperator(cellData)
 	}
@@ -78,16 +90,53 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 		cell.registeredCells.forEach { saveLocation(time, it, location) }
 	}
 
+	// New: Save cell samples to sessionless table (with or without coordinates)
+	private fun saveCellSample(time: Long, cell: CellInfo, location: Location?) {
+		val dao = cellSampleDao ?: return
+		val now = Time.nowMillis
+		
+		// Convert to E7 format if location available
+		val latE7 = location?.let { (it.latitude * 1e7).toInt() }
+		val lonE7 = location?.let { (it.longitude * 1e7).toInt() }
+		val provenance = if (location != null) CoordinateProvenance.DIRECT else CoordinateProvenance.UNKNOWN
+		
+		val sample = CellSample(
+			timeMs = time,
+			cellId = cell.cellId.toInt(),
+			lac = 0, // TODO: Extract LAC if available from CellInfo
+			mcc = cell.networkOperator.mcc.toIntOrNull() ?: 0,
+			mnc = cell.networkOperator.mnc.toIntOrNull() ?: 0,
+			networkType = cell.type.ordinal,
+			signalStrength = cell.asu,
+			latE7 = latE7,
+			lonE7 = lonE7,
+			provenance = provenance,
+			createdAt = now
+		)
+		
+		scope?.launch(Dispatchers.IO) { 
+			try { 
+				dao.insert(sample) 
+			} catch (_: Throwable) {} 
+		}
+	}
+	
+	private fun saveCellSamples(time: Long, cell: CellData, location: Location?) {
+		cell.registeredCells.forEach { saveCellSample(time, it, location) }
+	}
+
 	override suspend fun onDisable(context: Context) {
 		scope?.cancel(); scope = null
 		cellLocationDao = null
 		cellOperatorDao = null
+		cellSampleDao = null
 	}
 
 	override suspend fun onEnable(context: Context) {
 		val database = AppDatabase.database(context)
 		cellLocationDao = database.cellLocationDao()
 		cellOperatorDao = database.cellOperatorDao()
+		cellSampleDao = database.cellSampleDao()
 		scope = CoroutineScope(Job() + Dispatchers.Default)
 	}
 }

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.data.*
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 
 /**
  * Location setup screen explaining location benefits and requesting permission.
@@ -124,7 +125,7 @@ fun LocationSetupScreen(
                     modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
-                        text = "What you'll get:",
+                        text = stringResource(R.string.onboarding_location_benefits_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -191,12 +192,12 @@ fun LocationSetupScreen(
                     
                     Column {
                         Text(
-                            text = "Your privacy is protected",
+                            text = stringResource(R.string.onboarding_privacy_protected_title),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "All location data stays on your device. We never upload or share your routes.",
+                            text = stringResource(R.string.onboarding_privacy_message),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -231,12 +232,12 @@ fun LocationSetupScreen(
                             
                             Column {
                                 Text(
-                                    text = "Background Location Required",
+                                    text = stringResource(R.string.onboarding_background_location_required_title),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "Since automatic tracking is enabled, background location permission is needed for the app to track movements when minimized.",
+                                    text = stringResource(R.string.onboarding_background_location_required_message),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -258,7 +259,7 @@ fun LocationSetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Enable Location Access")
+                Text(stringResource(R.string.onboarding_location_enable_button))
             }
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -269,7 +270,7 @@ fun LocationSetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_skip")
             ) {
-                Text("Skip for now")
+                Text(stringResource(R.string.button_skip))
             }
             
         } else if (needsBackgroundPermission) {
@@ -284,7 +285,7 @@ fun LocationSetupScreen(
                     modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
-                        text = "Background tracking benefits:",
+                        text = stringResource(R.string.onboarding_background_benefits_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -342,12 +343,12 @@ fun LocationSetupScreen(
                         
                         Column {
                             Text(
-                                text = "Battery Usage",
+                                text = stringResource(R.string.onboarding_battery_usage_title),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Background tracking uses additional battery, but the app is optimized to minimize impact.",
+                                text = stringResource(R.string.onboarding_battery_usage_message),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -370,12 +371,12 @@ fun LocationSetupScreen(
                         
                         Column {
                             Text(
-                                text = "Privacy Protected",
+                                text = stringResource(R.string.onboarding_privacy_protected_title),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "All location data stays on your device and is never shared or uploaded.",
+                                text = stringResource(R.string.onboarding_privacy_message),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -395,7 +396,7 @@ fun LocationSetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Enable Background Location")
+                Text(stringResource(R.string.onboarding_background_location_enable_button))
             }
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -406,7 +407,7 @@ fun LocationSetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_skip")
             ) {
-                Text("Continue without background tracking")
+                Text(stringResource(R.string.onboarding_continue_without_background_button))
             }
             
         } else {
@@ -458,7 +459,7 @@ fun LocationSetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Continue")
+                Text(stringResource(R.string.button_continue))
             }
         }
     }

@@ -104,14 +104,6 @@ dependencies {
 	testImplementation(libs.kotlinx.coroutines.test)
 }
 
-// Temporary workaround for intermittent Windows file locking on classes.jar during unit test runs.
-// Disables packaging jar for debug variant; unit tests rely on compiled classes, not the aggregated jar.
-afterEvaluate {
-	tasks.matching { it.name == "bundleLibCompileToJarDebug" }.configureEach {
-		enabled = false
-	}
-}
-
 protobuf {
 	protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}" }
 	generateProtoTasks {

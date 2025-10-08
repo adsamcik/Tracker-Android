@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +33,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
@@ -71,8 +79,14 @@ fun GameScreen(
             steps?.let { StepsCard(it) }
         }
         item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
-        items(challenges, key = { it.id }) { ch ->
-            ChallengeCard(ch)
+        if (challenges.isEmpty()) {
+            item {
+                ChallengesEmptyState()
+            }
+        } else {
+            items(challenges, key = { it.id }) { ch ->
+                ChallengeCard(ch)
+            }
         }
     }
 }
@@ -88,6 +102,7 @@ private fun SectionHeader(text: String) {
 
 @Composable
 private fun PointsCard(points: Int) {
+    val detailsLabel = stringResource(R.string.game_points_details)
     ElevatedCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -102,7 +117,11 @@ private fun PointsCard(points: Int) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Star, contentDescription = null)
+                Icon(
+                    Icons.Outlined.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp)
+                )
                 Column(Modifier.padding(start = 16.dp)) {
                     Text(text = points.toString(), style = MaterialTheme.typography.headlineMedium)
                     Text(
@@ -112,7 +131,13 @@ private fun PointsCard(points: Int) {
                     )
                 }
             }
-            AssistChip(onClick = {}, label = { Text("Details") })
+            AssistChip(
+                onClick = {},
+                label = { Text(detailsLabel) },
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics { contentDescription = detailsLabel }
+            )
         }
     }
 }
@@ -126,9 +151,13 @@ private fun StepsCard(steps: StepsSummaryUi) {
     ) {
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.DirectionsWalk, contentDescription = null)
+                Icon(
+                    Icons.Outlined.DirectionsWalk,
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp)
+                )
                 Text(
-                    text = "Steps goals",
+                    text = stringResource(R.string.game_steps_goals_title),
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(start = 12.dp)
                 )
@@ -139,8 +168,8 @@ private fun StepsCard(steps: StepsSummaryUi) {
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Stat("Today", steps.stepsToday, steps.goalDay)
-                Stat("Week", steps.stepsWeek, steps.goalWeek)
+                Stat(stringResource(R.string.game_steps_today), steps.stepsToday, steps.goalDay)
+                Stat(stringResource(R.string.game_steps_week), steps.stepsWeek, steps.goalWeek)
             }
         }
     }
@@ -155,12 +184,53 @@ private fun Stat(label: String, value: Int, goal: Int) {
 }
 
 @Composable
+private fun ChallengesEmptyState() {
+    ElevatedCard(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.EmojiEvents,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+            Text(
+                text = stringResource(R.string.game_challenges_empty),
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.game_challenges_empty_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
+
+@Composable
 private fun ChallengeCard(ch: ChallengeUi) {
+    val challengeDesc = "${ch.title}: ${(ch.progress * 100).toInt()}% complete"
     ElevatedCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth()
             .heightIn(min = 80.dp)
+            .semantics { contentDescription = challengeDesc }
     ) {
         Row(
             Modifier
@@ -168,7 +238,11 @@ private fun ChallengeCard(ch: ChallengeUi) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.EmojiEvents, contentDescription = null)
+            Icon(
+                Icons.Outlined.EmojiEvents,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp)
+            )
             Column(Modifier.padding(start = 12.dp)) {
                 Text(text = ch.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 AnimatedVisibility(visible = ch.description.isNotBlank()) {

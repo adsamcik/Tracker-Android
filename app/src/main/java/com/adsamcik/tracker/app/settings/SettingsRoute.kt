@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsRoute() {
+fun SettingsRoute(onNavigateToDebug: () -> Unit = {}) {
     val factory = LocalViewModelFactory.current
     val vm: SettingsViewModel = viewModel(factory = factory)
     var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
@@ -62,7 +62,7 @@ fun SettingsRoute() {
                 SettingsScreen.Map -> MapSettings()
                 SettingsScreen.Game -> GameSettings()
                 SettingsScreen.Statistics -> StatisticsSettings()
-                SettingsScreen.Debug -> DebugSettings()
+                SettingsScreen.Debug -> DebugSettings(onNavigateToDebug)
             }
         }
     }
@@ -661,7 +661,7 @@ private fun ExportSettings() {
 }
 
 @Composable
-private fun DebugSettings() {
+private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
     val context = LocalContext.current
     val debugVm: DebugSettingsViewModel = viewModel()
     
@@ -719,7 +719,7 @@ private fun DebugSettings() {
                 subtitle = "View application logs",
                 icon = Icons.Default.Description,
                 onClick = {
-                    context.startActivity(Intent(context, com.adsamcik.tracker.app.activity.debug.LogViewerActivity::class.java))
+                    onNavigateToDebug()
                 }
             )
         }

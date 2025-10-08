@@ -35,9 +35,44 @@ import kotlin.coroutines.CoroutineContext
  */
 internal object GoalTracker : CoroutineScope {
 	// Temporary variables before generic UI is implemented
+	/**
+	 * Daily step count (LiveData, deprecated).
+	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
+	 */
+	@Deprecated(
+		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
+		level = DeprecationLevel.WARNING
+	)
 	val stepsDay: LiveData<Int> get() = goalList[0].value
+	
+	/**
+	 * Daily step goal target (LiveData, deprecated).
+	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
+	 */
+	@Deprecated(
+		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
+		level = DeprecationLevel.WARNING
+	)
 	val goalDay: LiveData<Int> get() = goalList[0].target
+	
+	/**
+	 * Weekly step count (LiveData, deprecated).
+	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
+	 */
+	@Deprecated(
+		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
+		level = DeprecationLevel.WARNING
+	)
 	val stepsWeek: LiveData<Int> get() = goalList[1].value
+	
+	/**
+	 * Weekly step goal target (LiveData, deprecated).
+	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
+	 */
+	@Deprecated(
+		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
+		level = DeprecationLevel.WARNING
+	)
 	val goalWeek: LiveData<Int> get() = goalList[1].target
 
 	private val goalList: MutableList<GoalListenable> = mutableListOf()

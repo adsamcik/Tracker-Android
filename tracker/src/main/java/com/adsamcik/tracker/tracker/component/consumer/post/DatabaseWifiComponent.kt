@@ -1,11 +1,15 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
@@ -27,10 +31,12 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private var wifiDao: WifiDataDao? = null
+	private var wifiObservationDao: WifiObservationDao? = null // New: sessionless table
 	private var scope: CoroutineScope? = null
 	private var estimator: WifiLocationEstimator? = null
 
 	private var isEnabled = false
+	private var enableDualWrite = true // Dual-write mode during migration
 
 	override fun onNewData(
 			context: Context,
@@ -40,23 +46,34 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 	) {
 		if (!isEnabled) return
 		val wifiData = collectionData.wifi ?: return
-		val estimator = estimator ?: return
-		val updates = estimator.onScan(wifiData)
-		if (updates.isEmpty()) return
-
-		scope?.launch(Dispatchers.IO) {
-			try {
-				requireNotNull(wifiDao).upsert(updates.map(::toEntity))
-			} catch (_: Throwable) { /* ignore individual failures */ }
+		val location = collectionData.location
+		
+		// Legacy table write (aggregated estimates)
+		if (enableDualWrite) {
+			val estimator = estimator ?: return
+			val updates = estimator.onScan(wifiData)
+			if (updates.isNotEmpty()) {
+				scope?.launch(Dispatchers.IO) {
+					try {
+						requireNotNull(wifiDao).upsert(updates.map(::toEntity))
+					} catch (_: Throwable) { /* ignore individual failures */ }
+				}
+			}
 		}
+		
+		// New table write (raw observations, even without location)
+		saveWifiObservations(collectionData.time, wifiData.inRange, location)
 	}
 
 	override suspend fun onDisable(context: Context) {
-		flushEstimator()
+		if (enableDualWrite) {
+			flushEstimator()
+		}
 		scope?.cancel()
 		scope = null
 		estimator = null
 		wifiDao = null
+		wifiObservationDao = null
 		this.isEnabled = false
 	}
 
@@ -69,9 +86,13 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 
 		this.isEnabled = isEnabled
 		if (isEnabled) {
-			wifiDao = AppDatabase.database(context).wifiDao()
+			val database = AppDatabase.database(context)
+			wifiDao = database.wifiDao()
+			wifiObservationDao = database.wifiObservationDao()
 			scope = CoroutineScope(Job() + Dispatchers.Default)
-			estimator = DefaultWifiLocationEstimator()
+			if (enableDualWrite) {
+				estimator = DefaultWifiLocationEstimator()
+			}
 		}
 	}
 
@@ -98,6 +119,41 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 			estimate.frequency,
 			estimate.maxRssi
 		)
+	}
+	
+	// New: Save raw Wi-Fi observations to sessionless table (with or without coordinates)
+	private fun saveWifiObservations(
+		time: Long,
+		networks: List<com.adsamcik.tracker.shared.base.data.WifiInfo>,
+		location: com.adsamcik.tracker.shared.base.data.Location?
+	) {
+		val dao = wifiObservationDao ?: return
+		val now = Time.nowMillis
+		
+		// Convert location to E7 format if available
+		val latE7 = location?.let { (it.latitude * 1e7).toInt() }
+		val lonE7 = location?.let { (it.longitude * 1e7).toInt() }
+		val provenance = if (location != null) CoordinateProvenance.DIRECT else CoordinateProvenance.UNKNOWN
+		
+		scope?.launch(Dispatchers.IO) {
+			try {
+				val observations = networks.map { network ->
+					WifiObservation(
+						timeMs = time,
+						bssid = network.bssid,
+						ssid = network.ssid ?: "<unknown>",
+						capabilities = network.capabilities,
+						frequency = network.frequency,
+						level = network.level,
+						latE7 = latE7,
+						lonE7 = lonE7,
+						provenance = provenance,
+						createdAt = now
+					)
+				}
+				dao.insert(observations)
+			} catch (_: Throwable) { /* ignore failures */ }
+		}
 	}
 }
 

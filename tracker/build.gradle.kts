@@ -118,6 +118,12 @@ dependencies {
 
 	// Tests
 	testImplementation(libs.junit4)
+	testImplementation(libs.kotlin.test)
+	testImplementation(libs.mockk)
+	testImplementation(libs.robolectric)
+	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.androidx.test.core)
+	
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)

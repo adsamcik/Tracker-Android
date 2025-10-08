@@ -50,6 +50,16 @@
     <string name="stats_session_activity_selection_title">Select Activity</string>
     <string name="stats_session_activity_selection_empty">No activities available</string>
 
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Loading summary…</string>
+    <string name="stats_summary_empty">No summary statistics available</string>
+    <string name="stats_summary_empty_subtitle">Start tracking to see your activity summary</string>
+    
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Loading weekly statistics…</string>
+    <string name="stats_week_empty">No weekly statistics available</string>
+    <string name="stats_week_empty_subtitle">Track for 7 days to see your weekly summary</string>
+
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>
     <string name="wifilist_filter_capabilities">Capabilities</string>

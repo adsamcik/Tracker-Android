@@ -62,11 +62,13 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
+import com.adsamcik.tracker.map.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,7 +188,7 @@ fun MapSheet(
                                 }
                             },
                         singleLine = true,
-                        placeholder = { Text("Search...") },
+                        placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
                         shape = CircleShape,
                         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                         trailingIcon = {
@@ -312,7 +314,7 @@ fun MapSheet(
                             }
                         }
                         Text(rangeText, style = MaterialTheme.typography.bodyMedium)
-                        Button(onClick = { showDateRangeDialog = true }) { Text("Date range") }
+                        Button(onClick = { showDateRangeDialog = true }) { Text(stringResource(R.string.map_date_range_button)) }
                     }
 
                     if (showDateRangeDialog) {
@@ -331,9 +333,9 @@ fun MapSheet(
                                         }
                                     },
                                     enabled = pickerState.selectedStartDateMillis != null && pickerState.selectedEndDateMillis != null
-                                ) { Text("OK") }
+                                ) { Text(stringResource(R.string.map_date_range_dialog_ok)) }
                             },
-                            dismissButton = { TextButton(onClick = { showDateRangeDialog = false }) { Text("Cancel") } }
+                            dismissButton = { TextButton(onClick = { showDateRangeDialog = false }) { Text(stringResource(R.string.map_date_range_dialog_cancel)) } }
                         ) {
                             DateRangePicker(state = pickerState)
                         }

@@ -10,7 +10,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.materialkolor.PaletteStyle
-import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.dynamicColorScheme
 
 private val ExpressiveSeedColor = Color(0xFF6750A4)
@@ -35,17 +34,13 @@ fun AppTheme(
             useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
                 if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
 
-            else -> expressiveColorScheme(seedColor = seedColor, darkTheme = darkTheme)
+            else -> dynamicColorScheme(
+                seedColor = seedColor,
+                isDark = darkTheme,
+                style = PaletteStyle.Expressive
+            )
         }
     }
 
     MaterialTheme(colorScheme = colorScheme, content = content)
 }
-
-private fun expressiveColorScheme(seedColor: Color, darkTheme: Boolean) =
-    dynamicColorScheme(
-        seedColor = seedColor,
-        isDark = darkTheme,
-        style = PaletteStyle.Expressive,
-        specVersion = ColorSpec.SpecVersion.SPEC_2025
-    )

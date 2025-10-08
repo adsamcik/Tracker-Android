@@ -1,0 +1,56 @@
+package com.adsamcik.tracker.shared.base.database.data
+
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+/**
+ * Tracking run represents a continuous collection period under a specific policy.
+ * Allows reconstruction of adaptive tracking behavior for analysis.
+ */
+@Entity(
+	tableName = "tracker_run",
+	indices = [
+		Index(value = ["start_time_ms", "end_time_ms"], name = "idx_tracker_run_time_range")
+	]
+)
+data class TrackerRun(
+	@PrimaryKey(autoGenerate = true)
+	val id: Long = 0,
+
+	/**
+	 * Run start timestamp in milliseconds (wall clock time).
+	 */
+	@ColumnInfo(name = "start_time_ms")
+	val startTimeMs: Long,
+
+	/**
+	 * Run end timestamp in milliseconds (wall clock time). Null if still active.
+	 */
+	@ColumnInfo(name = "end_time_ms")
+	val endTimeMs: Long?,
+
+	/**
+	 * Tracking policy active during this run (e.g., "PASSIVE_LOW", "ACTIVE_ELEVATED").
+	 */
+	val policy: String,
+
+	/**
+	 * Policy parameters as JSON string (for debugging/analysis).
+	 */
+	@ColumnInfo(name = "policyParams")
+	val policyParams: String?,
+
+	/**
+	 * User-initiated (true) vs system-triggered (false).
+	 */
+	@ColumnInfo(name = "userInitiated")
+	val userInitiated: Boolean,
+
+	/**
+	 * Row creation timestamp (for auditing/debugging).
+	 */
+	@ColumnInfo(name = "createdAt")
+	val createdAt: Long
+)

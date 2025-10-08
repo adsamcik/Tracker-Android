@@ -34,10 +34,16 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	fun get(id: Long): TrackerSession?
 
 	/**
-	 * Finds specific session in database as [LiveData].
+	 * Finds specific session in database as [LiveData] (deprecated).
 	 *
 	 * @return [LiveData] for specific session.
+	 * @deprecated Use Flow-based alternative. Add `fun getFlow(id: Long): Flow<TrackerSession?>` to repository layer.
+	 * Room will auto-generate Flow support when you add a Flow-returning query method.
 	 */
+	@Deprecated(
+		message = "Use Flow-based alternative in repository layer",
+		level = DeprecationLevel.WARNING
+	)
 	@RewriteQueriesToDropUnusedColumns
 	@Query("SELECT * FROM tracker_session WHERE id = :id")
 	fun getLive(id: Long): LiveData<TrackerSession>

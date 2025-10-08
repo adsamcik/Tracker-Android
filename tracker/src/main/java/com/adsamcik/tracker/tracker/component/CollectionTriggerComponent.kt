@@ -43,6 +43,21 @@ internal interface CollectionTriggerComponent {
 }
 
 /**
+ * Extended collection trigger interface for timers that support dynamic interval updates.
+ * Allows policy-based adjustment of collection frequency without restarting the timer.
+ */
+internal interface DynamicIntervalCollectionTrigger : CollectionTriggerComponent {
+	/**
+	 * Update the collection interval dynamically.
+	 *
+	 * @param context Context
+	 * @param intervalSeconds New interval in seconds between collections
+	 * @param minDistanceMeters Minimum distance in meters for location-based triggers
+	 */
+	fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int)
+}
+
+/**
  *
  */
 internal class NoTimer : CollectionTriggerComponent {

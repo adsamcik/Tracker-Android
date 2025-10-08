@@ -7,6 +7,7 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
@@ -19,8 +20,9 @@ import com.google.android.gms.location.Priority
 
 /**
  * Collection trigger that uses Fused Location Provider in Google Play Services.
+ * Supports dynamic interval updates for policy-based adaptation.
  */
-internal class FusedLocationCollectionTrigger : LocationCollectionTrigger() {
+internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String>
 		get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
@@ -77,6 +79,22 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger() {
 		super.onDisable(context)
 		LocationServices.getFusedLocationProviderClient(context)
 				.removeLocationUpdates(locationCallback)
+	}
+
+	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
+		// Update location request interval dynamically by restarting with new parameters
+		val client = LocationServices.getFusedLocationProviderClient(context)
+		client.removeLocationUpdates(locationCallback)
+
+		val request = LocationRequest.Builder(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
+			.setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+			.setMinUpdateDistanceMeters(minDistanceMeters.toFloat())
+			.setMinUpdateIntervalMillis(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
+			.build()
+
+		// checked by component manager
+		@Suppress("MissingPermission")
+		client.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
 	}
 }
 

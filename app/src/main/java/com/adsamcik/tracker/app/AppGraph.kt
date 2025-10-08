@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.adsamcik.tracker.app.ui.MainViewModel
 import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.game.ui.compose.GameViewModel
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -44,6 +45,7 @@ class AppGraph(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return when (modelClass) {
+                MainViewModel::class.java -> MainViewModel() as T
                 StatsViewModel::class.java -> StatsViewModel(appGraph.sessionRepository) as T
                 GameViewModel::class.java -> GameViewModel(appGraph.gameRepository) as T
                 SettingsViewModel::class.java -> SettingsViewModel(appGraph.trackerSettingsRepository) as T
