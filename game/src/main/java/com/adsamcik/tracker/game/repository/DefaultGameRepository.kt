@@ -1,11 +1,8 @@
 package com.adsamcik.tracker.game.repository
 
 import android.app.Application
-import androidx.lifecycle.asFlow
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.game.goals.GoalTracker
-import com.adsamcik.tracker.game.ui.compose.ChallengeUi
-import com.adsamcik.tracker.game.ui.compose.StepsSummaryUi
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import kotlinx.coroutines.CoroutineScope
@@ -36,16 +33,15 @@ class DefaultGameRepository(
     private fun startOfDay(now: Long): Long = (now / 86_400_000L) * 86_400_000L
     
     override fun getPointsToday(): Flow<Int> {
-        return pointsDao.countBetweenLive(startOfDay(Time.nowMillis), Time.nowMillis).asFlow()
-            .map { it ?: 0 }
+        return pointsDao.countBetweenFlow(startOfDay(Time.nowMillis), Time.nowMillis)
     }
     
     override fun getStepsSummary(): StateFlow<StepsSummaryData?> {
         return combine(
-            GoalTracker.stepsDay.asFlow(),
-            GoalTracker.goalDay.asFlow(),
-            GoalTracker.stepsWeek.asFlow(),
-            GoalTracker.goalWeek.asFlow()
+            GoalTracker.stepsDay,
+            GoalTracker.goalDay,
+            GoalTracker.stepsWeek,
+            GoalTracker.goalWeek
         ) { stepsDay, goalDay, stepsWeek, goalWeek ->
             StepsSummaryData(
                 stepsToday = stepsDay,
@@ -57,7 +53,7 @@ class DefaultGameRepository(
     }
     
     override fun getActiveChallenges(): StateFlow<List<ChallengeData>> {
-        return ChallengeManager.activeChallenges.asFlow()
+        return ChallengeManager.activeChallenges
             .map { list ->
                 list.map { inst ->
                     ChallengeData(

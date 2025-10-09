@@ -311,12 +311,11 @@ fun BackgroundLocationScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Complete Setup")
+                Text(stringResource(R.string.onboarding_complete_setup_button))
             }
         }
         
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(32.dp))
         
         // Navigation buttons
         Row(

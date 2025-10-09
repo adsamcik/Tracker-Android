@@ -19,19 +19,21 @@ import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
-import com.adsamcik.tracker.shared.base.misc.NonNullLiveData
-import com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.random.Random
 
 /**
- * Singleton class that manages saving and loading of challenges from cache storage or network
+ * Singleton class that manages saving and loading of challenges from cache storage or network.
+ * Exposes reactive Flow-based state for active challenges.
  */
 object ChallengeManager {
 	// Replace GlobalScope with a supervised singleton scope (still global but cancellable in tests)
@@ -47,16 +49,15 @@ object ChallengeManager {
 
 	private const val MAX_CHALLENGE_COUNT = 3
 
-	private val mutableActiveChallenges: NonNullLiveMutableData<List<ChallengeInstance<*, *>>> = NonNullLiveMutableData(
-			mutableActiveChallengeList_
-	)
+	private val _activeChallenges: MutableStateFlow<List<ChallengeInstance<*, *>>> = 
+		MutableStateFlow(emptyList())
 
 	private val activeChallengeLock = ReentrantLock()
 
 	/**
-	 * Returns immutable list of active challenges
+	 * Returns immutable StateFlow of active challenges
 	 */
-	val activeChallenges: NonNullLiveData<List<ChallengeInstance<*, *>>> get() = mutableActiveChallenges
+	val activeChallenges: StateFlow<List<ChallengeInstance<*, *>>> get() = _activeChallenges.asStateFlow()
 
 	@WorkerThread
 	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
@@ -83,7 +84,7 @@ object ChallengeManager {
 				mutableActiveChallengeList_.clear()
 				mutableActiveChallengeList_.addAll(active)
 				fillEmptyChallengeSlots(context)
-				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
+				_activeChallenges.value = mutableActiveChallengeList_.toList()
 			}
 			onInitialized?.invoke()
 		}
@@ -109,7 +110,7 @@ object ChallengeManager {
 							onChallengeCompletedListener
 					)
 				}
-				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
+				_activeChallenges.value = mutableActiveChallengeList_.toList()
 			}
 		}
 	}
@@ -148,7 +149,7 @@ object ChallengeManager {
 			activeChallengeLock.withLock {
 				mutableActiveChallengeList_.removeAll(expired.toSet())
 				fillEmptyChallengeSlots(context)
-				mutableActiveChallenges.postValue(mutableActiveChallengeList_)
+				_activeChallenges.value = mutableActiveChallengeList_.toList()
 			}
 		}
 	}

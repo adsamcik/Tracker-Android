@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
-import androidx.lifecycle.LiveData
 import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.goals.data.GoalListenable
 import com.adsamcik.tracker.game.goals.data.PreferencesGoalPersistence
@@ -26,54 +25,20 @@ import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 
 /**
- * Tracks goals
+ * Tracks goals and exposes reactive Flow-based state.
  */
 internal object GoalTracker : CoroutineScope {
-	// Temporary variables before generic UI is implemented
-	/**
-	 * Daily step count (LiveData, deprecated).
-	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
-	 */
-	@Deprecated(
-		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
-		level = DeprecationLevel.WARNING
-	)
-	val stepsDay: LiveData<Int> get() = goalList[0].value
-	
-	/**
-	 * Daily step goal target (LiveData, deprecated).
-	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
-	 */
-	@Deprecated(
-		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
-		level = DeprecationLevel.WARNING
-	)
-	val goalDay: LiveData<Int> get() = goalList[0].target
-	
-	/**
-	 * Weekly step count (LiveData, deprecated).
-	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
-	 */
-	@Deprecated(
-		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
-		level = DeprecationLevel.WARNING
-	)
-	val stepsWeek: LiveData<Int> get() = goalList[1].value
-	
-	/**
-	 * Weekly step goal target (LiveData, deprecated).
-	 * @deprecated Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access via ViewModel.
-	 */
-	@Deprecated(
-		message = "Internal LiveData API. Use GameRepository.getStepsSummary() for Flow-based access.",
-		level = DeprecationLevel.WARNING
-	)
-	val goalWeek: LiveData<Int> get() = goalList[1].target
+	// Reactive step and goal state (daily and weekly)
+	val stepsDay: StateFlow<Int> get() = goalList[0].value
+	val goalDay: StateFlow<Int> get() = goalList[0].target
+	val stepsWeek: StateFlow<Int> get() = goalList[1].value
+	val goalWeek: StateFlow<Int> get() = goalList[1].target
 
 	private val goalList: MutableList<GoalListenable> = mutableListOf()
 

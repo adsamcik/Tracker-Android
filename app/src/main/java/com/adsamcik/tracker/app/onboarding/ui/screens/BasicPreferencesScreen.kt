@@ -18,6 +18,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 
 /**
  * Basic tracking preferences screen allowing users to choose their tracking profile.
@@ -51,7 +53,7 @@ fun BasicPreferencesScreen(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "Preferences",
+            text = stringResource(R.string.onboarding_preferences_title),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold
@@ -60,7 +62,7 @@ fun BasicPreferencesScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Adjust defaults. You can always change these later in Settings.",
+            text = stringResource(R.string.onboarding_preferences_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -83,7 +85,7 @@ fun BasicPreferencesScreen(
                 modifier = Modifier.padding(20.dp)
             ) {
                 Text(
-                    text = "Additional Settings",
+                    text = stringResource(R.string.onboarding_additional_settings_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -98,12 +100,12 @@ fun BasicPreferencesScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Auto-start tracking",
+                            text = stringResource(R.string.onboarding_auto_start_title),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "Start tracking automatically when you move",
+                            text = stringResource(R.string.onboarding_auto_start_summary),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -128,12 +130,12 @@ fun BasicPreferencesScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Smart pause",
+                            text = stringResource(R.string.onboarding_smart_pause_title),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "Pause tracking when stationary for extended periods",
+                            text = stringResource(R.string.onboarding_smart_pause_summary),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -150,8 +152,7 @@ fun BasicPreferencesScreen(
             }
         }
         
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(32.dp))
         
         // Navigation buttons
         Row(
@@ -162,14 +163,14 @@ fun BasicPreferencesScreen(
                 onClick = onBack,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Back")
+                Text(stringResource(R.string.onboarding_button_back))
             }
             
             Button(
                 onClick = onContinue,
                 modifier = Modifier.weight(2f)
             ) {
-                Text("Continue")
+                Text(stringResource(R.string.onboarding_button_continue))
             }
         }
     }

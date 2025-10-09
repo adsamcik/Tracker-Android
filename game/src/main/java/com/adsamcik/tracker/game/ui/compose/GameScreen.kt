@@ -2,6 +2,7 @@ package com.adsamcik.tracker.game.ui.compose
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -63,7 +65,8 @@ fun GameScreen(
     pointsToday: Int,
     steps: StepsSummaryUi?,
     challenges: List<ChallengeUi>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLoadingChallenges: Boolean = false
 ) {
     LazyColumn(
         modifier = modifier
@@ -79,12 +82,10 @@ fun GameScreen(
             steps?.let { StepsCard(it) }
         }
         item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
-        if (challenges.isEmpty()) {
-            item {
-                ChallengesEmptyState()
-            }
-        } else {
-            items(challenges, key = { it.id }) { ch ->
+        when {
+            isLoadingChallenges -> item { ChallengesLoadingState() }
+            challenges.isEmpty() -> item { ChallengesEmptyState() }
+            else -> items(challenges, key = { it.id }) { ch ->
                 ChallengeCard(ch)
             }
         }
@@ -184,39 +185,69 @@ private fun Stat(label: String, value: Int, goal: Int) {
 }
 
 @Composable
+private fun ChallengesLoadingState() {
+    ElevatedCard(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 48.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(40.dp)
+                )
+                Text(
+                    text = stringResource(R.string.game_loading),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ChallengesEmptyState() {
     ElevatedCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp),
+                .padding(40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Icon(
                 imageVector = Icons.Outlined.EmojiEvents,
                 contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                modifier = Modifier.size(72.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
             )
             Text(
                 text = stringResource(R.string.game_challenges_empty),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = stringResource(R.string.game_challenges_empty_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

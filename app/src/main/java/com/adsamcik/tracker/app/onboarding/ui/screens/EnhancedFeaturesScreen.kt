@@ -4,10 +4,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.LocationCity
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.TipsAndUpdates
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +19,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 
 /**
  * Enhanced features screen for optional improvements to tracking accuracy.
@@ -58,7 +60,7 @@ fun EnhancedFeaturesScreen(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "Enhanced Features",
+            text = stringResource(R.string.onboarding_enhanced_features_title),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold
@@ -67,7 +69,7 @@ fun EnhancedFeaturesScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Optional features to improve tracking accuracy and user experience.",
+            text = stringResource(R.string.onboarding_enhanced_features_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -85,19 +87,19 @@ fun EnhancedFeaturesScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Wi‑Fi permission needed",
+                        text = stringResource(R.string.onboarding_wifi_permission_title),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Grant Wi‑Fi permission to improve indoor accuracy.",
+                        text = stringResource(R.string.onboarding_wifi_permission_message),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedButton(onClick = { onPermissionGranted(Permission.NEARBY_WIFI_DEVICES) }) {
-                        Text("Grant Wi‑Fi permission")
+                        Text(stringResource(R.string.onboarding_wifi_grant_button))
                     }
                 }
             }
@@ -107,12 +109,12 @@ fun EnhancedFeaturesScreen(
         // WiFi tracking section
         EnhancedFeatureCard(
             icon = Icons.Default.Wifi,
-            title = "WiFi-Based Indoor Tracking",
-            description = "Improve location accuracy when GPS is weak indoors",
+            title = stringResource(R.string.onboarding_enhanced_wifi_card_title),
+            description = stringResource(R.string.onboarding_enhanced_wifi_card_description),
             benefits = listOf(
-                "Better indoor position detection",
-                "Reduced battery usage indoors",
-                "More accurate building-level tracking"
+                stringResource(R.string.onboarding_enhanced_wifi_benefit_indoor_detection),
+                stringResource(R.string.onboarding_enhanced_wifi_benefit_battery),
+                stringResource(R.string.onboarding_enhanced_wifi_benefit_accuracy)
             ),
             isEnabled = preferences.enableWifiTracking,
             hasPermission = hasWifiPermission,
@@ -130,12 +132,12 @@ fun EnhancedFeaturesScreen(
         // Notifications section
         EnhancedFeatureCard(
             icon = Icons.Default.Notifications,
-            title = "Smart Notifications",
-            description = "Get helpful insights about your movement patterns",
+            title = stringResource(R.string.onboarding_enhanced_notifications_card_title),
+            description = stringResource(R.string.onboarding_enhanced_notifications_card_description),
             benefits = listOf(
-                "Daily movement summaries",
-                "Achievement notifications",
-                "Tracking status updates"
+                stringResource(R.string.onboarding_enhanced_notifications_benefit_daily_summary),
+                stringResource(R.string.onboarding_enhanced_notifications_benefit_achievements),
+                stringResource(R.string.onboarding_enhanced_notifications_benefit_status_updates)
             ),
             isEnabled = preferences.enableNotifications,
             hasPermission = hasNotificationPermission,
@@ -171,15 +173,14 @@ fun EnhancedFeaturesScreen(
                 Spacer(modifier = Modifier.width(12.dp))
                 
                 Text(
-                    text = "All these features are optional and can be enabled or disabled anytime in settings. Your privacy remains protected.",
+                    text = stringResource(R.string.onboarding_enhanced_features_privacy_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             }
         }
         
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(32.dp))
         
         // Navigation buttons
         Row(
@@ -192,7 +193,7 @@ fun EnhancedFeaturesScreen(
                     .weight(1f)
                     .testTag("onboarding_cta_back")
             ) {
-                Text("Back")
+                Text(stringResource(R.string.onboarding_button_back))
             }
             
             Button(
@@ -201,7 +202,7 @@ fun EnhancedFeaturesScreen(
                     .weight(2f)
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Continue")
+                Text(stringResource(R.string.onboarding_button_continue))
             }
         }
         
@@ -213,7 +214,7 @@ fun EnhancedFeaturesScreen(
                 .fillMaxWidth()
                 .testTag("onboarding_cta_skip")
         ) {
-            Text("Skip enhanced features")
+            Text(stringResource(R.string.onboarding_skip_enhanced_features))
         }
     }
 }
@@ -313,7 +314,7 @@ private fun EnhancedFeatureCard(
                     onClick = onRequestPermission,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Grant Permission")
+                    Text(stringResource(R.string.onboarding_grant_permission_button))
                 }
             }
             

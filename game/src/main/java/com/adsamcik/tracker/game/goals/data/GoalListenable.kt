@@ -1,29 +1,30 @@
 package com.adsamcik.tracker.game.goals.data
 
 import android.content.Context
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.time.ZonedDateTime
 
 /**
- * Listenable goal data
+ * Listenable goal data with reactive Flow-based state.
  */
 data class GoalListenable(val goal: Goal) {
-	val value: LiveData<Int> get() = valueMutable
-	private val valueMutable: MutableLiveData<Int> = MutableLiveData()
+	private val valueMutable: MutableStateFlow<Int> = MutableStateFlow(0)
+	val value: StateFlow<Int> get() = valueMutable.asStateFlow()
 
-	val target: LiveData<Int> get() = targetMutable
-	private val targetMutable: MutableLiveData<Int> = MutableLiveData()
+	private val targetMutable: MutableStateFlow<Int> = MutableStateFlow(0)
+	val target: StateFlow<Int> get() = targetMutable.asStateFlow()
 
 	init {
 		goal.onTargetChanged = {
-			targetMutable.postValue(it)
+			targetMutable.value = it
 		}
 
 		goal.onValueChanged = {
-			valueMutable.postValue(it)
+			valueMutable.value = it
 		}
 	}
 
@@ -33,8 +34,8 @@ data class GoalListenable(val goal: Goal) {
 	 */
 	suspend fun onEnable(context: Context) {
 		goal.onEnable(context)
-		valueMutable.postValue(goal.value)
-		targetMutable.postValue(goal.target)
+		valueMutable.value = goal.value
+		targetMutable.value = goal.target
 	}
 
 	/**
@@ -49,7 +50,7 @@ data class GoalListenable(val goal: Goal) {
 		val value = goal.value
 		func()
 		if (value != goal.value) {
-			valueMutable.postValue(value)
+			valueMutable.value = goal.value
 		}
 	}
 
@@ -58,7 +59,7 @@ data class GoalListenable(val goal: Goal) {
 		val value = goal.value
 		val returnValue = func()
 		if (value != goal.value) {
-			valueMutable.postValue(value)
+			valueMutable.value = goal.value
 		}
 		return returnValue
 	}

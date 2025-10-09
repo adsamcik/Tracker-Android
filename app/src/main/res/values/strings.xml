@@ -317,6 +317,16 @@
     <string name="onboarding_skip_enhanced_features">Skip enhanced features</string>
     <string name="onboarding_grant_permission_button">Grant Permission</string>
     <string name="onboarding_enhanced_features_privacy_note">All these features are optional and can be enabled or disabled anytime in settings. Your privacy remains protected.</string>
+    <string name="onboarding_enhanced_wifi_card_title">WiFi-Based Indoor Tracking</string>
+    <string name="onboarding_enhanced_wifi_card_description">Improve location accuracy when GPS is weak indoors</string>
+    <string name="onboarding_enhanced_wifi_benefit_indoor_detection">Better indoor position detection</string>
+    <string name="onboarding_enhanced_wifi_benefit_battery">Reduced battery usage indoors</string>
+    <string name="onboarding_enhanced_wifi_benefit_accuracy">More accurate building-level tracking</string>
+    <string name="onboarding_enhanced_notifications_card_title">Smart Notifications</string>
+    <string name="onboarding_enhanced_notifications_card_description">Get helpful insights about your movement patterns</string>
+    <string name="onboarding_enhanced_notifications_benefit_daily_summary">Daily movement summaries</string>
+    <string name="onboarding_enhanced_notifications_benefit_achievements">Achievement notifications</string>
+    <string name="onboarding_enhanced_notifications_benefit_status_updates">Tracking status updates</string>
 
     <!-- Onboarding: Basic Preferences -->
     <string name="onboarding_preferences_title">Preferences</string>
@@ -328,7 +338,19 @@
     <string name="onboarding_smart_pause_summary">Pause tracking when stationary for extended periods</string>
 
     <!-- Onboarding: Activity Setup -->
+    <string name="onboarding_activity_title">Smart Activity Detection</string>
+    <string name="onboarding_activity_enabled_title">Activity Detection Enabled!</string>
+    <string name="onboarding_activity_subtitle">Let Tracker automatically detect when you\'re walking, running, driving, or stationary.</string>
+    <string name="onboarding_activity_enabled_subtitle">Activity recognition is now enabled. The app will automatically detect your movement type!</string>
     <string name="onboarding_activity_detects_title">Automatically detects:</string>
+    <string name="onboarding_activity_type_walking_title">Walking</string>
+    <string name="onboarding_activity_type_walking_description">Leisurely strolls and urban exploration</string>
+    <string name="onboarding_activity_type_running_title">Running</string>
+    <string name="onboarding_activity_type_running_description">Jogging, running, and fitness activities</string>
+    <string name="onboarding_activity_type_driving_title">Driving</string>
+    <string name="onboarding_activity_type_driving_description">Car trips and vehicle transportation</string>
+    <string name="onboarding_activity_type_stationary_title">Stationary</string>
+    <string name="onboarding_activity_type_stationary_description">Resting, working, or staying in one place</string>
     <string name="onboarding_activity_why_title">Why this helps:</string>
     <string name="onboarding_activity_benefits">• Better insights into your daily movement patterns\n• Accurate distance and calorie calculations\n• Smart detection of driving, walking, and cycling\n• Enhanced route visualization with activity context</string>
     <string name="onboarding_activity_ready_title">Activity detection is ready!</string>
@@ -342,6 +364,48 @@
     <!-- Onboarding: Completion -->
     <string name="onboarding_start_tracking_button">Start Tracking!</string>
     <string name="onboarding_complete_setup_button">Complete Setup</string>
+    <string name="onboarding_success_title">Setup Complete!</string>
+    <string name="onboarding_success_message">Tracker is ready to help you discover your daily patterns and insights.</string>
+    <string name="onboarding_success_features_title">Features Enabled:</string>
+    <string name="onboarding_success_feature_location">📍 Location tracking</string>
+    <string name="onboarding_success_feature_activity">🏃 Activity detection</string>
+    <string name="onboarding_success_feature_background">🔄 Background tracking</string>
+    <string name="onboarding_success_feature_wifi">📶 WiFi-based indoor tracking</string>
+    <string name="onboarding_success_feature_notifications">🔔 Smart notifications</string>
+    <string name="onboarding_success_feature_privacy">🛡️ Privacy-first data storage</string>
+    <string name="onboarding_success_next_steps_title">What\'s Next?</string>
+    <string name="onboarding_success_next_steps_message">• Start your first tracking session\n• Explore the map view to see your routes\n• Check statistics for movement insights\n• Adjust settings anytime in preferences</string>
+
+    <!-- Onboarding: Placeholder -->
+    <string name="onboarding_placeholder_coming_soon">Coming in Stage 2+</string>
+
+    <!-- Onboarding: Value Demo -->
+    <string name="onboarding_value_demo_title">What can Tracker do for you?</string>
+    <string name="onboarding_value_demo_subtitle">A quick peek at the insights Tracker can surface for you</string>
+    <string name="onboarding_value_demo_card_movement_title">Your movement, visualized</string>
+    <string name="onboarding_value_demo_card_movement_description">See your daily paths, time at places, and how your days flow</string>
+    <string name="onboarding_value_demo_card_activity_title">Automatic activity detection</string>
+    <string name="onboarding_value_demo_card_activity_description">Walk, drive, stay still — Tracker classifies it for you</string>
+    <string name="onboarding_value_demo_card_insights_title">Meaningful insights</string>
+    <string name="onboarding_value_demo_card_insights_description">Daily and weekly summaries help you spot trends and changes</string>
+    <string name="onboarding_value_demo_ready_title">Ready to set up tracking your way?</string>
+    <string name="onboarding_value_demo_collapse">Collapse</string>
+    <string name="onboarding_value_demo_expand">Expand</string>
+    <string name="onboarding_value_demo_card_location_preview">Interactive Map Preview</string>
+    <string name="onboarding_value_demo_activity_walking">Walking</string>
+    <string name="onboarding_value_demo_activity_walking_duration">2.3 hours</string>
+    <string name="onboarding_value_demo_activity_driving">Driving</string>
+    <string name="onboarding_value_demo_activity_driving_duration">1.1 hours</string>
+    <string name="onboarding_value_demo_activity_still">Still</string>
+    <string name="onboarding_value_demo_activity_still_duration">20.6 hours</string>
+    <string name="onboarding_value_demo_insight_distance_label">Distance traveled today</string>
+    <string name="onboarding_value_demo_insight_distance_value">12.4 km</string>
+    <string name="onboarding_value_demo_insight_location_label">Most visited location</string>
+    <string name="onboarding_value_demo_insight_location_value">Home (8.2 hours)</string>
+    <string name="onboarding_value_demo_insight_active_time_label">Active time</string>
+    <string name="onboarding_value_demo_insight_active_time_value">3.4 hours</string>
+    <string name="onboarding_value_demo_insight_places_label">Places discovered</string>
+    <string name="onboarding_value_demo_insight_places_value">3 new locations</string>
 
     <!-- Onboarding: Progress -->
     <string name="onboarding_progress_step">Step %1$d of %2$d</string>

@@ -19,6 +19,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 
 /**
  * Activity recognition setup screen explaining activity detection benefits.
@@ -56,7 +58,13 @@ fun ActivitySetupScreen(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = if (hasActivityPermission) "Activity Detection Enabled!" else "Smart Activity Detection",
+            text = stringResource(
+                if (hasActivityPermission) {
+                    R.string.onboarding_activity_enabled_title
+                } else {
+                    R.string.onboarding_activity_title
+                }
+            ),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold
@@ -65,11 +73,13 @@ fun ActivitySetupScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = if (hasActivityPermission) {
-                "Activity recognition is now enabled. The app will automatically detect your movement type!"
-            } else {
-                "Let Tracker automatically detect when you're walking, running, driving, or stationary."
-            },
+            text = stringResource(
+                if (hasActivityPermission) {
+                    R.string.onboarding_activity_enabled_subtitle
+                } else {
+                    R.string.onboarding_activity_subtitle
+                }
+            ),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -89,7 +99,7 @@ fun ActivitySetupScreen(
                     modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
-                        text = "Automatically detects:",
+                        text = stringResource(R.string.onboarding_activity_detects_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -98,32 +108,32 @@ fun ActivitySetupScreen(
                     
                     ActivityTypeItem(
                         icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                        activity = "Walking",
-                        description = "Leisurely strolls and urban exploration"
+                        activity = stringResource(R.string.onboarding_activity_type_walking_title),
+                        description = stringResource(R.string.onboarding_activity_type_walking_description)
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     ActivityTypeItem(
                         icon = Icons.AutoMirrored.Filled.DirectionsRun,
-                        activity = "Running",
-                        description = "Jogging, running, and fitness activities"
+                        activity = stringResource(R.string.onboarding_activity_type_running_title),
+                        description = stringResource(R.string.onboarding_activity_type_running_description)
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     ActivityTypeItem(
                         icon = Icons.Default.DriveEta,
-                        activity = "Driving",
-                        description = "Car trips and vehicle transportation"
+                        activity = stringResource(R.string.onboarding_activity_type_driving_title),
+                        description = stringResource(R.string.onboarding_activity_type_driving_description)
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     ActivityTypeItem(
                         icon = Icons.Default.SelfImprovement,
-                        activity = "Stationary",
-                        description = "Resting, working, or staying in one place"
+                        activity = stringResource(R.string.onboarding_activity_type_stationary_title),
+                        description = stringResource(R.string.onboarding_activity_type_stationary_description)
                     )
                 }
             }
@@ -142,7 +152,7 @@ fun ActivitySetupScreen(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "Why this helps:",
+                        text = stringResource(R.string.onboarding_activity_why_title),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -150,10 +160,7 @@ fun ActivitySetupScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Text(
-                        text = "• Better insights into your daily movement patterns\n" +
-                               "• Automatic categorization of different activities\n" +
-                               "• More accurate distance and calorie calculations\n" +
-                               "• Smart pause when you stop moving",
+                        text = stringResource(R.string.onboarding_activity_benefits),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -171,7 +178,7 @@ fun ActivitySetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Enable Activity Detection")
+                Text(stringResource(R.string.onboarding_activity_enable_button))
             }
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -182,7 +189,7 @@ fun ActivitySetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_skip")
             ) {
-                Text("Skip for now")
+                Text(stringResource(R.string.button_skip))
             }
             
         } else {
@@ -207,14 +214,14 @@ fun ActivitySetupScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     Text(
-                        text = "Activity detection is ready!",
+                        text = stringResource(R.string.onboarding_activity_ready_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     
                     Text(
-                        text = "The app will now automatically detect your movement type and provide better insights.",
+                        text = stringResource(R.string.onboarding_activity_ready_message),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         textAlign = TextAlign.Center
@@ -230,12 +237,11 @@ fun ActivitySetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Continue Setup")
+                Text(stringResource(R.string.onboarding_continue_setup_button))
             }
         }
         
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(32.dp))
         
         // Navigation buttons
         if (!hasActivityPermission) {
@@ -249,7 +255,7 @@ fun ActivitySetupScreen(
                         .weight(1f)
                         .testTag("onboarding_cta_back")
                 ) {
-                    Text("Back")
+                    Text(stringResource(R.string.onboarding_button_back))
                 }
                 
                 Button(
@@ -259,7 +265,7 @@ fun ActivitySetupScreen(
                         .weight(2f)
                         .testTag("onboarding_cta_primary")
                 ) {
-                    Text("Continue")
+                    Text(stringResource(R.string.onboarding_button_continue))
                 }
             }
         } else {
@@ -269,7 +275,7 @@ fun ActivitySetupScreen(
                     .fillMaxWidth()
                     .testTag("onboarding_cta_back")
             ) {
-                Text("Back")
+                Text(stringResource(R.string.onboarding_button_back))
             }
         }
     }

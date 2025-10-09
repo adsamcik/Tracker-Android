@@ -13,6 +13,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.*
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 
 /**
  * Placeholder screens for the remaining onboarding steps
@@ -44,7 +46,7 @@ fun SuccessScreen(
         Spacer(modifier = Modifier.height(24.dp))
         
         Text(
-            text = "Setup Complete!",
+            text = stringResource(R.string.onboarding_success_title),
             style = MaterialTheme.typography.headlineLarge,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold
@@ -53,7 +55,7 @@ fun SuccessScreen(
         Spacer(modifier = Modifier.height(12.dp))
         
         Text(
-            text = "Tracker is ready to help you discover your daily patterns and insights.",
+            text = stringResource(R.string.onboarding_success_message),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -68,11 +70,18 @@ fun SuccessScreen(
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             )
         ) {
+            val locationFeature = stringResource(R.string.onboarding_success_feature_location)
+            val activityFeature = stringResource(R.string.onboarding_success_feature_activity)
+            val backgroundFeature = stringResource(R.string.onboarding_success_feature_background)
+            val wifiFeature = stringResource(R.string.onboarding_success_feature_wifi)
+            val notificationsFeature = stringResource(R.string.onboarding_success_feature_notifications)
+            val privacyFeature = stringResource(R.string.onboarding_success_feature_privacy)
+
             Column(
                 modifier = Modifier.padding(20.dp)
             ) {
                 Text(
-                    text = "Features Enabled:",
+                    text = stringResource(R.string.onboarding_success_features_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -82,21 +91,21 @@ fun SuccessScreen(
                 
                 val enabledFeatures = buildList {
                     if (Permission.LOCATION_FOREGROUND in grantedPermissions) {
-                        add("📍 Location tracking")
+                        add(locationFeature)
                     }
                     if (Permission.ACTIVITY_RECOGNITION in grantedPermissions) {
-                        add("🏃 Activity detection") 
+                        add(activityFeature)
                     }
                     if (Permission.LOCATION_BACKGROUND in grantedPermissions) {
-                        add("🔄 Background tracking")
+                        add(backgroundFeature)
                     }
                     if (preferences.enableWifiTracking && Permission.NEARBY_WIFI_DEVICES in grantedPermissions) {
-                        add("📶 WiFi-based indoor tracking")
+                        add(wifiFeature)
                     }
                     if (preferences.enableNotifications && Permission.NOTIFICATIONS in grantedPermissions) {
-                        add("🔔 Smart notifications")
+                        add(notificationsFeature)
                     }
-                    add("🛡️ Privacy-first data storage")
+                    add(privacyFeature)
                 }
                 
                 enabledFeatures.forEach { feature ->
@@ -124,7 +133,7 @@ fun SuccessScreen(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "What's Next?",
+                    text = stringResource(R.string.onboarding_success_next_steps_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -132,10 +141,7 @@ fun SuccessScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "• Start your first tracking session\n" +
-                           "• Explore the map view to see your routes\n" +
-                           "• Check statistics for movement insights\n" +
-                           "• Adjust settings anytime in preferences",
+                    text = stringResource(R.string.onboarding_success_next_steps_message),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -150,7 +156,7 @@ fun SuccessScreen(
                 .fillMaxWidth()
                 .testTag("onboarding_cta_done")
         ) {
-            Text("Start Tracking!")
+            Text(stringResource(R.string.onboarding_start_tracking_button))
         }
     }
 }
@@ -203,7 +209,7 @@ private fun PlaceholderScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Coming in Stage 2+",
+                    text = stringResource(R.string.onboarding_placeholder_coming_soon),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -221,14 +227,14 @@ private fun PlaceholderScreen(
                 onClick = onBack,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Back")
+                Text(stringResource(R.string.onboarding_button_back))
             }
             
             Button(
                 onClick = onContinue,
                 modifier = Modifier.weight(2f)
             ) {
-                Text("Continue")
+                Text(stringResource(R.string.onboarding_button_continue))
             }
         }
         
@@ -238,7 +244,7 @@ private fun PlaceholderScreen(
                 onClick = onSkip,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Skip for now")
+                Text(stringResource(R.string.button_skip))
             }
         }
     }

@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 
 /**
  * Value demonstration screen - Stage 2 of onboarding
@@ -45,7 +47,7 @@ fun ValueDemoScreen(
         
         // Title
         Text(
-            text = "What can Tracker do for you?",
+            text = stringResource(R.string.onboarding_value_demo_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -55,7 +57,7 @@ fun ValueDemoScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "A quick peek at the insights Tracker can surface for you",
+            text = stringResource(R.string.onboarding_value_demo_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -70,8 +72,8 @@ fun ValueDemoScreen(
         ) {
             FeaturePreviewCard(
                 icon = Icons.Default.LocationOn,
-                title = "Your movement, visualized",
-                description = "See your daily paths, time at places, and how your days flow",
+                title = stringResource(R.string.onboarding_value_demo_card_movement_title),
+                description = stringResource(R.string.onboarding_value_demo_card_movement_description),
                 previewContent = {
                     LocationPreview()
                 }
@@ -79,8 +81,8 @@ fun ValueDemoScreen(
             
             FeaturePreviewCard(
                 icon = Icons.AutoMirrored.Filled.DirectionsRun,
-                title = "Automatic activity detection",
-                description = "Walk, drive, stay still — Tracker classifies it for you",
+                title = stringResource(R.string.onboarding_value_demo_card_activity_title),
+                description = stringResource(R.string.onboarding_value_demo_card_activity_description),
                 previewContent = {
                     ActivityPreview()
                 }
@@ -88,8 +90,8 @@ fun ValueDemoScreen(
             
             FeaturePreviewCard(
                 icon = Icons.Default.Analytics,
-                title = "Meaningful insights",
-                description = "Daily and weekly summaries help you spot trends and changes",
+                title = stringResource(R.string.onboarding_value_demo_card_insights_title),
+                description = stringResource(R.string.onboarding_value_demo_card_insights_description),
                 previewContent = {
                     InsightsPreview()
                 }
@@ -100,14 +102,14 @@ fun ValueDemoScreen(
         
         // Call to action
         Text(
-            text = "Ready to set up tracking your way?",
+            text = stringResource(R.string.onboarding_value_demo_ready_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground
         )
         
-        Spacer(modifier = Modifier.weight(1f))
+    Spacer(modifier = Modifier.height(32.dp))
         
         // Navigation buttons
         Row(
@@ -120,7 +122,7 @@ fun ValueDemoScreen(
                     .weight(1f)
                     .testTag("onboarding_cta_back")
             ) {
-                Text("Back")
+                Text(stringResource(R.string.onboarding_button_back))
             }
             
             Button(
@@ -129,7 +131,7 @@ fun ValueDemoScreen(
                     .weight(2f)
                     .testTag("onboarding_cta_primary")
             ) {
-                Text("Continue")
+                Text(stringResource(R.string.onboarding_button_continue))
             }
         }
         
@@ -182,7 +184,13 @@ fun FeaturePreviewCard(
                 
                 Icon(
                     imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    contentDescription = stringResource(
+                        if (isExpanded) {
+                            R.string.onboarding_value_demo_collapse
+                        } else {
+                            R.string.onboarding_value_demo_expand
+                        }
+                    ),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -215,7 +223,7 @@ fun LocationPreview() {
                 modifier = Modifier.size(48.dp)
             )
             Text(
-                text = "Interactive Map Preview",
+                text = stringResource(R.string.onboarding_value_demo_card_location_preview),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -225,13 +233,20 @@ fun LocationPreview() {
 
 @Composable
 fun ActivityPreview() {
+    val walking = stringResource(R.string.onboarding_value_demo_activity_walking)
+    val walkingDuration = stringResource(R.string.onboarding_value_demo_activity_walking_duration)
+    val driving = stringResource(R.string.onboarding_value_demo_activity_driving)
+    val drivingDuration = stringResource(R.string.onboarding_value_demo_activity_driving_duration)
+    val still = stringResource(R.string.onboarding_value_demo_activity_still)
+    val stillDuration = stringResource(R.string.onboarding_value_demo_activity_still_duration)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-    ActivityCard("Walking", "2.3 hours", Icons.AutoMirrored.Filled.DirectionsWalk, Modifier.weight(1f))
-        ActivityCard("Driving", "1.1 hours", Icons.Default.DirectionsCar, Modifier.weight(1f))
-        ActivityCard("Still", "20.6 hours", Icons.Default.Hotel, Modifier.weight(1f))
+        ActivityCard(walking, walkingDuration, Icons.AutoMirrored.Filled.DirectionsWalk, Modifier.weight(1f))
+        ActivityCard(driving, drivingDuration, Icons.Default.DirectionsCar, Modifier.weight(1f))
+        ActivityCard(still, stillDuration, Icons.Default.Hotel, Modifier.weight(1f))
     }
 }
 
@@ -275,13 +290,22 @@ fun ActivityCard(
 
 @Composable
 fun InsightsPreview() {
+    val distanceLabel = stringResource(R.string.onboarding_value_demo_insight_distance_label)
+    val distanceValue = stringResource(R.string.onboarding_value_demo_insight_distance_value)
+    val locationLabel = stringResource(R.string.onboarding_value_demo_insight_location_label)
+    val locationValue = stringResource(R.string.onboarding_value_demo_insight_location_value)
+    val activeTimeLabel = stringResource(R.string.onboarding_value_demo_insight_active_time_label)
+    val activeTimeValue = stringResource(R.string.onboarding_value_demo_insight_active_time_value)
+    val placesLabel = stringResource(R.string.onboarding_value_demo_insight_places_label)
+    val placesValue = stringResource(R.string.onboarding_value_demo_insight_places_value)
+
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        InsightRow("Distance traveled today", "12.4 km")
-        InsightRow("Most visited location", "Home (8.2 hours)")
-        InsightRow("Active time", "3.4 hours")
-        InsightRow("Places discovered", "3 new locations")
+        InsightRow(distanceLabel, distanceValue)
+        InsightRow(locationLabel, locationValue)
+        InsightRow(activeTimeLabel, activeTimeValue)
+        InsightRow(placesLabel, placesValue)
     }
 }
 

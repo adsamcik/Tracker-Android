@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.shared.base.database.dao.BaseDao
+import kotlinx.coroutines.flow.Flow
 
 /**
  * DAO for awarded points
@@ -18,15 +19,16 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 	fun countBetween(from: Long, to: Long): Int
 
 	/**
-	 * Returns number of points earned between two time intervals (LiveData, deprecated).
-	 * 
-	 * @deprecated Use Flow-based alternative. Replace with repository method returning Flow.
-	 * Example: `fun getPointsBetween(from: Long, to: Long): Flow<Int>` backed by this DAO's countBetween.
+	 * Returns number of points earned between two time intervals as a Flow.
 	 */
-	@Deprecated(
-		message = "Use Flow-based alternative in repository layer",
-		level = DeprecationLevel.WARNING
-	)
+	@Query("SELECT COALESCE(SUM(value), 0) FROM points_awarded WHERE time >= :from AND time <= :to")
+	fun countBetweenFlow(from: Long, to: Long): Flow<Int>
+
+	/**
+	 * Returns number of points earned between two time intervals.
+	 * @deprecated Use Flow-based alternative in repository layer.
+	 */
+	@Deprecated("Use Flow-based alternative in repository layer.")
 	@Query("SELECT COALESCE(SUM(value), 0) FROM points_awarded WHERE time >= :from AND time <= :to")
 	fun countBetweenLive(from: Long, to: Long): LiveData<Int>
 }
