@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Manages adaptive tracking policy state machine.
@@ -26,6 +28,9 @@ class TrackingPolicyManager(
 ) {
 	private val database = database ?: AppDatabase.database(context)
 	private val trackerRunDao by lazy { this.database.trackerRunDao() }
+
+	// Mutex to serialize all state modifications and prevent race conditions
+	private val stateMutex = Mutex()
 
 	private val _currentPolicy = MutableStateFlow(
 		if (isUserInitiated) TrackingPolicy.USER_INITIATED else TrackingPolicy.PASSIVE_LOW
@@ -47,7 +52,7 @@ class TrackingPolicyManager(
 	/**
 	 * Initialize the policy manager and start a new tracker run.
 	 */
-	suspend fun start() {
+	suspend fun start() = stateMutex.withLock {
 		val now = Time.nowMillis
 		val policy = _currentPolicy.value
 
@@ -67,8 +72,8 @@ class TrackingPolicyManager(
 	/**
 	 * Stop the policy manager and close the current tracker run.
 	 */
-	suspend fun stop() {
-		val runId = currentRunId ?: return
+	suspend fun stop() = stateMutex.withLock {
+		val runId = currentRunId ?: return@withLock
 		trackerRunDao.endRun(runId, Time.nowMillis)
 		currentRunId = null
 	}
@@ -90,8 +95,8 @@ class TrackingPolicyManager(
 	 * Update policy based on step counter delta.
 	 * Called by StepDataProducer after each collection cycle.
 	 */
-	suspend fun onStepUpdate(stepCount: Int, timeMs: Long) {
-		if (isUserInitiated) return // User sessions don't adapt
+	suspend fun onStepUpdate(stepCount: Int, timeMs: Long) = stateMutex.withLock {
+		if (isUserInitiated) return@withLock // User sessions don't adapt
 
 		val deltaSteps = if (lastStepCount > 0) stepCount - lastStepCount else 0
 		val deltaTime = if (lastStepTime > 0) timeMs - lastStepTime else 0L
@@ -132,8 +137,8 @@ class TrackingPolicyManager(
 	 * Update policy based on activity recognition transition.
 	 * Called by ActivityDataProducer when activity changes.
 	 */
-	suspend fun onActivityTransition(activityType: Int, confidence: Int, timeMs: Long) {
-		if (isUserInitiated) return
+	suspend fun onActivityTransition(activityType: Int, confidence: Int, timeMs: Long) = stateMutex.withLock {
+		if (isUserInitiated) return@withLock
 
 		val previousActivity = lastActivityType
 		lastActivityType = activityType
@@ -161,8 +166,8 @@ class TrackingPolicyManager(
 	 * Update policy based on significant location change.
 	 * Called when GPS fix obtained and displacement detected.
 	 */
-	suspend fun onLocationChange(displacementMeters: Float, timeMs: Long) {
-		if (isUserInitiated) return
+	suspend fun onLocationChange(displacementMeters: Float, timeMs: Long) = stateMutex.withLock {
+		if (isUserInitiated) return@withLock
 
 		// Significant movement detected → escalate
 		if (displacementMeters > DISPLACEMENT_THRESHOLD_METERS) {

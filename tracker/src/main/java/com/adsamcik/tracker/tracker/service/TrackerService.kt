@@ -47,6 +47,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocation
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
+import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
@@ -93,7 +94,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	// Policy update state tracking
 	private var lastActivityType: Int = -1
 	private var lastLocation: com.adsamcik.tracker.shared.base.data.Location? = null
-	private var lastStepCount: Int = 0
+	private var accumulatedStepCount: Int = 0
 
 	/**
 	 * Collects data from necessary places and sensors and creates new MutableCollectionData instance
@@ -182,17 +183,17 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					lastLocation = location
 				}
 
-				// Feed step updates from temp data (if available from StepDataProducer)
-				tempData.tryGet<Int>("step_count")?.let { currentStepCount ->
-					if (lastStepCount > 0 && currentStepCount > lastStepCount) {
+				// Feed step updates from temp data (accumulate NEW_STEPS_ARG)
+				tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
+					if (newSteps > 0) {
+						accumulatedStepCount += newSteps
 						launch {
 							policyMgr.onStepUpdate(
-								stepCount = currentStepCount,
+								stepCount = accumulatedStepCount,
 								timeMs = currentTimeMs
 							)
 						}
 					}
-					lastStepCount = currentStepCount
 				}
 			}
 		}
