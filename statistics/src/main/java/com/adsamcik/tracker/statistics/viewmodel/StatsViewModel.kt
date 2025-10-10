@@ -31,25 +31,53 @@ class StatsViewModel(
     private val _summaryStats = MutableStateFlow<List<Stat>>(emptyList())
     val summaryStats: StateFlow<List<Stat>> = _summaryStats.asStateFlow()
     
+    // Summary loading state
+    private val _summaryLoading = MutableStateFlow(false)
+    val summaryLoading: StateFlow<Boolean> = _summaryLoading.asStateFlow()
+    
     // Weekly statistics state
     private val _weeklyStats = MutableStateFlow<List<Stat>>(emptyList())
     val weeklyStats: StateFlow<List<Stat>> = _weeklyStats.asStateFlow()
     
+    // Weekly loading state
+    private val _weeklyLoading = MutableStateFlow(false)
+    val weeklyLoading: StateFlow<Boolean> = _weeklyLoading.asStateFlow()
+    
     /**
      * Load summary statistics from repository.
+     * Sets loading state and handles errors gracefully.
      */
     fun loadSummaryStats() {
         viewModelScope.launch {
-            _summaryStats.value = sessionRepository.getSummaryStats()
+            _summaryLoading.value = true
+            try {
+                _summaryStats.value = sessionRepository.getSummaryStats()
+            } catch (e: Exception) {
+                // Log error and leave stats as empty list
+                // TODO: Consider exposing error state to UI
+                _summaryStats.value = emptyList()
+            } finally {
+                _summaryLoading.value = false
+            }
         }
     }
     
     /**
      * Load weekly statistics from repository.
+     * Sets loading state and handles errors gracefully.
      */
     fun loadWeeklyStats() {
         viewModelScope.launch {
-            _weeklyStats.value = sessionRepository.getWeeklyStats()
+            _weeklyLoading.value = true
+            try {
+                _weeklyStats.value = sessionRepository.getWeeklyStats()
+            } catch (e: Exception) {
+                // Log error and leave stats as empty list
+                // TODO: Consider exposing error state to UI
+                _weeklyStats.value = emptyList()
+            } finally {
+                _weeklyLoading.value = false
+            }
         }
     }
 }

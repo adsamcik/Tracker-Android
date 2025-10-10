@@ -30,7 +30,9 @@ fun StatsRoute() {
     
     // Collect statistics state from ViewModel
     val summaryStats by vm.summaryStats.collectAsState()
+    val summaryLoading by vm.summaryLoading.collectAsState()
     val weeklyStats by vm.weeklyStats.collectAsState()
+    val weeklyLoading by vm.weeklyLoading.collectAsState()
 
     val refreshState = when (val s = pagingItems.loadState.refresh) {
         is LoadState.Loading -> RefreshUiState.Loading
@@ -67,6 +69,7 @@ fun StatsRoute() {
         SummaryDialog(
             visible = showSummaryDialog,
             stats = summaryStats,
+            isLoading = summaryLoading,
             onDismiss = { showSummaryDialog = false }
         )
     }
@@ -75,6 +78,7 @@ fun StatsRoute() {
         WeekDialog(
             visible = showWeekDialog,
             stats = weeklyStats,
+            isLoading = weeklyLoading,
             onDismiss = { showWeekDialog = false }
         )
     }
