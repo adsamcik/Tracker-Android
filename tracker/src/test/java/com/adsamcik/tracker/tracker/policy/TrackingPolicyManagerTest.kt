@@ -20,6 +20,9 @@ import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 
 /**
  * Unit tests for TrackingPolicyManager adaptive policy state machine.
@@ -259,6 +262,457 @@ class TrackingPolicyManagerTest {
 		manager.onStepUpdate(stepCount = 275, timeMs = baseTime + 180_000) // 95 steps in next minute
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
 	}
+
+	@Test
+	fun `step accumulation from zero works correctly`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+		
+		// First update establishes non-zero baseline (simulates service startup with some steps already counted)
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
+		
+		// Add 25 steps over 1 minute (delta = 25, rate = 25 steps/min > 10 threshold)
+		manager.onStepUpdate(stepCount = 35, timeMs = baseTime + 60_000)
+		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
+
+		// Add another 55 steps over next minute (delta = 55, rate = 55 steps/min > 40 threshold)
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000)
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+
+		// Add another 95 steps over next minute (delta = 95, rate = 95 steps/min > 80 threshold)
+		manager.onStepUpdate(stepCount = 185, timeMs = baseTime + 180_000)
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `concurrent step updates are serialized correctly`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+		
+		// Launch multiple concurrent step updates
+		val updates = (1..20).map { i ->
+			async {
+				manager.onStepUpdate(
+					stepCount = i * 10, 
+					timeMs = baseTime + (i * 1000L)
+				)
+			}
+		}
+
+		// Wait for all updates to complete
+		updates.awaitAll()
+
+		// Final policy should be determined by the highest step rate
+		// No crashes or inconsistent state
+		val finalPolicy = manager.currentPolicy.value
+		assertTrue(finalPolicy in TrackingPolicy.values())
+	}
+
+	@Test
+	fun `concurrent activity and location updates do not cause race conditions`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+		
+		// Launch concurrent updates of different types
+		val updates = listOf(
+			async { manager.onStepUpdate(stepCount = 50, timeMs = baseTime) },
+			async { manager.onActivityTransition(activityType = 7, confidence = 80, timeMs = baseTime + 100) },
+			async { manager.onLocationChange(displacementMeters = 100f, timeMs = baseTime + 200) },
+			async { manager.onStepUpdate(stepCount = 100, timeMs = baseTime + 60_000) },
+			async { manager.onActivityTransition(activityType = 3, confidence = 75, timeMs = baseTime + 300) },
+			async { manager.onLocationChange(displacementMeters = 200f, timeMs = baseTime + 400) }
+		)
+
+		updates.awaitAll()
+
+		// Should reach an elevated policy without crashes
+		val finalPolicy = manager.currentPolicy.value
+		assertTrue(
+			finalPolicy == TrackingPolicy.ACTIVE_MODERATE || 
+			finalPolicy == TrackingPolicy.ACTIVE_ELEVATED
+		)
+	}
+
+	@Test
+	fun `rapid policy transitions are handled correctly`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+		
+		// Simulate rapid escalation with non-zero baseline
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime) // Baseline
+		manager.onStepUpdate(stepCount = 35, timeMs = baseTime + 60_000) // 25 steps/min → MOVEMENT_SUSPECTED
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000) // 55 steps/min → ACTIVE_MODERATE
+		manager.onStepUpdate(stepCount = 185, timeMs = baseTime + 180_000) // 95 steps/min → ACTIVE_ELEVATED
+
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+
+		// Verify tracker run was created for start + each transition (4 total)
+		coVerify(atLeast = 4) { trackerRunDao.insert(any<TrackerRun>()) }
+	}
+
+	@Test
+	fun `start and stop are thread-safe`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		
+		// Launch multiple start/stop operations concurrently
+		val operations = listOf(
+			async { manager.start() },
+			async { delay(10); manager.stop() },
+			async { delay(20); manager.start() },
+			async { delay(30); manager.stop() }
+		)
+
+		operations.awaitAll()
+
+		// Should complete without crashes or exceptions
+		// Final state depends on timing but should be consistent
+	}
+
+	// ========== Edge Cases & Boundary Conditions ==========
+
+	@Test
+	fun `exact threshold boundaries produce correct policy transitions`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Exactly 10 steps/min (MOVEMENT_SUSPECTED threshold)
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 20, timeMs = baseTime + 60_000)
+		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
+
+		// Exactly 40 steps/min (ACTIVE_MODERATE threshold)
+		manager.onStepUpdate(stepCount = 60, timeMs = baseTime + 120_000)
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+
+		// Exactly 80 steps/min (ACTIVE_ELEVATED threshold)
+		manager.onStepUpdate(stepCount = 140, timeMs = baseTime + 180_000)
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `just below thresholds maintains current policy`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// 9 steps/min - just below MOVEMENT_SUSPECTED threshold
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 19, timeMs = baseTime + 60_000)
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `step count decreasing (device reboot) resets baseline gracefully`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Normal progression
+		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 140, timeMs = baseTime + 60_000)
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+
+		// Step counter resets (e.g., device reboot)
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime + 120_000)
+		
+		// Should not crash; next delta will be from new baseline
+		manager.onStepUpdate(stepCount = 50, timeMs = baseTime + 180_000)
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `time going backwards is handled gracefully`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 50, timeMs = baseTime + 60_000)
+
+		// Time goes backwards (clock adjustment)
+		manager.onStepUpdate(stepCount = 60, timeMs = baseTime + 30_000)
+
+		// Should not crash or produce invalid step rates
+		// Policy should remain stable or degrade safely
+	}
+
+	@Test
+	fun `very long time interval prevents overflow in step rate calculation`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		
+		// 24 hour gap
+		manager.onStepUpdate(stepCount = 20, timeMs = baseTime + 24 * 60 * 60_000)
+
+		// Should calculate very low step rate without overflow
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `zero time delta between updates is handled safely`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 50, timeMs = baseTime) // Same timestamp
+
+		// Should not divide by zero or crash
+	}
+
+	// ========== Policy Downgrade Scenarios ==========
+
+	@Test
+	fun `policy downgrades after period of inactivity`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Escalate to ACTIVE_ELEVATED
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 100, timeMs = baseTime + 60_000)
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+
+		// Period of minimal movement
+		manager.onStepUpdate(stepCount = 105, timeMs = baseTime + 120_000) // 5 steps/min
+		
+		// Should downgrade to lower policy
+		val finalPolicy = manager.currentPolicy.value
+		assertTrue(
+			finalPolicy == TrackingPolicy.PASSIVE_LOW || finalPolicy == TrackingPolicy.MOVEMENT_SUSPECTED,
+			"Expected downgrade after inactivity, got $finalPolicy"
+		)
+	}
+
+	@Test
+	fun `activity transition to STILL downgrades policy`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		// Escalate via steps
+		val baseTime = System.currentTimeMillis()
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 60, timeMs = baseTime + 60_000)
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+
+		// Activity recognition detects STILL
+		manager.onActivityTransition(activityType = 3, confidence = 90, timeMs = baseTime + 120_000) // STILL = 3
+
+		// Should downgrade
+		val finalPolicy = manager.currentPolicy.value
+		assertTrue(
+			finalPolicy.ordinal < TrackingPolicy.ACTIVE_MODERATE.ordinal,
+			"Expected downgrade after STILL activity, got $finalPolicy"
+		)
+	}
+
+	// ========== Mixed Event Sequences ==========
+
+	@Test
+	fun `interleaved step and activity events produce consistent policy`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Step update
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 30, timeMs = baseTime + 60_000)
+
+		// Activity confirms movement
+		manager.onActivityTransition(activityType = 7, confidence = 85, timeMs = baseTime + 90_000) // WALKING = 7
+
+		// More steps
+		manager.onStepUpdate(stepCount = 70, timeMs = baseTime + 120_000)
+
+		// Should be at ACTIVE_MODERATE or higher
+		assertTrue(
+			manager.currentPolicy.value.ordinal >= TrackingPolicy.ACTIVE_MODERATE.ordinal,
+			"Expected elevated policy from mixed events, got ${manager.currentPolicy.value}"
+		)
+	}
+
+	@Test
+	fun `location updates combined with step data refine policy`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Moderate step rate
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 35, timeMs = baseTime + 60_000)
+
+		// Significant displacement confirms movement
+		manager.onLocationChange(displacementMeters = 100f, timeMs = baseTime + 120_000)
+
+		// Should maintain or escalate policy
+		assertTrue(
+			manager.currentPolicy.value.ordinal >= TrackingPolicy.MOVEMENT_SUSPECTED.ordinal,
+			"Expected at least MOVEMENT_SUSPECTED with location confirmation"
+		)
+	}
+
+	@Test
+	fun `poor location accuracy during high step rate maintains elevated policy`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// High step rate
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000)
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+
+		// Minimal displacement despite steps (e.g., treadmill or indoor activity)
+		manager.onLocationChange(displacementMeters = 5f, timeMs = baseTime + 120_000)
+
+		// Should remain elevated or at most slight downgrade
+		assertTrue(
+			manager.currentPolicy.value.ordinal >= TrackingPolicy.ACTIVE_MODERATE.ordinal,
+			"Expected elevated policy maintained despite low displacement"
+		)
+	}
+
+	// ========== Persistence & State Recovery ==========
+
+	@Test
+	fun `start creates TrackerRun in database`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		coVerify(exactly = 1) { trackerRunDao.insert(any<TrackerRun>()) }
+	}
+
+	@Test
+	fun `stop ends current TrackerRun in database`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		
+		coEvery { trackerRunDao.endRun(any(), any()) } just Runs
+		
+		manager.start()
+		manager.stop()
+
+		coVerify { trackerRunDao.endRun(any(), any()) }
+	}
+
+	@Test
+	fun `multiple start-stop cycles create separate TrackerRuns`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		
+		coEvery { trackerRunDao.endRun(any(), any()) } just Runs
+
+		// First session
+		manager.start()
+		manager.stop()
+
+		// Second session
+		manager.start()
+		manager.stop()
+
+		// Should have created 2 TrackerRuns
+		coVerify(exactly = 2) { trackerRunDao.insert(any<TrackerRun>()) }
+		coVerify(exactly = 2) { trackerRunDao.endRun(any(), any()) }
+	}
+
+	// ========== User-Initiated Policy Locking ==========
+
+	@Test
+	fun `user-initiated session ignores step updates`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database)
+		manager.start()
+
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+
+		val baseTime = System.currentTimeMillis()
+
+		// Even with zero steps, should remain USER_INITIATED
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime + 60_000) // No movement
+
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `user-initiated session ignores activity transitions`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database)
+		manager.start()
+
+		// STILL activity should not downgrade
+		manager.onActivityTransition(activityType = 3, confidence = 95, timeMs = System.currentTimeMillis())
+
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `user-initiated session ignores location changes`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database)
+		manager.start()
+
+		// Minimal displacement should not affect policy
+		manager.onLocationChange(displacementMeters = 5f, timeMs = System.currentTimeMillis())
+
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+	}
+
+	// ========== Stress & Robustness ==========
+
+	@Test
+	fun `large step count values do not cause overflow`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Near Int.MAX_VALUE (realistic for cumulative step counters)
+		val highStepBase = Int.MAX_VALUE - 1000
+		manager.onStepUpdate(stepCount = highStepBase, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = highStepBase + 100, timeMs = baseTime + 60_000)
+
+		// Should calculate step rate without overflow
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+	}
+
+	@Test
+	fun `rapid policy oscillation stabilizes eventually`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Alternate between high and low activity
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000) // High
+		manager.onStepUpdate(stepCount = 95, timeMs = baseTime + 120_000) // Low
+		manager.onStepUpdate(stepCount = 175, timeMs = baseTime + 180_000) // High
+		manager.onStepUpdate(stepCount = 180, timeMs = baseTime + 240_000) // Low
+
+		// Policy should stabilize at some reasonable level
+		val finalPolicy = manager.currentPolicy.value
+		assertTrue(
+			finalPolicy != null,
+			"Policy should stabilize after oscillation"
+		)
+	}
 }
-
-

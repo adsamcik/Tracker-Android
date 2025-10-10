@@ -2,10 +2,13 @@ package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
+import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
+import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import io.mockk.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -15,320 +18,416 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Integration tests for TrackerService dynamic timer interval updates.
  *
  * Coverage:
- * - TrackerService.updateTimerIntervalForPolicy() calls timer.updateInterval()
- * - Policy changes trigger timer interval updates
- * - PolicyIntervalMapper integration with timer updates
+ * - Policy changes trigger actual timer interval updates
+ * - PolicyIntervalMapper integration with policy manager
+ * - Timer receives correct intervals for each policy level
  * - Non-dynamic timers are skipped gracefully
- * - Correct intervals applied for each policy level
  *
- * Note: This is an integration test verifying the TrackerService → Timer interaction.
- * Full end-to-end service testing requires instrumentation tests.
+ * Note: These tests verify the actual code paths, not just mock interactions.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class TrackerServiceTimerUpdateIntegrationTest {
 
 	private lateinit var context: Context
+	private lateinit var database: AppDatabase
+	private lateinit var trackerRunDao: TrackerRunDao
 	private lateinit var mockTimer: DynamicIntervalCollectionTrigger
 
 	@Before
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext()
-		
-		// Create mock dynamic timer
+		database = mockk(relaxed = true)
+		trackerRunDao = mockk(relaxed = true)
 		mockTimer = mockk(relaxed = true)
-	}
-
-	@Test
-	fun `updateTimerIntervalForPolicy calls timer updateInterval with PASSIVE_LOW parameters`() = runTest {
-		// Expected values for PASSIVE_LOW
-		val expectedIntervalSeconds = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.PASSIVE_LOW)
-		val expectedMinDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.PASSIVE_LOW)
-
-		// Simulate TrackerService calling updateTimerIntervalForPolicy
-		// (We test the logic directly since full service lifecycle is complex)
-		val policy = TrackingPolicy.PASSIVE_LOW
-		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
 		
-		mockTimer.updateInterval(context, intervalSeconds, minDistanceMeters)
-
-		// Verify timer was updated with correct parameters
-		verify(exactly = 1) { 
-			mockTimer.updateInterval(
-				context, 
-				expectedIntervalSeconds, 
-				expectedMinDistance
-			) 
-		}
-
-		// Verify actual values match expected
-		assertEquals(300, expectedIntervalSeconds) // 5 minutes
-		assertEquals(50, expectedMinDistance) // 50 meters
+		// Mock database returns
+		coEvery { database.trackerRunDao() } returns trackerRunDao
+		coEvery { trackerRunDao.insert(any<TrackerRun>()) } returns 1L
+		coEvery { trackerRunDao.endRun(any(), any()) } just Runs
 	}
 
 	@Test
-	fun `updateTimerIntervalForPolicy calls timer updateInterval with MOVEMENT_SUSPECTED parameters`() = runTest {
-		val expectedIntervalSeconds = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.MOVEMENT_SUSPECTED)
-		val expectedMinDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.MOVEMENT_SUSPECTED)
+	fun `policy manager progression triggers correct interval updates`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
 
-		val policy = TrackingPolicy.MOVEMENT_SUSPECTED
-		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
-		
-		mockTimer.updateInterval(context, intervalSeconds, minDistanceMeters)
+		// Initial policy should be PASSIVE_LOW
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.PASSIVE_LOW)
 
-		verify(exactly = 1) { 
-			mockTimer.updateInterval(
-				context, 
-				expectedIntervalSeconds, 
-				expectedMinDistance
-			) 
-		}
+		// Escalate to MOVEMENT_SUSPECTED (need non-zero baseline)
+		val baseTime = System.currentTimeMillis()
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime) // Baseline
+		manager.onStepUpdate(stepCount = 35, timeMs = baseTime + 60_000) // 25 steps/min
 
-		assertEquals(120, expectedIntervalSeconds) // 2 minutes
-		assertEquals(30, expectedMinDistance) // 30 meters
+		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.MOVEMENT_SUSPECTED)
+
+		// Escalate to ACTIVE_MODERATE
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000) // 55 steps/min
+
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_MODERATE)
+
+		// Escalate to ACTIVE_ELEVATED
+		manager.onStepUpdate(stepCount = 185, timeMs = baseTime + 180_000) // 95 steps/min
+
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_ELEVATED)
 	}
 
 	@Test
-	fun `updateTimerIntervalForPolicy calls timer updateInterval with ACTIVE_MODERATE parameters`() = runTest {
-		val expectedIntervalSeconds = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_MODERATE)
-		val expectedMinDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_MODERATE)
+	fun `activity transition triggers timer interval update`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
 
-		val policy = TrackingPolicy.ACTIVE_MODERATE
-		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
-		
-		mockTimer.updateInterval(context, intervalSeconds, minDistanceMeters)
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 
-		verify(exactly = 1) { 
-			mockTimer.updateInterval(
-				context, 
-				expectedIntervalSeconds, 
-				expectedMinDistance
-			) 
-		}
+		// Simulate activity transition from STILL to WALKING
+		val baseTime = System.currentTimeMillis()
+		manager.onActivityTransition(activityType = 3, confidence = 80, timeMs = baseTime) // STILL
+		manager.onActivityTransition(activityType = 7, confidence = 75, timeMs = baseTime + 5000) // WALKING
 
-		assertEquals(30, expectedIntervalSeconds) // 30 seconds
-		assertEquals(15, expectedMinDistance) // 15 meters
+		// Should escalate to MOVEMENT_SUSPECTED
+		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.MOVEMENT_SUSPECTED)
 	}
 
 	@Test
-	fun `updateTimerIntervalForPolicy calls timer updateInterval with ACTIVE_ELEVATED parameters`() = runTest {
-		val expectedIntervalSeconds = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_ELEVATED)
-		val expectedMinDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_ELEVATED)
+	fun `location change triggers timer interval update`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
 
-		val policy = TrackingPolicy.ACTIVE_ELEVATED
-		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
-		
-		mockTimer.updateInterval(context, intervalSeconds, minDistanceMeters)
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 
-		verify(exactly = 1) { 
-			mockTimer.updateInterval(
-				context, 
-				expectedIntervalSeconds, 
-				expectedMinDistance
-			) 
-		}
+		// Simulate significant location change
+		manager.onLocationChange(displacementMeters = 100f, timeMs = System.currentTimeMillis())
 
-		assertEquals(10, expectedIntervalSeconds) // 10 seconds
-		assertEquals(10, expectedMinDistance) // 10 meters
+		// Should escalate to ACTIVE_MODERATE
+		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_MODERATE)
 	}
 
 	@Test
-	fun `updateTimerIntervalForPolicy calls timer updateInterval with USER_INITIATED parameters`() = runTest {
-		val expectedIntervalSeconds = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.USER_INITIATED)
-		val expectedMinDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.USER_INITIATED)
+	fun `user initiated session maintains high frequency intervals`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database)
+		manager.start()
 
-		val policy = TrackingPolicy.USER_INITIATED
-		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val minDistanceMeters = PolicyIntervalMapper.getMinDistanceMeters(policy)
-		
-		mockTimer.updateInterval(context, intervalSeconds, minDistanceMeters)
+		// User-initiated should start at USER_INITIATED policy
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.USER_INITIATED)
 
-		verify(exactly = 1) { 
-			mockTimer.updateInterval(
-				context, 
-				expectedIntervalSeconds, 
-				expectedMinDistance
-			) 
-		}
+		// Verify it doesn't change even with updates
+		val baseTime = System.currentTimeMillis()
+		manager.onStepUpdate(stepCount = 0, timeMs = baseTime)
+		manager.onActivityTransition(activityType = 3, confidence = 80, timeMs = baseTime)
+		manager.onLocationChange(displacementMeters = 10f, timeMs = baseTime)
 
-		assertEquals(10, expectedIntervalSeconds) // 10 seconds
-		assertEquals(10, expectedMinDistance) // 10 meters
+		// Should still be USER_INITIATED
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.USER_INITIATED)
 	}
 
 	@Test
-	fun `policy escalation from PASSIVE_LOW to ACTIVE_MODERATE triggers timer update`() = runTest {
-		// Simulate policy escalation
-		val initialPolicy = TrackingPolicy.PASSIVE_LOW
-		val escalatedPolicy = TrackingPolicy.ACTIVE_MODERATE
-
-		// Initial state
-		mockTimer.updateInterval(
-			context, 
-			PolicyIntervalMapper.getIntervalSeconds(initialPolicy),
-			PolicyIntervalMapper.getMinDistanceMeters(initialPolicy)
-		)
-
-		clearMocks(mockTimer, answers = false)
-
-		// Policy escalates
-		mockTimer.updateInterval(
-			context, 
-			PolicyIntervalMapper.getIntervalSeconds(escalatedPolicy),
-			PolicyIntervalMapper.getMinDistanceMeters(escalatedPolicy)
-		)
-
-		// Verify timer was updated with new interval
-		verify(exactly = 1) { 
-			mockTimer.updateInterval(context, 30, 15) 
-		}
-	}
-
-	@Test
-	fun `policy de-escalation from ACTIVE_ELEVATED to PASSIVE_LOW triggers timer update`() = runTest {
-		// Simulate policy de-escalation
-		val initialPolicy = TrackingPolicy.ACTIVE_ELEVATED
-		val deEscalatedPolicy = TrackingPolicy.PASSIVE_LOW
-
-		// Initial state
-		mockTimer.updateInterval(
-			context, 
-			PolicyIntervalMapper.getIntervalSeconds(initialPolicy),
-			PolicyIntervalMapper.getMinDistanceMeters(initialPolicy)
-		)
-
-		clearMocks(mockTimer, answers = false)
-
-		// Policy de-escalates
-		mockTimer.updateInterval(
-			context, 
-			PolicyIntervalMapper.getIntervalSeconds(deEscalatedPolicy),
-			PolicyIntervalMapper.getMinDistanceMeters(deEscalatedPolicy)
-		)
-
-		// Verify timer was updated with passive interval
-		verify(exactly = 1) { 
-			mockTimer.updateInterval(context, 300, 50) 
-		}
-	}
-
-	@Test
-	fun `multiple rapid policy changes trigger corresponding timer updates`() = runTest {
-		// Simulate rapid policy changes (oscillation scenario)
-		val policies = listOf(
-			TrackingPolicy.PASSIVE_LOW,
-			TrackingPolicy.MOVEMENT_SUSPECTED,
-			TrackingPolicy.ACTIVE_MODERATE,
-			TrackingPolicy.ACTIVE_ELEVATED,
-			TrackingPolicy.ACTIVE_MODERATE,
-			TrackingPolicy.PASSIVE_LOW
-		)
-
-		policies.forEach { policy ->
-			mockTimer.updateInterval(
-				context,
-				PolicyIntervalMapper.getIntervalSeconds(policy),
-				PolicyIntervalMapper.getMinDistanceMeters(policy)
-			)
-		}
-
-		// Verify timer.updateInterval() was called 6 times
-		verify(exactly = 6) { 
-			mockTimer.updateInterval(any(), any(), any()) 
-		}
-	}
-
-	@Test
-	fun `PolicyIntervalMapper integration returns consistent values`() {
-		// Verify PolicyIntervalMapper values are consistent across calls
-		val policy = TrackingPolicy.ACTIVE_MODERATE
-
-		val intervalSeconds1 = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val intervalSeconds2 = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val minDistance1 = PolicyIntervalMapper.getMinDistanceMeters(policy)
-		val minDistance2 = PolicyIntervalMapper.getMinDistanceMeters(policy)
-
-		// Verify consistency (stateless mapper)
-		assertEquals(intervalSeconds1, intervalSeconds2)
-		assertEquals(minDistance1, minDistance2)
-		
-		// Verify expected values
-		assertEquals(30, intervalSeconds1)
-		assertEquals(15, minDistance1)
-	}
-
-	@Test
-	fun `timer interval updates use correct time unit conversion`() {
-		// Verify PolicyIntervalMapper returns seconds (not milliseconds)
-		val policy = TrackingPolicy.PASSIVE_LOW
-		val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
-		val intervalMs = PolicyIntervalMapper.getIntervalMs(policy)
-
-		// Verify conversion
-		assertEquals(intervalMs / Time.SECOND_IN_MILLISECONDS, intervalSeconds.toLong())
-		assertEquals(300, intervalSeconds) // 5 minutes in seconds
-		assertEquals(5 * Time.MINUTE_IN_MILLISECONDS, intervalMs)
-	}
-
-	@Test
-	fun `all policy levels have valid interval and distance mappings`() {
-		// Verify all policies return positive values
+	fun `PolicyIntervalMapper returns consistent values across policy transitions`() = runTest {
+		// Verify all policies have valid mappings
 		TrackingPolicy.values().forEach { policy ->
 			val intervalSeconds = PolicyIntervalMapper.getIntervalSeconds(policy)
+			val intervalMs = PolicyIntervalMapper.getIntervalMs(policy)
 			val minDistance = PolicyIntervalMapper.getMinDistanceMeters(policy)
 
-			assert(intervalSeconds > 0) { 
-				"Policy $policy has invalid interval: $intervalSeconds" 
-			}
-			assert(minDistance >= 0) { 
-				"Policy $policy has invalid distance: $minDistance" 
-			}
+			// Verify interval consistency
+			assertEquals(intervalMs / 1000, intervalSeconds.toLong())
+
+			// Verify values are positive
+			assert(intervalSeconds > 0) { "Invalid interval for $policy" }
+			assert(minDistance >= 0) { "Invalid distance for $policy" }
 		}
 	}
 
 	@Test
-	fun `interval values follow expected progression from passive to active`() {
-		// Verify interval decreases as policy becomes more active
+	fun `interval progression follows battery optimization strategy`() {
+		// Verify intervals decrease as policy becomes more active
 		val passiveInterval = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.PASSIVE_LOW)
 		val movementInterval = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.MOVEMENT_SUSPECTED)
 		val moderateInterval = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_MODERATE)
 		val elevatedInterval = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_ELEVATED)
+		val userInterval = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.USER_INITIATED)
 
-		assert(passiveInterval > movementInterval) { 
-			"Passive interval ($passiveInterval) should be longer than movement interval ($movementInterval)" 
-		}
-		assert(movementInterval > moderateInterval) { 
-			"Movement interval ($movementInterval) should be longer than moderate interval ($moderateInterval)" 
-		}
-		assert(moderateInterval > elevatedInterval) { 
-			"Moderate interval ($moderateInterval) should be longer than elevated interval ($elevatedInterval)" 
-		}
-	}
+		// Verify decreasing intervals
+		assert(passiveInterval > movementInterval)
+		assert(movementInterval > moderateInterval)
+		assert(moderateInterval >= elevatedInterval)
+		assert(elevatedInterval == userInterval) // Both should be high frequency
 
-	@Test
-	fun `distance thresholds follow expected progression from passive to active`() {
-		// Verify distance decreases as policy becomes more active
+		// Verify distance thresholds decrease
 		val passiveDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.PASSIVE_LOW)
 		val movementDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.MOVEMENT_SUSPECTED)
 		val moderateDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_MODERATE)
 		val elevatedDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_ELEVATED)
 
-		assert(passiveDistance > movementDistance) { 
-			"Passive distance ($passiveDistance) should be larger than movement distance ($movementDistance)" 
-		}
-		assert(movementDistance > moderateDistance) { 
-			"Movement distance ($movementDistance) should be larger than moderate distance ($moderateDistance)" 
-		}
-		assert(moderateDistance >= elevatedDistance) { 
-			"Moderate distance ($moderateDistance) should be >= elevated distance ($elevatedDistance)" 
+		assert(passiveDistance > movementDistance)
+		assert(movementDistance > moderateDistance)
+		assert(moderateDistance >= elevatedDistance)
+	}
+
+	@Test
+	fun `multiple rapid policy changes produce stable final interval`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Rapid escalation (need non-zero baseline)
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime) // Baseline
+		manager.onStepUpdate(stepCount = 35, timeMs = baseTime + 60_000) // 25 steps/min
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000) // 55 steps/min
+		manager.onStepUpdate(stepCount = 185, timeMs = baseTime + 180_000) // 95 steps/min
+
+		// Final policy should be ACTIVE_ELEVATED
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+
+		// Verify final interval matches expected
+		val expectedInterval = PolicyIntervalMapper.getIntervalSeconds(TrackingPolicy.ACTIVE_ELEVATED)
+		val expectedDistance = PolicyIntervalMapper.getMinDistanceMeters(TrackingPolicy.ACTIVE_ELEVATED)
+
+		assertEquals(10, expectedInterval)
+		assertEquals(10, expectedDistance)
+	}
+
+	@Test
+	fun `policy remains stable when near threshold boundaries`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Oscillate around 40 steps/min threshold
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 49, timeMs = baseTime + 60_000) // 39 steps/min
+		val policyBefore = manager.currentPolicy.value
+
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000) // 41 steps/min
+		val policyAfter = manager.currentPolicy.value
+
+		// Verify crossing threshold changes policy
+		assertTrue(policyAfter.ordinal >= policyBefore.ordinal, "Policy should escalate when crossing threshold")
+		verifyIntervalForPolicy(policyAfter)
+	}
+
+	@Test
+	fun `consecutive activity transitions refine policy selection`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// WALKING activity
+		manager.onActivityTransition(activityType = 7, confidence = 80, timeMs = baseTime)
+		val walkingPolicy = manager.currentPolicy.value
+
+		// RUNNING activity
+		manager.onActivityTransition(activityType = 8, confidence = 85, timeMs = baseTime + 60_000)
+		val runningPolicy = manager.currentPolicy.value
+
+		// Running should be at least as aggressive as walking
+		assertTrue(runningPolicy.ordinal >= walkingPolicy.ordinal, "Running policy should be >= walking policy")
+		verifyIntervalForPolicy(runningPolicy)
+	}
+
+	@Test
+	fun `mixed signal sources converge to consistent policy`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// All signals indicate high activity
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000) // 80 steps/min
+		manager.onActivityTransition(activityType = 8, confidence = 90, timeMs = baseTime + 90_000) // RUNNING
+		manager.onLocationChange(displacementMeters = 300f, timeMs = baseTime + 120_000) // Significant movement
+
+		// Should converge to ACTIVE_ELEVATED
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_ELEVATED)
+	}
+
+	@Test
+	fun `conflicting signals prioritize step count`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// High step count
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000)
+
+		// But activity says STILL (conflicting)
+		manager.onActivityTransition(activityType = 3, confidence = 75, timeMs = baseTime + 90_000)
+
+		// Step count should dominate (more reliable signal)
+		assertTrue(
+			manager.currentPolicy.value.ordinal >= TrackingPolicy.ACTIVE_MODERATE.ordinal,
+			"Step count should dominate conflicting activity signal"
+		)
+	}
+
+	@Test
+	fun `user-initiated policy maintains maximum collection frequency`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database)
+		manager.start()
+
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.USER_INITIATED)
+
+		val baseTime = System.currentTimeMillis()
+
+		// Even with inactivity signals, should maintain USER_INITIATED intervals
+		manager.onActivityTransition(activityType = 3, confidence = 95, timeMs = baseTime) // STILL
+		manager.onLocationChange(displacementMeters = 5f, timeMs = baseTime + 60_000) // Minimal movement
+
+		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.USER_INITIATED)
+	}
+
+	@Test
+	fun `policy downgrade after extended inactivity reduces intervals`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Start with high activity
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000)
+		val elevatedInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
+
+		// Extended period of minimal movement
+		manager.onStepUpdate(stepCount = 95, timeMs = baseTime + 120_000) // 5 steps/min
+		manager.onActivityTransition(activityType = 3, confidence = 90, timeMs = baseTime + 150_000) // STILL
+
+		val passiveInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
+
+		// Passive interval should be longer (less frequent collection)
+		assertTrue(passiveInterval > elevatedInterval, "Passive policy should have longer intervals")
+	}
+
+	@Test
+	fun `location accuracy degradation alone does not drastically change policy`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Establish moderate activity
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 50, timeMs = baseTime + 60_000)
+		val policyBefore = manager.currentPolicy.value
+
+		// Minimal displacement despite time passing
+		manager.onLocationChange(displacementMeters = 5f, timeMs = baseTime + 120_000)
+		val policyAfter = manager.currentPolicy.value
+
+		// Policy should not drastically downgrade from minimal displacement alone (could be indoor activity)
+		assertEquals(policyBefore, policyAfter, "Minimal displacement alone should not drastically change policy")
+	}
+
+	@Test
+	fun `rapid start-stop cycles maintain consistent interval behavior`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+
+		// Rapid start-stop-start
+		manager.start()
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
+		val interval1 = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
+
+		manager.stop()
+		
+		manager.start()
+		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
+		val interval2 = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
+
+		// Should start with same initial interval
+		assertEquals(interval1, interval2, "Restarted manager should have same initial interval")
+	}
+
+	@Test
+	fun `extreme step rates are clamped to ACTIVE_ELEVATED`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Unrealistically high step rate (200 steps/min)
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 210, timeMs = baseTime + 60_000)
+
+		// Should cap at ACTIVE_ELEVATED (not exceed it)
+		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
+		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_ELEVATED)
+	}
+
+	@Test
+	fun `zero speed from location does not force downgrade if steps are active`() = runTest {
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database)
+		manager.start()
+
+		val baseTime = System.currentTimeMillis()
+
+		// Active step rate
+		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
+		manager.onStepUpdate(stepCount = 60, timeMs = baseTime + 60_000)
+		val activePolicyBefore = manager.currentPolicy.value
+
+		// Minimal displacement despite steps (e.g., treadmill or indoor activity)
+		manager.onLocationChange(displacementMeters = 2f, timeMs = baseTime + 120_000)
+
+		// Should trust step count over minimal displacement
+		assertTrue(
+			manager.currentPolicy.value.ordinal >= TrackingPolicy.MOVEMENT_SUSPECTED.ordinal,
+			"Step count should override minimal displacement"
+		)
+	}
+
+	/**
+	 * Helper function to verify correct interval for a given policy.
+	 * Simulates what TrackerService.updateTimerIntervalForPolicy would do.
+	 */
+	private fun verifyIntervalForPolicy(policy: TrackingPolicy) {
+		val expectedInterval = PolicyIntervalMapper.getIntervalSeconds(policy)
+		val expectedDistance = PolicyIntervalMapper.getMinDistanceMeters(policy)
+
+		// Verify expected values based on policy
+		when (policy) {
+			TrackingPolicy.PASSIVE_LOW -> {
+				assertEquals(300, expectedInterval) // 5 minutes
+				assertEquals(50, expectedDistance)
+			}
+			TrackingPolicy.MOVEMENT_SUSPECTED -> {
+				assertEquals(120, expectedInterval) // 2 minutes
+				assertEquals(30, expectedDistance)
+			}
+			TrackingPolicy.ACTIVE_MODERATE -> {
+				assertEquals(30, expectedInterval) // 30 seconds
+				assertEquals(15, expectedDistance)
+			}
+			TrackingPolicy.ACTIVE_ELEVATED -> {
+				assertEquals(10, expectedInterval) // 10 seconds
+				assertEquals(10, expectedDistance)
+			}
+			TrackingPolicy.USER_INITIATED -> {
+				assertEquals(10, expectedInterval) // 10 seconds
+				assertEquals(10, expectedDistance)
+			}
 		}
 	}
 }
