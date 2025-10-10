@@ -24,8 +24,10 @@ typealias SunSetRiseChangeListener = (SunSetRise) -> Unit
 
 /**
  * Class used for calculation of next sunset and sunrise.
+ * 
+ * Future: Integrate with centralized location provider to avoid duplicate
+ * passive location requests across features (theme, tracking, etc.).
  */
-//todo add central location API to better manage passive location updates in the future
 @Suppress("MemberVisibilityCanBePrivate")
 class SunSetRise {
     private val locationLock = ReentrantLock()

@@ -11,9 +11,11 @@ import com.adsamcik.tracker.shared.base.R
 
 @RequiresApi(26)
 /**
- * Singleton that creates notification channels
+ * Singleton that creates notification channels.
+ * 
+ * Future: Consider plugin system for modules to register their own channels
+ * via a central registry to avoid tight coupling.
  */
-//todo add option for modules to add channels
 object NotificationChannels {
 
 	/**

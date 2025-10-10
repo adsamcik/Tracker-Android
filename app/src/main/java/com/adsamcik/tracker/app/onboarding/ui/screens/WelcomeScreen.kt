@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -43,7 +43,7 @@ fun WelcomeScreen(
         
         // Hero section with app branding
         Icon(
-            imageVector = Icons.Default.LocationOn, // TODO: Replace with actual app icon
+            imageVector = Icons.Default.MyLocation,
             contentDescription = "Tracker (Advention) App Icon",
             modifier = Modifier.size(120.dp),
             tint = MaterialTheme.colorScheme.primary

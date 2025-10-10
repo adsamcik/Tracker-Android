@@ -41,7 +41,8 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 	}
 
 	@Suppress("MagicNumber", "ComplexMethod")
-	//todo add confidence calculation
+	// Determines activity based on speed when GPS is more reliable than activity recognition
+	// Future: Add weighted confidence calculation combining speed + sensor data
 	private fun determineActivityBySpeed(speed: Float, activity: ActivityInfo): ActivityInfo {
 		return when {
 			speed > MAX_RUN_SPEED_METERS_PER_SECOND && isOnFoot(activity) -> {

@@ -1,29 +1,21 @@
 package com.adsamcik.tracker.points.database
 
 import android.app.Application
-import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.Observer
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.fail
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class PointsAwardedDaoTest {
-
-    @get:Rule
-    val instantTaskExecutorRule = InstantTaskExecutorRule()
 
 	private lateinit var database: PointsDatabase
 	private lateinit var dao: PointsAwardedDao
@@ -48,11 +40,11 @@ class PointsAwardedDaoTest {
     }
 
     @Test
-    fun countBetweenLiveEmitsZeroAndUpdatesAfterInsert() {
+    fun countBetweenFlowEmitsZeroAndUpdatesAfterInsert() = runBlocking {
         val now = 10_000L
-        val liveData = dao.countBetweenLive(0L, now)
+        val flow = dao.countBetweenFlow(0L, now)
 
-        val initial = liveData.getOrAwaitValue()
+        val initial = flow.first()
         assertEquals(0, initial)
 
         dao.insert(
@@ -63,32 +55,7 @@ class PointsAwardedDaoTest {
             )
         )
 
-        val updated = liveData.getOrAwaitValue()
+        val updated = flow.first()
         assertEquals(42, updated)
-    }
-
-    private fun <T> LiveData<T>.getOrAwaitValue(
-        time: Long = 2,
-        timeUnit: TimeUnit = TimeUnit.SECONDS
-    ): T {
-        var data: T? = null
-        val latch = CountDownLatch(1)
-        val observer = object : Observer<T> {
-            override fun onChanged(value: T) {
-                data = value
-                latch.countDown()
-                this@getOrAwaitValue.removeObserver(this)
-            }
-        }
-
-        observeForever(observer)
-
-        if (!latch.await(time, timeUnit)) {
-            removeObserver(observer)
-            fail("LiveData value was never set.")
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        return data as T
     }
 }

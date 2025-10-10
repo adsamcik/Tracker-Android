@@ -103,7 +103,7 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 		val sample = CellSample(
 			timeMs = time,
 			cellId = cell.cellId.toInt(),
-			lac = 0, // TODO: Extract LAC if available from CellInfo
+			lac = 0, // LAC not currently extracted from CellInfo; would require per-network-type parsing
 			mcc = cell.networkOperator.mcc.toIntOrNull() ?: 0,
 			mnc = cell.networkOperator.mnc.toIntOrNull() ?: 0,
 			networkType = cell.type.ordinal,

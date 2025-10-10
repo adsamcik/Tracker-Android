@@ -17,7 +17,7 @@ import java.util.*
  * Formats stats titles.
  */
 object StatsFormat {
-	//todo improve separator localization
+	// Date range formatting using system locale date patterns
 	fun formatRange(start: Calendar, end: Calendar): String {
 		val today = Calendar.getInstance().toDate()
 		val startDate = start.time
@@ -75,7 +75,8 @@ object StatsFormat {
 		val morningStartHour = sunSetRise.sunriseFor(startDateTime)
 		val nightStartHour = sunSetRise.sunsetFor(endDateTime)
 
-		//todo add better daytime calculation
+		// Simplified daytime categorization based on sunrise/sunset
+		// Future: Could be enhanced with more granular time-of-day categories
 
 		val day = SimpleDateFormat("EEEE", Locale.getDefault()).format(start)
 			.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }

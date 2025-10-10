@@ -7,7 +7,11 @@ typealias PermissionResultCallback = (result: PermissionRequestResult) -> Unit
 typealias RationaleCallback = (token: PermissionRequest.Token, permissionList: List<PermissionData>) -> Unit
 
 /**
- * Permission request (temporary stub for Stage 0)
+ * Permission request data class for Activity Result API-based permission requests.
+ * 
+ * Contract: Encapsulates permission request with callbacks for result and rationale handling.
+ * Inputs: Context, permission list, result callback, optional rationale callback.
+ * Outputs: Triggers callbacks when permissions are granted/denied or rationale needed.
  */
 @Suppress("unused")
 class PermissionRequest private constructor(
@@ -18,21 +22,24 @@ class PermissionRequest private constructor(
 ) {
 
     /**
-     * Request token (temporary stub)
+     * Token provided to rationale callback for continuing or cancelling the permission request.
      */
-    class Token {
+    class Token internal constructor(
+        private val onContinue: () -> Unit,
+        private val onCancel: () -> Unit
+    ) {
         /**
-         * Resumes permission request (stub)
+         * Resumes permission request after showing rationale.
          */
         fun continuePermissionRequest() {
-            // TODO: Replace with Activity Result API
+            onContinue()
         }
 
         /**
-         * Cancels permission request (stub)
+         * Cancels permission request (user declined after seeing rationale).
          */
         fun cancelPermissionRequest() {
-            // TODO: Replace with Activity Result API
+            onCancel()
         }
     }
 

@@ -4,7 +4,7 @@ import android.os.Build
 
 /**
  * Returns true if mocking should be used.
- * Todo: replace with Mockito in the future or some similar framework
+ * Uses either emulator detection or test mode.
  */
 val useMock: Boolean = isEmulator.or(isTestMode)
 

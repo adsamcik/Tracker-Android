@@ -10,6 +10,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
@@ -128,6 +129,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		requireNotNull(sessionComponent).onDataUpdated(tempData, collectionData)
 
+		// Emit updated session and collection data to Flows
+		_sessionFlow.value = session
+		_collectionDataFlow.value = collectionData
+
 		postComponentList
 				.asSequence()
 				.filter { it.requirementsMet(tempData) }
@@ -194,10 +199,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
 
-		// Emit state to Flow for Compose UI observation
-		_sessionFlow.value = session
-		_collectionDataFlow.value = collectionData
-
 		TrackerListenerManager.send(this, session, collectionData)
 	}
 
@@ -241,6 +242,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			onEnable(this@TrackerService)
 		}
 
+		// Emit initial session to Flow
+		_sessionFlow.value = session
+
 		// DispatchersProvider injection from AppGraph intentionally avoided to keep tracker module
 		// independent of app module. DataProducerManager falls back to its internal default provider.
 		dataProducerManager = DataProducerManager(this).apply { onEnable() }
@@ -279,7 +283,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(WifiTrackerComponent())
 		}.forEach { it.onEnable(this) }
 
-		// todo add only components that can actually be used
+		// Add post-processing components
+		// Future: Filter based on available sensors/permissions
 		postComponentList.apply {
 			add(notificationComponent)
 			add(DatabaseCellComponent())
@@ -306,6 +311,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		_isServiceRunning.value = true
 
 		this.sessionInfo = TrackerSessionInfo(isUserInitiated)
+		_sessionInfoFlow.value = this.sessionInfo
 		sessionInfoMutable.value = this.sessionInfo
 
 		if (!isUserInitiated) {
@@ -416,6 +422,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private fun onDestroyServiceMetaData() {
 		_isServiceRunning.value = false
+		_sessionInfoFlow.value = null
 		sessionInfoMutable.value = null
 		_sessionFlow.value = null
 		_collectionDataFlow.value = null
@@ -465,9 +472,35 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	companion object {
-		private val _isServiceRunning = MutableStateFlow(false)
-		val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
-		val isServiceRunning: Boolean get() = _isServiceRunning.value
+	private val _isServiceRunning = MutableStateFlow(false)
+	val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
+	val isServiceRunning: Boolean get() = _isServiceRunning.value
+
+		private val _sessionInfoFlow = MutableStateFlow<TrackerSessionInfo?>(null)
+		
+		/**
+		 * Current information about session as Flow.
+		 * Null when no session is active.
+		 */
+		val sessionInfoFlow: StateFlow<TrackerSessionInfo?> get() = _sessionInfoFlow
+
+		private val _sessionFlow = MutableStateFlow<TrackerSession?>(null)
+		
+		/**
+		 * Current full session data as Flow.
+		 * Contains all runtime metrics: distance, steps, collections, timestamps.
+		 * Null when no session is active.
+		 */
+		val sessionFlow: StateFlow<TrackerSession?> get() = _sessionFlow
+
+		private val _collectionDataFlow = MutableStateFlow<CollectionData?>(null)
+		
+		/**
+		 * Current collection data as Flow.
+		 * Contains live tracking data: location, activity, wifi, cell.
+		 * Null when no session is active or no data collected yet.
+		 */
+		val collectionDataFlow: StateFlow<CollectionData?> get() = _collectionDataFlow
 
 		private val sessionInfoMutable: MutableLiveData<TrackerSessionInfo?> = MutableLiveData()
 
@@ -475,37 +508,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		 * Current information about session (LiveData, deprecated).
 		 * Null when no session is active.
 		 * 
-		 * @deprecated Use [sessionFlow] for Flow-based reactivity. LiveData will be removed in a future release.
-		 * Migration: Replace `sessionInfo.observe(owner) { ... }` with `lifecycleScope.launch { sessionFlow.collectLatest { ... } }`
+		 * @deprecated Use sessionInfoFlow instead. LiveData support will be removed in a future release.
 		 */
 		@Deprecated(
-			message = "Use sessionFlow instead for Flow-based reactivity",
-			replaceWith = ReplaceWith("sessionFlow"),
+			message = "Use sessionInfoFlow instead. LiveData support will be removed.",
+			replaceWith = ReplaceWith("sessionInfoFlow"),
 			level = DeprecationLevel.WARNING
 		)
 		val sessionInfo: LiveData<TrackerSessionInfo?> get() = sessionInfoMutable
 
-		// Flow-based state exposure (evergreen migration from LiveData)
-		private val _sessionFlow = MutableStateFlow<TrackerSession?>(null)
-		
-		/**
-		 * Current tracking session state (Flow).
-		 * Emits session updates after each data collection cycle.
-		 * Null when no session is active.
-		 */
-		val sessionFlow: StateFlow<TrackerSession?> get() = _sessionFlow
-
-		private val _collectionDataFlow = MutableStateFlow<com.adsamcik.tracker.shared.base.data.CollectionData?>(null)
-		
-		/**
-		 * Latest collection data (Flow).
-		 * Emits after each successful data collection cycle.
-		 * Null when no tracking is active or data collection failed.
-		 * 
-		 * Note: Emissions happen every 10-300 seconds depending on tracking policy.
-		 * Use distinctUntilChanged or debounce if needed to reduce recomposition frequency.
-		 */
-		val collectionDataFlow: StateFlow<com.adsamcik.tracker.shared.base.data.CollectionData?> get() = _collectionDataFlow
 
 		const val ARG_IS_USER_INITIATED = "userInitiated"
 		private const val DEFAULT_IS_USER_INITIATED = false

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.settings
 
 import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -25,6 +26,7 @@ import com.adsamcik.tracker.shared.base.di.LocalViewModelFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens
 @OptIn(ExperimentalMaterial3Api::class)
@@ -187,9 +189,13 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         item {
             SettingsItem(
                 title = stringResource(R.string.settings_language_title),
-                subtitle = stringResource(R.string.settings_language_summary, "English"), // TODO: Get actual language
+                subtitle = stringResource(R.string.settings_language_summary, Locale.getDefault().displayLanguage),
                 icon = Icons.Default.Translate,
-                onClick = { /* TODO: Language picker */ }
+                onClick = {
+                    // Open system language settings
+                    val intent = Intent(Settings.ACTION_LOCALE_SETTINGS)
+                    context.startActivity(intent)
+                }
             )
         }
 

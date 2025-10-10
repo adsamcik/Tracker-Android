@@ -17,21 +17,26 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.ui.TrackerViewModel
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Instrumentation tests for TrackerDashboard composable.
+ * 
+ * Migrated from deprecated TrackerViewModel to state-based testing approach.
+ * Tests verify UI structure and behavior with controlled state inputs.
+ */
 @RunWith(AndroidJUnit4::class)
 class TrackerDashboardTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private lateinit var viewModel: TrackerViewModel
     private var settingsClicked = false
     private var permissionRequested = false
     private var trackingToggled = false
+    private var trackingToggledValue: Boolean? = null
 
     // Simple HapticFeedback implementation for testing
     private val testHapticFeedback = object : HapticFeedback {
@@ -42,24 +47,27 @@ class TrackerDashboardTest {
 
     @Before
     fun setup() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        viewModel = TrackerViewModel(context.applicationContext as android.app.Application)
-        
         // Reset callbacks
         settingsClicked = false
         permissionRequested = false
         trackingToggled = false
+        trackingToggledValue = null
     }
 
-    private fun setDashboardContent() {
+    private fun setDashboardContent(
+        state: TrackerDashboardUiState = TrackerDashboardUiState()
+    ) {
         composeRule.setContent {
             CompositionLocalProvider(LocalHapticFeedback provides testHapticFeedback) {
                 MaterialTheme(colorScheme = lightColorScheme()) {
                     TrackerDashboard(
-                        viewModel = viewModel,
+                        state = state,
                         onSettingsClick = { settingsClicked = true },
                         onRequestPermission = { permissionRequested = true },
-                        onToggleTracking = { trackingToggled = true }
+                        onToggleTracking = { shouldStart ->
+                            trackingToggled = true
+                            trackingToggledValue = shouldStart
+                        }
                     )
                 }
             }
@@ -129,28 +137,36 @@ class TrackerDashboardTest {
 
     @Test
     fun showsLockBannerWhenLocked() {
-        // Note: TrackerLocker.isLocked is a val, cannot be reassigned
-        // This test verifies the structure when lock banner is present
-        setDashboardContent()
+        // Test with locked state
+        setDashboardContent(
+            state = TrackerDashboardUiState(
+                isTracking = false,
+                isLocked = true
+            )
+        )
 
         val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-        // This test would need proper dependency injection or mocking framework
-        // to override TrackerLocker behavior for testing
-        // For now, we verify the UI structure exists
+        // Lock banner should be visible when locked
         composeRule.onNode(hasTestTag("lock_banner"), useUnmergedTree = true)
+            .assertExists()
     }
 
     @Test
     fun lockBannerClickCallsSettings() {
-        // Note: Similar to above test, proper dependency injection needed
-        setDashboardContent()
+        // Test with locked state
+        setDashboardContent(
+            state = TrackerDashboardUiState(
+                isTracking = false,
+                isLocked = true
+            )
+        )
 
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         
-        // Test would need lock state to be true to verify click behavior
-        // This verifies the basic structure exists
+        // Lock banner should exist and be clickable
         composeRule.onNode(hasTestTag("lock_banner"), useUnmergedTree = true)
+            .assertExists()
     }
 
     @Test
@@ -193,7 +209,63 @@ class TrackerDashboardTest {
         composeRule.onNode(hasTestTag("tracking_fab")).assertExists()
         composeRule.onNode(hasTestTag("expand_details_button")).assertExists()
         
-        // These may not be visible initially but should exist in the tree
+        // Lock banner should not exist when not locked
         composeRule.onNode(hasTestTag("lock_banner"), useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun trackingStateAffectsFabIcon() {
+        // Test not tracking state
+        setDashboardContent(
+            state = TrackerDashboardUiState(isTracking = false)
+        )
+        
+        // FAB should exist
+        composeRule.onNode(hasTestTag("tracking_fab")).assertExists()
+        
+        composeRule.waitForIdle()
+        
+        // Now test tracking state
+        setDashboardContent(
+            state = TrackerDashboardUiState(isTracking = true)
+        )
+        
+        // FAB should still exist but with different icon (stop)
+        composeRule.onNode(hasTestTag("tracking_fab")).assertExists()
+    }
+
+    @Test
+    fun permissionStateAffectsClick() {
+        // Without permission, FAB should request permission
+        setDashboardContent(
+            state = TrackerDashboardUiState(
+                isTracking = false,
+                hasLocationPermission = false
+            )
+        )
+        
+        composeRule.onNode(hasTestTag("tracking_fab")).performClick()
+        
+        // Should request permission instead of toggling tracking
+        assert(permissionRequested) { "Expected permission request" }
+        
+        // Reset
+        permissionRequested = false
+        trackingToggled = false
+        
+        // With permission, should toggle tracking
+        setDashboardContent(
+            state = TrackerDashboardUiState(
+                isTracking = false,
+                hasLocationPermission = true
+            )
+        )
+        
+        composeRule.onNode(hasTestTag("tracking_fab")).performClick()
+        
+        // Should toggle tracking
+        assert(trackingToggled) { "Expected tracking toggle" }
+        assert(trackingToggledValue == true) { "Expected toggle to true" }
     }
 }

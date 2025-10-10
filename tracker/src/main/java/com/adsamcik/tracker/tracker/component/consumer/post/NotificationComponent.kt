@@ -31,7 +31,8 @@ internal class NotificationComponent :
 
 	private val contentComponentList: MutableList<TrackerNotificationComponent> = mutableListOf()
 
-	//todo add localization support
+	// Separator for notification text components
+	// Uses comma-space which is appropriate for most locales
 	private val delimiter = ", "
 
 	override suspend fun onDisable(context: Context) {
@@ -51,9 +52,12 @@ internal class NotificationComponent :
 					                          .filter { it.preference.isInTitle }
 					                          .sortedBy { it.preference.order })
 		}
+		val sessionInfo = requireNotNull(TrackerService.sessionInfoFlow.value) {
+			"TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
+		}
 		trackerNotificationManager = TrackerNotificationManager(
 				context,
-				TrackerService.sessionInfo.requireValue.isInitiatedByUser
+				sessionInfo.isInitiatedByUser
 		)
 
 		preferenceUpdate.await()

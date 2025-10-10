@@ -19,6 +19,8 @@ import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.service.TrackerService
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Singleton that takes care of tracking locks.
@@ -36,10 +38,24 @@ object TrackerLocker {
 	private var lockedUntilTime: Long = 0
 	private var lockedUntilRecharge = false
 
+	private val _isLockedFlow = MutableStateFlow(false)
+	
 	/**
-	 * Live object that can be observed
-	 * returns true if any lockTimeLock is currently engaged
+	 * Flow that emits true if any lock is currently engaged.
 	 */
+	val isLockedFlow: StateFlow<Boolean> get() = _isLockedFlow
+
+	/**
+	 * Live object that can be observed (deprecated).
+	 * Returns true if any lock is currently engaged.
+	 * 
+	 * @deprecated Use isLockedFlow instead. LiveData support will be removed in a future release.
+	 */
+	@Deprecated(
+		message = "Use isLockedFlow instead. LiveData support will be removed.",
+		replaceWith = ReplaceWith("isLockedFlow"),
+		level = DeprecationLevel.WARNING
+	)
 	val isLocked: NonNullLiveMutableData<Boolean> by lazy {
 		NonNullLiveMutableData(isLockedRightNow())
 	}
@@ -109,13 +125,15 @@ object TrackerLocker {
 
 	private fun refreshLockState(context: Context) {
 		val isLockedRightNow = isLockedRightNow()
-		if (isLockedRightNow != isLocked.value) {
+		if (isLockedRightNow != _isLockedFlow.value) {
+			_isLockedFlow.value = isLockedRightNow
+			@Suppress("DEPRECATION")
 			isLocked.postValue(isLockedRightNow)
 		}
 
 		pokeWatcherService(context)
 
-		if (isLockedRightNow && TrackerService.sessionInfo.value?.isInitiatedByUser == false) {
+		if (isLockedRightNow && TrackerService.sessionInfoFlow.value?.isInitiatedByUser == false) {
 			context.stopService<TrackerService>()
 		}
 	}

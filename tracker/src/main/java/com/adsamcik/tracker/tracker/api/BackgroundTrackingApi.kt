@@ -33,11 +33,13 @@ object BackgroundTrackingApi {
 	var isActive: Boolean = false
 		private set
 
-	//todo add option for this in settings
+	// Minimum confidence threshold for activity recognition
+	// Future: Make configurable via settings (requires UI + preference storage)
 	private const val REQUIRED_CONFIDENCE = 75
 	private var appContext: Context? = null
 
-	//todo add this as option
+	// Activity change callback for automatic tracking control
+	// Future: Expose callback configuration in advanced settings
 	private val callback: ActivityChangeRequestCallback = { context, activity, _ ->
 		if (activity.confidence >= REQUIRED_CONFIDENCE) {
 			if (TrackerServiceApi.isActive) {

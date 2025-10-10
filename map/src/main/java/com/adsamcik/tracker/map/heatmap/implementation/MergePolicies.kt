@@ -5,7 +5,8 @@ object MergePolicies {
     // Weight merges
     val additive: WeightMergeFunction = { current, _, stampValue, value -> current + stampValue * value }
 
-    val maximum: WeightMergeFunction = { current, _, _, value -> kotlin.math.max(current, value) }
+    /** Maximum incorporating stamp falloff to avoid hard-edged discs. */
+    val maximum: WeightMergeFunction = { current, _, stampValue, value -> kotlin.math.max(current, stampValue * value) }
 
     /** Lerp new into current using existing alpha as blend factor (0..255). */
     val alphaLerp: WeightMergeFunction = { current, currentAlpha, _, newValue ->

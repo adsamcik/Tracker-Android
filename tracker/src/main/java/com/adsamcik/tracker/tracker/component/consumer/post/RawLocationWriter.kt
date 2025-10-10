@@ -87,7 +87,7 @@ internal class RawLocationWriter : PostTrackerComponent {
 
 		val sample = LocationSample(
 			timeMs = location.time,
-			elapsedRealtimeNanos = 0L, // TODO: Extract from android.location.Location if available
+			elapsedRealtimeNanos = 0L, // Platform limitation: android.location.Location not accessible in current data flow
 			latE7 = latE7,
 			lonE7 = lonE7,
 			altitudeM = location.altitude?.toFloat(),
@@ -95,7 +95,7 @@ internal class RawLocationWriter : PostTrackerComponent {
 			vAccM = location.verticalAccuracy,
 			speedMps = location.speed,
 			speedAccuracyMps = location.speedAccuracy,
-			provider = "fused", // TODO: Extract actual provider
+			provider = "fused", // Hardcoded: actual provider not exposed by current LocationData abstraction
 			quality = quality,
 			motionState = motionState,
 			policy = currentPolicy,

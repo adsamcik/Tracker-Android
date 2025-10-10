@@ -37,7 +37,7 @@ class GpxExporter : Exporter {
 			)
 		}.addTrack { track ->
 			track.addSegment { segment ->
-				//todo add support for multiple segments
+				// Single segment per track; future enhancement: split on time gaps or motion state
 				locationData.forEach {
 					val altitude = it.altitude
 

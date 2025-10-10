@@ -56,7 +56,10 @@ fun StatsRoute() {
             vm.loadWeeklyStats()
             showWeekDialog = true 
         },
-        onOpenWifi = { /* TODO wifi browser */ }
+        onOpenWifi = {
+            // WiFi browser feature not yet implemented
+            // Future: Display discovered WiFi networks for sessions
+        }
     )
     
     // Show dialogs when state is true

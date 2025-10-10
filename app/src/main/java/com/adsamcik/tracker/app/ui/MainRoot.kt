@@ -79,15 +79,7 @@ fun MainRoot(startDestination: String = Routes.Tracker, onRouteChanged: (String)
             composable(Routes.Stats) { com.adsamcik.tracker.statistics.fragment.StatsRoute() }
             composable(Routes.Game) { com.adsamcik.tracker.game.ui.compose.GameRoute() }
             composable(Routes.Debug) { com.adsamcik.tracker.app.debug.DebugRoute() }
-            composable(Routes.Settings) { 
-                com.adsamcik.tracker.app.settings.SettingsRoute(
-                    onNavigateToDebug = {
-                        navController.navigate(Routes.Debug) {
-                            launchSingleTop = true
-                        }
-                    }
-                )
-            }
+            composable(Routes.Settings) { com.adsamcik.tracker.app.settings.SettingsRoute() }
         }
 
         // Bottom navigation with center prominence

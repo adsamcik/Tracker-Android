@@ -17,11 +17,14 @@ import com.adsamcik.tracker.shared.base.graph.topSort
 import io.requery.android.database.sqlite.SQLiteDatabase
 import java.io.File
 
-//todo UNIQUE constraint can fail the import -> using autoincrement could break foreign keys
-//todo Add import using ROOM for cases where it is old database and could be brought up to date with migrations
-// keep normal import intact to ensure any database with proper structure can be imported
 /**
  * Imports data from database file.
+ * 
+ * Known limitations:
+ * - UNIQUE constraint violations may fail import; autoincrement usage could break foreign keys
+ * - Direct SQL copy approach; consider Room-based migration for schema version mismatches
+ * 
+ * Current implementation preserves ability to import any structurally compatible database.
  */
 internal class DatabaseImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
@@ -171,7 +174,8 @@ internal class DatabaseImport : FileImport {
 					values.toTypedArray()
 			)
 		} catch (e: SQLiteConstraintException) {
-			//todo handle this case better
+			// Constraint violation handling: activity table duplicates are silently skipped
+			// Other tables rethrow to fail fast and alert user
 			if (tableName == "activity") {
 				return
 			} else {

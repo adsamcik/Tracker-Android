@@ -88,7 +88,7 @@ internal class AgeWeightedHeatmap(
         weightMergeFunction: WeightMergeFunction = this::mergeWeightDefault,
     alphaMergeFunction: AlphaMergeFunction = this::mergeAlphaDefault
     ) {
-        //todo validate that odd numbers don't cause some weird artifacts
+        // Stamp dimensions are asserted to be odd during construction
         val halfStampHeight = stamp.height / 2
         val halfStampWidth = stamp.width / 2
 

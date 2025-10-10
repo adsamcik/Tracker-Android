@@ -18,7 +18,6 @@ object Process {
 	 *
 	 * @return True if process is main or detection fails, because there is not much else to be done.
 	 */
-	//todo test this
 	fun isMainProcess(context: Context): Boolean {
 		return context.applicationInfo.processName == getName(context)
 	}

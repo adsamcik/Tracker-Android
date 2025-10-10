@@ -9,6 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.asFlow
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.TrackerService
@@ -38,16 +40,14 @@ fun TrackerRoute(
     // Observe tracking state from TrackerService
     val isTracking by TrackerService.isServiceRunningFlow.collectAsState()
     
-    // Observe locker state (LiveData → Flow via asFlow())
-    val isLocked by TrackerLocker.isLocked.asFlow().collectAsState(initial = false)
+    // Observe locker state (Flow)
+    val isLocked by TrackerLocker.isLockedFlow.collectAsState()
     
-    // Observe session info (LiveData → Flow via asFlow())
-    val sessionInfo by TrackerService.sessionInfo.asFlow().collectAsState(initial = null)
+    // Observe session info (Flow)
+    val sessionInfo by TrackerService.sessionInfoFlow.collectAsState()
     
-    // Observe session data (Flow - native)
+    // Observe full session and collection data (Flow)
     val sessionData by TrackerService.sessionFlow.collectAsState()
-    
-    // Observe collection data (Flow - native)
     val collectionData by TrackerService.collectionDataFlow.collectAsState()
     
     TrackerDashboard(

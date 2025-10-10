@@ -1,6 +1,7 @@
 # TrackerRoute State Migration Progress
 
 **Date**: October 6, 2025  
+**Updated**: October 9, 2025  
 **Branch**: dev/v10  
 **Scope**: TrackerRoute.kt LiveData → Flow migration
 
@@ -9,6 +10,8 @@
 ## Summary
 
 Successfully migrated TrackerRoute to observe **live state** from TrackerService and TrackerLocker using Flow-based APIs. Eliminated all stubbed state except for `sessionData` and `collectionData`, which require deeper service-level refactoring.
+
+**Note**: Legacy `TrackerViewModel` and `SessionUpdateReceiver` remain in codebase with ERROR-level deprecation suppressions. See [TRACKER_VIEWMODEL_DEPRECATION_STATUS.md](TRACKER_VIEWMODEL_DEPRECATION_STATUS.md) for removal timeline.
 
 ---
 

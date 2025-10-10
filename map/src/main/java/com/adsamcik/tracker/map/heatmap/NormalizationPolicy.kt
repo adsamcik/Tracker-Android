@@ -86,15 +86,43 @@ internal object NormalizationPolicy {
         return smoothed to nowMs
     }
 
-    /** Default blur radius heuristic based on active coverage fraction. */
-    fun blurRadiusFor(coverage: Float): Int = when {
-        coverage < LOW_COVERAGE_THRESHOLD -> BLUR_RADIUS_LOW_COVERAGE
-        coverage < BLUR_COVERAGE_THRESHOLD -> BLUR_RADIUS_MEDIUM_COVERAGE
-        else -> BLUR_RADIUS_HIGH_COVERAGE
+    /** Default blur radius heuristic based on active coverage fraction with smooth transitions. */
+    fun blurRadiusFor(coverage: Float): Int {
+        return when {
+            // Very low coverage: full blur
+            coverage < LOW_COVERAGE_THRESHOLD -> BLUR_RADIUS_LOW_COVERAGE
+            // Transition zone (0.05 .. 0.15): lerp between 2 and 1
+            coverage < MEDIUM_COVERAGE_THRESHOLD -> {
+                val t = (coverage - LOW_COVERAGE_THRESHOLD) / (MEDIUM_COVERAGE_THRESHOLD - LOW_COVERAGE_THRESHOLD)
+                val blurFloat = BLUR_RADIUS_LOW_COVERAGE.toFloat() * (1f - t) + BLUR_RADIUS_MEDIUM_COVERAGE.toFloat() * t
+                kotlin.math.round(blurFloat).toInt()
+            }
+            // Transition zone (0.15 .. 0.25): lerp between 1 and 0
+            coverage < BLUR_COVERAGE_THRESHOLD -> {
+                val t = (coverage - MEDIUM_COVERAGE_THRESHOLD) / (BLUR_COVERAGE_THRESHOLD - MEDIUM_COVERAGE_THRESHOLD)
+                val blurFloat = BLUR_RADIUS_MEDIUM_COVERAGE.toFloat() * (1f - t) + BLUR_RADIUS_HIGH_COVERAGE.toFloat() * t
+                kotlin.math.round(blurFloat).toInt()
+            }
+            // High coverage: no blur
+            else -> BLUR_RADIUS_HIGH_COVERAGE
+        }
     }
 
-    /** Default cutoff threshold in normalized [0,1] based on coverage. */
-    fun cutoffFor(coverage: Float): Float = if (coverage < BLUR_COVERAGE_THRESHOLD) CUTOFF_LOW_COVERAGE else CUTOFF_HIGH_COVERAGE
+    /** Default cutoff threshold in normalized [0,1] based on coverage with smooth transition. */
+    fun cutoffFor(coverage: Float): Float {
+        // Smooth lerp in the transition zone around BLUR_COVERAGE_THRESHOLD
+        val transitionStart = BLUR_COVERAGE_THRESHOLD - 0.05f
+        val transitionEnd = BLUR_COVERAGE_THRESHOLD + 0.05f
+        
+        return when {
+            coverage < transitionStart -> CUTOFF_LOW_COVERAGE
+            coverage < transitionEnd -> {
+                val t = (coverage - transitionStart) / (transitionEnd - transitionStart)
+                CUTOFF_LOW_COVERAGE * (1f - t) + CUTOFF_HIGH_COVERAGE * t
+            }
+            else -> CUTOFF_HIGH_COVERAGE
+        }
+    }
 
     /** Separable Gaussian blur on a float buffer using pooled scratch arrays. */
     fun gaussianBlur(src: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
