@@ -6,7 +6,12 @@ import com.adsamcik.tracker.game.goals.GoalsSettings
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 
 /**
- * Game module settings
+ * Game module settings.
+ * 
+ * **LEGACY:** This class is retained for preference tests only.
+ * Production UI uses the Compose-based GameSettings() function in app/.../settings/SettingsRoute.kt.
+ * 
+ * @see com.adsamcik.tracker.app.settings.SettingsRoute
  */
 @Suppress("unused")
 class GameSettings : ModuleSettings {

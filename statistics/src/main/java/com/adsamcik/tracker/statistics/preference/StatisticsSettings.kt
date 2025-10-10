@@ -5,7 +5,12 @@ import androidx.preference.SwitchPreferenceCompat
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 
 /**
- * Statistics module settings
+ * Statistics module settings.
+ * 
+ * **LEGACY:** This class is retained for preference tests only.
+ * Production UI uses the Compose-based StatisticsSettings() function in app/.../settings/SettingsRoute.kt.
+ * 
+ * @see com.adsamcik.tracker.app.settings.SettingsRoute
  */
 @Suppress("unused")
 class StatisticsSettings : ModuleSettings {

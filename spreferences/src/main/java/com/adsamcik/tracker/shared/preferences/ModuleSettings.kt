@@ -5,6 +5,13 @@ import androidx.preference.PreferenceScreen
 
 /**
  * Defines structure for dynamic module settings.
+ * 
+ * **LEGACY:** This interface and its implementations are retained for preference tests only.
+ * Production UI uses Compose-based settings in app/.../settings/SettingsRoute.kt.
+ * 
+ * Active implementations: MapSettings, GameSettings, StatisticsSettings (test-only)
+ * 
+ * @see com.adsamcik.tracker.app.settings.SettingsRoute
  */
 interface ModuleSettings {
 	/**

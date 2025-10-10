@@ -8,7 +8,12 @@ import com.adsamcik.tracker.preference.sliders.IntValueSliderPreference
 import com.adsamcik.tracker.shared.preferences.ModuleSettings
 
 /**
- * Module settings for map
+ * Module settings for map.
+ * 
+ * **LEGACY:** This class is retained for preference tests only.
+ * Production UI uses the Compose-based MapSettings() function in app/.../settings/SettingsRoute.kt.
+ * 
+ * @see com.adsamcik.tracker.app.settings.SettingsRoute
  */
 @Suppress("unused")
 class MapSettings : ModuleSettings {
