@@ -1,17 +1,18 @@
 package com.adsamcik.tracker.tracker.shortcut
 
 import android.os.Bundle
+import androidx.activity.ComponentActivity
 import androidx.annotation.RequiresApi
-import androidx.appcompat.app.AppCompatActivity
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts.ShortcutAction
 
 /**
- * ShortcutActivity is activity that handles shortcut actions, so no UI is shown.
+ * ShortcutActivity handles shortcut actions with no UI.
+ * Follows north star: ComponentActivity pattern for consistency.
  */
 @RequiresApi(25)
-class ShortcutActivity : AppCompatActivity() {
+class ShortcutActivity : ComponentActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -39,4 +40,3 @@ class ShortcutActivity : AppCompatActivity() {
 		}
 	}
 }
-

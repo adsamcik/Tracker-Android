@@ -382,4 +382,12 @@ When adding a function/class, define its contract succinctly (inputs, outputs, e
 
 ---
 
+## 27. Commit Message Conventions
+- Use concise, imperative-mood subject lines only (e.g., "Fix heatmap tile caching", "Add battery optimization toggle").
+- No extended description body unless absolutely necessary for complex architectural decisions.
+- Keep commit titles under 72 characters; focus on what changed and why in minimal words.
+- Examples: "Migrate TrackerViewModel to Flow", "Remove legacy XML layouts from map module", "Fix NPE in session aggregation".
+
+---
+
 End of evergreen instructions.

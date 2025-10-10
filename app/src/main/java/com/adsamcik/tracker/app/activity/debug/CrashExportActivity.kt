@@ -1,59 +1,98 @@
 package com.adsamcik.tracker.app.activity.debug
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.compose.ui.Modifier
 import com.adsamcik.tracker.logger.CrashExporter
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import kotlinx.coroutines.launch
-import kotlin.coroutines.CoroutineContext
 
 /**
- * Activity for exporting crash data
+ * Activity for exporting crash data.
+ * Follows north star: ComponentActivity + setContent pattern.
  */
-class CrashExportActivity : AppCompatActivity(), CoroutineScope {
-    
-    private val job = SupervisorJob()
-    override val coroutineContext: CoroutineContext
-        get() = Dispatchers.Main + job
+class CrashExportActivity : ComponentActivity() {
     
     private val directoryPicker = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri != null) {
-            exportCrashes(uri)
+            exportUri = uri
         } else {
             finish()
         }
     }
     
+    private var exportUri by mutableStateOf<Uri?>(null)
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Start directory picker immediately
-        directoryPicker.launch(null)
+        setContent {
+            AppTheme {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    CrashExportScreen(
+                        exportUri = exportUri,
+                        onLaunchPicker = { directoryPicker.launch(null) },
+                        onDismiss = { finish() }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CrashExportScreen(
+    exportUri: Uri?,
+    onLaunchPicker: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    
+    // Launch picker on first composition
+    LaunchedEffect(Unit) {
+        onLaunchPicker()
     }
     
-    @Composable
-    private fun StatusDialog(
-        message: String,
-        onDismiss: () -> Unit
-    ) {
+    // Export when URI becomes available
+    LaunchedEffect(exportUri) {
+        exportUri?.let { uri ->
+            scope.launch {
+                try {
+                    val exportedCount = CrashExporter.exportCrashData(context, uri)
+                    statusMessage = if (exportedCount > 0) {
+                        "Successfully exported $exportedCount crash reports."
+                    } else {
+                        "No crashes to export."
+                    }
+                } catch (e: Exception) {
+                    statusMessage = "Failed to export crashes: ${e.message}"
+                }
+            }
+        }
+    }
+    
+    // Show status dialog when export completes
+    statusMessage?.let { message ->
         AlertDialog(
             onDismissRequest = onDismiss,
             text = { Text(message) },
@@ -63,48 +102,5 @@ class CrashExportActivity : AppCompatActivity(), CoroutineScope {
                 }
             }
         )
-    }
-
-    private fun showStatusDialog(message: String) {
-        val composeView = ComposeView(this).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@CrashExportActivity))
-            var showDialog by mutableStateOf(true)
-            
-            setContent {
-                if (showDialog) {
-                    StatusDialog(
-                        message = message,
-                        onDismiss = {
-                            showDialog = false
-                            finish()
-                        }
-                    )
-                }
-            }
-        }
-        
-        setContentView(composeView)
-    }
-
-    private fun exportCrashes(uri: Uri) {
-        launch {
-            try {
-                val exportedCount = CrashExporter.exportCrashData(this@CrashExportActivity, uri)
-                
-                showStatusDialog(if (exportedCount > 0) {
-                    "Successfully exported $exportedCount crash reports."
-                } else {
-                    "No crashes to export."
-                })
-                    
-            } catch (e: Exception) {
-                showStatusDialog("Failed to export crashes: ${e.message}")
-            }
-        }
-    }
-    
-    override fun onDestroy() {
-        super.onDestroy()
-        job.cancel()
     }
 }
