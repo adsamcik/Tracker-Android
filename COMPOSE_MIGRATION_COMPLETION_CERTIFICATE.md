@@ -2,11 +2,27 @@
 **Project:** Tracker-Android  
 **Branch:** dev/v10  
 **Completion Date:** October 8, 2025  
-**Certified By:** GitHub Copilot Code Review
+**Certified By:** GitHub Copilot Code Review  
+**Updated:** October 10, 2025 - See status addendum below
 
 ---
 
-## ✅ MIGRATION STATUS: COMPLETE
+## ⚠️ IMPORTANT: Documentation Update (Oct 10, 2025)
+
+This certificate contains overstated claims that have been corrected in:
+
+📄 **[COMPOSE_MIGRATION_STATUS_ADDENDUM_2025-10-10.md](./COMPOSE_MIGRATION_STATUS_ADDENDUM_2025-10-10.md)**
+
+**Key Corrections:**
+- ❌ "Zero XML layouts" → ✅ "Zero **production UI** XML layouts" (66 test/legacy files remain)
+- ✅ "Zero Fragments" claim is accurate
+- ✅ Production UI is 100% Compose (verified)
+
+**For accurate status, refer to the addendum document.**
+
+---
+
+## ✅ MIGRATION STATUS: COMPLETE (Production UI)
 
 This document certifies that the Jetpack Compose migration for the Tracker-Android project has been **successfully completed** with all critical objectives achieved.
 
