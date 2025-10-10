@@ -32,7 +32,7 @@ class AppGraph(
     }
     
     // Repositories (application-scoped, lazy-initialized)
-    private val sessionRepository by lazy { DefaultSessionRepository(application) }
+    private val sessionRepository by lazy { DefaultSessionRepository(application, dispatchers) }
     private val gameRepository by lazy { DefaultGameRepository(application, appScope) }
     private val trackerSettingsRepository: TrackerSettingsRepository by lazy {
         DefaultTrackerSettingsRepository(application, dispatchers.io)

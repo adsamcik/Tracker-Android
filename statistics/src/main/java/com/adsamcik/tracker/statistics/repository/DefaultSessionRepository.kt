@@ -2,16 +2,24 @@ package com.adsamcik.tracker.statistics.repository
 
 import android.content.Context
 import androidx.paging.PagingSource
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.summary.SummaryGenerator
+import kotlinx.coroutines.withContext
 
 /**
  * Default implementation of SessionRepository using Room DAO.
  * Provides session data from the local database.
+ * 
+ * @param context Android context for database access
+ * @param dispatchers Coroutine dispatchers for background operations
  */
-class DefaultSessionRepository(context: Context) : SessionRepository {
+class DefaultSessionRepository(
+    context: Context,
+    private val dispatchers: DispatchersProvider
+) : SessionRepository {
     private val sessionDao = AppDatabase.database(context).sessionDao()
     private val context = context
     
@@ -19,11 +27,11 @@ class DefaultSessionRepository(context: Context) : SessionRepository {
         return sessionDao.getAllPaged()
     }
     
-    override suspend fun getSummaryStats(): List<Stat> {
-        return SummaryGenerator.buildSummary(context)
+    override suspend fun getSummaryStats(): List<Stat> = withContext(dispatchers.io) {
+        SummaryGenerator.buildSummary(context)
     }
     
-    override suspend fun getWeeklyStats(): List<Stat> {
-        return SummaryGenerator.buildSevenDaySummary(context)
+    override suspend fun getWeeklyStats(): List<Stat> = withContext(dispatchers.io) {
+        SummaryGenerator.buildSevenDaySummary(context)
     }
 }
