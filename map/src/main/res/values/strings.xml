@@ -54,12 +54,13 @@
 
     <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
 
+    <string name="settings_map_advanced_section_title">Advanced Settings</string>
     <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
     <string name="settings_map_max_heat_title">Max heat after visits</string>
     <string name="settings_map_quality_format">%.2fx</string>
-    <string name="settings_map_quality_summary">Scale relative to default resolution.</string>
+    <string name="settings_map_quality_summary">Higher values show more detail (may slow rendering on older devices)</string>
     <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_summary">Heatmap will heat up only with visits with larger difference than threshold.</string>
+    <string name="settings_map_visit_threshold_summary">Minimum time to stay in one place before it\'s counted as a visit</string>
     <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
 
     <string name="tips_map_date_range_description">Selecting date range can show you only data for the range you desire.</string>
@@ -83,5 +84,10 @@
     <string name="map_layers_title">Map Layers</string>
     <string name="map_legend_button">Legend</string>
     <string name="map_generating_tiles">Generating %d tiles…</string>
+    
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Rendering detail multiplier. Higher values show more detail but may slow down map loading on older devices.</string>
+    <string name="help_max_heat_points">Maximum number of location points shown in heatmap view. Higher values = more detail but slower rendering.</string>
+    <string name="help_visit_threshold">How long you need to stay in one place before it&apos;s marked as a &apos;visit&apos; on the map. Increase this to reduce clutter from brief stops.</string>
 
 </resources>

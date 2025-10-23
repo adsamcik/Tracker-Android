@@ -21,8 +21,8 @@
     <string name="cell_current_title">Current cell</string>
     <string name="cell_current_value">active cells (%s)</string>
 
-    <string name="collection_count_title">Collection count</string>
-    <string name="collection_count_value">%d collections</string>
+    <string name="collection_count_title">Update count</string>
+    <string name="collection_count_value">%d updates</string>
 
     <string name="description_settings">Settings button</string>
     <string name="description_tracking_lock">Lock disabling button</string>
@@ -39,7 +39,7 @@
     <string name="duration_title">Session duration</string>
     <string name="duration_value">duration %s</string>
 
-    <string name="error_nothing_to_track">You need to track more than time</string>
+    <string name="error_nothing_to_track">Enable at least one tracking option (location, steps, or activity)</string>
 
     <string name="hint_customize_notification_show_in_content">Show in notification content</string>
     <string name="hint_customize_notification_show_in_title">Show in notification title</string>
@@ -65,18 +65,18 @@
         <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
     </plurals>
     <string name="notification_looking_for_gps">Looking for GPS</string>
-    <string name="notification_starting">Starting Tracker service</string>
+    <string name="notification_starting">Starting Tracker</string>
     <string name="notification_stop">Stop</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
     <string name="notification_stop_til_recharge">Stop till recharge</string>
     <string name="notification_tracker_active_ticker">Tracker is active</string>
     <string name="notification_tracking_active">Tracking</string>
 
-    <string name="permissions_tracker_timer_message">%1$s timer needs more permissions to start tracking.</string>
+    <string name="permissions_tracker_timer_message">%1$s location method requires additional permissions to start tracking</string>
 
     <string name="settings_activity_enabled_title">Activity</string>
     <string name="settings_auto_tracking_category">Automatic tracking</string>
-    <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
+    <string name="settings_auto_tracking_transition_summary">Battery-efficient mode (slightly slower activity detection)</string>
     <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
     <string name="settings_cell_enabled_title">Cell</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
@@ -94,13 +94,13 @@
     <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
     <string name="settings_notification_styled_title">Colored notifications</string>
     <string name="settings_steps_enabled_title">Step count</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
+    <string name="settings_tracker_timer_clock">Interval-based</string>
     <string name="settings_tracker_timer_fused">Google Play location</string>
     <string name="settings_tracker_timer_location">Android location</string>
-    <string name="settings_tracker_timer_summary">Currently active: %s. Component that serves as update - triggers collection</string>
-    <string name="settings_tracker_timer_title">Timers</string>
-    <string name="settings_tracking_min_distance_summary">"Minimum distance between collections."</string>
-    <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
+    <string name="settings_tracker_timer_summary">Location update method: %s</string>
+    <string name="settings_tracker_timer_title">Location update method</string>
+    <string name="settings_tracking_min_distance_summary">Minimum distance between location updates</string>
+    <string name="settings_tracking_min_distance_title">Minimum distance between updates</string>
     <integer-array name="settings_tracking_min_distance_values">
         <item>5</item>
         <item>10</item>
@@ -116,8 +116,8 @@
         <item>1000</item>
         <item>2000</item>
     </integer-array>
-    <string name="settings_tracking_min_time_summary">Collections will not trigger faster than this.</string>
-    <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
+    <string name="settings_tracking_min_time_summary">Minimum time between location updates</string>
+    <string name="settings_tracking_min_time_title">Minimum delay between updates</string>
     <integer-array name="settings_tracking_min_time_values">
         <item>0</item>
         <item>1</item>
@@ -132,7 +132,7 @@
         <item>600</item>
         <item>900</item>
     </integer-array>
-    <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
+    <string name="settings_tracking_notice_summary">Changes take effect when you restart tracking</string>
     <string name="settings_tracking_notice_title">Notice</string>
     <string name="settings_location_warning_summary">Since Android 11, explicit background location permission need to be set in order for background tracking to work.</string>
     <string name="settings_location_warning_title">Background location permission not granted!</string>
@@ -150,7 +150,7 @@
         <item>1000</item>
         <item>10000</item>
     </integer-array>
-    <string name="settings_tracking_required_accuracy_summary">Locations will need to be at least this accurate to trigger a collection.</string>
+    <string name="settings_tracking_required_accuracy_summary">Location updates require this accuracy level</string>
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
@@ -158,9 +158,9 @@
     <string name="settings_wifi_network_enabled_title">Wi-Fi network tracking</string>
 
     <string name="shortcut_start_tracking">Start tracking</string>
-    <string name="shortcut_start_tracking_long">Start tracking service</string>
+    <string name="shortcut_start_tracking_long">Start location tracking</string>
     <string name="shortcut_stop_tracking">Stop tracking</string>
-    <string name="shortcut_stop_tracking_long">Stop tracking service</string>
+    <string name="shortcut_stop_tracking_long">Stop location tracking</string>
 
     <string name="speed_title">Speed</string>
     <string name="speed_value">speed %s</string>
@@ -171,7 +171,7 @@
     <string name="tracker_activity_card_title">Activity</string>
     <string name="tracker_activity_confidence">Confidence</string>
     <string name="tracker_activity_title">Activity</string>
-    <string name="tracker_collections_title">Collections</string>
+    <string name="tracker_collections_title">Updates</string>
     <string name="tracker_distance_title">Distance</string>
     <string name="tracker_session_age">Session started</string>
     <string name="tracker_session_card_title">Session</string>
@@ -187,5 +187,34 @@
 
     <!-- Tracker Dashboard -->
     <string name="tracker_time_placeholder">--:--</string>
+
+    <!-- Tracking Presets -->
+    <string name="tracking_preset_title">Tracking Mode</string>
+    <string name="tracking_preset_battery_saver_title">Battery Saver</string>
+    <string name="tracking_preset_battery_saver_desc">Optimized for all-day tracking</string>
+    <string name="tracking_preset_balanced_title">Balanced</string>
+    <string name="tracking_preset_balanced_desc">All sensors enabled with moderate detail</string>
+    <string name="tracking_preset_high_precision_title">High Precision</string>
+    <string name="tracking_preset_high_precision_desc">Maximum detail and accuracy</string>
+    <string name="tracking_preset_custom_badge">Custom settings applied</string>
+    
+    <!-- Battery Impact Indicators -->
+    <string name="battery_impact_low">Low battery impact</string>
+    <string name="battery_impact_low_desc">Suitable for all-day tracking</string>
+    <string name="battery_impact_moderate">Moderate battery impact</string>
+    <string name="battery_impact_moderate_desc">Good balance of detail and battery life</string>
+    <string name="battery_impact_high">Higher battery usage</string>
+    <string name="battery_impact_high_desc">Provides maximum detail</string>
+    <string name="battery_impact_high_warning">This configuration may significantly reduce battery life. Consider Balanced mode for all-day tracking.</string>
+    
+    <!-- Advanced Settings Section -->
+    <string name="settings_advanced_section_title">Advanced Settings</string>
+    
+    <!-- Help Text for Advanced Settings -->
+    <string name="help_min_distance">Tracker waits until you&apos;ve moved this far before recording your next location. Smaller values = more detailed routes but higher battery usage.</string>
+    <string name="help_min_time">How often Tracker checks your location. Smaller values = more frequent updates but higher battery usage.</string>
+    <string name="help_required_accuracy">GPS accuracy threshold. Tracker ignores location updates with accuracy worse than this value. Lower = more precise but may skip updates in poor GPS conditions.</string>
+    <string name="help_wifi_location_count">Track how many times you&apos;ve been to places based on nearby Wi-Fi networks (no network names are stored).</string>
+    <string name="help_transition_detection">Tracker starts/stops automatically based on your movement. Uses less battery than constant GPS but may delay detection of activity changes.</string>
 
 </resources>

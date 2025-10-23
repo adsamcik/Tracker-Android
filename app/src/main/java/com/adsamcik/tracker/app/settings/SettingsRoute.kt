@@ -4,6 +4,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -106,6 +107,14 @@ sealed class SettingsScreen {
 private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScreen) -> Unit) {
     val context = LocalContext.current
     val state by viewModel.settings.collectAsState()
+    
+    // Debug menu visibility (outside LazyColumn to avoid Composable context issues)
+    val showDebug by remember { 
+        mutableStateOf(
+            com.adsamcik.tracker.BuildConfig.DEBUG || 
+            com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context)
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -239,13 +248,18 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
             )
         }
 
-        // Debug
-        item {
-            SettingsItem(
-                title = stringResource(R.string.settings_debug_title),
-                icon = Icons.Default.BugReport,
-                onClick = { onNavigate(SettingsScreen.Debug) }
-            )
+        // Debug (conditional: always in debug builds, or when developer mode enabled in release)
+        if (showDebug) {
+            item {
+                SettingsItem(
+                    title = stringResource(R.string.settings_debug_title),
+                    subtitle = if (!com.adsamcik.tracker.BuildConfig.DEBUG) 
+                        stringResource(R.string.settings_developer_mode_subtitle) 
+                    else null,
+                    icon = Icons.Default.BugReport,
+                    onClick = { onNavigate(SettingsScreen.Debug) }
+                )
+            }
         }
     }
 }
@@ -263,6 +277,9 @@ private fun TrackingSettings() {
         }
     )
     
+    // State from ViewModel
+    val currentPreset by trackingVm.currentPreset.collectAsState()
+    val currentBatteryImpact by trackingVm.currentBatteryImpact.collectAsState()
     val locationEnabled by trackingVm.locationEnabled.collectAsState()
     val activityEnabled by trackingVm.activityEnabled.collectAsState()
     val stepsEnabled by trackingVm.stepsEnabled.collectAsState()
@@ -339,25 +356,41 @@ private fun TrackingSettings() {
             }
         }
         
-        // Auto-tracking section
+        // Preset selector
         item {
-            SectionHeader(stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_category))
-        }
-        
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_title),
-                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
-                checked = transitionDetection,
-                onCheckedChange = { trackingVm.setTransitionDetectionEnabled(it) }
+            com.adsamcik.tracker.app.settings.components.PresetSelector(
+                selectedPreset = currentPreset,
+                onPresetSelected = { trackingVm.applyPreset(it) },
+                showCustomBadge = currentPreset == com.adsamcik.tracker.app.settings.components.TrackingPreset.CUSTOM
             )
         }
         
-        // Notification section
+        // Battery impact indicator
         item {
-            SectionHeader(stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_category))
+            com.adsamcik.tracker.app.settings.components.BatteryImpactIndicator(
+                batteryImpact = currentBatteryImpact
+            )
         }
         
+        // Battery warning for high impact
+        if (currentBatteryImpact == com.adsamcik.tracker.app.settings.components.BatteryImpact.HIGH) {
+            item {
+                com.adsamcik.tracker.app.settings.components.BatteryImpactWarning()
+            }
+        }
+        
+        // Auto-tracking toggle (essential setting with help)
+        item {
+            SwitchSettingsItemWithHelp(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_title),
+                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
+                checked = transitionDetection,
+                onCheckedChange = { trackingVm.setTransitionDetectionEnabled(it) },
+                helpTextRes = R.string.help_transition_detection
+            )
+        }
+        
+        // Notification toggle (essential setting)
         item {
             SwitchSettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
@@ -367,6 +400,7 @@ private fun TrackingSettings() {
             )
         }
         
+        // Notification customization
         item {
             SettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_title),
@@ -378,106 +412,90 @@ private fun TrackingSettings() {
             )
         }
         
-        // Tracking parameters section
+        // Advanced settings section (collapsed by default)
         item {
-            SectionHeader("Tracking Parameters")
-        }
-        
-        item {
-            SliderSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
-                value = minDistance.toFloat(),
-                valueRange = 0f..200f,
-                steps = 19, // 20 possible values
-                valueLabel = { "${it.toInt()} m" },
-                onValueChange = { trackingVm.setMinDistance(it.toInt()) }
-            )
-        }
-        
-        item {
-            SliderSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_time_title),
-                value = minTime.toFloat(),
-                valueRange = 0f..60f,
-                steps = 11,
-                valueLabel = { "${it.toInt()} s" },
-                onValueChange = { trackingVm.setMinTime(it.toInt()) }
-            )
-        }
-        
-        item {
-            SliderSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
-                value = requiredAccuracy.toFloat(),
-                valueRange = 10f..200f,
-                steps = 18,
-                valueLabel = { "${it.toInt()} m" },
-                onValueChange = { trackingVm.setRequiredAccuracy(it.toInt()) }
-            )
-        }
-        
-        // Enable/disable sources section
-        item {
-            SectionHeader(stringResource(com.adsamcik.tracker.tracker.R.string.settings_enable_category_title))
-        }
-        
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
-                checked = locationEnabled,
-                onCheckedChange = { trackingVm.setLocationEnabled(it) }
-            )
-        }
-        
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
-                checked = activityEnabled,
-                onCheckedChange = { trackingVm.setActivityEnabled(it) }
-            )
-        }
-        
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
-                checked = stepsEnabled,
-                onCheckedChange = { trackingVm.setStepsEnabled(it) }
-            )
-        }
-        
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
-                checked = wifiEnabled,
-                onCheckedChange = { trackingVm.setWifiEnabled(it) }
-            )
-        }
-        
-        // WiFi sub-options
-        if (wifiEnabled) {
-            item {
+            com.adsamcik.tracker.app.settings.components.ExpandableSection(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_advanced_section_title),
+                initiallyExpanded = false
+            ) {
+                // Tracking parameters with contextual help
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
+                    value = minDistance.toFloat(),
+                    valueRange = 0f..200f,
+                    steps = 19,
+                    valueLabel = { "${it.toInt()} m" },
+                    onValueChange = { trackingVm.setMinDistance(it.toInt()) },
+                    helpTextRes = R.string.help_min_distance
+                )
+                
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_time_title),
+                    value = minTime.toFloat(),
+                    valueRange = 0f..60f,
+                    steps = 11,
+                    valueLabel = { "${it.toInt()} s" },
+                    onValueChange = { trackingVm.setMinTime(it.toInt()) },
+                    helpTextRes = R.string.help_min_time
+                )
+                
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
+                    value = requiredAccuracy.toFloat(),
+                    valueRange = 10f..200f,
+                    steps = 18,
+                    valueLabel = { "${it.toInt()} m" },
+                    onValueChange = { trackingVm.setRequiredAccuracy(it.toInt()) },
+                    helpTextRes = R.string.help_required_accuracy
+                )
+                
+                // Enable/disable sources
                 SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
-                    checked = wifiNetworkEnabled,
-                    onCheckedChange = { trackingVm.setWifiNetworkEnabled(it) }
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
+                    checked = locationEnabled,
+                    onCheckedChange = { trackingVm.setLocationEnabled(it) }
+                )
+                
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
+                    checked = activityEnabled,
+                    onCheckedChange = { trackingVm.setActivityEnabled(it) }
+                )
+                
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
+                    checked = stepsEnabled,
+                    onCheckedChange = { trackingVm.setStepsEnabled(it) }
+                )
+                
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
+                    checked = wifiEnabled,
+                    onCheckedChange = { trackingVm.setWifiEnabled(it) }
+                )
+                
+                // WiFi sub-options
+                if (wifiEnabled) {
+                    SwitchSettingsItem(
+                        title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
+                        checked = wifiNetworkEnabled,
+                        onCheckedChange = { trackingVm.setWifiNetworkEnabled(it) }
+                    )
+                    
+                    SwitchSettingsItemWithHelp(
+                        title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
+                        checked = wifiLocationCountEnabled,
+                        onCheckedChange = { trackingVm.setWifiLocationCountEnabled(it) },
+                        helpTextRes = R.string.help_wifi_location_count
+                    )
+                }
+                
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
+                    checked = cellEnabled,
+                    onCheckedChange = { trackingVm.setCellEnabled(it) }
                 )
             }
-            
-            item {
-                SwitchSettingsItem(
-                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
-                    checked = wifiLocationCountEnabled,
-                    onCheckedChange = { trackingVm.setWifiLocationCountEnabled(it) }
-                )
-            }
-        }
-        
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
-                checked = cellEnabled,
-                onCheckedChange = { trackingVm.setCellEnabled(it) }
-            )
         }
     }
 }
@@ -500,6 +518,17 @@ private fun DataSettings() {
     val dataRetentionYears by dataVm.dataRetentionYears.collectAsState()
     val showDeleteDataDialog by debugVm.showDeleteDataDialog.collectAsState()
     
+    var showExportFormatDialog by remember { mutableStateOf(false) }
+    
+    // File picker launcher for import
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            com.adsamcik.tracker.impexp.importer.DataImporter.import(context, uri)
+        }
+    }
+    
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp)
@@ -511,53 +540,15 @@ private fun DataSettings() {
         
         item {
             SettingsItem(
-                title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_gpx_title),
-                subtitle = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_gpx_summary),
-                icon = Icons.Default.Route,
-                onClick = {
-                    context.startActivity(Intent(context, com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity::class.java).apply {
-                        putExtra("EXPORTER_KEY", com.adsamcik.tracker.impexp.exporter.GpxExporter::class.java)
-                    })
-                }
-            )
-        }
-        
-        item {
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_kml_title),
-                subtitle = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_kml_summary),
-                icon = Icons.Default.Map,
-                onClick = {
-                    context.startActivity(Intent(context, com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity::class.java).apply {
-                        putExtra("EXPORTER_KEY", com.adsamcik.tracker.impexp.exporter.KmlExporter::class.java)
-                    })
-                }
-            )
-        }
-        
-        item {
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_sqlite_title),
-                subtitle = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_sqlite_summary),
-                icon = Icons.Default.Storage,
-                onClick = {
-                    context.startActivity(Intent(context, com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity::class.java).apply {
-                        putExtra("EXPORTER_KEY", com.adsamcik.tracker.impexp.exporter.DatabaseExporter::class.java)
-                    })
-                }
+                title = stringResource(R.string.settings_export_data_title),
+                subtitle = stringResource(R.string.settings_export_data_summary),
+                icon = Icons.Default.FileUpload,
+                onClick = { showExportFormatDialog = true }
             )
         }
         
         // Import section
         item {
-            // File picker launcher for import
-            val importLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument()
-            ) { uri ->
-                if (uri != null) {
-                    com.adsamcik.tracker.impexp.importer.DataImporter.import(context, uri)
-                }
-            }
             
             SettingsItem(
                 title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_title),
@@ -647,6 +638,19 @@ private fun DataSettings() {
             }
         )
     }
+    
+    // Export format dialog (shown outside LazyColumn)
+    if (showExportFormatDialog) {
+        ExportFormatDialog(
+            onDismiss = { showExportFormatDialog = false },
+            onFormatSelected = { format ->
+                val intent = Intent(context, com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity::class.java).apply {
+                    putExtra("EXPORT_FORMAT", format)
+                }
+                context.startActivity(intent)
+            }
+        )
+    }
 }
 
 // Placeholder screens
@@ -670,17 +674,37 @@ private fun ExportSettings() {
 private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
     val context = LocalContext.current
     val debugVm: DebugSettingsViewModel = viewModel()
+    var tapCount by remember { mutableIntStateOf(0) }
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
-        // Version info
+        // Version info (tap 7 times to enable developer mode)
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .run {
+                        if (!com.adsamcik.tracker.BuildConfig.DEBUG && 
+                            !com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context)) {
+                            clickable {
+                                tapCount++
+                                if (tapCount >= 7) {
+                                    com.adsamcik.tracker.shared.preferences.DeveloperPreferences.setDeveloperMode(context, true)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(R.string.settings_developer_mode_enabled_toast),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    tapCount = 0
+                                }
+                            }
+                        } else {
+                            this
+                        }
+                    },
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -699,7 +723,34 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (!com.adsamcik.tracker.BuildConfig.DEBUG && tapCount > 0 && tapCount < 7) {
+                        Text(
+                            "Tap ${7 - tapCount} more time${if (7 - tapCount != 1) "s" else ""} to enable developer mode",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
+            }
+        }
+        
+        // Disable developer mode option (only in release builds when enabled)
+        if (!com.adsamcik.tracker.BuildConfig.DEBUG && 
+            com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context)) {
+            item {
+                SettingsItem(
+                    title = stringResource(R.string.settings_developer_mode_disable),
+                    subtitle = "Hide developer options from settings",
+                    icon = Icons.Default.Close,
+                    onClick = {
+                        com.adsamcik.tracker.shared.preferences.DeveloperPreferences.setDeveloperMode(context, false)
+                        android.widget.Toast.makeText(
+                            context,
+                            "Developer mode disabled",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                )
             }
         }
         
@@ -760,67 +811,100 @@ private fun MapSettings() {
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
-        // Map quality slider
+        // Info card explaining map settings purpose
         item {
-            val qualityValues = context.resources.getStringArray(com.adsamcik.tracker.map.R.array.settings_map_quality_values).map { it.toFloat() }
-            val qualityKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_key)
-            val qualityDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_default).toFloat()
-            var quality by remember { mutableFloatStateOf(prefs.getFloat(qualityKey, qualityDefault)) }
-            
-            SliderSettingsItem(
-                title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_quality_title),
-                value = quality,
-                valueRange = qualityValues.first()..qualityValues.last(),
-                steps = qualityValues.size - 2,
-                valueLabel = { "%.1fx".format(it) },
-                onValueChange = {
-                    quality = it
-                    prefs.edit { setFloat(qualityKey, it) }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        "These settings control map visualization quality and performance. Most users can use default values.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 }
-            )
+            }
         }
         
-        // Max heat points slider
+        // All map settings are advanced - wrap in expandable section
         item {
-            val heatValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_max_heat_values)
-            val heatKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_key)
-            val heatDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_default).toInt()
-            var maxHeat by remember { mutableIntStateOf(prefs.getInt(heatKey, heatDefault)) }
-            
-            SliderSettingsItem(
-                title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_max_heat_title),
-                value = maxHeat.toFloat(),
-                valueRange = heatValues.first().toFloat()..heatValues.last().toFloat(),
-                steps = heatValues.size - 2,
-                valueLabel = { "%d".format(it.toInt()) },
-                onValueChange = {
-                    maxHeat = it.toInt()
-                    prefs.edit { setInt(heatKey, it.toInt()) }
-                }
-            )
-        }
-        
-        // Visit threshold slider (duration in minutes)
-        item {
-            val visitValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_visit_threshold_values)
-            val visitKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_key)
-            val visitDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_default).toInt()
-            var visitThreshold by remember { mutableIntStateOf(prefs.getInt(visitKey, visitDefault)) }
-            
-            SliderSettingsItem(
-                title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_title),
-                value = visitThreshold.toFloat(),
-                valueRange = visitValues.first().toFloat()..visitValues.last().toFloat(),
-                steps = visitValues.size - 2,
-                valueLabel = { 
-                    val minutes = it.toInt() / 60
-                    if (minutes < 60) "$minutes min" else "${minutes / 60}h ${minutes % 60}min"
-                },
-                onValueChange = {
-                    visitThreshold = it.toInt()
-                    prefs.edit { setInt(visitKey, it.toInt()) }
-                }
-            )
+            com.adsamcik.tracker.app.settings.components.ExpandableSection(
+                title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_advanced_section_title),
+                initiallyExpanded = false
+            ) {
+                // Map quality slider
+                val qualityValues = context.resources.getStringArray(com.adsamcik.tracker.map.R.array.settings_map_quality_values).map { it.toFloat() }
+                val qualityKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_key)
+                val qualityDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_default).toFloat()
+                var quality by remember { mutableFloatStateOf(prefs.getFloat(qualityKey, qualityDefault)) }
+                
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_quality_title),
+                    value = quality,
+                    valueRange = qualityValues.first()..qualityValues.last(),
+                    steps = qualityValues.size - 2,
+                    valueLabel = { "%.1fx".format(it) },
+                    onValueChange = {
+                        quality = it
+                        prefs.edit { setFloat(qualityKey, it) }
+                    },
+                    helpTextRes = R.string.help_map_quality
+                )
+                
+                // Max heat points slider
+                val heatValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_max_heat_values)
+                val heatKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_key)
+                val heatDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_default).toInt()
+                var maxHeat by remember { mutableIntStateOf(prefs.getInt(heatKey, heatDefault)) }
+                
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_max_heat_title),
+                    value = maxHeat.toFloat(),
+                    valueRange = heatValues.first().toFloat()..heatValues.last().toFloat(),
+                    steps = heatValues.size - 2,
+                    valueLabel = { "%d".format(it.toInt()) },
+                    onValueChange = {
+                        maxHeat = it.toInt()
+                        prefs.edit { setInt(heatKey, it.toInt()) }
+                    },
+                    helpTextRes = R.string.help_max_heat_points
+                )
+                
+                // Visit threshold slider (duration in minutes)
+                val visitValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_visit_threshold_values)
+                val visitKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_key)
+                val visitDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_default).toInt()
+                var visitThreshold by remember { mutableIntStateOf(prefs.getInt(visitKey, visitDefault)) }
+                
+                SliderSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_title),
+                    value = visitThreshold.toFloat(),
+                    valueRange = visitValues.first().toFloat()..visitValues.last().toFloat(),
+                    steps = visitValues.size - 2,
+                    valueLabel = { 
+                        val minutes = it.toInt() / 60
+                        if (minutes < 60) "$minutes min" else "${minutes / 60}h ${minutes % 60}min"
+                    },
+                    onValueChange = {
+                        visitThreshold = it.toInt()
+                        prefs.edit { setInt(visitKey, it.toInt()) }
+                    },
+                    helpTextRes = R.string.help_visit_threshold
+                )
+            }
         }
     }
 }
