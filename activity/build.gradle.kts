@@ -70,8 +70,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.service)
 	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.fragment)
-	implementation(libs.androidx.fragment.ktx)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
