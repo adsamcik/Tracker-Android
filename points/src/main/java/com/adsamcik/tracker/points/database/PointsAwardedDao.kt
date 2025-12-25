@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.points.database
 
-import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.points.data.PointsAwarded
@@ -24,11 +23,5 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 	@Query("SELECT COALESCE(SUM(value), 0) FROM points_awarded WHERE time >= :from AND time <= :to")
 	fun countBetweenFlow(from: Long, to: Long): Flow<Int>
 
-	/**
-	 * Returns number of points earned between two time intervals.
-	 * @deprecated Use Flow-based alternative in repository layer.
-	 */
-	@Deprecated("Use Flow-based alternative in repository layer.")
-	@Query("SELECT COALESCE(SUM(value), 0) FROM points_awarded WHERE time >= :from AND time <= :to")
-	fun countBetweenLive(from: Long, to: Long): LiveData<Int>
+
 }

@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
-import androidx.lifecycle.LiveData
 import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Query
@@ -9,6 +8,7 @@ import androidx.room.Transaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.DateRange
+import com.adsamcik.tracker.shared.base.database.data.TodaySessionSummary
 import com.adsamcik.tracker.shared.base.database.data.TrackerSessionSummary
 import com.adsamcik.tracker.shared.base.database.data.TrackerSessionTimeSummary
 
@@ -33,20 +33,7 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	@Query("SELECT * FROM tracker_session WHERE id = :id")
 	fun get(id: Long): TrackerSession?
 
-	/**
-	 * Finds specific session in database as [LiveData] (deprecated).
-	 *
-	 * @return [LiveData] for specific session.
-	 * @deprecated Use Flow-based alternative. Add `fun getFlow(id: Long): Flow<TrackerSession?>` to repository layer.
-	 * Room will auto-generate Flow support when you add a Flow-returning query method.
-	 */
-	@Deprecated(
-		message = "Use Flow-based alternative in repository layer",
-		level = DeprecationLevel.WARNING
-	)
-	@RewriteQueriesToDropUnusedColumns
-	@Query("SELECT * FROM tracker_session WHERE id = :id")
-	fun getLive(id: Long): LiveData<TrackerSession>
+
 
 	/**
 	 * Finds all sessions in database.
@@ -105,13 +92,14 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	fun getSummary(from: Long, to: Long): TrackerSessionSummary
 
 	/**
-	 * Calculates a [LiveData] summary of all sessions between [from] (inclusive) and [to] (inclusive).
+	 * Calculates a summary of all sessions grouped by day between [from] (inclusive) and [to] (inclusive).
+	 *
+	 * @param offsetMillis Timezone offset in milliseconds to adjust start times correctly for local days.
 	 */
-	//(round(timestamp / 86400000.0 - 0.5) * 86400000.0) should round down to date
 	@Query(
 			"""
 		SELECT
-			((start / 86400000) * 86400000) as time,
+			(((start + :offsetMillis) / 86400000) * 86400000 - :offsetMillis) as time,
 			SUM(`end` - start) as duration,
 			SUM(steps) as steps,
 			SUM(collections) as collections,
@@ -122,10 +110,10 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 		WHERE
 			start >= :from AND
 			start <= :to
-		GROUP BY ((start / 86400000) * 86400000)
+		GROUP BY ((start + :offsetMillis) / 86400000)
 		ORDER BY time DESC"""
 	)
-	fun getSummaryByDays(from: Long, to: Long): List<TrackerSessionTimeSummary>
+	fun getSummaryByDays(from: Long, to: Long, offsetMillis: Long): List<TrackerSessionTimeSummary>
 
 	/**
 	 * Finds all sessions that started on a specific day.
@@ -165,6 +153,32 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 			TrackerSession(id)
 		}
 	}
+
+	/**
+	 * Calculates a summary of all sessions that started today.
+	 * Uses suspend for on-demand async fetching without blocking.
+	 *
+	 * @param todayStart start of today in millis (midnight UTC or local)
+	 * @param now current time in millis
+	 * @return Summary of today's sessions or null values if no sessions exist
+	 */
+	@Query(
+		"""
+		SELECT
+			SUM(`end` - start) as duration,
+			SUM(steps) as steps,
+			SUM(collections) as collections,
+			SUM(distance) as distance,
+			SUM(distance_in_vehicle) as distance_in_vehicle,
+			SUM(distance_on_foot) as distance_on_foot,
+			COUNT(*) as session_count
+		FROM tracker_session
+		WHERE
+			start >= :todayStart AND
+			start <= :now
+		"""
+	)
+	suspend fun getTodaySummary(todayStart: Long, now: Long): TodaySessionSummary?
 
 	/**
 	 * Counts all sessions in the database.

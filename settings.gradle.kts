@@ -9,4 +9,5 @@ pluginManagement {
 include(":impexp")
 include(":logger")
 include(":points")
-include(":app", ":statistics", ":game", ":map", ":sbase", ":smap", ":spreferences", "sutils", ":tracker", ":activity")
+include(":testing-common")
+include(":app", ":statistics", ":game", ":map", ":sbase", ":smap", ":spreferences", "sutils", ":tracker", ":activity", ":macrobenchmark")

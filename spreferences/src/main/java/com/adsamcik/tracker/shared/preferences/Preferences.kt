@@ -1,335 +1,175 @@
 package com.adsamcik.tracker.shared.preferences
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.content.res.Resources
 import androidx.annotation.ColorRes
 import androidx.annotation.DimenRes
 import androidx.annotation.IntegerRes
 import androidx.annotation.StringRes
 import androidx.core.content.res.ResourcesCompat
-import androidx.preference.PreferenceManager
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import androidx.datastore.preferences.core.Preferences as DataPreferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.adsamcik.tracker.shared.base.data.SessionActivity
+import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
-import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.getPreferredLengthSystem
 
 /**
- * Object that simplifies access to some preferences
- * It contains many preferences as constant values so
- * they don't have to be stored in SharedPreferences which creates unnecessary lookup
+ * Legacy synchronous preference accessor backed by DataStore.
+ * Provides the historical API surface while underlying storage has migrated
+ * away from SharedPreferences.
  */
 @Suppress("Unused", "TooManyFunctions")
 open class Preferences {
-	protected val resources: Resources
-	protected val sharedPreferences: SharedPreferences
+    protected val resources: Resources
+    protected val appContext: Context
 
-	constructor(context: Context) {
-		resources = context.resources
-		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-	}
+    constructor(context: Context) {
+        appContext = context.applicationContext
+        resources = context.resources
+    }
 
-	constructor(preferences: Preferences) {
-		resources = preferences.resources
-		sharedPreferences = preferences.sharedPreferences
-	}
+    constructor(preferences: Preferences) : this(preferences.appContext)
 
-	/**
-	 * Retrieve a string value from the preferences with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value
-	 *
-	 * @return String value or default if not present.
-	 */
-	fun getStringRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): String {
-		val key = getKey(keyRes)
-		val default = resources.getString(defaultRes)
-		return getString(key, default)
-	}
+    protected fun snapshot(): DataPreferences = LegacyPreferenceStore.snapshot(appContext)
 
-	/**
-	 * Retrieve a string value from the preferences with resource key.
-	 *
-	 * @param keyRes String resource key for value
-	 *
-	 * @return Preference string value or null if not present.
-	 */
-	fun getStringRes(@StringRes keyRes: Int): String? {
-		val key = getKey(keyRes)
-		return getString(key)
-	}
+    fun getStringRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): String {
+        val key = getKey(keyRes)
+        val default = resources.getString(defaultRes)
+        return getString(key, default)
+    }
 
-	/**
-	 * Retrieve a string value from the preferences.
-	 *
-	 * @param key Preference key
-	 * @param default Default value
-	 *
-	 * @return String value or [default] if value is null or missing.
-	 */
-	fun getString(key: String, default: String): String {
-		return getString(key) ?: default
-	}
+    fun getStringRes(@StringRes keyRes: Int): String? {
+        val key = getKey(keyRes)
+        return getString(key)
+    }
 
-	/**
-	 * Retrieve a string value from the preferences.
-	 *
-	 * @param key Preference key
-	 *
-	 * @return String value or null if value is null or missing.
-	 */
-	fun getString(key: String): String? {
-		return sharedPreferences.getString(key, null)
-	}
+    fun getString(key: String, default: String): String {
+        return getString(key) ?: default
+    }
 
-	/**
-	 * Retrieve an integer value from the preferences with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes Integer resource key of default value
-	 *
-	 * @return Integer value or default if not present.
-	 */
-	fun getIntRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Int {
-		val key = getKey(keyRes)
-		val default = resources.getInteger(defaultRes)
-		return getInt(key, default)
-	}
+    fun getString(key: String): String? {
+        return snapshot()[stringPreferencesKey(key)]
+    }
 
-	/**
-	 * Retrieve an integer value from the preferences with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value (must be an integer string resource)
-	 *
-	 * @return Integer value or default if not present.
-	 */
-	fun getIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
-		val key = getKey(keyRes)
-		val default = resources.getString(defaultRes).toInt()
-		return getInt(key, default)
-	}
+    fun getIntRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Int {
+        val key = getKey(keyRes)
+        val default = resources.getInteger(defaultRes)
+        return getInt(key, default)
+    }
 
-	/**
-	 * Retrieve an integer value from a string preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value (must be an integer string resource)
-	 *
-	 * @return Integer value or default if not present.
-	 */
-	fun getStringAsIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
-		return getStringRes(keyRes, defaultRes).toInt()
-	}
+    fun getIntResValue(@StringRes keyRes: Int, default: Int): Int {
+        val key = getKey(keyRes)
+        return getInt(key, default)
+    }
 
-	/**
-	 * Retrieve an integer value from a string preference with key.
-	 *
-	 * @param key Preference key
-	 * @param default Default value
-	 *
-	 * @return Integer value or default if not present.
-	 */
-	fun getStringAsInt(key: String, default: Int = 0): Int {
-		return getString(key, default.toString()).toInt()
-	}
+    fun getIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
+        val key = getKey(keyRes)
+        val default = resources.getString(defaultRes).toInt()
+        return getInt(key, default)
+    }
 
-	/**
-	 * Retrieve an integer value from an integer preference with key.
-	 *
-	 * @param key Preference key
-	 * @param default Default value
-	 *
-	 * @return Integer value or default if not present.
-	 */
-	fun getInt(key: String, default: Int = 0): Int {
-		return sharedPreferences.getInt(key, default)
-	}
+    fun getStringAsIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
+        return getStringRes(keyRes, defaultRes).toInt()
+    }
 
-	/**
-	 * Retrieve a boolean value from a string preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value (must be a boolean string resource)
-	 *
-	 * @return Boolean value or default if not present.
-	 */
-	fun getBooleanRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): Boolean {
-		//This is fine, because getString is never null (@NonNull annotation)
-		val default = resources.getString(defaultRes).toBoolean()
-		return getBooleanRes(keyRes, default)
-	}
+    fun getStringAsInt(key: String, default: Int = 0): Int {
+        return getString(key, default.toString()).toInt()
+    }
 
-	/**
-	 * Retrieve a boolean value from a string preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param default Default value
-	 *
-	 * @return Boolean value or default if not present.
-	 */
-	fun getBooleanRes(@StringRes keyRes: Int, default: Boolean): Boolean {
-		val key = getKey(keyRes)
-		return getBoolean(key, default)
-	}
+    fun getInt(key: String, default: Int = 0): Int {
+        return snapshot()[intPreferencesKey(key)] ?: default
+    }
 
-	/**
-	 * Retrieve a boolean value from a string preference with a key.
-	 *
-	 * @param key Preference key
-	 * @param default Default value
-	 *
-	 * @return Boolean value or default if not present.
-	 */
-	fun getBoolean(key: String, default: Boolean = false): Boolean {
-		return sharedPreferences.getBoolean(key, default)
-	}
+    fun getBooleanRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): Boolean {
+        val default = resources.getString(defaultRes).toBoolean()
+        return getBoolean(getKey(keyRes), default)
+    }
 
-	/**
-	 * Retrieve a color value from an integer preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value (must be a boolean string resource)
-	 *
-	 * @return Boolean value or default if not present.
-	 */
-	fun getColorRes(
-			@StringRes keyRes: Int,
-			@ColorRes defaultRes: Int,
-			theme: Resources.Theme? = null
-	): Int {
-		val key = getKey(keyRes)
-		val color = ResourcesCompat.getColor(resources, defaultRes, theme)
-		return getInt(key, color)
-	}
+    fun getBooleanRes(@StringRes keyRes: Int, default: Boolean): Boolean {
+        val key = getKey(keyRes)
+        return getBoolean(key, default)
+    }
 
-	/**
-	 * Retrieve a long value from a long preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value (must be a long string resource)
-	 *
-	 * @return Long value (default if not present).
-	 */
-	fun getLongRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Long {
-		val key = getKey(keyRes)
-		val default = resources.getInteger(defaultRes).toLong()
-		return getLong(key, default)
-	}
+    fun getBoolean(key: String, default: Boolean = false): Boolean {
+        return snapshot()[booleanPreferencesKey(key)] ?: default
+    }
 
-	/**
-	 * Retrieve a long value from a long preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value (must be a long string resource)
-	 *
-	 * @return Long value (default if not present).
-	 */
-	fun getLongResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Long {
-		val key = getKey(keyRes)
-		val default = resources.getString(defaultRes).toLong()
-		return getLong(key, default)
-	}
+    fun getColorRes(@StringRes keyRes: Int, @ColorRes defaultRes: Int, theme: Resources.Theme? = null): Int {
+        val key = getKey(keyRes)
+        val color = ResourcesCompat.getColor(resources, defaultRes, theme)
+        return getInt(key, color)
+    }
 
-	/**
-	 * Retrieve a long value from a long preference with key.
-	 *
-	 * @param key Preference key
-	 * @param default Default value
-	 *
-	 * @return Long value (default if not present).
-	 */
-	fun getLong(key: String, default: Long = 0L): Long {
-		return sharedPreferences.getLong(key, default)
-	}
+    fun getLongRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Long {
+        val key = getKey(keyRes)
+        val default = resources.getInteger(defaultRes).toLong()
+        return getLong(key, default)
+    }
 
-	/**
-	 * Retrieve a float value from a float preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes String resource key of default value (must be a float string resource)
-	 *
-	 * @throws NumberFormatException If default value cannot be converted to float.
-	 *
-	 * @return Float value (default if not present).
-	 */
-	fun getFloatResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Float {
-		val key = getKey(keyRes)
-		val default = resources.getString(defaultRes).toFloat()
-		return getFloat(key, default)
-	}
+    fun getLongResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Long {
+        val key = getKey(keyRes)
+        val default = resources.getString(defaultRes).toLong()
+        return getLong(key, default)
+    }
 
-	/**
-	 * Retrieve a float value from a float preference with resource key.
-	 *
-	 * @param keyRes String resource key for key value
-	 * @param defaultRes Dimen (float) resource key of default value
-	 *
-	 * @return Float value (default if not present).
-	 */
-	fun getFloatRes(@StringRes keyRes: Int, @DimenRes defaultRes: Int): Float {
-		val key = getKey(keyRes)
-		val default = ResourcesCompat.getFloat(resources, defaultRes)
-		return getFloat(key, default)
-	}
+    fun getLong(key: String, default: Long = 0L): Long {
+        return snapshot()[longPreferencesKey(key)] ?: default
+    }
 
-	/**
-	 * Retrieve a float value from a float preference with key.
-	 *
-	 * @param key Preference key
-	 * @param default Default value
-	 *
-	 * @return Float value (default if not present).
-	 */
-	fun getFloat(key: String, default: Float = Float.NaN): Float {
-		return sharedPreferences.getFloat(key, default)
-	}
+    fun getFloatResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Float {
+        val key = getKey(keyRes)
+        val default = resources.getString(defaultRes).toFloat()
+        return getFloat(key, default)
+    }
 
-	/**
-	 * Retrieve a double value from a long preference with key.
-	 *
-	 * @param key Preference key
-	 * @param default Default value
-	 *
-	 * @return Float value (default if not present).
-	 */
-	fun getDouble(key: String, default: Double = Double.NaN): Double {
-		return Double.fromBits(getLong(key, default.toRawBits()))
-	}
+    fun getFloatRes(@StringRes keyRes: Int, @DimenRes defaultRes: Int): Float {
+        val key = getKey(keyRes)
+        val default = ResourcesCompat.getFloat(resources, defaultRes)
+        return getFloat(key, default)
+    }
 
-	/**
-	 * Executes transaction for modifying preferences.
-	 *
-	 * @param func Function scope in which edits are executed. Executed with [MutablePreferences] scope.
-	 */
-	open fun edit(func: MutablePreferences.() -> Unit) {
-		MutablePreferences(this).edit(func)
-	}
+    fun getFloat(key: String, default: Float = Float.NaN): Float {
+        return snapshot()[floatPreferencesKey(key)] ?: default
+    }
 
-	protected fun getKey(@StringRes keyRes: Int): String {
-		return resources.getString(keyRes)
-	}
+    fun getDouble(key: String, default: Double = Double.NaN): Double {
+        val bits = getLong(key, default.toRawBits())
+        return Double.fromBits(bits)
+    }
 
+    fun getPreferredLengthSystem(context: Context, sessionActivity: SessionActivity?): LengthSystem {
+        val settings = TrackerSettingsQuick.snapshot(context)
+        val base = settings.lengthSystem
+        return if (!settings.autoUnitSwitch || sessionActivity == null) {
+            base
+        } else {
+            sessionActivity.getPreferredLengthSystem() ?: base
+        }
+    }
 
-	companion object {
-		private var preferences: MutablePreferences? = null
+    open fun edit(func: MutablePreferences.() -> Unit) {
+        MutablePreferences(this).edit(func)
+    }
 
-		/**
-		 * Get shared preferences
-		 * This function should never crash. Initializes preferences if needed.
-		 */
-		@Synchronized
-		fun getPref(context: Context): Preferences = getMutablePref(context)
+    protected fun getKey(@StringRes keyRes: Int): String {
+        return resources.getString(keyRes)
+    }
 
-		private fun getMutablePref(context: Context): MutablePreferences {
-			return preferences ?: MutablePreferences(context).also {
-				preferences = it
-				PreferenceObserver.initialize(it.sharedPreferences)
-			}
-		}
+    companion object {
+        private var preferences: Preferences? = null
 
-		// Legacy length/speed accessors removed after migration to DataStore-backed TrackerSettingsRepository.
-	}
+        @Synchronized
+        fun getPref(context: Context): Preferences {
+            val existing = preferences
+            if (existing != null) return existing
+            return Preferences(context).also { preferences = it }
+        }
+    }
 }
 

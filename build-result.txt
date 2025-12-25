@@ -1,0 +1,71 @@
+Starting a Gradle Daemon, 2 busy and 4 stopped Daemons could not be reused, use --status for details
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+> Task :activity:preBuild UP-TO-DATE
+> Task :activity:preDebugBuild UP-TO-DATE
+> Task :logger:preBuild UP-TO-DATE
+> Task :logger:preDebugBuild UP-TO-DATE
+> Task :logger:writeDebugAarMetadata UP-TO-DATE
+> Task :sbase:preBuild UP-TO-DATE
+> Task :sbase:preDebugBuild UP-TO-DATE
+> Task :sbase:writeDebugAarMetadata UP-TO-DATE
+> Task :spreferences:preBuild UP-TO-DATE
+> Task :spreferences:preDebugBuild UP-TO-DATE
+> Task :spreferences:writeDebugAarMetadata UP-TO-DATE
+> Task :sutils:preBuild UP-TO-DATE
+> Task :sutils:preDebugBuild UP-TO-DATE
+> Task :sutils:writeDebugAarMetadata UP-TO-DATE
+> Task :activity:mergeDebugJniLibFolders
+> Task :activity:mergeDebugNativeLibs NO-SOURCE
+> Task :activity:stripDebugDebugSymbols NO-SOURCE
+> Task :activity:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :activity:generateDebugResValues
+> Task :activity:copyDebugJniLibsProjectAndLocalJars
+> Task :activity:generateDebugResources
+> Task :activity:checkDebugAarMetadata
+> Task :activity:packageDebugResources
+> Task :activity:processDebugNavigationResources
+> Task :logger:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :logger:generateDebugBuildConfig
+> Task :logger:generateDebugResValues
+> Task :logger:generateDebugResources
+> Task :activity:parseDebugLocalResources
+> Task :logger:packageDebugResources
+> Task :logger:processDebugNavigationResources
+> Task :activity:generateDebugRFile
+> Task :logger:ensureKspDir
+> Task :sbase:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sbase:generateDebugBuildConfig UP-TO-DATE
+> Task :logger:parseDebugLocalResources
+> Task :sbase:generateDebugResValues UP-TO-DATE
+> Task :sbase:generateDebugResources UP-TO-DATE
+> Task :logger:generateDebugRFile
+> Task :sbase:packageDebugResources UP-TO-DATE
+> Task :sbase:processDebugNavigationResources UP-TO-DATE
+> Task :sbase:parseDebugLocalResources UP-TO-DATE
+> Task :sbase:generateDebugRFile UP-TO-DATE
+> Task :sbase:kspDebugKotlin FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':sbase:kspDebugKotlin'.
+> Could not resolve all files for configuration ':sbase:detachedConfiguration36'.
+   > Failed to transform R.jar to match attributes {artifactType=class-structure, org.gradle.libraryelements=jar, org.gradle.usage=java-runtime}.
+      > Execution failed for StructureTransformAction: G:\Github\Tracker-Android\sbase\build\intermediates\compile_r_class_jar\debug\generateDebugRFile\R.jar.
+         > G:\Github\Tracker-Android\sbase\build\intermediates\compile_r_class_jar\debug\generateDebugRFile\R.jar
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 38s
+32 actionable tasks: 18 executed, 14 up-to-date

@@ -105,3 +105,11 @@ signing.properties
 # Project-specific secrets
 key.gradle
 keys.xml
+
+############################################################
+# Test output files (used by Copilot for debugging)
+############################################################
+test-output.log
+test-output-*.log
+build-output.log
+build-output-*.log

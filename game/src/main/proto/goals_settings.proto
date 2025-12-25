@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option java_package = "com.adsamcik.tracker.game.goals.settings";
+option java_multiple_files = true;
+
+// Proto for game goals settings. Extend with new optional fields; never reuse field numbers.
+message GoalsSettingsProto {
+  // Whether goal notifications are enabled
+  bool notifications_enabled = 1;
+  // Daily step goal target
+  int32 daily_step_goal = 2;
+  // Weekly step goal target
+  int32 weekly_step_goal = 3;
+  // Maximum daily portion of weekly goal (fraction 0-1, stored as float)
+  float weekly_daily_limit = 4;
+  // Internal migration marker so legacy SharedPreferences import runs only once.
+  bool legacy_migrated = 1000;
+}

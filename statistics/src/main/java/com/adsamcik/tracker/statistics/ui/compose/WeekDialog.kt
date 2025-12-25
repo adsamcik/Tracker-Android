@@ -29,21 +29,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.data.Stat
+import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 
 /**
  * Dialog displaying weekly (last 7 days) summary statistics.
  * 
  * @param visible Whether the dialog is shown
- * @param stats List of weekly statistics to display
+ * @param state Current loading state (Idle/Loading/Success/Error)
  * @param onDismiss Called when user dismisses dialog
- * @param isLoading Whether stats are currently loading
  */
 @Composable
 fun WeekDialog(
     visible: Boolean,
-    stats: List<Stat>,
-    onDismiss: () -> Unit,
-    isLoading: Boolean = false
+    state: StatsLoadState,
+    onDismiss: () -> Unit
 ) {
     if (visible) {
         AlertDialog(
@@ -56,10 +55,10 @@ fun WeekDialog(
                 )
             },
             text = {
-                when {
-                    isLoading -> LoadingState()
-                    stats.isEmpty() -> EmptyState()
-                    else -> ContentState(stats)
+                when (state) {
+                    is StatsLoadState.Idle, is StatsLoadState.Loading -> LoadingState()
+                    is StatsLoadState.Success -> if (state.stats.isEmpty()) EmptyState() else ContentState(state.stats)
+                    is StatsLoadState.Error -> ErrorState(state.message)
                 }
             },
             confirmButton = {
@@ -119,6 +118,37 @@ private fun EmptyState() {
         )
         Text(
             text = stringResource(R.string.stats_week_empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp)
+        )
+    }
+}
+
+@Composable
+private fun ErrorState(message: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.CalendarMonth,
+            contentDescription = null,
+            modifier = Modifier.size(72.dp),
+            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+        )
+        Text(
+            text = stringResource(R.string.stats_week_error),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.error
+        )
+        Text(
+            text = message,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

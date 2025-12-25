@@ -24,6 +24,8 @@
     <string name="collection_count_title">Update count</string>
     <string name="collection_count_value">%d updates</string>
 
+    <string name="coordinates_title">Coordinates</string>
+
     <string name="description_settings">Settings button</string>
     <string name="description_tracking_lock">Lock disabling button</string>
     <string name="description_tracking_start">Start tracking button</string>
@@ -136,6 +138,7 @@
     <string name="settings_tracking_notice_title">Notice</string>
     <string name="settings_location_warning_summary">Since Android 11, explicit background location permission need to be set in order for background tracking to work.</string>
     <string name="settings_location_warning_title">Background location permission not granted!</string>
+
     <integer-array name="settings_tracking_required_accuracy">
         <item>5</item>
         <item>10</item>
@@ -173,8 +176,18 @@
     <string name="tracker_activity_title">Activity</string>
     <string name="tracker_collections_title">Updates</string>
     <string name="tracker_distance_title">Distance</string>
+    <string name="tracker_steps_title">Steps</string>
     <string name="tracker_session_age">Session started</string>
     <string name="tracker_session_card_title">Session</string>
+    <string name="tracker_component_waiting_data">Waiting for live data</string>
+    <plurals name="tracker_wifi_networks_value">
+        <item quantity="one">%d network</item>
+        <item quantity="other">%d networks</item>
+    </plurals>
+    <string name="tracker_signal_strength_title">Signal</string>
+    <string name="tracker_signal_strength_value">%1$d dBm peak</string>
+
+    <string name="tracker_path_preview_title">Path Preview</string>
 
     <string name="vertical_accuracy_title">Vertical accuracy</string>
 
@@ -187,6 +200,18 @@
 
     <!-- Tracker Dashboard -->
     <string name="tracker_time_placeholder">--:--</string>
+    <string name="tracker_ready_to_track">Ready to track</string>
+    <string name="tracker_press_play_to_start">Press play to start</string>
+    
+    <!-- Today Progress Card -->
+    <string name="dashboard_today_title">Today</string>
+    <string name="dashboard_today_empty_title">No sessions today</string>
+    <string name="dashboard_today_empty_subtitle">Tap play to start your first session</string>
+    <string name="dashboard_today_distance">Distance</string>
+    <string name="dashboard_today_steps">Steps</string>
+    <string name="dashboard_today_duration">Duration</string>
+    <string name="dashboard_goal_progress">Goal progress</string>
+    <string name="sessions_title">Sessions</string>
 
     <!-- Tracking Presets -->
     <string name="tracking_preset_title">Tracking Mode</string>
@@ -211,10 +236,10 @@
     <string name="settings_advanced_section_title">Advanced Settings</string>
     
     <!-- Help Text for Advanced Settings -->
-    <string name="help_min_distance">Tracker waits until you&apos;ve moved this far before recording your next location. Smaller values = more detailed routes but higher battery usage.</string>
+    <string name="help_min_distance">Tracker waits until you\&#039;ve moved this far before recording your next location. Smaller values = more detailed routes but higher battery usage.</string>
     <string name="help_min_time">How often Tracker checks your location. Smaller values = more frequent updates but higher battery usage.</string>
     <string name="help_required_accuracy">GPS accuracy threshold. Tracker ignores location updates with accuracy worse than this value. Lower = more precise but may skip updates in poor GPS conditions.</string>
-    <string name="help_wifi_location_count">Track how many times you&apos;ve been to places based on nearby Wi-Fi networks (no network names are stored).</string>
+    <string name="help_wifi_location_count">Track how many times you\&#039;ve been to places based on nearby Wi-Fi networks (no network names are stored).</string>
     <string name="help_transition_detection">Tracker starts/stops automatically based on your movement. Uses less battery than constant GPS but may delay detection of activity changes.</string>
 
 </resources>

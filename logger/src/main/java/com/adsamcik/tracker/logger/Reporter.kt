@@ -2,12 +2,18 @@ package com.adsamcik.tracker.logger
 
 import android.content.Context
 import android.util.Log
-import androidx.lifecycle.Observer
 import com.adsamcik.tracker.shared.base.BuildConfig
 import com.adsamcik.tracker.shared.base.isEmulator
 import com.adsamcik.tracker.shared.base.logging.ErrorReporter
 import com.adsamcik.tracker.shared.base.logging.ReporterFacade
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 /**
  * Object that handles reporting of any message, error or exception that is passed to it.
@@ -16,10 +22,8 @@ object Reporter : ErrorReporter {
 	private var isInitialized = false
 	private var isEnabled = false
 	private const val TAG = "com.adsamcik.tracker-error"
-
-	private val loggingObserver = Observer<Boolean> {
-		isEnabled = it
-	}
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var preferenceJob: Job? = null
 
 	/**
 	 * Initializes reporter. Required for proper functionality.
@@ -32,12 +36,18 @@ object Reporter : ErrorReporter {
 
 		if (isEmulator) return
 
-		PreferenceObserver.observe(
-				context,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_key,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_default,
-				loggingObserver
+		val prefs = Preferences.getPref(context)
+		isEnabled = prefs.getBooleanRes(
+			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_key,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_default
 		)
+		preferenceJob?.cancel()
+		preferenceJob = PreferenceFlows.boolean(
+			context,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_key,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_default
+		).onEach { isEnabled = it }
+			.launchIn(scope)
 
 	// Register as facade delegate so other modules can log without depending on :logger
 	ReporterFacade.setDelegate(this)
@@ -91,6 +101,27 @@ object Reporter : ErrorReporter {
 		if (isEnabled) {
 			Log.e(TAG, message)
 		}
+	}
+
+	/**
+	 * Logs an informational message scoped to a logical source without throwing in debug builds.
+	 */
+	fun i(source: String, message: String) {
+		logWithSource(priority = Log.INFO, source = source, message = message)
+	}
+
+	/**
+	 * Logs a warning message scoped to a logical source without throwing in debug builds.
+	 */
+	fun w(source: String, message: String) {
+		logWithSource(priority = Log.WARN, source = source, message = message)
+	}
+
+	private fun logWithSource(priority: Int, source: String, message: String) {
+		checkInitialized()
+		if (!isEnabled && !BuildConfig.DEBUG) return
+		val scopedTag = "$TAG.$source"
+		Log.println(priority, scopedTag, message)
 	}
 }
 

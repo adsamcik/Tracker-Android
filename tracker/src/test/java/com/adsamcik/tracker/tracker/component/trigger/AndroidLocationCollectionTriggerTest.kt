@@ -6,7 +6,9 @@ import android.location.LocationManager
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
+import com.adsamcik.tracker.tracker.test.FakePreferencesHelper
 import io.mockk.*
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,6 +39,9 @@ class AndroidLocationCollectionTriggerTest {
 
 	@Before
 	fun setup() {
+		// Setup fake preferences to avoid Resources$NotFoundException
+		FakePreferencesHelper.setup()
+		
 		context = ApplicationProvider.getApplicationContext()
 		receiver = mockk(relaxed = true)
 		trigger = AndroidLocationCollectionTrigger()
@@ -56,6 +61,12 @@ class AndroidLocationCollectionTriggerTest {
 			) 
 		} just Runs
 		every { locationManager.removeUpdates(any<LocationListener>()) } just Runs
+	}
+
+	@After
+	fun tearDown() {
+		FakePreferencesHelper.tearDown()
+		unmockkAll()
 	}
 
 	@Test

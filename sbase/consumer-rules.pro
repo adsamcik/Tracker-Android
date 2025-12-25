@@ -11,6 +11,10 @@
 # Keep Time class used by other modules
 -keep class com.adsamcik.tracker.shared.base.Time { *; }
 
+# Keep extension functions (Kotlin generates *Kt classes for top-level functions)
+-keep class com.adsamcik.tracker.shared.base.extension.StringExtensionsKt { *; }
+-keep class com.adsamcik.tracker.shared.base.extension.** { *; }
+
 # Keep other utility classes that might be referenced
 -keep class com.adsamcik.tracker.shared.base.** { *; }
 

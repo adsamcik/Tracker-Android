@@ -20,6 +20,10 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.notification.WifiPermissionHintNotifier
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -31,6 +35,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
     private lateinit var wifiManager: WifiManager
     private var receiver: WifiReceiver = WifiReceiver()
     private lateinit var appContext: Context
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var scanTime: Long = -1L
     private var scanTimeRelative: Long = -1L
@@ -56,7 +61,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
             if (hasWifiScanPermission()) {
                 requestScan()
             } else {
-                WifiPermissionHintNotifier.maybeNotify(appContext)
+                scope.launch { WifiPermissionHintNotifier.maybeNotify(appContext) }
             }
         }
     }
@@ -64,7 +69,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
     @Synchronized
     private fun requestScan() {
     if (!hasWifiScanPermission()) {
-            WifiPermissionHintNotifier.maybeNotify(appContext)
+            scope.launch { WifiPermissionHintNotifier.maybeNotify(appContext) }
             return
         }
         val now = SystemClock.elapsedRealtime()

@@ -8,18 +8,32 @@ package com.adsamcik.tracker.tracker.ui.compose
  * Currently binds to existing LiveData and routes actions back to the hosting Fragment.
  */
 
+import android.content.Context
+import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,24 +49,33 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.LocationSearching
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FabPosition
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,32 +85,64 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.preferencesDataStore
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.adsamcik.tracker.tracker.data.store.trackingTogglesProtoDataStore
 import kotlinx.coroutines.flow.map
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.material.icons.outlined.Star
+import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.shared.base.di.DailySummary
+import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
+import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
+import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
+import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.shared.preferences.R as PrefR
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 
 @Immutable
 internal data class TrackerDashboardUiState(
@@ -95,16 +150,20 @@ internal data class TrackerDashboardUiState(
     val isLocked: Boolean = false,
     val sessionData: TrackerSession? = null,
     val collectionData: CollectionData? = null,
-    val hasLocationPermission: Boolean = false
+    val hasLocationPermission: Boolean = false,
+    val pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null
 )
 
 @Composable
 internal fun TrackerDashboard(
     state: TrackerDashboardUiState,
     onSettingsClick: () -> Unit,
+    onMapClick: () -> Unit,
     onRequestPermission: () -> Unit,
     onToggleTracking: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    onGameClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    snackbarHostState: androidx.compose.material3.SnackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 ) {
     val isTracking = state.isTracking
     val isLocked = state.isLocked
@@ -113,14 +172,23 @@ internal fun TrackerDashboard(
     val hasLocationPermission = state.hasLocationPermission
 
     val haptics = LocalHapticFeedback.current
+    
+    // Milestone haptic feedback - trigger at distance/step milestones during tracking
+    MilestoneHapticEffect(
+        sessionData = sessionData,
+        isTracking = isTracking,
+        haptics = haptics
+    )
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         topBar = {
             TrackerTopBar(
                 isTracking = isTracking,
                 isLocked = isLocked,
-                onSettingsClick = onSettingsClick
+                onSettingsClick = onSettingsClick,
+                onGameClick = onGameClick
             )
         },
         floatingActionButton = {
@@ -150,9 +218,65 @@ internal fun TrackerDashboard(
                 collectionData = collectionData,
                 isTracking = isTracking,
                 isLocked = isLocked,
-                onSettingsClick = onSettingsClick
+                onSettingsClick = onSettingsClick,
+                onMapClick = onMapClick,
+                snackbarHostState = snackbarHostState,
+                pathPoints = state.pathPoints
             )
         }
+    }
+}
+
+/**
+ * MilestoneHapticEffect - Triggers haptic feedback when tracking milestones are reached.
+ * 
+ * Milestones:
+ * - Every 1000 meters (1 km)
+ * - Every 1000 steps
+ * - Every 10 minutes of tracking
+ */
+@Composable
+private fun MilestoneHapticEffect(
+    sessionData: TrackerSession?,
+    isTracking: Boolean,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback
+) {
+    // Track previous milestone values to detect crossings
+    var lastDistanceKm by remember { mutableStateOf(0) }
+    var lastStepsThousand by remember { mutableStateOf(0) }
+    var lastMinutesTen by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(sessionData, isTracking) {
+        if (!isTracking || sessionData == null) {
+            // Reset on stop
+            lastDistanceKm = 0
+            lastStepsThousand = 0
+            lastMinutesTen = 0
+            return@LaunchedEffect
+        }
+        
+        val currentDistanceKm = (sessionData.distanceInM / 1000f).toInt()
+        val currentStepsThousand = sessionData.steps / 1000
+        val durationMinutes = ((Time.nowMillis - sessionData.start) / 60000).toInt()
+        val currentMinutesTen = durationMinutes / 10
+        
+        // Check for kilometer milestone
+        if (currentDistanceKm > lastDistanceKm && lastDistanceKm > 0) {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        }
+        lastDistanceKm = currentDistanceKm
+        
+        // Check for steps milestone (every 1000 steps)
+        if (currentStepsThousand > lastStepsThousand && lastStepsThousand > 0) {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastStepsThousand = currentStepsThousand
+        
+        // Check for time milestone (every 10 minutes)
+        if (currentMinutesTen > lastMinutesTen && lastMinutesTen > 0) {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        lastMinutesTen = currentMinutesTen
     }
 }
 
@@ -162,8 +286,12 @@ private fun TrackerTopBar(
     isTracking: Boolean,
     isLocked: Boolean,
     onSettingsClick: () -> Unit,
+    onGameClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val dailyPointsProvider = LocalDailyPointsProvider.current
+    val pointsToday by dailyPointsProvider.pointsTodayFlow.collectAsState()
+    
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surface) {
         Column {
             TopAppBar(
@@ -183,6 +311,35 @@ private fun TrackerTopBar(
                     }
                 },
                 actions = {
+                    // Points chip - show when gamification has points
+                    if (pointsToday > 0 && onGameClick != null) {
+                        Surface(
+                            onClick = onGameClick,
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Star,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = pointsToday.formatReadable(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                    
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             Icons.Default.Settings,
@@ -213,12 +370,31 @@ private fun TrackingContent(
     isTracking: Boolean,
     isLocked: Boolean,
     onSettingsClick: () -> Unit,
+    onMapClick: () -> Unit,
+    snackbarHostState: androidx.compose.material3.SnackbarHostState,
+    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
-    val columns = when {
-        configuration.screenWidthDp >= 1000 -> 3
-        configuration.screenWidthDp >= 600 -> 2
+    val context = LocalContext.current
+    
+    // Modern WindowSizeClass with fallback
+    val activity = context as? android.app.Activity
+    val widthSizeClass = if (activity != null) {
+        @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
+        calculateWindowSizeClass(activity).widthSizeClass
+    } else {
+        // Fallback for preview or non-activity context
+         when {
+            configuration.screenWidthDp >= 840 -> WindowWidthSizeClass.Expanded
+            configuration.screenWidthDp >= 600 -> WindowWidthSizeClass.Medium
+            else -> WindowWidthSizeClass.Compact
+        }
+    }
+
+    val columns = when (widthSizeClass) {
+        WindowWidthSizeClass.Expanded -> 3
+        WindowWidthSizeClass.Medium -> 2
         else -> 1
     }
 
@@ -231,64 +407,205 @@ private fun TrackingContent(
         wifiCount || wifiNetwork
     }
     val activityEnabled = rememberPrefBoolean(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)
+    val trackerSettings = TrackerSettingsQuick.snapshot(context)
 
-    val expandDetails = remember { mutableStateOf(false) }
-    val haptics = LocalHapticFeedback.current
+    var useDecimalDegrees by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Progressive disclosure toggle
-        Row(modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            AnimatedVisibility(visible = isLocked) {
-                LockBanner(onClick = onSettingsClick)
-            }
-
-            IconButton(
-                onClick = {
-                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                    expandDetails.value = !expandDetails.value
-                },
-                modifier = Modifier.testTag("expand_details_button")
+        // Lock banner - only show when locked (no separate row otherwise)
+        AnimatedVisibility(visible = isLocked) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val rotation by animateFloatAsState(if (expandDetails.value) 180f else 0f, label = "rot")
-                Icon(Icons.Outlined.ExpandMore, contentDescription = "Expand details", modifier = Modifier.rotate(rotation))
+                LockBanner(onClick = onSettingsClick)
             }
         }
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            sessionData?.let { session ->
+            // Status and quick stats card - only visible when tracking (shows live data)
+            // Uses AnimatedVisibility for smooth entrance/exit
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "status") {
+                AnimatedVisibility(
+                    visible = isTracking,
+                    enter = expandVertically(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    ) + fadeIn(animationSpec = tween(300)) + scaleIn(
+                        initialScale = 0.95f,
+                        animationSpec = tween(300)
+                    ),
+                    exit = shrinkVertically(
+                        animationSpec = tween(200)
+                    ) + fadeOut(animationSpec = tween(150))
+                ) {
+                    StatusAndQuickStatsCard(
+                        isTracking = isTracking,
+                        sessionData = sessionData,
+                        collectionData = collectionData,
+                        onMapClick = onMapClick
+                    )
+                }
+            }
+            
+            // Today's progress card - shows aggregated daily stats when not tracking
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "today_progress") {
+                AnimatedVisibility(
+                    visible = !isTracking,
+                    enter = expandVertically(
+                        animationSpec = tween(300, delayMillis = 100)
+                    ) + fadeIn(animationSpec = tween(300, delayMillis = 100)),
+                    exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                ) {
+                    TodayProgressCard(
+                        isTracking = isTracking,
+                        settings = trackerSettings
+                    )
+                }
+            }
+            
+            // Detailed session card - show when not tracking for historical data
+            if (sessionData != null && !isTracking) {
                 item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "session") {
-                    SessionOverviewCard(session = session)
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = expandVertically(
+                            animationSpec = tween(300, delayMillis = 150)
+                        ) + fadeIn(animationSpec = tween(300, delayMillis = 150)),
+                        exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                    ) {
+                        SessionOverviewCard(
+                            session = sessionData,
+                            isTracking = isTracking,
+                            pathPoints = pathPoints,
+                            onMapClick = onMapClick,
+                            snackbarHostState = snackbarHostState
+                        )
+                    }
                 }
             }
 
-            // Determine which components to show
-            val enabledComponents = buildList<TrackingComponent> {
-                if (collectionData?.location != null || expandDetails.value) add(TrackingComponent.Location)
-                if (collectionData?.activity != null || expandDetails.value) add(TrackingComponent.Activity)
-                if (collectionData?.wifi != null || expandDetails.value) add(TrackingComponent.Wifi)
-                if (collectionData?.cell != null || expandDetails.value) add(TrackingComponent.Cell)
-            }
-
-            items(enabledComponents, key = { it.key }) { component ->
-                val enabled = when (component) {
-                    TrackingComponent.Location -> locationEnabled
-                    TrackingComponent.Activity -> activityEnabled
-                    TrackingComponent.Wifi -> wifiEnabled
-                    TrackingComponent.Cell -> cellEnabled
-                }
-                ComponentCard(
-                    component = component,
-                    enabled = enabled,
-                    onClick = if (enabled) null else onSettingsClick
+            val componentModels = buildList {
+                val locationMetrics = buildLocationMetrics(
+                    context = context,
+                    collectionData = collectionData,
+                    settings = trackerSettings,
+                    useDecimalDegrees = useDecimalDegrees,
+                    onToggleFormat = { useDecimalDegrees = !useDecimalDegrees }
                 )
+                if (locationMetrics != null) add(
+                    TrackingComponentModel(
+                        component = TrackingComponent.Location,
+                        enabled = locationEnabled,
+                        metrics = locationMetrics
+                    )
+                )
+
+                val activityMetrics = buildActivityMetrics(context, collectionData)
+                if (activityMetrics != null) add(
+                    TrackingComponentModel(
+                        component = TrackingComponent.Activity,
+                        enabled = activityEnabled,
+                        metrics = activityMetrics
+                    )
+                )
+
+                val wifiMetrics = buildWifiMetrics(context, collectionData)
+                if (wifiMetrics != null) add(
+                    TrackingComponentModel(
+                        component = TrackingComponent.Wifi,
+                        enabled = wifiEnabled,
+                        metrics = wifiMetrics
+                    )
+                )
+
+                val cellMetrics = buildCellMetrics(context, collectionData)
+                if (cellMetrics != null) add(
+                    TrackingComponentModel(
+                        component = TrackingComponent.Cell,
+                        enabled = cellEnabled,
+                        metrics = cellMetrics
+                    )
+                )
+            }
+
+            // Component details section - collapsible when tracking, shown when not tracking
+            if (!isTracking) {
+                // Show full component cards when not tracking
+                items(componentModels, key = { it.component.key }) { model ->
+                    ComponentCard(
+                        component = model.component,
+                        enabled = model.enabled,
+                        metrics = model.metrics,
+                        onClick = if (model.enabled) null else onSettingsClick
+                    )
+                }
+            } else if (componentModels.isNotEmpty()) {
+                // Show collapsible details section when tracking
+                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "details_toggle") {
+                    var showDetails by remember { mutableStateOf(false) }
+                    
+                    Column {
+                        // Toggle button
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            ),
+                            onClick = { showDetails = !showDetails }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (showDetails) "Hide details" else "Show sensor details",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Icon(
+                                    imageVector = if (showDetails) 
+                                        Icons.Default.KeyboardArrowUp 
+                                    else 
+                                        Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (showDetails) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        
+                        // Expandable content
+                        AnimatedVisibility(visible = showDetails) {
+                            Column(
+                                modifier = Modifier.padding(top = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                componentModels.forEach { model ->
+                                    ComponentCard(
+                                        component = model.component,
+                                        enabled = model.enabled,
+                                        metrics = model.metrics,
+                                        onClick = if (model.enabled) null else onSettingsClick
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             if (!isTracking && sessionData == null && collectionData == null) {
@@ -302,41 +619,561 @@ private fun TrackingContent(
     }
 }
 
-private val android.content.Context.trackingTogglesDataStore by preferencesDataStore(name = "tracking_toggles")
-
 @Composable
 private fun rememberPrefBoolean(keyRes: Int, defaultRes: Int): Boolean {
     val context = LocalContext.current
     val keyName = remember(context, keyRes) { context.getString(keyRes) }
     val default = remember(context, defaultRes) { context.resources.getString(defaultRes).toBoolean() }
-    val ds = remember(context) { context.trackingTogglesDataStore }
+    val ds = remember(context) { context.trackingTogglesProtoDataStore }
     val flow = remember(ds, keyName, default) {
-        val prefKey = booleanPreferencesKey(keyName)
-        ds.data.map { it[prefKey] ?: default }
+        ds.data.map { proto -> proto.togglesMap[keyName] ?: default }
     }
     val value = flow.collectAsState(initial = default).value
     return value
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun SessionOverviewCard(session: TrackerSession) {
+private fun SessionOverviewCard(
+    session: TrackerSession,
+    isTracking: Boolean,
+    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>?,
+    onMapClick: () -> Unit,
+    snackbarHostState: androidx.compose.material3.SnackbarHostState
+) {
+    val context = LocalContext.current
+    val resources = context.resources
+    val settings = TrackerSettingsQuick.snapshot(context)
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    val sessionEnd = when {
+        session.end > session.start -> session.end
+        isTracking -> Time.nowMillis
+        else -> session.start
+    }
+    val durationMillis = (sessionEnd - session.start).coerceAtLeast(0L)
+    val durationText = durationMillis.formatAsDuration(context)
+
+    val distanceText = resources.formatDistance(
+        session.distanceInM,
+        digits = if (session.distanceInM >= 1000f) 1 else 2,
+        unit = settings.lengthSystem
+    )
+    val stepsText = session.steps.takeIf { it > 0 }?.formatReadable() ?: "0"
+    val updatesText = context.getString(R.string.collection_count_value, session.collections)
+    val sessionAge = DateUtils.getRelativeTimeSpanString(
+        session.start,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS,
+        DateUtils.FORMAT_ABBREV_RELATIVE
+    ).toString()
+
+    val generateSummary = remember(session, settings) {
+        {
+            buildString {
+                appendLine("Session Summary")
+                appendLine("Duration: $durationText")
+                appendLine("Distance: $distanceText (${session.distanceInM}m)")
+                appendLine("Steps: $stepsText")
+                appendLine("Updates: ${session.collections}")
+                appendLine("Started: $sessionAge")
+                if (session.distanceOnFootInM > 0) {
+                    appendLine("On foot: ${resources.formatDistance(session.distanceOnFootInM, 1, settings.lengthSystem)}")
+                }
+                if (session.distanceInVehicleInM > 0) {
+                    appendLine("In vehicle: ${resources.formatDistance(session.distanceInVehicleInM, 1, settings.lengthSystem)}")
+                }
+            }
+        }
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { },
+                onLongClick = {
+                    val sessionSummary = generateSummary()
+                    copyToClipboard(context, haptics, "Session", sessionSummary)
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = "Session summary copied",
+                            duration = androidx.compose.material3.SnackbarDuration.Short
+                        )
+                    }
+                }
+            )
+            .semantics {
+                contentDescription = "Session overview: $durationText duration, $distanceText distance"
+                onClick(label = "Copy session summary") {
+                    true
+                }
+            },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.tracker_session_card_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                )
+                Spacer(Modifier.weight(1f))
+                
+                IconButton(
+                    onClick = {
+                        val summary = generateSummary()
+                        val sendIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            putExtra(Intent.EXTRA_TEXT, summary)
+                            type = "text/plain"
+                        }
+                        val shareIntent = Intent.createChooser(sendIntent, null)
+                        context.startActivity(shareIntent)
+                    },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share session summary",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                
+                Spacer(Modifier.size(12.dp))
+
+                Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = "Long-press to copy",
+                    modifier = Modifier
+                        .size(14.dp)
+                        .alpha(0.5f),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                if (isTracking) {
+                    Badge(containerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f)) {
+                        Text(
+                            text = stringResource(R.string.notification_tracking_active),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
             Text(
-                text = stringResource(R.string.tracker_session_card_title),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "--:--",
+                text = durationText,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                text = stringResource(R.string.duration_title),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+            )
+
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                SessionMetric(
+                    label = stringResource(R.string.tracker_distance_title),
+                    value = distanceText,
+                    modifier = Modifier.weight(1f)
+                )
+                SessionMetric(
+                    label = stringResource(R.string.tracker_steps_title),
+                    value = stepsText,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                SessionMetric(
+                    label = stringResource(R.string.tracker_collections_title),
+                    value = updatesText,
+                    modifier = Modifier.weight(1f)
+                )
+                SessionMetric(
+                    label = stringResource(R.string.tracker_session_age),
+                    value = sessionAge,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            
+            if (pathPoints != null && pathPoints.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Box(modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .clickable { onMapClick() }
+                ) {
+                    SessionPathPreview(
+                        points = pathPoints,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.05f))
+                    )
+                    
+                    // Overlay hint
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                MaterialTheme.shapes.small
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "View Map",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun SessionMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    }
+}
+
+@Composable
+private fun StatusAndQuickStatsCard(
+    isTracking: Boolean,
+    sessionData: TrackerSession?,
+    collectionData: CollectionData?,
+    onMapClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val resources = context.resources
+    val settings = TrackerSettingsQuick.snapshot(context)
+    
+    val currentSpeed = collectionData?.location?.speed
+    val currentActivity = collectionData?.activity?.getGroupedActivityName(context)
+    
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        onClick = onMapClick
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header: Status + Map Arrow
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Pulsing recording dot
+                    val infiniteTransition = rememberInfiniteTransition(label = "recording_dot")
+                    val alpha by infiniteTransition.animateFloat(
+                        initialValue = 1f,
+                        targetValue = 0.2f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1000),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "alpha"
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .alpha(alpha)
+                            .clip(MaterialTheme.shapes.extraLarge)
+                            .background(MaterialTheme.colorScheme.error)
+                    )
+                    Text(
+                        text = stringResource(R.string.notification_tracking_active),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = "Go to map",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
+            Spacer(Modifier.height(12.dp))
+            
+            // Main Metric: Speed (if available) or Duration
+            val sessionEnd = when {
+                sessionData != null && sessionData.end > sessionData.start -> sessionData.end
+                else -> Time.nowMillis
+            }
+            val durationMillis = if (sessionData != null) (sessionEnd - sessionData.start).coerceAtLeast(0L) else 0L
+            val durationText = durationMillis.formatAsDuration(context)
+            
+            val isMoving = (currentSpeed ?: 0f) > 0.5f // Threshold for "moving" UI state
+
+            // Primary Metric Area with animated values
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                if (isMoving && currentSpeed != null) {
+                    // Moving: Speed is Primary
+                    val speedText = resources.formatSpeed(context, currentSpeed.toDouble(), 1)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.speed_title),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                        )
+                        PulseOnChange(key = speedText) {
+                            AnimatedStatValue(
+                                value = speedText,
+                                style = MaterialTheme.typography.displayMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                } else {
+                    // Stopped/Idle: Duration is Primary
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.duration_title),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                        )
+                        AnimatedStatValue(
+                            value = durationText,
+                            style = MaterialTheme.typography.displayMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            // Secondary Stats Grid - Compact 3-column layout
+            if (sessionData != null) {
+                val distanceText = resources.formatDistance(
+                    sessionData.distanceInM,
+                    digits = if (sessionData.distanceInM >= 1000f) 1 else 0,
+                    unit = settings.lengthSystem
+                )
+                
+                val avgSpeed = if (durationMillis > 0) {
+                     (sessionData.distanceInM.toDouble()) / (durationMillis / 1000.0)
+                } else 0.0
+                val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
+                val altitude = collectionData?.location?.altitude
+                val accuracy = collectionData?.location?.horizontalAccuracy
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Row 1: Distance, Avg Speed, Altitude (3-column)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        CompactStatItem(
+                            label = stringResource(R.string.tracker_distance_title),
+                            value = distanceText,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CompactStatItem(
+                            label = "Avg",
+                            value = avgSpeedText,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (altitude != null) {
+                            CompactStatItem(
+                                label = stringResource(R.string.altitude_title),
+                                value = resources.formatDistance(altitude.toFloat(), 0, settings.lengthSystem),
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                    
+                    // Row 2: Activity, Steps, Accuracy (3-column)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        if (currentActivity != null) {
+                            CompactStatItem(
+                                label = stringResource(R.string.tracker_activity_title),
+                                value = currentActivity,
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        
+                        if (sessionData.steps > 0) {
+                            CompactStatItem(
+                                label = stringResource(R.string.tracker_steps_title),
+                                value = sessionData.steps.formatReadable(),
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        
+                        if (accuracy != null) {
+                            CompactStatItem(
+                                label = "Accuracy",
+                                value = "±${resources.formatDistance(accuracy, 0, settings.lengthSystem)}",
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                    
+                    // Row 3: Technical badges (WiFi, Cell, Coordinates) - more compact
+                    val wifiCount = collectionData?.wifi?.inRange?.size
+                    val cellCount = collectionData?.cell?.totalCount
+                    val location = collectionData?.location
+                    
+                    if ((wifiCount != null && wifiCount > 0) || (cellCount != null && cellCount > 0) || location != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (wifiCount != null && wifiCount > 0) {
+                                TechnicalStatItem(
+                                    icon = Icons.Filled.Wifi,
+                                    text = "$wifiCount"
+                                )
+                            }
+                            
+                            if (cellCount != null && cellCount > 0) {
+                                TechnicalStatItem(
+                                    icon = Icons.Filled.SignalCellularAlt,
+                                    text = "$cellCount"
+                                )
+                            }
+                            
+                            // Show coordinates inline
+                            if (location != null) {
+                                val coordText = "${Assist.coordinateToString(location.latitude)}, ${Assist.coordinateToString(location.longitude)}"
+                                Text(
+                                    text = coordText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveStatItem(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    }
+}
+
+@Composable
+private fun CompactStatItem(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    animated: Boolean = true
+) {
+    Column(modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+        )
+        if (animated) {
+            AnimatedContent(
+                targetState = value,
+                label = "compact_stat",
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(200)) + scaleIn(initialScale = 0.95f))
+                        .togetherWith(fadeOut(animationSpec = tween(100)))
+                }
+            ) { targetValue ->
+                Text(
+                    text = targetValue,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        } else {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
@@ -344,30 +1181,386 @@ private fun SessionOverviewCard(session: TrackerSession) {
 }
 
 @Composable
+private fun TechnicalStatItem(
+    icon: ImageVector,
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .background(
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f),
+                shape = MaterialTheme.shapes.small
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+        )
+    }
+}
+
+/**
+ * AnimatedStatValue - Displays a value with smooth counting animation when it changes.
+ * Uses AnimatedContent with vertical slide for a slot-machine effect.
+ */
+@Composable
+private fun AnimatedStatValue(
+    value: String,
+    modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.displayMedium,
+    fontWeight: FontWeight = FontWeight.Bold,
+    color: Color = MaterialTheme.colorScheme.onPrimaryContainer
+) {
+    AnimatedContent(
+        targetState = value,
+        label = "stat_value",
+        transitionSpec = {
+            // Slide up with fade for counting effect
+            (slideInVertically { height -> height / 4 } + fadeIn(animationSpec = tween(300)))
+                .togetherWith(slideOutVertically { height -> -height / 4 } + fadeOut(animationSpec = tween(150)))
+        },
+        modifier = modifier
+    ) { targetValue ->
+        Text(
+            text = targetValue,
+            style = style,
+            fontWeight = fontWeight,
+            color = color
+        )
+    }
+}
+
+/**
+ * PulseOnChange - Wraps content and adds a subtle scale pulse when value changes.
+ */
+@Composable
+private fun PulseOnChange(
+    key: Any,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val scale = remember { Animatable(1f) }
+    
+    LaunchedEffect(key) {
+        // Quick pulse: scale up then back
+        scale.animateTo(
+            targetValue = 1.08f,
+            animationSpec = tween(100, easing = FastOutSlowInEasing)
+        )
+        scale.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        )
+    }
+    
+    Box(
+        modifier = modifier.graphicsLayer {
+            scaleX = scale.value
+            scaleY = scale.value
+        }
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SessionPathPreview(
+    points: List<com.adsamcik.tracker.shared.base.data.Location>,
+    modifier: Modifier = Modifier
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val startColor = MaterialTheme.colorScheme.tertiary
+    val endColor = MaterialTheme.colorScheme.error
+    val pathDescription = "Session route preview with ${points.size} points"
+    
+    // Animate path drawing progress from 0 to 1
+    val pathProgress = remember { Animatable(0f) }
+    
+    LaunchedEffect(points) {
+        pathProgress.snapTo(0f)
+        pathProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(
+                durationMillis = 800,
+                easing = FastOutSlowInEasing
+            )
+        )
+    }
+    
+    androidx.compose.foundation.Canvas(
+        modifier = modifier.semantics { 
+            contentDescription = pathDescription
+        }
+    ) {
+        if (points.size < 2) return@Canvas
+
+        // Calculate bounds
+        var minLat = Double.MAX_VALUE
+        var maxLat = Double.MIN_VALUE
+        var minLon = Double.MAX_VALUE
+        var maxLon = Double.MIN_VALUE
+
+        points.forEach { p ->
+            minLat = minOf(minLat, p.latitude)
+            maxLat = maxOf(maxLat, p.latitude)
+            minLon = minOf(minLon, p.longitude)
+            maxLon = maxOf(maxLon, p.longitude)
+        }
+
+        val latRange = maxLat - minLat
+        val lonRange = maxLon - minLon
+
+        if (latRange == 0.0 && lonRange == 0.0) return@Canvas
+
+        // Add padding to bounds (10%)
+        val latPadding = if (latRange == 0.0) 0.001 else latRange * 0.1
+        val lonPadding = if (lonRange == 0.0) 0.001 else lonRange * 0.1
+
+        val drawMinLat = minLat - latPadding
+        val drawMaxLat = maxLat + latPadding
+        val drawMinLon = minLon - lonPadding
+        val drawMaxLon = maxLon + lonPadding
+
+        val drawLatRange = drawMaxLat - drawMinLat
+        val drawLonRange = drawMaxLon - drawMinLon
+
+        // Scale to canvas
+        val width = size.width
+        val height = size.height
+        
+        // Calculate point positions
+        val screenPoints = points.map { p ->
+            val x = ((p.longitude - drawMinLon) / drawLonRange).toFloat() * width
+            val y = (1 - ((p.latitude - drawMinLat) / drawLatRange)).toFloat() * height
+            Offset(x, y)
+        }
+        
+        // Determine how many points to draw based on animation progress
+        val pointsToDraw = (screenPoints.size * pathProgress.value).toInt().coerceAtLeast(2)
+        
+        // Draw the path up to current progress
+        val path = androidx.compose.ui.graphics.Path()
+        screenPoints.take(pointsToDraw).forEachIndexed { index, offset ->
+            if (index == 0) {
+                path.moveTo(offset.x, offset.y)
+            } else {
+                path.lineTo(offset.x, offset.y)
+            }
+        }
+
+        drawPath(
+            path = path,
+            color = primaryColor,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = 3.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round
+            ),
+            alpha = 0.6f
+        )
+        
+        // Draw start marker (green circle)
+        val startPoint = screenPoints.firstOrNull()
+        if (startPoint != null && pathProgress.value > 0.05f) {
+            drawCircle(
+                color = startColor,
+                radius = 6.dp.toPx(),
+                center = startPoint,
+                alpha = pathProgress.value
+            )
+            drawCircle(
+                color = Color.White,
+                radius = 3.dp.toPx(),
+                center = startPoint,
+                alpha = pathProgress.value
+            )
+        }
+        
+        // Draw end marker (red circle) - only when animation is mostly complete
+        val endPoint = screenPoints.lastOrNull()
+        if (endPoint != null && pathProgress.value > 0.9f) {
+            val endAlpha = ((pathProgress.value - 0.9f) / 0.1f).coerceIn(0f, 1f)
+            drawCircle(
+                color = endColor,
+                radius = 6.dp.toPx(),
+                center = endPoint,
+                alpha = endAlpha
+            )
+            drawCircle(
+                color = Color.White,
+                radius = 3.dp.toPx(),
+                center = endPoint,
+                alpha = endAlpha
+            )
+        }
+    }
+}
+
+@Composable
 private fun EmptyStateCard() {
+    val infiniteTransition = rememberInfiniteTransition(label = "empty_state")
+    
+    // Gentle floating animation for the icon
+    val floatOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "float"
+    )
+    
+    // Subtle pulse for the icon container
+    val iconScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "icon_pulse"
+    )
+    
+    // Background pattern animation
+    val pathOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 50f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "path_offset"
+    )
+    
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        )
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = stringResource(R.string.settings_tracking_title),
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.shortcut_start_tracking_long),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Animated Background Pattern
+            Canvas(modifier = Modifier.fillMaxSize().alpha(0.06f)) {
+                val width = size.width
+                val height = size.height
+                val path = androidx.compose.ui.graphics.Path()
+                
+                // Animated wavy lines suggesting a route
+                val waveOffset = pathOffset
+                path.moveTo(-50f + waveOffset, height * 0.3f)
+                path.cubicTo(
+                    width * 0.2f + waveOffset * 0.5f, height * 0.5f,
+                    width * 0.4f + waveOffset * 0.3f, height * 0.2f,
+                    width * 0.6f + waveOffset * 0.5f, height * 0.4f
+                )
+                path.cubicTo(
+                    width * 0.8f + waveOffset * 0.3f, height * 0.6f,
+                    width + waveOffset * 0.5f, height * 0.3f,
+                    width + 50f, height * 0.5f
+                )
+                
+                path.moveTo(-30f + waveOffset * 0.7f, height * 0.7f)
+                path.cubicTo(
+                    width * 0.3f + waveOffset * 0.4f, height * 0.8f,
+                    width * 0.5f + waveOffset * 0.6f, height * 0.6f,
+                    width * 0.7f + waveOffset * 0.4f, height * 0.85f
+                )
+                path.lineTo(width + 30f, height * 0.9f)
+                
+                drawPath(
+                    path = path,
+                    color = Color.Black,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 3.dp.toPx(),
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Floating icon with pulse
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer {
+                            translationY = -floatOffset
+                            scaleX = iconScale
+                            scaleY = iconScale
+                        }
+                        .size(72.dp)
+                        .clip(MaterialTheme.shapes.extraLarge)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                                )
+                            )
+                        )
+                        .padding(18.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationSearching,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                
+                Spacer(Modifier.height(20.dp))
+                
+                Text(
+                    text = stringResource(R.string.settings_tracking_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                Text(
+                    text = stringResource(R.string.shortcut_start_tracking_long),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                // Hint arrow pointing to FAB
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = "Tap below to start",
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .size(28.dp)
+                        .graphicsLayer { translationY = floatOffset * 0.5f }
+                )
+            }
         }
     }
 }
@@ -379,10 +1572,40 @@ private sealed class TrackingComponent(val key: String) {
     data object Cell : TrackingComponent("cell")
 }
 
+@Immutable
+private data class TrackingComponentModel(
+    val component: TrackingComponent,
+    val enabled: Boolean,
+    val metrics: ComponentMetrics?
+)
+
+@Immutable
+private data class ComponentMetrics(
+    val primary: ComponentMetric?,
+    val secondary: List<ComponentMetric> = emptyList(),
+    val status: String? = null
+)
+
+@Immutable
+private data class ComponentMetric(
+    val label: String,
+    val value: String,
+    val copyableValue: String? = null, // Both formatted + raw for clipboard
+    val onClick: (() -> Unit)? = null
+)
+
 @Composable
-private fun ComponentCard(component: TrackingComponent, enabled: Boolean, onClick: (() -> Unit)?) {
-    val containerColor = if (enabled) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant
+private fun ComponentCard(
+    component: TrackingComponent,
+    enabled: Boolean,
+    metrics: ComponentMetrics?,
+    onClick: (() -> Unit)?
+) {
+    // Use surfaceContainerLow for enabled (better visibility) and surfaceVariant for disabled
+    val containerColor = if (enabled) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerHigh
     val contentAlpha = if (enabled) 1f else 0.6f
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
 
     val title = when (component) {
         TrackingComponent.Location -> stringResource(R.string.settings_location_enabled_title)
@@ -395,30 +1618,357 @@ private fun ComponentCard(component: TrackingComponent, enabled: Boolean, onClic
         modifier = Modifier
             .fillMaxWidth()
             .testTag("component_card_${component.key}"),
-        colors = CardDefaults.cardColors(containerColor = containerColor)
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = MaterialTheme.shapes.medium
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(enabled = onClick != null) { onClick?.invoke() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            Text(text = title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.alpha(contentAlpha))
-
-            if (!enabled) {
-                Spacer(Modifier.weight(1f))
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = stringResource(R.string.description_settings),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.testTag("component_settings_icon")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .weight(1f)
+                        .alpha(0.9f)
                 )
+
+                if (!enabled) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = stringResource(R.string.description_settings),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("component_settings_icon").size(16.dp)
+                    )
+                }
+            }
+
+            metrics?.let { details ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .alpha(contentAlpha),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val scope = rememberCoroutineScope()
+                    details.primary?.let {
+                        ComponentMetricText(
+                            metric = it,
+                            emphasize = true,
+                            onCopy = if (enabled && it.copyableValue != null) {
+                                {
+                                    copyToClipboard(context, haptics, it.label, it.copyableValue)
+                                }
+                            } else null
+                        )
+                    }
+                    
+                    if (details.secondary.isNotEmpty()) {
+                        // Use a FlowRow or simple Column for secondary metrics
+                        details.secondary.forEach {
+                            ComponentMetricText(
+                                metric = it,
+                                emphasize = false,
+                                onCopy = if (enabled && it.copyableValue != null) {
+                                    {
+                                        copyToClipboard(context, haptics, it.label, it.copyableValue)
+                                    }
+                                } else null
+                            )
+                        }
+                    }
+                    
+                    details.status?.let { status ->
+                        Text(
+                            text = status,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            } ?: Row(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .alpha(contentAlpha),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (enabled) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(12.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = stringResource(R.string.tracker_component_waiting_data),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "Disabled",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun ComponentMetricText(
+    metric: ComponentMetric,
+    emphasize: Boolean,
+    onCopy: (() -> Unit)? = null
+) {
+    var justCopied by remember { mutableStateOf(false) }
+    LaunchedEffect(justCopied) {
+        if (justCopied) {
+            delay(2000)
+            justCopied = false
+        }
+    }
+
+    val interactionModifier = if (onCopy != null) {
+        Modifier.combinedClickable(
+            onClick = { metric.onClick?.invoke() },
+            onLongClick = {
+                onCopy()
+                justCopied = true
+            }
+        )
+    } else if (metric.onClick != null) {
+        Modifier.clickable { metric.onClick.invoke() }
+    } else {
+        Modifier
+    }
+
+    val semanticsModifier = Modifier.semantics {
+        contentDescription = "${metric.label}: ${metric.value}"
+        if (onCopy != null) {
+            onClick(label = "Copy ${metric.label}") {
+                onCopy()
+                justCopied = true
+                true
+            }
+        } else if (metric.onClick != null) {
+             onClick(label = "Toggle format") {
+                 metric.onClick.invoke()
+                 true
+             }
+        }
+    }
+
+    Column(modifier = interactionModifier.then(semanticsModifier)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = metric.label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+            )
+            if (onCopy != null) {
+                AnimatedContent(targetState = justCopied, label = "copy_icon") { copied ->
+                    if (copied) {
+                         Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(10.dp)
+                                .alpha(0.4f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(2.dp))
+        
+        AnimatedContent(
+            targetState = metric.value,
+            transitionSpec = {
+                (slideInVertically { height -> height } + fadeIn()).togetherWith(slideOutVertically { height -> -height } + fadeOut())
+            },
+            label = "metric_value"
+        ) { targetValue ->
+            Text(
+                text = targetValue,
+                style = if (emphasize) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+                fontWeight = if (emphasize) FontWeight.SemiBold else FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+private fun buildLocationMetrics(
+    context: Context,
+    collectionData: CollectionData?,
+    settings: TrackerSettingsState,
+    useDecimalDegrees: Boolean,
+    onToggleFormat: () -> Unit
+): ComponentMetrics? {
+    val location = collectionData?.location ?: return null
+    val resources = context.resources
+    val primary = location.horizontalAccuracy?.takeIf { it > 0f }?.let { accuracy ->
+        val formattedAccuracy = resources.formatDistance(
+            distanceInMeters = accuracy,
+            digits = if (accuracy >= 100f) 0 else 1,
+            unit = settings.lengthSystem
+        )
+        ComponentMetric(
+            label = context.getString(R.string.horizontal_accuracy_title),
+            value = formattedAccuracy,
+            copyableValue = "$formattedAccuracy\n${accuracy}m"
+        )
+    }
+
+    val secondary = buildList {
+        // Add coordinates first
+        val latFormatted = if (useDecimalDegrees) location.latitude.toString() else Assist.coordinateToString(location.latitude)
+        val lonFormatted = if (useDecimalDegrees) location.longitude.toString() else Assist.coordinateToString(location.longitude)
+        add(
+            ComponentMetric(
+                label = context.getString(R.string.coordinates_title),
+                value = "$latFormatted, $lonFormatted",
+                copyableValue = "Latitude: $latFormatted (${location.latitude})\nLongitude: $lonFormatted (${location.longitude})",
+                onClick = onToggleFormat
+            )
+        )
+        
+        location.speed?.takeIf { it > 0f }?.let { speed ->
+            val formattedSpeed = resources.formatSpeed(context, speed.toDouble(), 1)
+            add(
+                ComponentMetric(
+                    label = context.getString(R.string.speed_title),
+                    value = formattedSpeed,
+                    copyableValue = "$formattedSpeed\n${speed}m/s"
+                )
+            )
+        }
+        location.altitude?.let { altitude ->
+            val formattedAltitude = resources.formatDistance(altitude.toFloat(), 0, settings.lengthSystem)
+            add(
+                ComponentMetric(
+                    label = context.getString(R.string.altitude_title),
+                    value = formattedAltitude,
+                    copyableValue = "$formattedAltitude\n${altitude}m"
+                )
+            )
+        }
+    }
+
+    val status = formatRelativeUpdate(context, location.time)
+    if (primary == null && secondary.isEmpty() && status == null) return null
+    return ComponentMetrics(primary = primary, secondary = secondary, status = status)
+}
+
+private fun buildActivityMetrics(context: Context, collectionData: CollectionData?): ComponentMetrics? {
+    val activity = collectionData?.activity ?: return null
+    val activityName = activity.getGroupedActivityName(context)
+    val primary = ComponentMetric(
+        label = context.getString(R.string.tracker_activity_title),
+        value = activityName,
+        copyableValue = "$activityName (${activity.confidence}% confidence)"
+    )
+    val secondary = listOf(
+        ComponentMetric(
+            label = context.getString(R.string.tracker_activity_confidence),
+            value = "${activity.confidence}%",
+            copyableValue = "Confidence: ${activity.confidence}%"
+        )
+    )
+    val status = formatRelativeUpdate(context, collectionData.time)
+    return ComponentMetrics(primary = primary, secondary = secondary, status = status)
+}
+
+private fun buildWifiMetrics(context: Context, collectionData: CollectionData?): ComponentMetrics? {
+    val wifi = collectionData?.wifi ?: return null
+    val count = wifi.inRange.size
+    val wifiCountText = context.resources.getQuantityString(R.plurals.tracker_wifi_networks_value, count, count)
+    val primary = ComponentMetric(
+        label = context.getString(R.string.settings_wifi_enabled_title),
+        value = wifiCountText,
+        copyableValue = "$count WiFi networks in range"
+    )
+    val strongest = wifi.inRange.maxByOrNull { it.level }
+    val secondary = strongest?.let {
+        val signalText = context.getString(R.string.tracker_signal_strength_value, it.level)
+        listOf(
+            ComponentMetric(
+                label = context.getString(R.string.tracker_signal_strength_title),
+                value = signalText,
+                copyableValue = "Strongest signal: ${it.level} dBm\nSSID: ${it.ssid ?: "Hidden"}"
+            )
+        )
+    } ?: emptyList()
+    val status = formatRelativeUpdate(context, wifi.time)
+    return ComponentMetrics(primary = primary, secondary = secondary, status = status)
+}
+
+private fun buildCellMetrics(context: Context, collectionData: CollectionData?): ComponentMetrics? {
+    val cell = collectionData?.cell ?: return null
+    val cellCountText = context.getString(R.string.cell_count_value, cell.totalCount)
+    val primary = ComponentMetric(
+        label = context.getString(R.string.cell_count_title),
+        value = cellCountText,
+        copyableValue = "Total cells: ${cell.totalCount}"
+    )
+    val strongest = cell.registeredCells.maxByOrNull { it.dbm }
+    val secondary = strongest?.dbm?.takeIf { it != 0 }?.let { dbm ->
+        val operatorName = strongest.networkOperator.name?.takeIf { it.isNotBlank() }
+            ?: "${strongest.networkOperator.mcc}-${strongest.networkOperator.mnc}"
+        val cellType = context.getString(strongest.type.nameRes)
+        val cellValueText = context.getString(R.string.cell_current_single_value, cellType, operatorName, dbm)
+        listOf(
+            ComponentMetric(
+                label = context.getString(R.string.cell_current_title),
+                value = cellValueText,
+                copyableValue = "Type: $cellType\nOperator: $operatorName\nSignal: ${dbm}dBm"
+            )
+        )
+    } ?: emptyList()
+    val status = formatRelativeUpdate(context, collectionData.time)
+    return ComponentMetrics(primary = primary, secondary = secondary, status = status)
+}
+
+private fun formatRelativeUpdate(context: Context, timestamp: Long?): String? {
+    if (timestamp == null || timestamp <= 0L) return null
+    val relative = DateUtils.getRelativeTimeSpanString(
+        timestamp,
+        System.currentTimeMillis(),
+        DateUtils.SECOND_IN_MILLIS,
+        DateUtils.FORMAT_ABBREV_RELATIVE
+    ).toString()
+    return context.getString(R.string.last_update_value, relative)
+}
+
+/**
+ * Expressive Tracking Button
+ *
+ * A redesigned tracking control with Material 3 Expressive styling:
+ * - Morphing shape: Rounded square (idle) → Circle (tracking)
+ * - Animated ring progress indicator when tracking
+ * - Soft glow effect during active tracking
+ * - Smooth icon transitions with scale animations
+ * - Clear state distinction through color and shape
+ */
 @OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun TrackingFAB(
@@ -427,42 +1977,161 @@ private fun TrackingFAB(
     onToggleTracking: () -> Unit,
     onRequestPermission: () -> Unit,
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "fab")
-    val scale by infiniteTransition.animateFloat(
+    val infiniteTransition = rememberInfiniteTransition(label = "tracking_button")
+    
+    // Morphing corner radius: More rounded when tracking
+    val cornerRadius by animateFloatAsState(
+        targetValue = if (isTracking) 50f else 28f,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        label = "corner_radius"
+    )
+    
+    // Subtle pulse when tracking
+    val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = if (isTracking) 1.08f else 1f,
-        animationSpec = infiniteRepeatable<Float>(
-            animation = tween(1500, easing = FastOutSlowInEasing),
+        targetValue = if (isTracking) 1.04f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse"
     )
-
-    LargeFloatingActionButton(
-        onClick = {
-            if (!hasPermission) onRequestPermission() else onToggleTracking()
-        },
-        containerColor = when {
-            !hasPermission -> MaterialTheme.colorScheme.surfaceVariant
-            isTracking -> MaterialTheme.colorScheme.error
-            else -> MaterialTheme.colorScheme.primary
-        },
-        contentColor = when {
-            !hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
-            isTracking -> MaterialTheme.colorScheme.onError
-            else -> MaterialTheme.colorScheme.onPrimary
-        },
-        modifier = Modifier
-            .size(88.dp)
-            .testTag("tracking_fab")
+    
+    // Glow ring animation - rotating gradient effect when tracking
+    val glowRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "glow_rotation"
+    )
+    
+    // Alpha for glow effect
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isTracking) 0.6f else 0f,
+        animationSpec = tween(durationMillis = 500),
+        label = "glow_alpha"
+    )
+    
+    // Icon scale for press feedback
+    val iconScale by animateFloatAsState(
+        targetValue = if (isTracking) 0.9f else 1f,
+        animationSpec = tween(durationMillis = 300),
+        label = "icon_scale"
+    )
+    
+    val buttonSize = 96.dp
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val errorColor = MaterialTheme.colorScheme.error
+    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+    
+    val containerColor = when {
+        !hasPermission -> surfaceVariant
+        isTracking -> errorColor
+        else -> primaryColor
+    }
+    
+    val contentColor = when {
+        !hasPermission -> MaterialTheme.colorScheme.onSurfaceVariant
+        isTracking -> MaterialTheme.colorScheme.onError
+        else -> MaterialTheme.colorScheme.onPrimary
+    }
+    
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(buttonSize + 16.dp) // Extra space for glow
     ) {
-        val icon: ImageVector = when {
-            !hasPermission -> Icons.Default.LocationOff
-            isTracking -> Icons.Default.Stop
-            else -> Icons.Default.PlayArrow
+        // Outer glow ring when tracking
+        if (isTracking) {
+            Canvas(
+                modifier = Modifier
+                    .size(buttonSize + 12.dp)
+                    .alpha(glowAlpha)
+                    .graphicsLayer { rotationZ = glowRotation }
+            ) {
+                val sweepGradient = Brush.sweepGradient(
+                    0f to errorColor.copy(alpha = 0.8f),
+                    0.25f to errorColor.copy(alpha = 0.2f),
+                    0.5f to errorColor.copy(alpha = 0.8f),
+                    0.75f to errorColor.copy(alpha = 0.2f),
+                    1f to errorColor.copy(alpha = 0.8f)
+                )
+                
+                drawCircle(
+                    brush = sweepGradient,
+                    radius = size.minDimension / 2,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx())
+                )
+            }
         }
-        AnimatedContent(targetState = icon, label = "fab_icon") { target ->
-            Icon(target, contentDescription = null, modifier = Modifier.size(36.dp))
+        
+        // Main button with morphing shape
+        Surface(
+            onClick = {
+                if (!hasPermission) onRequestPermission() else onToggleTracking()
+            },
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius.dp),
+            color = containerColor,
+            shadowElevation = if (isTracking) 8.dp else 6.dp,
+            tonalElevation = if (isTracking) 4.dp else 2.dp,
+            modifier = Modifier
+                .size(buttonSize)
+                .graphicsLayer {
+                    scaleX = pulseScale
+                    scaleY = pulseScale
+                }
+                .testTag("tracking_fab")
+                .semantics {
+                    contentDescription = when {
+                        !hasPermission -> "Start tracking - permission required"
+                        isTracking -> "Stop tracking"
+                        else -> "Start tracking"
+                    }
+                }
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Icon with animated transitions
+                val icon: ImageVector = when {
+                    !hasPermission -> Icons.Default.LocationOff
+                    isTracking -> Icons.Default.Stop
+                    else -> Icons.Default.PlayArrow
+                }
+                val description = when {
+                    !hasPermission -> stringResource(R.string.description_tracking_start)
+                    isTracking -> stringResource(R.string.description_tracking_stop)
+                    else -> stringResource(R.string.description_tracking_start)
+                }
+                
+                AnimatedContent(
+                    targetState = icon,
+                    label = "fab_icon",
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(300)) + 
+                            androidx.compose.animation.scaleIn(initialScale = 0.8f, animationSpec = tween(300)))
+                            .togetherWith(
+                                fadeOut(animationSpec = tween(200)) +
+                                    androidx.compose.animation.scaleOut(targetScale = 0.8f, animationSpec = tween(200))
+                            )
+                    }
+                ) { targetIcon ->
+                    Icon(
+                        imageVector = targetIcon,
+                        contentDescription = description,
+                        tint = contentColor,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .graphicsLayer {
+                                scaleX = iconScale
+                                scaleY = iconScale
+                            }
+                    )
+                }
+            }
         }
     }
 }
@@ -483,6 +2152,213 @@ private fun LockBanner(onClick: () -> Unit) {
             Icon(Icons.Outlined.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(text = stringResource(R.string.settings_disabled_recharge_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Icon(Icons.Outlined.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+private fun copyToClipboard(
+    context: Context,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    label: String,
+    value: String
+) {
+    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText(label, value)
+    clipboardManager.setPrimaryClip(clip)
+    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+}
+
+/**
+ * Today's Progress Card
+ * 
+ * Displays aggregated daily metrics (distance, steps, duration) when not tracking.
+ * Redesigned to use a circular progress indicator for the daily goal and a more
+ * prominent display of the primary metric (distance).
+ */
+@Composable
+private fun TodayProgressCard(
+    isTracking: Boolean,
+    settings: TrackerSettingsState,
+    modifier: Modifier = Modifier,
+    onStartTrackingHint: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val resources = context.resources
+    val dailySummaryProvider = LocalDailySummaryProvider.current
+    
+    var todaySummary by remember { mutableStateOf<DailySummary?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    
+    // Fetch on-demand when composition enters or when tracking state changes
+    LaunchedEffect(isTracking) {
+        isLoading = true
+        todaySummary = dailySummaryProvider.fetchTodaySummary()
+        isLoading = false
+    }
+    
+    // Don't show the card when actively tracking (StatusAndQuickStatsCard handles that)
+    if (isTracking) return
+    
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left side: Stats
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = stringResource(R.string.dashboard_today_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                if (isLoading) {
+                    Box(modifier = Modifier.height(40.dp), contentAlignment = Alignment.CenterStart) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    }
+                } else if (todaySummary == null) {
+                    Text(
+                        text = stringResource(R.string.dashboard_today_empty_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                } else {
+                    val summary = todaySummary!!
+                    
+                    // Primary Metric: Distance
+                    val distanceText = resources.formatDistance(
+                        summary.totalDistanceM,
+                        digits = if (summary.totalDistanceM >= 1000f) 1 else 0,
+                        unit = settings.lengthSystem
+                    )
+                    
+                    Text(
+                        text = distanceText,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    // Secondary Metrics Grid
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        // Duration
+                        Column {
+                            Text(
+                                text = stringResource(R.string.dashboard_today_duration),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+                            )
+                            Text(
+                                text = summary.totalDurationMs.formatAsDuration(context),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        // Steps
+                        if (summary.totalSteps > 0) {
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.dashboard_today_steps),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+                                )
+                                Text(
+                                    text = summary.totalSteps.formatReadable(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Right side: Goal Progress Ring
+            if (!isLoading) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.padding(start = 16.dp)
+                ) {
+                    GoalProgressRing()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Goal Progress Ring
+ * 
+ * A circular progress indicator showing daily step goal progress.
+ * Replaces the linear bar for a more modern look.
+ */
+@Composable
+private fun GoalProgressRing(
+    modifier: Modifier = Modifier
+) {
+    val goalProgressProvider = LocalGoalProgressProvider.current
+    val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
+    
+    if (!goalProgress.gamificationEnabled || goalProgress.goalSteps <= 0) return
+    
+    val animatedProgress by animateFloatAsState(
+        targetValue = goalProgress.progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        label = "goal_progress"
+    )
+    
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    
+    Box(contentAlignment = Alignment.Center, modifier = modifier.size(72.dp)) {
+        // Track
+        CircularProgressIndicator(
+            progress = { 1f },
+            modifier = Modifier.fillMaxSize(),
+            color = trackColor,
+            strokeWidth = 6.dp,
+            trackColor = Color.Transparent,
+        )
+        
+        // Progress
+        CircularProgressIndicator(
+            progress = { animatedProgress },
+            modifier = Modifier.fillMaxSize(),
+            color = primaryColor,
+            strokeWidth = 6.dp,
+            trackColor = Color.Transparent,
+            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+        
+        // Icon or Percentage inside
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Outlined.Star,
+                contentDescription = null,
+                tint = primaryColor,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "${(goalProgress.progress * 100).toInt()}%",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

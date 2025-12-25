@@ -9,7 +9,16 @@ data class TrackerSettingsState(
     val autoUnitSwitch: Boolean,
     val lengthSystem: LengthSystem,
     val speedFormat: SpeedFormat
-)
+) {
+    companion object {
+        /** Default settings used as initial value before async load completes. */
+        val DEFAULT = TrackerSettingsState(
+            autoUnitSwitch = false,
+            lengthSystem = LengthSystem.Metric,
+            speedFormat = SpeedFormat.Hour
+        )
+    }
+}
 
 /** Repository boundary for tracker settings. */
 interface TrackerSettingsRepository {

@@ -1,61 +1,85 @@
 package com.adsamcik.tracker.tracker
 
 import android.content.Context
-import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.tracker.locker.TrackerLocker
-import com.jraska.livedata.test
+import com.adsamcik.tracker.tracker.controller.LockManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert
-import org.junit.Rule
+import org.junit.Before
 import org.junit.Test
-import java.util.concurrent.TimeUnit
 
 
 class TrackerLockerTest {
 
-	@get:Rule
-	val testRule = InstantTaskExecutorRule()
+	private lateinit var context: Context
+	private lateinit var lockManager: LockManager
 
-	@Test
-	fun timeLockTest() {
-		val context = ApplicationProvider.getApplicationContext<Context>()
-
-		Assert.assertFalse(TrackerLocker.isLocked.value)
-
-		TrackerLocker.lockTimeLock(context, 0)
-		Assert.assertTrue(!TrackerLocker.isTimeLocked)
-
-		val testObserver = TrackerLocker.isLocked.test()
-
-		TrackerLocker.lockTimeLock(context, Time.SECOND_IN_MILLISECONDS)
-		Assert.assertTrue(TrackerLocker.isTimeLocked)
-
-		testObserver
-				.awaitValue(500, TimeUnit.MILLISECONDS)
-				.assertValue(true)
-				.awaitNextValue(10, TimeUnit.SECONDS)
-				.assertValue(false)
+	@Before
+	fun setup() {
+		context = ApplicationProvider.getApplicationContext<Context>()
+		val app = context.applicationContext as Application
+		lockManager = app.appGraph.lockManager
 	}
 
-	//Hard to run since charging causes immediate unlock
-	/*@Test
-	fun stopTillRechargeWOCallbackTest() {
-		val context = ApplicationProvider.getApplicationContext<Context>()
+	@Test
+	fun timeLockTest() = runBlocking {
+		// Verify initial unlocked state
+		Assert.assertFalse(lockManager.isLocked)
 
-		val testObserver = TrackerLocker.isLocked.test()
+		// Lock for 0ms should not engage (minimum 1 second)
+		lockManager.lockTimeLock(context, 0)
+		Assert.assertFalse(lockManager.isTimeLocked)
 
-		Assert.assertFalse(TrackerLocker.isLocked.value)
-		Assert.assertFalse(TrackerLocker.isChargeLocked)
+		// Lock for 1 second should engage
+		lockManager.lockTimeLock(context, Time.SECOND_IN_MILLISECONDS)
+		Assert.assertTrue(lockManager.isTimeLocked)
+		
+		// Verify combined lock state reflects time lock
+		Assert.assertTrue(lockManager.isLocked)
+		
+		// Wait for lock to expire (with timeout to prevent test hanging)
+		withTimeout(12000) {
+			// Collect until we get false (unlocked)
+			lockManager.isLockedFlow.first { !it }
+		}
+		
+		// Verify lock expired
+		Assert.assertFalse(lockManager.isTimeLocked)
+		Assert.assertFalse(lockManager.isLocked)
+	}
 
-		TrackerLocker.lockUntilRecharge(context)
-		Assert.assertTrue(TrackerLocker.isChargeLocked)
-		testObserver.awaitNextValue(500, TimeUnit.MILLISECONDS)
-				.assertValue(true)
+	// Note: Recharge lock test is challenging to run in CI since charging state 
+	// causes immediate unlock. Kept as commented reference for manual testing.
+	/*
+	@Test
+	fun rechargeLockTest() = runBlocking {
+		// Verify initial unlocked state
+		Assert.assertFalse(lockManager.isLocked)
+		Assert.assertFalse(lockManager.isChargeLocked)
 
-		TrackerLocker.unlockRechargeLock(context)
-		Assert.assertFalse(TrackerLocker.isChargeLocked)
-		testObserver.awaitNextValue(500, TimeUnit.MILLISECONDS)
-				.assertValue(false)
-	}*/
+		// Lock until recharge
+		lockManager.lockUntilRecharge(context)
+		Assert.assertTrue(lockManager.isChargeLocked)
+		Assert.assertTrue(lockManager.isLocked)
+		
+		// Wait for lock state to update
+		withTimeout(1000) {
+			lockManager.isLockedFlow.first { it }
+		}
+
+		// Unlock recharge lock
+		lockManager.unlockRechargeLock(context)
+		Assert.assertFalse(lockManager.isChargeLocked)
+		
+		// Wait for unlock
+		withTimeout(1000) {
+			lockManager.isLockedFlow.first { !it }
+		}
+		Assert.assertFalse(lockManager.isLocked)
+	}
+	*/
 }

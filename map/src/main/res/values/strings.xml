@@ -88,6 +88,6 @@
     <!-- Help Text for Map Settings -->
     <string name="help_map_quality">Rendering detail multiplier. Higher values show more detail but may slow down map loading on older devices.</string>
     <string name="help_max_heat_points">Maximum number of location points shown in heatmap view. Higher values = more detail but slower rendering.</string>
-    <string name="help_visit_threshold">How long you need to stay in one place before it&apos;s marked as a &apos;visit&apos; on the map. Increase this to reduce clutter from brief stops.</string>
+    <string name="help_visit_threshold">How long you need to stay in one place before it\&#039;s marked as a \&#039;visit\&#039; on the map. Increase this to reduce clutter from brief stops.</string>
 
 </resources>

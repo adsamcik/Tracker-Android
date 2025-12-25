@@ -1,0 +1,89 @@
+package com.adsamcik.tracker.tracker.controller
+
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Default implementation of TrackerServiceController.
+ * 
+ * Contract:
+ * - Input: TrackerService calls updateXxx methods during lifecycle
+ * - Output: Reactive StateFlows for UI observation
+ * - Thread-safety: MutableStateFlow is thread-safe
+ * - Lifecycle: Application-scoped singleton (wired in AppGraph)
+ * 
+ * Replaces TrackerService companion object static state.
+ */
+class DefaultTrackerServiceController : TrackerServiceController {
+    private val _isServiceRunning = MutableStateFlow(false)
+    override val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
+    override val isServiceRunning: Boolean get() = _isServiceRunning.value
+    
+    private val _sessionInfoFlow = MutableStateFlow<TrackerSessionInfo?>(null)
+    override val sessionInfoFlow: StateFlow<TrackerSessionInfo?> get() = _sessionInfoFlow
+    
+    private val _sessionFlow = MutableStateFlow<TrackerSession?>(null)
+    override val sessionFlow: StateFlow<TrackerSession?> get() = _sessionFlow
+    
+    private val _collectionDataFlow = MutableStateFlow<CollectionData?>(null)
+    override val collectionDataFlow: StateFlow<CollectionData?> get() = _collectionDataFlow
+
+    private val _pathPointsFlow = MutableStateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>(null)
+    override val pathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?> get() = _pathPointsFlow
+
+    private val _lastSessionFlow = MutableStateFlow<TrackerSession?>(null)
+    override val lastSessionFlow: StateFlow<TrackerSession?> get() = _lastSessionFlow
+
+    private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>(null)
+    override val lastPathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?> get() = _lastPathPointsFlow
+    
+    override fun updateServiceRunning(isRunning: Boolean) {
+        _isServiceRunning.value = isRunning
+    }
+    
+    override fun updateSessionInfo(info: TrackerSessionInfo?) {
+        _sessionInfoFlow.value = info
+    }
+    
+    override fun updateSession(session: TrackerSession?) {
+        if (session == null) {
+            // Service stopping, retain last session data
+            val currentSession = _sessionFlow.value
+            if (currentSession != null) {
+                _lastSessionFlow.value = currentSession
+                _lastPathPointsFlow.value = _pathPointsFlow.value
+            }
+            _pathPointsFlow.value = null
+        }
+        _sessionFlow.value = session
+    }
+    
+    override fun updateCollectionData(data: CollectionData?) {
+        _collectionDataFlow.value = data
+        val currentSession = _sessionFlow.value
+        
+        if (currentSession != null && data?.location != null) {
+            val newLocation = data.location!!
+            val currentPath = _pathPointsFlow.value
+            
+            if (currentPath == null || currentPath.first != currentSession.id) {
+                _pathPointsFlow.value = currentSession.id to listOf(newLocation)
+            } else {
+                val points = currentPath.second
+                val lastLocation = points.last()
+                val results = FloatArray(1)
+                android.location.Location.distanceBetween(
+                    lastLocation.latitude, lastLocation.longitude,
+                    newLocation.latitude, newLocation.longitude,
+                    results
+                )
+                if (results[0] > 10) {
+                    _pathPointsFlow.value = currentSession.id to (points + newLocation)
+                }
+            }
+        }
+    }
+}

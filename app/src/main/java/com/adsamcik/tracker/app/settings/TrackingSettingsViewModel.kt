@@ -3,6 +3,10 @@ package com.adsamcik.tracker.app.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.app.common.ui.BatteryImpact
+import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
+import com.adsamcik.tracker.app.settings.data.TrackingPresetSettings
+import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,13 +14,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 
-// Contract: ViewModel for tracking settings screen
+// Contract: ViewModel for tracking settings screen with preset support
 // Inputs: Context for Preferences access
-// Outputs: StateFlows for all tracking-related preferences
+// Outputs: StateFlows for all tracking-related preferences + preset state
 // Errors: None (preferences default to safe values)
 class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
     
     private val prefs = Preferences.getPref(context)
+    
+    // Preset tracking
+    private val _currentPreset = MutableStateFlow<TrackingPolicyPreset?>(
+        TrackingPolicyPreset.values().firstOrNull { 
+            it.name == prefs.getString("tracking_preset", TrackingPolicyPreset.DEFAULT.name) 
+        } ?: TrackingPolicyPreset.DEFAULT
+    )
+    val currentPreset: StateFlow<TrackingPolicyPreset?> = _currentPreset.asStateFlow()
+    
+    private val _currentBatteryImpact = MutableStateFlow(BatteryImpact.MODERATE)
+    val currentBatteryImpact: StateFlow<BatteryImpact> = _currentBatteryImpact.asStateFlow()
     
     // Enable/disable tracking sources
     private val _locationEnabled = MutableStateFlow(
@@ -57,7 +72,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
     
     // Auto-tracking
     private val _autoTrackingEnabled = MutableStateFlow(
-        prefs.getIntRes(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default) > 0
+        prefs.getIntResString(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default) > 0
     )
     val autoTrackingEnabled: StateFlow<Boolean> = _autoTrackingEnabled.asStateFlow()
     
@@ -98,6 +113,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
             prefs.edit { setBoolean(PrefR.string.settings_location_enabled_key, enabled) }
             _locationEnabled.value = enabled
             validateSources()
+            markCustomPreset()
         }
     }
     
@@ -106,6 +122,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
             prefs.edit { setBoolean(PrefR.string.settings_activity_enabled_key, enabled) }
             _activityEnabled.value = enabled
             validateSources()
+            markCustomPreset()
         }
     }
     
@@ -114,6 +131,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
             prefs.edit { setBoolean(PrefR.string.settings_steps_enabled_key, enabled) }
             _stepsEnabled.value = enabled
             validateSources()
+            markCustomPreset()
         }
     }
     
@@ -122,6 +140,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
             prefs.edit { setBoolean(PrefR.string.settings_wifi_enabled_key, enabled) }
             _wifiEnabled.value = enabled
             validateSources()
+            markCustomPreset()
         }
     }
     
@@ -130,6 +149,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
             prefs.edit { setBoolean(PrefR.string.settings_cell_enabled_key, enabled) }
             _cellEnabled.value = enabled
             validateSources()
+            markCustomPreset()
         }
     }
     
@@ -137,6 +157,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             prefs.edit { setBoolean(PrefR.string.settings_wifi_network_enabled_key, enabled) }
             _wifiNetworkEnabled.value = enabled
+            markCustomPreset()
         }
     }
     
@@ -144,6 +165,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             prefs.edit { setBoolean(PrefR.string.settings_wifi_location_count_enabled_key, enabled) }
             _wifiLocationCountEnabled.value = enabled
+            markCustomPreset()
         }
     }
     
@@ -165,6 +187,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             prefs.edit { setInt(PrefR.string.settings_tracking_min_distance_key, distance) }
             _minDistance.value = distance
+            markCustomPreset()
         }
     }
     
@@ -172,6 +195,7 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             prefs.edit { setInt(PrefR.string.settings_tracking_min_time_key, time) }
             _minTime.value = time
+            markCustomPreset()
         }
     }
     
@@ -179,11 +203,90 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             prefs.edit { setInt(PrefR.string.settings_tracking_required_accuracy_key, accuracy) }
             _requiredAccuracy.value = accuracy
+            markCustomPreset()
         }
     }
     
     private fun validateSources() {
         _hasValidSources.value = locationEnabled.value || activityEnabled.value || 
                 stepsEnabled.value || wifiEnabled.value || cellEnabled.value
+    }
+    
+    // Preset management
+    fun applyPreset(preset: TrackingPolicyPreset) {
+        viewModelScope.launch {
+            val config = preset.settings
+            
+            // Apply all settings
+            prefs.edit {
+                setBoolean(PrefR.string.settings_location_enabled_key, config.locationEnabled)
+                setBoolean(PrefR.string.settings_activity_enabled_key, config.activityEnabled)
+                setBoolean(PrefR.string.settings_steps_enabled_key, config.stepsEnabled)
+                setBoolean(PrefR.string.settings_wifi_enabled_key, config.wifiEnabled)
+                setBoolean(PrefR.string.settings_wifi_network_enabled_key, config.wifiEnabled) // Network enabled with wifi
+                setBoolean(PrefR.string.settings_wifi_location_count_enabled_key, config.wifiLocationCountEnabled)
+                setBoolean(PrefR.string.settings_cell_enabled_key, config.cellEnabled)
+                setBoolean(PrefR.string.settings_auto_tracking_transition_key, config.useTransitionDetection)
+                setInt(PrefR.string.settings_tracking_min_distance_key, config.minDistanceMeters)
+                setInt(PrefR.string.settings_tracking_min_time_key, config.minTimeSeconds)
+                setInt(PrefR.string.settings_tracking_required_accuracy_key, config.requiredAccuracyMeters)
+                setString("tracking_preset", preset.name)
+            }
+            
+            // Update state flows
+            _locationEnabled.value = config.locationEnabled
+            _activityEnabled.value = config.activityEnabled
+            _stepsEnabled.value = config.stepsEnabled
+            _wifiEnabled.value = config.wifiEnabled
+            _wifiNetworkEnabled.value = config.wifiEnabled
+            _wifiLocationCountEnabled.value = config.wifiLocationCountEnabled
+            _cellEnabled.value = config.cellEnabled
+            _transitionDetectionEnabled.value = config.useTransitionDetection
+            _minDistance.value = config.minDistanceMeters
+            _minTime.value = config.minTimeSeconds
+            _requiredAccuracy.value = config.requiredAccuracyMeters
+            _currentPreset.value = preset
+            _currentBatteryImpact.value = preset.batteryImpact
+            
+            validateSources()
+        }
+    }
+    
+    /**
+     * Mark preset as custom when user manually changes advanced settings.
+     */
+    private fun markCustomPreset() {
+        if (_currentPreset.value != null) {
+            viewModelScope.launch {
+                prefs.edit { setString("tracking_preset", "CUSTOM") }
+                _currentPreset.value = null // null indicates custom
+                recalculateBatteryImpact()
+            }
+        }
+    }
+    
+    /**
+     * Recalculate battery impact based on current settings.
+     */
+    private fun recalculateBatteryImpact() {
+        val currentSettings = TrackingPresetSettings(
+            locationEnabled = _locationEnabled.value,
+            requirePreciseLocation = context.hasPreciseLocationPermission,
+            minDistanceMeters = _minDistance.value,
+            minTimeSeconds = _minTime.value,
+            requiredAccuracyMeters = _requiredAccuracy.value,
+            activityEnabled = _activityEnabled.value,
+            stepsEnabled = _stepsEnabled.value,
+            wifiEnabled = _wifiEnabled.value,
+            wifiLocationCountEnabled = _wifiLocationCountEnabled.value,
+            cellEnabled = _cellEnabled.value,
+            useTransitionDetection = _transitionDetectionEnabled.value
+        )
+        _currentBatteryImpact.value = currentSettings.calculateBatteryImpact()
+    }
+    
+    init {
+        // Calculate initial battery impact
+        recalculateBatteryImpact()
     }
 }

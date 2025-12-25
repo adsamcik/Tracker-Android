@@ -4,7 +4,9 @@ import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
+import androidx.hilt.work.HiltWorkerFactory
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.Configuration
 import com.adsamcik.tracker.logger.CrashHandler
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter
@@ -20,28 +22,64 @@ import com.adsamcik.tracker.tracker.module.TrackerModuleInitializer
 import com.adsamcik.tracker.game.GameModuleInitializer
 import android.app.Application as AndroidApplication
 import android.util.Log
+import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.*
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.time.SystemClock
+import javax.inject.Inject
 
 
 /**
  * Main application
+ * 
+ * Composition Root Pattern (per copilot-instructions Section 16A):
+ * - Initializes AppGraph as the single source of truth for dependencies
+ * - Provides stable abstractions (Clock, DispatchersProvider, CoroutineScope)
+ * - Enables test injection via Application subclassing
+ * 
+ * Hilt Integration:
+ * - @HiltAndroidApp enables DI for Android components (Services, Workers, Receivers)
+ * - AppGraph provides dependencies to Hilt modules (hybrid approach)
+ * - Implements Configuration.Provider to inject HiltWorkerFactory for Workers
  */
+@HiltAndroidApp
 @Suppress("unused")
-@ExperimentalStdlibApi
-class Application : AndroidApplication() {
+class Application : AndroidApplication(), Configuration.Provider {
 
-	// Simple composition root start (incremental). Later evolve into full AppGraph.
+	@Inject
+	lateinit var workerFactory: HiltWorkerFactory
+
+	// Core abstractions (exposed for rare direct access; prefer AppGraph)
 	lateinit var dispatchers: DispatchersProvider
+		private set
+
+	lateinit var clock: Clock
 		private set
 
 	lateinit var appScope: CoroutineScope
 		private set
 
-	// Minimal composition root placeholder. Extend with repositories/services gradually.
+	// Primary composition root - inject this into activities/services needing dependencies
 	lateinit var appGraph: AppGraph
 		private set
+	
+	override val workManagerConfiguration: Configuration
+		get() = Configuration.Builder()
+			.setWorkerFactory(workerFactory)
+			.build()
+
+	companion object {
+		/**
+		 * Global application instance.
+		 * Used sparingly for backward compatibility with static access patterns.
+		 * 
+		 * @deprecated Prefer constructor injection via AppGraph when possible.
+		 */
+		lateinit var instance: Application
+			private set
+	}
 
 	@SuppressLint("DefaultLocale")
 	@WorkerThread
@@ -99,17 +137,64 @@ class Application : AndroidApplication() {
 
 		// Activities
 		ActivityWatcherService.poke(this)
+		
+		// Precision upgrade prompts (Phase 2)
+		registerPrecisionUpgradeReceiver()
+	}
+	
+	/**
+	 * Registers receiver to monitor session completions for precision upgrade prompts.
+	 * Part of Phase 2 Apple-style progressive disclosure: suggest precise location after
+	 * 2-3 successful approximate-mode sessions.
+	 */
+	@WorkerThread
+	private fun registerPrecisionUpgradeReceiver() {
+		val filter = android.content.IntentFilter().apply {
+			addAction(com.adsamcik.tracker.shared.base.data.TrackerSession.ACTION_SESSION_FINAL)
+		}
+		androidx.core.content.ContextCompat.registerReceiver(
+			this,
+			com.adsamcik.tracker.app.tracker.receiver.PrecisionUpgradeReceiver(),
+			filter,
+			androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+		)
+	}
+
+	private fun enableStrictMode() {
+		if (BuildConfig.DEBUG) {
+			android.os.StrictMode.setThreadPolicy(
+				android.os.StrictMode.ThreadPolicy.Builder()
+					.detectAll()
+					.penaltyLog()
+					.build()
+			)
+			android.os.StrictMode.setVmPolicy(
+				android.os.StrictMode.VmPolicy.Builder()
+					.detectLeakedSqlLiteObjects()
+					.detectLeakedClosableObjects()
+					.penaltyLog()
+					.build()
+			)
+		}
 	}
 
 	override fun onCreate() {
 		super.onCreate()
+		enableStrictMode()
+
+		instance = this
 		initializeImportantSingletons()
 
-		// Initialize dispatchers & application scope (Supervisor for isolation)
+		// Initialize core abstractions for composition root
 		dispatchers = DefaultDispatchersProvider
+		clock = SystemClock
 		appScope = CoroutineScope(SupervisorJob() + dispatchers.default)
-		appGraph = AppGraph(dispatchers, appScope)
+		
+		// Build composition root with all dependencies
+		appGraph = AppGraph.create(dispatchers, clock, appScope)
 		appGraph.initialize(this)
+		// Warm up export automation so plan observation/scheduling starts immediately
+		appGraph.exportAutomationController
 
 		// Preference observers must be registered on main thread
 		initializeDatabaseMaintenance()

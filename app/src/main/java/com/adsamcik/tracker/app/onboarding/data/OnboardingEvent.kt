@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app.onboarding.data
 
+import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
+
 /**
  * Events that can occur during the onboarding process
  */
@@ -21,6 +23,7 @@ sealed class OnboardingEvent {
     data class ToggleNotifications(val enabled: Boolean) : OnboardingEvent()
     data class SetTrackingFrequency(val frequency: TrackingFrequency) : OnboardingEvent()
     data class ToggleCloudBackup(val enabled: Boolean) : OnboardingEvent()
+    data class UpdateLocationPrecisionMode(val mode: LocationPrecisionMode) : OnboardingEvent()
     
     // Permission events
     data class RequestPermission(val permission: Permission) : OnboardingEvent()

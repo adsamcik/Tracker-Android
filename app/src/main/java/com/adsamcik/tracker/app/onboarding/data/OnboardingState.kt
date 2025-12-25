@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app.onboarding.data
 
+import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
+
 /**
  * Reasons why a user might skip an onboarding step
  */
@@ -36,7 +38,9 @@ data class UserPreferences(
     // New: expose the same tuning as Settings
     val autoTrackingModeIndex: Int = 1, // 0 Disabled, 1 On foot, 2 In motion
     val trackingMinDistanceMeters: Int? = null, // if null, keep default
-    val trackingMinTimeSeconds: Int? = null // if null, keep default
+    val trackingMinTimeSeconds: Int? = null, // if null, keep default
+    // Location precision choice (Phase 2)
+    val locationPrecisionMode: LocationPrecisionMode? = null
 )
 
 /**

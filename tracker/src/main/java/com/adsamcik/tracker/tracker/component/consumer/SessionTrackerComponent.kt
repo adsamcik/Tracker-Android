@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.component.consumer
 
 import android.content.Context
 import androidx.annotation.WorkerThread
-import androidx.lifecycle.Observer
 import com.adsamcik.tracker.logger.assertMoreOrEqual
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
@@ -11,7 +10,8 @@ import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -20,7 +20,10 @@ import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
@@ -46,9 +49,7 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1
-
-	private val minDistanceInMetersObserver = Observer<Int> { minDistanceInMeters = it }
-	private val minUpdateDelayInSecondsObserver = Observer<Int> { minUpdateDelayInSeconds = it }
+	private val preferenceJobs = mutableListOf<Job>()
 
 	private lateinit var sessionDao: SessionDataDao
 
@@ -106,14 +107,8 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onDisable(context: Context) {
-		PreferenceObserver.removeObserver(
-			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
-			minDistanceInMetersObserver
-		)
-		PreferenceObserver.removeObserver(
-			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-			minUpdateDelayInSecondsObserver
-		)
+		preferenceJobs.forEach(Job::cancel)
+		preferenceJobs.clear()
 
 		mutableSession.apply {
 			end = Time.nowMillis
@@ -125,14 +120,29 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	}
 
 	override suspend fun onEnable(context: Context) {
-		PreferenceObserver.observeIntRes(
-			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default, minDistanceInMetersObserver
+		val prefs = Preferences.getPref(context)
+		minDistanceInMeters = prefs.getIntRes(
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
 		)
-		PreferenceObserver.observeIntRes(
-			context, com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default, minUpdateDelayInSecondsObserver
+		minUpdateDelayInSeconds = prefs.getIntRes(
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
 		)
+
+		preferenceJobs += PreferenceFlows.int(
+			context,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
+		).onEach { minDistanceInMeters = it }
+			.launchIn(this)
+
+		preferenceJobs += PreferenceFlows.int(
+			context,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
+		).onEach { minUpdateDelayInSeconds = it }
+			.launchIn(this)
 
 		withContext(coroutineContext) {
 			initializeSession(context)

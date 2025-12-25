@@ -22,6 +22,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 // import removed: legacy MainActivity no longer used
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -30,6 +32,8 @@ import com.adsamcik.tracker.app.onboarding.permission.IOnboardingPermissionManag
 import com.adsamcik.tracker.app.onboarding.permission.OnboardingPermissionManagerProvider
 import com.adsamcik.tracker.app.onboarding.permission.PermissionResult
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
+import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.app.activity.MainActivityCompose
@@ -40,6 +44,7 @@ import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
 import com.adsamcik.tracker.app.Application
+import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 
 /**
  * Coordinator activity for the new onboarding flow.
@@ -50,6 +55,9 @@ class OnboardingActivity : ComponentActivity() {
     
     private val viewModel: OnboardingViewModel by viewModels()
     private lateinit var permissionManager: IOnboardingPermissionManager
+    private val onboardingRepository: OnboardingRepository by lazy {
+        DefaultOnboardingRepository(this, Dispatchers.IO)
+    }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -245,6 +253,14 @@ class OnboardingActivity : ComponentActivity() {
     private fun applyOnboardingPreferences(prefs: UserPreferences) {
     val preferences = Preferences.getPref(this)
         preferences.edit {
+            // Store location precision choice
+            prefs.locationPrecisionMode?.let { mode ->
+                setString(
+                    PrefR.string.settings_location_precision_key,
+                    mode.name
+                )
+            }
+            
             // Core enable toggles
             setBoolean(PrefR.string.settings_location_enabled_key, prefs.enableLocationTracking)
             setBoolean(PrefR.string.settings_activity_enabled_key, prefs.enableActivityTracking)
@@ -296,11 +312,9 @@ class OnboardingActivity : ComponentActivity() {
     }
 
     private fun markOnboardingCompleted() {
-        val prefs = getSharedPreferences("onboarding", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean("completed", true)
-            .putLong("completed_time", System.currentTimeMillis())
-            .apply()
+        lifecycleScope.launch {
+            onboardingRepository.markCompleted()
+        }
     }
     
     companion object {
@@ -311,9 +325,12 @@ class OnboardingActivity : ComponentActivity() {
         fun createIntentForStep(context: Context, step: OnboardingStep): Intent =
             Intent(context, OnboardingActivity::class.java).putExtra(EXTRA_ONBOARDING_STEP, step.name)
         
-        fun isOnboardingCompleted(context: Context): Boolean {
-            val prefs = context.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
-            return prefs.getBoolean("completed", false)
+        /**
+         * Check if onboarding is completed using async Flow.
+         * Prefer using OnboardingRepository.isCompleted directly with SplashScreen API.
+         */
+        suspend fun isOnboardingCompletedAsync(context: Context): Boolean {
+            return DefaultOnboardingRepository(context, Dispatchers.IO).isCompleted.first()
         }
     }
 }
@@ -351,18 +368,16 @@ fun OnboardingFlow(
         }
     }
     
-    // Main onboarding content
-    OnboardingScreen(
-        state = state,
-        onEvent = { event ->
-            // Handle permission requests through the permission manager
-            when (event) {
-                is OnboardingEvent.RequestPermission -> onRequestPermission(event.permission)
-                else -> {
-                    // Forward other events directly to ViewModel
-                    viewModel.onEvent(event)
-                }
-            }
+    // Streamlined single-screen onboarding (Apple-style)
+    // Location precision choice before permissions
+    StreamlinedOnboardingScreen(
+        onComplete = { precisionMode ->
+            // Store precision mode choice
+            viewModel.onEvent(OnboardingEvent.UpdateLocationPrecisionMode(precisionMode))
+            // Apply smart defaults immediately
+            viewModel.applySmartDefaults()
+            // Complete onboarding
+            viewModel.onEvent(OnboardingEvent.CompleteOnboarding)
         }
     )
 }

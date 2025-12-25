@@ -7,26 +7,32 @@ plugins {
 }
 
 android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
+	compileSdk = libs.versions.android.compile.get().toInt()
+	buildToolsVersion = libs.versions.android.build.tools.get()
 
 	defaultConfig {
-		minSdk = Android.MIN_VERSION
+		minSdk = libs.versions.android.min.get().toInt()
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
 
 	sourceSets {
 		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+		getByName("debug") {
+			java.srcDir("build/generated/source/proto/debug/java")
+		}
+		getByName("release") {
+			java.srcDir("build/generated/source/proto/release/java")
+		}
 	}
 
 	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
+		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
 	}
 
 	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
+		jvmToolchain(libs.versions.java.get().toInt())
 	}
 
 	buildTypes {
@@ -66,8 +72,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.service)
 	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.fragment)
-	implementation(libs.androidx.fragment.ktx)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
@@ -75,6 +79,7 @@ dependencies {
 
 	// DataStore proto settings (full protobuf runtime for GeneratedMessageV3)
 	implementation(libs.androidx.datastore.core)
+	implementation(libs.androidx.datastore.preferences)
 	implementation(libs.protobuf.java)
 
 	// UI components used by preference sliders
@@ -94,7 +99,6 @@ dependencies {
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
-	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
 
 	// JVM unit tests (Robolectric + coroutine test utilities)
@@ -111,4 +115,21 @@ protobuf {
 			task.builtins { create("java") }
 		}
 	}
+}
+
+afterEvaluate {
+    project.tasks.findByName("kspDebugKotlin")?.dependsOn("generateDebugProto")
+    project.tasks.findByName("kspReleaseKotlin")?.dependsOn("generateReleaseProto")
+}
+
+afterEvaluate {
+    tasks.forEach { task ->
+        if (task.name.startsWith("ksp") && task.name.endsWith("Kotlin")) {
+            if (task.name.contains("Debug")) {
+                task.dependsOn("generateDebugProto")
+            } else if (task.name.contains("Release")) {
+                task.dependsOn("generateReleaseProto")
+            }
+        }
+    }
 }

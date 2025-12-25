@@ -1,17 +1,26 @@
 package com.adsamcik.tracker.game.goals.settings
 
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.preference.PreferenceManager
+import android.util.Log
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.Serializer
+import androidx.datastore.dataStore
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.preferences.Preferences
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.io.OutputStream
+
+// Contract:
+// Inputs: Proto DataStore file, legacy SharedPreferences for one-time migration.
+// Outputs: Flow<GoalsSettingsState>; mutation via suspend setters.
+// Failure: Corruption -> emit default settings; logged (debug). No exceptions leak outward.
 
 /** Immutable snapshot of goals-related preferences. */
 data class GoalsSettingsState(
@@ -42,7 +51,25 @@ interface GoalsSettingsRepository {
     suspend fun setWeeklyDailyLimit(fraction: Float)
 }
 
-/** Default SharedPreferences-backed implementation (legacy bridge while DataStore migration completes). */
+private object GoalsSettingsSerializer : Serializer<GoalsSettingsProto> {
+    override val defaultValue: GoalsSettingsProto = GoalsSettingsProto.getDefaultInstance()
+
+    override suspend fun readFrom(input: InputStream): GoalsSettingsProto = try {
+        GoalsSettingsProto.parseFrom(input)
+    } catch (e: Exception) {
+        Log.w("GoalsSettings", "Corruption while reading goals settings proto – using defaults", e)
+        defaultValue
+    }
+
+    override suspend fun writeTo(t: GoalsSettingsProto, output: OutputStream) { t.writeTo(output) }
+}
+
+private val Context.goalsSettingsDataStore: DataStore<GoalsSettingsProto> by dataStore(
+    fileName = "goals_settings.pb",
+    serializer = GoalsSettingsSerializer
+)
+
+/** DataStore-backed implementation. */
 class DefaultGoalsSettingsRepository(
     private val context: Context,
     private val io: CoroutineDispatcher
@@ -51,43 +78,44 @@ class DefaultGoalsSettingsRepository(
     private val prefs: Preferences
         get() = Preferences.getPref(context)
 
-    private val sharedPreferences: SharedPreferences
-        get() = PreferenceManager.getDefaultSharedPreferences(context)
-
-    private val observedKeys by lazy {
-        setOf(
-            context.getString(R.string.settings_game_goals_notification_enabled_key),
-            context.getString(R.string.settings_game_goals_day_steps_key),
-            context.getString(R.string.settings_game_goals_week_steps_key),
-            context.getString(R.string.settings_game_goals_week_steps_daily_percentage_key)
-        )
-    }
-
     private val notificationDefault by lazy {
         context.getString(R.string.settings_game_goals_notification_enabled_default).toBoolean()
     }
 
-    override val data: Flow<GoalsSettingsState> = callbackFlow {
-        // Emit initial state immediately.
-        trySend(current())
+    private val dailyStepDefault by lazy {
+        context.getString(R.string.settings_game_goals_day_steps_default).toInt()
+    }
 
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key != null && key in observedKeys) {
-                trySend(current())
-            }
+    private val weeklyStepDefault by lazy {
+        context.getString(R.string.settings_game_goals_week_steps_default).toInt()
+    }
+
+    private val dailyLimitDefault by lazy {
+        context.getString(R.string.settings_game_goals_week_steps_daily_percentage_default).toFloat()
+    }
+
+    override val data: Flow<GoalsSettingsState> = context.goalsSettingsDataStore.data
+        .onStart { ensureMigrated() }
+        .map { proto ->
+            GoalsSettingsState(
+                notificationsEnabled = proto.notificationsEnabled,
+                dailyStepGoal = proto.dailyStepGoal.takeIf { it > 0 } ?: dailyStepDefault,
+                weeklyStepGoal = proto.weeklyStepGoal.takeIf { it > 0 } ?: weeklyStepDefault,
+                weeklyProgressDailyLimit = proto.weeklyDailyLimit.takeIf { it > 0f } ?: dailyLimitDefault
+            )
         }
 
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-
-        awaitClose { sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener) }
-    }.distinctUntilChanged()
-
-    override fun current(): GoalsSettingsState = readState()
+    override fun current(): GoalsSettingsState {
+        // Fallback to reading from legacy SharedPreferences if DataStore not yet loaded
+        return readFromPreferences()
+    }
 
     override suspend fun setNotificationsEnabled(enabled: Boolean) {
         withContext(io) {
-            prefs.edit {
-                setBoolean(R.string.settings_game_goals_notification_enabled_key, enabled)
+            context.goalsSettingsDataStore.updateData { current ->
+                current.toBuilder()
+                    .setNotificationsEnabled(enabled)
+                    .build()
             }
         }
     }
@@ -95,8 +123,10 @@ class DefaultGoalsSettingsRepository(
     override suspend fun setDailyStepGoal(steps: Int) {
         val safeValue = steps.coerceAtLeast(1)
         withContext(io) {
-            prefs.edit {
-                setInt(R.string.settings_game_goals_day_steps_key, safeValue)
+            context.goalsSettingsDataStore.updateData { current ->
+                current.toBuilder()
+                    .setDailyStepGoal(safeValue)
+                    .build()
             }
         }
     }
@@ -104,8 +134,10 @@ class DefaultGoalsSettingsRepository(
     override suspend fun setWeeklyStepGoal(steps: Int) {
         val safeValue = steps.coerceAtLeast(1)
         withContext(io) {
-            prefs.edit {
-                setInt(R.string.settings_game_goals_week_steps_key, safeValue)
+            context.goalsSettingsDataStore.updateData { current ->
+                current.toBuilder()
+                    .setWeeklyStepGoal(safeValue)
+                    .build()
             }
         }
     }
@@ -113,14 +145,33 @@ class DefaultGoalsSettingsRepository(
     override suspend fun setWeeklyDailyLimit(fraction: Float) {
         val safeValue = fraction.coerceIn(MIN_DAILY_PORTION, MAX_DAILY_PORTION)
         withContext(io) {
-            val key = context.getString(R.string.settings_game_goals_week_steps_daily_percentage_key)
-            prefs.edit {
-                setFloat(key, safeValue)
+            context.goalsSettingsDataStore.updateData { current ->
+                current.toBuilder()
+                    .setWeeklyDailyLimit(safeValue)
+                    .build()
             }
         }
     }
 
-    private fun readState(): GoalsSettingsState {
+    private suspend fun ensureMigrated() {
+        val current = context.goalsSettingsDataStore.data.first()
+        if (current.legacyMigrated) return
+
+        // One-time import from legacy SharedPreferences
+        val legacyState = readFromPreferences()
+
+        context.goalsSettingsDataStore.updateData { proto ->
+            proto.toBuilder()
+                .setNotificationsEnabled(legacyState.notificationsEnabled)
+                .setDailyStepGoal(legacyState.dailyStepGoal)
+                .setWeeklyStepGoal(legacyState.weeklyStepGoal)
+                .setWeeklyDailyLimit(legacyState.weeklyProgressDailyLimit)
+                .setLegacyMigrated(true)
+                .build()
+        }
+    }
+
+    private fun readFromPreferences(): GoalsSettingsState {
         val notificationsEnabled = prefs.getBoolean(
             context.getString(R.string.settings_game_goals_notification_enabled_key),
             notificationDefault

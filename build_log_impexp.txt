@@ -1,0 +1,37 @@
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+
+> Configure project :map
+e: file:///G:/Github/Tracker-Android/map/build.gradle.kts:105:22: Unresolved reference: accompanist
+e: file:///G:/Github/Tracker-Android/map/build.gradle.kts:106:22: Unresolved reference: accompanist
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file 'G:\Github\Tracker-Android\map\build.gradle.kts' line: 105
+
+* What went wrong:
+Script compilation errors:
+
+  Line 105: 	implementation(libs.accompanist.pager)
+                                 ^ Unresolved reference: accompanist
+
+  Line 106: 	implementation(libs.accompanist.swiperefresh)
+                                 ^ Unresolved reference: accompanist
+
+2 errors
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s
+3 actionable tasks: 3 up-to-date

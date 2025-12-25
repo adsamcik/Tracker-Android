@@ -7,7 +7,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
+
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -26,7 +26,7 @@ object PermissionManager {
 
     /**
      * Check and request permissions using Activity Result API.
-     * Must be called from ComponentActivity or FragmentActivity context.
+     * Must be called from ComponentActivity context.
      */
     fun checkPermissions(permissionRequest: PermissionRequest) {
         val activity = getActivityFromContext(permissionRequest.context)
@@ -140,10 +140,9 @@ object PermissionManager {
     private fun getActivityFromContext(context: Context): ComponentActivity {
         return when (context) {
             is ComponentActivity -> context
-            is FragmentActivity -> context
             else -> throw IllegalStateException(
-                "PermissionManager requires ComponentActivity or FragmentActivity context. " +
-                "Got ${context.javaClass.simpleName}. Please use Activity Result API from activity/fragment."
+                "PermissionManager requires ComponentActivity context. " +
+                "Got ${context.javaClass.simpleName}. Please use Activity Result API from activity."
             )
         }
     }

@@ -82,7 +82,7 @@ class DataRetentionInstrumentationTest {
     fun retention_applied_on_next_worker_tick_after_restart() {
         val wm = WorkManager.getInstance(context)
 
-        // Ensure initialize runs on main thread due to PreferenceObserver @MainThread
+        // Ensure initialize runs on main thread to mirror app startup wiring
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             DataRetentionWorker.initialize(context)
         }

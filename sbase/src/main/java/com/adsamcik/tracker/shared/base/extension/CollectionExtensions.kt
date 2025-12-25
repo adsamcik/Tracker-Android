@@ -265,10 +265,28 @@ suspend inline fun <Data, Result> Collection<Data>.forEachParallel(
 ): List<Deferred<Result>> = coroutineScope { map { async { func(it) } } }
 
 /**
- * Processes collection in parallel.
+ * Processes collection in parallel and awaits all results.
+ * 
+ * Plan 5 migration: Suspend function replacing deprecated forEachParallelBlocking.
  *
  * @param func Function called in parallel to process collection.
  */
+suspend inline fun <Data, Result> Collection<Data>.forEachParallelAwait(
+		crossinline func: suspend (Data) -> Result
+): List<Result> = coroutineScope { forEachParallel(func).awaitAll() }
+
+/**
+ * Processes collection in parallel.
+ *
+ * @param func Function called in parallel to process collection.
+ * 
+ * @deprecated Use [forEachParallelAwait] instead. This function uses runBlocking
+ * which blocks the calling thread and should be avoided in production code.
+ */
+@Deprecated(
+    message = "Use forEachParallelAwait instead to avoid blocking calls",
+    replaceWith = ReplaceWith("forEachParallelAwait(func)")
+)
 fun <Data, Result> Collection<Data>.forEachParallelBlocking(
 		func: suspend (Data) -> Result
 ): List<Result> = runBlocking { forEachParallel(func).awaitAll() }

@@ -7,6 +7,9 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.MIGRATION_10_11
+import com.adsamcik.tracker.shared.base.database.MIGRATION_11_12
+import com.adsamcik.tracker.shared.base.database.MIGRATION_12_13
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
@@ -15,8 +18,8 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_6_7
 import com.adsamcik.tracker.shared.base.database.MIGRATION_7_8
 import com.adsamcik.tracker.shared.base.database.MIGRATION_8_9
 import com.adsamcik.tracker.shared.base.database.MIGRATION_9_10
-import com.adsamcik.tracker.shared.base.database.MIGRATION_10_11
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -329,6 +332,139 @@ class MigrationTest {
 			}
 
 			cursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate12To13() {
+		val db = helper.createDatabase(TEST_DB, 12)
+
+		// Legacy tracker_session row that should migrate into session_segment
+		db.execSQL(
+			"""
+				INSERT INTO tracker_session (
+					id,
+					start,
+					`end`,
+					user_initiated,
+					collections,
+					distance,
+					distance_on_foot,
+					distance_in_vehicle,
+					steps,
+					session_activity_id
+				) VALUES (
+					1,
+					1_000,
+					2_000,
+					1,
+					8,
+					1_234.5,
+					900.0,
+					334.5,
+					120,
+					NULL
+				)
+			""".trimIndent()
+		)
+
+		// Minimal location_data samples to validate location_sample/activity_snapshot migrations
+		db.execSQL(
+			"""
+				INSERT INTO location_data (
+					id,
+					time,
+					lat,
+					lon,
+					alt,
+					hor_acc,
+					ver_acc,
+					speed,
+					s_acc,
+					activity,
+					confidence
+				) VALUES (
+					1,
+					1_000,
+					48.1234,
+					17.9876,
+					200.0,
+					5.0,
+					1.0,
+					2.5,
+					0.5,
+					3,
+					80
+				)
+			""".trimIndent()
+		)
+		db.execSQL(
+			"""
+				INSERT INTO location_data (
+					id,
+					time,
+					lat,
+					lon,
+					alt,
+					hor_acc,
+					ver_acc,
+					speed,
+					s_acc,
+					activity,
+					confidence
+				) VALUES (
+					2,
+					2_000,
+					48.2234,
+					18.0876,
+					210.0,
+					6.0,
+					1.5,
+					3.0,
+					0.4,
+					7,
+					60
+				)
+			""".trimIndent()
+		)
+
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 13, true, MIGRATION_12_13).apply {
+			val segmentCursor = query(
+				"""
+					SELECT start_time_ms, end_time_ms, distance_m, sample_count, source, inference_version, created_at
+					FROM session_segment
+				""".trimIndent()
+			)
+
+			with(segmentCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(1_000L, getLong(0))
+				assertEquals(2_000L, getLong(1))
+				assertEquals(1_234.5f, getFloat(2), 0.001f)
+				assertEquals(8, getInt(3))
+				assertEquals("LEGACY_MIGRATION", getString(4))
+				assertEquals("v12_migration", getString(5))
+				assertTrue(getLong(6) > 0)
+				assertFalse(moveToNext())
+			}
+			segmentCursor.close()
+
+			val activityCursor = query("SELECT COUNT(*) FROM activity_snapshot")
+			with(activityCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(2, getInt(0))
+			}
+			activityCursor.close()
+
+			val locationCursor = query("SELECT COUNT(*) FROM location_sample")
+			with(locationCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(2, getInt(0))
+			}
+			locationCursor.close()
 		}
 	}
 

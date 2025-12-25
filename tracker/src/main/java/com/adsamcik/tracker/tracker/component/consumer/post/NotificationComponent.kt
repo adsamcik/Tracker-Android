@@ -4,8 +4,12 @@ import android.content.Context
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.extension.requireValue
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -13,10 +17,18 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
-import com.adsamcik.tracker.tracker.service.TrackerService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+
+/**
+ * Hilt EntryPoint for accessing TrackerServiceController from NotificationComponent
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface NotificationComponentEntryPoint {
+	fun trackerServiceController(): TrackerServiceController
+}
 
 internal class NotificationComponent :
 		PostTrackerComponent {
@@ -52,7 +64,12 @@ internal class NotificationComponent :
 					                          .filter { it.preference.isInTitle }
 					                          .sortedBy { it.preference.order })
 		}
-		val sessionInfo = requireNotNull(TrackerService.sessionInfoFlow.value) {
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			NotificationComponentEntryPoint::class.java
+		)
+		val sessionInfoFlow = entryPoint.trackerServiceController().sessionInfoFlow
+		val sessionInfo = requireNotNull(sessionInfoFlow.value) {
 			"TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
 		}
 		trackerNotificationManager = TrackerNotificationManager(

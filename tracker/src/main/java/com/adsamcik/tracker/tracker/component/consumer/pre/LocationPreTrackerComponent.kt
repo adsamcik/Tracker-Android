@@ -2,8 +2,8 @@ package com.adsamcik.tracker.tracker.component.consumer.pre
 
 import android.content.Context
 import android.os.Build
-import androidx.lifecycle.Observer
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
@@ -11,7 +11,10 @@ import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
@@ -25,27 +28,28 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 		get() = Dispatchers.Main + job
 
 	private var requiredAccuracy = 0
-
-	private val observer = Observer<Int> { requiredAccuracy = it }
+	private var accuracyJob: Job? = null
 
 	override suspend fun onEnable(context: Context) {
 		withContext(coroutineContext) {
-			PreferenceObserver.observeIntRes(
-				context,
-				keyRes = com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
-				defaultRes = com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default,
-				observer = observer
+			requiredAccuracy = Preferences.getPref(context).getIntRes(
+				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
+				com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
 			)
+			accuracyJob?.cancel()
+			accuracyJob = PreferenceFlows.int(
+				context,
+				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
+				com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
+			).onEach { requiredAccuracy = it }
+				.launchIn(this@LocationPreTrackerComponent)
 		}
 	}
 
 	override suspend fun onDisable(context: Context) {
 		withContext(coroutineContext) {
-			PreferenceObserver.removeObserver(
-				context,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
-				observer
-			)
+			accuracyJob?.cancel()
+			accuracyJob = null
 		}
 	}
 

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 13,
-    "identityHash": "9c57020e46303a47e4c0c19bf09456d2",
+    "identityHash": "8f0a103410a509946116c36734bd547c",
     "entities": [
       {
         "tableName": "location_data",
@@ -534,7 +534,7 @@
       },
       {
         "tableName": "location_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsedRealtimeNanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motionState` TEXT, `policy` TEXT, `bucketId` INTEGER, `createdAt` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `alt_m` REAL, `h_acc_m` REAL, `v_acc_m` REAL, `speed_mps` REAL, `speed_accuracy_mps` REAL, `provider` TEXT NOT NULL, `quality` TEXT NOT NULL, `motion_state` TEXT, `policy` TEXT, `bucket_id` INTEGER, `created_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -550,7 +550,7 @@
           },
           {
             "fieldPath": "elapsedRealtimeNanos",
-            "columnName": "elapsedRealtimeNanos",
+            "columnName": "elapsed_realtime_nanos",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -603,7 +603,7 @@
           },
           {
             "fieldPath": "motionState",
-            "columnName": "motionState",
+            "columnName": "motion_state",
             "affinity": "TEXT"
           },
           {
@@ -613,12 +613,12 @@
           },
           {
             "fieldPath": "bucketId",
-            "columnName": "bucketId",
+            "columnName": "bucket_id",
             "affinity": "INTEGER"
           },
           {
             "fieldPath": "createdAt",
-            "columnName": "createdAt",
+            "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -653,10 +653,10 @@
             "name": "idx_location_sample_bucket",
             "unique": false,
             "columnNames": [
-              "bucketId"
+              "bucket_id"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_bucket` ON `${TABLE_NAME}` (`bucketId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_bucket` ON `${TABLE_NAME}` (`bucket_id`)"
           }
         ]
       },
@@ -793,7 +793,7 @@
       },
       {
         "tableName": "cell_sample",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `cell_id` INTEGER NOT NULL, `lac` INTEGER NOT NULL, `mcc` INTEGER NOT NULL, `mnc` INTEGER NOT NULL, `networkType` INTEGER NOT NULL, `signalStrength` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `cell_id` INTEGER NOT NULL, `lac` INTEGER NOT NULL, `mcc` INTEGER NOT NULL, `mnc` INTEGER NOT NULL, `network_type` INTEGER NOT NULL, `signal_strength` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -833,13 +833,13 @@
           },
           {
             "fieldPath": "networkType",
-            "columnName": "networkType",
+            "columnName": "network_type",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
             "fieldPath": "signalStrength",
-            "columnName": "signalStrength",
+            "columnName": "signal_strength",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -861,7 +861,7 @@
           },
           {
             "fieldPath": "createdAt",
-            "columnName": "createdAt",
+            "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -905,7 +905,7 @@
       },
       {
         "tableName": "wifi_observation",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time_ms` INTEGER NOT NULL, `bssid` TEXT NOT NULL, `ssid` TEXT NOT NULL, `capabilities` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `level` INTEGER NOT NULL, `lat_e7` INTEGER, `lon_e7` INTEGER, `provenance` TEXT NOT NULL, `created_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -967,7 +967,7 @@
           },
           {
             "fieldPath": "createdAt",
-            "columnName": "createdAt",
+            "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -1011,7 +1011,7 @@
       },
       {
         "tableName": "tracker_run",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER, `policy` TEXT NOT NULL, `policyParams` TEXT, `userInitiated` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER, `policy` TEXT NOT NULL, `policy_params` TEXT, `user_initiated` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -1038,18 +1038,18 @@
           },
           {
             "fieldPath": "policyParams",
-            "columnName": "policyParams",
+            "columnName": "policy_params",
             "affinity": "TEXT"
           },
           {
             "fieldPath": "userInitiated",
-            "columnName": "userInitiated",
+            "columnName": "user_initiated",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
             "fieldPath": "createdAt",
-            "columnName": "createdAt",
+            "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -1075,7 +1075,7 @@
       },
       {
         "tableName": "session_segment",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `distance_m` REAL NOT NULL, `steps` INTEGER, `primary_activity` INTEGER, `activity_confidence` INTEGER, `sample_count` INTEGER NOT NULL, `source` TEXT NOT NULL, `inferenceVersion` TEXT, `createdAt` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `distance_m` REAL NOT NULL, `steps` INTEGER, `primary_activity` INTEGER, `activity_confidence` INTEGER, `sample_count` INTEGER NOT NULL, `source` TEXT NOT NULL, `inference_version` TEXT, `created_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -1130,12 +1130,12 @@
           },
           {
             "fieldPath": "inferenceVersion",
-            "columnName": "inferenceVersion",
+            "columnName": "inference_version",
             "affinity": "TEXT"
           },
           {
             "fieldPath": "createdAt",
-            "columnName": "createdAt",
+            "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -1171,7 +1171,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9c57020e46303a47e4c0c19bf09456d2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8f0a103410a509946116c36734bd547c')"
     ]
   }
 }

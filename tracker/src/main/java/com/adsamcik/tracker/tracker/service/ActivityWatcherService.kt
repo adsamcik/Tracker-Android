@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
+import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -12,19 +13,38 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.extension.startForegroundService
-
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
-import com.adsamcik.tracker.tracker.locker.TrackerLocker
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.controller.LockManager
+import dagger.hilt.android.AndroidEntryPoint
 import java.util.*
+import javax.inject.Inject
 import kotlin.concurrent.scheduleAtFixedRate
+
+/**
+ * Hilt EntryPoint for accessing dependencies from static context (companion object methods)
+ */
+@dagger.hilt.EntryPoint
+@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+interface ActivityWatcherEntryPoint {
+	fun trackerServiceController(): TrackerServiceController
+	fun lockManager(): LockManager
+}
 
 /**
  * Service used to keep device and ActivityService alive while automatic tracking might launch
  */
+@AndroidEntryPoint
 class ActivityWatcherService : CoreService() {
 	private var activityInfo: ActivityInfo = ActivityRequestManager.lastActivity
+
+	@Inject
+	lateinit var trackerServiceController: TrackerServiceController
+	
+	@Inject
+	lateinit var lockManager: LockManager
 
 	private val timer: Timer = Timer()
 
@@ -166,8 +186,12 @@ class ActivityWatcherService : CoreService() {
 			watcherPreference: Boolean = getWatcherPreference(context),
 			updateInterval: Int = getActivityIntervalPreference(context),
 			autoTracking: Int = getAutoTrackingPreference(context),
-			trackerLocked: Boolean = TrackerLocker.isLocked.value,
-			trackerRunning: Boolean = TrackerService.isServiceRunning
+			trackerLocked: Boolean = dagger.hilt.android.EntryPointAccessors
+				.fromApplication(context.applicationContext, ActivityWatcherEntryPoint::class.java)
+				.lockManager().isLocked,
+			trackerRunning: Boolean = dagger.hilt.android.EntryPointAccessors
+				.fromApplication(context.applicationContext, ActivityWatcherEntryPoint::class.java)
+				.trackerServiceController().isServiceRunning
 		) {
 
 			if (updateInterval > 0 && autoTracking > 0) {

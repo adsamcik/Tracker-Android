@@ -4,11 +4,13 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Manages adaptive tracking policy state machine.
@@ -65,7 +67,9 @@ class TrackingPolicyManager(
 			createdAt = now
 		)
 
-		currentRunId = trackerRunDao.insert(run)
+		currentRunId = withContext(Dispatchers.IO) {
+			trackerRunDao.insert(run)
+		}
 		lastTransitionTime = now
 	}
 
@@ -112,17 +116,17 @@ class TrackingPolicyManager(
 			when (_currentPolicy.value) {
 				TrackingPolicy.PASSIVE_LOW -> {
 					if (stepsPerMinute > STEP_RATE_MOVEMENT_SUSPECTED) {
-						transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.STEP_RATE_THRESHOLD)
+						transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
 					}
 				}
 				TrackingPolicy.MOVEMENT_SUSPECTED -> {
 					if (stepsPerMinute > STEP_RATE_ACTIVE_MODERATE) {
-						transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.STEP_RATE_THRESHOLD)
+						transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
 					}
 				}
 				TrackingPolicy.ACTIVE_MODERATE -> {
 					if (stepsPerMinute > STEP_RATE_ACTIVE_ELEVATED) {
-						transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.STEP_RATE_THRESHOLD)
+						transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
 					}
 				}
 				else -> { /* No escalation from ACTIVE_ELEVATED */ }
@@ -152,10 +156,10 @@ class TrackingPolicyManager(
 			// Transition from STILL to movement
 			when (_currentPolicy.value) {
 				TrackingPolicy.PASSIVE_LOW -> {
-					transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.ACTIVITY_TRANSITION)
+					transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.ACTIVITY_TRANSITION, timeMs)
 				}
 				TrackingPolicy.MOVEMENT_SUSPECTED -> {
-					transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.ACTIVITY_TRANSITION)
+					transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.ACTIVITY_TRANSITION, timeMs)
 				}
 				else -> { /* Already elevated */ }
 			}
@@ -173,36 +177,37 @@ class TrackingPolicyManager(
 		if (displacementMeters > DISPLACEMENT_THRESHOLD_METERS) {
 			when (_currentPolicy.value) {
 				TrackingPolicy.PASSIVE_LOW, TrackingPolicy.MOVEMENT_SUSPECTED -> {
-					transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.LOCATION_CHANGE)
+					transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.LOCATION_CHANGE, timeMs)
 				}
 				TrackingPolicy.ACTIVE_MODERATE -> {
-					transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.LOCATION_CHANGE)
+					transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.LOCATION_CHANGE, timeMs)
 				}
 				else -> { /* Already at max */ }
 			}
 		}
 	}
 
-	private suspend fun transitionTo(newPolicy: TrackingPolicy, reason: PolicyTransitionReason) {
+	private suspend fun transitionTo(newPolicy: TrackingPolicy, reason: PolicyTransitionReason, timeMs: Long) {
 		val oldPolicy = _currentPolicy.value
 		if (oldPolicy == newPolicy) return
 
-		val now = Time.nowMillis
 		_currentPolicy.value = newPolicy
 
 		// Close current run, start new run with updated policy
-		currentRunId?.let { trackerRunDao.endRun(it, now) }
+		currentRunId?.let { trackerRunDao.endRun(it, timeMs) }
 
 		val run = TrackerRun(
-			startTimeMs = now,
+			startTimeMs = timeMs,
 			endTimeMs = null,
 			policy = newPolicy.name,
 			policyParams = buildPolicyParams(reason),
 			userInitiated = isUserInitiated,
-			createdAt = now
+			createdAt = timeMs
 		)
-		currentRunId = trackerRunDao.insert(run)
-		lastTransitionTime = now
+		currentRunId = withContext(Dispatchers.IO) {
+			trackerRunDao.insert(run)
+		}
+		lastTransitionTime = timeMs
 
 		// Log transition for debugging
 		android.util.Log.d(
@@ -218,13 +223,13 @@ class TrackingPolicyManager(
 		// De-escalate after cooldown period with no activity
 		when (_currentPolicy.value) {
 			TrackingPolicy.ACTIVE_ELEVATED -> {
-				transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.MOVEMENT_COOLDOWN)
+				transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.MOVEMENT_COOLDOWN, currentTimeMs)
 			}
 			TrackingPolicy.ACTIVE_MODERATE -> {
-				transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.MOVEMENT_COOLDOWN)
+				transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.MOVEMENT_COOLDOWN, currentTimeMs)
 			}
 			TrackingPolicy.MOVEMENT_SUSPECTED -> {
-				transitionTo(TrackingPolicy.PASSIVE_LOW, PolicyTransitionReason.MOVEMENT_COOLDOWN)
+				transitionTo(TrackingPolicy.PASSIVE_LOW, PolicyTransitionReason.MOVEMENT_COOLDOWN, currentTimeMs)
 			}
 			else -> { /* No cooldown for PASSIVE_LOW or USER_INITIATED */ }
 		}

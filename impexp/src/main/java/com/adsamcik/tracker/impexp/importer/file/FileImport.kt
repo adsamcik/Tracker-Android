@@ -16,7 +16,7 @@ interface FileImport {
 	 * @param database Instance of the main database
 	 * @param stream Import stream
 	 */
-	fun import(
+	suspend fun import(
 			context: Context,
 			database: AppDatabase,
 			stream: FileImportStream

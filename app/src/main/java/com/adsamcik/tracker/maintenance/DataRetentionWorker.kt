@@ -3,7 +3,6 @@ package com.adsamcik.tracker.maintenance
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.annotation.VisibleForTesting
-import androidx.lifecycle.Observer
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -12,8 +11,14 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import java.time.Duration
 
 /**
@@ -47,39 +52,28 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Wo
         private const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
     private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
 
-        private val preferenceObserver = Observer<Boolean> { enabled ->
-            val ctx = internalContext ?: return@Observer
-            if (enabled == true) ensureScheduled(ctx) else cancel(ctx)
-        }
-
-        @Volatile
-        private var internalContext: Context? = null
+        private val preferenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        private var preferenceJob: Job? = null
 
         /**
          * Initialize observation of the auto-cleanup preference and sync schedule once.
          */
         fun initialize(context: Context) {
-            if (internalContext == null) internalContext = context.applicationContext
-            // Ensure preferences and observer are initialized
-            val prefs = Preferences.getPref(context)
-            // Observe changes
-            PreferenceObserver.observe(
-                context,
-                R.string.settings_auto_cleanup_old_data_key,
-                R.string.settings_auto_cleanup_old_data_default,
-                preferenceObserver,
-                owner = null
-            )
-            // Sync current state
-            val enabled = prefs.getBooleanRes(
+            val appContext = context.applicationContext
+            val prefs = Preferences.getPref(appContext)
+            syncScheduling(appContext, prefs.getBooleanRes(
                 R.string.settings_auto_cleanup_old_data_key,
                 R.string.settings_auto_cleanup_old_data_default
-            )
-            try {
-                if (enabled) ensureScheduled(context) else cancel(context)
-            } catch (e: IllegalStateException) {
-                // When WorkManager isn't initialized (e.g., robolectric unit tests), skip scheduling
-            }
+            ))
+
+            preferenceJob?.cancel()
+            preferenceJob = PreferenceFlows.boolean(
+                appContext,
+                R.string.settings_auto_cleanup_old_data_key,
+                R.string.settings_auto_cleanup_old_data_default
+            ).onEach { enabled ->
+                syncScheduling(appContext, enabled)
+            }.launchIn(preferenceScope)
         }
 
         /** Schedule weekly cleanup with unique work policy. */
@@ -98,6 +92,14 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Wo
         /** Cancel scheduled cleanup. */
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
+        }
+
+        private fun syncScheduling(context: Context, enabled: Boolean) {
+            try {
+                if (enabled) ensureScheduled(context) else cancel(context)
+            } catch (_: IllegalStateException) {
+                // WorkManager may not be initialized in tests; ignore the exception as before.
+            }
         }
 
         @WorkerThread

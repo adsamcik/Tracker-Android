@@ -1,0 +1,250 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:compileKotlin
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+
+> Task :buildSrc:jar
+:jar: No valid plugin descriptors were found in META-INF/gradle-plugins
+
+> Configure project :logger
+w: file:///G:/Github/Tracker-Android/logger/build.gradle.kts:105:11: 'getter for buildDir: File!' is deprecated. Deprecated in Java
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :activity:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :activity:preBuild UP-TO-DATE
+> Task :activity:preDebugBuild UP-TO-DATE
+> Task :activity:generateDebugResValues
+> Task :activity:generateDebugResources
+> Task :activity:packageDebugResources
+> Task :activity:processDebugNavigationResources
+> Task :logger:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :logger:preBuild UP-TO-DATE
+> Task :logger:preDebugBuild UP-TO-DATE
+> Task :logger:generateDebugBuildConfig
+> Task :logger:generateDebugResValues
+> Task :activity:parseDebugLocalResources
+> Task :logger:generateDebugResources
+> Task :logger:packageDebugResources
+> Task :logger:processDebugNavigationResources
+> Task :logger:ensureKspDir
+> Task :sbase:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sbase:preBuild UP-TO-DATE
+> Task :sbase:preDebugBuild UP-TO-DATE
+> Task :logger:parseDebugLocalResources
+> Task :activity:generateDebugRFile
+> Task :sbase:generateDebugBuildConfig
+> Task :sbase:generateDebugResValues
+> Task :logger:generateDebugRFile
+> Task :sbase:generateDebugResources
+> Task :sbase:packageDebugResources
+> Task :sbase:processDebugNavigationResources
+> Task :spreferences:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :spreferences:preBuild UP-TO-DATE
+> Task :spreferences:preDebugBuild UP-TO-DATE
+> Task :spreferences:generateDebugBuildConfig
+> Task :spreferences:extractDebugProto
+> Task :spreferences:extractProto
+> Task :spreferences:generateDebugResValues
+> Task :spreferences:generateDebugResources
+> Task :sbase:javaPreCompileDebug
+> Task :sbase:parseDebugLocalResources
+> Task :spreferences:packageDebugResources
+> Task :spreferences:processDebugNavigationResources
+> Task :spreferences:parseDebugLocalResources
+> Task :sbase:generateDebugRFile
+> Task :spreferences:generateDebugRFile
+> Task :spreferences:javaPreCompileDebug
+> Task :sutils:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sutils:preBuild UP-TO-DATE
+> Task :sutils:preDebugBuild UP-TO-DATE
+> Task :sutils:generateDebugResValues
+> Task :sutils:generateDebugResources
+> Task :logger:javaPreCompileDebug
+> Task :sutils:packageDebugResources
+> Task :sutils:processDebugNavigationResources
+> Task :sutils:parseDebugLocalResources
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :activity:javaPreCompileDebug
+> Task :sutils:generateDebugRFile
+> Task :sutils:javaPreCompileDebug
+> Task :app:generateDebugBuildConfig
+> Task :activity:compileDebugLibraryResources
+> Task :game:preBuild UP-TO-DATE
+> Task :game:preDebugBuild UP-TO-DATE
+> Task :impexp:preBuild UP-TO-DATE
+> Task :impexp:preDebugBuild UP-TO-DATE
+> Task :game:writeDebugAarMetadata
+> Task :activity:writeDebugAarMetadata
+> Task :impexp:writeDebugAarMetadata
+> Task :logger:writeDebugAarMetadata
+> Task :map:preBuild UP-TO-DATE
+> Task :map:preDebugBuild UP-TO-DATE
+> Task :points:preBuild UP-TO-DATE
+> Task :points:preDebugBuild UP-TO-DATE
+> Task :map:writeDebugAarMetadata
+> Task :points:writeDebugAarMetadata
+> Task :smap:preBuild UP-TO-DATE
+> Task :smap:preDebugBuild UP-TO-DATE
+> Task :sbase:writeDebugAarMetadata
+> Task :smap:writeDebugAarMetadata
+> Task :statistics:preBuild UP-TO-DATE
+> Task :statistics:preDebugBuild UP-TO-DATE
+> Task :statistics:writeDebugAarMetadata
+> Task :tracker:preBuild UP-TO-DATE
+> Task :spreferences:writeDebugAarMetadata
+> Task :tracker:preDebugBuild UP-TO-DATE
+> Task :sutils:writeDebugAarMetadata
+> Task :tracker:writeDebugAarMetadata
+> Task :game:processDebugNavigationResources
+> Task :sbase:kspDebugKotlin
+> Task :impexp:processDebugNavigationResources
+> Task :map:processDebugNavigationResources
+> Task :points:processDebugNavigationResources
+> Task :smap:processDebugNavigationResources
+> Task :statistics:processDebugNavigationResources
+> Task :tracker:processDebugNavigationResources
+> Task :app:checkDebugAarMetadata
+> Task :app:processDebugNavigationResources
+> Task :app:compileDebugNavigationResources
+> Task :app:generateDebugResValues
+> Task :app:processDebugGoogleServices
+> Task :game:generateDebugResValues
+> Task :game:generateDebugResources
+> Task :game:packageDebugResources
+> Task :impexp:generateDebugResValues
+> Task :impexp:generateDebugResources
+> Task :impexp:packageDebugResources
+> Task :map:generateDebugResValues
+> Task :map:generateDebugResources
+> Task :map:packageDebugResources
+> Task :points:generateDebugResValues
+> Task :points:generateDebugResources
+> Task :points:packageDebugResources
+> Task :smap:generateDebugResValues
+> Task :smap:generateDebugResources
+> Task :smap:packageDebugResources
+> Task :statistics:generateDebugResValues
+> Task :statistics:generateDebugResources
+> Task :statistics:packageDebugResources
+> Task :tracker:generateDebugResValues
+> Task :tracker:generateDebugResources
+> Task :tracker:packageDebugResources
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:mergeDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :activity:extractDeepLinksDebug
+> Task :app:extractDeepLinksDebug
+> Task :game:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :impexp:extractDeepLinksDebug
+> Task :activity:processDebugManifest
+> Task :logger:extractDeepLinksDebug
+> Task :impexp:processDebugManifest
+> Task :game:processDebugManifest
+> Task :map:extractDeepLinksDebug
+> Task :points:extractDeepLinksDebug
+> Task :logger:processDebugManifest
+> Task :sbase:extractDeepLinksDebug
+> Task :map:processDebugManifest
+> Task :smap:extractDeepLinksDebug
+> Task :points:processDebugManifest
+> Task :spreferences:extractDeepLinksDebug
+> Task :sbase:processDebugManifest
+> Task :statistics:extractDeepLinksDebug
+
+> Task :spreferences:processDebugManifest
+package="com.adsamcik.tracker.shared.preferences" found in source AndroidManifest.xml: G:\Github\Tracker-Android\spreferences\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.adsamcik.tracker.shared.preferences" from the source AndroidManifest.xml: G:\Github\Tracker-Android\spreferences\src\main\AndroidManifest.xml.
+
+> Task :smap:processDebugManifest
+> Task :sutils:extractDeepLinksDebug
+> Task :tracker:extractDeepLinksDebug
+> Task :statistics:processDebugManifest
+> Task :sutils:processDebugManifest
+> Task :tracker:processDebugManifest
+> Task :game:compileDebugLibraryResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :impexp:compileDebugLibraryResources
+> Task :impexp:parseDebugLocalResources
+> Task :logger:compileDebugLibraryResources
+> Task :game:parseDebugLocalResources
+> Task :impexp:generateDebugRFile
+> Task :points:compileDebugLibraryResources
+> Task :game:generateDebugRFile
+> Task :map:parseDebugLocalResources
+> Task :map:compileDebugLibraryResources
+> Task :points:parseDebugLocalResources
+> Task :points:generateDebugRFile
+> Task :map:generateDebugRFile
+> Task :smap:compileDebugLibraryResources
+> Task :spreferences:compileDebugLibraryResources
+> Task :smap:parseDebugLocalResources
+> Task :statistics:compileDebugLibraryResources
+> Task :sutils:compileDebugLibraryResources
+> Task :smap:generateDebugRFile
+> Task :game:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :statistics:parseDebugLocalResources
+> Task :game:extractDebugProto
+> Task :points:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :statistics:generateDebugRFile
+> Task :tracker:compileDebugLibraryResources
+> Task :game:extractProto
+> Task :tracker:parseDebugLocalResources
+> Task :points:javaPreCompileDebug
+> Task :sbase:compileDebugLibraryResources
+> Task :impexp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :impexp:extractDebugProto
+> Task :impexp:extractProto
+> Task :map:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :statistics:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:javaPreCompileDebug
+> Task :map:javaPreCompileDebug
+> Task :tracker:generateDebugRFile
+> Task :impexp:javaPreCompileDebug
+> Task :statistics:javaPreCompileDebug
+> Task :sbase:compileDebugKotlin
+> Task :game:javaPreCompileDebug
+> Task :tracker:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :tracker:extractDebugProto
+> Task :tracker:extractProto
+> Task :tracker:javaPreCompileDebug
+> Task :app:javaPreCompileDebug
+> Task :activity:mergeDebugShaders
+> Task :app:processDebugResources
+
+warn: removing resource com.adsamcik.tracker.debug:string/date_range_selector_x_days without required default value.
+warn: removing resource com.adsamcik.tracker.debug:string/export_default_file_name without required default value.
+warn: removing resource com.adsamcik.tracker.debug:string/first_run_error_reporting_description without required default value.
+
+
+> Task :sbase:compileDebugJavaWithJavac
+> Task :sbase:bundleLibCompileToJarDebug FAILED
+w: Detected multiple Kotlin daemon sessions at 
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':sbase:bundleLibCompileToJarDebug'.
+> java.nio.file.FileSystemException: G:\Github\Tracker-Android\sbase\build\intermediates\compile_library_classes_jar\debug\bundleLibCompileToJarDebug\classes.jar: The process cannot access the file because it is being used by another process
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 8m 12s
+170 actionable tasks: 169 executed, 1 up-to-date

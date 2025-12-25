@@ -1,0 +1,83 @@
+plugins {
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.compose)
+}
+
+android {
+	compileSdk = libs.versions.android.compile.get().toInt()
+	buildToolsVersion = libs.versions.android.build.tools.get()
+
+	defaultConfig {
+		minSdk = libs.versions.android.min.get().toInt()
+
+		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+		consumerProguardFiles("consumer-rules.pro")
+	}
+
+	compileOptions {
+		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+	}
+
+	kotlin {
+		jvmToolchain(libs.versions.java.get().toInt())
+	}
+
+	buildTypes {
+		getByName("debug") {
+			// Testing module
+		}
+		create("release_nominify") {
+			isMinifyEnabled = false
+		}
+		getByName("release") {
+			isMinifyEnabled = false
+			proguardFiles(
+				getDefaultProguardFile("proguard-android-optimize.txt"),
+				"proguard-rules.pro"
+			)
+		}
+	}
+
+	lint {
+		checkReleaseBuilds = true
+		abortOnError = false
+	}
+
+	namespace = "com.adsamcik.tracker.testing"
+
+	buildFeatures {
+		compose = true
+	}
+}
+
+dependencies {
+	// Project dependencies for domain models
+	implementation(project(":sbase"))
+
+	// Kotlin & Coroutines
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.kotlinx.coroutines.test)
+
+	// Compose testing
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.ui)
+	implementation(libs.compose.ui.test.junit4)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.material3)
+
+	// AndroidX Test
+	implementation(libs.junit4)
+	implementation(libs.androidx.test.runner)
+	implementation(libs.androidx.test.core)
+	implementation(libs.androidx.test.ext.junit)
+	implementation(libs.uiautomator)
+	implementation(libs.espresso)
+	implementation(libs.espresso.intents)
+
+	// Mocking
+	implementation(libs.mockk)
+	implementation(libs.turbine)
+}

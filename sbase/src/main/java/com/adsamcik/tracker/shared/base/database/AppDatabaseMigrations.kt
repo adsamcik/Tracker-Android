@@ -3,6 +3,57 @@ package com.adsamcik.tracker.shared.base.database
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+/**
+ * ============================================================================
+ * DATABASE VERSION TRACKING
+ * ============================================================================
+ *
+ * This table maps database schema versions to app version codes to determine
+ * when to CREATE NEW migrations vs UPDATE EXISTING migrations.
+ *
+ * RULE:
+ * - If a database version has been RELEASED (shipped to production/beta),
+ *   you MUST create a NEW migration for any schema changes.
+ * - If a database version is UNRELEASED (only in dev/internal builds),
+ *   you MAY update the existing migration.
+ *
+ * Latest Version Mapping:
+ * ┌────────────┬─────────────┬──────────────────────────────────────────┐
+ * │ DB Version │ App Version │ Status & Notes                           │
+ * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 13         │ 385         │ 🚧 UNRELEASED - Sessionless tracking     │
+ * │            │             │    foundation (7 new tables)             │
+ * │ 12         │ 384         │ ✅ RELEASED - Last session-based schema  │
+ * │ 11         │ 380-383     │ ✅ RELEASED                              │
+ * │ 10         │ 370-379     │ ✅ RELEASED                              │
+ * │ 9          │ 360-369     │ ✅ RELEASED                              │
+ * │ 8          │ 350-359     │ ✅ RELEASED                              │
+ * │ 7          │ 340-349     │ ✅ RELEASED                              │
+ * │ 6          │ 330-339     │ ✅ RELEASED                              │
+ * │ 5          │ 320-329     │ ✅ RELEASED                              │
+ * │ 4          │ 310-319     │ ✅ RELEASED                              │
+ * │ 3          │ 300-309     │ ✅ RELEASED                              │
+ * │ 2          │ < 300       │ ✅ RELEASED (Legacy)                     │
+ * └────────────┴─────────────┴──────────────────────────────────────────┘
+ *
+ * How to Update This Table:
+ * 1. When you change the DB version in AppDatabase.kt, update the row above.
+ * 2. Mark the previous version as RELEASED when you ship to production/beta.
+ * 3. Add the new version code from app/build.gradle.kts.
+ * 4. Include brief notes about what changed in the schema.
+ *
+ * Example workflow:
+ * - You're adding a new column to an existing table.
+ * - Current DB version is 13 (unreleased, versionCode 385).
+ * - Action: Update MIGRATION_12_13 directly (no new migration needed).
+ *
+ * - You're adding a new table after version 13 ships.
+ * - DB version 13 is now RELEASED (versionCode 385).
+ * - Action: Bump DB version to 14, create MIGRATION_13_14, update table above.
+ *
+ * ============================================================================
+ */
+
 val MIGRATION_2_3: Migration = object : Migration(2, 3) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
@@ -203,186 +254,182 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
 // and migrates data from legacy tables with coordinate conversion to E7 format.
 val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 	override fun migrate(db: SupportSQLiteDatabase) {
-		with(db) {
-			// 1. Create location_sample table
-			execSQL("""
-				CREATE TABLE IF NOT EXISTS location_sample (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					time_ms INTEGER NOT NULL,
-					elapsedRealtimeNanos INTEGER NOT NULL,
-					lat_e7 INTEGER,
-					lon_e7 INTEGER,
-					alt_m REAL,
-					h_acc_m REAL,
-					v_acc_m REAL,
-					speed_mps REAL,
-					speed_accuracy_mps REAL,
-					provider TEXT NOT NULL,
-					quality TEXT NOT NULL,
-					motionState TEXT,
-					policy TEXT,
-					bucketId INTEGER,
-					createdAt INTEGER NOT NULL
-				)
-			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_time ON location_sample(time_ms)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_coords ON location_sample(lat_e7, lon_e7)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_bucket ON location_sample(bucketId)")
+	with(db) {
+		// 1. Create location_sample table
+		execSQL("""
+			CREATE TABLE IF NOT EXISTS location_sample (
+				id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+				time_ms INTEGER NOT NULL,
+				elapsed_realtime_nanos INTEGER NOT NULL,
+				lat_e7 INTEGER,
+				lon_e7 INTEGER,
+				alt_m REAL,
+				h_acc_m REAL,
+				v_acc_m REAL,
+				speed_mps REAL,
+				speed_accuracy_mps REAL,
+				provider TEXT NOT NULL,
+				quality TEXT NOT NULL,
+				motion_state TEXT,
+				policy TEXT,
+				bucket_id INTEGER,
+				created_at INTEGER NOT NULL
+			)
+		""".trimIndent())
+		execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_time ON location_sample(time_ms)")
+		execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_coords ON location_sample(lat_e7, lon_e7)")
+		execSQL("CREATE INDEX IF NOT EXISTS idx_location_sample_bucket ON location_sample(bucket_id)")		// 2. Create step_interval table
+		execSQL("""
+			CREATE TABLE IF NOT EXISTS step_interval (
+				id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+				start_time_ms INTEGER NOT NULL,
+				end_time_ms INTEGER NOT NULL,
+				step_count INTEGER NOT NULL,
+				sensor_value_start INTEGER NOT NULL,
+				sensor_value_end INTEGER NOT NULL,
+				sensor_reset INTEGER NOT NULL,
+				createdAt INTEGER NOT NULL
+			)
+	""".trimIndent())
+	execSQL("CREATE INDEX IF NOT EXISTS idx_step_interval_time_range ON step_interval(start_time_ms, end_time_ms)")
 
-			// 2. Create step_interval table
-			execSQL("""
-				CREATE TABLE IF NOT EXISTS step_interval (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					start_time_ms INTEGER NOT NULL,
-					end_time_ms INTEGER NOT NULL,
-					stepCount INTEGER NOT NULL,
-					sensorValueStart INTEGER NOT NULL,
-					sensorValueEnd INTEGER NOT NULL,
-					sensorReset INTEGER NOT NULL,
-					createdAt INTEGER NOT NULL
-				)
-			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS idx_step_interval_time_range ON step_interval(start_time_ms, end_time_ms)")
+	// 3. Create activity_snapshot table
+	execSQL("""
+		CREATE TABLE IF NOT EXISTS activity_snapshot (
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			time_ms INTEGER NOT NULL,
+			activity_type INTEGER NOT NULL,
+			confidence INTEGER NOT NULL,
+			is_transition INTEGER NOT NULL,
+			created_at INTEGER NOT NULL
+		)
+	""".trimIndent())
+	execSQL("CREATE INDEX IF NOT EXISTS idx_activity_snapshot_time ON activity_snapshot(time_ms)")
 
-			// 3. Create activity_snapshot table
-			execSQL("""
-				CREATE TABLE IF NOT EXISTS activity_snapshot (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					time_ms INTEGER NOT NULL,
-					activity_type INTEGER NOT NULL,
-					confidence INTEGER NOT NULL,
-					isTransition INTEGER NOT NULL,
-					createdAt INTEGER NOT NULL
-				)
-			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS idx_activity_snapshot_time ON activity_snapshot(time_ms)")
+	// 4. Create cell_sample table
+	execSQL("""
+		CREATE TABLE IF NOT EXISTS cell_sample (
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			time_ms INTEGER NOT NULL,
+			cell_id INTEGER NOT NULL,
+			lac INTEGER NOT NULL,
+			mcc INTEGER NOT NULL,
+			mnc INTEGER NOT NULL,
+			network_type INTEGER NOT NULL,
+			signal_strength INTEGER NOT NULL,
+			lat_e7 INTEGER,
+			lon_e7 INTEGER,
+			provenance TEXT NOT NULL,
+			created_at INTEGER NOT NULL
+		)
+	""".trimIndent())
+	execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_time ON cell_sample(time_ms)")
+	execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_cell_id ON cell_sample(cell_id)")
+	execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_coords ON cell_sample(lat_e7, lon_e7)")
 
-			// 4. Create cell_sample table
-			execSQL("""
-				CREATE TABLE IF NOT EXISTS cell_sample (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					time_ms INTEGER NOT NULL,
-					cell_id INTEGER NOT NULL,
-					lac INTEGER NOT NULL,
-					mcc INTEGER NOT NULL,
-					mnc INTEGER NOT NULL,
-					networkType INTEGER NOT NULL,
-					signalStrength INTEGER NOT NULL,
-					lat_e7 INTEGER,
-					lon_e7 INTEGER,
-					provenance TEXT NOT NULL,
-					createdAt INTEGER NOT NULL
-				)
-			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_time ON cell_sample(time_ms)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_cell_id ON cell_sample(cell_id)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_coords ON cell_sample(lat_e7, lon_e7)")
+	// 5. Create wifi_observation table
+	execSQL("""
+		CREATE TABLE IF NOT EXISTS wifi_observation (
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			time_ms INTEGER NOT NULL,
+			bssid TEXT NOT NULL,
+			ssid TEXT NOT NULL,
+			capabilities TEXT NOT NULL,
+			frequency INTEGER NOT NULL,
+			level INTEGER NOT NULL,
+			lat_e7 INTEGER,
+			lon_e7 INTEGER,
+			provenance TEXT NOT NULL,
+			created_at INTEGER NOT NULL
+		)
+	""".trimIndent())
+	execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_time ON wifi_observation(time_ms)")
+	execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_bssid ON wifi_observation(bssid)")
+	execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_coords ON wifi_observation(lat_e7, lon_e7)")
 
-			// 5. Create wifi_observation table
-			execSQL("""
-				CREATE TABLE IF NOT EXISTS wifi_observation (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					time_ms INTEGER NOT NULL,
-					bssid TEXT NOT NULL,
-					ssid TEXT NOT NULL,
-					capabilities TEXT NOT NULL,
-					frequency INTEGER NOT NULL,
-					level INTEGER NOT NULL,
-					lat_e7 INTEGER,
-					lon_e7 INTEGER,
-					provenance TEXT NOT NULL,
-					createdAt INTEGER NOT NULL
-				)
-			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_time ON wifi_observation(time_ms)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_bssid ON wifi_observation(bssid)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_coords ON wifi_observation(lat_e7, lon_e7)")
+	// 6. Create tracker_run table
+	execSQL("""
+		CREATE TABLE IF NOT EXISTS tracker_run (
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			start_time_ms INTEGER NOT NULL,
+			end_time_ms INTEGER,
+			policy TEXT NOT NULL,
+			policy_params TEXT,
+			user_initiated INTEGER NOT NULL,
+			created_at INTEGER NOT NULL
+		)
+	""".trimIndent())
+	execSQL("CREATE INDEX IF NOT EXISTS idx_tracker_run_time_range ON tracker_run(start_time_ms, end_time_ms)")
 
-			// 6. Create tracker_run table
-			execSQL("""
-				CREATE TABLE IF NOT EXISTS tracker_run (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					start_time_ms INTEGER NOT NULL,
-					end_time_ms INTEGER,
-					policy TEXT NOT NULL,
-					policyParams TEXT,
-					userInitiated INTEGER NOT NULL,
-					createdAt INTEGER NOT NULL
-				)
-			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS idx_tracker_run_time_range ON tracker_run(start_time_ms, end_time_ms)")
+	// 7. Create session_segment table
+	execSQL("""
+		CREATE TABLE IF NOT EXISTS session_segment (
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			start_time_ms INTEGER NOT NULL,
+			end_time_ms INTEGER NOT NULL,
+			distance_m REAL NOT NULL,
+			steps INTEGER,
+			primary_activity INTEGER,
+			activity_confidence INTEGER,
+			sample_count INTEGER NOT NULL,
+			source TEXT NOT NULL,
+			inference_version TEXT,
+			created_at INTEGER NOT NULL
+		)
+	""".trimIndent())
+	execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_time_range ON session_segment(start_time_ms, end_time_ms)")
+	execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_source ON session_segment(source)")
 
-			// 7. Create session_segment table
-			execSQL("""
-				CREATE TABLE IF NOT EXISTS session_segment (
-					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-					start_time_ms INTEGER NOT NULL,
-					end_time_ms INTEGER NOT NULL,
-					distance_m REAL NOT NULL,
-					steps INTEGER,
-					primary_activity INTEGER,
-					activity_confidence INTEGER,
-					sample_count INTEGER NOT NULL,
-					source TEXT NOT NULL,
-					inferenceVersion TEXT,
-					createdAt INTEGER NOT NULL
-				)
-			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_time_range ON session_segment(start_time_ms, end_time_ms)")
-			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_source ON session_segment(source)")
-
-			// 8. Migrate data from location_data to location_sample
-			// Convert lat/lon from Double to E7 integers (degrees * 1e7)
-			// Classify quality based on horizontal accuracy
-			val currentTimeMs = System.currentTimeMillis()
-			execSQL("""
-				INSERT INTO location_sample (
-					time_ms,
-					elapsedRealtimeNanos,
-					lat_e7,
-					lon_e7,
-					alt_m,
-					h_acc_m,
-					v_acc_m,
-					speed_mps,
-					speed_accuracy_mps,
-					provider,
-					quality,
-					motionState,
-					policy,
-					bucketId,
-					createdAt
-				)
-				SELECT
-					time,
-					0,
-					CAST(lat * 10000000 AS INTEGER),
-					CAST(lon * 10000000 AS INTEGER),
-					alt,
-					hor_acc,
-					ver_acc,
-					speed,
-					s_acc,
-					'legacy',
-					CASE
-						WHEN hor_acc IS NULL THEN 'COARSE'
-						WHEN hor_acc < 10 THEN 'HIGH'
-						WHEN hor_acc < 50 THEN 'MEDIUM'
-						ELSE 'LOW'
-					END,
-					CASE
-						WHEN activity IN (0, 3) THEN 'STILL'
-						WHEN activity IN (2, 7, 8) THEN 'MOVING'
-						ELSE 'UNKNOWN'
-					END,
-					NULL,
-					NULL,
-					$currentTimeMs
-				FROM location_data
-				ORDER BY time
-			""".trimIndent())
-
-			// 9. Migrate tracker_session to session_segment
+	// 8. Migrate data from location_data to location_sample
+	// Convert lat/lon from Double to E7 integers (degrees * 1e7)
+	// Classify quality based on horizontal accuracy
+	val currentTimeMs = System.currentTimeMillis()
+	execSQL("""
+		INSERT INTO location_sample (
+			time_ms,
+			elapsed_realtime_nanos,
+			lat_e7,
+			lon_e7,
+			alt_m,
+			h_acc_m,
+			v_acc_m,
+			speed_mps,
+			speed_accuracy_mps,
+			provider,
+			quality,
+			motion_state,
+			policy,
+			bucket_id,
+			created_at
+		)
+		SELECT
+			time,
+			0,
+			CAST(lat * 10000000 AS INTEGER),
+			CAST(lon * 10000000 AS INTEGER),
+			alt,
+			hor_acc,
+			ver_acc,
+			speed,
+			s_acc,
+			'legacy',
+			CASE
+				WHEN hor_acc IS NULL THEN 'COARSE'
+				WHEN hor_acc < 10 THEN 'HIGH'
+				WHEN hor_acc < 50 THEN 'MEDIUM'
+				ELSE 'LOW'
+			END,
+			CASE
+				WHEN activity IN (0, 3) THEN 'STILL'
+				WHEN activity IN (2, 7, 8) THEN 'MOVING'
+				ELSE 'UNKNOWN'
+			END,
+			NULL,
+			NULL,
+			$currentTimeMs
+		FROM location_data
+		ORDER BY time
+	""".trimIndent())			// 9. Migrate tracker_session to session_segment
 			// Mark all legacy sessions with LEGACY_MIGRATION source
 			execSQL("""
 				INSERT INTO session_segment (
@@ -394,8 +441,8 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 					activity_confidence,
 					sample_count,
 					source,
-					inferenceVersion,
-					createdAt
+					inference_version,
+					created_at
 				)
 				SELECT
 					start,
@@ -420,8 +467,8 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 					time_ms,
 					activity_type,
 					confidence,
-					isTransition,
-					createdAt
+					is_transition,
+					created_at
 				)
 				SELECT DISTINCT
 					time,

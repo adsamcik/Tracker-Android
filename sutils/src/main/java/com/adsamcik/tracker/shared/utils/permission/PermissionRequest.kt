@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.shared.utils.permission
 
 import android.content.Context
-import androidx.fragment.app.FragmentActivity
+import androidx.activity.ComponentActivity
 
 typealias PermissionResultCallback = (result: PermissionRequestResult) -> Unit
 typealias RationaleCallback = (token: PermissionRequest.Token, permissionList: List<PermissionData>) -> Unit
@@ -88,9 +88,9 @@ class PermissionRequest private constructor(
 
     companion object {
         /**
-         * Creates permission request with [FragmentActivity].
+         * Creates permission request with [ComponentActivity].
          */
-        fun newInstance(context: FragmentActivity): Builder {
+        fun newInstance(context: ComponentActivity): Builder {
             return Builder(context)
         }
 

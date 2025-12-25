@@ -3,34 +3,60 @@ package com.adsamcik.tracker.tracker.api
 import android.content.Context
 import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.adsamcik.tracker.shared.base.extension.stopService
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.service.TrackerService
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Hilt EntryPoint for accessing TrackerServiceController from static context
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface TrackerServiceApiEntryPoint {
+	fun trackerServiceController(): TrackerServiceController
+}
 
 /**
  * Public API for Tracker Service.
  */
 object TrackerServiceApi {
+	
+	private fun getController(context: Context): TrackerServiceController {
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			TrackerServiceApiEntryPoint::class.java
+		)
+		return entryPoint.trackerServiceController()
+	}
+	
 	/**
 	 * Information about current tracking session as Flow. Null if no session is currently active.
 	 */
-	val sessionInfoFlow: StateFlow<TrackerSessionInfo?> get() = TrackerService.sessionInfoFlow
+	fun sessionInfoFlow(context: Context): StateFlow<TrackerSessionInfo?> = 
+		getController(context).sessionInfoFlow
 
 	/**
 	 * Information about current tracking session. Null if no session is currently active.
 	 * @deprecated Use sessionInfoFlow instead. Direct value access will be removed in a future release.
 	 */
 	@Deprecated(
-		message = "Use sessionInfoFlow instead for reactive updates",
-		replaceWith = ReplaceWith("sessionInfoFlow.value"),
+		message = "Use sessionInfoFlow(context) instead for reactive updates",
+		replaceWith = ReplaceWith("sessionInfoFlow(context).value"),
 		level = DeprecationLevel.WARNING
 	)
-	val sessionInfo: TrackerSessionInfo? get() = TrackerService.sessionInfoFlow.value
+	fun sessionInfo(context: Context): TrackerSessionInfo? = 
+		getController(context).sessionInfoFlow.value
 
 	/**
 	 * Indicates whether tracker service is active.
 	 */
-	val isActive: Boolean get() = TrackerService.isServiceRunning
+	fun isActive(context: Context): Boolean = 
+		getController(context).isServiceRunning
 
 	/**
 	 * Starts tracker service in foreground.

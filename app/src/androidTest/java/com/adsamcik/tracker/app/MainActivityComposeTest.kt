@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app
 
-import android.content.Intent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -65,25 +64,7 @@ class MainActivityComposeTest {
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expandedDescription))
     }
 
-    @Test
-    fun openGame_intent_selects_game_and_collapses_map() {
-        val collapsedDescription = context.getString(R.string.main_nav_map_state_collapsed)
-
-        composeRule.runOnIdle {
-            val intent = Intent(context, MainActivityCompose::class.java).apply {
-                putExtra("openGame", true)
-            }
-            composeRule.activity.onNewIntent(intent)
-        }
-
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithTag("nav_game").assertIsSelected()
-        composeRule.onNodeWithTag("nav_stats").assertIsNotSelected()
-        composeRule.onNodeWithTag("nav_map")
-            .assertIsNotSelected()
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, collapsedDescription))
-    }
+    // Note: Intent-based tests moved to MainActivityIntentTest.kt using ActivityScenario
 
     companion object {
         @JvmStatic

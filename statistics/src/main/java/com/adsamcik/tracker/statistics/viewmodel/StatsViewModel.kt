@@ -7,16 +7,29 @@ import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
 import com.adsamcik.tracker.statistics.repository.SessionRepository
 import com.adsamcik.tracker.statistics.data.Stat
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Sealed class representing the loading state of statistics data.
+ */
+sealed class StatsLoadState {
+    data object Idle : StatsLoadState()
+    data object Loading : StatsLoadState()
+    data class Success(val stats: List<Stat>) : StatsLoadState()
+    data class Error(val message: String) : StatsLoadState()
+}
 
 /**
  * ViewModel providing paged tracker sessions for statistics screen.
  * Uses constructor-injected SessionRepository for clean testing and modularity.
  */
-class StatsViewModel(
+@HiltViewModel
+class StatsViewModel @Inject constructor(
     private val sessionRepository: SessionRepository
 ) : ViewModel() {
 
@@ -27,56 +40,46 @@ class StatsViewModel(
         .flow
         .cachedIn(viewModelScope)
     
-    // Summary statistics state
-    private val _summaryStats = MutableStateFlow<List<Stat>>(emptyList())
-    val summaryStats: StateFlow<List<Stat>> = _summaryStats.asStateFlow()
+    // Summary statistics state with error handling
+    private val _summaryStatsState = MutableStateFlow<StatsLoadState>(StatsLoadState.Idle)
+    val summaryStatsState: StateFlow<StatsLoadState> = _summaryStatsState.asStateFlow()
     
-    // Summary loading state
-    private val _summaryLoading = MutableStateFlow(false)
-    val summaryLoading: StateFlow<Boolean> = _summaryLoading.asStateFlow()
-    
-    // Weekly statistics state
-    private val _weeklyStats = MutableStateFlow<List<Stat>>(emptyList())
-    val weeklyStats: StateFlow<List<Stat>> = _weeklyStats.asStateFlow()
-    
-    // Weekly loading state
-    private val _weeklyLoading = MutableStateFlow(false)
-    val weeklyLoading: StateFlow<Boolean> = _weeklyLoading.asStateFlow()
+    // Weekly statistics state with error handling
+    private val _weeklyStatsState = MutableStateFlow<StatsLoadState>(StatsLoadState.Idle)
+    val weeklyStatsState: StateFlow<StatsLoadState> = _weeklyStatsState.asStateFlow()
     
     /**
      * Load summary statistics from repository.
-     * Sets loading state and handles errors gracefully.
+     * Emits Loading -> Success/Error states via summaryStatsState flow.
      */
     fun loadSummaryStats() {
         viewModelScope.launch {
-            _summaryLoading.value = true
+            _summaryStatsState.value = StatsLoadState.Loading
             try {
-                _summaryStats.value = sessionRepository.getSummaryStats()
+                val stats = sessionRepository.getSummaryStats()
+                _summaryStatsState.value = StatsLoadState.Success(stats)
             } catch (e: Exception) {
-                // Log error and leave stats as empty list
-                // TODO: Consider exposing error state to UI
-                _summaryStats.value = emptyList()
-            } finally {
-                _summaryLoading.value = false
+                _summaryStatsState.value = StatsLoadState.Error(
+                    e.message ?: "Failed to load summary statistics"
+                )
             }
         }
     }
     
     /**
      * Load weekly statistics from repository.
-     * Sets loading state and handles errors gracefully.
+     * Emits Loading -> Success/Error states via weeklyStatsState flow.
      */
     fun loadWeeklyStats() {
         viewModelScope.launch {
-            _weeklyLoading.value = true
+            _weeklyStatsState.value = StatsLoadState.Loading
             try {
-                _weeklyStats.value = sessionRepository.getWeeklyStats()
+                val stats = sessionRepository.getWeeklyStats()
+                _weeklyStatsState.value = StatsLoadState.Success(stats)
             } catch (e: Exception) {
-                // Log error and leave stats as empty list
-                // TODO: Consider exposing error state to UI
-                _weeklyStats.value = emptyList()
-            } finally {
-                _weeklyLoading.value = false
+                _weeklyStatsState.value = StatsLoadState.Error(
+                    e.message ?: "Failed to load weekly statistics"
+                )
             }
         }
     }

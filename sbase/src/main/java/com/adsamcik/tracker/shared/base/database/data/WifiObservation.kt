@@ -72,6 +72,6 @@ data class WifiObservation(
 	/**
 	 * Row creation timestamp (for auditing/debugging).
 	 */
-	@ColumnInfo(name = "createdAt")
+	@ColumnInfo(name = "created_at")
 	val createdAt: Long
 )

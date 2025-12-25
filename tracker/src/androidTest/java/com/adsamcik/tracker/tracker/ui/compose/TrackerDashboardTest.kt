@@ -63,6 +63,7 @@ class TrackerDashboardTest {
                     TrackerDashboard(
                         state = state,
                         onSettingsClick = { settingsClicked = true },
+                        onMapClick = { /* No-op for test */ },
                         onRequestPermission = { permissionRequested = true },
                         onToggleTracking = { shouldStart ->
                             trackingToggled = true
@@ -120,22 +121,6 @@ class TrackerDashboardTest {
     }
 
     @Test
-    fun progressiveDisclosureToggle() {
-        setDashboardContent()
-
-        // Find and click the expand/collapse button
-        composeRule.onNodeWithTag("expand_details_button").assertIsDisplayed()
-        
-        // Test the progressive disclosure by clicking the expand button
-        composeRule.onNodeWithTag("expand_details_button").performClick()
-        
-        composeRule.waitForIdle()
-        
-        // After expanding, the button should still be present
-        composeRule.onNodeWithTag("expand_details_button").assertIsDisplayed()
-    }
-
-    @Test
     fun showsLockBannerWhenLocked() {
         // Test with locked state
         setDashboardContent(
@@ -184,14 +169,6 @@ class TrackerDashboardTest {
     }
 
     @Test
-    fun showsExpandButton() {
-        setDashboardContent()
-
-        // Progressive disclosure button should be present
-        composeRule.onNode(hasTestTag("expand_details_button")).assertIsDisplayed()
-    }
-
-    @Test
     fun fabClickCallsToggleTracking() {
         setDashboardContent()
 
@@ -207,7 +184,6 @@ class TrackerDashboardTest {
 
         // Verify all major test tags are present in the UI
         composeRule.onNode(hasTestTag("tracking_fab")).assertExists()
-        composeRule.onNode(hasTestTag("expand_details_button")).assertExists()
         
         // Lock banner should not exist when not locked
         composeRule.onNode(hasTestTag("lock_banner"), useUnmergedTree = true)

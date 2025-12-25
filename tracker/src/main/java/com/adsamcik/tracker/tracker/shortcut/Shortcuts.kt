@@ -8,8 +8,21 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import com.adsamcik.tracker.shared.base.extension.shortcutManager
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.service.TrackerService
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import java.util.*
+
+/**
+ * Hilt EntryPoint for accessing TrackerServiceController from Shortcuts singleton
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ShortcutsEntryPoint {
+	fun trackerServiceController(): TrackerServiceController
+}
 
 /**
  * Singleton which handles Shortcut creation on API 25 and newer
@@ -34,7 +47,12 @@ object Shortcuts {
 
 		val shortcutManager = context.shortcutManager
 		val shortcuts = ArrayList<ShortcutInfo>(1)
-		if (!TrackerService.isServiceRunning) {
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			ShortcutsEntryPoint::class.java
+		)
+		val isServiceRunning = entryPoint.trackerServiceController().isServiceRunning
+		if (!isServiceRunning) {
 			shortcuts.add(
 					createShortcut(
 							context,

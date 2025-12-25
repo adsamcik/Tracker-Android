@@ -2,13 +2,20 @@ package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
 import androidx.annotation.CallSuper
-import androidx.lifecycle.Observer
 import com.adsamcik.tracker.logger.assertTrue
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 internal abstract class TrackerDataProducerComponent(private val changeReceiver: TrackerDataProducerObserver) {
-	private val observer = Observer<Boolean> { changeReceiver.onStateChange(it, this) }
+    private val preferenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var preferenceJob: Job? = null
 
 	protected abstract val keyRes: Int
 	protected abstract val defaultRes: Int
@@ -19,16 +26,17 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 	var canBeEnabled: Boolean = false
 
 	fun onAttach(context: Context) {
-		PreferenceObserver.observe(
-				context,
-				keyRes = keyRes,
-				defaultRes = defaultRes,
-				observer = observer
-		)
+		val initial = Preferences.getPref(context).getBooleanRes(keyRes, defaultRes)
+		changeReceiver.onStateChange(initial, this)
+		preferenceJob?.cancel()
+		preferenceJob = PreferenceFlows.boolean(context, keyRes, defaultRes)
+			.onEach { changeReceiver.onStateChange(it, this) }
+			.launchIn(preferenceScope)
 	}
 
 	fun onDetach(context: Context) {
-		PreferenceObserver.removeObserver(context, keyRes, observer)
+		preferenceJob?.cancel()
+		preferenceJob = null
 	}
 
 	@CallSuper

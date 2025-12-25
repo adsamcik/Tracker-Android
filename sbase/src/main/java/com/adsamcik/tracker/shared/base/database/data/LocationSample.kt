@@ -15,7 +15,7 @@ import androidx.room.PrimaryKey
 	indices = [
 		Index(value = ["time_ms"], name = "idx_location_sample_time"),
 		Index(value = ["lat_e7", "lon_e7"], name = "idx_location_sample_coords"),
-		Index(value = ["bucketId"], name = "idx_location_sample_bucket")
+		Index(value = ["bucket_id"], name = "idx_location_sample_bucket")
 	]
 )
 data class LocationSample(
@@ -31,7 +31,7 @@ data class LocationSample(
 	/**
 	 * Elapsed real time in nanoseconds since boot (for correlating with sensors).
 	 */
-	@ColumnInfo(name = "elapsedRealtimeNanos")
+	@ColumnInfo(name = "elapsed_realtime_nanos")
 	val elapsedRealtimeNanos: Long,
 
 	/**
@@ -89,7 +89,7 @@ data class LocationSample(
 	/**
 	 * Motion state at capture time (MOVING, STILL, UNKNOWN). Null if not determined.
 	 */
-	@ColumnInfo(name = "motionState")
+	@ColumnInfo(name = "motion_state")
 	val motionState: MotionState?,
 
 	/**
@@ -101,13 +101,13 @@ data class LocationSample(
 	/**
 	 * Optional bucket ID for spatial/temporal aggregation. Used by aging/compression.
 	 */
-	@ColumnInfo(name = "bucketId")
+	@ColumnInfo(name = "bucket_id")
 	val bucketId: Long?,
 
 	/**
 	 * Row creation timestamp (for auditing/debugging).
 	 */
-	@ColumnInfo(name = "createdAt")
+	@ColumnInfo(name = "created_at")
 	val createdAt: Long
 )
 

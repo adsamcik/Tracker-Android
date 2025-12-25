@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.FileImportStream
@@ -45,7 +46,7 @@ class ImportWorker(
         )
 
         database = AppDatabase.database(context)
-        database.runInTransaction {
+        database.withTransaction {
             val count = handleFile(file)
 
             showNotification(
@@ -89,7 +90,7 @@ class ImportWorker(
     }
 
     @WorkerThread
-    private fun extract(file: DocumentFile, extractor: ArchiveExtractor): Int {
+    private suspend fun extract(file: DocumentFile, extractor: ArchiveExtractor): Int {
         showNotification(
             context.getString(R.string.import_notification_extracting, file.name),
             true
@@ -101,12 +102,16 @@ class ImportWorker(
     }
 
     @WorkerThread
-    private fun importAll(stream: Sequence<FileImportStream>): Int {
-        return stream.sumOf { tryImport(it) }
+    private suspend fun importAll(stream: Sequence<FileImportStream>): Int {
+        var count = 0
+        for (it in stream) {
+            count += tryImport(it)
+        }
+        return count
     }
 
     @WorkerThread
-    private fun tryImport(stream: FileImportStream): Int {
+    private suspend fun tryImport(stream: FileImportStream): Int {
         val extension = stream.extension.lowercase(Locale.ROOT)
         val importer = import.activeImporterList
             .find { it.supportedExtensions.contains(extension) }
@@ -126,7 +131,7 @@ class ImportWorker(
     }
 
     @WorkerThread
-    private fun import(
+    private suspend fun import(
         stream: FileImportStream,
         import: FileImport
     ): Int {
@@ -151,7 +156,7 @@ class ImportWorker(
         }
     }
 
-    private fun handleFile(file: DocumentFile): Int {
+    private suspend fun handleFile(file: DocumentFile): Int {
         val extension = file.extension?.lowercase(Locale.ROOT)
         val extractor = import.activeArchiveExtractorList
             .find { it.supportedExtensions.contains(extension) }

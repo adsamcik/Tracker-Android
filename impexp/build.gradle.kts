@@ -4,29 +4,36 @@ plugins {
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.protobuf)
 }
 
 android {
-    compileSdk = Android.COMPILE_VERSION
-    buildToolsVersion = Android.BUILD_TOOLS_VERSION
+    compileSdk = libs.versions.android.compile.get().toInt()
+    buildToolsVersion = libs.versions.android.build.tools.get()
 
     defaultConfig {
-        minSdk = Android.MIN_VERSION
+        minSdk = libs.versions.android.min.get().toInt()
 
 	    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     sourceSets {
         this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+        getByName("debug") {
+            java.srcDir("build/generated/source/proto/debug/java")
+        }
+        getByName("release") {
+            java.srcDir("build/generated/source/proto/release/java")
+        }
     }
 
     compileOptions {
-        sourceCompatibility = Android.javaTarget
-        targetCompatibility = Android.javaTarget
+        sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+        targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
     }
 
     kotlin {
-        jvmToolchain(Android.JAVA_VERSION)
+        jvmToolchain(libs.versions.java.get().toInt())
     }
 
     buildTypes {
@@ -39,7 +46,7 @@ android {
             isMinifyEnabled = false
         }
         getByName("release") {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
         }
     }
 
@@ -56,6 +63,8 @@ dependencies {
     implementation(project(":spreferences"))
     implementation(project(":logger"))
     implementation(libs.androidx.documentfile)
+    implementation(libs.androidx.datastore.core)
+    implementation(libs.protobuf.java)
 
     // Compose
     implementation(platform(libs.compose.bom))
@@ -70,12 +79,10 @@ dependencies {
     implementation(libs.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.compose.runtime)
-    implementation(libs.compose.runtime.livedata)
     implementation(libs.constraintlayout.compose)
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
-    implementation(libs.accompanist.pager)
-    implementation(libs.accompanist.swiperefresh)
+	// Accompanist removed
 
     // DB
     implementation(libs.androidx.room.runtime)
@@ -100,8 +107,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.lifecycle.process)
-    implementation(libs.androidx.fragment)
-    implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.preference)
     implementation(libs.androidx.lifecycle.common.java8)
     implementation(libs.google.material)
@@ -117,6 +122,31 @@ dependencies {
     androidTestImplementation(libs.uiautomator)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.arch.core.testing)
-    androidTestImplementation(libs.livedata.testing.ktx)
     androidTestImplementation(libs.espresso)
+    androidTestImplementation(project(":testing-common"))
+
+    // JVM unit tests
+    testImplementation(libs.junit4)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}" }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins { create("java") }
+        }
+    }
+}
+
+afterEvaluate {
+    tasks.forEach { task ->
+        if (task.name.startsWith("ksp") && task.name.endsWith("Kotlin")) {
+            if (task.name.contains("Debug")) {
+                task.dependsOn("generateDebugProto")
+            } else if (task.name.contains("Release")) {
+                task.dependsOn("generateReleaseProto")
+            }
+        }
+    }
 }

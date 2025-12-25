@@ -5,9 +5,11 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.test.FakePreferencesHelper
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,18 +41,32 @@ class HandlerCollectionTriggerTest {
 
 	@Before
 	fun setup() {
+		// Setup fake preferences to avoid Resources$NotFoundException
+		FakePreferencesHelper.setup()
+		
+		// Set a reasonable default tracking interval (1 second for tests)
+		// The key doesn't matter since mock returns default from secondArg if not in map
+		
 		context = ApplicationProvider.getApplicationContext()
 		receiver = mockk(relaxed = true)
 		trigger = HandlerCollectionTrigger()
 	}
 
+	@After
+	fun tearDown() {
+		FakePreferencesHelper.tearDown()
+	}
+
 	@Test
 	fun `onEnable starts handler with default interval from preferences`() {
+		// Set tracking interval to 1 second for quick test execution
+		FakePreferencesHelper.data[com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key] = 1
+		
 		// Enable trigger (uses default preference values)
 		trigger.onEnable(context, receiver)
 
-		// Advance time to trigger first callback
-		shadowOf(Looper.getMainLooper()).idle()
+		// Advance time by 1 second to trigger first callback
+		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
 
 		// Verify at least one update was triggered
 		verify(atLeast = 1) { receiver.onUpdate(any()) }

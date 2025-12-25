@@ -4,29 +4,37 @@ plugins {
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
+	alias(libs.plugins.hilt)
+	alias(libs.plugins.protobuf)
 }
 
 android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
+	compileSdk = libs.versions.android.compile.get().toInt()
+	buildToolsVersion = libs.versions.android.build.tools.get()
 
 	defaultConfig {
-		minSdk = Android.MIN_VERSION
+		minSdk = libs.versions.android.min.get().toInt()
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
 
 	sourceSets {
 		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+		getByName("debug") {
+			java.srcDir("build/generated/source/proto/debug/java")
+		}
+		getByName("release") {
+			java.srcDir("build/generated/source/proto/release/java")
+		}
 	}
 
 	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
+		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
 	}
 
 	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
+		jvmToolchain(libs.versions.java.get().toInt())
 	}
 
 	buildFeatures {
@@ -48,12 +56,16 @@ android {
 			// Issue: R8 removes classes referenced reflectively across module boundaries
 			// Requires: Comprehensive proguard rules or migration to explicit DI
 			isMinifyEnabled = false
+			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 		}
 	}
 
-	lint {
-		checkReleaseBuilds = true
-		abortOnError = false
+	packaging {
+		resources {
+			excludes += "/META-INF/{AL2.0,LGPL2.1}"
+			excludes += "META-INF/LICENSE.md"
+			excludes += "META-INF/LICENSE-notice.md"
+		}
 	}
     namespace = "com.adsamcik.tracker.tracker"
 }
@@ -75,24 +87,30 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.service)
 	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.fragment)
-	implementation(libs.androidx.fragment.ktx)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
 
+	// Hilt (Dependency Injection)
+	implementation(libs.hilt.android)
+	ksp(libs.hilt.compiler)
+	implementation(libs.hilt.work)
+
 	// Compose (UI migration)
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.material3)
+	implementation(libs.compose.material3.window.size)
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
 	implementation(libs.compose.foundation)
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
-	implementation(libs.compose.runtime.livedata)
+	// DataStore (proto for typed settings, preferences for migration compatibility)
+	implementation(libs.androidx.datastore.core)
 	implementation(libs.androidx.datastore.preferences)
+	implementation(libs.protobuf.java)
 	// Required for rememberLauncherForActivityResult and setContent in main source
 	implementation(libs.activity.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -130,6 +148,27 @@ dependencies {
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
-	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
+	androidTestImplementation(project(":testing-common"))
+}
+
+protobuf {
+	protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}" }
+	generateProtoTasks {
+		all().forEach { task ->
+			task.builtins { create("java") }
+		}
+	}
+}
+
+afterEvaluate {
+    tasks.forEach { task ->
+        if (task.name.startsWith("ksp") && task.name.endsWith("Kotlin")) {
+            if (task.name.contains("Debug")) {
+                task.dependsOn("generateDebugProto")
+            } else if (task.name.contains("Release")) {
+                task.dependsOn("generateReleaseProto")
+            }
+        }
+    }
 }

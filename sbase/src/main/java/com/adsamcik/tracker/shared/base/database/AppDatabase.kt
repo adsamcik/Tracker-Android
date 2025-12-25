@@ -44,6 +44,9 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 /**
  * Provides access to main database.
  * Contains only common data nothing module specific.
+ *
+ * CURRENT VERSION: 13 (App versionCode: 385 - UNRELEASED)
+ * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
 		version = 13,

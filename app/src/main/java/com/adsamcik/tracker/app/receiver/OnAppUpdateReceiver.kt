@@ -7,8 +7,6 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.extension.appVersion
 import com.adsamcik.tracker.shared.preferences.Preferences
 
-import com.adsamcik.tracker.tracker.locker.TrackerLocker
-
 /**
  * Receiver that is subscribed to update event so some actions can be performed and services are restored
  */
@@ -32,8 +30,6 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 				val version = context.appVersion()
 				this@edit.setLong(keyLastVersion, version)
 			}
-
-			TrackerLocker.initializeFromPersistence(context)
 		}
 	}
 }

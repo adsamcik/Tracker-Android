@@ -25,22 +25,9 @@ import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
 
 
-/**
- * Starts new activity.
- * If [Fragment.getContext] is null, null reference exception will be thrown.
- *
- * @param options Options bundle
- * @param init Initialization function to setup the intent if needed
- */
-inline fun <reified T : ComponentActivity> Fragment.startActivity(
-	options: Bundle? = null,
-	noinline init: Intent.() -> Unit = {}
-) {
-	requireContext().startActivity<T>(options, init)
-}
+
 
 /**
  * Starts new activity
@@ -164,9 +151,28 @@ fun Context.hasSelfPermission(permission: String): Boolean =
 fun Context.hasSelfPermissions(permissions: Collection<String>): BooleanArray =
 	permissions.map { hasSelfPermission(it) }.toBooleanArray()
 
+/**
+ * Checks if application has any location permission (coarse or fine).
+ * Accepts either ACCESS_FINE_LOCATION or ACCESS_COARSE_LOCATION.
+ */
 inline val Context.hasLocationPermission: Boolean
 	get() =
+		hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
+				hasSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+/**
+ * Checks if application has precise (fine) location permission.
+ */
+inline val Context.hasPreciseLocationPermission: Boolean
+	get() =
 		hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+
+/**
+ * Checks if application has coarse (approximate) location permission.
+ */
+inline val Context.hasCoarseLocationPermission: Boolean
+	get() =
+		hasSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
 
 inline val Context.hasBackgroundLocationPermission: Boolean
 	get() =

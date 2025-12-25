@@ -51,13 +51,13 @@ data class CellSample(
 	/**
 	 * Network type (e.g., LTE, UMTS, GSM).
 	 */
-	@ColumnInfo(name = "networkType")
+	@ColumnInfo(name = "network_type")
 	val networkType: Int,
 
 	/**
 	 * Signal strength (ASU or dBm, depending on network type).
 	 */
-	@ColumnInfo(name = "signalStrength")
+	@ColumnInfo(name = "signal_strength")
 	val signalStrength: Int,
 
 	/**
@@ -80,7 +80,7 @@ data class CellSample(
 	/**
 	 * Row creation timestamp (for auditing/debugging).
 	 */
-	@ColumnInfo(name = "createdAt")
+	@ColumnInfo(name = "created_at")
 	val createdAt: Long
 )
 

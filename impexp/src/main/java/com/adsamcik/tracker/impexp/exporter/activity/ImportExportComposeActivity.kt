@@ -472,6 +472,39 @@ private fun getExportFileName(
     }
 }
 
+/**
+ * Find an available filename by auto-incrementing suffix if file exists.
+ * Follows macOS/iOS pattern: file.gpx → file_1.gpx → file_2.gpx
+ * 
+ * Contract:
+ * - Inputs: directory (DocumentFile), baseFileName (String without extension), extension (String)
+ * - Outputs: String filename (without extension) that doesn't exist in directory
+ * - Failure: Returns baseFileName if directory access fails
+ * 
+ * @param directory Target directory to check for existing files
+ * @param baseFileName Desired filename without extension
+ * @param extension File extension (e.g., "gpx", "kml")
+ * @return Available filename without extension
+ */
+private fun findAvailableFileName(
+    directory: DocumentFile,
+    baseFileName: String,
+    extension: String
+): String {
+    var counter = 1
+    var candidateName = baseFileName
+    
+    // Check if base name already exists
+    while (directory.findFile("${candidateName}.${extension}") != null) {
+        candidateName = "${baseFileName}_${counter}"
+        counter++
+        // Safety limit to prevent infinite loops
+        if (counter > 9999) break
+    }
+    
+    return candidateName
+}
+
 suspend fun tryExport(
     directory: DocumentFile,
     forceOverride: Boolean,
@@ -484,16 +517,16 @@ suspend fun tryExport(
 ) {
     withContext(Dispatchers.IO) {
         val actualFileName = getExportFileName(fileName, exporter, range, context)
-        val fileNameWithExtension = "${actualFileName}.${exporter.extension}"
-        val foundFile = directory.findFile(fileNameWithExtension)
-
-        if (!forceOverride && foundFile != null) {
-            withContext(Dispatchers.Main) {
-                // Handle overwrite confirmation if needed
-                snackBarHostState.showSnackbar("File already exists. Overwriting.")
-            }
+        
+        // Auto-increment filename if file exists (macOS-style: file_1.gpx, file_2.gpx)
+        // Avoids redundant confirmation dialog for reversible file operations
+        val finalFileName = if (!forceOverride) {
+            findAvailableFileName(directory, actualFileName, exporter.extension)
+        } else {
+            actualFileName
         }
-
+        
+        val fileNameWithExtension = "${finalFileName}.${exporter.extension}"
         val trimmedName = preventDoubleExtension(fileNameWithExtension, exporter)
         val createdFile = directory.createFile(exporter.mimeType, trimmedName)
             ?: throw IOException("Could not access or create file $fileNameWithExtension")

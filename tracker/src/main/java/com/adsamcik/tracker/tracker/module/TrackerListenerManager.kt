@@ -4,22 +4,29 @@ import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.di.DefaultDispatcher
 import com.adsamcik.tracker.shared.base.extension.remove
 import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlin.coroutines.CoroutineContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Manages all tracker listeners.
+ * 
+ * Injectable singleton per Section 16A guidelines.
+ * Scoped to application lifetime via @Singleton.
+ * Uses explicit dispatcher injection for testability.
  */
-internal object TrackerListenerManager : CoroutineScope {
+@Singleton
+class TrackerListenerManager @Inject constructor(
+	@DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher
+) {
 	private val job = SupervisorJob()
-
-	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Default + job
+	private val scope = CoroutineScope(defaultDispatcher + job)
 
 	private val listenerList: MutableList<TrackerUpdateReceiver> = mutableListOf()
 
@@ -40,7 +47,7 @@ internal object TrackerListenerManager : CoroutineScope {
 			}
 
 			if (lastSessionData != null && lastCollectionData != null) {
-				launch {
+				scope.launch {
 					component.onNewData(
 							context,
 							requireNotNull(lastSessionData),

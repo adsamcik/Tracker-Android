@@ -30,10 +30,29 @@ import kotlinx.coroutines.Dispatchers
  * - Added debouncing for frequent updates
  * - Performance optimizations for overlay updates
  * - Better memory management
+ * - LayerEngine can be set after construction to support async GoogleMap initialization
  */
 class MapStore(
-    private val layerManager: LayerEngine,
+    initialLayerManager: LayerEngine? = null,
 ) : ViewModel() {
+
+    private var layerManager: LayerEngine? = initialLayerManager
+    
+    /** 
+     * Updates the layer engine after GoogleMap becomes available.
+     * This allows the store to be created before the map is ready.
+     */
+    fun setLayerEngine(engine: LayerEngine) {
+        layerManager = engine
+        // Re-apply the current layer selection with the new engine
+        if (selectedLayerId != null) {
+            applyLayer()
+        }
+    }
+    
+    /** Returns true if the layer engine has been set. */
+    val isEngineReady: Boolean
+        get() = layerManager != null
 
     private val _state = MutableStateFlow(MapState())
     val state = _state.asStateFlow()
@@ -218,19 +237,21 @@ class MapStore(
     }
 
     private fun applyLayer() {
+        val engine = layerManager ?: return // No-op if engine not yet set
+        
         // Launch on ViewModel scope (Main), do heavy work on Default via withContext, then update state on Main
         viewModelScope.launch {
             try {
                 val s = _state.value
                 // Heavy selection off the main thread
                 kotlinx.coroutines.withContext(Dispatchers.Default) {
-                    layerManager.selectSingleLayer(selectedLayerId, s.quality, s.dateRange)
+                    engine.selectSingleLayer(selectedLayerId, s.quality, s.dateRange)
                 }
 
                 // Update legend and overlays (still on Main)
-                val legend = layerManager.activeLegend()
-                val provider = layerManager.activeTileProvider()
-                val overlays = layerManager.overlays()
+                val legend = engine.activeLegend()
+                val provider = engine.activeTileProvider()
+                val overlays = engine.overlays()
 
                 if (legend != null) {
                     _state.update { state ->
@@ -278,7 +299,7 @@ class MapStore(
         overlayUpdateJob?.cancel()
         // Clear the layer manager
         try {
-            layerManager.clear()
+            layerManager?.clear()
         } catch (e: Exception) {
             // Ignore cleanup errors
         }

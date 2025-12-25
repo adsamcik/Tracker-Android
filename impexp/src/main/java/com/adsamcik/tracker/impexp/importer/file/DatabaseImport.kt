@@ -29,7 +29,7 @@ import java.io.File
 internal class DatabaseImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
 
-	override fun import(
+	override suspend fun import(
 			context: Context,
 			database: AppDatabase,
 			stream: FileImportStream

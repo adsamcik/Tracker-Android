@@ -4,40 +4,44 @@ plugins {
 	alias(libs.plugins.google.services)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.kotlin.serialization)
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.ksp)
+	alias(libs.plugins.hilt)
+	alias(libs.plugins.androidx.baselineprofile)
+	alias(libs.plugins.oss.licenses)
 }
 
 // Google services plugin applied via alias above
 
 android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
+	compileSdk = libs.versions.android.compile.get().toInt()
+	buildToolsVersion = libs.versions.android.build.tools.get()
 	defaultConfig {
 		applicationId = "com.adsamcik.tracker"
-		minSdk = Android.MIN_VERSION
-		targetSdk = Android.TARGET_VERSION
+		minSdk = libs.versions.android.min.get().toInt()
+		targetSdk = libs.versions.android.target.get().toInt()
 		versionCode = 385
 		versionName = "2024.3.0 α2"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-	}
-	
-	androidResources {
-		localeFilters.addAll(listOf("en", "cs-rCZ"))
+		
+		androidResources {
+			localeFilters.addAll(listOf("en", "cs-rCZ"))
+		}
 	}
 
 	testOptions {
 		unitTests.isIncludeAndroidResources = true
 	}
-	
+
 	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
+		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
 		isCoreLibraryDesugaringEnabled = true
 	}
 
 	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
+		jvmToolchain(libs.versions.java.get().toInt())
 		compilerOptions {
 			optIn.add("kotlin.ExperimentalUnsignedTypes")
 		}
@@ -45,8 +49,8 @@ android {
 
 	java {
 		toolchain {
-			setSourceCompatibility(Android.JAVA_VERSION)
-			setTargetCompatibility(Android.JAVA_VERSION)
+			setSourceCompatibility(libs.versions.java.get().toInt())
+			setTargetCompatibility(libs.versions.java.get().toInt())
 		}
 	}
 
@@ -85,6 +89,12 @@ android {
 			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
+		create("benchmark") {
+			initWith(getByName("release"))
+			signingConfig = signingConfigs.getByName("debug")
+			matchingFallbacks += listOf("release")
+			isDebuggable = false
+		}
 	}
 
 	buildFeatures {
@@ -96,6 +106,13 @@ android {
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
+	}
+
+	packaging {
+		resources {
+			excludes += "META-INF/LICENSE.md"
+			excludes += "META-INF/LICENSE-notice.md"
+		}
 	}
 
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
@@ -129,12 +146,15 @@ dependencies {
 	implementation(project(":statistics"))
 	implementation(project(":map"))
 	implementation(project(":game"))
+    baselineProfile(project(":macrobenchmark"))
 
-	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
+	debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.kotlinx.serialization.json)
+	implementation(libs.androidx.profileinstaller)
 	implementation(libs.components.recycler)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
@@ -143,8 +163,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.service)
 	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.fragment)
-	implementation(libs.androidx.fragment.ktx)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
@@ -153,6 +171,12 @@ dependencies {
 	implementation(libs.androidx.work.runtime.ktx)
 	androidTestImplementation(libs.androidx.work.testing)
 
+	// Hilt (Dependency Injection)
+	implementation(libs.hilt.android)
+	ksp(libs.hilt.compiler)
+	implementation(libs.hilt.navigation.compose)
+	implementation(libs.hilt.work)
+
 	// Compose
 	implementation(platform(libs.compose.bom))
 	androidTestImplementation(platform(libs.compose.bom))
@@ -160,6 +184,7 @@ dependencies {
 	implementation(libs.compose.ui.tooling.preview)
 	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.activity.compose)
+	implementation(libs.androidx.core.splashscreen)
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
 	implementation(libs.compose.animation.graphics)
@@ -167,12 +192,10 @@ dependencies {
 	implementation(libs.navigation.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.compose.runtime)
-	implementation(libs.compose.runtime.livedata)
 	implementation(libs.constraintlayout.compose)
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
-	implementation(libs.accompanist.pager)
-	implementation(libs.accompanist.swiperefresh)
+	// Accompanist libraries removed (migrated to AndroidX)
 	// 1st party dependencies
 	implementation(libs.component.slider)
 	// Draggable overlay removed with legacy fallback
@@ -209,17 +232,30 @@ dependencies {
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.androidx.work.testing)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.mockk)
 
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.androidx.test.rules)
 	androidTestImplementation(libs.arch.core.testing)
-	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
 	androidTestImplementation(libs.espresso)
+	androidTestImplementation(project(":testing-common"))
 	// workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":smap"))
 	implementation(libs.google.play.services.maps)
 }
-//
+
+// Fix for KSP running before R class generation
+// Ensure KSP waits for resource processing to complete
+afterEvaluate {
+	tasks.named("kspDebugKotlin") {
+		dependsOn("processDebugResources")
+	}
+	tasks.named("kspReleaseKotlin") {
+		dependsOn("processReleaseResources")
+	}
+}

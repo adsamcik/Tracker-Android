@@ -1,0 +1,93 @@
+package com.adsamcik.tracker.tracker.controller
+
+import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Controller interface for TrackerService state observation.
+ * 
+ * Provides reactive access to tracking state without static dependencies.
+ * Injected via AppGraph for testability and proper dependency management.
+ * 
+ * Per copilot-instructions Section 16A:
+ * - Replaces TrackerService static companion state
+ * - Enables test injection (fake controller for UI tests)
+ * - Maintains clean module boundaries
+ */
+interface TrackerServiceController {
+    /**
+     * Observable tracking service running state.
+     * True when TrackerService is actively running.
+     */
+    val isServiceRunningFlow: StateFlow<Boolean>
+    
+    /**
+     * Current value of service running state (snapshot).
+     */
+    val isServiceRunning: Boolean
+    
+    /**
+     * Current session information as Flow.
+     * Contains basic session metadata (user-initiated flag, start time).
+     * Null when no session is active.
+     */
+    val sessionInfoFlow: StateFlow<TrackerSessionInfo?>
+    
+    /**
+     * Current full session data as Flow.
+     * Contains all runtime metrics: distance, steps, collections, timestamps.
+     * Null when no session is active.
+     */
+    val sessionFlow: StateFlow<TrackerSession?>
+    
+    /**
+     * Current collection data as Flow.
+     * Contains live tracking data: location, activity, wifi, cell.
+     * Null when no session is active or no data collected yet.
+     */
+    val collectionDataFlow: StateFlow<CollectionData?>
+
+    /**
+     * Accumulated path points for the current/last session.
+     * Pair of Session ID and List of Locations.
+     * Used for drawing the map preview.
+     */
+    val pathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>
+
+    /**
+     * The last active session data (retained after service stop).
+     * Used to display summary immediately after tracking stops.
+     */
+    val lastSessionFlow: StateFlow<TrackerSession?>
+
+    /**
+     * The path points of the last active session.
+     */
+    val lastPathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>
+    
+    /**
+     * Internal: Update service running state.
+     * Called by TrackerService lifecycle methods.
+     */
+    fun updateServiceRunning(isRunning: Boolean)
+    
+    /**
+     * Internal: Update session info.
+     * Called by TrackerService when session starts/stops.
+     */
+    fun updateSessionInfo(info: TrackerSessionInfo?)
+    
+    /**
+     * Internal: Update session data.
+     * Called by TrackerService on each data collection.
+     */
+    fun updateSession(session: TrackerSession?)
+    
+    /**
+     * Internal: Update collection data.
+     * Called by TrackerService on each data collection.
+     */
+    fun updateCollectionData(data: CollectionData?)
+}

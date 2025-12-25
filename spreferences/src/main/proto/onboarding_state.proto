@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option java_package = "com.adsamcik.tracker.shared.preferences.onboarding";
+option java_multiple_files = true;
+
+// Proto for onboarding completion state. Extend with new optional fields; never reuse field numbers.
+message OnboardingStateProto {
+  // Whether onboarding has been completed
+  bool completed = 1;
+  // Timestamp (epoch millis) when onboarding was completed
+  int64 completed_time = 2;
+  // Internal migration marker so legacy SharedPreferences import runs only once.
+  bool legacy_migrated = 1000;
+}

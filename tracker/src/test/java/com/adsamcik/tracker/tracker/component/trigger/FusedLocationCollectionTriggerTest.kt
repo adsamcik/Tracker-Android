@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
+import com.adsamcik.tracker.tracker.test.FakePreferencesHelper
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import io.mockk.*
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,6 +41,9 @@ class FusedLocationCollectionTriggerTest {
 
 	@Before
 	fun setup() {
+		// Setup fake preferences to avoid Resources$NotFoundException
+		FakePreferencesHelper.setup()
+		
 		context = ApplicationProvider.getApplicationContext()
 		receiver = mockk(relaxed = true)
 		trigger = FusedLocationCollectionTrigger()
@@ -51,6 +56,12 @@ class FusedLocationCollectionTriggerTest {
 		every { 
 			com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(any<Context>())
 		} returns mockClient
+	}
+
+	@After
+	fun tearDown() {
+		FakePreferencesHelper.tearDown()
+		unmockkAll()
 	}
 
 	@Test
@@ -279,6 +290,10 @@ class FusedLocationCollectionTriggerTest {
 
 	@Test
 	fun `LocationRequest uses high-accuracy priority`() {
+		// Grant fine location permission so hasPreciseLocationPermission returns true
+		val shadowApp = org.robolectric.Shadows.shadowOf(context.applicationContext as android.app.Application)
+		shadowApp.grantPermissions(android.Manifest.permission.ACCESS_FINE_LOCATION)
+		
 		// Enable trigger
 		trigger.onEnable(context, receiver)
 		

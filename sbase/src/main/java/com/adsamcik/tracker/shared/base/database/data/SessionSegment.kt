@@ -69,13 +69,13 @@ data class SessionSegment(
 	/**
 	 * Inference algorithm version/identifier (for debugging).
 	 */
-	@ColumnInfo(name = "inferenceVersion")
+	@ColumnInfo(name = "inference_version")
 	val inferenceVersion: String?,
 
 	/**
 	 * Row creation timestamp (for auditing/debugging).
 	 */
-	@ColumnInfo(name = "createdAt")
+	@ColumnInfo(name = "created_at")
 	val createdAt: Long
 )
 

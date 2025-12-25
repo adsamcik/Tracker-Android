@@ -6,22 +6,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.LoadState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.di.LocalViewModelFactory
+import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.StatsViewModel
 import com.adsamcik.tracker.statistics.ui.compose.SummaryDialog
 import com.adsamcik.tracker.statistics.ui.compose.WeekDialog
 
 /**
- * Entry point composable for Statistics tab. Uses ViewModelFactory for dependency injection.
+ * Entry point composable for Statistics tab. Uses Hilt for dependency injection.
  */
 @Composable
 fun StatsRoute() {
-    val factory = LocalViewModelFactory.current
-    val vm: StatsViewModel = viewModel(factory = factory)
+    val vm: StatsViewModel = hiltViewModel()
     val pagingItems = vm.sessionsFlow.collectAsLazyPagingItems()
 
     // Dialog state management
@@ -29,10 +28,8 @@ fun StatsRoute() {
     var showWeekDialog by remember { mutableStateOf(false) }
     
     // Collect statistics state from ViewModel
-    val summaryStats by vm.summaryStats.collectAsState()
-    val summaryLoading by vm.summaryLoading.collectAsState()
-    val weeklyStats by vm.weeklyStats.collectAsState()
-    val weeklyLoading by vm.weeklyLoading.collectAsState()
+    val summaryStatsState by vm.summaryStatsState.collectAsState()
+    val weeklyStatsState by vm.weeklyStatsState.collectAsState()
 
     val refreshState = when (val s = pagingItems.loadState.refresh) {
         is LoadState.Loading -> RefreshUiState.Loading
@@ -68,8 +65,7 @@ fun StatsRoute() {
     if (showSummaryDialog) {
         SummaryDialog(
             visible = showSummaryDialog,
-            stats = summaryStats,
-            isLoading = summaryLoading,
+            state = summaryStatsState,
             onDismiss = { showSummaryDialog = false }
         )
     }
@@ -77,8 +73,7 @@ fun StatsRoute() {
     if (showWeekDialog) {
         WeekDialog(
             visible = showWeekDialog,
-            stats = weeklyStats,
-            isLoading = weeklyLoading,
+            state = weeklyStatsState,
             onDismiss = { showWeekDialog = false }
         )
     }

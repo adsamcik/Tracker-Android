@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package com.adsamcik.tracker.impexp.exporter.proto;
+
+option java_package = "com.adsamcik.tracker.impexp.exporter.proto";
+option java_multiple_files = true;
+
+message ExportPlansProto {
+  repeated ExportBackupPlanProto plans = 1;
+  uint64 next_plan_id = 2;
+}
+
+message ExportBackupPlanProto {
+  uint64 id = 1;
+  string name = 2;
+  ExportFormatProto format = 3;
+  ExportCadenceProto cadence = 4;
+  ExportScopeProto scope = 5;
+  ExportDestinationProto destination = 6;
+  bool enabled = 7;
+  uint64 created_at_epoch_millis = 8;
+  uint64 updated_at_epoch_millis = 9;
+}
+
+enum ExportFormatProto {
+  EXPORT_FORMAT_UNSPECIFIED = 0;
+  EXPORT_FORMAT_GPX = 1;
+  EXPORT_FORMAT_KML = 2;
+  EXPORT_FORMAT_DATABASE = 3;
+}
+
+message ExportCadenceProto {
+  oneof cadence_type {
+    AfterSessionCadenceProto after_session = 1;
+    IntervalCadenceProto interval = 2;
+  }
+}
+
+message AfterSessionCadenceProto {
+  bool debounce_duplicates = 1;
+}
+
+message IntervalCadenceProto {
+  IntervalUnitProto unit = 1;
+  uint32 every = 2;
+  uint32 at_hour = 3;
+  uint32 at_minute = 4;
+  bool has_time_of_day = 5;
+}
+
+enum IntervalUnitProto {
+  INTERVAL_UNIT_UNSPECIFIED = 0;
+  INTERVAL_UNIT_DAY = 1;
+  INTERVAL_UNIT_WEEK = 2;
+  INTERVAL_UNIT_MONTH = 3;
+  INTERVAL_UNIT_YEAR = 4;
+  INTERVAL_UNIT_CUSTOM_DAYS = 5;
+}
+
+message ExportScopeProto {
+  oneof scope_type {
+    LastSessionScopeProto last_session = 1;
+    RollingWindowScopeProto rolling_window = 2;
+    FixedWindowScopeProto fixed_window = 3;
+    EntireHistoryScopeProto entire_history = 4;
+  }
+}
+
+message LastSessionScopeProto {}
+
+message RollingWindowScopeProto {
+  WindowUnitProto unit = 1;
+  uint32 count = 2;
+}
+
+message FixedWindowScopeProto {
+  uint64 start_epoch_millis = 1;
+  uint64 end_epoch_millis = 2;
+}
+
+message EntireHistoryScopeProto {}
+
+enum WindowUnitProto {
+  WINDOW_UNIT_UNSPECIFIED = 0;
+  WINDOW_UNIT_DAY = 1;
+  WINDOW_UNIT_WEEK = 2;
+  WINDOW_UNIT_MONTH = 3;
+  WINDOW_UNIT_YEAR = 4;
+}
+
+message ExportDestinationProto {
+  oneof destination_type {
+    PrivateStorageDestinationProto private_storage = 1;
+    DocumentTreeDestinationProto document_tree = 2;
+  }
+  string file_name_prefix = 5;
+  bool share_after_export = 6;
+}
+
+message PrivateStorageDestinationProto {
+  string relative_directory = 1;
+}
+
+message DocumentTreeDestinationProto {
+  string tree_uri = 1;
+  string subdirectory = 2;
+}

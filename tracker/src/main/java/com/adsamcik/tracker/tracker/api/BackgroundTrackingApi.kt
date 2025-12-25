@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.api
 
+import android.app.Application
 import android.content.Context
 import androidx.annotation.MainThread
-import androidx.lifecycle.Observer
 import com.adsamcik.tracker.activity.ActivityChangeRequestCallback
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
@@ -11,7 +11,13 @@ import com.adsamcik.tracker.activity.ActivityTransitionRequestCallback
 import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.logger.assertFalse
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
@@ -19,11 +25,25 @@ import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.PreferencesAssist
-import com.adsamcik.tracker.shared.preferences.observer.PreferenceObserver
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.locker.TrackerLocker
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
-import com.adsamcik.tracker.tracker.service.TrackerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+
+/**
+ * Hilt EntryPoint for accessing dependencies from BackgroundTrackingApi singleton
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface BackgroundTrackingApiEntryPoint {
+	fun lockManager(): LockManager
+	fun trackerServiceController(): TrackerServiceController
+}
 
 /**
  * Exposed methods for background tracking
@@ -32,6 +52,10 @@ import com.adsamcik.tracker.tracker.service.TrackerService
 object BackgroundTrackingApi {
 	var isActive: Boolean = false
 		private set
+
+	private val preferenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+	private var trackingActivityJob: Job? = null
+	private var transitionPreferenceJob: Job? = null
 
 	// Minimum confidence threshold for activity recognition
 	// Future: Make configurable via settings (requires UI + preference storage)
@@ -42,8 +66,9 @@ object BackgroundTrackingApi {
 	// Future: Expose callback configuration in advanced settings
 	private val callback: ActivityChangeRequestCallback = { context, activity, _ ->
 		if (activity.confidence >= REQUIRED_CONFIDENCE) {
-			if (TrackerServiceApi.isActive) {
-				if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
+			if (TrackerServiceApi.isActive(context)) {
+				val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
+				if (!requireNotNull(sessionInfo).isInitiatedByUser &&
 					!canContinueBackgroundTracking(context, activity.groupedActivity)
 				) {
 					TrackerServiceApi.stopService(context)
@@ -59,8 +84,9 @@ object BackgroundTrackingApi {
 	}
 
 	private val transitionCallback: ActivityTransitionRequestCallback = { context, activity, _ ->
-		if (TrackerServiceApi.isActive) {
-			if (!requireNotNull(TrackerServiceApi.sessionInfo).isInitiatedByUser &&
+		if (TrackerServiceApi.isActive(context)) {
+			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
+			if (!requireNotNull(sessionInfo).isInitiatedByUser &&
 				!canContinueBackgroundTracking(context, activity.activity.groupedActivity)
 			) {
 				TrackerServiceApi.stopService(context)
@@ -74,27 +100,15 @@ object BackgroundTrackingApi {
 		}
 	}
 
-	private val observer: Observer<Int> = Observer {
-		val context = requireNotNull(appContext)
-		if (it == GroupedActivity.STILL.ordinal && isActive) {
-			disable(context)
-		} else if (!isActive) {
-			if (context.hasActivityPermission) {
-				enable(context)
-			}
-		}
-	}
-
-	private val transitionObserver: Observer<Boolean> = Observer {
-		val context = requireNotNull(appContext)
-		if (isActive) {
-			reinitializeRequest(context, it)
-		}
-	}
-
-	private fun canTrackerServiceBeStarted(context: Context) = !TrackerLocker.isLocked.value &&
+	private fun canTrackerServiceBeStarted(context: Context): Boolean {
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			BackgroundTrackingApiEntryPoint::class.java
+		)
+		return !entryPoint.lockManager().isLocked &&
 			!context.powerManager.isPowerSaveMode &&
 			PreferencesAssist.hasAnythingToTrack(context)
+	}
 
 	/**
 	 * Checks if background tracking can be activated
@@ -104,8 +118,13 @@ object BackgroundTrackingApi {
 	 */
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 		val preferences = Preferences.getPref(context)
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			BackgroundTrackingApiEntryPoint::class.java
+		)
+		val isTrackerRunning = entryPoint.trackerServiceController().isServiceRunning
 		if (groupedActivity.isStillOrUnknown ||
-			TrackerService.isServiceRunning ||
+			isTrackerRunning ||
 			preferences.getBooleanRes(
 				R.string.settings_disabled_recharge_key,
 				R.string.settings_disabled_recharge_default
@@ -245,20 +264,50 @@ object BackgroundTrackingApi {
 		if (appContext != null) return
 
 		appContext = context.applicationContext
+		val ctx = requireNotNull(appContext)
+		val prefs = Preferences.getPref(ctx)
+		handleTrackingActivityPreferenceChange(
+			prefs.getIntResString(
+				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
+				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
+			)
+		)
+		handleTransitionPreferenceChange(
+			prefs.getBooleanRes(
+				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
+				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default
+			)
+		)
 
-		PreferenceObserver.observe(
-			context,
+		trackingActivityJob = PreferenceFlows.intFromString(
+			ctx,
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default,
-			observer
-		)
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
+		).onEach { handleTrackingActivityPreferenceChange(it) }
+			.launchIn(preferenceScope)
 
-		PreferenceObserver.observe(
-			context,
+		transitionPreferenceJob = PreferenceFlows.boolean(
+			ctx,
 			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default,
-			transitionObserver
-		)
+			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default
+		).onEach { handleTransitionPreferenceChange(it) }
+			.launchIn(preferenceScope)
+	}
+
+	private fun handleTrackingActivityPreferenceChange(value: Int) {
+		val context = appContext ?: return
+		if (value == GroupedActivity.STILL.ordinal && isActive) {
+			disable(context)
+		} else if (!isActive && context.hasActivityPermission) {
+			enable(context)
+		}
+	}
+
+	private fun handleTransitionPreferenceChange(enabled: Boolean) {
+		val context = appContext ?: return
+		if (isActive) {
+			reinitializeRequest(context, enabled)
+		}
 	}
 }
 

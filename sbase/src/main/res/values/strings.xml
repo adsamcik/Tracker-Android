@@ -125,6 +125,17 @@
     <string name="settings_color_update_mden_trans_title">Morning/day/evening/night transition</string>
     <string name="settings_color_update_single_title">Static color</string>
 
+    <!-- Contextual Permission Request Strings (Apple-style rationale-first pattern) -->
+    <string name="permission_location_rationale_title">Location Access Needed</string>
+    <string name="permission_location_rationale_message">To track your route, Tracker needs location access. All data stays on your device.</string>
+    <string name="permission_activity_rationale_title">Activity Recognition Needed</string>
+    <string name="permission_activity_rationale_message">Tracker detects walking, running, and cycling to automatically start tracking. Data remains local.</string>
+    <string name="permission_background_location_rationale_title">Background Location Access</string>
+    <string name="permission_background_location_rationale_message">To track automatically when the app is closed, enable "Allow all the time" for location. This enables hands-free tracking.</string>
+    <string name="permission_allow">Allow</string>
+    <string name="permission_deny">Not Now</string>
+    <string name="permission_denied_tracking_disabled">Location permission required to start tracking</string>
+    <string name="permission_denied_settings_action">Open Settings</string>
 
     <string name="wifi">Wi-Fi</string>
 </resources>

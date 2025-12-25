@@ -39,18 +39,18 @@ data class TrackerRun(
 	/**
 	 * Policy parameters as JSON string (for debugging/analysis).
 	 */
-	@ColumnInfo(name = "policyParams")
+	@ColumnInfo(name = "policy_params")
 	val policyParams: String?,
 
 	/**
 	 * User-initiated (true) vs system-triggered (false).
 	 */
-	@ColumnInfo(name = "userInitiated")
+	@ColumnInfo(name = "user_initiated")
 	val userInitiated: Boolean,
 
 	/**
 	 * Row creation timestamp (for auditing/debugging).
 	 */
-	@ColumnInfo(name = "createdAt")
+	@ColumnInfo(name = "created_at")
 	val createdAt: Long
 )

@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Looper
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
@@ -21,10 +22,14 @@ import com.google.android.gms.location.Priority
 /**
  * Collection trigger that uses Fused Location Provider in Google Play Services.
  * Supports dynamic interval updates for policy-based adaptation.
+ * Accepts either fine (precise) or coarse (approximate) location permission.
  */
 internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String>
-		get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+		get() = listOf(
+			Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_COARSE_LOCATION
+		)
 
 	override val titleRes: Int
 		get() = R.string.settings_tracker_timer_fused
@@ -53,19 +58,26 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		super.onEnable(context, receiver)
 
-	val preferences = Preferences.getPref(context)
-	val minUpdateDelayInSeconds = preferences.getIntRes(
-		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
-	)
-	val minDistanceInMeters = preferences.getIntRes(
-		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
-		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
-	)
+		val preferences = Preferences.getPref(context)
+		val minUpdateDelayInSeconds = preferences.getIntRes(
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
+		)
+		val minDistanceInMeters = preferences.getIntRes(
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
+		)
+
+		// Adapt priority based on granted permissions: high accuracy for precise, balanced for coarse
+		val priority = if (context.hasPreciseLocationPermission) {
+			Priority.PRIORITY_HIGH_ACCURACY
+		} else {
+			Priority.PRIORITY_BALANCED_POWER_ACCURACY
+		}
 
 		val client = LocationServices.getFusedLocationProviderClient(context)
 		val request = LocationRequest.Builder(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+			.setPriority(priority)
 			.setMinUpdateDistanceMeters(minDistanceInMeters.toFloat())
 			.setMinUpdateIntervalMillis(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
 			.build()
@@ -86,8 +98,15 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 		val client = LocationServices.getFusedLocationProviderClient(context)
 		client.removeLocationUpdates(locationCallback)
 
+		// Adapt priority based on granted permissions: high accuracy for precise, balanced for coarse
+		val priority = if (context.hasPreciseLocationPermission) {
+			Priority.PRIORITY_HIGH_ACCURACY
+		} else {
+			Priority.PRIORITY_BALANCED_POWER_ACCURACY
+		}
+
 		val request = LocationRequest.Builder(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+			.setPriority(priority)
 			.setMinUpdateDistanceMeters(minDistanceMeters.toFloat())
 			.setMinUpdateIntervalMillis(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
 			.build()

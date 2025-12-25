@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.impexp.importer.file
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.shared.base.Time
@@ -24,11 +27,11 @@ import java.time.ZonedDateTime
 internal class GpxImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("gpx")
 
-	override fun import(
+	override suspend fun import(
 			context: Context,
 			database: AppDatabase,
 			stream: FileImportStream
-	) {
+	) = withContext(Dispatchers.IO) {
 		val gpx = GPX.Reader.DEFAULT.read(stream)
 		gpx.tracks().forEach { track ->
 			val type: String? = if (track.type.isPresent) track.type.get() else null

@@ -10,7 +10,7 @@
     <string name="stats_ascended">Total ascension</string>
     <string name="stats_avg_speed">Avg speed</string>
     <string name="stats_cell_count">Cell count</string>
-    <string name="stats_collections">Collection count</string>
+    <string name="stats_collections">Update count</string>
     <string name="stats_descended">Total descension</string>
     <string name="stats_details">Details</string>
     <string name="stats_distance_in_vehicle">Distance in vehicle</string>
@@ -28,7 +28,7 @@
     <string name="stats_midnight">midnight</string>
     <string name="stats_morning">morning</string>
     <string name="stats_night">night</string>
-    <string name="stats_no_tracker_sessions">No tracker sessions. Yet.</string>
+    <string name="stats_no_tracker_sessions">No tracking sessions yet. Start tracking to see your activity!</string>
     <string name="stats_ride">ride</string>
     <string name="stats_run">run</string>
     <string name="stats_session_count">Session count</string>
@@ -40,6 +40,7 @@
     <string name="stats_wifi_count">Wi-Fi count</string>
     <string name="stats_wifi_label">Wi‑Fi</string>
     <string name="stats_error_generic">Something went wrong</string>
+    <string name="stats_loading">Loading sessions…</string>
     <string name="stats_failed_to_load">Failed to load</string>
     <string name="stats_append_error">Load more failed</string>
     <string name="action_retry">Retry</string>
@@ -50,15 +51,21 @@
     <string name="stats_session_activity_selection_title">Select Activity</string>
     <string name="stats_session_activity_selection_empty">No activities available</string>
 
+    <!-- Date headers -->
+    <string name="stats_date_today">Today</string>
+    <string name="stats_date_yesterday">Yesterday</string>
+
     <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Loading summary…</string>
     <string name="stats_summary_empty">No summary statistics available</string>
     <string name="stats_summary_empty_subtitle">Start tracking to see your activity summary</string>
+    <string name="stats_summary_error">Failed to load summary</string>
     
     <!-- Week dialog strings -->
     <string name="stats_week_loading">Loading weekly statistics…</string>
     <string name="stats_week_empty">No weekly statistics available</string>
     <string name="stats_week_empty_subtitle">Track for 7 days to see your weekly summary</string>
+    <string name="stats_week_error">Failed to load weekly statistics</string>
 
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>

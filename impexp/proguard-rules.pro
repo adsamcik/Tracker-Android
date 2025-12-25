@@ -20,6 +20,13 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
--keep class javax.xml.stream.**  { *; }
--keep class io.jenetics.jpx.** { *; }
--keep class com.bea.xml.stream.** { *; }
+
+# Export automation depends on shared Clock abstraction provided by :sbase. The
+# class is packaged via module dependency, but R8 doesn't see it when shrinking
+# the standalone impexp release artifact, so suppress the warning.
+
+# Keep export automation scaffolding even if the release variant is not yet wired
+# from the app module. This allows unit tests to reference the classes while we
+# iterate on the feature.
+-keep class com.adsamcik.tracker.impexp.exporter.automation.** { *; }
+-dontwarn com.adsamcik.tracker.shared.base.time.Clock

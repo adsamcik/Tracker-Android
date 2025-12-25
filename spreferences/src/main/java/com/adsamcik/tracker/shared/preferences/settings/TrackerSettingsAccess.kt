@@ -6,14 +6,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.runBlocking
 
 /**
  * Lightweight singleton accessor that exposes a cached [StateFlow] of [TrackerSettingsState]
  * for legacy call sites still using static helper methods. New code SHOULD inject
  * [TrackerSettingsRepository] directly and observe [TrackerSettingsRepository.data].
+ * 
+ * Plan 5 migration: Removed runBlocking; uses default values until first emission arrives.
  */
 internal object TrackerSettingsAccess {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -31,12 +31,12 @@ internal object TrackerSettingsAccess {
                 context.applicationContext,
                 Dispatchers.IO
             ) { msg -> /* no-op default; app layer may provide structured logger by constructing repo directly */ }
-            // Blocking first emission only once to seed initial value.
-            val initial = runBlocking { repo.data.first() }
+            // Use sensible defaults as initial value; actual settings arrive asynchronously.
+            // SharingStarted.Eagerly ensures flow starts collecting immediately.
             val created = repo.data.stateIn(
                 scope,
                 SharingStarted.Eagerly,
-                initial
+                TrackerSettingsState.DEFAULT
             )
             stateFlow = created
             return created

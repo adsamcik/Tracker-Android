@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option java_package = "com.adsamcik.tracker.tracker.proto";
+option java_multiple_files = true;
+
+message PermissionHintsProto {
+  int64 wifi_hint_last_shown = 1;
+  int32 wifi_hint_shown_count = 2;
+}

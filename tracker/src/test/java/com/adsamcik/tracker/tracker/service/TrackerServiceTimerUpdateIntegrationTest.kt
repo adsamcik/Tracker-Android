@@ -249,13 +249,15 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 		val baseTime = System.currentTimeMillis()
 
-		// All signals indicate high activity
+		// Multi-level escalation through all policy levels
 		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000) // 80 steps/min
-		manager.onActivityTransition(activityType = 8, confidence = 90, timeMs = baseTime + 90_000) // RUNNING
-		manager.onLocationChange(displacementMeters = 300f, timeMs = baseTime + 120_000) // Significant movement
+		manager.onStepUpdate(stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
+		manager.onActivityTransition(activityType = 8, confidence = 90, timeMs = baseTime + 90_000) // RUNNING → ACTIVE_MODERATE
+		manager.onStepUpdate(stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min
+		manager.onLocationChange(displacementMeters = 300f, timeMs = baseTime + 150_000) // Significant movement
+		manager.onStepUpdate(stepCount = 143, timeMs = baseTime + 180_000) // 81 steps/min → ACTIVE_ELEVATED
 
-		// Should converge to ACTIVE_ELEVATED
+		// Should converge to ACTIVE_ELEVATED after multi-level escalation
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
 		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_ELEVATED)
 	}
@@ -267,17 +269,19 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 		val baseTime = System.currentTimeMillis()
 
-		// High step count
+		// Multi-level step escalation
 		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000)
+		manager.onStepUpdate(stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
+		manager.onStepUpdate(stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min → ACTIVE_MODERATE
 
-		// But activity says STILL (conflicting)
-		manager.onActivityTransition(activityType = 3, confidence = 75, timeMs = baseTime + 90_000)
+		// Activity says STILL (conflicting), but doesn't cause de-escalation
+		manager.onActivityTransition(activityType = 3, confidence = 75, timeMs = baseTime + 150_000)
 
-		// Step count should dominate (more reliable signal)
-		assertTrue(
-			manager.currentPolicy.value.ordinal >= TrackingPolicy.ACTIVE_MODERATE.ordinal,
-			"Step count should dominate conflicting activity signal"
+		// Step count should remain (activity doesn't de-escalate, only escalates)
+		assertEquals(
+			TrackingPolicy.ACTIVE_MODERATE,
+			manager.currentPolicy.value,
+			"Step count elevation persists; activity STILL doesn't de-escalate"
 		)
 	}
 
@@ -306,19 +310,20 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 		val baseTime = System.currentTimeMillis()
 
-		// Start with high activity
+		// Multi-level escalation to ACTIVE_ELEVATED
 		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 60_000)
+		manager.onStepUpdate(stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
+		manager.onStepUpdate(stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min → ACTIVE_MODERATE
+		manager.onStepUpdate(stepCount = 143, timeMs = baseTime + 180_000) // 81 steps/min → ACTIVE_ELEVATED
 		val elevatedInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
 
-		// Extended period of minimal movement
-		manager.onStepUpdate(stepCount = 95, timeMs = baseTime + 120_000) // 5 steps/min
-		manager.onActivityTransition(activityType = 3, confidence = 90, timeMs = baseTime + 150_000) // STILL
+		// Extended period (>300s cooldown) with minimal movement
+		manager.onStepUpdate(stepCount = 148, timeMs = baseTime + 600_000) // 5 steps/min after long pause
 
 		val passiveInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
 
-		// Passive interval should be longer (less frequent collection)
-		assertTrue(passiveInterval > elevatedInterval, "Passive policy should have longer intervals")
+		// Passive interval should be longer (less frequent collection) after cooldown de-escalation
+		assertTrue(passiveInterval > elevatedInterval, "Passive policy should have longer intervals after cooldown")
 	}
 
 	@Test
@@ -367,11 +372,13 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 		val baseTime = System.currentTimeMillis()
 
-		// Unrealistically high step rate (200 steps/min)
+		// Multi-level escalation even with extreme step rates (one level at a time)
 		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 210, timeMs = baseTime + 60_000)
+		manager.onStepUpdate(stepCount = 221, timeMs = baseTime + 60_000) // 211 steps/min → MOVEMENT_SUSPECTED
+		manager.onStepUpdate(stepCount = 432, timeMs = baseTime + 120_000) // 211 steps/min → ACTIVE_MODERATE
+		manager.onStepUpdate(stepCount = 643, timeMs = baseTime + 180_000) // 211 steps/min → ACTIVE_ELEVATED
 
-		// Should cap at ACTIVE_ELEVATED (not exceed it)
+		// Should cap at ACTIVE_ELEVATED (not exceed it) after multi-level escalation
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
 		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_ELEVATED)
 	}

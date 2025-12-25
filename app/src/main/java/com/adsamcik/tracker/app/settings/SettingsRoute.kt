@@ -17,13 +17,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose
 import com.adsamcik.tracker.app.settings.components.*
-import com.adsamcik.tracker.shared.base.di.LocalViewModelFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,8 +33,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsRoute(onNavigateToDebug: () -> Unit = {}) {
-    val factory = LocalViewModelFactory.current
-    val vm: SettingsViewModel = viewModel(factory = factory)
+    val vm: SettingsViewModel = hiltViewModel()
     var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
 
     Scaffold(
@@ -118,7 +117,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         // Tracking settings
         item {
@@ -216,6 +215,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         item {
             SettingsItem(
                 title = stringResource(R.string.module_map_title),
+                subtitle = "Heatmap quality and visualization options",
                 icon = Icons.Default.Map,
                 onClick = { onNavigate(SettingsScreen.Map) }
             )
@@ -224,6 +224,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         item {
             SettingsItem(
                 title = stringResource(R.string.module_game_title),
+                subtitle = "Challenges and goals configuration",
                 icon = Icons.Default.EmojiEvents,
                 onClick = { onNavigate(SettingsScreen.Game) }
             )
@@ -232,6 +233,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         item {
             SettingsItem(
                 title = stringResource(R.string.module_statistics_title),
+                subtitle = "Unit preferences and display options",
                 icon = Icons.Default.BarChart,
                 onClick = { onNavigate(SettingsScreen.Statistics) }
             )
@@ -296,7 +298,7 @@ private fun TrackingSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         // Tracking notice
         item {
@@ -356,24 +358,17 @@ private fun TrackingSettings() {
             }
         }
         
-        // Preset selector
+        // Preset selector with progressive disclosure
         item {
-            com.adsamcik.tracker.app.settings.components.PresetSelector(
+            com.adsamcik.tracker.app.settings.ui.TrackingPolicySelector(
                 selectedPreset = currentPreset,
                 onPresetSelected = { trackingVm.applyPreset(it) },
-                showCustomBadge = currentPreset == com.adsamcik.tracker.app.settings.components.TrackingPreset.CUSTOM
-            )
-        }
-        
-        // Battery impact indicator
-        item {
-            com.adsamcik.tracker.app.settings.components.BatteryImpactIndicator(
-                batteryImpact = currentBatteryImpact
+                showDetails = false // collapsed by default per Apple philosophy
             )
         }
         
         // Battery warning for high impact
-        if (currentBatteryImpact == com.adsamcik.tracker.app.settings.components.BatteryImpact.HIGH) {
+        if (currentBatteryImpact == com.adsamcik.tracker.app.common.ui.BatteryImpact.HIGH) {
             item {
                 com.adsamcik.tracker.app.settings.components.BatteryImpactWarning()
             }
@@ -386,7 +381,7 @@ private fun TrackingSettings() {
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
                 checked = transitionDetection,
                 onCheckedChange = { trackingVm.setTransitionDetectionEnabled(it) },
-                helpTextRes = R.string.help_transition_detection
+                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection
             )
         }
         
@@ -426,7 +421,7 @@ private fun TrackingSettings() {
                     steps = 19,
                     valueLabel = { "${it.toInt()} m" },
                     onValueChange = { trackingVm.setMinDistance(it.toInt()) },
-                    helpTextRes = R.string.help_min_distance
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_distance
                 )
                 
                 SliderSettingsItemWithHelp(
@@ -436,7 +431,7 @@ private fun TrackingSettings() {
                     steps = 11,
                     valueLabel = { "${it.toInt()} s" },
                     onValueChange = { trackingVm.setMinTime(it.toInt()) },
-                    helpTextRes = R.string.help_min_time
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_min_time
                 )
                 
                 SliderSettingsItemWithHelp(
@@ -446,7 +441,7 @@ private fun TrackingSettings() {
                     steps = 18,
                     valueLabel = { "${it.toInt()} m" },
                     onValueChange = { trackingVm.setRequiredAccuracy(it.toInt()) },
-                    helpTextRes = R.string.help_required_accuracy
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_required_accuracy
                 )
                 
                 // Enable/disable sources
@@ -486,7 +481,7 @@ private fun TrackingSettings() {
                         title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
                         checked = wifiLocationCountEnabled,
                         onCheckedChange = { trackingVm.setWifiLocationCountEnabled(it) },
-                        helpTextRes = R.string.help_wifi_location_count
+                        helpTextRes = com.adsamcik.tracker.tracker.R.string.help_wifi_location_count
                     )
                 }
                 
@@ -531,7 +526,7 @@ private fun DataSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         // Export section
         item {
@@ -658,7 +653,7 @@ private fun DataSettings() {
 private fun ExportSettings() {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         item {
             Text(
@@ -678,7 +673,7 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         // Version info (tap 7 times to enable developer mode)
         item {
@@ -809,7 +804,7 @@ private fun MapSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         // Info card explaining map settings purpose
         item {
@@ -861,7 +856,7 @@ private fun MapSettings() {
                         quality = it
                         prefs.edit { setFloat(qualityKey, it) }
                     },
-                    helpTextRes = R.string.help_map_quality
+                    helpTextRes = com.adsamcik.tracker.map.R.string.help_map_quality
                 )
                 
                 // Max heat points slider
@@ -880,7 +875,7 @@ private fun MapSettings() {
                         maxHeat = it.toInt()
                         prefs.edit { setInt(heatKey, it.toInt()) }
                     },
-                    helpTextRes = R.string.help_max_heat_points
+                    helpTextRes = com.adsamcik.tracker.map.R.string.help_max_heat_points
                 )
                 
                 // Visit threshold slider (duration in minutes)
@@ -902,7 +897,7 @@ private fun MapSettings() {
                         visitThreshold = it.toInt()
                         prefs.edit { setInt(visitKey, it.toInt()) }
                     },
-                    helpTextRes = R.string.help_visit_threshold
+                    helpTextRes = com.adsamcik.tracker.map.R.string.help_visit_threshold
                 )
             }
         }
@@ -917,7 +912,7 @@ private fun GameSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         // Challenges section
         item {
@@ -962,7 +957,7 @@ private fun StatisticsSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
         item {
             val autoUnitKey = context.getString(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_key)

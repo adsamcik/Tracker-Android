@@ -20,10 +20,14 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 /**
  * Collection trigger that uses native Android location manager.
  * Supports dynamic interval updates for policy-based adaptation.
+ * Accepts either fine (precise) or coarse (approximate) location permission.
  */
 internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String>
-		get() = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+		get() = listOf(
+			Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_COARSE_LOCATION
+		)
 
 	override val titleRes: Int
 		get() = R.string.settings_tracker_timer_location

@@ -1,0 +1,301 @@
+Starting a Gradle Daemon, 2 busy and 12 stopped Daemons could not be reused, use --status for details
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+> Task :activity:preBuild UP-TO-DATE
+> Task :activity:preDebugBuild UP-TO-DATE
+> Task :logger:preBuild UP-TO-DATE
+> Task :logger:preDebugBuild UP-TO-DATE
+> Task :sbase:preBuild UP-TO-DATE
+> Task :sbase:preDebugBuild UP-TO-DATE
+> Task :spreferences:preBuild UP-TO-DATE
+> Task :spreferences:preDebugBuild UP-TO-DATE
+> Task :sutils:preBuild UP-TO-DATE
+> Task :sutils:preDebugBuild UP-TO-DATE
+> Task :sutils:writeDebugAarMetadata
+> Task :spreferences:writeDebugAarMetadata
+> Task :sbase:writeDebugAarMetadata
+> Task :logger:writeDebugAarMetadata
+> Task :activity:mergeDebugJniLibFolders
+> Task :activity:mergeDebugNativeLibs NO-SOURCE
+> Task :activity:stripDebugDebugSymbols NO-SOURCE
+> Task :activity:checkDebugAarMetadata
+> Task :activity:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :activity:generateDebugResValues UP-TO-DATE
+> Task :activity:copyDebugJniLibsProjectAndLocalJars
+> Task :activity:generateDebugResources UP-TO-DATE
+> Task :activity:packageDebugResources UP-TO-DATE
+> Task :activity:processDebugNavigationResources UP-TO-DATE
+> Task :activity:parseDebugLocalResources UP-TO-DATE
+> Task :activity:generateDebugRFile UP-TO-DATE
+> Task :logger:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :logger:generateDebugBuildConfig UP-TO-DATE
+> Task :logger:generateDebugResValues UP-TO-DATE
+> Task :logger:generateDebugResources UP-TO-DATE
+> Task :logger:packageDebugResources UP-TO-DATE
+> Task :logger:processDebugNavigationResources UP-TO-DATE
+> Task :logger:parseDebugLocalResources UP-TO-DATE
+> Task :logger:generateDebugRFile UP-TO-DATE
+> Task :logger:ensureKspDir
+> Task :sbase:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sbase:generateDebugBuildConfig UP-TO-DATE
+> Task :sbase:generateDebugResValues UP-TO-DATE
+> Task :sbase:generateDebugResources UP-TO-DATE
+> Task :sbase:packageDebugResources UP-TO-DATE
+> Task :sbase:processDebugNavigationResources UP-TO-DATE
+> Task :sbase:parseDebugLocalResources UP-TO-DATE
+> Task :sbase:generateDebugRFile UP-TO-DATE
+> Task :sbase:javaPreCompileDebug UP-TO-DATE
+> Task :spreferences:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :spreferences:generateDebugBuildConfig UP-TO-DATE
+> Task :spreferences:extractDebugProto UP-TO-DATE
+> Task :spreferences:extractProto UP-TO-DATE
+> Task :spreferences:generateDebugResValues UP-TO-DATE
+> Task :spreferences:generateDebugResources UP-TO-DATE
+> Task :spreferences:packageDebugResources UP-TO-DATE
+> Task :spreferences:processDebugNavigationResources UP-TO-DATE
+> Task :spreferences:parseDebugLocalResources UP-TO-DATE
+> Task :spreferences:generateDebugRFile UP-TO-DATE
+> Task :spreferences:javaPreCompileDebug UP-TO-DATE
+> Task :logger:javaPreCompileDebug UP-TO-DATE
+> Task :sutils:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sutils:generateDebugResValues UP-TO-DATE
+> Task :sutils:generateDebugResources UP-TO-DATE
+> Task :sutils:packageDebugResources UP-TO-DATE
+> Task :sutils:processDebugNavigationResources UP-TO-DATE
+> Task :sutils:parseDebugLocalResources UP-TO-DATE
+> Task :sutils:generateDebugRFile UP-TO-DATE
+> Task :sutils:javaPreCompileDebug UP-TO-DATE
+> Task :activity:extractDeepLinksForAarDebug
+> Task :activity:mergeDebugShaders
+> Task :activity:compileDebugShaders NO-SOURCE
+> Task :activity:generateDebugAssets UP-TO-DATE
+> Task :activity:mergeDebugAssets
+> Task :activity:javaPreCompileDebug UP-TO-DATE
+> Task :activity:prepareDebugArtProfile
+> Task :activity:prepareLintJarForPublish
+> Task :activity:writeDebugAarMetadata UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :activity:compileDebugLibraryResources UP-TO-DATE
+> Task :game:preBuild UP-TO-DATE
+> Task :game:preDebugBuild UP-TO-DATE
+> Task :game:writeDebugAarMetadata UP-TO-DATE
+> Task :impexp:preBuild UP-TO-DATE
+> Task :impexp:preDebugBuild UP-TO-DATE
+> Task :impexp:writeDebugAarMetadata UP-TO-DATE
+> Task :map:preBuild UP-TO-DATE
+> Task :map:preDebugBuild UP-TO-DATE
+> Task :map:writeDebugAarMetadata UP-TO-DATE
+> Task :points:preBuild UP-TO-DATE
+> Task :points:preDebugBuild UP-TO-DATE
+> Task :points:writeDebugAarMetadata UP-TO-DATE
+> Task :smap:preBuild UP-TO-DATE
+> Task :smap:preDebugBuild UP-TO-DATE
+> Task :smap:writeDebugAarMetadata UP-TO-DATE
+> Task :statistics:preBuild UP-TO-DATE
+> Task :statistics:preDebugBuild UP-TO-DATE
+> Task :statistics:writeDebugAarMetadata UP-TO-DATE
+> Task :tracker:preBuild UP-TO-DATE
+> Task :tracker:preDebugBuild UP-TO-DATE
+> Task :tracker:writeDebugAarMetadata UP-TO-DATE
+> Task :activity:processDebugManifest
+> Task :app:checkDebugAarMetadata
+> Task :game:processDebugNavigationResources UP-TO-DATE
+> Task :impexp:processDebugNavigationResources UP-TO-DATE
+> Task :map:processDebugNavigationResources UP-TO-DATE
+> Task :points:processDebugNavigationResources UP-TO-DATE
+> Task :smap:processDebugNavigationResources UP-TO-DATE
+> Task :statistics:processDebugNavigationResources UP-TO-DATE
+> Task :tracker:processDebugNavigationResources UP-TO-DATE
+> Task :app:processDebugNavigationResources
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:processDebugGoogleServices UP-TO-DATE
+> Task :game:generateDebugResValues UP-TO-DATE
+> Task :game:generateDebugResources UP-TO-DATE
+> Task :game:packageDebugResources UP-TO-DATE
+> Task :impexp:generateDebugResValues UP-TO-DATE
+> Task :impexp:generateDebugResources UP-TO-DATE
+> Task :impexp:packageDebugResources UP-TO-DATE
+> Task :map:generateDebugResValues UP-TO-DATE
+> Task :map:generateDebugResources UP-TO-DATE
+> Task :map:packageDebugResources UP-TO-DATE
+> Task :points:generateDebugResValues UP-TO-DATE
+> Task :points:generateDebugResources UP-TO-DATE
+> Task :points:packageDebugResources UP-TO-DATE
+> Task :smap:generateDebugResValues UP-TO-DATE
+> Task :smap:generateDebugResources UP-TO-DATE
+> Task :smap:packageDebugResources UP-TO-DATE
+> Task :statistics:generateDebugResValues UP-TO-DATE
+> Task :statistics:generateDebugResources UP-TO-DATE
+> Task :statistics:packageDebugResources
+> Task :tracker:generateDebugResValues
+> Task :tracker:generateDebugResources
+> Task :tracker:packageDebugResources
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :activity:extractDeepLinksDebug
+> Task :app:extractDeepLinksDebug
+> Task :game:extractDeepLinksDebug
+> Task :sbase:kspDebugKotlin
+> Task :app:parseDebugLocalResources
+> Task :game:processDebugManifest
+> Task :impexp:extractDeepLinksDebug
+> Task :impexp:processDebugManifest
+> Task :logger:extractDeepLinksDebug
+> Task :map:extractDeepLinksDebug
+> Task :logger:processDebugManifest
+> Task :points:extractDeepLinksDebug
+> Task :map:processDebugManifest
+> Task :sbase:extractDeepLinksDebug
+> Task :points:processDebugManifest
+> Task :sbase:processDebugManifest
+> Task :smap:extractDeepLinksDebug
+> Task :spreferences:extractDeepLinksDebug
+> Task :smap:processDebugManifest
+> Task :statistics:extractDeepLinksDebug
+
+> Task :spreferences:processDebugManifest
+package="com.adsamcik.tracker.shared.preferences" found in source AndroidManifest.xml: G:\Github\Tracker-Android\spreferences\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.adsamcik.tracker.shared.preferences" from the source AndroidManifest.xml: G:\Github\Tracker-Android\spreferences\src\main\AndroidManifest.xml.
+
+> Task :sutils:extractDeepLinksDebug
+> Task :statistics:processDebugManifest
+> Task :tracker:extractDeepLinksDebug
+> Task :sutils:processDebugManifest
+> Task :tracker:processDebugManifest
+> Task :game:compileDebugLibraryResources
+> Task :app:mergeDebugResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :game:parseDebugLocalResources
+> Task :impexp:compileDebugLibraryResources
+> Task :logger:compileDebugLibraryResources
+> Task :map:compileDebugLibraryResources
+> Task :impexp:parseDebugLocalResources
+> Task :map:parseDebugLocalResources
+> Task :points:compileDebugLibraryResources
+> Task :points:parseDebugLocalResources
+> Task :map:generateDebugRFile
+> Task :smap:parseDebugLocalResources
+> Task :spreferences:compileDebugLibraryResources
+> Task :impexp:generateDebugRFile
+> Task :smap:compileDebugLibraryResources
+> Task :points:generateDebugRFile
+> Task :game:generateDebugRFile
+> Task :statistics:compileDebugLibraryResources
+> Task :sutils:compileDebugLibraryResources
+> Task :statistics:parseDebugLocalResources
+> Task :smap:generateDebugRFile
+> Task :game:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :game:extractDebugProto
+> Task :tracker:compileDebugLibraryResources
+> Task :points:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :statistics:generateDebugRFile
+> Task :tracker:parseDebugLocalResources
+> Task :game:extractProto
+> Task :points:javaPreCompileDebug
+> Task :tracker:generateDebugRFile
+> Task :impexp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sbase:compileDebugLibraryResources
+> Task :game:javaPreCompileDebug
+> Task :impexp:extractDebugProto
+> Task :impexp:extractProto
+> Task :map:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :statistics:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:javaPreCompileDebug
+> Task :map:javaPreCompileDebug
+> Task :impexp:javaPreCompileDebug
+> Task :tracker:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :tracker:extractDebugProto
+> Task :tracker:extractProto
+> Task :statistics:javaPreCompileDebug
+> Task :tracker:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :game:mergeDebugShaders
+> Task :game:compileDebugShaders NO-SOURCE
+> Task :game:generateDebugAssets UP-TO-DATE
+> Task :app:javaPreCompileDebug
+> Task :game:mergeDebugAssets
+> Task :impexp:mergeDebugShaders
+> Task :impexp:compileDebugShaders NO-SOURCE
+> Task :impexp:generateDebugAssets UP-TO-DATE
+> Task :impexp:mergeDebugAssets
+> Task :logger:mergeDebugShaders
+> Task :logger:compileDebugShaders NO-SOURCE
+> Task :logger:generateDebugAssets UP-TO-DATE
+> Task :logger:mergeDebugAssets
+> Task :map:mergeDebugShaders
+> Task :map:compileDebugShaders NO-SOURCE
+> Task :map:generateDebugAssets UP-TO-DATE
+> Task :map:mergeDebugAssets
+> Task :points:mergeDebugShaders
+> Task :points:compileDebugShaders NO-SOURCE
+> Task :points:generateDebugAssets UP-TO-DATE
+> Task :points:mergeDebugAssets
+> Task :sbase:mergeDebugShaders
+> Task :sbase:compileDebugShaders NO-SOURCE
+> Task :sbase:generateDebugAssets UP-TO-DATE
+> Task :sbase:mergeDebugAssets
+> Task :smap:mergeDebugShaders
+> Task :smap:compileDebugShaders NO-SOURCE
+> Task :smap:generateDebugAssets UP-TO-DATE
+> Task :smap:mergeDebugAssets
+> Task :spreferences:mergeDebugShaders
+> Task :spreferences:compileDebugShaders NO-SOURCE
+> Task :spreferences:generateDebugAssets UP-TO-DATE
+> Task :spreferences:mergeDebugAssets
+> Task :statistics:mergeDebugShaders
+> Task :statistics:compileDebugShaders NO-SOURCE
+> Task :statistics:generateDebugAssets UP-TO-DATE
+> Task :statistics:mergeDebugAssets
+> Task :sutils:mergeDebugShaders
+> Task :sutils:compileDebugShaders NO-SOURCE
+> Task :sutils:generateDebugAssets UP-TO-DATE
+> Task :sutils:mergeDebugAssets
+> Task :tracker:mergeDebugShaders
+> Task :tracker:compileDebugShaders NO-SOURCE
+> Task :tracker:generateDebugAssets UP-TO-DATE
+> Task :tracker:mergeDebugAssets
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:generateDebugJacocoPropertiesFile
+> Task :app:checkDebugDuplicateClasses
+> Task :activity:copyDebugJniLibsProjectOnly
+
+> Task :app:l8DexDesugarLibDebug
+Error: java.io.FileNotFoundException: G:\Github\Tracker-Android\app\build\intermediates\desugar_lib_dex\debug\l8DexDesugarLibDebug\classes1000.dex (The system cannot find the path specified)
+
+> Task :app:l8DexDesugarLibDebug FAILED
+> Task :app:processDebugResources FAILED
+> Task :app:mergeExtDexDebug
+
+Daemon is stopping immediately stop command received
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Gradle build daemon has been stopped: stop command received
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.

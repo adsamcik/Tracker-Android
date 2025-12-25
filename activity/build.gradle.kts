@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
+	compileSdk = libs.versions.android.compile.get().toInt()
+	buildToolsVersion = libs.versions.android.build.tools.get()
 
 	defaultConfig {
-		minSdk = Android.MIN_VERSION
+		minSdk = libs.versions.android.min.get().toInt()
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -21,12 +21,12 @@ android {
 	}
 
 	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
+		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
 	}
 
 	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
+		jvmToolchain(libs.versions.java.get().toInt())
 	}
 
 	buildFeatures {
@@ -108,6 +108,5 @@ dependencies {
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
-	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
 }

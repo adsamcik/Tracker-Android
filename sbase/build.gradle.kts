@@ -1,16 +1,17 @@
 plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
 }
 
 android {
-	compileSdk = Android.COMPILE_VERSION
-	buildToolsVersion = Android.BUILD_TOOLS_VERSION
+	compileSdk = libs.versions.android.compile.get().toInt()
+	buildToolsVersion = libs.versions.android.build.tools.get()
 
 	defaultConfig {
-		minSdk = Android.MIN_VERSION
+		minSdk = libs.versions.android.min.get().toInt()
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		
@@ -28,19 +29,19 @@ android {
 	}
 
 	compileOptions {
-		sourceCompatibility = Android.javaTarget
-		targetCompatibility = Android.javaTarget
+		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
 	}
 
 	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
+		jvmToolchain(libs.versions.java.get().toInt())
 	}
 
 	java {
 		toolchain {
-			languageVersion.set(JavaLanguageVersion.of(Android.JAVA_VERSION))
-			setSourceCompatibility(Android.JAVA_VERSION)
-			setTargetCompatibility(Android.JAVA_VERSION)
+			languageVersion.set(JavaLanguageVersion.of(libs.versions.java.get()))
+			setSourceCompatibility(libs.versions.java.get().toInt())
+			setTargetCompatibility(libs.versions.java.get().toInt())
 		}
 	}
 
@@ -55,6 +56,10 @@ android {
 		}
 		getByName("release") {
 			isMinifyEnabled = true
+			proguardFiles(
+				getDefaultProguardFile("proguard-android-optimize.txt"),
+				"proguard-rules.pro"
+			)
 		}
 	}
 
@@ -65,6 +70,7 @@ android {
     namespace = "com.adsamcik.tracker.shared.base"
 	buildFeatures {
 		buildConfig = true
+		compose = true
 	}
 }
 
@@ -79,8 +85,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.service)
 	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.fragment)
-	implementation(libs.androidx.fragment.ktx)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.androidx.documentfile)
@@ -95,6 +99,10 @@ dependencies {
 	// Compose runtime for CompositionLocal DI support
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.runtime)
+	implementation(libs.compose.material3)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.ui)
+	implementation(libs.activity.compose)
 
 	// DB (api to expose RoomDatabase supertype to consumers of sbase)
 	api(libs.androidx.room.runtime)
@@ -107,6 +115,9 @@ dependencies {
 	// Paging
 	implementation(libs.androidx.paging.runtime)
 
+	// DI annotations (javax.inject for @Qualifier, @Singleton, etc.)
+	api(libs.javax.inject)
+
 	// WorkManager
 	implementation(libs.androidx.work.runtime.ktx)
 	androidTestImplementation(libs.androidx.work.testing)
@@ -117,6 +128,8 @@ dependencies {
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
-	androidTestImplementation(libs.livedata.testing.ktx)
 	androidTestImplementation(libs.espresso)
+	
+	testImplementation(libs.kotlinx.coroutines.test)
+	androidTestImplementation(libs.kotlinx.coroutines.test)
 }

@@ -9,6 +9,7 @@ import android.location.Location
 import androidx.annotation.RequiresPermission
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.base.extension.sensorManager
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -21,10 +22,14 @@ import kotlinx.coroutines.flow.callbackFlow
 
 /**
  * Phase 4: Cold Flow-based manager exposing location and bearing updates with no UI references.
+ * Supports both precise and coarse location permissions with adaptive priority.
  */
 class LocationAndSensorsManager(private val context: Context) {
 
-    /** Emits triples of (lat, lng, accuracyMeters). Completes when flow is closed. */
+    /** 
+     * Emits triples of (lat, lng, accuracyMeters). Completes when flow is closed.
+     * Adapts priority based on granted permissions: high accuracy for precise, balanced for coarse.
+     */
     fun locationUpdates(highAccuracy: Boolean = true): Flow<Triple<Double, Double, Double>> = callbackFlow {
         if (!context.hasLocationPermission) {
             // Don't crash the flow, just complete it gracefully
@@ -33,8 +38,16 @@ class LocationAndSensorsManager(private val context: Context) {
         }
 
         val client = LocationServices.getFusedLocationProviderClient(context)
+        
+        // Adapt priority: if only coarse permission granted, use balanced power accuracy
+        val adaptivePriority = if (highAccuracy && context.hasPreciseLocationPermission) {
+            Priority.PRIORITY_HIGH_ACCURACY
+        } else {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
+        
         val req = LocationRequest.Builder(LOCATION_UPDATE_INTERVAL_MS)
-            .setPriority(if (highAccuracy) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY)
+            .setPriority(adaptivePriority)
             .setMinUpdateIntervalMillis(LOCATION_UPDATE_INTERVAL_MS / 2) // Allow faster updates
             .build()
 

@@ -11,11 +11,33 @@ import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver
 import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver.Companion.RECEIVER_LISTENER_REGISTRATION_CLASSNAME
 import com.adsamcik.tracker.tracker.TRACKER_LOG_SOURCE
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+
+/**
+ * Hilt EntryPoint for accessing TrackerListenerManager from BroadcastReceiver.
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface TrackerListenerEntryPoint {
+	fun trackerListenerManager(): TrackerListenerManager
+}
 
 /**
  * Receives tracker listener registrations.
  */
 internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
+	
+	private fun getListenerManager(context: Context): TrackerListenerManager {
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			TrackerListenerEntryPoint::class.java
+		)
+		return entryPoint.trackerListenerManager()
+	}
+	
 	private fun resolveClass(intent: Intent): Class<TrackerUpdateReceiver>? {
 		val className = intent.getStringExtra(RECEIVER_LISTENER_REGISTRATION_CLASSNAME)
 		if (className == null) {
@@ -40,7 +62,7 @@ internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
 		if (jClass != null) {
 			try {
 				val instance = jClass.getConstructor().newInstance()
-				TrackerListenerManager.register(context, instance)
+				getListenerManager(context).register(context, instance)
 				Logger.log(
 						LogData(
 								message = "Registered tracker update listener ${jClass.name}",
@@ -55,10 +77,10 @@ internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
 		}
 	}
 
-	private fun unregisterIntent(intent: Intent) {
+	private fun unregisterIntent(context: Context, intent: Intent) {
 		val jClass = resolveClass(intent)
 		if (jClass != null) {
-			TrackerListenerManager.unregister(jClass)
+			getListenerManager(context).unregister(jClass)
 		}
 	}
 
@@ -66,7 +88,7 @@ internal class TrackerListenerRegistrationReceiver : BroadcastReceiver() {
 		Logger.log(LogData(message = "Received intent ${intent.action}", source = TRACKER_LOG_SOURCE))
 		when (intent.action) {
 			TrackerUpdateReceiver.ACTION_REGISTER_COMPONENT -> registerIntent(context, intent)
-			TrackerUpdateReceiver.ACTION_UNREGISTER_COMPONENT -> unregisterIntent(intent)
+			TrackerUpdateReceiver.ACTION_UNREGISTER_COMPONENT -> unregisterIntent(context, intent)
 			else -> Reporter.report("Unknown intent action ${intent.action} in package ${intent.`package`}")
 		}
 	}

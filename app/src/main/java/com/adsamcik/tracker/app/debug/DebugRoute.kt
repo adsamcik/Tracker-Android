@@ -55,7 +55,7 @@ import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
-import com.adsamcik.tracker.tracker.locker.TrackerLocker
+import com.adsamcik.tracker.app.Application
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -126,15 +126,17 @@ fun DebugRoute() {
     )
 }
 
+@OptIn(ExperimentalStdlibApi::class)
 @Composable
 private fun SystemStatusSection(
     expanded: Boolean,
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current
-    val isLocked by TrackerLocker.isLockedFlow.collectAsState()
-    val isTimeLocked = TrackerLocker.isTimeLocked
-    val isChargeLocked = TrackerLocker.isChargeLocked
+    val lockManager = (context.applicationContext as Application).appGraph.lockManager
+    val isLocked by lockManager.isLockedFlow.collectAsState()
+    val isTimeLocked = lockManager.isTimeLocked
+    val isChargeLocked = lockManager.isChargeLocked
     
     var hasRechargeJob by remember { mutableStateOf<Boolean?>(null) }
     val scope = rememberCoroutineScope()
@@ -142,7 +144,7 @@ private fun SystemStatusSection(
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
             val workManager = WorkManager.getInstance(context)
-            val workInfos = workManager.getWorkInfosByTag(TrackerLocker.WORK_DISABLE_TILL_RECHARGE_TAG).get()
+            val workInfos = workManager.getWorkInfosByTag("disableTillRecharge").get()
             hasRechargeJob = workInfos.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
         }
     }

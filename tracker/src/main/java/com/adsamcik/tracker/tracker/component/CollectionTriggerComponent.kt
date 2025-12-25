@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.tracker.component
 
+import android.Manifest
 import android.content.Context
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermissions
 
 /**
@@ -20,9 +22,29 @@ internal interface CollectionTriggerComponent {
 	val requiredPermissions: Collection<String>
 
 	/**
-	 * Checks if component has all required permissions to run
+	 * Checks if component has all required permissions to run.
+	 * For location permissions, accepts partial grants (either fine OR coarse).
 	 */
 	fun hasRequiredPermissions(context: Context): Boolean {
+		// Special handling for location permissions: accept if ANY location permission is granted
+		val locationPermissions = setOf(
+			Manifest.permission.ACCESS_FINE_LOCATION,
+			Manifest.permission.ACCESS_COARSE_LOCATION
+		)
+		
+		val hasLocationPermission = requiredPermissions.any { it in locationPermissions }
+		
+		if (hasLocationPermission) {
+			// Check if at least one location permission is granted
+			val hasAnyLocationGranted = locationPermissions.any { context.hasSelfPermission(it) }
+			if (!hasAnyLocationGranted) return false
+			
+			// Check all non-location permissions
+			val nonLocationPermissions = requiredPermissions.filterNot { it in locationPermissions }
+			return context.hasSelfPermissions(nonLocationPermissions).all { it }
+		}
+		
+		// No location permissions required, check all normally
 		return context.hasSelfPermissions(requiredPermissions).all { it }
 	}
 

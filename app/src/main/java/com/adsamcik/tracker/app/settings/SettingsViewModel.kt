@@ -6,12 +6,17 @@ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepositor
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class SettingsViewModel(private val repo: TrackerSettingsRepository) : ViewModel() {
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val repo: TrackerSettingsRepository
+) : ViewModel() {
     val settings: StateFlow<TrackerSettingsState> = repo.data.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

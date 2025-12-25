@@ -64,10 +64,11 @@ class OnboardingPermissionManager(override val activity: ComponentActivity) : IO
      */
     override fun isPermissionGranted(permission: Permission): Boolean {
         val manifestPermissions = getManifestPermissions(permission)
-        return if (permission == com.adsamcik.tracker.app.onboarding.data.Permission.NEARBY_WIFI_DEVICES &&
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        return if (permission == com.adsamcik.tracker.app.onboarding.data.Permission.LOCATION_FOREGROUND ||
+            (permission == com.adsamcik.tracker.app.onboarding.data.Permission.NEARBY_WIFI_DEVICES &&
+             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU)
         ) {
-            // Pre-33: accept if either coarse or fine location is granted
+            // Location and pre-33 WiFi: accept if either coarse or fine location is granted
             manifestPermissions.any { manifestPermission ->
                 ContextCompat.checkSelfPermission(activity, manifestPermission) == PackageManager.PERMISSION_GRANTED
             }

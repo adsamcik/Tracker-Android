@@ -1,18 +1,29 @@
 package com.adsamcik.tracker.shared.preferences
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.annotation.StringRes
+import androidx.datastore.preferences.core.MutablePreferences as DataMutablePreferences
+import androidx.datastore.preferences.core.Preferences as DataPreferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
 
 /**
  * Allows for modification of preferences.
  */
 @Suppress("UNUSED", "PRIVATE", "TooManyFunctions", "MemberVisibilityCanBePrivate")
 class MutablePreferences : Preferences {
-	private val editor: SharedPreferences.Editor = sharedPreferences.edit()
+	private val operations = mutableListOf<(DataMutablePreferences) -> Unit>()
 
 	constructor(context: Context) : super(context)
 	constructor(preferences: Preferences) : super(preferences)
+
+	private fun enqueue(operation: (DataMutablePreferences) -> Unit) {
+		operations.add(operation)
+	}
 
 	/**
 	 * Set string preference with resource key [keyRes] to [value].
@@ -32,7 +43,7 @@ class MutablePreferences : Preferences {
 	 * @param value New value
 	 */
 	fun setString(key: String, value: String) {
-		editor.putString(key, value)
+		enqueue { prefs -> prefs[stringPreferencesKey(key)] = value }
 	}
 
 	/**
@@ -53,7 +64,7 @@ class MutablePreferences : Preferences {
 	 * @param value New value
 	 */
 	fun setInt(key: String, value: Int) {
-		editor.putInt(key, value)
+		enqueue { prefs -> prefs[intPreferencesKey(key)] = value }
 	}
 
 	/**
@@ -74,7 +85,7 @@ class MutablePreferences : Preferences {
 	 * @param value New value
 	 */
 	fun setBoolean(key: String, value: Boolean) {
-		editor.putBoolean(key, value)
+		enqueue { prefs -> prefs[booleanPreferencesKey(key)] = value }
 	}
 
 	/**
@@ -95,7 +106,7 @@ class MutablePreferences : Preferences {
 	 * @param value New value
 	 */
 	fun setLong(key: String, value: Long) {
-		editor.putLong(key, value)
+		enqueue { prefs -> prefs[longPreferencesKey(key)] = value }
 	}
 
 	/**
@@ -105,7 +116,7 @@ class MutablePreferences : Preferences {
 	 * @param value New value
 	 */
 	fun setFloat(key: String, value: Float) {
-		editor.putFloat(key, value)
+		enqueue { prefs -> prefs[floatPreferencesKey(key)] = value }
 	}
 
 	/**
@@ -130,7 +141,13 @@ class MutablePreferences : Preferences {
 	 * Remove preference with key [key].
 	 */
 	fun remove(key: String) {
-		editor.remove(key)
+		enqueue { prefs ->
+			prefs.remove(stringPreferencesKey(key))
+			prefs.remove(booleanPreferencesKey(key))
+			prefs.remove(intPreferencesKey(key))
+			prefs.remove(longPreferencesKey(key))
+			prefs.remove(floatPreferencesKey(key))
+		}
 	}
 
 	/**
@@ -139,24 +156,35 @@ class MutablePreferences : Preferences {
 	 * Needs to be used with caution as it may remove unwanted preferences.
 	 */
 	fun removeKeyByPrefix(prefix: String) {
-		sharedPreferences
-				.all
-				.filter { it.key.startsWith(prefix) }
-				.forEach { remove(it.key) }
+		val keysToRemove = snapshot()
+			.asMap()
+			.keys
+			.filter { it.name.startsWith(prefix) }
+		if (keysToRemove.isEmpty()) return
+		enqueue { prefs ->
+			keysToRemove.forEach { key ->
+				@Suppress("UNCHECKED_CAST")
+				val typedKey = key as DataPreferences.Key<Any>
+				prefs.remove(typedKey)
+			}
+		}
 	}
 
 	/**
 	 * Remove all preferences
 	 */
 	fun clear() {
-		editor.clear()
+		enqueue { prefs -> prefs.clear() }
 	}
 
 	/**
 	 * Apply all changes to preferences
 	 */
 	fun apply() {
-		editor.apply()
+		if (operations.isEmpty()) return
+		val pending = operations.toList()
+		operations.clear()
+		LegacyPreferenceStore.edit(appContext, pending)
 	}
 
 	override fun edit(func: MutablePreferences.() -> Unit) {

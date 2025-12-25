@@ -1,0 +1,81 @@
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+> Task :sbase:preBuild UP-TO-DATE
+> Task :sbase:preDebugBuild UP-TO-DATE
+> Task :sbase:writeDebugAarMetadata UP-TO-DATE
+> Task :spreferences:preBuild UP-TO-DATE
+> Task :spreferences:preDebugBuild UP-TO-DATE
+> Task :spreferences:writeDebugAarMetadata UP-TO-DATE
+> Task :sutils:preBuild UP-TO-DATE
+> Task :sutils:preDebugBuild UP-TO-DATE
+> Task :sutils:checkDebugAarMetadata UP-TO-DATE
+> Task :sutils:mergeDebugJniLibFolders UP-TO-DATE
+> Task :sutils:mergeDebugNativeLibs NO-SOURCE
+> Task :sutils:stripDebugDebugSymbols NO-SOURCE
+> Task :sutils:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :sbase:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sbase:generateDebugBuildConfig UP-TO-DATE
+> Task :sbase:generateDebugResValues UP-TO-DATE
+> Task :sbase:generateDebugResources UP-TO-DATE
+> Task :sbase:packageDebugResources UP-TO-DATE
+> Task :sbase:processDebugNavigationResources UP-TO-DATE
+> Task :sbase:parseDebugLocalResources UP-TO-DATE
+> Task :sbase:generateDebugRFile UP-TO-DATE
+> Task :sbase:kspDebugKotlin UP-TO-DATE
+> Task :sbase:javaPreCompileDebug UP-TO-DATE
+> Task :spreferences:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :spreferences:generateDebugBuildConfig UP-TO-DATE
+> Task :spreferences:extractDebugProto UP-TO-DATE
+> Task :spreferences:extractProto UP-TO-DATE
+> Task :spreferences:generateDebugResValues UP-TO-DATE
+> Task :spreferences:generateDebugResources UP-TO-DATE
+> Task :spreferences:packageDebugResources UP-TO-DATE
+> Task :spreferences:processDebugNavigationResources UP-TO-DATE
+> Task :spreferences:parseDebugLocalResources UP-TO-DATE
+> Task :spreferences:generateDebugRFile UP-TO-DATE
+> Task :spreferences:javaPreCompileDebug UP-TO-DATE
+> Task :sutils:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sutils:generateDebugResValues UP-TO-DATE
+> Task :sutils:generateDebugResources UP-TO-DATE
+> Task :sutils:packageDebugResources UP-TO-DATE
+> Task :sutils:processDebugNavigationResources UP-TO-DATE
+> Task :sutils:parseDebugLocalResources UP-TO-DATE
+> Task :sutils:generateDebugRFile UP-TO-DATE
+> Task :sutils:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :sutils:mergeDebugShaders UP-TO-DATE
+> Task :sutils:compileDebugShaders NO-SOURCE
+> Task :sutils:generateDebugAssets UP-TO-DATE
+> Task :sutils:mergeDebugAssets UP-TO-DATE
+> Task :sutils:javaPreCompileDebug UP-TO-DATE
+> Task :sutils:prepareDebugArtProfile UP-TO-DATE
+> Task :sutils:prepareLintJarForPublish UP-TO-DATE
+> Task :sutils:processDebugManifest UP-TO-DATE
+> Task :sutils:writeDebugAarMetadata UP-TO-DATE
+
+> Task :sbase:compileDebugKotlin FAILED
+e: file:///G:/Github/Tracker-Android/sbase/src/main/java/com/adsamcik/tracker/shared/base/permission/ContextualPermissionRequest.kt:14:19 Unresolved reference 'accompanist'.
+e: file:///G:/Github/Tracker-Android/sbase/src/main/java/com/adsamcik/tracker/shared/base/permission/ContextualPermissionRequest.kt:48:8 Unresolved reference 'ExperimentalPermissionsApi'.
+e: file:///G:/Github/Tracker-Android/sbase/src/main/java/com/adsamcik/tracker/shared/base/permission/ContextualPermissionRequest.kt:48:8 Annotation argument must be a compile-time constant.
+e: file:///G:/Github/Tracker-Android/sbase/src/main/java/com/adsamcik/tracker/shared/base/permission/ContextualPermissionRequest.kt:56:27 Unresolved reference 'rememberPermissionState'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':sbase:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 13s
+42 actionable tasks: 1 executed, 41 up-to-date

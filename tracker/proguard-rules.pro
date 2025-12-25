@@ -35,8 +35,8 @@
 -keep class com.adsamcik.tracker.shared.base.database.PreferenceDatabase$Companion { *; }
 -keep class com.adsamcik.tracker.shared.base.database.dao.NotificationPreferenceDao { *; }
 -keep class com.adsamcik.tracker.shared.base.database.data.NotificationPreference { *; }
--keep class com.adsamcik.tracker.shared.base.misc.NonNullLiveData { *; }
--keep class com.adsamcik.tracker.shared.base.misc.NonNullLiveMutableData { *; }
+
+
 -keep class com.adsamcik.tracker.shared.base.service.CoreService { *; }
 -keep class com.adsamcik.tracker.shared.preferences.MutablePreferences { *; }
 -keep class com.adsamcik.tracker.shared.preferences.Preferences { *; }

@@ -146,7 +146,9 @@ internal class NormalizationNeighborhood(
                         null
                     }
                 }
-                // Avoid non-local return inside inline runBlocking by computing into a local variable first
+                // inlineMode: Test hook for synchronous execution.
+                // Production code (inlineMode = false) uses scope.launch for async execution.
+                // Plan 5 note: runBlocking is acceptable in test contexts only.
                 val immediate: Float? = if (inlineMode) {
                     runBlocking(dispatcher) { compute() }
                 } else {

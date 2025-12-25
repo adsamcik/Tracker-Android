@@ -7,7 +7,10 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.summary.SummaryGenerator
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Default implementation of SessionRepository using Room DAO.
@@ -16,8 +19,9 @@ import kotlinx.coroutines.withContext
  * @param context Android context for database access
  * @param dispatchers Coroutine dispatchers for background operations
  */
-class DefaultSessionRepository(
-    context: Context,
+@Singleton
+class DefaultSessionRepository @Inject constructor(
+    @ApplicationContext context: Context,
     private val dispatchers: DispatchersProvider
 ) : SessionRepository {
     private val sessionDao = AppDatabase.database(context).sessionDao()

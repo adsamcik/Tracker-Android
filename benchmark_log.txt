@@ -1,0 +1,26 @@
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file 'G:\Github\Tracker-Android\macrobenchmark\build.gradle.kts' line: 1
+
+* What went wrong:
+Error resolving plugin [id: 'com.android.test', version: '8.13.1']
+> The request for this plugin could not be satisfied because the plugin is already on the classpath with an unknown version, so compatibility cannot be checked.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 3s
+3 actionable tasks: 3 up-to-date

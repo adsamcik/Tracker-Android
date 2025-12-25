@@ -54,6 +54,7 @@ class OnboardingViewModel : ViewModel() {
             is OnboardingEvent.ToggleNotifications -> handleToggleNotifications(event.enabled)
             is OnboardingEvent.SetTrackingFrequency -> handleSetTrackingFrequency(event.frequency)
             is OnboardingEvent.ToggleCloudBackup -> handleToggleCloudBackup(event.enabled)
+            is OnboardingEvent.UpdateLocationPrecisionMode -> handleUpdateLocationPrecisionMode(event.mode)
             
             // Permissions
             is OnboardingEvent.RequestPermission -> handleRequestPermission(event.permission)
@@ -192,6 +193,13 @@ class OnboardingViewModel : ViewModel() {
         )
     }
     
+    private fun handleUpdateLocationPrecisionMode(mode: com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode) {
+        val currentPrefs = _state.value.userPreferences
+        _state.value = _state.value.copy(
+            userPreferences = currentPrefs.copy(locationPrecisionMode = mode)
+        )
+    }
+    
     private fun handleRequestPermission(permission: Permission) {
         // Permission request will be handled by the UI layer
         // This is just for state tracking
@@ -221,6 +229,59 @@ class OnboardingViewModel : ViewModel() {
     
     private fun handleError(message: String, throwable: Throwable?) {
         Reporter.report(throwable ?: Exception(message))
+    }
+    
+    /**
+     * Apply smart defaults for streamlined onboarding (Apple-style philosophy).
+     * No user configuration required upfront:
+     * - Tracking preset: Balanced
+     * - Auto-tracking: Enabled (walking & running)
+     * - Gamification: ON
+     * - All sensors: Use balanced defaults
+     * Permissions requested contextually from main app when needed.
+     */
+    fun applySmartDefaults() {
+        val smartDefaults = UserPreferences(
+            // Core tracking enabled
+            enableLocationTracking = true,
+            enableActivityTracking = true,
+            enableAutomaticTracking = true,
+            enableStepsTracking = true,
+            
+            // WiFi/cell disabled by default (privacy-conscious)
+            enableWifiTracking = false,
+            enableCellTracking = false,
+            
+            // Notifications enabled for tracking status
+            enableNotifications = true,
+            
+            // Balanced tracking profile (moderate battery usage, good accuracy)
+            trackingFrequency = TrackingFrequency.BALANCED,
+            
+            // Local-only (no cloud)
+            dataStorageLocal = true,
+            enableCloudBackup = false,
+            
+            // Auto-tracking features
+            autoTransitionsEnabled = true,
+            activityWatcherEnabled = true,
+            pauseWhileCharging = false,
+            
+            // Auto-tracking mode: On foot (walking & running)
+            autoTrackingModeIndex = 1,
+            
+            // Balanced tracking parameters (will use app defaults if null)
+            trackingMinDistanceMeters = null,
+            trackingMinTimeSeconds = null,
+            
+            // Gamification enabled by default (engagement)
+            enableAnonymousAnalytics = false, // Privacy-first
+            autoStartTracking = false, // User-initiated
+            enableSmartPause = true,
+            autoCleanupOldData = false // User controls data retention
+        )
+        
+        _state.value = _state.value.copy(userPreferences = smartDefaults)
     }
     
     fun clearNavigationEvent() {
