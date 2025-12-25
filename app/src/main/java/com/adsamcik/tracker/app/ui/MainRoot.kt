@@ -44,6 +44,7 @@ import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.app.ui.navigation.Debug
 import com.adsamcik.tracker.app.ui.navigation.Settings
+import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionType
@@ -93,10 +94,23 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
     
     // Sync current route to ViewModel
     LaunchedEffect(currentDestination) {
-        currentDestination?.route?.let {
-             viewModel.setCurrentRoute(it)
+        val destination = currentDestination
+        if (destination != null) {
+            // Priority order for route resolution
+            val route = when {
+                destination.hasRoute<Tracker>() -> Tracker
+                destination.hasRoute<Stats>() -> Stats
+                destination.hasRoute<Map>() -> Map
+                destination.hasRoute<Game>() -> Game
+                destination.hasRoute<Debug>() -> Debug
+                destination.hasRoute<Settings>() -> Settings
+                else -> null
+            }
+            
+            if (route != null) {
+                viewModel.setCurrentRoute(route)
+            }
         }
-        // Simplified onRouteChanged for now, logic might need adjustment if consumers need specific type
     }
     
     // Precise location upgrade permission request (from upgrade prompt)
@@ -263,7 +277,7 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-        ) {
+
             composable<Tracker> {
                 com.adsamcik.tracker.tracker.ui.compose.TrackerRoute(
                     onOpenSettings = {

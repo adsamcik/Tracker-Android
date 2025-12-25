@@ -76,6 +76,15 @@ internal object LegacyPreferenceStore {
         }
     }
 
+    suspend fun editSuspend(context: Context, operations: List<(androidx.datastore.preferences.core.MutablePreferences) -> Unit>) {
+        if (operations.isEmpty()) return
+        val appContext = context.applicationContext
+        val ops = operations.toList()
+        appContext.legacyDataStore.edit { prefs ->
+             ops.forEach { it(prefs) }
+        }
+    }
+
     fun booleanFlow(context: Context, key: String, default: Boolean): Flow<Boolean> =
         ensureStateFlow(context)
             .map { prefs -> prefs[booleanPreferencesKey(key)] ?: default }

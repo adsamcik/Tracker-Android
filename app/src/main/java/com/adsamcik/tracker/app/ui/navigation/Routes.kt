@@ -3,19 +3,22 @@ package com.adsamcik.tracker.app.ui.navigation
 import kotlinx.serialization.Serializable
 
 @Serializable
-object Tracker
+sealed interface AppRoute
 
 @Serializable
-object Stats
+data object Tracker : AppRoute
 
 @Serializable
-object Map
+data object Stats : AppRoute
 
 @Serializable
-object Game
+data object Map : AppRoute
 
 @Serializable
-object Debug
+data object Game : AppRoute
 
 @Serializable
-object Settings
+data object Debug : AppRoute
+
+@Serializable
+data object Settings : AppRoute

@@ -18,7 +18,7 @@ object LocaleManager {
 	fun getLocale(context: Context): String {
 		return Preferences
 				.getPref(context)
-				.getStringRes(com.adsamcik.tracker.shared.preferences.R.string.settings_language_key)
+				.getStringResSync(com.adsamcik.tracker.shared.preferences.R.string.settings_language_key)
 				?: Locale.getDefault().toLanguageTag()
 	}
 }

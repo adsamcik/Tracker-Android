@@ -77,7 +77,7 @@ object TrackerTimerManager {
 	fun getSelectedKey(context: Context): String {
 		return Preferences
 			.getPref(context)
-			.getStringRes(com.adsamcik.tracker.shared.preferences.R.string.settings_tracker_timer_key)
+			.getStringResSync(com.adsamcik.tracker.shared.preferences.R.string.settings_tracker_timer_key)
 			?: getKey(default)
 	}
 

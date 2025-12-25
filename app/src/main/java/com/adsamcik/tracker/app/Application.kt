@@ -7,6 +7,7 @@ import androidx.annotation.WorkerThread
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
+import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.logger.CrashHandler
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter

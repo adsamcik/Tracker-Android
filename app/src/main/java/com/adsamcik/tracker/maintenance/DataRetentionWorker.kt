@@ -3,10 +3,11 @@ package com.adsamcik.tracker.maintenance
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.annotation.VisibleForTesting
+import androidx.room.withTransaction
+import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -24,9 +25,9 @@ import java.time.Duration
 /**
  * Periodic worker that deletes data older than 1 year to honor auto-cleanup setting.
  */
-class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
+class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
 
-    override fun doWork(): Result {
+    override suspend fun doWork(): Result {
         val prefs = Preferences.getPref(applicationContext)
         val enabled = prefs.getBooleanRes(
             R.string.settings_auto_cleanup_old_data_key,
@@ -103,9 +104,9 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Wo
         }
 
         @WorkerThread
-        private fun pruneOlderThan(context: Context, cutoffMillis: Long) {
+        private suspend fun pruneOlderThan(context: Context, cutoffMillis: Long) {
             val db = AppDatabase.database(context)
-            db.runInTransaction {
+            db.withTransaction {
                 // Locations
                 db.compileStatement("DELETE FROM location_data WHERE time < ?")
                     .apply { bindLong(1, cutoffMillis); executeUpdateDelete() }

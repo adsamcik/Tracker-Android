@@ -10,25 +10,25 @@ interface GoalPersistence {
 	/**
 	 * Persists positive value. Negative values are not allowed.
 	 */
-	fun persist(key: String, value: Int)
+	suspend fun persist(key: String, value: Int)
 
 	/**
 	 * Loads value from persistence.
 	 */
-	fun load(key: String): Int?
+	suspend fun load(key: String): Int?
 }
 
 class PreferencesGoalPersistence(context: Context) : GoalPersistence {
 	private val preferences: Preferences = Preferences.getPref(context)
 
-	override fun persist(key: String, value: Int) {
+	override suspend fun persist(key: String, value: Int) {
 		require(value >= 0)
-		preferences.edit {
+		preferences.editSuspend {
 			setInt(key, value)
 		}
 	}
 
-	override fun load(key: String): Int? {
+	override suspend fun load(key: String): Int? {
 		val persistedValue = preferences.getInt(key, -1)
 		return if (persistedValue >= 0) persistedValue else null
 	}

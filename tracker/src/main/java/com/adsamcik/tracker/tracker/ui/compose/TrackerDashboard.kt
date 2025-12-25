@@ -398,7 +398,7 @@ private fun TrackingContent(
         else -> 1
     }
 
-    val context = LocalContext.current
+
     val locationEnabled = rememberPrefBoolean(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
     val cellEnabled = rememberPrefBoolean(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
     val wifiEnabled = run {

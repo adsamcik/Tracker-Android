@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.ui
 
 import androidx.lifecycle.ViewModel
+import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.app.ui.navigation.Tracker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,15 +16,15 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor() : ViewModel() {
     
-    // Store route as String (FQCN) to maintain compatibility with consumers expecting generic route ID
-    private val _currentRoute = MutableStateFlow<String>(Tracker::class.qualifiedName ?: "Tracker")
-    val currentRoute: StateFlow<String> = _currentRoute.asStateFlow()
+    // Store route as AppRoute for type safety
+    private val _currentRoute = MutableStateFlow<AppRoute>(Tracker)
+    val currentRoute: StateFlow<AppRoute> = _currentRoute.asStateFlow()
     
     /**
      * Update current navigation route.
      * @param route The new active route
      */
-    fun setCurrentRoute(route: String) {
+    fun setCurrentRoute(route: AppRoute) {
         _currentRoute.value = route
     }
     

@@ -8,7 +8,6 @@ plugins {
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.hilt)
-	alias(libs.plugins.androidx.baselineprofile)
 	alias(libs.plugins.oss.licenses)
 }
 
@@ -89,12 +88,6 @@ android {
 			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
-		create("benchmark") {
-			initWith(getByName("release"))
-			signingConfig = signingConfigs.getByName("debug")
-			matchingFallbacks += listOf("release")
-			isDebuggable = false
-		}
 	}
 
 	buildFeatures {
@@ -146,7 +139,6 @@ dependencies {
 	implementation(project(":statistics"))
 	implementation(project(":map"))
 	implementation(project(":game"))
-    baselineProfile(project(":macrobenchmark"))
 
 	debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
 
@@ -154,7 +146,6 @@ dependencies {
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.kotlinx.serialization.json)
-	implementation(libs.androidx.profileinstaller)
 	implementation(libs.components.recycler)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)

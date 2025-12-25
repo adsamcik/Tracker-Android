@@ -187,6 +187,16 @@ class MutablePreferences : Preferences {
 		LegacyPreferenceStore.edit(appContext, pending)
 	}
 
+	/**
+	 * Apply changes and wait for completion.
+	 */
+	suspend fun commit() {
+		if (operations.isEmpty()) return
+		val pending = operations.toList()
+		operations.clear()
+		LegacyPreferenceStore.editSuspend(appContext, pending)
+	}
+
 	override fun edit(func: MutablePreferences.() -> Unit) {
 		func(this)
 		apply()
