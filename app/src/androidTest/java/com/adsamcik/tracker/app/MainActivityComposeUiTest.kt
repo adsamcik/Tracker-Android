@@ -32,32 +32,28 @@ class MainActivityComposeUiTest {
     }
 
     @Test
-    fun smoke_launches_map_selected_by_default() {
-        val expandedDescription = context.getString(R.string.main_nav_map_state_expanded)
-
-        composeRule.onNodeWithTag("nav_map")
+    fun smoke_launches_tracker_selected_by_default() {
+        composeRule.onNodeWithTag("nav_tracker")
             .assertIsSelected()
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expandedDescription))
     }
 
     @Test
-    fun bottom_nav_navigates_between_tabs_and_back_goes_to_map() {
-        val collapsedDescription = context.getString(R.string.main_nav_map_state_collapsed)
-
+    fun bottom_nav_navigates_between_tabs_and_back_goes_to_tracker() {
         composeRule.onNodeWithTag("nav_stats").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav_stats").assertIsSelected()
-        composeRule.onNodeWithTag("nav_map")
+        composeRule.onNodeWithTag("nav_tracker")
             .assertIsNotSelected()
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, collapsedDescription))
 
         composeRule.onNodeWithTag("nav_game").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav_game").assertIsSelected()
 
-        composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        composeRule.runOnUiThread {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("nav_map").assertIsSelected()
+        composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
     }
 
     // Note: Intent-based tests moved to MainActivityIntentTest.kt using ActivityScenario

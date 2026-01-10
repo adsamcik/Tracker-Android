@@ -48,8 +48,8 @@ class MainActivityCompose : ComponentActivity() {
     private val selectedTab = mutableStateOf<Any>(Tracker)
     
     // Async state for splash screen
-    private var isReady = false
-    private var showOnboarding = true
+    private var isReady by mutableStateOf(false)
+    private var showOnboarding by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Install splash screen before super.onCreate
@@ -60,9 +60,32 @@ class MainActivityCompose : ComponentActivity() {
         
         // Async check onboarding completion
         val onboardingRepository = DefaultOnboardingRepository(applicationContext, Dispatchers.IO)
+
         lifecycleScope.launch {
-            showOnboarding = !onboardingRepository.isCompleted.first()
-            isReady = true
+            try {
+                android.util.Log.d("Startup", "Begin onboarding check")
+                // Explicitly ensure migration happens before we check state
+                // This avoids doing it inside the flow collection, preventing deadlocks
+                onboardingRepository.ensureInitialized()
+                android.util.Log.d("Startup", "Repository initialized")
+
+                // Safety timeout can stay as a good practice, but logic is now safe
+                val isCompleted = kotlinx.coroutines.withTimeoutOrNull(2000) {
+                    onboardingRepository.isCompleted.first()
+                } ?: true
+                
+                android.util.Log.d("Startup", "Onboarding state checked: $isCompleted")
+
+                showOnboarding = !isCompleted
+            } catch (e: Exception) {
+                // Log exception for debugging but don't crash startup
+                android.util.Log.e("Startup", "Error during onboarding initialization", e)
+                showOnboarding = false // Default to showing app content on error
+            } finally {
+                // ALWAYS finish splash screen
+                android.util.Log.d("Startup", "Releasing splash screen")
+                isReady = true
+            }
         }
         
         // Enable edge-to-edge for modern Compose UI

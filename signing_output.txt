@@ -1,0 +1,42 @@
+
+> Task :app:signingReport
+Variant: debug
+Config: debug
+Store: C:\Users\adam-\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: 38:FD:F1:06:A8:AE:54:3B:BC:43:CF:88:FB:2F:83:D9
+SHA1: 83:AF:8C:4D:9A:1F:CE:45:2C:01:6E:F8:62:92:51:4B:51:6F:0D:E6
+SHA-256: 38:EC:E0:09:35:CC:67:9B:54:80:97:F2:A6:EA:E2:FF:0F:F9:F1:3D:13:5E:6A:CB:08:4E:20:BF:0B:5C:E2:1B
+Valid until: Tuesday, 15 June 2055
+----------
+Variant: release
+Config: null
+Store: null
+Alias: null
+----------
+Variant: dev
+Config: debug
+Store: C:\Users\adam-\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: 38:FD:F1:06:A8:AE:54:3B:BC:43:CF:88:FB:2F:83:D9
+SHA1: 83:AF:8C:4D:9A:1F:CE:45:2C:01:6E:F8:62:92:51:4B:51:6F:0D:E6
+SHA-256: 38:EC:E0:09:35:CC:67:9B:54:80:97:F2:A6:EA:E2:FF:0F:F9:F1:3D:13:5E:6A:CB:08:4E:20:BF:0B:5C:E2:1B
+Valid until: Tuesday, 15 June 2055
+----------
+Variant: release_nominify
+Config: null
+Store: null
+Alias: null
+----------
+Variant: debugAndroidTest
+Config: debug
+Store: C:\Users\adam-\.android\debug.keystore
+Alias: AndroidDebugKey
+MD5: 38:FD:F1:06:A8:AE:54:3B:BC:43:CF:88:FB:2F:83:D9
+SHA1: 83:AF:8C:4D:9A:1F:CE:45:2C:01:6E:F8:62:92:51:4B:51:6F:0D:E6
+SHA-256: 38:EC:E0:09:35:CC:67:9B:54:80:97:F2:A6:EA:E2:FF:0F:F9:F1:3D:13:5E:6A:CB:08:4E:20:BF:0B:5C:E2:1B
+Valid until: Tuesday, 15 June 2055
+----------
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed

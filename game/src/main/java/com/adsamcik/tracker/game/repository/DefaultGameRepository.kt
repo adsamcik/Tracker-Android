@@ -7,10 +7,14 @@ import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
@@ -26,7 +30,7 @@ class DefaultGameRepository @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope
 ) : GameRepository {
     
-    private val pointsDao = PointsDatabase.database(application).pointsAwardedDao()
+    private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
     
     init {
         // Initialize game managers (idempotent)
@@ -37,7 +41,9 @@ class DefaultGameRepository @Inject constructor(
     private fun startOfDay(now: Long): Long = (now / 86_400_000L) * 86_400_000L
     
     override fun getPointsToday(): Flow<Int> {
-        return pointsDao.countBetweenFlow(startOfDay(Time.nowMillis), Time.nowMillis)
+        return flow {
+            emitAll(pointsDao.countBetweenFlow(startOfDay(Time.nowMillis), Time.nowMillis))
+        }.flowOn(Dispatchers.IO)
     }
     
     override fun getStepsSummary(): StateFlow<StepsSummaryData?> {

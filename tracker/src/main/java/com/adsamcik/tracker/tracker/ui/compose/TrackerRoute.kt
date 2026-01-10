@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
@@ -29,7 +30,8 @@ import com.adsamcik.tracker.tracker.controller.LockManager
 fun TrackerRoute(
     onOpenSettings: () -> Unit = {},
     onOpenMap: () -> Unit = {},
-    onOpenGame: (() -> Unit)? = null
+    onOpenGame: (() -> Unit)? = null,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val context = LocalContext.current
     
@@ -108,23 +110,16 @@ fun TrackerRoute(
         }
     }
     
-    TrackerDashboard(
-        state = TrackerDashboardUiState(
+    TrackerDashboardFocus(
+        state = TrackerFocusState(
             isTracking = isTracking,
             isLocked = isLocked,
             sessionData = displaySession,
             collectionData = collectionData,
-            hasLocationPermission = hasLocationPermission,
-            pathPoints = relevantPathPoints
+            hasLocationPermission = hasLocationPermission
         ),
         snackbarHostState = snackbarHostState,
         onSettingsClick = onOpenSettings,
-        onMapClick = onOpenMap,
-        onGameClick = onOpenGame,
-        onRequestPermission = {
-            // Contextual permission request on "Start Tracking" tap
-            showLocationPermissionRequest = true
-        },
         onToggleTracking = { shouldStart ->
             if (shouldStart) {
                 if (hasLocationPermission) {
@@ -136,7 +131,8 @@ fun TrackerRoute(
             } else {
                 TrackerServiceApi.stopService(context)
             }
-        }
+        },
+        contentPadding = contentPadding
     )
 }
 

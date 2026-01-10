@@ -137,7 +137,7 @@ private fun PresetCard(
             containerColor = if (isSelected)
                 MaterialTheme.colorScheme.primaryContainer
             else
-                MaterialTheme.colorScheme.surface
+                MaterialTheme.colorScheme.surfaceContainer
         ),
         border = if (isSelected)
             BorderStroke(2.dp, MaterialTheme.colorScheme.primary)

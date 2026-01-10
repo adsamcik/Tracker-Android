@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamicColorScheme
 
-private val ExpressiveSeedColor = Color(0xFF6750A4)
+private val ExpressiveSeedColor = AppColors.NeonLime
 
 /**
  * Unified app theme using Material 3 with dynamic color support and a Material Expressive fallback.

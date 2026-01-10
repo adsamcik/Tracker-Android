@@ -81,6 +81,7 @@ data class MapState(
 
 sealed interface MapEvent {
     data object ToggleFollow : MapEvent
+    data class SetFollowing(val isFollowing: Boolean) : MapEvent
     data object FollowCanceled : MapEvent
     data object ShowSheet : MapEvent // kept for compatibility; maps to Expanded
     data object HideSheet : MapEvent // kept for compatibility; maps to Hidden

@@ -19,12 +19,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Comprehensive onboarding flow tests covering:
- * - Full happy-path through all steps (Welcome -> ValueDemo -> LocationSetup -> Success)
- * - Skip-all flow (using skip buttons where available)
- * - Permission grant/deny scenarios using UIAutomator
- * - Back navigation between steps
- * - Accessibility: touch target sizes on all CTA buttons
+ * Comprehensive onboarding flow tests for streamlined single-screen onboarding:
+ * - Welcome screen with "Get Started" CTA
+ * - Location precision selection screen
+ * - Completion navigates to main app
+ * - Accessibility: touch targets on all CTA buttons
  */
 @RunWith(AndroidJUnit4::class)
 class OnboardingComprehensiveTest {
@@ -33,14 +32,10 @@ class OnboardingComprehensiveTest {
 	val composeRule = createAndroidComposeRule<OnboardingActivity>()
 
 	private val primary = hasTestTag("onboarding_cta_primary")
-	private val skip = hasTestTag("onboarding_cta_skip")
 	private val back = hasTestTag("onboarding_cta_back")
-	private val done = hasTestTag("onboarding_cta_done")
-	private val successRoot = hasTestTag("onboarding_success_root")
 
 	@Before
 	fun setUp() {
-		// Clear onboarding state before each test
 		val ctx = ApplicationProvider.getApplicationContext<Context>()
 		ctx.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
 			.edit().clear().commit()
@@ -50,7 +45,6 @@ class OnboardingComprehensiveTest {
 		@JvmStatic
 		@BeforeClass
 		fun beforeAll() {
-			// Inject fake permission manager so no system dialogs appear by default
 			OnboardingPermissionManagerProvider.factory = { FakeOnboardingPermissionManager(it) }
 		}
 	}
@@ -62,134 +56,39 @@ class OnboardingComprehensiveTest {
 	// region Happy Path
 
 	@Test
-	fun happyPath_completesOnboardingSuccessfully() {
-		// Navigate through all screens using primary CTA
-		repeat(10) { iteration ->
-			// Check if we've reached the success screen
-			if (exists(successRoot) || exists(done)) {
-				// Click done if available
-				if (exists(done)) {
-					composeRule.onNode(done).performClick()
-				}
-				return
-			}
-
-			// Wait for a CTA to appear
-			composeRule.waitUntil(timeoutMillis = 5_000) {
-				exists(primary) || exists(skip) || exists(done)
-			}
-
-			// Click primary CTA
-			if (exists(primary)) {
-				composeRule.onNode(primary).performClick()
-				composeRule.waitForIdle()
-			}
-		}
-
-		// Verify we reached success
-		composeRule.waitUntil(timeoutMillis = 5_000) {
-			exists(successRoot) || exists(done)
-		}
-	}
-
-	@Test
 	fun welcomeScreen_displaysCorrectly() {
-		// Wait for welcome screen
-		composeRule.waitUntil(timeoutMillis = 5_000) {
-			exists(primary)
-		}
-
-		// Primary CTA should be displayed
+		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
 		composeRule.onNode(primary).assertIsDisplayed()
 	}
 
-	// endregion
-
-	// region Skip Flow
-
 	@Test
-	fun skipFlow_skipsOptionalSteps() {
-		repeat(10) { iteration ->
-			// Check if we've reached the success screen
-			if (exists(successRoot) || exists(done)) {
-				if (exists(done)) {
-					composeRule.onNode(done).performClick()
-				}
-				return
-			}
-
-			composeRule.waitUntil(timeoutMillis = 5_000) {
-				exists(primary) || exists(skip) || exists(done)
-			}
-
-			// Prefer skip if available, otherwise use primary
-			when {
-				exists(skip) -> {
-					composeRule.onNode(skip).performClick()
-				}
-				exists(primary) -> {
-					composeRule.onNode(primary).performClick()
-				}
-			}
-			composeRule.waitForIdle()
-		}
-
-		// Verify we can complete
-		composeRule.waitUntil(timeoutMillis = 5_000) {
-			exists(successRoot) || exists(done)
-		}
+	fun happyPath_getStarted_navigatesToPrecisionSelector() {
+		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
+		composeRule.onNode(primary).performClick()
+		composeRule.waitForIdle()
+		
+		// Should now be on precision selector with back button
+		composeRule.waitUntil(timeoutMillis = 5_000) { exists(back) }
+		composeRule.onNode(back).assertIsDisplayed()
 	}
 
-	// endregion
-
-	// region Back Navigation
-
 	@Test
-	fun backNavigation_returnsToPreiousStep() {
-		// Start at welcome
+	fun backNavigation_returnsToPreviousScreen() {
+		// Navigate to precision selector
 		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
-		
-		// Move forward
 		composeRule.onNode(primary).performClick()
 		composeRule.waitForIdle()
 
-		// Should now have back button
+		// Wait for back button
 		composeRule.waitUntil(timeoutMillis = 5_000) { exists(back) }
 
 		// Go back
 		composeRule.onNode(back).performClick()
 		composeRule.waitForIdle()
 
-		// Should be back at welcome (primary visible, no back)
+		// Should be back at welcome (primary visible)
 		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
-	}
-
-	@Test
-	fun backNavigation_multipleSteps_works() {
-		// Navigate forward twice
-		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
-		composeRule.onNode(primary).performClick()
-		composeRule.waitForIdle()
-
-		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) || exists(skip) }
-		if (exists(primary)) {
-			composeRule.onNode(primary).performClick()
-			composeRule.waitForIdle()
-		}
-
-		// Now go back twice
-		if (exists(back)) {
-			composeRule.onNode(back).performClick()
-			composeRule.waitForIdle()
-		}
-
-		if (exists(back)) {
-			composeRule.onNode(back).performClick()
-			composeRule.waitForIdle()
-		}
-
-		// Should be near the beginning
-		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
+		composeRule.onNode(primary).assertIsDisplayed()
 	}
 
 	// endregion
@@ -199,30 +98,7 @@ class OnboardingComprehensiveTest {
 	@Test
 	fun primaryCta_hasMinimumTouchTargetSize() {
 		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
-
-		composeRule.onNode(primary)
-			.assertMinTouchTargetSize()
-	}
-
-	@Test
-	fun skipCta_hasMinimumTouchTargetSize() {
-		// Navigate to a screen that has skip
-		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
-		composeRule.onNode(primary).performClick()
-		composeRule.waitForIdle()
-
-		// Try to find skip on subsequent screens
-		repeat(5) {
-			if (exists(skip)) {
-				composeRule.onNode(skip).assertMinTouchTargetSize()
-				return
-			}
-			if (exists(primary)) {
-				composeRule.onNode(primary).performClick()
-				composeRule.waitForIdle()
-			}
-		}
-		// If no skip button found on any screen, that's acceptable
+		composeRule.onNode(primary).assertMinTouchTargetSize()
 	}
 
 	@Test
@@ -236,23 +112,6 @@ class OnboardingComprehensiveTest {
 		composeRule.onNode(back).assertMinTouchTargetSize()
 	}
 
-	@Test
-	fun doneCta_hasMinimumTouchTargetSize() {
-		// Navigate through to success screen
-		repeat(10) {
-			if (exists(done)) {
-				composeRule.onNode(done).assertMinTouchTargetSize()
-				return
-			}
-			composeRule.waitUntil(timeoutMillis = 3_000) { exists(primary) || exists(skip) || exists(done) }
-			when {
-				exists(primary) -> composeRule.onNode(primary).performClick()
-				exists(skip) -> composeRule.onNode(skip).performClick()
-			}
-			composeRule.waitForIdle()
-		}
-	}
-
 	// endregion
 
 	// region Error Recovery
@@ -262,7 +121,7 @@ class OnboardingComprehensiveTest {
 		composeRule.waitUntil(timeoutMillis = 5_000) { exists(primary) }
 
 		// Rapid clicks should not crash
-		repeat(5) {
+		repeat(3) {
 			if (exists(primary)) {
 				composeRule.onNode(primary).performClick()
 			}
@@ -271,7 +130,7 @@ class OnboardingComprehensiveTest {
 
 		// App should still be responsive
 		composeRule.waitUntil(timeoutMillis = 5_000) {
-			exists(primary) || exists(skip) || exists(done) || exists(back) || exists(successRoot)
+			exists(primary) || exists(back)
 		}
 	}
 

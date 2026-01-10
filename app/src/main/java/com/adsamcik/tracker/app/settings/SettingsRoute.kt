@@ -117,150 +117,121 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp), // Increased top padding
+        verticalArrangement = Arrangement.spacedBy(16.dp) // Spacing between cards
     ) {
-        // Tracking settings
+        // Core Modules (Card 1)
         item {
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_title),
-                icon = Icons.Default.GpsFixed,
-                onClick = { onNavigate(SettingsScreen.Tracking) }
-            )
+            SettingsGroupCard(title = "Core") {
+                SettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_title),
+                    icon = Icons.Default.GpsFixed,
+                    onClick = { onNavigate(SettingsScreen.Tracking) }
+                )
+                SettingsItem(
+                    title = stringResource(R.string.settings_data_title),
+                    icon = Icons.Default.Folder,
+                    onClick = { onNavigate(SettingsScreen.Data) }
+                )
+                SettingsItem(
+                    title = stringResource(com.adsamcik.tracker.activity.R.string.settings_activity_title),
+                    icon = Icons.Default.DirectionsRun,
+                    onClick = {
+                        context.startActivity(Intent(context, SessionActivityActivityCompose::class.java))
+                    }
+                )
+            }
         }
 
-        // Data settings
-        item {
-            SettingsItem(
-                title = stringResource(R.string.settings_data_title),
-                icon = Icons.Default.Folder,
-                onClick = { onNavigate(SettingsScreen.Data) }
-            )
-        }
-
-        // Activity settings
-        item {
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.activity.R.string.settings_activity_title),
-                icon = Icons.Default.DirectionsRun,
-                onClick = {
-                    context.startActivity(Intent(context, SessionActivityActivityCompose::class.java))
-                }
-            )
-        }
-
-        // General settings section
-        item {
-            SectionHeader(stringResource(R.string.settings_other_title))
-        }
-
-        // Length system
+        // General settings section (Card 2)
         item {
             val lengthNames = stringArrayResource(R.array.settings_length_system_names).toList()
             val lengthValues = stringArrayResource(R.array.settings_length_system_values).toList()
-            DialogListPreference(
-                title = stringResource(R.string.settings_length_system_title),
-                currentValue = state.lengthSystem.name,
-                entries = lengthNames,
-                entryValues = lengthValues,
-                onValueChange = { selectedIndex ->
-                    viewModel.setLengthSystem(lengthValues[selectedIndex])
-                }
-            )
-        }
-
-        // Auto unit switch
-        item {
-            SwitchSettingsItem(
-                title = "Automatic unit switching",
-                subtitle = if (state.autoUnitSwitch) "Will adapt length system to activity" else "Uses default length system only",
-                checked = state.autoUnitSwitch,
-                onCheckedChange = { viewModel.setAutoUnitSwitch(it) }
-            )
-        }
-
-        // Speed format
-        item {
             val speedNames = stringArrayResource(R.array.settings_speed_format_names).toList()
             val speedValues = stringArrayResource(R.array.settings_speed_format_values).toList()
-            DialogListPreference(
-                title = stringResource(R.string.settings_speed_format_title),
-                currentValue = state.speedFormat.name,
-                entries = speedNames,
-                entryValues = speedValues,
-                onValueChange = { selectedIndex ->
-                    viewModel.setSpeedFormat(speedValues[selectedIndex])
-                }
-            )
-        }
 
-        // Language
-        item {
-            SettingsItem(
-                title = stringResource(R.string.settings_language_title),
-                subtitle = stringResource(R.string.settings_language_summary, Locale.getDefault().displayLanguage),
-                icon = Icons.Default.Translate,
-                onClick = {
-                    // Open system language settings
-                    val intent = Intent(Settings.ACTION_LOCALE_SETTINGS)
-                    context.startActivity(intent)
-                }
-            )
-        }
-
-        // Module settings section
-        item {
-            SectionHeader(stringResource(R.string.settings_module_group_title))
-        }
-
-        item {
-            SettingsItem(
-                title = stringResource(R.string.module_map_title),
-                subtitle = "Heatmap quality and visualization options",
-                icon = Icons.Default.Map,
-                onClick = { onNavigate(SettingsScreen.Map) }
-            )
-        }
-
-        item {
-            SettingsItem(
-                title = stringResource(R.string.module_game_title),
-                subtitle = "Challenges and goals configuration",
-                icon = Icons.Default.EmojiEvents,
-                onClick = { onNavigate(SettingsScreen.Game) }
-            )
-        }
-
-        item {
-            SettingsItem(
-                title = stringResource(R.string.module_statistics_title),
-                subtitle = "Unit preferences and display options",
-                icon = Icons.Default.BarChart,
-                onClick = { onNavigate(SettingsScreen.Statistics) }
-            )
-        }
-
-        // Licenses
-        item {
-            SettingsItem(
-                title = stringResource(R.string.settings_licenses_title),
-                icon = Icons.Default.Article,
-                onClick = {
-                    context.startActivity(Intent().setClassName(context, "com.adsamcik.tracker.license.LicenseActivity"))
-                }
-            )
-        }
-
-        // Debug (conditional: always in debug builds, or when developer mode enabled in release)
-        if (showDebug) {
-            item {
-                SettingsItem(
-                    title = stringResource(R.string.settings_debug_title),
-                    subtitle = if (!com.adsamcik.tracker.BuildConfig.DEBUG) 
-                        stringResource(R.string.settings_developer_mode_subtitle) 
-                    else null,
-                    icon = Icons.Default.BugReport,
-                    onClick = { onNavigate(SettingsScreen.Debug) }
+            SettingsGroupCard(title = stringResource(R.string.settings_other_title)) {
+                DialogListPreference(
+                    title = stringResource(R.string.settings_length_system_title),
+                    currentValue = state.lengthSystem.name,
+                    entries = lengthNames,
+                    entryValues = lengthValues,
+                    onValueChange = { selectedIndex ->
+                        viewModel.setLengthSystem(lengthValues[selectedIndex])
+                    }
                 )
+                SwitchSettingsItem(
+                    title = "Automatic unit switching",
+                    subtitle = if (state.autoUnitSwitch) "Will adapt length system to activity" else "Uses default length system only",
+                    checked = state.autoUnitSwitch,
+                    onCheckedChange = { viewModel.setAutoUnitSwitch(it) }
+                )
+                DialogListPreference(
+                    title = stringResource(R.string.settings_speed_format_title),
+                    currentValue = state.speedFormat.name,
+                    entries = speedNames,
+                    entryValues = speedValues,
+                    onValueChange = { selectedIndex ->
+                        viewModel.setSpeedFormat(speedValues[selectedIndex])
+                    }
+                )
+                SettingsItem(
+                    title = stringResource(R.string.settings_language_title),
+                    subtitle = stringResource(R.string.settings_language_summary, Locale.getDefault().displayLanguage),
+                    icon = Icons.Default.Translate,
+                    onClick = {
+                        // Open system language settings
+                        val intent = Intent(Settings.ACTION_LOCALE_SETTINGS)
+                        context.startActivity(intent)
+                    }
+                )
+            }
+        }
+
+        // Module settings section (Card 3)
+        item {
+            SettingsGroupCard(title = stringResource(R.string.settings_module_group_title)) {
+                SettingsItem(
+                    title = stringResource(R.string.module_map_title),
+                    subtitle = "Heatmap quality and visualization options",
+                    icon = Icons.Default.Map,
+                    onClick = { onNavigate(SettingsScreen.Map) }
+                )
+                SettingsItem(
+                    title = stringResource(R.string.module_game_title),
+                    subtitle = "Challenges and goals configuration",
+                    icon = Icons.Default.EmojiEvents,
+                    onClick = { onNavigate(SettingsScreen.Game) }
+                )
+                SettingsItem(
+                    title = stringResource(R.string.module_statistics_title),
+                    subtitle = "Unit preferences and display options",
+                    icon = Icons.Default.BarChart,
+                    onClick = { onNavigate(SettingsScreen.Statistics) }
+                )
+            }
+        }
+
+        // Licenses & Debug (Card 4)
+        item {
+            SettingsGroupCard {
+                SettingsItem(
+                    title = stringResource(R.string.settings_licenses_title),
+                    icon = Icons.Default.Article,
+                    onClick = {
+                        context.startActivity(Intent().setClassName(context, "com.adsamcik.tracker.license.LicenseActivity"))
+                    }
+                )
+                if (showDebug) {
+                    SettingsItem(
+                        title = stringResource(R.string.settings_debug_title),
+                        subtitle = if (!com.adsamcik.tracker.BuildConfig.DEBUG) 
+                            stringResource(R.string.settings_developer_mode_subtitle) 
+                        else null,
+                        icon = Icons.Default.BugReport,
+                        onClick = { onNavigate(SettingsScreen.Debug) }
+                    )
+                }
             }
         }
     }
@@ -298,7 +269,8 @@ private fun TrackingSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Tracking notice
         item {
@@ -374,37 +346,36 @@ private fun TrackingSettings() {
             }
         }
         
-        // Auto-tracking toggle (essential setting with help)
+        // Features section (Group Card)
         item {
-            SwitchSettingsItemWithHelp(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_title),
-                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
-                checked = transitionDetection,
-                onCheckedChange = { trackingVm.setTransitionDetectionEnabled(it) },
-                helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection
-            )
-        }
+            SettingsGroupCard(title = "Features") {
+                // Auto-tracking toggle (essential setting with help)
+                SwitchSettingsItemWithHelp(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_title),
+                    subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
+                    checked = transitionDetection,
+                    onCheckedChange = { trackingVm.setTransitionDetectionEnabled(it) },
+                    helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection
+                )
         
-        // Notification toggle (essential setting)
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
-                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
-                checked = notificationStyled,
-                onCheckedChange = { trackingVm.setNotificationStyled(it) }
-            )
-        }
+                // Notification toggle (essential setting)
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
+                    subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
+                    checked = notificationStyled,
+                    onCheckedChange = { trackingVm.setNotificationStyled(it) }
+                )
         
-        // Notification customization
-        item {
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_title),
-                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_summary),
-                icon = Icons.Default.Notifications,
-                onClick = {
-                    context.startActivity(Intent(context, com.adsamcik.tracker.tracker.notification.NotificationManagementActivity::class.java))
-                }
-            )
+                // Notification customization
+                SettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_title),
+                    subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_customize_summary),
+                    icon = Icons.Default.Notifications,
+                    onClick = {
+                        context.startActivity(Intent(context, com.adsamcik.tracker.tracker.notification.NotificationManagementActivity::class.java))
+                    }
+                )
+            }
         }
         
         // Advanced settings section (collapsed by default)
@@ -526,83 +497,73 @@ private fun DataSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Export section
+        // Export/Import section (Card 1)
         item {
-            SectionHeader(stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_title))
+            SettingsGroupCard(title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_export_title)) {
+                SettingsItem(
+                    title = stringResource(R.string.settings_export_data_title),
+                    subtitle = stringResource(R.string.settings_export_data_summary),
+                    icon = Icons.Default.FileUpload,
+                    onClick = { showExportFormatDialog = true }
+                )
+                
+                SettingsItem(
+                    title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_title),
+                    subtitle = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_summary, "GPX, KML, ZIP", "ZIP"),
+                    icon = Icons.Default.FileDownload,
+                    onClick = {
+                        // Launch file picker with supported MIME types
+                        importLauncher.launch(arrayOf(
+                            "application/gpx+xml",
+                            "application/vnd.google-earth.kml+xml",
+                            "application/zip",
+                            "*/*" // Fallback for all files
+                        ))
+                    }
+                )
+            }
         }
         
+        // Auto-cleanup section (Card 2)
         item {
-            SettingsItem(
-                title = stringResource(R.string.settings_export_data_title),
-                subtitle = stringResource(R.string.settings_export_data_summary),
-                icon = Icons.Default.FileUpload,
-                onClick = { showExportFormatDialog = true }
-            )
+            SettingsGroupCard(title = "Data Management") {
+                SwitchSettingsItem(
+                    title = stringResource(R.string.settings_auto_cleanup_old_data_title),
+                    subtitle = stringResource(R.string.settings_auto_cleanup_old_data_summary),
+                    checked = autoCleanupEnabled,
+                    onCheckedChange = { dataVm.setAutoCleanupEnabled(it) }
+                )
+                
+                val retentionTitles = stringArrayResource(R.array.settings_data_retention_years_titles).toList()
+                val retentionValues = stringArrayResource(R.array.settings_data_retention_years_values).toList()
+                DialogListPreference(
+                    title = stringResource(R.string.settings_data_retention_years_title),
+                    currentValue = dataRetentionYears,
+                    entries = retentionTitles,
+                    entryValues = retentionValues,
+                    onValueChange = { selectedIndex ->
+                        dataVm.setDataRetentionYears(retentionValues[selectedIndex])
+                    }
+                )
+            }
         }
         
-        // Import section
+        // Danger zone (Card 3)
         item {
-            
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_title),
-                subtitle = stringResource(com.adsamcik.tracker.impexp.R.string.settings_import_summary, "GPX, KML, ZIP", "ZIP"),
-                icon = Icons.Default.FileDownload,
-                onClick = {
-                    // Launch file picker with supported MIME types
-                    importLauncher.launch(arrayOf(
-                        "application/gpx+xml",
-                        "application/vnd.google-earth.kml+xml",
-                        "application/zip",
-                        "*/*" // Fallback for all files
-                    ))
-                }
-            )
-        }
-        
-        // Auto-cleanup section
-        item {
-            SectionHeader("Data Management")
-        }
-        
-        item {
-            SwitchSettingsItem(
-                title = stringResource(R.string.settings_auto_cleanup_old_data_title),
-                subtitle = stringResource(R.string.settings_auto_cleanup_old_data_summary),
-                checked = autoCleanupEnabled,
-                onCheckedChange = { dataVm.setAutoCleanupEnabled(it) }
-            )
-        }
-        
-        item {
-            val retentionTitles = stringArrayResource(R.array.settings_data_retention_years_titles).toList()
-            val retentionValues = stringArrayResource(R.array.settings_data_retention_years_values).toList()
-            DialogListPreference(
-                title = stringResource(R.string.settings_data_retention_years_title),
-                currentValue = dataRetentionYears,
-                entries = retentionTitles,
-                entryValues = retentionValues,
-                onValueChange = { selectedIndex ->
-                    dataVm.setDataRetentionYears(retentionValues[selectedIndex])
-                }
-            )
-        }
-        
-        // Danger zone
-        item {
-            SectionHeader("Danger Zone")
-        }
-        
-        item {
-            SettingsItem(
-                title = stringResource(R.string.settings_remove_all_collected_data_title),
-                subtitle = stringResource(R.string.settings_remove_all_collected_data_summary),
-                icon = Icons.Default.DeleteForever,
-                onClick = {
-                    debugVm.showDeleteDataDialog()
-                }
-            )
+            // Using SettingsGroupCard but we might want custom styling later
+            SettingsGroupCard(title = "Danger Zone") {
+                SettingsItem(
+                    title = stringResource(R.string.settings_remove_all_collected_data_title),
+                    subtitle = stringResource(R.string.settings_remove_all_collected_data_summary),
+                    icon = Icons.Default.DeleteForever,
+                    onClick = {
+                        debugVm.showDeleteDataDialog()
+                    }
+                )
+            }
         }
     }
     
@@ -673,7 +634,8 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Version info (tap 7 times to enable developer mode)
         item {
@@ -751,46 +713,40 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
         
         // Debug tools
         item {
-            SectionHeader("Debug Tools")
-        }
-        
-        item {
-            SettingsItem(
-                title = "Crash Manager",
-                subtitle = "View and manage crash reports",
-                icon = Icons.Default.BugReport,
-                onClick = {
-                    context.startActivity(Intent(context, com.adsamcik.tracker.app.activity.debug.CrashManagerActivity::class.java))
-                }
-            )
-        }
-        
-        item {
-            SettingsItem(
-                title = "Log Viewer",
-                subtitle = "View application logs",
-                icon = Icons.Default.Description,
-                onClick = {
-                    onNavigateToDebug()
-                }
-            )
+            SettingsGroupCard(title = "Debug Tools") {
+                SettingsItem(
+                    title = "Crash Manager",
+                    subtitle = "View and manage crash reports",
+                    icon = Icons.Default.BugReport,
+                    onClick = {
+                        context.startActivity(Intent(context, com.adsamcik.tracker.app.activity.debug.CrashManagerActivity::class.java))
+                    }
+                )
+                
+                SettingsItem(
+                    title = "Log Viewer",
+                    subtitle = "View application logs",
+                    icon = Icons.Default.Description,
+                    onClick = {
+                        onNavigateToDebug()
+                    }
+                )
+            }
         }
         
         // Developer tools (only show in debug builds)
         if (com.adsamcik.tracker.BuildConfig.DEBUG) {
             item {
-                SectionHeader("Developer Tools")
-            }
-            
-            item {
-                SettingsItem(
-                    title = "Generate Dummy Data",
-                    subtitle = "Create test tracking data (DEBUG only)",
-                    icon = Icons.Default.Science,
-                    onClick = {
-                        debugVm.showDummyDataDialog()
-                    }
-                )
+                SettingsGroupCard(title = "Developer Tools") {
+                    SettingsItem(
+                        title = "Generate Dummy Data",
+                        subtitle = "Create test tracking data (DEBUG only)",
+                        icon = Icons.Default.Science,
+                        onClick = {
+                            debugVm.showDummyDataDialog()
+                        }
+                    )
+                }
             }
         }
     }
@@ -804,7 +760,8 @@ private fun MapSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Info card explaining map settings purpose
         item {
@@ -912,39 +869,36 @@ private fun GameSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Challenges section
         item {
-            SectionHeader(stringResource(com.adsamcik.tracker.game.R.string.settings_game_challenge_category_title))
-        }
-        
-        item {
-            val challengeKey = context.getString(com.adsamcik.tracker.game.R.string.settings_game_challenge_enable_key)
-            val challengeDefault = context.getString(com.adsamcik.tracker.game.R.string.settings_game_challenge_enable_default).toBoolean()
-            var challengeEnabled by remember { mutableStateOf(prefs.getBoolean(challengeKey, challengeDefault)) }
-            
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.game.R.string.settings_game_challenge_enable_title),
-                checked = challengeEnabled,
-                onCheckedChange = {
-                    challengeEnabled = it
-                    prefs.edit { setBoolean(challengeKey, it) }
-                }
-            )
+            SettingsGroupCard(title = stringResource(com.adsamcik.tracker.game.R.string.settings_game_challenge_category_title)) {
+                val challengeKey = context.getString(com.adsamcik.tracker.game.R.string.settings_game_challenge_enable_key)
+                val challengeDefault = context.getString(com.adsamcik.tracker.game.R.string.settings_game_challenge_enable_default).toBoolean()
+                var challengeEnabled by remember { mutableStateOf(prefs.getBoolean(challengeKey, challengeDefault)) }
+                
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.game.R.string.settings_game_challenge_enable_title),
+                    checked = challengeEnabled,
+                    onCheckedChange = {
+                        challengeEnabled = it
+                        prefs.edit { setBoolean(challengeKey, it) }
+                    }
+                )
+            }
         }
         
         // Goals section (just notification for now)
         item {
-            SectionHeader(stringResource(com.adsamcik.tracker.game.R.string.settings_game_goals_category_title))
-        }
-        
-        item {
-            Text(
-                text = "Goal settings like daily/weekly steps are managed through the Goals feature",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            SettingsGroupCard(title = stringResource(com.adsamcik.tracker.game.R.string.settings_game_goals_category_title)) {
+                Text(
+                    text = "Goal settings like daily/weekly steps are managed through the Goals feature",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 }
@@ -957,22 +911,25 @@ private fun StatisticsSettings() {
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            val autoUnitKey = context.getString(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_key)
-            val autoUnitDefault = context.getString(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_default).toBoolean()
-            var autoUnitSwitch by remember { mutableStateOf(prefs.getBoolean(autoUnitKey, autoUnitDefault)) }
-            
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_title),
-                subtitle = stringResource(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_summary),
-                checked = autoUnitSwitch,
-                onCheckedChange = {
-                    autoUnitSwitch = it
-                    prefs.edit { setBoolean(autoUnitKey, it) }
-                }
-            )
+            SettingsGroupCard(title = "General") {
+                val autoUnitKey = context.getString(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_key)
+                val autoUnitDefault = context.getString(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_default).toBoolean()
+                var autoUnitSwitch by remember { mutableStateOf(prefs.getBoolean(autoUnitKey, autoUnitDefault)) }
+                
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_title),
+                    subtitle = stringResource(com.adsamcik.tracker.shared.preferences.R.string.settings_statistics_auto_unit_switch_summary),
+                    checked = autoUnitSwitch,
+                    onCheckedChange = {
+                        autoUnitSwitch = it
+                        prefs.edit { setBoolean(autoUnitKey, it) }
+                    }
+                )
+            }
         }
     }
 }

@@ -1,7 +1,31 @@
 package com.adsamcik.tracker.map.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -13,17 +37,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.ui.bitmapDescriptorFromVector
+import com.adsamcik.tracker.shared.utils.style.compose.AppColors
+import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.google.android.gms.maps.GoogleMap
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
@@ -41,8 +69,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Phase 3 scaffolding: Compose-based MapScreen using Maps Compose.
- * Currently renders the base map and wires camera changes into the store.
- * Overlays and style will be added incrementally.
+ * Redesigned with custom Glass controls for "Immersive Cartography".
  */
 @Composable
 fun MapScreen(
@@ -50,19 +77,21 @@ fun MapScreen(
     overlayMode: Boolean = false,
     bottomPaddingPx: Int = 0,
     onGoogleMapReady: ((GoogleMap) -> Unit)? = null,
+    isLocationPermissionGranted: Boolean = false
 ) {
     val state by store.state.collectAsState()
 
     val cameraPositionState = rememberCameraPositionState()
 
+    // Disable default UI controls in favor of custom Glass overlays
     val ui = state.uiSettings
     val composeUi = remember(ui, overlayMode) {
         ComposeMapUiSettings(
-            mapToolbarEnabled = ui.isMapToolbarEnabled,
-            indoorLevelPickerEnabled = ui.isIndoorLevelPickerEnabled,
-            compassEnabled = ui.isCompassEnabled,
-            myLocationButtonEnabled = ui.isMyLocationButtonEnabled,
-            zoomControlsEnabled = false,
+            mapToolbarEnabled = false,
+            indoorLevelPickerEnabled = false,
+            compassEnabled = false, // We could implement a custom compass later
+            myLocationButtonEnabled = false, // Replacing with custom button
+            zoomControlsEnabled = false, // Replacing with gestures/custom
             scrollGesturesEnabled = !overlayMode,
             scrollGesturesEnabledDuringRotateOrZoom = !overlayMode,
             tiltGesturesEnabled = !overlayMode,
@@ -72,20 +101,21 @@ fun MapScreen(
     }
 
     val context = LocalContext.current
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    var mapProperties by remember {
-        mutableStateOf(
-            MapProperties(
-                mapStyleOptions = null
-            )
+    val density = LocalDensity.current
+    val bottomPaddingDp = with(density) { bottomPaddingPx.toDp() }
+    
+    // Use dark map style or standard based on theme (or force dark for Outdoor style?)
+    // For now respecting system theme but the UI is definitely dark-optimized.
+    val mapProperties = remember(isLocationPermissionGranted) {
+        MapProperties(
+            mapStyleOptions = null,
+            isMyLocationEnabled = isLocationPermissionGranted // Enable the blue dot layer only if permitted
         )
     }
 
-    // Map style removed - using default Google Maps styling
-
     val snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { _ ->
+    Box(Modifier.fillMaxSize()) {
         GoogleMap(
             modifier = if (overlayMode) Modifier.fillMaxSize().pointerInteropFilter { false } else Modifier.fillMaxSize(),
             properties = mapProperties,
@@ -95,87 +125,99 @@ fun MapScreen(
             onMapLongClick = { /* no-op */ },
             onPOIClick = { /* no-op */ },
         ) {
-        // Expose GoogleMap instance when available and set up listeners
-        MapEffect(Unit) { gMap ->
-            try { onGoogleMapReady?.invoke(gMap) } catch (_: Throwable) {}
-            gMap.setOnCameraMoveStartedListener { reason ->
-                if (!overlayMode && reason == com.google.android.gms.maps.GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                    store.dispatch(MapEvent.FollowCanceled)
-                }
-            }
-            // Camera idle -> prefetch surrounding tiles if heatmap provider active
-            gMap.setOnCameraIdleListener {
-                val provider = state.tileProvider
-                val hp = provider as? com.adsamcik.tracker.map.tiles.HeatmapTileProviderBase
-                if (hp != null) {
-                    try {
-                        val vr = gMap.projection.visibleRegion.latLngBounds
-                        val bounds = com.adsamcik.tracker.shared.map.CoordinateBounds(
-                            vr.northeast.latitude,
-                            vr.northeast.longitude,
-                            vr.southwest.latitude,
-                            vr.southwest.longitude
-                        )
-                        val zoom = gMap.cameraPosition.zoom.toInt()
-                        hp.prefetchViewport(bounds, zoom, borderTiles = 1)
-                    } catch (_: Throwable) {}
-                }
-            }
-        }
-        // Update Google Map padding when the bottom sheet visible height changes
-        MapEffect(bottomPaddingPx) { gMap ->
-            try {
-                gMap.setPadding(0, 0, 0, bottomPaddingPx)
-            } catch (_: Throwable) { /* ignore */ }
-        }
-        // Declarative overlays
-        val overlays = state.overlays
-        overlays.forEach { overlay ->
-            when (overlay) {
-                is MapOverlayState.UserMarker -> {
-                    val pos = com.google.android.gms.maps.model.LatLng(overlay.latLng.lat, overlay.latLng.lng)
-                    val markerState: MarkerState = rememberUpdatedMarkerState(position = pos)
-                    Marker(
-                        state = markerState,
-                        icon = remember(overlay.bearing) { 
-                            bitmapDescriptorFromVector(context, com.adsamcik.tracker.map.R.drawable.ic_heading_arrow, scale = 1.25f)
-                        },
-                        anchor = Offset(0.5f, 0.85f),
-                        rotation = overlay.bearing ?: 0f,
-                        flat = true
-                    )
-                }
-                is MapOverlayState.AccuracyCircle -> {
-                    Circle(
-                        center = com.google.android.gms.maps.model.LatLng(overlay.latLng.lat, overlay.latLng.lng),
-                        radius = overlay.radiusM,
-                        strokeColor = Color(0x55007AFF),
-                        fillColor = Color(0x22007AFF),
-                        strokeWidth = 2f
-                    )
-                }
-                is MapOverlayState.Polyline -> {
-                    val pts = remember(overlay.points) {
-                        overlay.points.map { p ->
-                            com.google.android.gms.maps.model.LatLng(p.lat, p.lng)
-                        }
+            // Expose GoogleMap instance when available and set up listeners
+            MapEffect(Unit) { gMap ->
+                try { onGoogleMapReady?.invoke(gMap) } catch (_: Throwable) {}
+                gMap.setOnCameraMoveStartedListener { reason ->
+                    if (!overlayMode && reason == com.google.android.gms.maps.GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                        store.dispatch(MapEvent.FollowCanceled)
                     }
-                    ComposePolyline(
-                        points = pts,
-                        color = Color(overlay.colorArgb),
-                        width = overlay.widthPx
-                    )
+                }
+                // Camera idle -> prefetch surrounding tiles if heatmap provider active
+                gMap.setOnCameraIdleListener {
+                    val provider = state.tileProvider
+                    val hp = provider as? com.adsamcik.tracker.map.tiles.HeatmapTileProviderBase
+                    if (hp != null) {
+                        try {
+                            val vr = gMap.projection.visibleRegion.latLngBounds
+                            val bounds = com.adsamcik.tracker.shared.map.CoordinateBounds(
+                                vr.northeast.latitude,
+                                vr.northeast.longitude,
+                                vr.southwest.latitude,
+                                vr.southwest.longitude
+                            )
+                            val zoom = gMap.cameraPosition.zoom.toInt()
+                            hp.prefetchViewport(bounds, zoom, borderTiles = 1)
+                        } catch (_: Throwable) {}
+                    }
                 }
             }
-        }
-
-        // Hoisted TileOverlay wired to legacy TileProvider
+            // Update Google Map padding for Google Logo/Copyright
+            MapEffect(bottomPaddingPx) { gMap ->
+                try {
+                    gMap.setPadding(0, 0, 0, bottomPaddingPx)
+                } catch (_: Throwable) { /* ignore */ }
+            }
+            // Declarative overlays
+            val overlays = state.overlays
+            overlays.forEach { overlay ->
+                when (overlay) {
+                    is MapOverlayState.UserMarker -> {
+                        val pos = com.google.android.gms.maps.model.LatLng(overlay.latLng.lat, overlay.latLng.lng)
+                        val markerState: MarkerState = rememberUpdatedMarkerState(position = pos)
+                        Marker(
+                            state = markerState,
+                            icon = remember(overlay.bearing) { 
+                                bitmapDescriptorFromVector(context, com.adsamcik.tracker.map.R.drawable.ic_heading_arrow, scale = 1.25f)
+                            },
+                            anchor = Offset(0.5f, 0.85f),
+                            rotation = overlay.bearing ?: 0f,
+                            flat = true
+                        )
+                    }
+                    is MapOverlayState.AccuracyCircle -> {
+                        Circle(
+                            center = com.google.android.gms.maps.model.LatLng(overlay.latLng.lat, overlay.latLng.lng),
+                            radius = overlay.radiusM,
+                            strokeColor = Color(0x55007AFF),
+                            fillColor = Color(0x22007AFF),
+                            strokeWidth = 2f
+                        )
+                    }
+                    is MapOverlayState.Polyline -> {
+                        val pts = remember(overlay.points) {
+                            overlay.points.map { p ->
+                                com.google.android.gms.maps.model.LatLng(p.lat, p.lng)
+                            }
+                        }
+                        ComposePolyline(
+                            points = pts,
+                            color = Color(overlay.colorArgb),
+                            width = overlay.widthPx
+                        )
+                    }
+                }
+            }
+    
+            // Hoisted TileOverlay wired to legacy TileProvider
             val provider = state.tileProvider
             if (provider != null) {
                 val tileState = remember { TileOverlayState() }
                 TileOverlay(state = tileState, tileProvider = provider)
             }
         }
+        
+        // Custom Controls Overlay
+        // All controls are now integrated into the MapSheet bottom bar for better reachability. 
+        if (!overlayMode) {
+             // Intentionally empty
+        }
+        
+        // Snackbar Host (positioned above controls?)
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPaddingDp + 16.dp)
+        )
     }
 
     // Emit camera change events
@@ -189,7 +231,6 @@ fun MapScreen(
                     tilt = pos.tilt,
                     bearing = pos.bearing,
                 )
-                // We cannot distinguish gesture vs programmatic here reliably; follow cancel is handled in onCameraMoveStarted.
                 store.dispatch(MapEvent.CameraMoved(model, byGesture = false))
             }
     }
@@ -200,11 +241,10 @@ fun MapScreen(
             when (effect) {
                 is com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera -> {
                     try {
-                        val padding = 32 // Reasonable padding in pixels
+                        val padding = 32
                         val update = com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(effect.bounds, padding)
-                        cameraPositionState.animate(update, 1000) // 1 second animation
+                        cameraPositionState.animate(update, 1000)
                     } catch (e: Exception) {
-                        // Fallback to simple camera move if bounds are invalid
                         val center = effect.bounds.center
                         val update = com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(center, 15f)
                         cameraPositionState.animate(update, 1000)
@@ -217,22 +257,15 @@ fun MapScreen(
                             .bearing(effect.bearing)
                             .build()
                         val update = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(newPos)
-                        cameraPositionState.animate(update, 500) // Shorter animation for bearing
-                    } catch (e: Exception) {
-                        // Ignore bearing update errors
-                    }
+                        cameraPositionState.animate(update, 500)
+                    } catch (e: Exception) { }
                 }
                 is com.adsamcik.tracker.map.presentation.udf.MapEffect.ShowFollowCanceled -> {
-                    try {
-                        snackbarHostState.showSnackbar("Follow canceled")
-                    } catch (e: Exception) {
-                        // Ignore snackbar errors
-                    }
+                    try { snackbarHostState.showSnackbar("Follow canceled") } catch (e: Exception) { }
                 }
-                is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode -> {
-                    // Handled by Fragment bridge; no-op here
-                }
+                is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode -> { }
             }
         }
     }
 }
+

@@ -90,7 +90,8 @@ internal class NotificationComponent :
 	}
 
 	fun onError(context: Context, @StringRes textRes: Int) {
-		val builder = requireTNotificationManager.createBuilder()
+		val manager = trackerNotificationManager ?: return
+		val builder = manager.createBuilder()
 		builder.setContentTitle(context.getString(textRes))
 		notify(builder)
 	}

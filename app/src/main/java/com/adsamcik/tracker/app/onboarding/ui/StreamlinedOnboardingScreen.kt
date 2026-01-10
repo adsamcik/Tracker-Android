@@ -2,28 +2,62 @@ package com.adsamcik.tracker.app.onboarding.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.app.onboarding.data.*
-import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionSelector
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
+import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionSelector
+import com.adsamcik.tracker.shared.utils.style.compose.PrimaryActionButton
+import androidx.compose.ui.platform.testTag
 
 /**
  * Streamlined single-screen onboarding following Apple-style philosophy:
+ * Redesigned with "Outdoor Modern" aesthetic.
  * - Single welcome screen with clear value proposition
  * - Location precision choice (APPROXIMATE vs PRECISE)
  * - Smart defaults applied immediately (no configuration required)
@@ -37,23 +71,28 @@ fun StreamlinedOnboardingScreen(
 ) {
     var showPrecisionSelector by remember { mutableStateOf(false) }
     
-    if (showPrecisionSelector) {
-        // Show location precision selection screen
-        LocationPrecisionSelectorScreen(
-            onModeSelected = { mode ->
-                onComplete(mode)
-            },
-            onBack = {
-                showPrecisionSelector = false
-            },
-            modifier = modifier
-        )
-    } else {
-        // Show welcome screen
-        WelcomeScreen(
-            onGetStarted = { showPrecisionSelector = true },
-            modifier = modifier
-        )
+    // Background container
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (showPrecisionSelector) {
+            // Show location precision selection screen
+            LocationPrecisionSelectorScreen(
+                onModeSelected = { mode ->
+                    onComplete(mode)
+                },
+                onBack = {
+                    showPrecisionSelector = false
+                }
+            )
+        } else {
+            // Show welcome screen
+            WelcomeScreen(
+                onGetStarted = { showPrecisionSelector = true }
+            )
+        }
     }
 }
 
@@ -66,6 +105,7 @@ private fun WelcomeScreen(
     modifier: Modifier = Modifier
 ) {
     Scaffold(
+        containerColor = Color.Transparent, // Let DeepVoid show through
         contentWindowInsets = WindowInsets.safeDrawing
     ) { contentPadding ->
         Column(
@@ -105,7 +145,7 @@ private fun WelcomeScreen(
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onSurface
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -145,17 +185,13 @@ private fun WelcomeScreen(
             Spacer(modifier = Modifier.height(48.dp))
             
             // Primary CTA
-            Button(
+            PrimaryActionButton(
+                text = stringResource(R.string.onboarding_get_started),
                 onClick = onGetStarted,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.onboarding_get_started),
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+                    .testTag("onboarding_cta_primary")
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -163,7 +199,10 @@ private fun WelcomeScreen(
             TextButton(
                 onClick = { /* Future: navigate to feature overview */ }
             ) {
-                Text(text = stringResource(R.string.onboarding_learn_more))
+                Text(
+                    text = stringResource(R.string.onboarding_learn_more),
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             
             Spacer(modifier = Modifier.height(32.dp))
@@ -174,7 +213,7 @@ private fun WelcomeScreen(
 /**
  * Location precision selector screen
  */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LocationPrecisionSelectorScreen(
     onModeSelected: (LocationPrecisionMode) -> Unit,
@@ -184,15 +223,26 @@ private fun LocationPrecisionSelectorScreen(
     var selectedMode by remember { mutableStateOf<LocationPrecisionMode?>(null) }
     
     Scaffold(
+        containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             CenterAlignedTopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.testTag("onboarding_cta_back").size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack, 
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
+                )
             )
         }
     ) { contentPadding ->
@@ -200,39 +250,40 @@ private fun LocationPrecisionSelectorScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(contentPadding)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
                 .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            // Scrollable content area
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Use the LocationPrecisionSelector component
+                LocationPrecisionSelector(
+                    selectedMode = selectedMode,
+                    onModeSelected = { mode ->
+                        selectedMode = mode
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+            }
             
-            // Use the LocationPrecisionSelector component
-            LocationPrecisionSelector(
-                selectedMode = selectedMode,
-                onModeSelected = { mode ->
-                    selectedMode = mode
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Continue button
-            Button(
-                onClick = {
-                    selectedMode?.let { onModeSelected(it) }
-                },
-                enabled = selectedMode != null,
+            // Continue button - pinned at bottom
+            PrimaryActionButton(
+                text = stringResource(R.string.button_continue),
+                onClick = { selectedMode?.let { onModeSelected(it) } },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.button_continue),
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+                    .testTag("onboarding_cta_primary"),
+                enabled = selectedMode != null
+            )
             
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -267,7 +318,7 @@ private fun BenefitItem(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onSurface
             )
             
             Spacer(modifier = Modifier.height(4.dp))
@@ -290,14 +341,3 @@ fun StreamlinedOnboardingScreenPreview() {
         )
     }
 }
-
-@Preview(showBackground = true)
-@Composable
-fun WelcomeScreenPreview() {
-    MaterialTheme {
-        WelcomeScreen(
-            onGetStarted = {}
-        )
-    }
-}
-

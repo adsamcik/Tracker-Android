@@ -3,6 +3,8 @@ package com.adsamcik.tracker.app.ui
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
@@ -53,6 +55,7 @@ import android.content.pm.PackageManager
 import com.adsamcik.tracker.app.tracker.ui.UpgradeToPrecisePrompt
 import com.adsamcik.tracker.app.tracker.ui.UpgradeReason
 import com.adsamcik.tracker.shared.preferences.R as PrefR
+import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 
 /**
  * Main composition root hosting NavHost and the animated bottom bar.
@@ -63,6 +66,8 @@ import com.adsamcik.tracker.shared.preferences.R as PrefR
 @Composable
 fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}) {
     val viewModel: MainViewModel = hiltViewModel()
+
+    val hazeState = remember { HazeState() }
     
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
@@ -175,110 +180,35 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
         }
     }
 
-    Scaffold(
-        bottomBar = {
-            val barElevation by animateDpAsState(
-                viewModel.getBarElevationDp().dp,
-                animationSpec = spring(stiffness = Spring.StiffnessLow), label = "bar-elev"
-            )
-            Surface(tonalElevation = barElevation) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Tracker (Home)
-                    val isTrackerSelected = currentDestination?.hierarchy?.any { it.hasRoute<Tracker>() } == true
-                    IconButton(onClick = {
-                        navController.navigate(Tracker) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }, modifier = Modifier
-                        .testTag("nav_tracker")
-                        .semantics { selected = isTrackerSelected }
-                    ) {
-                        Icon(
-                            Icons.Filled.Home,
-                            contentDescription = "Tracker",
-                            tint = if (isTrackerSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    
-                    // Stats
-                    val isStatsSelected = currentDestination?.hierarchy?.any { it.hasRoute<Stats>() } == true
-                    IconButton(onClick = {
-                        navController.navigate(Stats) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }, modifier = Modifier
-                        .testTag("nav_stats")
-                        .semantics { selected = isStatsSelected }
-                    ) {
-                        Icon(
-                            Icons.Filled.BarChart,
-                            contentDescription = "Stats",
-                            tint = if (isStatsSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+    // Navigation Items
+    val navItems = remember {
+        listOf(
+            NavigationItem(Tracker, Icons.Filled.Home, "Tracker", "nav_tracker"),
+            NavigationItem(Stats, Icons.Filled.BarChart, "Stats", "nav_stats"),
+            NavigationItem(Map, Icons.Filled.Map, "Map", "nav_map"),
+            NavigationItem(Game, Icons.Filled.VideogameAsset, "Game", "nav_game")
+        )
+    }
 
-                    // Map
-                    val isMapSelected = currentDestination?.hierarchy?.any { it.hasRoute<Map>() } == true
-                    IconButton(onClick = {
-                        navController.navigate(Map) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }, modifier = Modifier
-                        .testTag("nav_map")
-                        .semantics { selected = isMapSelected }
-                    ) {
-                        Icon(
-                            Icons.Filled.Map,
-                            contentDescription = "Map",
-                            tint = if (isMapSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+    // Determine if we need bottom padding (overlap map, pad others)
+    val isMap = currentDestination?.hasRoute<Map>() == true
+    val bottomPadding = if (isMap || isTracker) 0.dp else 96.dp // 72 bar + 24 padding
 
-                    // Game
-                    val isGameSelected = currentDestination?.hierarchy?.any { it.hasRoute<Game>() } == true
-                    IconButton(onClick = {
-                        navController.navigate(Game) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }, modifier = Modifier
-                        .testTag("nav_game")
-                        .semantics { selected = isGameSelected }
-                    ) {
-                        Icon(
-                            Icons.Filled.VideogameAsset,
-                            contentDescription = "Game",
-                            tint = if (isGameSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    ) { paddingValues ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background) // Set main background color
+    ) {
         NavHost(
             navController = navController,
             startDestination = startDestination,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .hazeSource(state = hazeState)
+                .padding(bottom = bottomPadding)
         ) {
-
             composable<Tracker> {
+                val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 com.adsamcik.tracker.tracker.ui.compose.TrackerRoute(
                     onOpenSettings = {
                         navController.navigate(Settings) {
@@ -291,19 +221,51 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                             restoreState = true
                         }
                     },
-                    onOpenGame = {
-                        navController.navigate(Game) {
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
+                    contentPadding = PaddingValues(bottom = 96.dp + navBarPad)
                 )
             }
-            composable<Map> { com.adsamcik.tracker.map.ui.MapRoute() }
+            composable<Map> { 
+                val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                com.adsamcik.tracker.map.ui.MapRoute(
+                    contentPadding = PaddingValues(bottom = 96.dp + navBarPad)
+                ) 
+            }
             composable<Stats> { com.adsamcik.tracker.statistics.fragment.StatsRoute() }
             composable<Game> { com.adsamcik.tracker.game.ui.compose.GameRoute() }
             composable<Debug> { com.adsamcik.tracker.app.debug.DebugRoute() }
             composable<Settings> { com.adsamcik.tracker.app.settings.SettingsRoute() }
         }
+
+        // Floating Navigation Bar (overlay)
+        val currentRouteObj = navItems.find { item ->
+            currentDestination?.hierarchy?.any { 
+                when(item.id) {
+                    Tracker -> it.hasRoute<Tracker>()
+                    Stats -> it.hasRoute<Stats>()
+                    Map -> it.hasRoute<Map>()
+                    Game -> it.hasRoute<Game>()
+                    else -> false
+                }
+            } == true
+        }
+
+        if (currentRouteObj != null) {
+            FloatingNavigationBar(
+                items = navItems,
+                selectedItem = currentRouteObj,
+                onItemClick = { item ->
+                    navController.navigate(item.id) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding(), // Avoid overlap with system navigation
+                hazeState = hazeState
+            )
+        }
     }
 }
+

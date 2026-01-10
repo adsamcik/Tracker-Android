@@ -1,50 +1,50 @@
 package com.adsamcik.tracker.game.ui.compose
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
-import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.shared.utils.style.compose.AppColors
+import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 data class StepsSummaryUi(
     val stepsToday: Int,
@@ -68,25 +68,31 @@ fun GameScreen(
     modifier: Modifier = Modifier,
     isLoadingChallenges: Boolean = false
 ) {
-    LazyColumn(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            PointsCard(pointsToday)
-        }
-        item {
-            steps?.let { StepsCard(it) }
-        }
-        item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
-        when {
-            isLoadingChallenges -> item { ChallengesLoadingState() }
-            challenges.isEmpty() -> item { ChallengesEmptyState() }
-            else -> items(challenges, key = { it.id }) { ch ->
-                ChallengeCard(ch)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp), // Bottom padding for floating nav
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                PointsCard(pointsToday)
+            }
+            item {
+                steps?.let { StepsCard(it) }
+            }
+            item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
+            when {
+                isLoadingChallenges -> item { ChallengesLoadingState() }
+                challenges.isEmpty() -> item { ChallengesEmptyState() }
+                else -> items(challenges, key = { it.id }) { ch ->
+                    ChallengeCard(ch)
+                }
             }
         }
     }
@@ -97,6 +103,7 @@ private fun SectionHeader(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(horizontal = 16.dp)
     )
 }
@@ -104,68 +111,84 @@ private fun SectionHeader(text: String) {
 @Composable
 private fun PointsCard(points: Int) {
     val detailsLabel = stringResource(R.string.game_points_details)
-    ElevatedCard(
+    GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
-            .fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors()
+            .fillMaxWidth()
     ) {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+            Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Outlined.Star,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.Star,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Column(Modifier.padding(start = 16.dp)) {
-                    Text(text = points.toString(), style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        text = points.toString(), 
+                        style = MaterialTheme.typography.displaySmall, 
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Text(
                         text = stringResource(R.string.points_earned_today),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            AssistChip(
-                onClick = {},
-                label = { Text(detailsLabel) },
+            // Detail button or chip
+            Box(
                 modifier = Modifier
-                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { /* Detail action */ }
+                    .padding(8.dp)
                     .semantics { contentDescription = detailsLabel }
-            )
+            ) {
+                 // Simplified action indicator, perhaps an arrow
+            }
         }
     }
 }
 
 @Composable
 private fun StepsCard(steps: StepsSummaryUi) {
-    ElevatedCard(
+    GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Outlined.DirectionsWalk,
                     contentDescription = null,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(24.dp),
+                    tint = AppColors.ActivityWalk // Keeping specific activity color
                 )
                 Text(
                     text = stringResource(R.string.game_steps_goals_title),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(start = 12.dp)
                 )
             }
             Row(
                 Modifier
-                    .padding(top = 12.dp)
+                    .padding(top = 16.dp)
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
@@ -178,23 +201,43 @@ private fun StepsCard(steps: StepsSummaryUi) {
 
 @Composable
 private fun Stat(label: String, value: Int, goal: Int) {
-    Column() {
-        Text(text = label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text = "$value / $goal", style = MaterialTheme.typography.titleLarge)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = "$value / $goal", 
+            style = MaterialTheme.typography.titleMedium, 
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        // Simple progress bar
+        val progress = if (goal > 0) (value.toFloat() / goal).coerceIn(0f, 1f) else 0f
+        Box(
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .width(80.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .height(4.dp)
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
     }
 }
 
 @Composable
 private fun ChallengesLoadingState() {
-    ElevatedCard(
+    GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth()
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 48.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -202,7 +245,8 @@ private fun ChallengesLoadingState() {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(40.dp),
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = stringResource(R.string.game_loading),
@@ -216,25 +260,22 @@ private fun ChallengesLoadingState() {
 
 @Composable
 private fun ChallengesEmptyState() {
-    ElevatedCard(
+    GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
-            .fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+            .fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(40.dp),
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Icon(
                 imageVector = Icons.Outlined.EmojiEvents,
                 contentDescription = null,
-                modifier = Modifier.size(72.dp),
+                modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
             )
             Text(
@@ -256,7 +297,7 @@ private fun ChallengesEmptyState() {
 @Composable
 private fun ChallengeCard(ch: ChallengeUi) {
     val challengeDesc = "${ch.title}: ${(ch.progress * 100).toInt()}% complete"
-    ElevatedCard(
+    GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth()
@@ -264,18 +305,24 @@ private fun ChallengeCard(ch: ChallengeUi) {
             .semantics { contentDescription = challengeDesc }
     ) {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Outlined.EmojiEvents,
                 contentDescription = null,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
-            Column(Modifier.padding(start = 12.dp)) {
-                Text(text = ch.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.padding(start = 12.dp, end = 8.dp).weight(1f)) {
+                Text(
+                    text = ch.title, 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1, 
+                    overflow = TextOverflow.Ellipsis
+                )
                 AnimatedVisibility(visible = ch.description.isNotBlank()) {
                     Text(
                         text = ch.description,
@@ -285,13 +332,30 @@ private fun ChallengeCard(ch: ChallengeUi) {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Text(
-                    text = "${(ch.progress * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
+                
+                // Progress bar
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(ch.progress)
+                            .height(4.dp)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
             }
+            Text(
+                text = "${(ch.progress * 100).toInt()}%",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 8.dp)
+            )
         }
     }
 }

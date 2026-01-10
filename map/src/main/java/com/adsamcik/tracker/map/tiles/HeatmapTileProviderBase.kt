@@ -61,7 +61,10 @@ internal abstract class HeatmapTileProviderBase(
         firstDebounceAt = now
         invalidateJob = cacheScope.launch {
             delay(150)
-            invalidateTilesCb()
+            // TileOverlay.clearTileCache() must be called on the main thread
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                invalidateTilesCb()
+            }
         }
     }
     private val dataCache = HeatmapDataCache(repo, cacheScope, onEntryReady = { scheduleInvalidate() }, ioDispatcher = ioDispatcher)

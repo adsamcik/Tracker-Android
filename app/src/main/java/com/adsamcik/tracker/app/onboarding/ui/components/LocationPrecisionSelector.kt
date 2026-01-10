@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.app.onboarding.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,11 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.GpsNotFixed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.app.common.ui.BatteryImpactIndicator
+import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 /**
  * Location precision modes for tracking
@@ -121,39 +123,39 @@ private fun PrecisionModeCard(
         )
     }
 
-    Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surface
-        ),
-        border = if (isSelected)
-            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-        else
-            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    GlassCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, com.adsamcik.tracker.shared.utils.style.compose.AppShapes.GlassCard) 
+                else Modifier
+            )
+            .clickable { onClick() },
+        showBorder = true
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .fillMaxWidth() // GlassCard applies padding internally, but we might want more?
+                // GlassCard padding is 16.dp via content wrapper? No, the caller does it.
+                // Checking GlassCard impl: it passes content to `Box(Modifier.padding(16.dp))`. 
+                // So I don't need extra padding.
+                ,
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             RadioButton(
                 selected = isSelected,
-                onClick = onClick
+                onClick = null, // Handled by card click
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = MaterialTheme.colorScheme.primary,
+                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
 
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected)
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                else
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Column(
@@ -163,19 +165,13 @@ private fun PrecisionModeCard(
                 Text(
                     text = stringResource(titleRes),
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (isSelected)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Text(
                     text = stringResource(descriptionRes),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isSelected)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 BatteryImpactIndicator(

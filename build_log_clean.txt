@@ -1,0 +1,735 @@
+> Task :clean
+> Task :activity:clean
+> Task :app:debugOssLicensesCleanUp
+> Task :app:devOssLicensesCleanUp
+> Task :app:releaseOssLicensesCleanUp
+> Task :app:release_nominifyOssLicensesCleanUp
+> Task :app:clean
+> Task :game:clean
+> Task :impexp:clean
+> Task :logger:clean
+> Task :map:clean
+> Task :points:clean
+> Task :sbase:clean
+> Task :smap:clean
+> Task :spreferences:clean
+> Task :statistics:clean
+> Task :sutils:clean
+> Task :testing-common:clean
+> Task :tracker:clean
+> Task :activity:preBuild UP-TO-DATE
+> Task :activity:preDebugBuild UP-TO-DATE
+> Task :logger:preBuild UP-TO-DATE
+> Task :logger:preDebugBuild UP-TO-DATE
+> Task :sbase:preBuild UP-TO-DATE
+> Task :sbase:preDebugBuild UP-TO-DATE
+> Task :spreferences:preBuild UP-TO-DATE
+> Task :spreferences:preDebugBuild UP-TO-DATE
+> Task :sutils:preBuild UP-TO-DATE
+> Task :sutils:preDebugBuild UP-TO-DATE
+> Task :logger:writeDebugAarMetadata
+> Task :sutils:writeDebugAarMetadata
+> Task :spreferences:writeDebugAarMetadata
+> Task :sbase:writeDebugAarMetadata
+> Task :activity:mergeDebugJniLibFolders
+> Task :activity:mergeDebugNativeLibs NO-SOURCE
+> Task :activity:stripDebugDebugSymbols NO-SOURCE
+> Task :activity:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :activity:generateDebugResValues
+> Task :activity:copyDebugJniLibsProjectAndLocalJars
+> Task :activity:generateDebugResources
+> Task :activity:checkDebugAarMetadata
+> Task :activity:packageDebugResources
+> Task :activity:processDebugNavigationResources
+> Task :logger:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :logger:generateDebugBuildConfig
+> Task :logger:generateDebugResValues
+> Task :logger:generateDebugResources
+> Task :logger:packageDebugResources
+> Task :logger:processDebugNavigationResources
+> Task :logger:ensureKspDir
+> Task :sbase:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sbase:generateDebugBuildConfig
+> Task :sbase:generateDebugResValues
+> Task :sbase:generateDebugResources
+> Task :logger:parseDebugLocalResources
+> Task :activity:parseDebugLocalResources
+> Task :sbase:packageDebugResources
+> Task :sbase:processDebugNavigationResources
+> Task :logger:generateDebugRFile
+> Task :activity:generateDebugRFile
+> Task :spreferences:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :spreferences:generateDebugBuildConfig
+> Task :spreferences:extractDebugProto
+> Task :spreferences:extractProto
+> Task :spreferences:generateDebugResValues
+> Task :spreferences:generateDebugResources
+> Task :sbase:parseDebugLocalResources
+> Task :sbase:javaPreCompileDebug
+> Task :spreferences:packageDebugResources
+> Task :spreferences:processDebugNavigationResources
+> Task :sutils:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sutils:generateDebugResValues
+> Task :sutils:generateDebugResources
+> Task :spreferences:parseDebugLocalResources
+> Task :spreferences:javaPreCompileDebug
+> Task :logger:javaPreCompileDebug
+> Task :sbase:generateDebugRFile
+> Task :sutils:packageDebugResources
+> Task :sutils:processDebugNavigationResources
+> Task :spreferences:generateDebugRFile
+> Task :sutils:parseDebugLocalResources
+> Task :activity:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :activity:mergeDebugShaders
+> Task :activity:compileDebugShaders NO-SOURCE
+> Task :activity:generateDebugAssets UP-TO-DATE
+> Task :activity:mergeDebugAssets
+> Task :activity:javaPreCompileDebug
+> Task :activity:prepareDebugArtProfile UP-TO-DATE
+> Task :activity:prepareLintJarForPublish UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :sutils:javaPreCompileDebug
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :activity:writeDebugAarMetadata
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig
+> Task :sutils:generateDebugRFile
+> Task :game:preBuild UP-TO-DATE
+> Task :game:preDebugBuild UP-TO-DATE
+> Task :impexp:preBuild UP-TO-DATE
+> Task :impexp:preDebugBuild UP-TO-DATE
+> Task :game:writeDebugAarMetadata
+> Task :activity:compileDebugLibraryResources
+> Task :map:preBuild UP-TO-DATE
+> Task :map:preDebugBuild UP-TO-DATE
+> Task :points:preBuild UP-TO-DATE
+> Task :points:preDebugBuild UP-TO-DATE
+> Task :map:writeDebugAarMetadata
+> Task :smap:preBuild UP-TO-DATE
+> Task :smap:preDebugBuild UP-TO-DATE
+> Task :impexp:writeDebugAarMetadata
+> Task :points:writeDebugAarMetadata
+> Task :statistics:preBuild UP-TO-DATE
+> Task :statistics:preDebugBuild UP-TO-DATE
+> Task :smap:writeDebugAarMetadata
+> Task :tracker:preBuild UP-TO-DATE
+> Task :tracker:preDebugBuild UP-TO-DATE
+> Task :statistics:writeDebugAarMetadata
+> Task :tracker:writeDebugAarMetadata
+> Task :game:processDebugNavigationResources
+> Task :activity:processDebugManifest
+> Task :impexp:processDebugNavigationResources
+> Task :map:processDebugNavigationResources
+> Task :points:processDebugNavigationResources
+> Task :smap:processDebugNavigationResources
+> Task :statistics:processDebugNavigationResources
+> Task :tracker:processDebugNavigationResources
+> Task :app:checkDebugAarMetadata
+> Task :app:processDebugNavigationResources
+> Task :app:compileDebugNavigationResources
+> Task :app:debugOssDependencyTask
+> Task :app:debugOssLicensesTask
+> Task :app:generateDebugResValues
+> Task :app:processDebugGoogleServices
+> Task :game:generateDebugResValues
+> Task :game:generateDebugResources
+> Task :game:packageDebugResources
+> Task :impexp:generateDebugResValues
+> Task :impexp:generateDebugResources
+> Task :impexp:packageDebugResources
+> Task :map:generateDebugResValues
+> Task :map:generateDebugResources
+> Task :map:packageDebugResources
+> Task :points:generateDebugResValues
+> Task :points:generateDebugResources
+> Task :points:packageDebugResources
+> Task :smap:generateDebugResValues
+> Task :smap:generateDebugResources
+> Task :smap:packageDebugResources
+> Task :statistics:generateDebugResValues
+> Task :statistics:generateDebugResources
+> Task :statistics:packageDebugResources
+> Task :tracker:generateDebugResValues
+> Task :tracker:generateDebugResources
+> Task :tracker:packageDebugResources
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :activity:extractDeepLinksDebug
+> Task :app:extractDeepLinksDebug
+> Task :game:extractDeepLinksDebug
+> Task :impexp:extractDeepLinksDebug
+> Task :logger:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :game:processDebugManifest
+> Task :impexp:processDebugManifest
+> Task :map:extractDeepLinksDebug
+> Task :logger:processDebugManifest
+> Task :points:extractDeepLinksDebug
+> Task :sbase:extractDeepLinksDebug
+> Task :map:processDebugManifest
+> Task :points:processDebugManifest
+> Task :smap:extractDeepLinksDebug
+> Task :sbase:processDebugManifest
+> Task :spreferences:extractDeepLinksDebug
+> Task :smap:processDebugManifest
+> Task :statistics:extractDeepLinksDebug
+> Task :sutils:extractDeepLinksDebug
+
+> Task :spreferences:processDebugManifest
+package="com.adsamcik.tracker.shared.preferences" found in source AndroidManifest.xml: G:\Github\Tracker-Android\spreferences\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.adsamcik.tracker.shared.preferences" from the source AndroidManifest.xml: G:\Github\Tracker-Android\spreferences\src\main\AndroidManifest.xml.
+
+> Task :tracker:extractDeepLinksDebug
+> Task :sutils:processDebugManifest
+> Task :statistics:processDebugManifest
+> Task :tracker:processDebugManifest
+> Task :game:compileDebugLibraryResources
+> Task :game:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :impexp:compileDebugLibraryResources
+> Task :impexp:parseDebugLocalResources
+> Task :logger:compileDebugLibraryResources
+> Task :app:processDebugManifestForPackage
+> Task :game:generateDebugRFile
+> Task :points:compileDebugLibraryResources
+> Task :map:compileDebugLibraryResources
+> Task :impexp:generateDebugRFile
+> Task :app:mergeDebugResources
+> Task :map:parseDebugLocalResources
+> Task :points:parseDebugLocalResources
+> Task :spreferences:compileDebugLibraryResources
+> Task :smap:parseDebugLocalResources
+> Task :statistics:compileDebugLibraryResources
+> Task :points:generateDebugRFile
+> Task :smap:compileDebugLibraryResources
+> Task :smap:generateDebugRFile
+> Task :sutils:compileDebugLibraryResources
+> Task :map:generateDebugRFile
+> Task :statistics:parseDebugLocalResources
+> Task :game:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :game:extractDebugProto
+> Task :points:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :tracker:compileDebugLibraryResources
+> Task :game:extractProto
+> Task :tracker:parseDebugLocalResources
+> Task :statistics:generateDebugRFile
+> Task :points:javaPreCompileDebug
+> Task :impexp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :impexp:extractDebugProto
+> Task :impexp:extractProto
+> Task :map:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:javaPreCompileDebug
+> Task :map:javaPreCompileDebug
+> Task :tracker:generateDebugRFile
+> Task :statistics:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :impexp:javaPreCompileDebug
+> Task :tracker:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :tracker:extractDebugProto
+> Task :tracker:extractProto
+> Task :game:javaPreCompileDebug
+> Task :tracker:javaPreCompileDebug
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :game:mergeDebugShaders
+> Task :game:compileDebugShaders NO-SOURCE
+> Task :game:generateDebugAssets UP-TO-DATE
+> Task :game:mergeDebugAssets
+> Task :impexp:mergeDebugShaders
+> Task :impexp:compileDebugShaders NO-SOURCE
+> Task :impexp:generateDebugAssets UP-TO-DATE
+> Task :impexp:mergeDebugAssets
+> Task :logger:mergeDebugShaders
+> Task :logger:compileDebugShaders NO-SOURCE
+> Task :logger:generateDebugAssets UP-TO-DATE
+> Task :logger:mergeDebugAssets
+> Task :map:mergeDebugShaders
+> Task :map:compileDebugShaders NO-SOURCE
+> Task :map:generateDebugAssets UP-TO-DATE
+> Task :map:mergeDebugAssets
+> Task :points:mergeDebugShaders
+> Task :points:compileDebugShaders NO-SOURCE
+> Task :points:generateDebugAssets UP-TO-DATE
+> Task :points:mergeDebugAssets
+> Task :sbase:mergeDebugShaders
+> Task :sbase:compileDebugShaders NO-SOURCE
+> Task :sbase:generateDebugAssets UP-TO-DATE
+> Task :sbase:mergeDebugAssets
+> Task :statistics:javaPreCompileDebug
+> Task :smap:mergeDebugShaders
+> Task :smap:compileDebugShaders NO-SOURCE
+> Task :smap:generateDebugAssets UP-TO-DATE
+> Task :smap:mergeDebugAssets
+> Task :spreferences:mergeDebugShaders
+> Task :spreferences:compileDebugShaders NO-SOURCE
+> Task :spreferences:generateDebugAssets UP-TO-DATE
+> Task :spreferences:mergeDebugAssets
+> Task :statistics:mergeDebugShaders
+> Task :statistics:compileDebugShaders NO-SOURCE
+> Task :statistics:generateDebugAssets UP-TO-DATE
+> Task :statistics:mergeDebugAssets
+> Task :sutils:mergeDebugShaders
+> Task :sutils:compileDebugShaders NO-SOURCE
+> Task :sutils:generateDebugAssets UP-TO-DATE
+> Task :sutils:mergeDebugAssets
+> Task :tracker:mergeDebugShaders
+> Task :tracker:compileDebugShaders NO-SOURCE
+> Task :tracker:generateDebugAssets UP-TO-DATE
+> Task :tracker:mergeDebugAssets
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:generateDebugJacocoPropertiesFile
+> Task :activity:copyDebugJniLibsProjectOnly
+> Task :app:mergeDebugJniLibFolders
+> Task :game:mergeDebugJniLibFolders
+> Task :game:mergeDebugNativeLibs NO-SOURCE
+> Task :game:copyDebugJniLibsProjectOnly
+> Task :impexp:mergeDebugJniLibFolders
+> Task :impexp:mergeDebugNativeLibs NO-SOURCE
+> Task :impexp:copyDebugJniLibsProjectOnly
+> Task :logger:mergeDebugJniLibFolders
+> Task :logger:mergeDebugNativeLibs NO-SOURCE
+> Task :logger:copyDebugJniLibsProjectOnly
+> Task :map:mergeDebugJniLibFolders
+> Task :map:mergeDebugNativeLibs NO-SOURCE
+> Task :map:copyDebugJniLibsProjectOnly
+> Task :points:mergeDebugJniLibFolders
+> Task :points:mergeDebugNativeLibs NO-SOURCE
+> Task :points:copyDebugJniLibsProjectOnly
+> Task :sbase:mergeDebugJniLibFolders
+> Task :sbase:mergeDebugNativeLibs NO-SOURCE
+> Task :sbase:copyDebugJniLibsProjectOnly
+> Task :smap:mergeDebugJniLibFolders
+> Task :smap:mergeDebugNativeLibs NO-SOURCE
+> Task :smap:copyDebugJniLibsProjectOnly
+> Task :spreferences:mergeDebugJniLibFolders
+> Task :spreferences:mergeDebugNativeLibs NO-SOURCE
+> Task :statistics:mergeDebugJniLibFolders
+> Task :spreferences:copyDebugJniLibsProjectOnly
+> Task :statistics:mergeDebugNativeLibs NO-SOURCE
+> Task :statistics:copyDebugJniLibsProjectOnly
+> Task :sutils:mergeDebugJniLibFolders
+> Task :sutils:mergeDebugNativeLibs NO-SOURCE
+> Task :sutils:copyDebugJniLibsProjectOnly
+> Task :tracker:mergeDebugJniLibFolders
+> Task :tracker:mergeDebugNativeLibs NO-SOURCE
+> Task :tracker:copyDebugJniLibsProjectOnly
+> Task :app:validateSigningDebug
+> Task :sbase:compileDebugLibraryResources
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :game:stripDebugDebugSymbols NO-SOURCE
+> Task :game:copyDebugJniLibsProjectAndLocalJars
+> Task :game:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :app:mergeDebugNativeLibs
+> Task :game:prepareDebugArtProfile UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses
+> Task :game:prepareLintJarForPublish UP-TO-DATE
+> Task :game:checkDebugAarMetadata
+> Task :impexp:stripDebugDebugSymbols NO-SOURCE
+> Task :impexp:copyDebugJniLibsProjectAndLocalJars
+> Task :impexp:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :impexp:prepareDebugArtProfile UP-TO-DATE
+> Task :impexp:prepareLintJarForPublish UP-TO-DATE
+> Task :app:stripDebugDebugSymbols
+> Task :logger:stripDebugDebugSymbols NO-SOURCE
+> Task :logger:copyDebugJniLibsProjectAndLocalJars
+> Task :logger:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :logger:prepareDebugArtProfile UP-TO-DATE
+> Task :logger:prepareLintJarForPublish UP-TO-DATE
+> Task :map:stripDebugDebugSymbols NO-SOURCE
+> Task :map:copyDebugJniLibsProjectAndLocalJars
+> Task :map:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :map:prepareDebugArtProfile UP-TO-DATE
+> Task :map:prepareLintJarForPublish UP-TO-DATE
+> Task :impexp:checkDebugAarMetadata
+> Task :points:stripDebugDebugSymbols NO-SOURCE
+> Task :points:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :points:copyDebugJniLibsProjectAndLocalJars
+> Task :points:prepareDebugArtProfile UP-TO-DATE
+> Task :points:prepareLintJarForPublish UP-TO-DATE
+> Task :sbase:stripDebugDebugSymbols NO-SOURCE
+> Task :sbase:copyDebugJniLibsProjectAndLocalJars
+> Task :sbase:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :sbase:prepareDebugArtProfile UP-TO-DATE
+> Task :sbase:prepareLintJarForPublish UP-TO-DATE
+> Task :logger:checkDebugAarMetadata
+> Task :sbase:checkDebugAarMetadata
+> Task :smap:stripDebugDebugSymbols NO-SOURCE
+> Task :smap:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :smap:copyDebugJniLibsProjectAndLocalJars
+> Task :smap:prepareDebugArtProfile UP-TO-DATE
+> Task :map:checkDebugAarMetadata
+> Task :smap:prepareLintJarForPublish UP-TO-DATE
+> Task :points:checkDebugAarMetadata
+> Task :spreferences:stripDebugDebugSymbols NO-SOURCE
+> Task :spreferences:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :spreferences:copyDebugJniLibsProjectAndLocalJars
+> Task :spreferences:prepareDebugArtProfile UP-TO-DATE
+> Task :spreferences:prepareLintJarForPublish UP-TO-DATE
+> Task :statistics:stripDebugDebugSymbols NO-SOURCE
+> Task :statistics:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :statistics:copyDebugJniLibsProjectAndLocalJars
+> Task :statistics:prepareDebugArtProfile UP-TO-DATE
+> Task :statistics:prepareLintJarForPublish UP-TO-DATE
+> Task :spreferences:checkDebugAarMetadata
+> Task :smap:checkDebugAarMetadata
+> Task :sutils:stripDebugDebugSymbols NO-SOURCE
+> Task :sutils:copyDebugJniLibsProjectAndLocalJars
+> Task :sutils:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :sutils:prepareDebugArtProfile UP-TO-DATE
+> Task :sutils:prepareLintJarForPublish UP-TO-DATE
+> Task :testing-common:preBuild UP-TO-DATE
+> Task :testing-common:preDebugBuild UP-TO-DATE
+> Task :statistics:checkDebugAarMetadata
+> Task :sutils:checkDebugAarMetadata
+> Task :testing-common:mergeDebugJniLibFolders
+> Task :testing-common:mergeDebugNativeLibs NO-SOURCE
+> Task :testing-common:stripDebugDebugSymbols NO-SOURCE
+> Task :testing-common:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :testing-common:generateDebugResValues
+> Task :testing-common:copyDebugJniLibsProjectAndLocalJars
+> Task :testing-common:generateDebugResources
+> Task :testing-common:packageDebugResources
+> Task :testing-common:processDebugNavigationResources
+> Task :testing-common:parseDebugLocalResources
+> Task :testing-common:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :testing-common:mergeDebugShaders
+> Task :testing-common:compileDebugShaders NO-SOURCE
+> Task :testing-common:generateDebugAssets UP-TO-DATE
+> Task :testing-common:mergeDebugAssets
+> Task :testing-common:checkDebugAarMetadata
+> Task :testing-common:prepareDebugArtProfile UP-TO-DATE
+> Task :testing-common:javaPreCompileDebug
+> Task :testing-common:prepareLintJarForPublish UP-TO-DATE
+> Task :testing-common:writeDebugAarMetadata
+> Task :testing-common:generateDebugRFile
+> Task :testing-common:processDebugManifest
+> Task :tracker:stripDebugDebugSymbols NO-SOURCE
+> Task :tracker:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :tracker:copyDebugJniLibsProjectAndLocalJars
+> Task :tracker:prepareDebugArtProfile UP-TO-DATE
+> Task :tracker:prepareLintJarForPublish UP-TO-DATE
+> Task :app:l8DexDesugarLibDebug
+> Task :tracker:checkDebugAarMetadata
+warn: removing resource com.adsamcik.tracker.debug:string/date_range_selector_x_days without required default value.
+
+> Task :app:processDebugResources
+> Task :sbase:kspDebugKotlin
+> Task :app:mergeExtDexDebug
+> Task :sbase:compileDebugKotlin
+> Task :sbase:compileDebugJavaWithJavac
+> Task :sbase:processDebugJavaRes
+> Task :sbase:extractDebugAnnotations
+> Task :sbase:mergeDebugGeneratedProguardFiles
+> Task :sbase:mergeDebugConsumerProguardFiles
+> Task :sbase:bundleLibRuntimeToDirDebug
+> Task :sbase:mergeDebugJavaResource
+> Task :sbase:bundleLibRuntimeToJarDebug
+> Task :sbase:bundleLibCompileToJarDebug
+> Task :sbase:syncDebugLibJars
+> Task :sbase:createFullJarDebug
+> Task :spreferences:extractIncludeDebugProto
+> Task :spreferences:generateDebugProto
+> Task :spreferences:kspDebugKotlin UP-TO-DATE
+> Task :sbase:bundleDebugAar
+> Task :sbase:assembleDebug
+
+> Task :spreferences:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:48:16 'fun getString(key: String, default: String): String' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:59:16 'fun getStringSync(key: String): String?' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:68:16 'fun getStringSync(key: String): String?' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:88:16 'fun getInt(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:99:16 'fun getInt(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:112:16 'fun getInt(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:116:16 'fun getStringRes(keyRes: Int, defaultRes: Int): String' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:120:16 'fun getString(key: String, default: String): String' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:129:16 'fun getIntSync(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:149:16 'fun getBoolean(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:154:16 'fun getBoolean(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:163:16 'fun getBooleanSync(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:178:16 'fun getInt(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:184:16 'fun getLong(key: String, default: Long = ...): Long' is deprecated. Use observeLong or suspend getLong.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:190:16 'fun getLong(key: String, default: Long = ...): Long' is deprecated. Use observeLong or suspend getLong.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:199:16 'fun getLongSync(key: String, default: Long = ...): Long' is deprecated. Use observeLong or suspend getLong.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:221:16 'fun getFloat(key: String, default: Float = ...): Float' is deprecated. Use observeFloat or suspend getFloat.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:227:16 'fun getFloat(key: String, default: Float = ...): Float' is deprecated. Use observeFloat or suspend getFloat.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:236:16 'fun getFloatSync(key: String, default: Float = ...): Float' is deprecated. Use observeFloat or suspend getFloat.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/Preferences.kt:249:20 'fun getLong(key: String, default: Long = ...): Long' is deprecated. Use observeLong or suspend getLong.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/PreferencesAssist.kt:18:22 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/PreferencesAssist.kt:22:17 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/PreferencesAssist.kt:26:17 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/spreferences/src/main/java/com/adsamcik/tracker/shared/preferences/PreferencesAssist.kt:30:17 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+
+> Task :testing-common:compileDebugKotlin
+> Task :spreferences:compileDebugJavaWithJavac
+> Task :spreferences:processDebugJavaRes
+> Task :spreferences:extractDebugAnnotations
+> Task :spreferences:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :spreferences:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :spreferences:bundleLibCompileToJarDebug
+> Task :spreferences:mergeDebugJavaResource
+> Task :testing-common:extractDebugAnnotations
+> Task :spreferences:bundleLibRuntimeToDirDebug
+> Task :sutils:kspDebugKotlin UP-TO-DATE
+> Task :spreferences:bundleLibRuntimeToJarDebug
+> Task :spreferences:createFullJarDebug
+> Task :spreferences:syncDebugLibJars
+> Task :spreferences:bundleDebugAar
+> Task :spreferences:assembleDebug
+> Task :testing-common:compileDebugJavaWithJavac NO-SOURCE
+> Task :testing-common:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :testing-common:mergeDebugConsumerProguardFiles
+> Task :testing-common:processDebugJavaRes
+> Task :testing-common:mergeDebugJavaResource
+> Task :testing-common:syncDebugLibJars
+> Task :testing-common:bundleDebugAar
+> Task :testing-common:assembleDebug
+
+> Task :sutils:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/sutils/src/main/java/com/adsamcik/tracker/shared/utils/activity/ComposeDetailActivity.kt:85:77 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///G:/Github/Tracker-Android/sutils/src/main/java/com/adsamcik/tracker/shared/utils/language/LocaleManager.kt:21:6 'fun getStringResSync(keyRes: Int): String?' is deprecated. Use observeString or suspend getString.
+
+> Task :sutils:compileDebugJavaWithJavac NO-SOURCE
+> Task :sutils:processDebugJavaRes
+> Task :sutils:extractDebugAnnotations
+> Task :sutils:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :sutils:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :sutils:mergeDebugJavaResource
+> Task :sutils:bundleLibRuntimeToDirDebug
+> Task :sutils:bundleLibCompileToJarDebug
+> Task :sutils:bundleLibRuntimeToJarDebug
+> Task :sutils:syncDebugLibJars
+> Task :sutils:createFullJarDebug
+> Task :smap:kspDebugKotlin SKIPPED
+> Task :sutils:bundleDebugAar
+> Task :sutils:assembleDebug
+> Task :smap:compileDebugKotlin
+> Task :smap:compileDebugJavaWithJavac NO-SOURCE
+> Task :smap:processDebugJavaRes
+> Task :smap:bundleLibCompileToJarDebug
+> Task :smap:bundleLibRuntimeToJarDebug
+> Task :smap:extractDebugAnnotations
+> Task :smap:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :smap:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :smap:mergeDebugJavaResource
+> Task :smap:bundleLibRuntimeToDirDebug
+> Task :smap:syncDebugLibJars
+> Task :smap:bundleDebugAar
+> Task :smap:assembleDebug
+> Task :logger:kspDebugKotlin
+
+> Task :logger:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/logger/src/main/java/com/adsamcik/tracker/logger/CrashHandler.kt:336:56 'field versionCode: Int' is deprecated. Deprecated in Java.
+w: file:///G:/Github/Tracker-Android/logger/src/main/java/com/adsamcik/tracker/logger/LogDatabase.kt:32:13 'fun fallbackToDestructiveMigration(): RoomDatabase.Builder<LogDatabase>' is deprecated. Replace by overloaded version with parameter to indicate if all tables should be dropped or not.
+w: file:///G:/Github/Tracker-Android/logger/src/main/java/com/adsamcik/tracker/logger/Logger.kt:68:19 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/logger/src/main/java/com/adsamcik/tracker/logger/Logger.kt:83:26 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/logger/src/main/java/com/adsamcik/tracker/logger/Logger.kt:104:35 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/logger/src/main/java/com/adsamcik/tracker/logger/Reporter.kt:40:21 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+
+> Task :logger:compileDebugJavaWithJavac
+> Task :logger:processDebugJavaRes
+> Task :logger:extractDebugAnnotations
+> Task :logger:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :logger:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :logger:bundleLibCompileToJarDebug
+> Task :logger:bundleLibRuntimeToJarDebug
+> Task :activity:kspDebugKotlin SKIPPED
+> Task :logger:mergeDebugJavaResource
+> Task :logger:bundleLibRuntimeToDirDebug
+> Task :logger:createFullJarDebug
+> Task :impexp:extractIncludeDebugProto
+> Task :impexp:generateDebugProto
+> Task :impexp:kspDebugKotlin UP-TO-DATE
+> Task :logger:syncDebugLibJars
+> Task :logger:bundleDebugAar
+> Task :logger:assembleDebug
+> Task :points:kspDebugKotlin
+> Task :points:compileDebugKotlin
+> Task :points:compileDebugJavaWithJavac NO-SOURCE
+> Task :points:processDebugJavaRes
+> Task :points:extractDebugAnnotations
+> Task :points:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :points:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :points:mergeDebugJavaResource
+> Task :points:bundleLibRuntimeToDirDebug
+> Task :points:bundleLibCompileToJarDebug
+> Task :points:bundleLibRuntimeToJarDebug
+> Task :points:syncDebugLibJars
+> Task :points:createFullJarDebug
+> Task :game:extractIncludeDebugProto
+> Task :impexp:compileDebugKotlin
+
+> Task :activity:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/activity/src/main/java/com/adsamcik/tracker/activity/recognizer/VehicleActivityRecognizer.kt:30:5 'when' is exhaustive so 'else' is redundant here.
+w: file:///G:/Github/Tracker-Android/activity/src/main/java/com/adsamcik/tracker/activity/ui/SessionActivityActivityCompose.kt:230:24 'fun rememberSwipeToDismissBoxState(initialValue: SwipeToDismissBoxValue = ..., confirmValueChange: (SwipeToDismissBoxValue) -> Boolean = ..., positionalThreshold: (Float) -> Float = ...): SwipeToDismissBoxState' is deprecated. confirmValueChange is deprecated without replacement. Rather than relying on a callback to veto state changes, the anchor set should not include disallowed anchors. See androidx.compose.foundation.samples.AnchoredDraggableDynamicAnchorsSample for an example of using dynamic anchors over confirmValueChange.
+
+> Task :game:generateDebugProto
+> Task :activity:extractDebugAnnotations
+> Task :activity:compileDebugJavaWithJavac NO-SOURCE
+> Task :activity:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :activity:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :activity:processDebugJavaRes
+> Task :activity:mergeDebugJavaResource
+> Task :activity:bundleLibCompileToJarDebug
+> Task :activity:syncDebugLibJars
+> Task :activity:bundleDebugAar
+> Task :activity:assembleDebug
+> Task :statistics:kspDebugKotlin
+> Task :impexp:compileDebugJavaWithJavac
+> Task :map:kspDebugKotlin SKIPPED
+> Task :impexp:processDebugJavaRes
+> Task :impexp:bundleLibCompileToJarDebug
+> Task :impexp:extractDebugAnnotations
+> Task :impexp:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :impexp:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :points:bundleDebugAar
+> Task :points:assembleDebug
+> Task :activity:bundleLibRuntimeToDirDebug
+> Task :impexp:mergeDebugJavaResource
+> Task :activity:bundleLibRuntimeToJarDebug
+> Task :impexp:bundleLibRuntimeToDirDebug
+> Task :impexp:bundleLibRuntimeToJarDebug
+> Task :impexp:syncDebugLibJars
+> Task :activity:createFullJarDebug
+> Task :impexp:bundleDebugAar
+> Task :impexp:assembleDebug
+> Task :game:kspDebugKotlin
+
+> Task :map:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/map/src/main/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManager.kt:94:67 'static field TYPE_ORIENTATION: Int' is deprecated. Deprecated in Java.
+w: file:///G:/Github/Tracker-Android/map/src/main/java/com/adsamcik/tracker/map/presentation/sensors/LocationAndSensorsManager.kt:117:28 'static field TYPE_ORIENTATION: Int' is deprecated. Deprecated in Java.
+w: file:///G:/Github/Tracker-Android/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt:129:13 Targets marked by this annotation may contain breaking changes in the future as their design is still incubating.
+w: file:///G:/Github/Tracker-Android/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt:156:13 Targets marked by this annotation may contain breaking changes in the future as their design is still incubating.
+
+> Task :map:compileDebugJavaWithJavac NO-SOURCE
+
+> Task :statistics:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt:327:29 'val Icons.Filled.DirectionsBike: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.DirectionsBike.
+
+> Task :map:processDebugJavaRes
+> Task :map:bundleLibRuntimeToJarDebug
+> Task :map:bundleLibRuntimeToDirDebug
+> Task :map:bundleLibCompileToJarDebug
+
+> Task :game:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/challenge/receiver/ChallengeSessionReceiver.kt:62:36 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/di/DefaultGoalProgressProvider.kt:37:45 'fun getBoolean(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/di/DefaultGoalProgressProvider.kt:50:45 'fun getBoolean(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/goals/data/GoalPersistence.kt:32:36 'fun getInt(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/goals/data/abstraction/StepGoal.kt:38:41 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/goals/settings/GoalsSettingsRepository.kt:175:42 'fun getBoolean(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/goals/settings/GoalsSettingsRepository.kt:179:31 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/goals/settings/GoalsSettingsRepository.kt:183:32 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/goals/settings/GoalsSettingsRepository.kt:187:29 'fun getFloatResString(keyRes: Int, defaultRes: Int): Float' is deprecated. Use observeFloat or suspend getFloat.
+w: file:///G:/Github/Tracker-Android/game/src/main/java/com/adsamcik/tracker/game/ui/compose/GameScreen.kt:177:36 'val Icons.Outlined.DirectionsWalk: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.DirectionsWalk.
+
+> Task :statistics:compileDebugJavaWithJavac
+> Task :game:compileDebugJavaWithJavac
+> Task :statistics:processDebugJavaRes
+> Task :game:processDebugJavaRes
+> Task :game:extractDebugAnnotations
+> Task :game:mergeDebugJavaResource
+> Task :map:extractDebugAnnotations
+> Task :map:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :map:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :map:mergeDebugJavaResource
+> Task :statistics:extractDebugAnnotations
+> Task :map:syncDebugLibJars
+> Task :map:bundleDebugAar
+> Task :map:assembleDebug
+> Task :statistics:mergeDebugJavaResource
+> Task :statistics:transformDebugClassesWithAsm
+> Task :statistics:mergeDebugGeneratedProguardFiles
+> Task :statistics:mergeDebugConsumerProguardFiles
+> Task :statistics:bundleLibRuntimeToJarDebug
+> Task :game:transformDebugClassesWithAsm
+> Task :statistics:syncDebugLibJars
+> Task :statistics:bundleLibCompileToJarDebug
+> Task :statistics:bundleLibRuntimeToDirDebug
+> Task :statistics:createFullJarDebug
+> Task :tracker:extractIncludeDebugProto
+> Task :game:bundleLibCompileToJarDebug
+> Task :tracker:generateDebugProto
+> Task :game:mergeDebugGeneratedProguardFiles
+> Task :game:mergeDebugConsumerProguardFiles
+> Task :game:bundleLibRuntimeToDirDebug
+> Task :game:bundleLibRuntimeToJarDebug
+> Task :game:syncDebugLibJars
+> Task :game:bundleDebugAar
+> Task :game:assembleDebug
+> Task :statistics:bundleDebugAar
+> Task :statistics:assembleDebug
+> Task :tracker:kspDebugKotlin
+
+> Task :tracker:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt:128:16 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt:137:5 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt:166:32 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt:218:5 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt:243:5 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt:270:10 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/api/BackgroundTrackingApi.kt:276:10 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/TrackerDataProducerComponent.kt:29:46 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/TrackerTimerManager.kt:80:5 'fun getStringResSync(keyRes: Int): String?' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponent.kt:124:31 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/consumer/SessionTrackerComponent.kt:128:35 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/consumer/post/DatabaseWifiComponent.kt:82:6 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/consumer/post/DatabaseWifiLocationCountComponent.kt:60:6 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/consumer/pre/LocationPreTrackerComponent.kt:35:52 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/producer/ActivityDataProducer.kt:56:44 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/trigger/AndroidLocationCollectionTrigger.kt:54:44 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/trigger/AndroidLocationCollectionTrigger.kt:58:40 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTrigger.kt:62:45 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTrigger.kt:66:41 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/component/trigger/HandlerCollectionTrigger.kt:50:44 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/controller/DefaultLockManager.kt:81:25 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/notification/NotificationManagementActivity.kt:151:55 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationManager.kt:103:33 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt:59:5 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt:134:5 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt:141:5 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/tracker/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt:148:5 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+
+> Task :tracker:compileDebugJavaWithJavac
+> Task :tracker:processDebugJavaRes
+> Task :tracker:extractDebugAnnotations
+> Task :tracker:mergeDebugJavaResource
+> Task :tracker:transformDebugClassesWithAsm
+> Task :tracker:mergeDebugGeneratedProguardFiles
+> Task :tracker:mergeDebugConsumerProguardFiles
+> Task :tracker:bundleLibRuntimeToJarDebug
+> Task :tracker:bundleLibCompileToJarDebug
+> Task :tracker:syncDebugLibJars
+> Task :tracker:bundleLibRuntimeToDirDebug
+> Task :tracker:bundleDebugAar
+> Task :tracker:assembleDebug
+> Task :app:kspDebugKotlin
+> Task :app:mergeLibDexDebug
+
+> Task :app:compileDebugKotlin FAILED
+e: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/ui/FloatingNavigationBar.kt:61:60 No parameter with name 'shape' found.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+499 actionable tasks: 440 executed, 59 up-to-date
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4m 15s

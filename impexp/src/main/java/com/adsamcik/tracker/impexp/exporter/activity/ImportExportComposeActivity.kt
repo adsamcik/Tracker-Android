@@ -3,28 +3,27 @@ package com.adsamcik.tracker.impexp.exporter.activity
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,22 +32,23 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -58,14 +58,15 @@ import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
+import com.adsamcik.tracker.shared.utils.style.compose.AppColors
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -96,12 +97,14 @@ class ImportExportComposeActivity : ComponentActivity() {
         exporter = exporterType.getConstructor().newInstance() as Exporter
 
         setContent {
-            ExportScreen(
-                exporter = exporter,
-                shareableDir = shareableDir,
-                activity = this,
-                filesDir = filesDir
-            )
+            AppTheme {
+                ExportScreen(
+                    exporter = exporter,
+                    shareableDir = shareableDir,
+                    activity = this,
+                    filesDir = filesDir
+                )
+            }
         }
     }
 
@@ -157,10 +160,10 @@ fun ExportScreen(
     if (showNoDataDialog.value) {
         AlertDialog(
             onDismissRequest = { activity.finish() },
-        title = { Text(text = stringResource(id = R.string.settings_export_no_data)) },
+            title = { Text(text = stringResource(id = R.string.settings_export_no_data)) },
             confirmButton = {
                 TextButton(onClick = { activity.finish() }) {
-            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
                 }
             }
         )
@@ -168,159 +171,135 @@ fun ExportScreen(
 
     // Implement UI
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
             SnackbarHost(hostState = snackBarHostState)
         },
         topBar = {
-            TopAppBar(title = { Text(stringResource(id = R.string.export_share_button)) })
+            TopAppBar(
+                title = { Text(stringResource(id = R.string.export_share_button), color = MaterialTheme.colorScheme.onSurface) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Filename field with image
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_name),
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                OutlinedTextField(
-                    value = fileNameState.value,
-                    onValueChange = { newValue ->
-                        fileNameState.value = newValue
-                        fileNameErrorState.value = if (Regex("[\\\\/:\"*?<>|]+").containsMatchIn(newValue)) {
-                            activity.getString(R.string.export_file_name_error)
-                        } else {
-                            null
-                        }
-                    },
-                    label = { Text(stringResource(id = R.string.export_file_name)) },
-                    isError = fileNameErrorState.value != null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            if (fileNameErrorState.value != null) {
-                Text(
-                    text = fileNameErrorState.value!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(start = 72.dp)
-                )
-            }
-
-            // Date range fields with image, if canSelectDateRange
-            if (canSelectDateRange) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        OutlinedTextField(
-                            value = rangeState.value.start.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)),
-                            onValueChange = {},
-                            label = { Text(stringResource(id = R.string.settings_export_dialog_from)) },
-                            enabled = false,
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    showFromDatePicker.value = true
-                                }) {
-                                    Icon(painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp), contentDescription = null)
-                                }
-                            }
+            // Main content in GlassCard
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(8.dp), // Check GlassCard inner padding
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                     // Filename field with image
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_outline_name),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(modifier = Modifier.width(16.dp))
                         OutlinedTextField(
-                            value = rangeState.value.endInclusive.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)),
-                            onValueChange = {},
-                            label = { Text(stringResource(id = R.string.settings_export_dialog_to)) },
-                            enabled = false,
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    showToDatePicker.value = true
-                                }) {
-                                    Icon(painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp), contentDescription = null)
+                            value = fileNameState.value,
+                            onValueChange = { newValue ->
+                                fileNameState.value = newValue
+                                fileNameErrorState.value = if (Regex("[\\\\/:\"*?<>|]+").containsMatchIn(newValue)) {
+                                    activity.getString(R.string.export_file_name_error)
+                                } else {
+                                    null
                                 }
-                            }
+                            },
+                            label = { Text(stringResource(id = R.string.export_file_name)) },
+                            isError = fileNameErrorState.value != null,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary
+                            )
                         )
                     }
-                }
-            }
+                    if (fileNameErrorState.value != null) {
+                        Text(
+                            text = fileNameErrorState.value!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(start = 48.dp)
+                        )
+                    }
 
-            // Date pickers
-            if (showFromDatePicker.value) {
-                val datePickerState = rememberDatePickerState(
-                    initialSelectedDateMillis = rangeState.value.start.toInstant().toEpochMilli()
-                )
-                DatePickerDialog(
-                    onDismissRequest = { showFromDatePicker.value = false },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                val selectedMillis = datePickerState.selectedDateMillis
-                                if (selectedMillis != null) {
-                                    val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
-                                    rangeState.value = selectedDate..rangeState.value.endInclusive
-                                }
-                                showFromDatePicker.value = false
+                    // Date range fields with image
+                    if (canSelectDateRange) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(
+                                painter = painterResource(id = com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                OutlinedTextField(
+                                    value = rangeState.value.start.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)),
+                                    onValueChange = {},
+                                    label = { Text(stringResource(id = R.string.settings_export_dialog_from)) },
+                                    enabled = false,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = {
+                                            showFromDatePicker.value = true
+                                        }) {
+                                            Icon(
+                                                painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                )
+                                OutlinedTextField(
+                                    value = rangeState.value.endInclusive.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)),
+                                    onValueChange = {},
+                                    label = { Text(stringResource(id = R.string.settings_export_dialog_to)) },
+                                    enabled = false,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = {
+                                            showToDatePicker.value = true
+                                        }) {
+                                            Icon(
+                                                painterResource(com.adsamcik.tracker.shared.base.R.drawable.ic_date_range_black_24dp),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                )
                             }
-                        ) {
-                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showFromDatePicker.value = false }) {
-                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
                         }
                     }
-                ) {
-                    DatePicker(state = datePickerState)
-                }
-            }
-
-            if (showToDatePicker.value) {
-                val datePickerState = rememberDatePickerState(
-                    initialSelectedDateMillis = rangeState.value.endInclusive.toInstant().toEpochMilli()
-                )
-                DatePickerDialog(
-                    onDismissRequest = { showToDatePicker.value = false },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                val selectedMillis = datePickerState.selectedDateMillis
-                                if (selectedMillis != null) {
-                                    val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
-                                    rangeState.value = rangeState.value.start..selectedDate
-                                }
-                                showToDatePicker.value = false
-                            }
-                        ) {
-                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showToDatePicker.value = false }) {
-                            Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
-                        }
-                    }
-                ) {
-                    DatePicker(state = datePickerState)
                 }
             }
 
             // Buttons
             Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val exportLauncher = rememberLauncherForActivityResult(
@@ -371,7 +350,6 @@ fun ExportScreen(
                                 context = activity,
                                 snackBarHostState = snackBarHostState,
                                 onSuccess = {
-                                    // Show success message
                                     scope.launch {
                                         snackBarHostState.showSnackbar(
                                             message = activity.getString(R.string.export_button)
@@ -381,7 +359,12 @@ fun ExportScreen(
                                 }
                             )
                         }
-                    }
+                    },
+                    modifier = Modifier.weight(1f),
+                   border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
                 ) {
                     Text(text = stringResource(id = R.string.export_button))
                 }
@@ -420,11 +403,77 @@ fun ExportScreen(
                                 }
                             )
                         }
-                    }
+                    },
+                    modifier = Modifier.weight(1f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
                 ) {
                     Text(text = stringResource(id = R.string.export_share_button))
                 }
             }
+        }
+    }
+    
+    // Date pickers
+    if (showFromDatePicker.value) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = rangeState.value.start.toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showFromDatePicker.value = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val selectedMillis = datePickerState.selectedDateMillis
+                        if (selectedMillis != null) {
+                            val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
+                            rangeState.value = selectedDate..rangeState.value.endInclusive
+                        }
+                        showFromDatePicker.value = false
+                    }
+                ) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFromDatePicker.value = false }) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showToDatePicker.value) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = rangeState.value.endInclusive.toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showToDatePicker.value = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val selectedMillis = datePickerState.selectedDateMillis
+                        if (selectedMillis != null) {
+                            val selectedDate = Instant.ofEpochMilli(selectedMillis).atZone(ZoneId.systemDefault())
+                            rangeState.value = rangeState.value.start..selectedDate
+                        }
+                        showToDatePicker.value = false
+                    }
+                ) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showToDatePicker.value = false }) {
+                    Text(text = stringResource(id = com.adsamcik.tracker.shared.base.R.string.generic_cancel))
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
@@ -472,20 +521,6 @@ private fun getExportFileName(
     }
 }
 
-/**
- * Find an available filename by auto-incrementing suffix if file exists.
- * Follows macOS/iOS pattern: file.gpx → file_1.gpx → file_2.gpx
- * 
- * Contract:
- * - Inputs: directory (DocumentFile), baseFileName (String without extension), extension (String)
- * - Outputs: String filename (without extension) that doesn't exist in directory
- * - Failure: Returns baseFileName if directory access fails
- * 
- * @param directory Target directory to check for existing files
- * @param baseFileName Desired filename without extension
- * @param extension File extension (e.g., "gpx", "kml")
- * @return Available filename without extension
- */
 private fun findAvailableFileName(
     directory: DocumentFile,
     baseFileName: String,
@@ -519,7 +554,6 @@ suspend fun tryExport(
         val actualFileName = getExportFileName(fileName, exporter, range, context)
         
         // Auto-increment filename if file exists (macOS-style: file_1.gpx, file_2.gpx)
-        // Avoids redundant confirmation dialog for reversible file operations
         val finalFileName = if (!forceOverride) {
             findAvailableFileName(directory, actualFileName, exporter.extension)
         } else {
@@ -607,7 +641,6 @@ suspend fun export(
 @Preview(showBackground = true)
 @Composable
 fun ExportScreenPreview() {
-    // Mock exporter for preview
     val exporter = object : Exporter {
         override val canSelectDateRange: Boolean = true
         override val mimeType: String = "application/zip"

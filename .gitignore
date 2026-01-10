@@ -113,3 +113,6 @@ test-output.log
 test-output-*.log
 build-output.log
 build-output-*.log
+
+unit_test_rerun.txt
+test_run_all_v4_log.txt

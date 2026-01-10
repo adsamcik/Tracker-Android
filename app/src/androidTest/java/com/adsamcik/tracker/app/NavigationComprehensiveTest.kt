@@ -86,107 +86,61 @@ class NavigationComprehensiveTest {
 		composeRule.onNodeWithTag("nav_tracker").assertIsNotSelected()
 	}
 
-	@Test
-	fun navigation_mapTab_collapsesAndExpandsCorrectly() {
-		val collapsedDescription = context.getString(R.string.main_nav_map_state_collapsed)
-		val expandedDescription = context.getString(R.string.main_nav_map_state_expanded)
 
-		// Map starts expanded by default
-		composeRule.onNodeWithTag("nav_map")
-			.assertIsSelected()
-			.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expandedDescription))
-
-		// Click to collapse
-		composeRule.onNodeWithTag("nav_map").performClick()
-		composeRule.waitForIdle()
-
-		composeRule.onNodeWithTag("nav_map")
-			.assertIsNotSelected()
-			.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, collapsedDescription))
-
-		// Click to expand again
-		composeRule.onNodeWithTag("nav_map").performClick()
-		composeRule.waitForIdle()
-
-		composeRule.onNodeWithTag("nav_map")
-			.assertIsSelected()
-			.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expandedDescription))
-	}
-
-	@Test
-	fun navigation_allTabs_cycle_preservesMapState() {
-		val collapsedDescription = context.getString(R.string.main_nav_map_state_collapsed)
-
-		// Collapse map first
-		composeRule.onNodeWithTag("nav_map").performClick()
-		composeRule.waitForIdle()
-
-		// Cycle through all tabs
-		composeRule.onNodeWithTag("nav_tracker").performClick()
-		composeRule.waitForIdle()
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
-
-		composeRule.onNodeWithTag("nav_stats").performClick()
-		composeRule.waitForIdle()
-		composeRule.onNodeWithTag("nav_stats").assertIsSelected()
-
-		composeRule.onNodeWithTag("nav_game").performClick()
-		composeRule.waitForIdle()
-		composeRule.onNodeWithTag("nav_game").assertIsSelected()
-
-		// Map should still be collapsed
-		composeRule.onNodeWithTag("nav_map")
-			.assertIsNotSelected()
-			.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, collapsedDescription))
-	}
 
 	// endregion
 
 	// region Back Navigation
 
 	@Test
-	fun backNavigation_fromAnyTab_returnsToMapExpanded() {
+	fun backNavigation_fromAnyTab_returnsToTracker() {
 		// Navigate to stats
 		composeRule.onNodeWithTag("nav_stats").performClick()
 		composeRule.waitForIdle()
 		composeRule.onNodeWithTag("nav_stats").assertIsSelected()
 
 		// Press back
-		composeRule.activity.onBackPressedDispatcher.onBackPressed()
+		composeRule.runOnUiThread {
+			composeRule.activity.onBackPressedDispatcher.onBackPressed()
+		}
 		composeRule.waitForIdle()
 
-		// Should return to map expanded
-		composeRule.onNodeWithTag("nav_map").assertIsSelected()
+		// Should return to tracker
+		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
 	}
 
 	@Test
-	fun backNavigation_fromGame_returnsToMap() {
+	fun backNavigation_fromGame_returnsToTracker() {
 		// Navigate to game
 		composeRule.onNodeWithTag("nav_game").performClick()
 		composeRule.waitForIdle()
 		composeRule.onNodeWithTag("nav_game").assertIsSelected()
 
 		// Press back
-		composeRule.activity.onBackPressedDispatcher.onBackPressed()
+		composeRule.runOnUiThread {
+			composeRule.activity.onBackPressedDispatcher.onBackPressed()
+		}
 		composeRule.waitForIdle()
 
-		// Should return to map
-		composeRule.onNodeWithTag("nav_map").assertIsSelected()
+		// Should return to tracker
+		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
 	}
 
 	@Test
-	fun backNavigation_fromTracker_returnsToMap() {
-		// Navigate to tracker
-		composeRule.onNodeWithTag("nav_tracker").performClick()
+	fun backNavigation_fromMap_returnsToTracker() {
+		// Navigate to map
+		composeRule.onNodeWithTag("nav_map").performClick()
 		composeRule.waitForIdle()
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+		composeRule.onNodeWithTag("nav_map").assertIsSelected()
 
 		// Press back
-		composeRule.activity.onBackPressedDispatcher.onBackPressed()
+		composeRule.runOnUiThread {
+			composeRule.activity.onBackPressedDispatcher.onBackPressed()
+		}
 		composeRule.waitForIdle()
 
-		// Should return to map
-		composeRule.onNodeWithTag("nav_map").assertIsSelected()
+		// Should return to tracker
+		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
 	}
 
 	// endregion
@@ -222,14 +176,7 @@ class NavigationComprehensiveTest {
 		composeRule.onNodeWithTag("nav_game").assertHasAccessibleText()
 	}
 
-	@Test
-	fun mapNavItem_hasStateDescription_forScreenReaders() {
-		val expandedDescription = context.getString(R.string.main_nav_map_state_expanded)
 
-		composeRule.onNodeWithTag("nav_map")
-			.assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.StateDescription))
-			.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, expandedDescription))
-	}
 
 	// endregion
 

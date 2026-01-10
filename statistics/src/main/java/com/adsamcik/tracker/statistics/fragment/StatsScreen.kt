@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,20 +42,18 @@ import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -66,6 +63,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.shared.utils.style.compose.AppColors
+import com.adsamcik.tracker.shared.utils.style.compose.AppShapes
+import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 
 /**
@@ -99,7 +99,11 @@ fun StatsScreen(
     // Optional paging sessions supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<TrackerSession>? = null,
 ) {
-    Surface(Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         when (refreshState) {
             RefreshUiState.Loading -> LoadingState()
             RefreshUiState.Empty -> EmptyState()
@@ -113,7 +117,7 @@ fun StatsScreen(
 private fun LoadingState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(16.dp))
             Text(
                 text = stringResource(R.string.stats_loading),
@@ -142,9 +146,9 @@ private fun EmptyState() {
         Spacer(Modifier.height(24.dp))
         Text(
             text = stringResource(R.string.stats_no_tracker_sessions),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -153,9 +157,18 @@ private fun EmptyState() {
 private fun ErrorState(onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         // Using module-specific generic error string
-        Text(text = stringResource(R.string.stats_error_generic), modifier = Modifier.padding(horizontal = 24.dp))
+        Text(
+            text = stringResource(R.string.stats_error_generic), 
+            modifier = Modifier.padding(horizontal = 24.dp),
+            color = MaterialTheme.colorScheme.error
+        )
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
+        ) { 
+            Text(stringResource(R.string.action_retry)) 
+        }
     }
 }
 
@@ -171,10 +184,12 @@ private fun ContentState(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 8.dp,
-            bottom = 32.dp
+            top = 16.dp, // Increased top padding
+            bottom = 120.dp, // Space for floating nav bar
+            start = 16.dp,
+            end = 16.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(key = "header_actions") { 
             HeaderActions(onShowSummary, onShowWeek, onOpenWifi) 
@@ -238,9 +253,7 @@ private fun HeaderActions(onShowSummary: () -> Unit, onShowWeek: () -> Unit, onO
     val wifiLabel = stringResource(R.string.stats_wifi_label)
     
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         ActionChip(
@@ -271,25 +284,27 @@ private fun ActionChip(
     label: String,
     modifier: Modifier = Modifier
 ) {
-    FilledTonalButton(
-        onClick = onClick,
+    GlassCard(
         modifier = modifier
-            .heightIn(min = 48.dp)
+            .height(56.dp)
+            .clickable { onClick() }
             .semantics { contentDescription = label },
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            modifier = Modifier.fillMaxSize(), // GlassCard applies padding internally, need to be careful
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            // Hide label on small screens? Or ensure GlassCard padding isn't too big.
+            // GlassCard has 16.dp padding. Might be tight.
+        }
     }
 }
 
@@ -368,21 +383,15 @@ internal fun SessionRow(
     
     val sessionIcon = remember(session) { getSessionIcon(session) }
     
-    Card(
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .testTag("stats_session_row"),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        shape = RoundedCornerShape(16.dp)
+        shape = AppShapes.GlassCard
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Activity icon with colored background
@@ -390,14 +399,14 @@ internal fun SessionRow(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = sessionIcon,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
             
@@ -472,7 +481,7 @@ private fun MetricBadge(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(14.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = MaterialTheme.colorScheme.primary
         )
         Text(
             text = value,
@@ -495,27 +504,27 @@ internal fun DateHeader(dateMillis: Long) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
         )
         Text(
             text = dateText,
             modifier = Modifier.padding(horizontal = 16.dp),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Medium
         )
         Box(
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
         )
     }
 }
@@ -537,47 +546,15 @@ private fun formatRelativeDate(context: Context, dateMillis: Long): String {
 
 @Composable
 private fun PlaceholderRow(index: Int) {
-    Card(
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
             .height(80.dp)
-            .testTag("stats_placeholder_$index"),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(16.dp)
+            .testTag("stats_placeholder_$index")
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            )
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Box(
-                    modifier = Modifier
-                        .width(80.dp)
-                        .height(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                )
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .width(120.dp)
-                        .height(12.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                )
-            }
+        // Placeholder content
+        Row(verticalAlignment = Alignment.CenterVertically) {
+             Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)))
         }
     }
 }
@@ -587,7 +564,7 @@ private fun AppendErrorRow(onRetry: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(vertical = 8.dp)
             .testTag("stats_append_error"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween

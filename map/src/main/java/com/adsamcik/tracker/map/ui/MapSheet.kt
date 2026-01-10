@@ -8,39 +8,49 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.LayersClear
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberStandardBottomSheetState
@@ -50,25 +60,25 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.ime
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
-import com.adsamcik.tracker.map.R
+import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +109,7 @@ fun MapSheet(
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
     val navBottom = WindowInsets.navigationBars.getBottom(LocalDensity.current)
     val systemBottom = maxOf(imeBottom, navBottom)
-    val effectiveBottomInsetPx = maxOf(bottomInsetPx, systemBottom)
+    val effectiveBottomInsetPx = bottomInsetPx + systemBottom
 
     // Drive the bottom sheet to target state based on visibility in store
     LaunchedEffect(visibility) {
@@ -110,7 +120,7 @@ fun MapSheet(
         }
     }
 
-    // Reflect user drag changes back to store
+    // Reflect user drag changes back to store (close to hidden if dragged down)
     LaunchedEffect(bottomSheetState) {
         snapshotFlow { bottomSheetState.currentValue }
             .collect { cur ->
@@ -125,328 +135,317 @@ fun MapSheet(
             }
     }
 
-    // Reveal handle when Hidden, respecting navigation bar (inset passed from host)
-    if (visibility == SheetVisibility.Hidden) {
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val insetDp = with(density) { effectiveBottomInsetPx.toDp() }
-        val navPadding = if (insetDp < 16.dp) 16.dp else insetDp
-        Box(modifier = modifier.fillMaxSize()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                shape = CircleShape,
-                shadowElevation = 6.dp,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = navPadding + 12.dp)
-                    .clickable { store.dispatch(MapEvent.SetSheet(SheetVisibility.Peek)) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Search", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
-        return
-    }
+    // Compute layout
+    val density = LocalDensity.current
+    
+    // We want the search bar to float above the nav bar / bottom inset.
+    val searchBarHeightDp = with(density) { searchRowHeightPx.toDp() }
+    val bottomInsetDp = with(density) { effectiveBottomInsetPx.toDp() }
+    
+    // Peek height: 0 because we handle the "Peek" UI (Search Bar) outside the sheet.
+    // The sheet only contains the expanded content (Filters, Layers).
+    // IMPORTANT: If peekHeight is 0, user cannot drag it up easily. 
+    // We need a way to trigger expand. The Search Bar click or Layers button does that.
+    val peekHeight = 0.dp
 
-    // Sheet visible (Peek/Expanded): compute peek height from inset
-    val density2 = androidx.compose.ui.platform.LocalDensity.current
-    val insetDp2 = with(density2) { effectiveBottomInsetPx.toDp() }
-    val safeInset = if (insetDp2 < 16.dp) 16.dp else insetDp2
-    val measuredRowHeight = if (searchRowHeightPx > 0) with(density2) { searchRowHeightPx.toDp() } else 56.dp + 24.dp
-    val peekHeight = measuredRowHeight + 8.dp + safeInset
-
-    BottomSheetScaffold(
-        modifier = modifier,
-        scaffoldState = scaffoldState,
-        sheetPeekHeight = peekHeight,
-        // Use default drag handle for familiarity
-        topBar = {},
-        sheetContent = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Search row (always visible)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .onSizeChanged { searchRowHeightPx = it.height },
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextField(
-                        value = uiState.search.query,
-                        onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { f ->
-                                if (f.isFocused != uiState.search.hasFocus) {
-                                    store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
-                                }
-                            },
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
-                        shape = CircleShape,
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                        trailingIcon = {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                                tonalElevation = 1.dp
-                            ) {
-                                IconButton(onClick = { store.dispatch(MapEvent.SubmitSearch) }) {
-                                    Icon(Icons.Filled.Search, contentDescription = "Search")
-                                }
-                            }
-                        }
-                    )
-
-                    // Hide extra icons when keyboard open (legacy parity)
-                    if (imeBottom == 0) {
-                        // Date range icon
-                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)) {
-                            IconButton(onClick = { showDateRangeDialog = true }) {
-                                Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Filled.DateRange,
-                                    contentDescription = "Date range"
-                                )
-                            }
-                        }
-
-                        // Locate icon
-                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)) {
-                            IconButton(onClick = { store.dispatch(MapEvent.ToggleFollow) }) {
-                                Icon(Icons.Filled.MyLocation, contentDescription = "My location")
-                            }
-                        }
-                    }
+    Box(modifier = modifier.fillMaxSize()) {
+        BottomSheetScaffold(
+            modifier = Modifier.fillMaxSize(),
+            scaffoldState = scaffoldState,
+            sheetPeekHeight = peekHeight,
+            topBar = {},
+            sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            sheetContent = {
+                // Content only visible when expanded
+                // Use safe content padding so last items are not hidden behind floating search bar
+                val safeBottomPadding = if (searchRowHeightPx > 0) {
+                     searchBarHeightDp + bottomInsetDp + 16.dp 
+                } else {
+                     88.dp + bottomInsetDp // Fallback approximate
                 }
 
-                if (visibility == SheetVisibility.Expanded) {
-                    // Header with controls
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Map Controls",
-                            style = MaterialTheme.typography.headlineSmall
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { store.dispatch(MapEvent.ToggleFollow) }) {
-                                val enabled = uiState.isFollowing
-                                val tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                Icon(
-                                    Icons.Filled.MyLocation,
-                                    contentDescription = "Toggle follow location",
-                                    tint = tint
-                                )
-                            }
-                            // Hide sheet action
-                            IconButton(onClick = { store.dispatch(MapEvent.HideSheet) }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Hide")
-                            }
-                        }
-                    }
-
-                    // Error message display
-                    showErrorMessage?.let { message ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Text(
-                                text = message,
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
-
-                    // Filters
-                    Text(
-                        text = "Filters",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    // Quality slider
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Quality", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Slider(
-                            value = uiState.quality,
-                            onValueChange = { v -> store.setQuality(v) },
-                            valueRange = 0.25f..2.0f,
-                            steps = 7,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Date range picker launcher
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val rangeText = remember(uiState.dateRange) {
-                            val start = uiState.dateRange.first
-                            val end = uiState.dateRange.last
-                            if (start == 0L && end == Long.MAX_VALUE) "All time" else {
-                                val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                                "${fmt.format(java.util.Date(start))} to ${fmt.format(java.util.Date(end))}"
-                            }
-                        }
-                        Text(rangeText, style = MaterialTheme.typography.bodyMedium)
-                        Button(onClick = { showDateRangeDialog = true }) { Text(stringResource(R.string.map_date_range_button)) }
-                    }
-
-                    if (showDateRangeDialog) {
-                        val pickerState = rememberDateRangePickerState()
-                        DatePickerDialog(
-                            onDismissRequest = { showDateRangeDialog = false },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        val start = pickerState.selectedStartDateMillis
-                                        val end = pickerState.selectedEndDateMillis
-                                        if (start != null && end != null) {
-                                            val endInclusive = end + (24L * 60 * 60 * 1000) - 1L
-                                            store.setDateRange(start..endInclusive)
-                                            showDateRangeDialog = false
-                                        }
-                                    },
-                                    enabled = pickerState.selectedStartDateMillis != null && pickerState.selectedEndDateMillis != null
-                                ) { Text(stringResource(R.string.map_date_range_dialog_ok)) }
-                            },
-                            dismissButton = { TextButton(onClick = { showDateRangeDialog = false }) { Text(stringResource(R.string.map_date_range_dialog_cancel)) } }
-                        ) {
-                            DateRangePicker(state = pickerState)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Map Layers",
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(layers, key = { it.id }) { layer ->
-                            val isSelected = uiState.activeLayerIds.contains(layer.id)
-
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                    contentPadding = PaddingValues(
+                        top = 16.dp, 
+                        bottom = safeBottomPadding, 
+                        start = 16.dp, 
+                        end = 16.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // --- Header & Error ---
+                    if (showErrorMessage != null) {
+                        item {
                             Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        try {
-                                            store.dispatch(MapEvent.SelectLayer(layer.id))
-                                            showErrorMessage = null
-                                        } catch (e: Exception) {
-                                            showErrorMessage = "Failed to load layer: ${e.message}"
-                                        }
-                                    },
+                                modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) {
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.surface
-                                    }
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
                                 )
                             ) {
                                 Text(
-                                    text = try {
-                                        context.getString(layer.titleRes)
-                                    } catch (e: Exception) {
-                                        layer.id
-                                    },
+                                    text = showErrorMessage ?: "",
                                     modifier = Modifier.padding(16.dp),
-                                    color = if (isSelected) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    }
+                                    color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                             }
                         }
                     }
 
-                    // Legend display
-                    if (uiState.legend.isNotEmpty()) {
+                    // --- Filters Section ---
+                    item {
                         Text(
-                            text = "Legend",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.titleMedium
+                            text = "Filters",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
+                    }
 
-                        LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            items(uiState.legend) { legendItem ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(vertical = 2.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .background(Color(legendItem.color), CircleShape)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = legendItem.label.ifEmpty { "Unknown" },
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
+                    // Quality Slider
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Quality", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    text = "%.2fx".format(uiState.quality), 
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Low", style = MaterialTheme.typography.labelSmall)
+                                Slider(
+                                    value = uiState.quality,
+                                    onValueChange = { v -> store.setQuality(v) },
+                                    valueRange = 0.25f..2.0f,
+                                    steps = 6,
+                                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                                )
+                                Text("High", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
 
-                    // Tile generation progress
-                    if (uiState.tileGenerationInProgress > 0) {
+                    // Date Range
+                    item {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
+                            Column {
+                                Text("All time", style = MaterialTheme.typography.titleMedium)
+                                val rangeText = remember(uiState.dateRange) {
+                                    val start = uiState.dateRange.first
+                                    val end = uiState.dateRange.last
+                                    if (start == 0L && end == Long.MAX_VALUE) null else {
+                                        val fmt = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
+                                        "${fmt.format(java.util.Date(start))} - ${fmt.format(java.util.Date(end))}"
+                                    }
+                                }
+                                if (rangeText != null) {
+                                     Text(rangeText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            
+                            Button(
+                                onClick = { showDateRangeDialog = true },
+                                contentPadding = PaddingValues(horizontal = 24.dp)
+                            ) {
+                                Text(stringResource(R.string.map_date_range_button))
+                            }
+                        }
+                    }
+
+                    // --- Layers Section ---
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Map Layers",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+
+                    items(layers, key = { it.id }) { layer ->
+                        val isSelected = uiState.activeLayerIds.contains(layer.id)
+                        MapLayerCard(
+                            layer = layer,
+                            isSelected = isSelected,
+                            onSelect = {
+                                try {
+                                    store.dispatch(MapEvent.SelectLayer(layer.id))
+                                    showErrorMessage = null
+                                } catch (e: Exception) {
+                                    showErrorMessage = "Failed to load layer: ${e.message}"
+                                }
+                            }
+                        )
+                    }
+                }
+            },
+            content = { }
+        )
+        
+        // Floating Search Bar & Controls (Outside Sheet)
+        // Positioned at BottomCenter, respecting inset
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(bottom = (effectiveBottomInsetPx.takeIf { it > 0 }?.let { with(density) { it.toDp() } } ?: 0.dp) + 16.dp)
+                .padding(horizontal = 16.dp)
+                .onSizeChanged { searchRowHeightPx = it.height }
+        ) {
+            // Search Field - Frosted Glass Style
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                tonalElevation = 2.dp,
+                shadowElevation = 4.dp,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(end = 64.dp) // Leave space for the vertical stack
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Row(
+                   verticalAlignment = Alignment.CenterVertically,
+                   modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Search, 
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                         TextField(
+                            value = uiState.search.query,
+                            onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { f ->
+                                    if (f.isFocused != uiState.search.hasFocus) {
+                                        store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
+                                    }
+                                },
+                            singleLine = true,
+                            placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Generating ${uiState.tileGenerationInProgress} tiles...",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                        )
+                    }
+                    if (uiState.search.query.isNotEmpty()) {
+                        IconButton(onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear")
                         }
                     }
                 }
             }
-        },
-        content = { /* no-op: map below handles interactions */ }
-    )
+            
+            // vertical stack of controls - Frosted Glass Style
+            // Hide when sheet is expanded or keyboard is visible to prevent overlap
+            if (imeBottom == 0 && visibility != SheetVisibility.Expanded) {
+                 Column(
+                     modifier = Modifier.align(Alignment.BottomEnd),
+                     verticalArrangement = Arrangement.spacedBy(12.dp),
+                     horizontalAlignment = Alignment.CenterHorizontally
+                 ) {
+                     // Layers
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                        tonalElevation = 2.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        IconButton(onClick = { 
+                            if (visibility == SheetVisibility.Expanded) {
+                                store.dispatch(MapEvent.SetSheet(SheetVisibility.Peek))
+                            } else {
+                                store.dispatch(MapEvent.SetSheet(SheetVisibility.Expanded))
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.Layers, 
+                                contentDescription = "Layers",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Date
+                     Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                        tonalElevation = 2.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        IconButton(onClick = { showDateRangeDialog = true }) {
+                            Icon(
+                                Icons.Filled.DateRange, 
+                                contentDescription = "Date",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                    
+                    // Location
+                    val isFollowing = uiState.isFollowing
+                     Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                        tonalElevation = 2.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        IconButton(onClick = { store.dispatch(MapEvent.ToggleFollow) }) {
+                            Icon(
+                                Icons.Filled.MyLocation, 
+                                contentDescription = stringResource(R.string.tips_map_my_location_title), 
+                                tint = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                 }
+            }
+        }
+    }
+
+    if (showDateRangeDialog) {
+        val pickerState = rememberDateRangePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDateRangeDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val start = pickerState.selectedStartDateMillis
+                        val end = pickerState.selectedEndDateMillis
+                        if (start != null && end != null) {
+                            val endInclusive = end + (24L * 60 * 60 * 1000) - 1L
+                            store.setDateRange(start..endInclusive)
+                            showDateRangeDialog = false
+                        }
+                    },
+                    enabled = pickerState.selectedStartDateMillis != null && pickerState.selectedEndDateMillis != null
+                ) { Text(stringResource(R.string.map_date_range_dialog_ok)) }
+            },
+            dismissButton = { TextButton(onClick = { showDateRangeDialog = false }) { Text(stringResource(R.string.map_date_range_dialog_cancel)) } }
+        ) {
+            DateRangePicker(state = pickerState)
+        }
+    }
 
     // Auto-expand when user focuses search or keyboard is visible; auto-peek when keyboard hides and not manually expanded
     LaunchedEffect(uiState.search.hasFocus, imeBottom) {
@@ -459,22 +458,149 @@ fun MapSheet(
     }
 
     // Report current bottom padding for the map (visible sheet height)
-    LaunchedEffect(bottomSheetState, peekHeight, effectiveBottomInsetPx) {
-        snapshotFlow { bottomSheetState.requireOffset() }
-            .collect { offsetPx ->
-                // BottomSheetScaffold places the sheet from the bottom. Visible height = sheetHeight - offset.
-                // We approximate sheetHeight by using the layout’s height minus the offset to bottom.
-                // However, requireOffset() returns the distance from expanded top to current. When expanded, offset=0.
-                // For Map padding, use the sheet’s current visible height above the bottom system inset.
-                val peekPx = with(density2) { peekHeight.toPx() }
-                val visiblePx = when (bottomSheetState.currentValue) {
-                    SheetValue.Hidden -> 0f
-                    SheetValue.PartiallyExpanded -> peekPx
-                    SheetValue.Expanded -> kotlin.math.max(peekPx, peekPx + (0f - offsetPx)) // expanded covers more
-                }
-                // Add bottom inset so map content clears both sheet and nav/gesture area
-                val totalBottom = (visiblePx + effectiveBottomInsetPx).toInt().coerceAtLeast(0)
-                onBottomPaddingChanged(totalBottom)
+    LaunchedEffect(bottomSheetState, peekHeight, effectiveBottomInsetPx, searchRowHeightPx) {
+         val searchHeightPx = searchRowHeightPx
+         val totalBottom = (effectiveBottomInsetPx + searchHeightPx + 48).coerceAtLeast(0) 
+         onBottomPaddingChanged(totalBottom)
+    }
+}
+
+@Composable
+fun MapLayerCard(
+    layer: LayerDescriptor,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    val context = LocalContext.current
+    
+    // Resolve LayerEntry to get Legend data without fully building logic
+    // We assume the factory returns LayerEntry for v2 layers
+    val layerEntry = remember(layer) {
+        try {
+            layer.recipe.factory.create() as? LayerEntry
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    val legend = layerEntry?.legend?.legend
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSelect),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // Softer background
             }
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            // Icon
+            Surface(
+                shape = CircleShape,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = getLayerIcon(layer.id),
+                    contentDescription = null,
+                    modifier = Modifier.padding(8.dp),
+                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                // Title
+                Text(
+                    text = try { context.getString(layer.titleRes) } catch (e: Exception) { layer.id },
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                // Legend Preview / Description
+                if (legend != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (legend.valueList.isNotEmpty()) {
+                        // Show colorful legend strip
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
+                        ) {
+                             legend.valueList.forEach { value ->
+                                 Box(
+                                     modifier = Modifier
+                                         .weight(1f)
+                                         .fillMaxHeight()
+                                         .background(Color(value.color))
+                                 )
+                             }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val first = legend.valueList.firstOrNull()
+                            val last = legend.valueList.lastOrNull()
+                            if (first != null) {
+                                Text(
+                                    try { context.getString(first.nameRes) } catch(e:Exception){""}, 
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (last != null && last != first) {
+                                Text(
+                                     try { context.getString(last.nameRes) } catch(e:Exception){""},
+                                     style = MaterialTheme.typography.labelSmall,
+                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        val descriptionRes = legend.description
+                        if (descriptionRes != null && descriptionRes > 0) {
+                        // Text description fallback
+                             Text(
+                                 text = context.getString(descriptionRes),
+                                 style = MaterialTheme.typography.bodySmall,
+                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                 maxLines = 2
+                             )
+                        }
+                    }
+                }
+            }
+            
+            // Checkmark if selected?
+            // Currently using background color which is sufficient
+        }
+    }
+}
+
+private fun getLayerIcon(layerId: String): ImageVector {
+    return when (layerId) {
+        "location_heatmap" -> Icons.Filled.LocationOn
+        "cell_heatmap" -> Icons.Filled.CellTower
+        "wifi_heatmap" -> Icons.Filled.Wifi
+        "wifi_count_heatmap" -> Icons.Filled.Wifi
+        "speed_heatmap" -> Icons.Filled.DirectionsRun
+        "location_polyline" -> Icons.Filled.Timeline
+        "none" -> Icons.Filled.LayersClear
+        else -> Icons.Filled.Layers
     }
 }

@@ -22,17 +22,17 @@ enum class PermissionType(
     val rationaleMessage: Int
 ) {
     LOCATION_FOREGROUND(
-        Icons.Default.LocationOn,
+        Icons.Filled.LocationOn,
         R.string.permission_location_rationale_title,
         R.string.permission_location_rationale_message
     ),
     ACTIVITY_RECOGNITION(
-        Icons.Default.LocationOn,
+        Icons.Filled.LocationOn,
         R.string.permission_activity_rationale_title,
         R.string.permission_activity_rationale_message
     ),
     LOCATION_BACKGROUND(
-        Icons.Default.LocationOn,
+        Icons.Filled.LocationOn,
         R.string.permission_background_location_rationale_title,
         R.string.permission_background_location_rationale_message
     )

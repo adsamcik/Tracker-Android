@@ -35,6 +35,9 @@ interface OnboardingRepository {
     
     /** Mark onboarding as completed with current timestamp. */
     suspend fun markCompleted()
+
+    /** Ensure legacy migration is performed. Call this before observing state. */
+    suspend fun ensureInitialized()
 }
 
 private object OnboardingStateSerializer : Serializer<OnboardingStateProto> {
@@ -62,7 +65,6 @@ class DefaultOnboardingRepository(
 ) : OnboardingRepository {
 
     override val state: Flow<OnboardingCompletionState> = context.onboardingDataStore.data
-        .onStart { ensureMigrated() }
         .map { proto ->
             OnboardingCompletionState(
                 completed = proto.completed,
@@ -83,17 +85,28 @@ class DefaultOnboardingRepository(
         }
     }
 
+    override suspend fun ensureInitialized() {
+        withContext(io) {
+            android.util.Log.d("Startup", "ensureInitialized: Starting migration check")
+            ensureMigrated()
+            android.util.Log.d("Startup", "ensureInitialized: Migration check done")
+        }
+    }
+
     private suspend fun ensureMigrated() {
-        val current = context.onboardingDataStore.data.first()
-        if (current.legacyMigrated) return
+        context.onboardingDataStore.updateData { current ->
+            if (current.legacyMigrated) return@updateData current
 
-        // One-time import from legacy SharedPreferences
-        val prefs = context.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
-        val legacyCompleted = prefs.getBoolean("completed", false)
-        val legacyTime = prefs.getLong("completed_time", 0L)
+            // One-time import from legacy SharedPreferences
+            // Note: We do this inside updateData to ensure atomicity,
+            // but we need to be careful about blocking.
+            // SharedPreferences I/O is disk I/O, but updateData blocks the DataStore writer.
+            // This is acceptable for a one-time migration.
+            val prefs = context.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
+            val legacyCompleted = prefs.getBoolean("completed", false)
+            val legacyTime = prefs.getLong("completed_time", 0L)
 
-        context.onboardingDataStore.updateData { proto ->
-            proto.toBuilder()
+            current.toBuilder()
                 .setCompleted(legacyCompleted)
                 .setCompletedTime(legacyTime)
                 .setLegacyMigrated(true)

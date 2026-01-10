@@ -29,12 +29,12 @@ object SummaryGenerator {
 		return listOf(
 				Stat(
 						R.string.stats_time,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_access_time_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						sessionSummary.duration.formatAsDuration(context)
 				),				Stat(
 						R.string.stats_distance_total,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_ruler,
 						displayType = StatisticDisplayType.INFORMATION,
 						resources.formatDistance(
 								sessionSummary.distanceInM,
@@ -43,7 +43,7 @@ object SummaryGenerator {
 						)
 				),				Stat(
 						R.string.stats_distance_on_foot,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
 						displayType = StatisticDisplayType.INFORMATION,
 						resources.formatDistance(
 								sessionSummary.distanceOnFootInM,
@@ -52,7 +52,7 @@ object SummaryGenerator {
 						)
 				),				Stat(
 						R.string.stats_distance_in_vehicle,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_directions_car_white_24dp,
 						displayType = StatisticDisplayType.INFORMATION,
 						resources.formatDistance(
 								sessionSummary.distanceInVehicleInM,
@@ -62,13 +62,13 @@ object SummaryGenerator {
 				),
 				Stat(
 						R.string.stats_collections,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_layers_24dp,
 						displayType = StatisticDisplayType.INFORMATION,
 						sessionSummary.collections.formatReadable()
 				),
 				Stat(
 						R.string.stats_steps,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_directions_run_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						sessionSummary.steps.formatReadable()
 				),
@@ -89,25 +89,25 @@ object SummaryGenerator {
 		val countList = listOf(
 				Stat(
 						R.string.stats_location_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						locationDao.count().formatReadable()
 				),
 				Stat(
 						R.string.stats_wifi_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						wifiDao.count().formatReadable()
 				),
 				Stat(
 						R.string.stats_cell_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						cellDao.uniqueCount().formatReadable()
 				),
 				Stat(
 						R.string.stats_session_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp,
 						displayType = StatisticDisplayType.INFORMATION,
 						sessionDao.count().formatReadable()
 				),
@@ -139,25 +139,25 @@ object SummaryGenerator {
 		val countList = listOf(
 				Stat(
 						R.string.stats_session_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_map_24dp,
 						displayType = StatisticDisplayType.INFORMATION,
 						sessionDao.count(weekAgo, now).formatReadable()
 				),
 				Stat(
 						R.string.stats_location_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_location_on_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						locationDao.count(weekAgo, now).formatReadable()
 				),
 				Stat(
 						R.string.stats_wifi_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_wifi_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						wifiDao.count(weekAgo, now).formatReadable()
 				),
 				Stat(
 						R.string.stats_cell_count,
-						com.adsamcik.tracker.shared.base.R.drawable.seed_outline,
+						com.adsamcik.tracker.shared.base.R.drawable.ic_outline_network_cell_24px,
 						displayType = StatisticDisplayType.INFORMATION,
 						cellDao.uniqueCount(weekAgo, now).formatReadable()
 				)

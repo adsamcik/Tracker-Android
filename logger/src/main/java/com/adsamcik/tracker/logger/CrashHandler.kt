@@ -30,9 +30,8 @@ import java.util.concurrent.TimeUnit
 class CrashHandler(private val application: Application) : Thread.UncaughtExceptionHandler {
     
     private val defaultHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler()
-    private val crashDir: File
     private val executor = Executors.newSingleThreadExecutor()
-    
+
     companion object {
         private const val TAG = "CrashHandler"
         private const val CRASH_LOG_SOURCE = "crash"
@@ -40,14 +39,17 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
         private const val MAX_CRASH_FILES = 50
         private const val CRASH_TIMEOUT_MS = 2000L
     }
-    
-    init {
-        // Create crash directory in internal storage
-        crashDir = File(application.filesDir, CRASH_DIR_NAME)
-        if (!crashDir.exists()) {
-            crashDir.mkdirs()
+
+    private val crashDir: File by lazy {
+        File(application.filesDir, CRASH_DIR_NAME).also {
+             if (!it.exists()) {
+                 it.mkdirs()
+             }
         }
     }
+    
+    // Remove init block as logic is moved to lazy property
+
     
     fun initialize() {
         Thread.setDefaultUncaughtExceptionHandler(this)
@@ -62,6 +64,11 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
     override fun uncaughtException(thread: Thread, exception: Throwable) {
         try {
             Log.e(TAG, "Uncaught exception in thread ${thread.name}", exception)
+            
+            // Export logs to external directory in debug mode for easy access
+            if (BuildConfig.DEBUG) {
+                DebugCrashLogExporter.exportOnCrash(application, thread, exception)
+            }
             
             // Store crash data with fallback strategy
             val crashData = createCrashDataSafely(thread, exception)

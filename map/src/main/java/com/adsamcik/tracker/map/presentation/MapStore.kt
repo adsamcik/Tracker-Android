@@ -88,7 +88,10 @@ class MapStore(
                 // layerManager.defaultBoundsFor(event.id)?.let { _effects.tryEmit(MapEffect.CenterCamera(it)) }
             }
             is MapEvent.ToggleFollow -> {
-                val nowFollowing = !_state.value.isFollowing
+                dispatch(MapEvent.SetFollowing(!_state.value.isFollowing))
+            }
+            is MapEvent.SetFollowing -> {
+                val nowFollowing = event.isFollowing
                 _state.update { it.copy(isFollowing = nowFollowing) }
                 if (nowFollowing) {
                     // When starting to follow, immediately orient the user marker to last known bearing

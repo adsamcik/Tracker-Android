@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -154,5 +157,42 @@ fun SectionHeader(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     )
+}
+
+/**
+ * Contract: Card container for grouping settings items, matching the Dashboard design.
+ * Inputs: optional title, content composable (ColumnScope)
+ * Outputs: Displays content within a styled Card
+ * Failure modes: None (UI component only)
+ */
+@Composable
+fun SettingsGroupCard(
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (title != null) {
+             Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
+            )
+        }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            colors = CardDefaults.cardColors(
+                 containerColor = MaterialTheme.colorScheme.surfaceContainer
+            )
+        ) {
+             Column(
+                 modifier = Modifier.padding(vertical = 4.dp),
+                 content = content
+             )
+        }
+    }
 }
 

@@ -200,6 +200,9 @@ dependencies {
 	// Google dependencies
 	implementation(libs.androidx.cardview)
 
+	// Haze (Glassmorphism)
+	implementation(libs.haze)
+
 	// Preference
 	implementation(libs.androidx.preference)
 

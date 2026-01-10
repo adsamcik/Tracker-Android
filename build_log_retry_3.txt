@@ -1,0 +1,539 @@
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :activity:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :activity:preBuild UP-TO-DATE
+> Task :activity:preDebugBuild UP-TO-DATE
+> Task :activity:generateDebugResValues UP-TO-DATE
+> Task :activity:generateDebugResources UP-TO-DATE
+> Task :activity:packageDebugResources UP-TO-DATE
+> Task :activity:processDebugNavigationResources UP-TO-DATE
+> Task :activity:parseDebugLocalResources UP-TO-DATE
+> Task :activity:generateDebugRFile UP-TO-DATE
+> Task :logger:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :logger:preBuild UP-TO-DATE
+> Task :logger:preDebugBuild UP-TO-DATE
+> Task :logger:generateDebugBuildConfig UP-TO-DATE
+> Task :logger:generateDebugResValues UP-TO-DATE
+> Task :logger:generateDebugResources UP-TO-DATE
+> Task :logger:packageDebugResources UP-TO-DATE
+> Task :logger:processDebugNavigationResources UP-TO-DATE
+> Task :logger:parseDebugLocalResources UP-TO-DATE
+> Task :logger:generateDebugRFile UP-TO-DATE
+> Task :logger:ensureKspDir
+> Task :sbase:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sbase:preBuild UP-TO-DATE
+> Task :sbase:preDebugBuild UP-TO-DATE
+> Task :sbase:generateDebugBuildConfig UP-TO-DATE
+> Task :sbase:generateDebugResValues UP-TO-DATE
+> Task :sbase:generateDebugResources UP-TO-DATE
+> Task :sbase:packageDebugResources UP-TO-DATE
+> Task :sbase:processDebugNavigationResources UP-TO-DATE
+> Task :sbase:parseDebugLocalResources UP-TO-DATE
+> Task :sbase:generateDebugRFile UP-TO-DATE
+> Task :sbase:kspDebugKotlin UP-TO-DATE
+> Task :sbase:compileDebugKotlin UP-TO-DATE
+> Task :sbase:javaPreCompileDebug UP-TO-DATE
+> Task :sbase:compileDebugJavaWithJavac UP-TO-DATE
+> Task :sbase:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :spreferences:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :spreferences:preBuild UP-TO-DATE
+> Task :spreferences:preDebugBuild UP-TO-DATE
+> Task :spreferences:generateDebugBuildConfig UP-TO-DATE
+> Task :spreferences:extractDebugProto UP-TO-DATE
+> Task :sbase:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :sbase:processDebugJavaRes UP-TO-DATE
+> Task :sbase:createFullJarDebug UP-TO-DATE
+> Task :spreferences:extractIncludeDebugProto UP-TO-DATE
+> Task :spreferences:extractProto UP-TO-DATE
+> Task :spreferences:generateDebugProto UP-TO-DATE
+> Task :spreferences:generateDebugResValues UP-TO-DATE
+> Task :spreferences:generateDebugResources UP-TO-DATE
+> Task :spreferences:packageDebugResources UP-TO-DATE
+> Task :spreferences:processDebugNavigationResources UP-TO-DATE
+> Task :spreferences:parseDebugLocalResources UP-TO-DATE
+> Task :spreferences:generateDebugRFile UP-TO-DATE
+> Task :spreferences:kspDebugKotlin UP-TO-DATE
+> Task :spreferences:compileDebugKotlin UP-TO-DATE
+> Task :spreferences:javaPreCompileDebug UP-TO-DATE
+> Task :spreferences:compileDebugJavaWithJavac UP-TO-DATE
+> Task :spreferences:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :logger:kspDebugKotlin UP-TO-DATE
+> Task :logger:compileDebugKotlin UP-TO-DATE
+> Task :logger:javaPreCompileDebug UP-TO-DATE
+> Task :logger:compileDebugJavaWithJavac UP-TO-DATE
+> Task :logger:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :sutils:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :sutils:preBuild UP-TO-DATE
+> Task :sutils:preDebugBuild UP-TO-DATE
+> Task :sutils:generateDebugResValues UP-TO-DATE
+> Task :sutils:generateDebugResources UP-TO-DATE
+> Task :sutils:packageDebugResources UP-TO-DATE
+> Task :sutils:processDebugNavigationResources UP-TO-DATE
+> Task :sutils:parseDebugLocalResources UP-TO-DATE
+> Task :sutils:generateDebugRFile UP-TO-DATE
+> Task :sutils:kspDebugKotlin UP-TO-DATE
+> Task :sutils:compileDebugKotlin UP-TO-DATE
+> Task :sutils:javaPreCompileDebug UP-TO-DATE
+> Task :sutils:compileDebugJavaWithJavac NO-SOURCE
+> Task :sutils:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :activity:kspDebugKotlin SKIPPED
+> Task :activity:compileDebugKotlin UP-TO-DATE
+> Task :activity:javaPreCompileDebug UP-TO-DATE
+> Task :activity:compileDebugJavaWithJavac NO-SOURCE
+> Task :activity:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :activity:compileDebugLibraryResources UP-TO-DATE
+> Task :activity:writeDebugAarMetadata UP-TO-DATE
+> Task :game:preBuild UP-TO-DATE
+> Task :game:preDebugBuild UP-TO-DATE
+> Task :game:writeDebugAarMetadata UP-TO-DATE
+> Task :impexp:preBuild UP-TO-DATE
+> Task :impexp:preDebugBuild UP-TO-DATE
+> Task :impexp:writeDebugAarMetadata UP-TO-DATE
+> Task :logger:writeDebugAarMetadata UP-TO-DATE
+> Task :map:preBuild UP-TO-DATE
+> Task :map:preDebugBuild UP-TO-DATE
+> Task :map:writeDebugAarMetadata UP-TO-DATE
+> Task :points:preBuild UP-TO-DATE
+> Task :points:preDebugBuild UP-TO-DATE
+> Task :points:writeDebugAarMetadata UP-TO-DATE
+> Task :sbase:writeDebugAarMetadata UP-TO-DATE
+> Task :smap:preBuild UP-TO-DATE
+> Task :smap:preDebugBuild UP-TO-DATE
+> Task :smap:writeDebugAarMetadata UP-TO-DATE
+> Task :spreferences:writeDebugAarMetadata UP-TO-DATE
+> Task :statistics:preBuild UP-TO-DATE
+> Task :statistics:preDebugBuild UP-TO-DATE
+> Task :statistics:writeDebugAarMetadata UP-TO-DATE
+> Task :sutils:writeDebugAarMetadata UP-TO-DATE
+> Task :tracker:preBuild UP-TO-DATE
+> Task :tracker:preDebugBuild UP-TO-DATE
+> Task :tracker:writeDebugAarMetadata UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :game:processDebugNavigationResources UP-TO-DATE
+> Task :impexp:processDebugNavigationResources UP-TO-DATE
+> Task :map:processDebugNavigationResources UP-TO-DATE
+> Task :points:processDebugNavigationResources UP-TO-DATE
+> Task :smap:processDebugNavigationResources UP-TO-DATE
+> Task :statistics:processDebugNavigationResources UP-TO-DATE
+> Task :tracker:processDebugNavigationResources UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:debugOssDependencyTask UP-TO-DATE
+> Task :app:debugOssLicensesTask UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:processDebugGoogleServices UP-TO-DATE
+> Task :game:generateDebugResValues UP-TO-DATE
+> Task :game:generateDebugResources UP-TO-DATE
+> Task :game:packageDebugResources UP-TO-DATE
+> Task :impexp:generateDebugResValues UP-TO-DATE
+> Task :impexp:generateDebugResources UP-TO-DATE
+> Task :impexp:packageDebugResources UP-TO-DATE
+> Task :map:generateDebugResValues UP-TO-DATE
+> Task :map:generateDebugResources UP-TO-DATE
+> Task :map:packageDebugResources UP-TO-DATE
+> Task :points:generateDebugResValues UP-TO-DATE
+> Task :points:generateDebugResources UP-TO-DATE
+> Task :points:packageDebugResources UP-TO-DATE
+> Task :smap:generateDebugResValues UP-TO-DATE
+> Task :smap:generateDebugResources UP-TO-DATE
+> Task :smap:packageDebugResources UP-TO-DATE
+> Task :statistics:generateDebugResValues UP-TO-DATE
+> Task :statistics:generateDebugResources UP-TO-DATE
+> Task :statistics:packageDebugResources UP-TO-DATE
+> Task :tracker:generateDebugResValues UP-TO-DATE
+> Task :tracker:generateDebugResources UP-TO-DATE
+> Task :tracker:packageDebugResources UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :activity:extractDeepLinksDebug UP-TO-DATE
+> Task :activity:processDebugManifest UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :game:extractDeepLinksDebug UP-TO-DATE
+> Task :game:processDebugManifest UP-TO-DATE
+> Task :impexp:extractDeepLinksDebug UP-TO-DATE
+> Task :impexp:processDebugManifest UP-TO-DATE
+> Task :logger:extractDeepLinksDebug UP-TO-DATE
+> Task :logger:processDebugManifest UP-TO-DATE
+> Task :map:extractDeepLinksDebug UP-TO-DATE
+> Task :map:processDebugManifest UP-TO-DATE
+> Task :points:extractDeepLinksDebug UP-TO-DATE
+> Task :points:processDebugManifest UP-TO-DATE
+> Task :sbase:extractDeepLinksDebug UP-TO-DATE
+> Task :sbase:processDebugManifest UP-TO-DATE
+> Task :smap:extractDeepLinksDebug UP-TO-DATE
+> Task :smap:processDebugManifest UP-TO-DATE
+> Task :spreferences:extractDeepLinksDebug UP-TO-DATE
+> Task :spreferences:processDebugManifest UP-TO-DATE
+> Task :statistics:extractDeepLinksDebug UP-TO-DATE
+> Task :statistics:processDebugManifest UP-TO-DATE
+> Task :sutils:extractDeepLinksDebug UP-TO-DATE
+> Task :sutils:processDebugManifest UP-TO-DATE
+> Task :tracker:extractDeepLinksDebug UP-TO-DATE
+> Task :tracker:processDebugManifest UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :game:compileDebugLibraryResources UP-TO-DATE
+> Task :game:parseDebugLocalResources UP-TO-DATE
+> Task :game:generateDebugRFile UP-TO-DATE
+> Task :impexp:compileDebugLibraryResources UP-TO-DATE
+> Task :impexp:parseDebugLocalResources UP-TO-DATE
+> Task :impexp:generateDebugRFile UP-TO-DATE
+> Task :logger:compileDebugLibraryResources UP-TO-DATE
+> Task :map:compileDebugLibraryResources UP-TO-DATE
+> Task :map:parseDebugLocalResources UP-TO-DATE
+> Task :map:generateDebugRFile UP-TO-DATE
+> Task :points:compileDebugLibraryResources UP-TO-DATE
+> Task :points:parseDebugLocalResources UP-TO-DATE
+> Task :points:generateDebugRFile UP-TO-DATE
+> Task :sbase:compileDebugLibraryResources UP-TO-DATE
+> Task :smap:compileDebugLibraryResources UP-TO-DATE
+> Task :smap:parseDebugLocalResources UP-TO-DATE
+> Task :smap:generateDebugRFile UP-TO-DATE
+> Task :spreferences:compileDebugLibraryResources UP-TO-DATE
+> Task :statistics:compileDebugLibraryResources UP-TO-DATE
+> Task :statistics:parseDebugLocalResources UP-TO-DATE
+> Task :statistics:generateDebugRFile UP-TO-DATE
+> Task :sutils:compileDebugLibraryResources UP-TO-DATE
+> Task :tracker:compileDebugLibraryResources UP-TO-DATE
+> Task :tracker:parseDebugLocalResources UP-TO-DATE
+> Task :tracker:generateDebugRFile UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :game:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :game:extractDebugProto UP-TO-DATE
+> Task :logger:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :logger:processDebugJavaRes UP-TO-DATE
+> Task :logger:createFullJarDebug UP-TO-DATE
+> Task :points:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :points:kspDebugKotlin UP-TO-DATE
+> Task :points:compileDebugKotlin UP-TO-DATE
+> Task :points:javaPreCompileDebug UP-TO-DATE
+> Task :points:compileDebugJavaWithJavac NO-SOURCE
+> Task :points:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :points:processDebugJavaRes UP-TO-DATE
+> Task :points:createFullJarDebug UP-TO-DATE
+> Task :spreferences:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :spreferences:processDebugJavaRes UP-TO-DATE
+> Task :spreferences:createFullJarDebug UP-TO-DATE
+> Task :sutils:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :sutils:processDebugJavaRes UP-TO-DATE
+> Task :sutils:createFullJarDebug UP-TO-DATE
+> Task :game:extractIncludeDebugProto UP-TO-DATE
+> Task :game:extractProto UP-TO-DATE
+> Task :game:generateDebugProto UP-TO-DATE
+> Task :points:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :game:kspDebugKotlin UP-TO-DATE
+> Task :game:compileDebugKotlin UP-TO-DATE
+> Task :game:javaPreCompileDebug UP-TO-DATE
+> Task :game:compileDebugJavaWithJavac UP-TO-DATE
+> Task :game:transformDebugClassesWithAsm UP-TO-DATE
+> Task :game:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :impexp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :impexp:extractDebugProto UP-TO-DATE
+> Task :impexp:extractIncludeDebugProto UP-TO-DATE
+> Task :impexp:extractProto UP-TO-DATE
+> Task :impexp:generateDebugProto UP-TO-DATE
+> Task :impexp:kspDebugKotlin UP-TO-DATE
+> Task :impexp:compileDebugKotlin UP-TO-DATE
+> Task :impexp:javaPreCompileDebug UP-TO-DATE
+> Task :impexp:compileDebugJavaWithJavac UP-TO-DATE
+> Task :impexp:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :map:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smap:kspDebugKotlin SKIPPED
+> Task :smap:compileDebugKotlin UP-TO-DATE
+> Task :smap:javaPreCompileDebug UP-TO-DATE
+> Task :smap:compileDebugJavaWithJavac NO-SOURCE
+> Task :smap:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :map:kspDebugKotlin SKIPPED
+> Task :map:compileDebugKotlin UP-TO-DATE
+> Task :map:javaPreCompileDebug UP-TO-DATE
+> Task :map:compileDebugJavaWithJavac NO-SOURCE
+> Task :map:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :smap:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :statistics:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :statistics:kspDebugKotlin UP-TO-DATE
+> Task :statistics:compileDebugKotlin UP-TO-DATE
+> Task :statistics:javaPreCompileDebug UP-TO-DATE
+> Task :statistics:compileDebugJavaWithJavac UP-TO-DATE
+> Task :statistics:transformDebugClassesWithAsm UP-TO-DATE
+> Task :statistics:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :activity:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :statistics:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :tracker:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :tracker:extractDebugProto UP-TO-DATE
+> Task :activity:processDebugJavaRes UP-TO-DATE
+> Task :activity:createFullJarDebug UP-TO-DATE
+> Task :statistics:processDebugJavaRes UP-TO-DATE
+> Task :statistics:createFullJarDebug UP-TO-DATE
+> Task :tracker:extractIncludeDebugProto UP-TO-DATE
+> Task :tracker:extractProto UP-TO-DATE
+> Task :tracker:generateDebugProto UP-TO-DATE
+> Task :tracker:kspDebugKotlin UP-TO-DATE
+> Task :tracker:compileDebugKotlin UP-TO-DATE
+> Task :tracker:javaPreCompileDebug UP-TO-DATE
+> Task :tracker:compileDebugJavaWithJavac UP-TO-DATE
+> Task :tracker:transformDebugClassesWithAsm UP-TO-DATE
+> Task :tracker:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :activity:mergeDebugShaders UP-TO-DATE
+> Task :activity:compileDebugShaders NO-SOURCE
+> Task :activity:generateDebugAssets UP-TO-DATE
+> Task :activity:mergeDebugAssets UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :game:mergeDebugShaders UP-TO-DATE
+> Task :game:compileDebugShaders NO-SOURCE
+> Task :game:generateDebugAssets UP-TO-DATE
+> Task :game:mergeDebugAssets UP-TO-DATE
+> Task :impexp:mergeDebugShaders UP-TO-DATE
+> Task :impexp:compileDebugShaders NO-SOURCE
+> Task :impexp:generateDebugAssets UP-TO-DATE
+> Task :impexp:mergeDebugAssets UP-TO-DATE
+> Task :logger:mergeDebugShaders UP-TO-DATE
+> Task :logger:compileDebugShaders NO-SOURCE
+> Task :logger:generateDebugAssets UP-TO-DATE
+> Task :logger:mergeDebugAssets UP-TO-DATE
+> Task :map:mergeDebugShaders UP-TO-DATE
+> Task :map:compileDebugShaders NO-SOURCE
+> Task :map:generateDebugAssets UP-TO-DATE
+> Task :map:mergeDebugAssets UP-TO-DATE
+> Task :points:mergeDebugShaders UP-TO-DATE
+> Task :points:compileDebugShaders NO-SOURCE
+> Task :points:generateDebugAssets UP-TO-DATE
+> Task :points:mergeDebugAssets UP-TO-DATE
+> Task :sbase:mergeDebugShaders UP-TO-DATE
+> Task :sbase:compileDebugShaders NO-SOURCE
+> Task :sbase:generateDebugAssets UP-TO-DATE
+> Task :sbase:mergeDebugAssets UP-TO-DATE
+> Task :smap:mergeDebugShaders UP-TO-DATE
+> Task :smap:compileDebugShaders NO-SOURCE
+> Task :smap:generateDebugAssets UP-TO-DATE
+> Task :smap:mergeDebugAssets UP-TO-DATE
+> Task :spreferences:mergeDebugShaders UP-TO-DATE
+> Task :spreferences:compileDebugShaders NO-SOURCE
+> Task :spreferences:generateDebugAssets UP-TO-DATE
+> Task :spreferences:mergeDebugAssets UP-TO-DATE
+> Task :statistics:mergeDebugShaders UP-TO-DATE
+> Task :statistics:compileDebugShaders NO-SOURCE
+> Task :statistics:generateDebugAssets UP-TO-DATE
+> Task :statistics:mergeDebugAssets UP-TO-DATE
+> Task :sutils:mergeDebugShaders UP-TO-DATE
+> Task :sutils:compileDebugShaders NO-SOURCE
+> Task :sutils:generateDebugAssets UP-TO-DATE
+> Task :sutils:mergeDebugAssets UP-TO-DATE
+> Task :tracker:mergeDebugShaders UP-TO-DATE
+> Task :tracker:compileDebugShaders NO-SOURCE
+> Task :tracker:generateDebugAssets UP-TO-DATE
+> Task :tracker:mergeDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:l8DexDesugarLibDebug UP-TO-DATE
+> Task :tracker:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :map:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :game:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :impexp:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:generateDebugJacocoPropertiesFile UP-TO-DATE
+> Task :game:processDebugJavaRes UP-TO-DATE
+> Task :impexp:processDebugJavaRes UP-TO-DATE
+> Task :map:processDebugJavaRes UP-TO-DATE
+> Task :smap:processDebugJavaRes UP-TO-DATE
+> Task :tracker:processDebugJavaRes UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :tracker:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :map:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :activity:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :game:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :points:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :impexp:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :statistics:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :smap:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :sutils:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :logger:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :spreferences:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :sbase:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :activity:mergeDebugJniLibFolders UP-TO-DATE
+> Task :activity:mergeDebugNativeLibs NO-SOURCE
+> Task :activity:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :game:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :game:mergeDebugNativeLibs NO-SOURCE
+> Task :game:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :impexp:mergeDebugJniLibFolders UP-TO-DATE
+> Task :impexp:mergeDebugNativeLibs NO-SOURCE
+> Task :impexp:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :logger:mergeDebugJniLibFolders UP-TO-DATE
+> Task :logger:mergeDebugNativeLibs NO-SOURCE
+> Task :logger:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :map:mergeDebugJniLibFolders UP-TO-DATE
+> Task :map:mergeDebugNativeLibs NO-SOURCE
+> Task :map:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :points:mergeDebugJniLibFolders UP-TO-DATE
+> Task :points:mergeDebugNativeLibs NO-SOURCE
+> Task :points:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :sbase:mergeDebugJniLibFolders UP-TO-DATE
+> Task :sbase:mergeDebugNativeLibs NO-SOURCE
+> Task :sbase:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :smap:mergeDebugJniLibFolders UP-TO-DATE
+> Task :smap:mergeDebugNativeLibs NO-SOURCE
+> Task :smap:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :spreferences:mergeDebugJniLibFolders UP-TO-DATE
+> Task :spreferences:mergeDebugNativeLibs NO-SOURCE
+> Task :spreferences:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :statistics:mergeDebugJniLibFolders UP-TO-DATE
+> Task :statistics:mergeDebugNativeLibs NO-SOURCE
+> Task :statistics:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :sutils:mergeDebugJniLibFolders UP-TO-DATE
+> Task :sutils:mergeDebugNativeLibs NO-SOURCE
+> Task :sutils:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :tracker:mergeDebugJniLibFolders UP-TO-DATE
+> Task :tracker:mergeDebugNativeLibs NO-SOURCE
+> Task :tracker:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:kspDebugKotlin
+
+> Task :app:compileDebugKotlin
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:89:54 'object ValueDemo : OnboardingStep' is deprecated. Use streamlined single-screen onboarding.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:90:28 'object ValueDemo : OnboardingStep' is deprecated. Use streamlined single-screen onboarding.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:90:56 'object WhatToTrack : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:91:28 'object Privacy : OnboardingStep' is deprecated. No longer shown - privacy is implicit.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:91:54 'object WhatToTrack : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:92:28 'object WhatToTrack : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:92:58 'object AutoTrackingSetup : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:93:28 'object AutoTrackingSetup : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:96:36 'object LocationSetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:98:36 'object ActivitySetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:103:28 'object LocationSetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:107:36 'object ActivitySetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:109:36 'object EnhancedFeatures : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:114:28 'object ActivitySetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:118:36 'object EnhancedFeatures : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:123:28 'object EnhancedFeatures : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:124:28 'object BackgroundLocation : OnboardingStep' is deprecated. Permissions requested contextually after sessions.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:126:36 'object EnhancedFeatures : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:140:28 'object LocationSetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:141:28 'object ActivitySetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:142:28 'object BackgroundLocation : OnboardingStep' is deprecated. Permissions requested contextually after sessions.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingState.kt:143:28 'object EnhancedFeatures : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:42:13 'object ValueDemo : OnboardingStep' is deprecated. Use streamlined single-screen onboarding.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:43:13 'object Privacy : OnboardingStep' is deprecated. No longer shown - privacy is implicit.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:44:13 'object WhatToTrack : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:45:13 'object AutoTrackingSetup : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:46:13 'object LocationSetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:47:13 'object ActivitySetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:48:13 'object EnhancedFeatures : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:49:13 'object BackgroundLocation : OnboardingStep' is deprecated. Permissions requested contextually after sessions.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:73:29 'object ValueDemo : OnboardingStep' is deprecated. Use streamlined single-screen onboarding.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:74:26 'object Privacy : OnboardingStep' is deprecated. No longer shown - privacy is implicit.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:75:53 'object WhatToTrack : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:76:38 'object AutoTrackingSetup : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:77:33 'object LocationSetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:78:33 'object ActivitySetup : OnboardingStep' is deprecated. Permissions requested contextually.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:79:36 'object EnhancedFeatures : OnboardingStep' is deprecated. Smart defaults applied automatically.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/data/OnboardingStep.kt:80:38 'object BackgroundLocation : OnboardingStep' is deprecated. Permissions requested contextually after sessions.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/OnboardingActivity.kt:300:39 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/StreamlinedOnboardingScreen.kt:232:43 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/StreamlinedOnboardingScreen.kt:238:44 'fun centerAlignedTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/receiver/OnAppUpdateReceiver.kt:20:23 'fun getLong(key: String, default: Long = ...): Long' is deprecated. Use observeLong or suspend getLong.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt:23:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/DataSettingsViewModel.kt:29:15 'fun getStringRes(keyRes: Int, defaultRes: Int): String' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt:138:42 'val Icons.Filled.DirectionsRun: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.DirectionsRun.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt:220:42 'val Icons.Filled.Article: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Article.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt:804:69 'fun getFloat(key: String, default: Float = ...): Float' is deprecated. Use observeFloat or suspend getFloat.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt:823:67 'fun getInt(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt:842:74 'fun getInt(key: String, default: Int = ...): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt:880:73 'fun getBoolean(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt:921:71 'fun getBoolean(key: String, default: Boolean = ...): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:28:30 'fun getString(key: String, default: String): String' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:38:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:43:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:48:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:53:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:58:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:64:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:69:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:75:15 'fun getIntResString(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:80:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:86:15 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:92:15 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:97:15 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/TrackingSettingsViewModel.kt:102:15 'fun getIntRes(keyRes: Int, defaultRes: Int): Int' is deprecated. Use observeInt or suspend getInt.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/components/SettingsItemWithHelp.kt:75:39 'val Icons.Filled.HelpOutline: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.HelpOutline.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/settings/components/SettingsItemWithHelp.kt:156:43 'val Icons.Filled.HelpOutline: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.HelpOutline.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/tracker/receiver/PrecisionUpgradeReceiver.kt:53:35 'fun getStringRes(keyRes: Int, defaultRes: Int): String' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/ui/FloatingNavigationBar.kt:62:30 'fun Modifier.hazeChild(state: HazeState, style: HazeStyle = ..., block: (HazeEffectScope.() -> Unit)? = ...): Modifier' is deprecated. Renamed to Modifier.hazeEffect().
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt:207:18 'fun Modifier.haze(state: HazeState): Modifier' is deprecated. Renamed to Modifier.hazeSource().
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/maintenance/DataRetentionWorker.kt:32:29 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/maintenance/DataRetentionWorker.kt:41:27 'fun getStringRes(keyRes: Int, defaultRes: Int): String' is deprecated. Use observeString or suspend getString.
+w: file:///G:/Github/Tracker-Android/app/src/main/java/com/adsamcik/tracker/maintenance/DataRetentionWorker.kt:65:46 'fun getBooleanRes(keyRes: Int, defaultRes: Int): Boolean' is deprecated. Use observeBoolean or suspend getBoolean.
+
+> Task :app:compileDebugJavaWithJavac
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\activity\Hilt_MainActivityCompose.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\activity\Hilt_MainActivityCompose.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\activity\MainActivityCompose_GeneratedInjector.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\activity\MainActivityCompose_GeneratedInjector.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\Application_GeneratedInjector.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\Application_GeneratedInjector.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\Application_MembersInjector.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\Application_MembersInjector.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\AppGraphModule_ProvideApplicationFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\AppGraphModule_ProvideApplicationFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\AppGraphModule_ProvideLockManagerFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\AppGraphModule_ProvideLockManagerFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\AppGraphModule_ProvideTrackerServiceControllerFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\AppGraphModule_ProvideTrackerServiceControllerFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideAppDatabaseFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideAppDatabaseFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideAppScopeFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideAppScopeFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideClockFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideClockFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideDefaultDispatcherFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideDefaultDispatcherFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideDispatchersProviderFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideDispatchersProviderFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideIoDispatcherFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\InfrastructureModule_ProvideIoDispatcherFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\RepositoryModule_Companion_ProvideTrackerSettingsRepositoryFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\di\RepositoryModule_Companion_ProvideTrackerSettingsRepositoryFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_Factory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_Factory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules_BindsModule_Binds_LazyMapKey.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules_BindsModule_Binds_LazyMapKey.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules_KeyModule_ProvideFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules_KeyModule_ProvideFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules_KeyModule_Provide_LazyMapKey.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\settings\SettingsViewModel_HiltModules_KeyModule_Provide_LazyMapKey.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_Factory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_Factory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules_BindsModule_Binds_LazyMapKey.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules_BindsModule_Binds_LazyMapKey.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules_KeyModule_ProvideFactory.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules_KeyModule_ProvideFactory.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules_KeyModule_Provide_LazyMapKey.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\ui\MainViewModel_HiltModules_KeyModule_Provide_LazyMapKey.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\dagger\hilt\internal\aggregatedroot\codegen\_com_adsamcik_tracker_app_Application.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\dagger\hilt\internal\aggregatedroot\codegen\_com_adsamcik_tracker_app_Application.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_activity_MainActivityCompose_GeneratedInjector.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_activity_MainActivityCompose_GeneratedInjector.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_Application_GeneratedInjector.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_Application_GeneratedInjector.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_di_AppGraphModule.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_di_AppGraphModule.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_di_InfrastructureModule.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_di_InfrastructureModule.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_di_RepositoryModule.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_di_RepositoryModule.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_settings_SettingsViewModel_HiltModules_BindsModule.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_settings_SettingsViewModel_HiltModules_BindsModule.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_settings_SettingsViewModel_HiltModules_KeyModule.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_settings_SettingsViewModel_HiltModules_KeyModule.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_ui_MainViewModel_HiltModules_BindsModule.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_ui_MainViewModel_HiltModules_BindsModule.java
+error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_ui_MainViewModel_HiltModules_KeyModule.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\hilt_aggregated_deps\_com_adsamcik_tracker_app_ui_MainViewModel_HiltModules_KeyModule.java
+34 errors
+
+> Task :app:compileDebugJavaWithJavac FAILED
+
+[Incubating] Problems report is available at: file:///G:/Github/Tracker-Android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugJavaWithJavac'.
+> Compilation failed; see the compiler output below.
+  error: error reading G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\activity\Hilt_MainActivityCompose.java; G:\Github\Tracker-Android\app\build\generated\ksp\debug\java\com\adsamcik\tracker\app\activity\Hilt_MainActivityCompose.java
+  34 errors
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to get full insights.
+
+BUILD FAILED in 1m 12s
+324 actionable tasks: 4 executed, 320 up-to-date

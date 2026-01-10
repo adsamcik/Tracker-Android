@@ -76,6 +76,7 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
+	implementation(project(":statistics"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
@@ -97,6 +98,7 @@ dependencies {
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)
 	implementation(libs.hilt.work)
+	implementation(libs.hilt.navigation.compose)
 
 	// Compose (UI migration)
 	implementation(platform(libs.compose.bom))
@@ -107,6 +109,8 @@ dependencies {
 	implementation(libs.compose.foundation)
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
+	implementation(libs.google.maps.compose)
+	implementation(libs.google.play.services.maps)
 	// DataStore (proto for typed settings, preferences for migration compatibility)
 	implementation(libs.androidx.datastore.core)
 	implementation(libs.androidx.datastore.preferences)

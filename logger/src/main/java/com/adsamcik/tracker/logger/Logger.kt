@@ -22,21 +22,31 @@ object Logger : CoroutineScope {
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Default + job
 
-
     private var genericDao: GenericLogDao? = null
 
+    @Volatile
     private var isInitialized = false
 
     private var preferences: Preferences? = null
+    
+    // Buffer for logs that come in before initialization completes
+    private val logBuffer = java.util.concurrent.ConcurrentLinkedQueue<LogData>()
 
     fun initialize(context: Context) {
-        synchronized(this) {
-            if (isInitialized) return
+        if (isInitialized) return
+        
+        launch(Dispatchers.IO) {
+            preferences = Preferences.getPref(context)
+            genericDao = LogDatabase.database(context).genericLogDao()
             isInitialized = true
+            
+            // Flush buffer
+            var log: LogData? = logBuffer.poll()
+            while (log != null) {
+                logInternal(log)
+                log = logBuffer.poll()
+            }
         }
-
-        preferences = Preferences.getPref(context)
-        genericDao = LogDatabase.database(context).genericLogDao()
     }
 
     @AnyThread
@@ -45,24 +55,59 @@ object Logger : CoroutineScope {
             Log.d("com.adsamcik.tracker.debug.${data.source}", data.toString())
         }
 
-        require(isInitialized)
-        if (requireNotNull(preferences).getBooleanRes(
+        if (!isInitialized) {
+            logBuffer.add(data)
+            return
+        }
+
+        logInternal(data)
+    }
+    
+    private fun logInternal(data: LogData) {
+        val prefs = preferences ?: return
+        if (prefs.getBooleanRes(
                 R.string.settings_log_enabled_key,
                 R.string.settings_log_enabled_default
             )
         ) {
             launch {
-                requireNotNull(genericDao).insert(data)
+                genericDao?.insert(data)
             }
         }
     }
 
     @AnyThread
     fun logWithPreference(data: LogData, @StringRes key: Int, @StringRes default: Int) {
-        if (requireNotNull(preferences).getBooleanRes(key, default)) {
-            log(data)
+        if (isInitialized) {
+            preferences?.let { prefs ->
+               if (prefs.getBooleanRes(key, default)) {
+                   log(data)
+               }
+            }
+        } else {
+             // For now, if not initialized, we can't check pref, so we might miss it 
+             // or we have to buffer it with the pref key. 
+             // Making a design decision to just try logging it, logic inside will check generic pref.
+             // But valid point: if we don't know the specific pref, we can't check it.
+             // Simplification: Wait for init or drop? 
+             // Better approach: Launch a coroutine to wait for init if needed?
+             // Given this is performance tracing usually, and 'log' just checks global enable,
+             // let's pass it through to 'log' which buffers.
+             // However, 'log' checks 'settings_log_enabled_key'.
+             // 'logWithPreference' checks a SPECIFIC key.
+             
+             // We will launch a coroutine to wait and check.
+             launch {
+                 while (!isInitialized) {
+                     kotlinx.coroutines.delay(100)
+                 }
+                 if (preferences?.getBooleanRes(key, default) == true) {
+                     log(data)
+                 }
+             }
         }
     }
+
 
     @AnyThread
     inline fun <R> measureTimeMillis(name: String, method: () -> R): R {
