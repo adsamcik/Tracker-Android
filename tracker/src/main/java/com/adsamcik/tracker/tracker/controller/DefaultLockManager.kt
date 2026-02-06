@@ -114,19 +114,24 @@ class DefaultLockManager(
         }
     }
     
-    override fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
+    override fun lockTimeLock(context: Context, lockTimeInMillis: Long): LockResult {
         synchronized(this) {
-            val lockUntilTime = Time.nowMillis + lockTimeInMillis
-            if (lockTimeInMillis < Time.SECOND_IN_MILLISECONDS || lockUntilTime <= this.lockedUntilTime) {
-                return
+            if (lockTimeInMillis < Time.SECOND_IN_MILLISECONDS) {
+                return LockResult.DurationTooShort
             }
-            
+
+            val lockUntilTime = Time.nowMillis + lockTimeInMillis
+            if (lockUntilTime <= this.lockedUntilTime) {
+                return LockResult.AlreadyLockedLonger
+            }
+
             setTimeLock(context, lockUntilTime)
             context.alarmManager.set(
                 AlarmManager.RTC_WAKEUP,
                 lockUntilTime,
                 getTimeUnlockBroadcastIntent(context)
             )
+            return LockResult.Locked
         }
     }
     

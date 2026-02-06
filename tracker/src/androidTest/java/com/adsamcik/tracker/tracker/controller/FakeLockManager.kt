@@ -57,9 +57,10 @@ class FakeLockManager : LockManager {
         updateCombinedLockState()
     }
     
-    override fun lockTimeLock(context: Context, lockTimeInMillis: Long) {
+    override fun lockTimeLock(context: Context, lockTimeInMillis: Long): LockResult {
         _isTimeLocked = true
         updateCombinedLockState()
+        return LockResult.Locked
     }
     
     override fun unlockTimeLock(context: Context) {

@@ -69,10 +69,10 @@ class GpxExporter : Exporter {
 			GPX.Writer.DEFAULT.write(gpx, outputStream)
 		} catch (e: IOException) {
 			val message = e.localizedMessage ?: e.message ?: e.javaClass.name
-			return ExportResult(false, LocalizedString(R.string.export_gpx_error, message))
+			return ExportResult.Error(LocalizedString(R.string.export_gpx_error, message))
 		}
 
-		return ExportResult(true)
+		return ExportResult.Success
 	}
 
 	companion object {

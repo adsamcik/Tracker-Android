@@ -573,14 +573,15 @@ suspend fun tryExport(
         )
 
         withContext(Dispatchers.Main) {
-            if (result.isSuccess) {
-                onSuccess()
-            } else {
-                val message = result.message?.localize(context)
-                if (message != null) {
-                    snackBarHostState.showSnackbar(message)
-                } else {
-                    snackBarHostState.showSnackbar("Export failed, but has no message!")
+            when (result) {
+                is ExportResult.Success -> onSuccess()
+                is ExportResult.Error -> {
+                    val message = result.message?.localize(context)
+                    if (message != null) {
+                        snackBarHostState.showSnackbar(message)
+                    } else {
+                        snackBarHostState.showSnackbar("Export failed, but has no message!")
+                    }
                 }
             }
         }
@@ -600,8 +601,7 @@ suspend fun exportStream(
             return export(it, exporter, range, context)
         }
     } else {
-        return ExportResult(
-            false,
+        return ExportResult.Error(
             LocalizedString(
                 R.string.export_error_stream_failed,
                 file.uri
@@ -633,8 +633,7 @@ suspend fun export(
 
             val totalCount = locationDao.count(fromMs, toMs)
             if (totalCount == 0L) {
-                return@withContext ExportResult(
-                    false,
+                return@withContext ExportResult.Error(
                     LocalizedString(R.string.export_error_no_locations_in_interval)
                 )
             }
@@ -673,7 +672,7 @@ fun ExportScreenPreview() {
             outputStream: OutputStream,
             dateRange: LongRange?
         ): ExportResult {
-            return ExportResult(isSuccess = true)
+            return ExportResult.Success
         }
     }
     ExportScreen(

@@ -25,7 +25,7 @@ class KmlExporter : Exporter {
 	): ExportResult {
 		serialize(outputStream, locationData)
 
-		return ExportResult(true)
+		return ExportResult.Success
 	}
 
 

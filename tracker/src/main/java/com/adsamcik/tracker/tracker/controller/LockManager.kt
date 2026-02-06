@@ -59,10 +59,11 @@ interface LockManager {
      * Sets time-based lock for specified duration.
      * Cannot be locked for less than 1 second.
      * Schedules AlarmManager broadcast to auto-unlock.
-     * 
+     *
      * @param lockTimeInMillis Duration to lock (must be >= 1000ms)
+     * @return [LockResult.Locked] on success, or a specific rejection reason
      */
-    fun lockTimeLock(context: Context, lockTimeInMillis: Long)
+    fun lockTimeLock(context: Context, lockTimeInMillis: Long): LockResult
     
     /**
      * Unlocks active time lock.

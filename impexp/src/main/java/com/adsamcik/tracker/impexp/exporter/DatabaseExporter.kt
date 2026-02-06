@@ -31,7 +31,7 @@ class DatabaseExporter : Exporter {
 				input.copyTo(outputStream)
 			}
 		}
-		return ExportResult(true)
+		return ExportResult.Success
 	}
 }
 
