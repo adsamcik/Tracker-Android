@@ -25,6 +25,40 @@ Tracker is a free open-source offline location, fitness, Wi-Fi, cell tracker wit
 - Supported length systems: metric, imperial (USC), ancient roman, sailing, flying
 - Does not upload your tracked data anywhere (well except for automatic Android backup which sometimes works)
 
+## Development
+
+### Prerequisites
+
+- Android Studio (latest stable)
+- JDK 17
+- Android SDK 36
+
+### Build & Test
+
+```bash
+# Build debug APK
+./gradlew.bat :app:assembleDebug
+
+# Run all unit tests
+./gradlew.bat testDebugUnitTest
+
+# Run specific module tests
+./gradlew.bat :tracker:testDebugUnitTest
+./gradlew.bat :map:testDebugUnitTest
+
+# Run connected tests (requires device/emulator)
+./gradlew.bat :app:connectedDebugAndroidTest
+```
+
+### Tech Stack
+
+- Kotlin 2.2.x with Coroutines & Flow
+- Jetpack Compose (Material 3)
+- Room database
+- Hilt + AppGraph for DI
+
+For AI assistants, see [CLAUDE.md](CLAUDE.md). For architecture details, see [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md).
+
 ## Contributions
 
 Contributions to Tracker are welcome. If you want any new feature (even if it's in later milestone or no milestone at all) you are free to do so. It is recommended to consult on larger issues as they might collide with some future system revamps and might not be merged because of it.

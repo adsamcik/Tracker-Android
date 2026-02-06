@@ -109,10 +109,9 @@ keys.xml
 ############################################################
 # Test output files (used by Copilot for debugging)
 ############################################################
-test-output.log
-test-output-*.log
-build-output.log
-build-output-*.log
-
-unit_test_rerun.txt
-test_run_all_v4_log.txt
+test-output*
+build-output*
+build_log*
+benchmark_*
+unit_test_*
+test_run_*

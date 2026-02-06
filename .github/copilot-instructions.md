@@ -545,6 +545,7 @@ When generating suggestions:
 16. **Verify before declaring done** - Build, test, and validate that the fix addresses the actual problem.
 17. **NEVER filter or truncate terminal command output** - Do not use `Select-Object`, `head`, `tail`, `grep`, or similar filtering mechanisms on command output. Instead, redirect full output to a temporary file (e.g., `command > temp_output.txt`), read and analyze the complete file, then delete it when done. This ensures no critical information is lost to truncation.
 18. **Prioritize long-term health over quick fixes** - Every implementation and fix should improve or maintain the codebase's long-term maintainability, readability, and architectural integrity. Avoid band-aid solutions that create technical debt; prefer solutions that address root causes, follow established patterns, and leave the code better than found. When trade-offs exist between speed and sustainability, favor sustainability unless explicitly time-constrained by the user.
+19. **ALWAYS activate specialized skills (Section 32) for matching tasks** - Read the skill's SKILL.md file before performing task types that match skill triggers. For ALL coding tasks, activate the **swe** skill. For code reviews, activate **code-review**. For test generation, activate **test-gen**. For security-sensitive work, activate **security-audit**. Skills contain domain-specific methodologies that dramatically improve output quality.
 
 ---
 
@@ -1061,6 +1062,150 @@ Spawn 3 focused research subagents in parallel:
 1. **Implementation Subagent**: Implement BackupExportManager following the design
 2. **Review Subagent**: Review implementation for bugs, security issues, edge cases
 3. **Test Subagent**: Write comprehensive tests for BackupExportManager
+
+---
+
+## 32. Specialized Skills Usage
+
+**CRITICAL**: The LLM has access to specialized skills that dramatically improve output quality for specific task types. These skills contain domain-specific methodologies, adversarial techniques, and structured workflows. **Always activate the relevant skill by reading its instruction file before performing the task.**
+
+### 32.1. Available Skills and Activation Triggers
+
+| Skill | File Path | Activation Triggers |
+|-------|-----------|---------------------|
+| **swe** | `c:\Users\adam-\.copilot\skills\swe\SKILL.md` | Default for ALL coding tasks—writing, editing, debugging, refactoring, features. Prioritizes verification loops and test-driven development. |
+| **code-review** | `c:\Users\adam-\.copilot\skills\code-review\SKILL.md` | "Review this code", "audit", "critique code quality", "review PR", "assess merge request" |
+| **test-gen** | `c:\Users\adam-\.copilot\skills\test-gen\SKILL.md` | "Write tests", "generate tests", "improve coverage", "mutation testing", "set up testing" |
+| **security-audit** | `c:\Users\adam-\.copilot\skills\security-audit\SKILL.md` | "Find security issues", "audit for vulnerabilities", "threat model", "OWASP check", "penetration test" |
+| **deep-research** | `c:\Users\adam-\.copilot\skills\deep-research\SKILL.md` | "Research", "investigate", "compare options", "evaluate alternatives", "deep dive" |
+| **brainstorming** | `c:\Users\adam-\.copilot\skills\brainstorming\SKILL.md` | "Brainstorm", "ideate", "generate ideas", "what are ways to", "how might we" |
+| **idea-stress-test** | `c:\Users\adam-\.copilot\skills\idea-stress-test\SKILL.md` | "Is this a good idea", "critique my idea", "poke holes in", "validate this concept" |
+| **problem-discovery** | `c:\Users\adam-\.copilot\skills\problem-discovery\SKILL.md` | "I don't know what I want", "not sure what the problem is", "help me figure out" |
+| **creative-unblock** | `c:\Users\adam-\.copilot\skills\creative-unblock\SKILL.md` | "I'm stuck", "out of ideas", "creative block", "hitting a wall" |
+| **context-init** | `c:\Users\adam-\.copilot\skills\context-init\SKILL.md` | "Initialize AI context", "generate CLAUDE.md", "set up repo for AI assistance" |
+| **prompt-engineer** | `c:\Users\adam-\.copilot\skills\prompt-engineer\SKILL.md` | "Improve this prompt", "optimize instructions", "iteratively refine prompt" |
+
+### 32.2. Mandatory Skill Activation Rules
+
+**Rule 1: Always Activate for Matching Tasks**
+When a user request matches a skill's activation triggers, the LLM MUST:
+1. Use `read_file` to load the skill's SKILL.md file
+2. Follow the skill's methodology completely
+3. Apply all adversarial techniques and quality checks defined in the skill
+
+**Rule 2: Default to SWE Skill for Code**
+For ANY coding task (writing, editing, fixing, debugging, refactoring, features), activate the **swe** skill FIRST. This ensures:
+- Verification loops catch errors early
+- Test-driven development is applied where appropriate
+- Code quality gates are enforced
+- Incremental, safe changes are made
+
+**Rule 3: Combine Skills When Appropriate**
+Some tasks benefit from multiple skills in sequence:
+- Implementing a feature → **swe** (implementation) + **code-review** (self-review) + **test-gen** (tests)
+- Security-sensitive code → **swe** (implementation) + **security-audit** (vulnerability check)
+- Researching an approach → **deep-research** (investigation) + **swe** (implementation)
+- Unclear requirements → **problem-discovery** (clarify) + **brainstorming** (options) + **swe** (implement)
+
+**Rule 4: Quality-Critical Tasks Require Skill Usage**
+For these task types, skill activation is MANDATORY (not optional):
+- Code reviews and PR assessments → **code-review**
+- Writing or improving tests → **test-gen**
+- Security-related changes → **security-audit**
+- Any task labeled "high quality" or "production-ready" → appropriate skill + **code-review**
+
+### 32.3. Skill Usage Workflow
+
+```
+1. Identify Task Type
+   └─→ Does it match a skill trigger? 
+       ├─ Yes → Read skill file → Follow skill methodology
+       └─ No → Apply general best practices
+
+2. For Coding Tasks (ALWAYS)
+   └─→ Read swe skill → Apply verification loops
+       └─→ Additional skill if specialized (security, tests, etc.)
+
+3. For Complex/Multi-Part Tasks
+   └─→ Use Plan agent for decomposition
+       └─→ Apply relevant skill to each part
+           └─→ Use code-review skill for final validation
+```
+
+### 32.4. Skill-Enhanced Quality Patterns
+
+**Pattern: Implementation with Self-Review**
+```
+1. Activate swe skill → Implement feature
+2. Activate code-review skill → Review own implementation
+3. Address findings → Iterate until clean
+4. Activate test-gen skill → Add tests
+5. Run tests → Verify passing
+```
+
+**Pattern: Security-First Development**
+```
+1. Activate security-audit skill → Threat model the feature
+2. Activate swe skill → Implement with security constraints
+3. Activate security-audit skill → Audit implementation
+4. Fix vulnerabilities → Iterate until secure
+```
+
+**Pattern: Research-Driven Implementation**
+```
+1. Activate deep-research skill → Investigate options
+2. Synthesize findings → Choose approach
+3. Activate swe skill → Implement chosen approach
+4. Activate code-review skill → Validate implementation
+```
+
+### 32.5. Anti-Patterns (REJECT)
+
+- **Skipping skill activation**: Performing tasks without reading relevant skill files
+- **Partial skill application**: Reading skill file but not following its full methodology
+- **Single-skill tunnel vision**: Using only one skill when multiple apply
+- **Skipping swe for code**: Writing code without verification loops and quality gates
+- **Skipping code-review for PRs**: Reviewing code without structured review methodology
+- **Ignoring security-audit for sensitive code**: Changing auth, permissions, or data handling without security review
+
+### 32.6. Skill Activation Examples
+
+**User asks**: "Fix this bug in the tracking service"
+```
+LLM Action:
+1. read_file(swe skill) → Get methodology
+2. Follow swe investigation workflow
+3. Apply root cause analysis
+4. Implement fix with verification
+5. Run tests to confirm
+```
+
+**User asks**: "Review this PR for the map module"
+```
+LLM Action:
+1. read_file(code-review skill) → Get methodology
+2. Apply multi-dimensional review
+3. Use adversarial techniques
+4. Provide structured feedback
+```
+
+**User asks**: "Add tests for the export functionality"
+```
+LLM Action:
+1. read_file(test-gen skill) → Get methodology
+2. Analyze existing coverage
+3. Identify edge cases
+4. Generate comprehensive tests
+5. Apply mutation testing if applicable
+```
+
+**User asks**: "I'm not sure what's wrong with the app, something feels off"
+```
+LLM Action:
+1. read_file(problem-discovery skill) → Get methodology
+2. Help user articulate the problem
+3. Once clear, transition to appropriate skill (swe, debug, etc.)
+```
 
 ---
 

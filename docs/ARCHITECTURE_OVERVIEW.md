@@ -1,6 +1,6 @@
 # Tracker-Android Architecture Overview
 
-> **Last Updated:** December 2025  
+> **Last Updated:** January 2026  
 > **Target Audience:** Developers, contributors, and maintainers
 
 ---
@@ -148,23 +148,24 @@ class AppGraph(
 }
 ```
 
-### Hilt Integration
-
-- `@HiltAndroidApp` on `Application`
-- `@AndroidEntryPoint` on activities
-- `@HiltViewModel` for ViewModels
-- `HiltWorkerFactory` for WorkManager
-
 ### CompositionLocal Providers
+
+The app uses CompositionLocal for dependency provision in Compose:
 
 ```kotlin
 CompositionLocalProvider(
     LocalAppGraph provides appGraph,
     LocalTrackerController provides appGraph.trackerServiceController,
     LocalLockManager provides appGraph.lockManager,
+    LocalThemeState provides themeState,
     // ...
 ) { MainRoot() }
 ```
+
+Key controllers provided via CompositionLocal:
+- **TrackerServiceController**: Tracking state observation and control
+- **LockManager**: Lock state management (time lock, recharge lock)
+- **ThemeState**: Current theme colors for Material 3
 
 ---
 
@@ -359,11 +360,20 @@ class BadViewModel(app: Application) : AndroidViewModel(app) {
 | Document | Purpose |
 |----------|---------|
 | `README.md` | Project overview |
-| `ARCHITECTURE_DI_VIEWMODEL_STANDARDS.md` | DI patterns |
-| `COMPOSE_MAIN_APP_ARCHITECTURE.md` | UI architecture |
-| `SESSIONLESS_TRACKING_STATUS.md` | Sessionless migration |
-| `DATABASE_VERSION_TRACKING.md` | DB migrations |
-| `docs/migration/` | Migration guides |
+| `docs/APP_FUNCTIONALITY.md` | Detailed feature documentation |
+| `docs/migration/` | Active migration guides (Agent A–D) |
+
+### Archived Documentation
+
+The following documents are preserved in `docs/archive/` for historical reference:
+
+| Document | Purpose |
+|----------|---------|
+| `archive/history/ARCHITECTURE_DI_VIEWMODEL_STANDARDS.md` | DI patterns (historical) |
+| `archive/history/COMPOSE_MAIN_APP_ARCHITECTURE.md` | UI architecture (historical) |
+| `archive/history/SESSIONLESS_TRACKING_STATUS.md` | Sessionless migration status |
+| `archive/history/DATABASE_VERSION_TRACKING.md` | DB migrations tracking |
+| `archive/compose-migration/` | Compose migration completion reports |
 
 ---
 
