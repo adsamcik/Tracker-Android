@@ -31,7 +31,8 @@
     <string name="stats_midnight">midnight</string>
     <string name="stats_morning">morning</string>
     <string name="stats_night">night</string>
-    <string name="stats_no_tracker_sessions">No tracking sessions yet. Start tracking to see your activity!</string>
+    <string name="stats_no_tracker_sessions">No tracking sessions yet</string>
+    <string name="stats_empty_subtitle">Start tracking to see your activity here</string>
     <string name="stats_ride">ride</string>
     <string name="stats_run">run</string>
     <string name="stats_session_count">Session count</string>
@@ -69,6 +70,20 @@
     <string name="stats_week_empty">No weekly statistics available</string>
     <string name="stats_week_empty_subtitle">Track for 7 days to see your weekly summary</string>
     <string name="stats_week_error">Failed to load weekly statistics</string>
+
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Trip Details</string>
+    <string name="trip_detail_tab_overview">Overview</string>
+    <string name="trip_detail_tab_map">Map</string>
+    <string name="trip_detail_tab_stats">Stats</string>
+    <string name="trip_detail_not_found">Trip not found</string>
+    <string name="trip_detail_not_found_subtitle">This trip may have been deleted</string>
+    <string name="trip_detail_duration">Duration</string>
+    <string name="trip_detail_distance">Distance</string>
+    <string name="trip_detail_steps">Steps</string>
+    <string name="trip_detail_samples">Samples</string>
+    <string name="trip_detail_source">Source</string>
+    <string name="trip_detail_wifi_coming_soon">Wi-Fi browser coming soon</string>
 
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>

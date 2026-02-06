@@ -1,15 +1,18 @@
 package com.adsamcik.tracker.statistics.fragment
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.LoadState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.StatsViewModel
 import com.adsamcik.tracker.statistics.ui.compose.SummaryDialog
@@ -19,7 +22,10 @@ import com.adsamcik.tracker.statistics.ui.compose.WeekDialog
  * Entry point composable for Statistics tab. Uses Hilt for dependency injection.
  */
 @Composable
-fun StatsRoute() {
+fun StatsRoute(
+    onTripClick: (Long) -> Unit = {}
+) {
+    val context = LocalContext.current
     val vm: StatsViewModel = hiltViewModel()
     val pagingItems = vm.sessionsFlow.collectAsLazyPagingItems()
 
@@ -47,18 +53,22 @@ fun StatsRoute() {
         appendState = appendState,
         sessions = pagingItems,
         onRetry = { pagingItems.retry() },
-        onShowSummary = { 
+        onShowSummary = {
             vm.loadSummaryStats()
-            showSummaryDialog = true 
+            showSummaryDialog = true
         },
-        onShowWeek = { 
+        onShowWeek = {
             vm.loadWeeklyStats()
-            showWeekDialog = true 
+            showWeekDialog = true
         },
         onOpenWifi = {
-            // WiFi browser feature not yet implemented
-            // Future: Display discovered WiFi networks for sessions
-        }
+            Toast.makeText(
+                context,
+                context.getString(R.string.trip_detail_wifi_coming_soon),
+                Toast.LENGTH_SHORT
+            ).show()
+        },
+        onSessionClick = onTripClick
     )
     
     // Show dialogs when state is true

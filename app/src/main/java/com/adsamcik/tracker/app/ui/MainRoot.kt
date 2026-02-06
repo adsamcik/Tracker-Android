@@ -40,10 +40,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.toRoute
 import com.adsamcik.tracker.app.ui.navigation.Tracker
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Game
+import com.adsamcik.tracker.app.ui.navigation.TripDetail
 import com.adsamcik.tracker.app.ui.navigation.Debug
 import com.adsamcik.tracker.app.ui.navigation.Settings
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
@@ -221,6 +223,11 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                             restoreState = true
                         }
                     },
+                    onSessionDetailClick = { sessionId ->
+                        navController.navigate(TripDetail(sessionId)) {
+                            launchSingleTop = true
+                        }
+                    },
                     contentPadding = PaddingValues(bottom = 96.dp + navBarPad)
                 )
             }
@@ -230,8 +237,23 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                     contentPadding = PaddingValues(bottom = 96.dp + navBarPad)
                 ) 
             }
-            composable<Stats> { com.adsamcik.tracker.statistics.fragment.StatsRoute() }
+            composable<Stats> {
+                com.adsamcik.tracker.statistics.fragment.StatsRoute(
+                    onTripClick = { tripId ->
+                        navController.navigate(TripDetail(tripId)) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable<Game> { com.adsamcik.tracker.game.ui.compose.GameRoute() }
+            composable<TripDetail> { backStackEntry ->
+                val route = backStackEntry.toRoute<TripDetail>()
+                com.adsamcik.tracker.statistics.ui.TripDetailRoute(
+                    tripId = route.tripId,
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable<Debug> { com.adsamcik.tracker.app.debug.DebugRoute() }
             composable<Settings> { com.adsamcik.tracker.app.settings.SettingsRoute() }
         }

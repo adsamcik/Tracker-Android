@@ -37,6 +37,7 @@
     <string name="game_challenges_empty">No active challenges</string>
     <string name="game_challenges_empty_subtitle">Complete tracking sessions to unlock new challenges</string>
     <string name="game_loading">Loading…</string>
+    <string name="game_points_breakdown_coming_soon">Points breakdown coming soon</string>
     
     <string-array name="goals_encouragement">
         <item>Good job</item>

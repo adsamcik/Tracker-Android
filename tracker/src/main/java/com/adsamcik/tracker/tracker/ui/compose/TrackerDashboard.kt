@@ -159,6 +159,7 @@ internal fun TrackerDashboard(
     onRequestPermission: () -> Unit,
     onToggleTracking: (Boolean) -> Unit,
     onGameClick: (() -> Unit)? = null,
+    onSessionDetailClick: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier,
     snackbarHostState: androidx.compose.material3.SnackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 ) {
@@ -217,6 +218,7 @@ internal fun TrackerDashboard(
                 isLocked = isLocked,
                 onSettingsClick = onSettingsClick,
                 onMapClick = onMapClick,
+                onSessionDetailClick = onSessionDetailClick,
                 snackbarHostState = snackbarHostState,
                 pathPoints = state.pathPoints
             )
@@ -376,6 +378,7 @@ private fun TrackingContent(
     isLocked: Boolean,
     onSettingsClick: () -> Unit,
     onMapClick: () -> Unit,
+    onSessionDetailClick: ((Long) -> Unit)? = null,
     snackbarHostState: androidx.compose.material3.SnackbarHostState,
     pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
     modifier: Modifier = Modifier
@@ -479,6 +482,7 @@ private fun TrackingContent(
                             isTracking = isTracking,
                             pathPoints = pathPoints,
                             onMapClick = onMapClick,
+                            onDetailClick = onSessionDetailClick,
                             snackbarHostState = snackbarHostState
                         )
                     }
@@ -628,6 +632,7 @@ private fun SessionOverviewCard(
     isTracking: Boolean,
     pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>?,
     onMapClick: () -> Unit,
+    onDetailClick: ((Long) -> Unit)? = null,
     snackbarHostState: androidx.compose.material3.SnackbarHostState
 ) {
     val context = LocalContext.current
@@ -681,7 +686,7 @@ private fun SessionOverviewCard(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
-                onClick = { },
+                onClick = { onDetailClick?.invoke(session.id) },
                 onLongClick = {
                     val sessionSummary = generateSummary()
                     copyToClipboard(context, haptics, "Session", sessionSummary)

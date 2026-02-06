@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
@@ -160,6 +161,11 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to inferred session segments.
 	 */
 	abstract fun sessionSegmentDao(): SessionSegmentDao
+
+	/**
+	 * Provides read-only Trip projections over session segments.
+	 */
+	abstract fun tripDao(): TripDao
 
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"

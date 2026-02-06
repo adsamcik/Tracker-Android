@@ -33,6 +33,7 @@ fun TrackerRoute(
     onOpenSettings: () -> Unit = {},
     onOpenMap: () -> Unit = {},
     onOpenGame: (() -> Unit)? = null,
+    onSessionDetailClick: ((Long) -> Unit)? = null,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val context = LocalContext.current
@@ -137,6 +138,7 @@ fun TrackerRoute(
             }
         },
         onGameClick = onOpenGame,
+        onSessionDetailClick = onSessionDetailClick,
         modifier = Modifier.padding(contentPadding),
         snackbarHostState = snackbarHostState
     )

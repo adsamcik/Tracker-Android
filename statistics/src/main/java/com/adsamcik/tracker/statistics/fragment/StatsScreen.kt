@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.AppShapes
+import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 
@@ -98,6 +99,7 @@ fun StatsScreen(
     onOpenWifi: () -> Unit,
     // Optional paging sessions supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<TrackerSession>? = null,
+    onSessionClick: (Long) -> Unit = {},
 ) {
     Box(
         modifier = Modifier
@@ -108,7 +110,7 @@ fun StatsScreen(
             RefreshUiState.Loading -> LoadingState()
             RefreshUiState.Empty -> EmptyState()
             RefreshUiState.Error -> ErrorState(onRetry)
-            RefreshUiState.Content -> ContentState(appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi, sessions)
+            RefreshUiState.Content -> ContentState(appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi, sessions, onSessionClick)
         }
     }
 }
@@ -130,25 +132,16 @@ private fun LoadingState() {
 
 @Composable
 private fun EmptyState() {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = Icons.Filled.Route,
-            contentDescription = null,
-            modifier = Modifier.size(72.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-        )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = stringResource(R.string.stats_no_tracker_sessions),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Bold
+        EmptyStateCard(
+            icon = Icons.Filled.Route,
+            title = stringResource(R.string.stats_no_tracker_sessions),
+            subtitle = stringResource(R.string.stats_empty_subtitle)
         )
     }
 }
@@ -180,6 +173,7 @@ private fun ContentState(
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
     pagingItems: LazyPagingItems<TrackerSession>? = null,
+    onSessionClick: (Long) -> Unit = {},
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -216,8 +210,11 @@ private fun ContentState(
                         DateHeader(session.start)
                         lastDateKey = currentDateKey
                     }
-                    
-                    SessionRow(session)
+
+                    SessionRow(
+                        session = session,
+                        onClick = { onSessionClick(session.id) }
+                    )
                 }
             }
         } else {

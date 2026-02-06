@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.di.DefaultDispatcher
@@ -129,4 +130,11 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideTrackerRunDao(database: AppDatabase): TrackerRunDao = database.trackerRunDao()
+
+    /**
+     * Provides TripDao for read-only Trip projections over session segments.
+     */
+    @Provides
+    @Singleton
+    fun provideTripDao(database: AppDatabase): TripDao = database.tripDao()
 }

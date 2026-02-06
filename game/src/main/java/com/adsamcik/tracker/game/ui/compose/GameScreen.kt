@@ -44,7 +44,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
+import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 data class StepsSummaryUi(
     val stepsToday: Int,
@@ -111,6 +114,8 @@ private fun SectionHeader(text: String) {
 @Composable
 private fun PointsCard(points: Int) {
     val detailsLabel = stringResource(R.string.game_points_details)
+    val context = LocalContext.current
+    val comingSoonText = stringResource(R.string.game_points_breakdown_coming_soon)
     GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -138,8 +143,8 @@ private fun PointsCard(points: Int) {
                 }
                 Column(Modifier.padding(start = 16.dp)) {
                     Text(
-                        text = points.toString(), 
-                        style = MaterialTheme.typography.displaySmall, 
+                        text = points.toString(),
+                        style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -150,11 +155,12 @@ private fun PointsCard(points: Int) {
                     )
                 }
             }
-            // Detail button or chip
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable { /* Detail action */ }
+                    .clickable {
+                        Toast.makeText(context, comingSoonText, Toast.LENGTH_SHORT).show()
+                    }
                     .padding(8.dp)
                     .semantics { contentDescription = detailsLabel }
             ) {
@@ -260,38 +266,12 @@ private fun ChallengesLoadingState() {
 
 @Composable
 private fun ChallengesEmptyState() {
-    GlassCard(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.EmojiEvents,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-            )
-            Text(
-                text = stringResource(R.string.game_challenges_empty),
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = stringResource(R.string.game_challenges_empty_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    EmptyStateCard(
+        icon = Icons.Outlined.EmojiEvents,
+        title = stringResource(R.string.game_challenges_empty),
+        subtitle = stringResource(R.string.game_challenges_empty_subtitle),
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
 }
 
 @Composable
