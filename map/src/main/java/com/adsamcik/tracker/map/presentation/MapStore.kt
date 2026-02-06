@@ -54,6 +54,7 @@ class MapStore @Inject constructor() : ViewModel() {
     private var selectedLayerId: String? = null
     private var lastBearing: Float = 0f
 
+    private var applyLayerJob: Job? = null
     private var overlayUpdateJob: Job? = null
     private var lastLocationUpdate: Long = 0L
     private val locationUpdateDebounceMs = 100L
@@ -211,7 +212,8 @@ class MapStore @Inject constructor() : ViewModel() {
 
     private fun applyLayer() {
         val engine = layerManager ?: return
-        viewModelScope.launch {
+        applyLayerJob?.cancel()
+        applyLayerJob = viewModelScope.launch {
             try {
                 val s = _state.value
                 withContext(Dispatchers.Default) {
@@ -252,6 +254,7 @@ class MapStore @Inject constructor() : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
+        applyLayerJob?.cancel()
         overlayUpdateJob?.cancel()
         try {
             layerManager?.destroy()

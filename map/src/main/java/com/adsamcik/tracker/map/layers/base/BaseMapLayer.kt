@@ -29,6 +29,7 @@ abstract class BaseMapLayer<I, P>(
     @Volatile
     private var enabled: Boolean = false
 
+    @Volatile
     protected var quality: Float = 1.0f
         private set
 
@@ -42,7 +43,7 @@ abstract class BaseMapLayer<I, P>(
     /**
      * Start the layer. If already enabled, the running work is cancelled and the layer restarts.
      */
-    fun enable(context: Context, quality: Float) {
+    fun enable(context: Context, quality: Float): Job {
         val startTime = System.currentTimeMillis()
 
         if (enabled) {
@@ -51,7 +52,7 @@ abstract class BaseMapLayer<I, P>(
         this.quality = quality
         enabled = true
 
-        runningTask = layerScope.launch {
+        val job = layerScope.launch {
             try {
                 beforeEnable(context)
 
@@ -82,6 +83,8 @@ abstract class BaseMapLayer<I, P>(
                 onPipelineError(t)
             }
         }
+        runningTask = job
+        return job
     }
 
     /** Cancel work and reset config. */

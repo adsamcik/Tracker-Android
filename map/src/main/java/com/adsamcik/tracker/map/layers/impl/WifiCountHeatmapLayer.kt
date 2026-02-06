@@ -33,11 +33,12 @@ class WifiCountHeatmapLayer(
     override fun intensity(): Float = quality
 
     override suspend fun loadData(context: Context): List<WeightedGeoFeature> {
-        val query = GeoQuery(
-            source = GeoSource.WIFI,
-            weight = "level"
-        )
-        return repo.queryWeighted(query, "level").first()
+        // Use unweighted query; each observation contributes weight 1.0
+        // so the heatmap shows AP count density, not signal strength.
+        val query = GeoQuery(source = GeoSource.WIFI)
+        return repo.query(query).first().map { feature ->
+            WeightedGeoFeature(feature.lat, feature.lon, feature.time, weight = 1.0)
+        }
     }
 
     override fun processData(

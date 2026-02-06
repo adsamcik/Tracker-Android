@@ -8,11 +8,6 @@ import com.adsamcik.tracker.map.layers.base.SupportsDateRange
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 
 /**
  * Controls map layer lifecycle and manages active layer state.
@@ -22,7 +17,6 @@ class LayerController {
     private var currentLayerDescriptor: LayerDescriptor? = null
     private var currentLayer: BaseMapLayer<*, *>? = null
     private var currentLegend: MapLayerData? = null
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     companion object {
         private const val TAG = "LayerController"
@@ -30,43 +24,46 @@ class LayerController {
 
     /**
      * Set active layer with proper cleanup and error handling.
+     * Suspends until the layer pipeline completes.
      */
-    fun setLayer(
+    suspend fun setLayer(
         context: Context,
         descriptor: LayerDescriptor?,
         quality: Float,
         dateRange: LongRange
     ) {
-        scope.launch {
-            try {
-                currentLayer?.let {
-                    Log.d(TAG, "Clearing current layer: ${currentLayerDescriptor?.id}")
-                    clearCurrentLayer()
-                }
+        try {
+            currentLayer?.let {
+                Log.d(TAG, "Clearing current layer: ${currentLayerDescriptor?.id}")
+                clearCurrentLayer()
+            }
 
-                if (descriptor != null) {
-                    Log.d(TAG, "Setting new layer: ${descriptor.id}")
-                    val entry = descriptor.recipe.factory.create() as LayerEntry
-                    val builtLayer = entry.build(context)
-                    currentLegend = entry.legend
-                    currentLayer = builtLayer
-                    currentLayerDescriptor = descriptor
-
-                    // Set date range if supported
-                    if (builtLayer is SupportsDateRange) {
-                        builtLayer.dateRange = dateRange
+            if (descriptor != null) {
+                Log.d(TAG, "Setting new layer: ${descriptor.id}")
+                val entry = descriptor.recipe.factory.create() as? LayerEntry
+                    ?: run {
+                        Log.e(TAG, "Factory for ${descriptor.id} did not produce a LayerEntry")
+                        return
                     }
+                val builtLayer = entry.build(context)
+                currentLegend = entry.legend
+                currentLayer = builtLayer
+                currentLayerDescriptor = descriptor
 
-                    // Enable the layer (no map needed -- layer produces data)
-                    builtLayer.enable(context, quality)
-                } else {
-                    clearState()
+                // Set date range if supported
+                if (builtLayer is SupportsDateRange) {
+                    builtLayer.dateRange = dateRange
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error setting layer: ${descriptor?.id}", e)
-                Reporter.report(e)
+
+                // Enable the layer and await pipeline completion
+                builtLayer.enable(context, quality).join()
+            } else {
                 clearState()
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting layer: ${descriptor?.id}", e)
+            Reporter.report(e)
+            clearState()
         }
     }
 
@@ -74,15 +71,13 @@ class LayerController {
      * Clear current layer.
      */
     fun clear() {
-        scope.launch {
-            try {
-                clearCurrentLayer()
-                clearState()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error clearing layer", e)
-                Reporter.report(e)
-                clearState()
-            }
+        try {
+            clearCurrentLayer()
+            clearState()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing layer", e)
+            Reporter.report(e)
+            clearState()
         }
     }
 
@@ -114,7 +109,6 @@ class LayerController {
             Log.e(TAG, "Error during cleanup", e)
         } finally {
             clearState()
-            scope.cancel()
         }
     }
 

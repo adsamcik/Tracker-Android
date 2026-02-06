@@ -15,24 +15,23 @@ import com.adsamcik.tracker.shared.map.layers.LayerCapabilities
 import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
 import com.adsamcik.tracker.shared.map.layers.LayerFactory
 import com.adsamcik.tracker.shared.map.layers.LayerRecipe
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class LayerSwitchIntegrationTest {
 
-    private class TestLayer(
-        private val onConfigProduced: () -> Unit,
-        private val onDisableHook: () -> Unit
-    ) : BaseMapLayer<Unit, Unit>() {
+    private class TestLayer : BaseMapLayer<Unit, Unit>() {
+        @Volatile var configProduced = false
+        @Volatile var disabled = false
+
         override suspend fun loadData(context: Context): Unit = Unit
         override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets): Unit = Unit
         override fun produceConfig(processed: Unit): MapLibreLayerConfig? {
-            onConfigProduced()
+            configProduced = true
             return MapLibreLayerConfig.Line(
                 geoJson = """{"type":"FeatureCollection","features":[]}""",
                 colorArgb = 0xFF0000FF.toInt(),
@@ -41,7 +40,7 @@ class LayerSwitchIntegrationTest {
             )
         }
         override fun onDisable() {
-            onDisableHook()
+            disabled = true
         }
     }
 
@@ -68,33 +67,24 @@ class LayerSwitchIntegrationTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val controller = LayerController()
 
-        val configLatchA = CountDownLatch(1)
-        val disableLatchA = CountDownLatch(1)
-        val layerA = TestLayer(onConfigProduced = { configLatchA.countDown() }, onDisableHook = { disableLatchA.countDown() })
+        val layerA = TestLayer()
         val legendA = MapLayerData(MapLayerInfo("TestLayerA", 0), emptyList(), MapLegend())
         val descA = descriptorFor("A", { _ -> layerA }, legendA)
 
-        controller.setLayer(context, descA, quality = 1.0f, dateRange = 0L..1L)
-        // Wait for config to be produced
-        configLatchA.await(3, TimeUnit.SECONDS)
+        // setLayer is now suspend and awaits pipeline completion
+        runBlocking { controller.setLayer(context, descA, quality = 1.0f, dateRange = 0L..1L) }
         assertEquals(legendA, controller.activeLegend())
 
-        val configLatchB = CountDownLatch(1)
-        val disableLatchB = CountDownLatch(1)
-        val layerB = TestLayer(onConfigProduced = { configLatchB.countDown() }, onDisableHook = { disableLatchB.countDown() })
+        val layerB = TestLayer()
         val legendB = MapLayerData(MapLayerInfo("TestLayerB", 0), emptyList(), MapLegend())
         val descB = descriptorFor("B", { _ -> layerB }, legendB)
 
-        // Switch to layer B
-        controller.setLayer(context, descB, quality = 1.0f, dateRange = 0L..1L)
-        // Previous layer should be disabled, new one should produce config
-        disableLatchA.await(3, TimeUnit.SECONDS)
-        configLatchB.await(3, TimeUnit.SECONDS)
+        // Switch to layer B — layer A disabled, B pipeline awaited
+        runBlocking { controller.setLayer(context, descB, quality = 1.0f, dateRange = 0L..1L) }
         assertEquals(legendB, controller.activeLegend())
 
         // Clear everything
         controller.clear()
-        disableLatchB.await(3, TimeUnit.SECONDS)
         assertNull(controller.activeLegend())
     }
 }
