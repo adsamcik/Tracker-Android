@@ -25,6 +25,10 @@ import kotlinx.coroutines.withContext
  * - Classifies quality based on horizontal accuracy
  * - Infers motion state from activity
  * - Batches writes (configurable threshold)
+ *
+ * TODO: DI Migration - This PostTrackerComponent is instantiated by TrackerService.
+ *  Future refactor: Accept LocationSampleDao via constructor for testability.
+ *  See Section 16A of copilot-instructions.md for DI composition patterns.
  */
 internal class RawLocationWriter : PostTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
@@ -70,10 +74,11 @@ internal class RawLocationWriter : PostTrackerComponent {
 		val lonE7 = (location.longitude * 1e7).toInt()
 
 		// Classify quality based on horizontal accuracy
+		val accuracy = location.horizontalAccuracy
 		val quality = when {
-			location.horizontalAccuracy == null -> SampleQuality.COARSE
-			location.horizontalAccuracy!! < 10f -> SampleQuality.HIGH
-			location.horizontalAccuracy!! < 50f -> SampleQuality.MEDIUM
+			accuracy == null -> SampleQuality.COARSE
+			accuracy < 10f -> SampleQuality.HIGH
+			accuracy < 50f -> SampleQuality.MEDIUM
 			else -> SampleQuality.LOW
 		}
 

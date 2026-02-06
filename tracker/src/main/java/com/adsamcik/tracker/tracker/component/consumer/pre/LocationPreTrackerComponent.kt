@@ -32,7 +32,7 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 
 	override suspend fun onEnable(context: Context) {
 		withContext(coroutineContext) {
-			requiredAccuracy = Preferences.getPref(context).getIntRes(
+			requiredAccuracy = Preferences.getPref(context).fetchIntRes(
 				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
 				com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
 			)

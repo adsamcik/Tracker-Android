@@ -32,6 +32,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
@@ -53,7 +54,7 @@ object BackgroundTrackingApi {
 	var isActive: Boolean = false
 		private set
 
-	private val preferenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+	private var preferenceScope: CoroutineScope? = null
 	private var trackingActivityJob: Job? = null
 	private var transitionPreferenceJob: Job? = null
 
@@ -100,6 +101,7 @@ object BackgroundTrackingApi {
 		}
 	}
 
+	@Suppress("DEPRECATION") // TODO: Preference Migration - hasAnythingToTrack uses sync access. Cache at init and observe via Flow.
 	private fun canTrackerServiceBeStarted(context: Context): Boolean {
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
@@ -116,6 +118,13 @@ object BackgroundTrackingApi {
 	 * @param groupedActivity evaluated activity
 	 * @return true if background tracking can be activated
 	 */
+	// TODO: Preference Migration - This function uses deprecated sync preference access.
+	//  Complex case: Called from activity callbacks which are not suspend.
+	//  Options:
+	//  1) Cache preference values and observe changes via Flow in initialize()
+	//  2) Use runBlocking (not recommended on main thread)
+	//  3) Refactor callback architecture to support suspend
+	@Suppress("DEPRECATION")
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
 		val preferences = Preferences.getPref(context)
 		val entryPoint = EntryPointAccessors.fromApplication(
@@ -162,6 +171,9 @@ object BackgroundTrackingApi {
 						(groupedActivity == GroupedActivity.ON_FOOT || groupedActivity == GroupedActivity.UNKNOWN))
 	}
 
+	// TODO: Preference Migration - Uses deprecated sync preference access.
+	//  Should cache values and observe changes via Flow initialized in initialize().
+	@Suppress("DEPRECATION")
 	private fun getBackgroundTrackingActivityRequirement(context: Context) =
 		Preferences.getPref(context).getIntResString(
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
@@ -213,6 +225,9 @@ object BackgroundTrackingApi {
 		return ActivityTransitionRequestData(transitions, transitionCallback)
 	}
 
+	// TODO: Preference Migration - Uses deprecated sync preference access.
+	//  Should cache values and observe changes via Flow initialized in initialize().
+	@Suppress("DEPRECATION")
 	private fun getActivityRequest(context: Context): ActivityChangeRequestData {
 		val interval = Preferences.getPref(context)
 			.getIntResString(
@@ -235,6 +250,10 @@ object BackgroundTrackingApi {
 		ActivityWatcherService.poke(context)
 	}
 
+	// TODO: Preference Migration - Uses deprecated sync preference access.
+	//  Since initialize() sets up Flow observation, consider caching the initial value
+	//  here and letting the Flow handle subsequent updates.
+	@Suppress("DEPRECATION")
 	private fun enable(context: Context) {
 		assertFalse(isActive)
 		isActive = true
@@ -266,12 +285,23 @@ object BackgroundTrackingApi {
 		appContext = context.applicationContext
 		val ctx = requireNotNull(appContext)
 		val prefs = Preferences.getPref(ctx)
+
+		// Create a new scope for preference observation
+		val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+		preferenceScope = scope
+
+		// TODO: Preference Migration - These initial sync reads are deprecated.
+		//  Since Flows emit immediately with current values, consider relying solely on
+		//  the Flow observers instead of these initial sync reads. The handlers would
+		//  need to handle the initial emission properly.
+		@Suppress("DEPRECATION")
 		handleTrackingActivityPreferenceChange(
 			prefs.getIntResString(
 				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
 				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
 			)
 		)
+		@Suppress("DEPRECATION")
 		handleTransitionPreferenceChange(
 			prefs.getBooleanRes(
 				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
@@ -284,14 +314,14 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
 		).onEach { handleTrackingActivityPreferenceChange(it) }
-			.launchIn(preferenceScope)
+			.launchIn(scope)
 
 		transitionPreferenceJob = PreferenceFlows.boolean(
 			ctx,
 			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
 			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default
 		).onEach { handleTransitionPreferenceChange(it) }
-			.launchIn(preferenceScope)
+			.launchIn(scope)
 	}
 
 	private fun handleTrackingActivityPreferenceChange(value: Int) {
@@ -308,6 +338,27 @@ object BackgroundTrackingApi {
 		if (isActive) {
 			reinitializeRequest(context, enabled)
 		}
+	}
+
+	/**
+	 * Shuts down the BackgroundTrackingApi, cancelling all coroutines and releasing resources.
+	 * Should be called when the API is no longer needed (e.g., in Application.onTerminate for testing
+	 * or when explicitly shutting down background tracking functionality).
+	 */
+	@MainThread
+	fun shutdown() {
+		val context = appContext
+		if (context != null && isActive) {
+			disable(context)
+		}
+
+		trackingActivityJob?.cancel()
+		trackingActivityJob = null
+		transitionPreferenceJob?.cancel()
+		transitionPreferenceJob = null
+		preferenceScope?.cancel()
+		preferenceScope = null
+		appContext = null
 	}
 }
 

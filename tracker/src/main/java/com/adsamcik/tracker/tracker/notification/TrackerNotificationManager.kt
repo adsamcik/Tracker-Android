@@ -99,6 +99,11 @@ class TrackerNotificationManager(
 	companion object {
 		const val NOTIFICATION_ID: Int = -7643
 
+		// TODO: Preference Migration - Uses deprecated sync preference access.
+		//  Called from non-suspend context. Options:
+		//  1) Cache value on TrackerNotificationManager instance
+		//  2) Pass preference value from caller that has coroutine context
+		@Suppress("DEPRECATION")
 		private fun getNotificationStylePreference(context: Context): Boolean =
 			Preferences.getPref(context).getBooleanRes(
 				com.adsamcik.tracker.shared.preferences.R.string.settings_notification_styled_key,

@@ -45,6 +45,8 @@ import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
+import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
+import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
@@ -69,7 +71,6 @@ import javax.inject.Inject
  * Service which is responsible for tracking.
  */
 @AndroidEntryPoint
-
 internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
@@ -86,10 +87,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	@Inject
 	lateinit var trackerListenerManager: TrackerListenerManager
 
-	// Injected component manager
-	@Inject
-	lateinit var componentManager: TrackerComponentManager
-
 	private val componentMutex = Mutex()
 	
 	// Job for observing lock state (cancelled on service destroy)
@@ -97,9 +94,22 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private var timerComponent: CollectionTriggerComponent = NoTimer()
 
+	private val notificationComponent: NotificationComponent = NotificationComponent()
+
+	private var dataProducerManager: DataProducerManager? = null
+	private var trackingPolicyManager: TrackingPolicyManager? = null
+
+	private val preComponentList = mutableListOf<PreTrackerComponent>()
+	private val postComponentList = mutableListOf<PostTrackerComponent>()
+	private val dataComponentList = mutableListOf<DataTrackerComponent>()
+	
+	// Persistence error collector for database components
+	private var persistenceErrorCollector: PersistenceErrorCollector? = null
+
 	// Kept here and used internally in case something went wrong and service was launched again with different info
 	private var sessionInfo: TrackerSessionInfo? = null
-	private val session: TrackerSession get() = requireNotNull(componentManager.mobileSessionComponent).session
+	private var sessionComponent: SessionTrackerComponent? = null
+	private val session: TrackerSession get() = requireNotNull(sessionComponent).session
 
 	// Policy update state tracking
 	private var lastActivityType: Int = -1
@@ -111,30 +121,106 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	 */
 	@WorkerThread
 	private suspend fun updateData(tempData: MutableCollectionTempData) {
-		val collectionData = componentManager.updateData(
-			tempData = tempData,
-			context = this,
-			session = session,
-			controller = controller,
-			trackerListenerManager = trackerListenerManager
-		) ?: return
+		requireNotNull(dataProducerManager).getData(tempData)
 
-		// Adaptive tracking: Feed data back to policy manager
-		val updatedState = componentManager.feedPolicyManager(
-			tempData = tempData,
-			collectionData = collectionData,
-            
-            scope = this,
-            accumulatedStepCount = accumulatedStepCount,
-            lastLocation = lastLocation,
-            lastActivityType = lastActivityType
-		)
-		
-		accumulatedStepCount = updatedState.first
-		lastLocation = updatedState.second
-		lastActivityType = updatedState.third
+		// if we don't know the accuracy the location is worthless
+		if (!preComponentList.all {
+					if (it.requirementsMet(tempData)) {
+						tryWithResultAndReport(
+								{ true }) {
+							it.onNewData(tempData)
+						}
+					} else {
+						true
+					}
+				}) {
+			return
+		}
+
+		val collectionData = MutableCollectionData(tempData.timeMillis)
+
+		dataComponentList
+				.asSequence()
+				.filter { it.requirementsMet(tempData) }
+				.forEach {
+					tryWithReport {
+						it.onDataUpdated(tempData, collectionData)
+					}
+				}
+
+		requireNotNull(sessionComponent).onDataUpdated(tempData, collectionData)
+
+		// Emit updated session and collection data via controller
+		controller.updateSession(session)
+		controller.updateCollectionData(collectionData)
+
+		postComponentList
+				.asSequence()
+				.filter { it.requirementsMet(tempData) }
+				.forEach {
+					tryWithReport {
+						it.onNewData(this, session, collectionData, tempData)
+					}
+				}
+
+		// Update tracking policy based on collected data (adaptive tracking)
+		trackingPolicyManager?.let { policyMgr ->
+			tryWithReport {
+				val currentTimeMs = tempData.timeMillis
+
+				// Feed activity transitions to policy manager
+				collectionData.activity?.let { activity ->
+					val currentActivityType = activity.activityType
+					if (lastActivityType >= 0 && lastActivityType != currentActivityType) {
+						// Activity transition detected
+						launch {
+							policyMgr.onActivityTransition(
+								activityType = currentActivityType,
+								confidence = activity.confidence,
+								timeMs = currentTimeMs
+							)
+						}
+					}
+					lastActivityType = currentActivityType
+				}
+
+				// Feed location changes for displacement detection
+				collectionData.location?.let { location ->
+					lastLocation?.let { prevLocation ->
+						val distance = prevLocation.distance(
+							location,
+							com.adsamcik.tracker.shared.base.data.LengthUnit.Meter
+						).toFloat()
+						if (distance > 0f) {
+							launch {
+								policyMgr.onLocationChange(
+									displacementMeters = distance,
+									timeMs = currentTimeMs
+								)
+							}
+						}
+					}
+					lastLocation = location
+				}
+
+				// Feed step updates from temp data (accumulate NEW_STEPS_ARG)
+				tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
+					if (newSteps > 0) {
+						accumulatedStepCount += newSteps
+						launch {
+							policyMgr.onStepUpdate(
+								stepCount = accumulatedStepCount,
+								timeMs = currentTimeMs
+							)
+						}
+					}
+				}
+			}
+		}
 
 		if (!requireNotNull(sessionInfo).isInitiatedByUser && powerManager.isPowerSaveMode) stopSelf()
+
+		trackerListenerManager.send(this, session, collectionData)
 	}
 
 
@@ -173,13 +259,82 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@MainThread
 	private suspend fun initializeComponents(isSessionUserInitiated: Boolean) = componentMutex.withLock {
-		componentManager.initialize(
+		// Clear existing components to prevent duplicates and ConcurrentModificationException
+		// if onStartCommand is called multiple times or concurrently with onUpdate.
+		preComponentList.forEach { it.onDisable(this@TrackerService) }
+		dataComponentList.forEach { it.onDisable(this@TrackerService) }
+		postComponentList.forEach { it.onDisable(this@TrackerService) }
+		preComponentList.clear()
+		dataComponentList.clear()
+		postComponentList.clear()
+
+		sessionComponent = SessionTrackerComponent(isSessionUserInitiated).apply {
+			onEnable(this@TrackerService)
+		}
+
+		// Emit initial session via controller
+		controller.updateSession(session)
+
+		// Cleanup previous managers if re-initializing
+		dataProducerManager?.onDisable()
+		trackingPolicyManager?.stop()
+
+		// DispatchersProvider injection from AppGraph intentionally avoided to keep tracker module
+		// independent of app module. DataProducerManager falls back to its internal default provider.
+		dataProducerManager = DataProducerManager(this).apply { onEnable() }
+
+		// Initialize adaptive tracking policy manager
+		trackingPolicyManager = TrackingPolicyManager(
 			context = this,
-			scope = this,
-			isSessionUserInitiated = isSessionUserInitiated,
-			controller = controller,
-			onPolicyChanged = { newPolicy -> updateTimerIntervalForPolicy(newPolicy) }
-		)
+			isUserInitiated = isSessionUserInitiated
+		).apply {
+			start() // Start tracking run
+		}
+
+		// Phase 4: Observe policy changes and update timer intervals dynamically
+		trackingPolicyManager?.let { policyManager ->
+			launch {
+				policyManager.currentPolicy.collect { newPolicy ->
+					updateTimerIntervalForPolicy(newPolicy)
+				}
+			}
+		}
+
+		preComponentList.apply {
+			// Phase 3: Use policy-aware location component for adaptive tracking
+			trackingPolicyManager?.let { policyMgr ->
+				add(PolicyAwareLocationPreTrackerComponent(policyMgr.currentPolicy))
+			} ?: run {
+				// Fallback: Use original accuracy checker if policy manager unavailable
+				add(LocationPreTrackerComponent())
+			}
+		}.forEach { it.onEnable(this) }
+
+		dataComponentList.apply {
+			add(ActivityTrackerComponent())
+			add(CellTrackerComponent())
+			add(LocationTrackerComponent())
+			add(WifiTrackerComponent())
+		}.forEach { it.onEnable(this) }
+
+		// Create persistence error collector for database components
+		val errorCollector = DefaultPersistenceErrorCollector()
+		persistenceErrorCollector = errorCollector
+		controller.updatePersistenceErrorFlow(errorCollector.errors)
+
+		// Add post-processing components
+		// Future: Filter based on available sensors/permissions
+		postComponentList.apply {
+			add(notificationComponent)
+			add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
+			add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
+			add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
+			add(DatabaseWifiLocationCountComponent())
+			// Phase 1: Sessionless tracking raw writers
+			add(RawLocationWriter())
+			add(StepIntervalWriter())
+			add(ActivitySnapshotWriter())
+		}.forEach { it.onEnable(this) }
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -224,11 +379,13 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 		}
 
-		return START_NOT_STICKY
+		// User-initiated sessions should restart after process death to preserve tracking.
+		// Auto-tracking sessions can be re-triggered by ActivityWatcherService.
+		return if (isUserInitiated) START_STICKY else START_NOT_STICKY
 	}
 
 	private fun sendSessionStartBroadcast() {
-		val sessionComponent = requireNotNull(componentManager.mobileSessionComponent)
+		val sessionComponent = requireNotNull(sessionComponent)
 
 		SessionBroadcaster.broadcastSessionStart(
 				this,
@@ -268,7 +425,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			return@launch
 		}
 
-		wakeLock.acquire(Time.MINUTE_IN_MILLISECONDS)
+		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
 			updateData(tempData)
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -283,7 +440,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		when (errorData.severity) {
 			TrackerTimerErrorSeverity.STOP_SERVICE -> stopSelf()
 			TrackerTimerErrorSeverity.REPORT -> Reporter.report(errorData.internalMessage)
-			TrackerTimerErrorSeverity.NOTIFY_USER -> componentManager.notificationComponent.onError(
+			TrackerTimerErrorSeverity.NOTIFY_USER -> notificationComponent.onError(
 					this,
 					errorData.messageRes
 			)
@@ -293,10 +450,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@MainThread
 	private suspend fun onDestroyComponents(context: Context) {
-		componentManager.disableAll(context)
+		dataProducerManager?.onDisable()
+		trackingPolicyManager?.stop()
+		trackingPolicyManager = null
+		preComponentList.forEach { it.onDisable(context) }
+		dataComponentList.forEach { it.onDisable(context) }
+		postComponentList.forEach { it.onDisable(context) }
 
 		// Can be null if TrackerServices is immediately stopped after start
-		val sessionComponent = componentManager.mobileSessionComponent
+		val sessionComponent = sessionComponent
 		if (sessionComponent != null) {
 			SessionBroadcaster.broadcastSessionEnd(context, sessionComponent.session)
 		}
@@ -307,20 +469,24 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updateSessionInfo(null)
 		controller.updateSession(null)
 		controller.updateCollectionData(null)
+		controller.updatePersistenceErrorFlow(null)
+		persistenceErrorCollector = null
 	}
 
 
 	override fun onDestroy() {
 		super.onDestroy()
 		stopForeground(STOP_FOREGROUND_REMOVE)
-		onDestroyServiceMetaData()
 		
 		// Cancel lock observation job to prevent leaks
 		lockObservationJob?.cancel()
 		lockObservationJob = null
 
+		// Perform final data collection BEFORE setting isServiceRunning=false,
+		// otherwise onUpdate will return early due to isServiceRunning check.
 		val tempData = MutableCollectionTempData(Time.nowMillis, Time.elapsedRealtimeNanos)
 		onUpdate(tempData).invokeOnCompletion {
+			onDestroyServiceMetaData()
 			onDestroyCleanup()
 		}
 	}
@@ -330,7 +496,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		launch(Dispatchers.Main) {
 			componentMutex.withLock {
 				// Flush pending batched location inserts before disabling for durability.
-				componentManager.flushPending(this)
+				postComponentList.filterIsInstance<DatabaseLocationComponent>().firstOrNull()?.let { comp ->
+					launch { comp.flushPending() }
+				}
 
 				timerComponent.onDisable(context)
 

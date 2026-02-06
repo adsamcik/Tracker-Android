@@ -47,6 +47,7 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 
 	}
 
+	@Suppress("DEPRECATION") // TODO: Preference Migration - onEnable is non-suspend. Requires interface change or cached preference values.
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		super.onEnable(context, receiver)
 

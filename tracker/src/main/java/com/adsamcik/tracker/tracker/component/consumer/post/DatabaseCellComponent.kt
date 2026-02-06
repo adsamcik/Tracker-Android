@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.BaseLocation
 import com.adsamcik.tracker.shared.base.data.CellData
@@ -16,6 +17,8 @@ import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
+import com.adsamcik.tracker.tracker.data.PersistenceError
+import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,12 +28,17 @@ import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
 internal class DatabaseCellComponent : PostTrackerComponent {
+	companion object {
+		private const val TAG = "DatabaseCellComponent"
+	}
+
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private var cellLocationDao: CellLocationDao? = null
 	private var cellOperatorDao: CellOperatorDao? = null
 	private var cellSampleDao: CellSampleDao? = null // New: sessionless table
 	private var scope: CoroutineScope? = null
+	private var errorCollector: PersistenceErrorCollector? = null
 	
 	// Dual-write mode: write to both old and new tables during migration period
 	private var enableDualWrite: Boolean = true
@@ -65,7 +73,21 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 
 	private fun saveOperator(cell: CellInfo) {
 		val dao = cellOperatorDao ?: return
-		scope?.launch(Dispatchers.IO) { try { dao.insert(cell.networkOperator) } catch (_: Throwable) {} }
+		scope?.launch(Dispatchers.IO) {
+			try {
+				dao.insert(cell.networkOperator)
+			} catch (e: Throwable) {
+				Log.e(TAG, "Failed to insert cell operator: ${e.message}", e)
+				errorCollector?.reportErrorAsync(
+					PersistenceError(
+						source = TAG,
+						operation = "insert cell operator",
+						recordCount = 1,
+						cause = e
+					)
+				)
+			}
+		}
 	}
 
 	private fun saveOperator(cell: CellData) {
@@ -83,7 +105,21 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 			cell.asu,
 			BaseLocation(location)
 		)
-		scope?.launch(Dispatchers.IO) { try { dao.insert(cellLocation) } catch (_: Throwable) {} }
+		scope?.launch(Dispatchers.IO) {
+			try {
+				dao.insert(cellLocation)
+			} catch (e: Throwable) {
+				Log.e(TAG, "Failed to insert cell location: ${e.message}", e)
+				errorCollector?.reportErrorAsync(
+					PersistenceError(
+						source = TAG,
+						operation = "insert cell location",
+						recordCount = 1,
+						cause = e
+					)
+				)
+			}
+		}
 	}
 
 	private fun saveLocation(time: Long, cell: CellData, location: Location) {
@@ -117,7 +153,17 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 		scope?.launch(Dispatchers.IO) { 
 			try { 
 				dao.insert(sample) 
-			} catch (_: Throwable) {} 
+			} catch (e: Throwable) {
+				Log.e(TAG, "Failed to insert cell sample: ${e.message}", e)
+				errorCollector?.reportErrorAsync(
+					PersistenceError(
+						source = TAG,
+						operation = "insert cell sample",
+						recordCount = 1,
+						cause = e
+					)
+				)
+			}
 		}
 	}
 	
@@ -125,11 +171,20 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 		cell.registeredCells.forEach { saveCellSample(time, it, location) }
 	}
 
+	/**
+	 * Sets the error collector for reporting persistence failures.
+	 * Should be called before onEnable.
+	 */
+	fun setErrorCollector(collector: PersistenceErrorCollector) {
+		this.errorCollector = collector
+	}
+
 	override suspend fun onDisable(context: Context) {
 		scope?.cancel(); scope = null
 		cellLocationDao = null
 		cellOperatorDao = null
 		cellSampleDao = null
+		errorCollector = null
 	}
 
 	override suspend fun onEnable(context: Context) {

@@ -140,9 +140,6 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.shared.preferences.R as PrefR
-import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 
 @Immutable
 internal data class TrackerDashboardUiState(
@@ -289,6 +286,7 @@ private fun TrackerTopBar(
     onGameClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val dailyPointsProvider = LocalDailyPointsProvider.current
     val pointsToday by dailyPointsProvider.pointsTodayFlow.collectAsState()
     
@@ -317,7 +315,14 @@ private fun TrackerTopBar(
                             onClick = onGameClick,
                             shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.padding(end = 8.dp)
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .semantics {
+                                    contentDescription = context.getString(
+                                        R.string.description_points_today,
+                                        pointsToday.formatReadable()
+                                    )
+                                }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -376,29 +381,13 @@ private fun TrackingContent(
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
-    val context = LocalContext.current
-    
-    // Modern WindowSizeClass with fallback
-    val activity = context as? android.app.Activity
-    val widthSizeClass = if (activity != null) {
-        @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
-        calculateWindowSizeClass(activity).widthSizeClass
-    } else {
-        // Fallback for preview or non-activity context
-         when {
-            configuration.screenWidthDp >= 840 -> WindowWidthSizeClass.Expanded
-            configuration.screenWidthDp >= 600 -> WindowWidthSizeClass.Medium
-            else -> WindowWidthSizeClass.Compact
-        }
-    }
-
-    val columns = when (widthSizeClass) {
-        WindowWidthSizeClass.Expanded -> 3
-        WindowWidthSizeClass.Medium -> 2
+    val columns = when {
+        configuration.screenWidthDp >= 1000 -> 3
+        configuration.screenWidthDp >= 600 -> 2
         else -> 1
     }
 
-
+    val context = LocalContext.current
     val locationEnabled = rememberPrefBoolean(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
     val cellEnabled = rememberPrefBoolean(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
     val wifiEnabled = run {
@@ -1781,14 +1770,14 @@ private fun ComponentMetricText(
                     if (copied) {
                          Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = null,
+                            contentDescription = stringResource(R.string.description_copied),
                             modifier = Modifier.size(10.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     } else {
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
-                            contentDescription = null,
+                            contentDescription = stringResource(R.string.description_copy),
                             modifier = Modifier
                                 .size(10.dp)
                                 .alpha(0.4f),
@@ -2138,6 +2127,7 @@ private fun TrackingFAB(
 
 @Composable
 private fun LockBanner(onClick: () -> Unit) {
+    val context = LocalContext.current
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.testTag("lock_banner")
@@ -2145,7 +2135,8 @@ private fun LockBanner(onClick: () -> Unit) {
         Row(
             Modifier
                 .clickable { onClick() }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .semantics { contentDescription = context.getString(R.string.description_recharge_settings) },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -2233,7 +2224,8 @@ private fun TodayProgressCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 } else {
-                    val summary = todaySummary!!
+                    // todaySummary is guaranteed non-null in this branch
+                    val summary = requireNotNull(todaySummary) { "todaySummary was null despite passing null check" }
                     
                     // Primary Metric: Distance
                     val distanceText = resources.formatDistance(

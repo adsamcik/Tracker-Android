@@ -2,7 +2,9 @@ package com.adsamcik.tracker.tracker.controller
 
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -68,6 +70,13 @@ interface TrackerServiceController {
     val lastPathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>
     
     /**
+     * Flow of database persistence errors.
+     * Observers can display to user, log, or take corrective action.
+     * Null when no error collector is active (tracking not running).
+     */
+    val persistenceErrorFlow: SharedFlow<PersistenceError>?
+    
+    /**
      * Internal: Update service running state.
      * Called by TrackerService lifecycle methods.
      */
@@ -90,4 +99,10 @@ interface TrackerServiceController {
      * Called by TrackerService on each data collection.
      */
     fun updateCollectionData(data: CollectionData?)
+    
+    /**
+     * Internal: Update persistence error flow.
+     * Called by TrackerService when component manager is initialized/destroyed.
+     */
+    fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?)
 }

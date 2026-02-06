@@ -28,6 +28,10 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
+// TODO: DI Migration - This component is instantiated by TrackerService without DI framework.
+//  Future refactor: Accept SessionDataDao via constructor and have TrackerService provide it
+//  from a Hilt-injected provider or TrackerScope container. This will improve testability
+//  and align with the north star DI architecture. See Section 16A of copilot-instructions.md.
 internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent,
 	CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
@@ -121,11 +125,11 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	override suspend fun onEnable(context: Context) {
 		val prefs = Preferences.getPref(context)
-		minDistanceInMeters = prefs.getIntRes(
+		minDistanceInMeters = prefs.fetchIntRes(
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
 			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
 		)
-		minUpdateDelayInSeconds = prefs.getIntRes(
+		minUpdateDelayInSeconds = prefs.fetchIntRes(
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
 			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
 		)

@@ -87,7 +87,7 @@ internal class DefaultWifiLocationEstimator(
 
     private fun updateMetadata(state: WifiEstimateState, info: WifiInfo, time: Long) {
         state.lastSeen = max(state.lastSeen, time)
-        if (!info.ssid.isNullOrBlank()) state.ssid = info.ssid!!
+        info.ssid?.takeIf { it.isNotBlank() }?.let { state.ssid = it }
         state.capabilities = info.capabilities
         state.frequency = info.frequency
         if (info.level > state.maxRssi) state.maxRssi = info.level
@@ -104,7 +104,9 @@ internal class DefaultWifiLocationEstimator(
 
         if (state.sampleCount < config.minSamplesForOutlierCheck) return false
 
-        val distance = Location.distance(lat, lon, state.latitude!!, state.longitude!!, LengthUnit.Meter)
+        val stateLat = requireNotNull(state.latitude) { "state.latitude was null despite passing null check" }
+        val stateLon = requireNotNull(state.longitude) { "state.longitude was null despite passing null check" }
+        val distance = Location.distance(lat, lon, stateLat, stateLon, LengthUnit.Meter)
         val threshold = max(config.minOutlierRadiusMeters, state.spatialStdDev() * config.outlierStdDevMultiplier)
         return distance > threshold
     }
@@ -134,8 +136,10 @@ internal class DefaultWifiLocationEstimator(
 
         val newWeightTotal = state.accumulatedWeight + weight
         val ratio = weight / newWeightTotal
-        val newLat = state.latitude!! + ratio * (lat - state.latitude!!)
-        val newLon = state.longitude!! + ratio * (lon - state.longitude!!)
+        val currentLat = requireNotNull(state.latitude) { "state.latitude was null despite early return check" }
+        val currentLon = requireNotNull(state.longitude) { "state.longitude was null despite early return check" }
+        val newLat = currentLat + ratio * (lat - currentLat)
+        val newLon = currentLon + ratio * (lon - currentLon)
         state.latitude = newLat
         state.longitude = newLon
         state.accumulatedWeight = newWeightTotal

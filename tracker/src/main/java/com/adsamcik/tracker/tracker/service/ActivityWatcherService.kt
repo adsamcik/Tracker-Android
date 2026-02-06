@@ -50,6 +50,7 @@ class ActivityWatcherService : CoreService() {
 
 	private lateinit var notificationManager: NotificationManager
 
+	@Suppress("DEPRECATION") // TODO: Preference Migration - Service onCreate is non-suspend. Consider coroutine-based initialization.
 	override fun onCreate() {
 		super.onCreate()
 
@@ -129,6 +130,11 @@ class ActivityWatcherService : CoreService() {
 
 		private var instance: ActivityWatcherService? = null
 
+		// TODO: Preference Migration - Uses deprecated sync preference access.
+		//  Since these are used by poke() call chain, consider:
+		//  1) Pass preference values as parameters from callers that have coroutine context
+		//  2) Cache values in a preference-observing singleton
+		@Suppress("DEPRECATION")
 		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(
 			context
 		).getBooleanRes(
@@ -136,6 +142,8 @@ class ActivityWatcherService : CoreService() {
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		)
 
+		// TODO: Preference Migration - Uses deprecated sync preference access.
+		@Suppress("DEPRECATION")
 		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(
 			context
 		).getIntResString(
@@ -143,6 +151,8 @@ class ActivityWatcherService : CoreService() {
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
 		)
 
+		// TODO: Preference Migration - Uses deprecated sync preference access.
+		@Suppress("DEPRECATION")
 		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(
 			context
 		).getIntResString(

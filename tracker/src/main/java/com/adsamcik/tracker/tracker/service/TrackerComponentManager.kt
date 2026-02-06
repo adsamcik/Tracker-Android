@@ -25,6 +25,8 @@ import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.PolicyAwareLocationPreTrackerComponent
+import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
+import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -44,6 +46,13 @@ internal class TrackerComponentManager @Inject constructor() {
     
     // Exposed for error reporting in service
     val notificationComponent: NotificationComponent = NotificationComponent()
+    
+    /**
+     * Collector for database persistence errors.
+     * Observable by TrackerService to surface errors to UI.
+     */
+    var persistenceErrorCollector: PersistenceErrorCollector? = null
+        private set
 
     var mobileSessionComponent: SessionTrackerComponent? = null
         private set
@@ -114,12 +123,16 @@ internal class TrackerComponentManager @Inject constructor() {
             add(WifiTrackerComponent())
         }.forEach { it.onEnable(context) }
 
-        // Post Components
+        // Create persistence error collector
+        val errorCollector = DefaultPersistenceErrorCollector()
+        persistenceErrorCollector = errorCollector
+
+        // Post Components - inject error collector into database components
         postComponentList.apply {
             add(notificationComponent)
-            add(DatabaseCellComponent())
-            add(DatabaseLocationComponent())
-            add(DatabaseWifiComponent())
+            add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
+            add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
+            add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
             add(DatabaseWifiLocationCountComponent())
             add(RawLocationWriter())
             add(StepIntervalWriter())
@@ -265,6 +278,8 @@ internal class TrackerComponentManager @Inject constructor() {
         preComponentList.forEach { it.onDisable(context) }
         dataComponentList.forEach { it.onDisable(context) }
         postComponentList.forEach { it.onDisable(context) }
+        
+        persistenceErrorCollector = null
     }
     
     suspend fun flushPending(scope: CoroutineScope) {

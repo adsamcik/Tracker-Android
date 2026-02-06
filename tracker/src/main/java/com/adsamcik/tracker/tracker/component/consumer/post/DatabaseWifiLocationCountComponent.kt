@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import android.util.Log
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -19,6 +20,10 @@ import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
 internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
+	companion object {
+		private const val TAG = "DatabaseWifiLocationCountComponent"
+	}
+
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private var wifiDao: LocationWifiCountDao? = null
@@ -45,7 +50,7 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 		)
 
 		scope?.launch(Dispatchers.IO) {
-			try { requireNotNull(wifiDao).insert(count) } catch (_: Throwable) {}
+			try { requireNotNull(wifiDao).insert(count) } catch (e: Throwable) { Log.e(TAG, "Failed to insert wifi location count: ${e.message}", e) }
 		}
 	}
 
@@ -55,9 +60,12 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 		this.isEnabled = false
 	}
 
+	// TODO: DI Migration - This PostTrackerComponent is instantiated by TrackerService.
+	//  Future refactor: Accept WifiLocationCountDao via constructor for testability.
+	//  See Section 16A of copilot-instructions.md for DI composition patterns.
 	override suspend fun onEnable(context: Context) {
 		val isEnabled = Preferences.getPref(context)
-				.getBooleanRes(
+				.fetchBooleanRes(
 						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_location_count_enabled_key,
 						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_location_count_enabled_default
 				)

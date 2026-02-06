@@ -50,6 +50,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		}
 	}
 
+	@Suppress("DEPRECATION") // TODO: Preference Migration - onEnable is non-suspend. Requires interface change or cached preference values.
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
 		val preferences = Preferences.getPref(context)

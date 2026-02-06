@@ -2,8 +2,10 @@ package com.adsamcik.tracker.tracker.controller
 
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -39,6 +41,9 @@ class DefaultTrackerServiceController : TrackerServiceController {
 
     private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>(null)
     override val lastPathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?> get() = _lastPathPointsFlow
+
+    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
+    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
     
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
@@ -65,8 +70,9 @@ class DefaultTrackerServiceController : TrackerServiceController {
         _collectionDataFlow.value = data
         val currentSession = _sessionFlow.value
         
-        if (currentSession != null && data?.location != null) {
-            val newLocation = data.location!!
+        val location = data?.location
+        if (currentSession != null && location != null) {
+            val newLocation = location
             val currentPath = _pathPointsFlow.value
             
             if (currentPath == null || currentPath.first != currentSession.id) {
@@ -85,5 +91,9 @@ class DefaultTrackerServiceController : TrackerServiceController {
                 }
             }
         }
+    }
+    
+    override fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?) {
+        _persistenceErrorFlow = errorFlow
     }
 }

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.policy
 
 import android.content.Context
+import com.adsamcik.tracker.tracker.BuildConfig
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
@@ -22,6 +23,13 @@ import kotlinx.coroutines.withContext
  * - State: Persisted to tracker_run table for later analysis
  *
  * Thread safety: All public methods are suspend and use internal synchronization.
+ *
+ * @param context Android context for database access.
+ * @param isUserInitiated Whether tracking was initiated by user action.
+ * @param database Optional database instance for testability. When null, resolves
+ *                 via [AppDatabase.database]. Pass a test/mock database in unit tests
+ *                 to avoid Android framework dependencies. This pattern enables
+ *                 constructor-based dependency injection without requiring a DI framework.
  */
 class TrackingPolicyManager(
 	private val context: Context,
@@ -209,11 +217,13 @@ class TrackingPolicyManager(
 		}
 		lastTransitionTime = timeMs
 
-		// Log transition for debugging
-		android.util.Log.d(
-			"TrackingPolicy",
-			"Transition: $oldPolicy → $newPolicy (reason: $reason)"
-		)
+		// Log transition for debugging (debug builds only)
+		if (BuildConfig.DEBUG) {
+			android.util.Log.d(
+				"TrackingPolicy",
+				"Transition: $oldPolicy → $newPolicy (reason: $reason)"
+			)
+		}
 	}
 
 	private suspend fun checkCooldown(currentTimeMs: Long) {

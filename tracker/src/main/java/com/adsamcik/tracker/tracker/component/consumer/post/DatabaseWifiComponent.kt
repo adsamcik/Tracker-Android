@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -14,6 +15,8 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
+import com.adsamcik.tracker.tracker.data.PersistenceError
+import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,12 +31,17 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
 
 internal class DatabaseWifiComponent : PostTrackerComponent {
+	companion object {
+		private const val TAG = "DatabaseWifiComponent"
+	}
+
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private var wifiDao: WifiDataDao? = null
 	private var wifiObservationDao: WifiObservationDao? = null // New: sessionless table
 	private var scope: CoroutineScope? = null
 	private var estimator: WifiLocationEstimator? = null
+	private var errorCollector: PersistenceErrorCollector? = null
 
 	private var isEnabled = false
 	private var enableDualWrite = true // Dual-write mode during migration
@@ -56,13 +64,31 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 				scope?.launch(Dispatchers.IO) {
 					try {
 						requireNotNull(wifiDao).upsert(updates.map(::toEntity))
-					} catch (_: Throwable) { /* ignore individual failures */ }
+					} catch (e: Throwable) {
+						Log.e(TAG, "Failed to upsert wifi data: ${e.message}", e)
+						errorCollector?.reportErrorAsync(
+							PersistenceError(
+								source = TAG,
+								operation = "upsert wifi data",
+								recordCount = updates.size,
+								cause = e
+							)
+						)
+					}
 				}
 			}
 		}
 		
 		// New table write (raw observations, even without location)
 		saveWifiObservations(collectionData.time, wifiData.inRange, location)
+	}
+
+	/**
+	 * Sets the error collector for reporting persistence failures.
+	 * Should be called before onEnable.
+	 */
+	fun setErrorCollector(collector: PersistenceErrorCollector) {
+		this.errorCollector = collector
 	}
 
 	override suspend fun onDisable(context: Context) {
@@ -74,12 +100,16 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		estimator = null
 		wifiDao = null
 		wifiObservationDao = null
+		errorCollector = null
 		this.isEnabled = false
 	}
 
+	// TODO: DI Migration - This PostTrackerComponent is instantiated by TrackerService.
+	//  Future refactor: Accept WifiDao and WifiObservationDao via constructor to enable
+	//  proper testability without Android framework. See Section 16A for DI patterns.
 	override suspend fun onEnable(context: Context) {
 		val isEnabled = Preferences.getPref(context)
-				.getBooleanRes(
+				.fetchBooleanRes(
 						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_network_enabled_key,
 						com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_network_enabled_default
 				)
@@ -102,7 +132,17 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		withContext(Dispatchers.IO) {
 			try {
 				requireNotNull(wifiDao).upsert(snapshot.map(::toEntity))
-			} catch (_: Throwable) { }
+			} catch (e: Throwable) {
+				Log.e(TAG, "Failed to flush wifi estimator: ${e.message}", e)
+				errorCollector?.reportError(
+					PersistenceError(
+						source = TAG,
+						operation = "flush wifi estimator",
+						recordCount = snapshot.size,
+						cause = e
+					)
+				)
+			}
 		}
 	}
 
@@ -152,7 +192,17 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 					)
 				}
 				dao.insert(observations)
-			} catch (_: Throwable) { /* ignore failures */ }
+			} catch (e: Throwable) {
+				Log.e(TAG, "Failed to insert wifi observations: ${e.message}", e)
+				errorCollector?.reportErrorAsync(
+					PersistenceError(
+						source = TAG,
+						operation = "insert wifi observations",
+						recordCount = networks.size,
+						cause = e
+					)
+				)
+			}
 		}
 	}
 }

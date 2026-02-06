@@ -74,6 +74,10 @@ object TrackerTimerManager {
 	 * @param context Context
 	 * @return Selected timer key or default
 	 */
+	// TODO: Preference Migration - This sync access should be converted to suspend or Flow-based.
+	//  Options: 1) Make this a suspend function, 2) Cache the value and observe changes via Flow,
+	//  3) Pass the key as parameter from callers who already have it in a coroutine context.
+	@Suppress("DEPRECATION")
 	fun getSelectedKey(context: Context): String {
 		return Preferences
 			.getPref(context)

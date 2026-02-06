@@ -3,8 +3,11 @@ package com.adsamcik.tracker.tracker.controller
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -53,6 +56,15 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _lastPathPointsFlow
+
+    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
+    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
+    
+    /**
+     * Mutable flow for emitting test persistence errors.
+     * Call emitPersistenceError() to simulate database failures.
+     */
+    val testPersistenceErrors = MutableSharedFlow<PersistenceError>(replay = 5)
     
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
@@ -68,5 +80,25 @@ class FakeTrackerServiceController : TrackerServiceController {
     
     override fun updateCollectionData(data: CollectionData?) {
         _collectionDataFlow.value = data
+    }
+    
+    override fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?) {
+        _persistenceErrorFlow = errorFlow
+    }
+    
+    /**
+     * Simulates a persistence error for testing.
+     * Requires enablePersistenceErrors() to be called first.
+     */
+    suspend fun emitPersistenceError(error: PersistenceError) {
+        testPersistenceErrors.emit(error)
+    }
+    
+    /**
+     * Enables persistence error simulation for tests.
+     * Call this before checking persistenceErrorFlow in tests.
+     */
+    fun enablePersistenceErrors() {
+        _persistenceErrorFlow = testPersistenceErrors
     }
 }

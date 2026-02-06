@@ -23,6 +23,7 @@ import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -92,6 +93,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
     override fun onDisable(context: Context) {
         super.onDisable(context)
+        scope.cancel()
         context.unregisterReceiver(receiver)
     }
 

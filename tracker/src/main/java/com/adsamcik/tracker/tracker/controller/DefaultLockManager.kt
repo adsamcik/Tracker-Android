@@ -66,6 +66,12 @@ class DefaultLockManager(
         }
     }
     
+    // TODO: Preference Migration - initializeFromPersistence uses deprecated sync access.
+    //  Options:
+    //  1) Make this a suspend function and call from a coroutine context
+    //  2) Convert to Flow-based observation and initialize reactively
+    //  Note: The method also uses getLongResString which may need similar treatment.
+    @Suppress("DEPRECATION")
     override fun initializeFromPersistence(context: Context) {
         val preferences = Preferences.getPref(context)
         

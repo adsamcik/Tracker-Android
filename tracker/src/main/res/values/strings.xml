@@ -30,6 +30,12 @@
     <string name="description_tracking_lock">Lock disabling button</string>
     <string name="description_tracking_start">Start tracking button</string>
     <string name="description_tracking_stop">Stop tracking button</string>
+    <string name="description_points_today">Points earned today: %s</string>
+    <string name="description_copy">Copy value</string>
+    <string name="description_copied">Value copied</string>
+    <string name="description_location_search">Location search</string>
+    <string name="description_goal_progress">Goal progress</string>
+    <string name="description_recharge_settings">Recharge settings: tap to configure</string>
 
     <string name="distance_invehicle_title">Distance in vehicle</string>
     <string name="distance_invehicle_value">in vehicle %s</string>

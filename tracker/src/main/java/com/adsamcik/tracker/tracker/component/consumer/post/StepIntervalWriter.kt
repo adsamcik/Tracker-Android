@@ -22,6 +22,10 @@ import kotlinx.coroutines.withContext
  * - Tracks raw sensor values to detect resets
  * - Writes interval records (start → end with step count)
  * - Handles sensor resets gracefully
+ *
+ * TODO: DI Migration - This PostTrackerComponent is instantiated by TrackerService.
+ *  Future refactor: Accept StepIntervalDao via constructor for testability.
+ *  See Section 16A of copilot-instructions.md for DI composition patterns.
  */
 internal class StepIntervalWriter : PostTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList() // Optional data
