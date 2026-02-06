@@ -4,7 +4,6 @@ import android.graphics.Color
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoRepositoryImpl
-import com.adsamcik.tracker.map.graphics.BitmapPool
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.impl.CellHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationHeatmapLayer
@@ -13,6 +12,8 @@ import com.adsamcik.tracker.map.layers.impl.SpeedHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.WifiCountHeatmapLayer
 import com.adsamcik.tracker.map.layers.impl.WifiHeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
+import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.ui.LayerEntry
 import com.adsamcik.tracker.shared.base.data.CellType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -27,7 +28,6 @@ import com.adsamcik.tracker.shared.map.layers.LayerFactory
 import com.adsamcik.tracker.shared.map.layers.LayerRecipe
 import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
-import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -35,18 +35,17 @@ import kotlinx.coroutines.withContext
 class DefaultLayerRegistry : LayerRegistry {
 
     /**
-     * Simple no-op layer to avoid anonymous object expressions in lambdas, which can
-     * trigger Kotlin UAST/FIR lint crashes in some AGP/Kotlin toolchain versions.
+     * No-op layer placeholder.
      */
     private class NoMapLayer : BaseMapLayer<Unit, Unit>() {
         override suspend fun loadData(context: android.content.Context) = Unit
         override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
-        override fun render(map: com.google.android.gms.maps.GoogleMap, processed: Unit) {}
+        override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
     }
 
     private fun cellTypeColors(): List<Int> {
         val count = CellType.values().size
-        val startHue = 0.230 // formerly CellHeatmapLogic.COLOR_START_HUE
+        val startHue = 0.230
         return ColorGenerator.generateWithGolden(startHue, count)
     }
 
@@ -74,7 +73,7 @@ class DefaultLayerRegistry : LayerRegistry {
             )
         )
 
-        // Location Heatmap (v2)
+        // Location Heatmap
         add(
             LayerDescriptor(
                 id = "location_heatmap",
@@ -86,7 +85,7 @@ class DefaultLayerRegistry : LayerRegistry {
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            LocationHeatmapLayer(repo, BitmapPool(), PerformanceManager())
+                            LocationHeatmapLayer(repo, PerformanceManager())
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("LocationHeatmapLayer", R.string.map_layer_location_heatmap_title),
@@ -105,7 +104,7 @@ class DefaultLayerRegistry : LayerRegistry {
             )
         )
 
-        // Cell Heatmap (v2)
+        // Cell Heatmap
         add(
             LayerDescriptor(
                 id = "cell_heatmap",
@@ -117,7 +116,7 @@ class DefaultLayerRegistry : LayerRegistry {
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            CellHeatmapLayer(repo, BitmapPool(), PerformanceManager())
+                            CellHeatmapLayer(repo, PerformanceManager())
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("CellHeatmapLayer", R.string.map_layer_cell_heatmap_title),
@@ -132,7 +131,7 @@ class DefaultLayerRegistry : LayerRegistry {
             )
         )
 
-        // Wifi Heatmap (v2)
+        // Wifi Heatmap
         add(
             LayerDescriptor(
                 id = "wifi_heatmap",
@@ -144,7 +143,7 @@ class DefaultLayerRegistry : LayerRegistry {
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            WifiHeatmapLayer(repo, BitmapPool(), PerformanceManager())
+                            WifiHeatmapLayer(repo, PerformanceManager())
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiHeatmapLayer", R.string.map_layer_wifi_heatmap_title),
@@ -163,7 +162,7 @@ class DefaultLayerRegistry : LayerRegistry {
             )
         )
 
-        // Wifi Count Heatmap (v2)
+        // Wifi Count Heatmap
         add(
             LayerDescriptor(
                 id = "wifi_count_heatmap",
@@ -175,7 +174,7 @@ class DefaultLayerRegistry : LayerRegistry {
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            WifiCountHeatmapLayer(repo, BitmapPool(), PerformanceManager())
+                            WifiCountHeatmapLayer(repo, PerformanceManager())
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiCountHeatmapLayer", R.string.map_layer_wifi_count_heatmap_title),
@@ -194,7 +193,7 @@ class DefaultLayerRegistry : LayerRegistry {
             )
         )
 
-        // Speed Heatmap (v2)
+        // Speed Heatmap
         add(
             LayerDescriptor(
                 id = "speed_heatmap",
@@ -206,18 +205,18 @@ class DefaultLayerRegistry : LayerRegistry {
                         build = { ctx ->
                             val dao: UnifiedGeoDao = AppDatabase.database(ctx).unifiedGeoDao()
                             val repo: GeoRepository = GeoRepositoryImpl(dao)
-                            SpeedHeatmapLayer(repo, BitmapPool(), PerformanceManager())
+                            SpeedHeatmapLayer(repo, PerformanceManager())
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("SpeedHeatmapLayer", R.string.map_layer_speed_heatmap_title),
                             colorList = listOf(
-                                Color.rgb(153, 102, 255), // Very Slow: Purple
-                                Color.rgb(102, 204, 255), // Walking: Light Blue
-                                Color.rgb(102, 255, 102), // Running: Light Green
-                                Color.rgb(255, 255, 102), // Bike: Yellow
-                                Color.rgb(255, 128, 0),   // Public Transport: Orange
-                                Color.rgb(255, 51, 51),   // Car: Red
-                                Color.rgb(255, 0, 0)      // Very High Speed: Dark Red
+                                Color.rgb(153, 102, 255),
+                                Color.rgb(102, 204, 255),
+                                Color.rgb(102, 255, 102),
+                                Color.rgb(255, 255, 102),
+                                Color.rgb(255, 128, 0),
+                                Color.rgb(255, 51, 51),
+                                Color.rgb(255, 0, 0)
                             ),
                             legend = MapLegend(
                                 description = R.string.map_layer_speed_heatmap_description,
@@ -237,7 +236,7 @@ class DefaultLayerRegistry : LayerRegistry {
             )
         )
 
-        // Location Polyline (v2)
+        // Location Polyline
         add(
             LayerDescriptor(
                 id = "location_polyline",
@@ -251,19 +250,17 @@ class DefaultLayerRegistry : LayerRegistry {
                             LocationPathLayer(
                                 pointsProvider = { range ->
                                     withContext(Dispatchers.IO) {
-                                        // Resolve effective time bounds: use provided range or fall back to actual data range
                                         val effective = if (!range.isEmpty()) range else {
                                             val dr = dao.range()
                                             LongRange(dr.start, dr.endInclusive)
                                         }
                                         val rows = if (!effective.isEmpty()) dao.getAllBetweenOrdered(effective.first, effective.last) else emptyList()
                                         if (rows.isEmpty()) emptyList() else {
-                                            // Light pre-sampling to cap the size before decimation
                                             val maxPrePoints = 30_000
                                             val step = (rows.size / maxPrePoints).coerceAtLeast(1)
                                             rows.asSequence()
                                                 .filterIndexed { index, _ -> index % step == 0 }
-                                                .map { LatLng(it.latitude, it.longitude) }
+                                                .map { LatLngModel(it.latitude, it.longitude) }
                                                 .toList()
                                         }
                                     }
@@ -282,7 +279,6 @@ class DefaultLayerRegistry : LayerRegistry {
         )
     }
 
-    // Lazy cache for layers - avoids rebuilding on every call
     private val cachedLayers: List<LayerDescriptor> by lazy { buildLayers() }
 
     override fun getAllLayers(): List<LayerDescriptor> = cachedLayers

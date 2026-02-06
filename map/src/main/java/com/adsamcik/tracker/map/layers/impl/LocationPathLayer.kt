@@ -1,29 +1,24 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
+import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.graphics.PolylineOptimizer
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
-import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.layers.base.SupportsDateRange
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Polyline
-import com.google.android.gms.maps.model.PolylineOptions
+import com.adsamcik.tracker.map.perf.PerformanceManager
+import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 
-/** Polyline layer drawing user paths with decimation. */
+/** Polyline layer drawing user paths with decimation. Produces MapLibreLayerConfig.Line. */
 class LocationPathLayer(
-    private val pointsProvider: suspend (LongRange) -> List<LatLng>,
+    private val pointsProvider: suspend (LongRange) -> List<LatLngModel>,
     private val perf: PerformanceManager = PerformanceManager()
 ) : BaseMapLayer<LocationPathLayer.Input, LocationPathLayer.Prepared>(), SupportsDateRange {
 
-    data class Input(val points: List<LatLng>)
-    data class Prepared(val options: List<PolylineOptions>)
+    data class Input(val points: List<LatLngModel>)
+    data class Prepared(val geoJson: String, val points: List<LatLngModel>)
 
-    private val polylines = mutableListOf<Polyline>()
-    private var lastPrepared: Prepared = Prepared(emptyList())
     override var dateRange: LongRange = LongRange(0, Long.MAX_VALUE)
-
-    override fun beforeEnable(context: Context, map: GoogleMap) {}
 
     override suspend fun loadData(context: Context): Input {
         val points = pointsProvider(dateRange)
@@ -31,29 +26,27 @@ class LocationPathLayer(
     }
 
     override fun processData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared {
-        if (input.points.isEmpty()) return Prepared(emptyList())
+        if (input.points.isEmpty()) return Prepared("", emptyList())
         val simplified = PolylineOptimizer.optimize(
             input.points,
             toleranceMeters = budgets.decimationThreshold.toDouble(),
             maxPoints = budgets.maxPolylinePoints
         )
-        val options = listOf(PolylineOptions().addAll(simplified).geodesic(true))
-        val prepared = Prepared(options)
-        lastPrepared = prepared
-        return prepared
+        val geoJson = GeoJsonConverter.lineToFeatureCollection(simplified)
+        return Prepared(geoJson, simplified)
     }
 
-    override fun render(map: GoogleMap, processed: Prepared) {
-        polylines.forEach { it.remove() }
-        polylines.clear()
-        processed.options.forEach { opt -> polylines += map.addPolyline(opt) }
+    override fun produceConfig(processed: Prepared): MapLibreLayerConfig? {
+        if (processed.geoJson.isEmpty()) return null
+        return MapLibreLayerConfig.Line(
+            geoJson = processed.geoJson,
+            colorArgb = DEFAULT_POLYLINE_COLOR,
+            widthDp = 4f,
+            opacity = 1f
+        )
     }
 
-    override fun onDisable(map: GoogleMap) {
-        polylines.forEach { it.remove() }
-        polylines.clear()
+    companion object {
+        private const val DEFAULT_POLYLINE_COLOR = 0xFF007AFF.toInt()
     }
-
-    /** Snapshot of the latest prepared options for declarative mapping (no map mutations here). */
-    fun currentOptionsSnapshot(): List<PolylineOptions> = lastPrepared.options
 }

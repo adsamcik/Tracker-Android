@@ -4,11 +4,10 @@ import android.content.Context
 import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
+import com.adsamcik.tracker.map.layers.base.SupportsDateRange
+import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.TileProvider
-import com.adsamcik.tracker.map.ui.LayerEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,71 +16,64 @@ import kotlinx.coroutines.launch
 
 /**
  * Controls map layer lifecycle and manages active layer state.
- * Handles layer switching, memory management, and error recovery.
+ * Layers now produce [MapLibreLayerConfig] data rather than mutating a map.
  */
 class LayerController {
     private var currentLayerDescriptor: LayerDescriptor? = null
-    private var currentLayer: Any? = null // The actual layer instance
+    private var currentLayer: BaseMapLayer<*, *>? = null
     private var currentLegend: MapLayerData? = null
-    private var currentTileProvider: TileProvider? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    
+
     companion object {
         private const val TAG = "LayerController"
     }
-    
+
     /**
-     * Set active layer with proper cleanup and error handling
+     * Set active layer with proper cleanup and error handling.
      */
     fun setLayer(
         context: Context,
-        map: GoogleMap,
         descriptor: LayerDescriptor?,
         quality: Float,
         dateRange: LongRange
     ) {
         scope.launch {
             try {
-                // Clear current layer first
-                currentLayer?.let { layer ->
+                currentLayer?.let {
                     Log.d(TAG, "Clearing current layer: ${currentLayerDescriptor?.id}")
                     clearCurrentLayer()
                 }
-                
-                // Set new layer if provided
+
                 if (descriptor != null) {
                     Log.d(TAG, "Setting new layer: ${descriptor.id}")
-                    // Create entry from factory and build the actual layer instance
                     val entry = descriptor.recipe.factory.create() as LayerEntry
-                    // Build the concrete layer with Context and set legend
                     val builtLayer = entry.build(context)
                     currentLegend = entry.legend
                     currentLayer = builtLayer
                     currentLayerDescriptor = descriptor
 
-                    // Enable the layer
-                    builtLayer.enable(context, map, quality)
+                    // Set date range if supported
+                    if (builtLayer is SupportsDateRange) {
+                        builtLayer.dateRange = dateRange
+                    }
 
-                    // Capture tile provider if implemented by layer
-                    currentTileProvider = (builtLayer as? TileProvider)
-                    
+                    // Enable the layer (no map needed -- layer produces data)
+                    builtLayer.enable(context, quality)
                 } else {
-                    // Clear everything
                     clearState()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error setting layer: ${descriptor?.id}", e)
                 Reporter.report(e)
-                // Reset to safe state
                 clearState()
             }
         }
     }
-    
+
     /**
-     * Clear current layer
+     * Clear current layer.
      */
-    fun clear(map: GoogleMap) {
+    fun clear() {
         scope.launch {
             try {
                 clearCurrentLayer()
@@ -93,33 +85,26 @@ class LayerController {
             }
         }
     }
-    
+
     /**
-     * Get active legend data
+     * Get active legend data.
      */
     fun activeLegend(): MapLayerData? = currentLegend
-    
+
     /**
-     * Get active tile provider
+     * Get active layer config produced by the current layer.
      */
-    fun activeTileProvider(): TileProvider? = currentTileProvider
-    
+    fun activeLayerConfig(): MapLibreLayerConfig? = currentLayer?.lastConfig
+
     /**
-     * Get active layer instance (unsafe - for internal use)
-     */
-    fun activeLayerUnsafe(): Any? = currentLayer
-    
-    /**
-     * Handle low memory situations by clearing cache
+     * Handle low memory situations by clearing cache.
      */
     fun onLowMemory() {
         Log.d(TAG, "Handling low memory - clearing layer cache")
-        // Implement cache clearing if needed
     }
-    
+
     /**
      * Clean up resources when controller is no longer needed.
-     * Cancels the internal coroutine scope to prevent leaks.
      */
     fun destroy() {
         Log.d(TAG, "Destroying LayerController")
@@ -132,19 +117,14 @@ class LayerController {
             scope.cancel()
         }
     }
-    
+
     private fun clearCurrentLayer() {
-        currentLayer?.let { layer ->
-            if (layer is BaseMapLayer<*, *>) {
-                layer.disable()
-            }
-        }
+        currentLayer?.disable()
     }
-    
+
     private fun clearState() {
         currentLayerDescriptor = null
         currentLayer = null
         currentLegend = null
-        currentTileProvider = null
     }
 }

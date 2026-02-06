@@ -82,10 +82,7 @@ dependencies {
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
-	implementation(libs.google.play.services.maps)
-	// Draggable overlay removed
-
-	// Compose (Phase 0 – prep only)
+	// Compose
 	implementation(platform(libs.compose.bom))
 	androidTestImplementation(platform(libs.compose.bom))
 	implementation(libs.compose.material3)
@@ -95,7 +92,6 @@ dependencies {
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
 	implementation(libs.compose.animation.graphics)
-	// Compose Foundation Layout (for Modifier.fillMaxSize, matchParentSize, etc.)
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.navigation.compose)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -104,8 +100,8 @@ dependencies {
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
 	implementation(libs.kotlinx.collections.immutable)
-	// Maps Compose
-	implementation(libs.google.maps.compose)
+	// MapLibre Compose (replaces Google Maps)
+	implementation(libs.maplibre.compose)
 
 	// Hilt (Dependency Injection)
 	implementation(libs.hilt.android)

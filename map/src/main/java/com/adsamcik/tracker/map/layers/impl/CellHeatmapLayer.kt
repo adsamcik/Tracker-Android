@@ -1,102 +1,57 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
-import com.adsamcik.tracker.map.MapFunctions
-import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
-import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.HeatmapEngine
-import com.adsamcik.tracker.map.heatmap.ValueCurves
-import com.adsamcik.tracker.map.heatmap.implementation.MergePolicies
-import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
-import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
-import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
-import com.adsamcik.tracker.map.data.Aggregation
-import com.adsamcik.tracker.map.data.Bounds
+import android.graphics.Color
+import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoSource
-import com.adsamcik.tracker.map.graphics.BitmapPool
+import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.layers.base.HeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
-import com.adsamcik.tracker.map.tiles.HeatmapLayerSpec
-import com.adsamcik.tracker.map.tiles.HeatmapTileProviderBase
-import com.adsamcik.tracker.map.tiles.RadiusInfo
-import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
-import com.adsamcik.tracker.shared.map.CoordinateBounds
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.Tile
-import com.google.android.gms.maps.model.TileOverlayOptions
-import com.google.android.gms.maps.model.TileProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlin.math.ceil
-import kotlin.math.max
-import kotlin.math.pow
 
+/**
+ * Heatmap layer showing cell tower signal strength.
+ * Queries ASU-weighted cell data and produces GeoJSON for MapLibre's native heatmap.
+ */
 class CellHeatmapLayer(
     private val repo: GeoRepository,
-    private val pool: BitmapPool,
     private val perf: PerformanceManager = PerformanceManager()
-) : HeatmapLayer<CellHeatmapLayer.Input, CellHeatmapLayer.Prepared>() {
+) : HeatmapLayer<List<WeightedGeoFeature>, String>() {
 
-    data class Input(val dummy: Unit = Unit)
-    data class Prepared(val provider: TileProvider)
+    override fun colorStops(): List<Pair<Float, Int>> = listOf(
+        0.0f to Color.rgb(68, 1, 84),     // Low: Dark purple (viridis)
+        0.25f to Color.rgb(59, 82, 139),   // Medium-low
+        0.5f to Color.rgb(33, 145, 140),   // Medium
+        0.75f to Color.rgb(94, 201, 98),   // Medium-high
+        1.0f to Color.rgb(253, 231, 37)    // High: Yellow (viridis)
+    )
 
-    private lateinit var provider: TileProviderV2
+    override fun geoJsonFrom(processed: String): String = processed
 
-    override fun beforeEnable(context: Context, map: GoogleMap) {}
+    override fun radiusPx(): Float = 25f * quality
 
-    override suspend fun loadData(context: Context): Input = Input()
+    override fun intensity(): Float = quality
 
-    override fun processData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared {
-        provider = TileProviderV2(repo, pool, perf)
-        provider.updateQuality(quality)
-        return Prepared(provider)
+    override suspend fun loadData(context: Context): List<WeightedGeoFeature> {
+        val query = GeoQuery(
+            source = GeoSource.CELL,
+            weight = "asu"
+        )
+        return repo.queryWeighted(query, "asu").first()
     }
 
-    override fun buildTileOverlay(processed: Prepared): TileOverlayOptions =
-        TileOverlayOptions().tileProvider(processed.provider)
-
-    private class TileProviderV2(
-        repo: GeoRepository,
-        private val pool: BitmapPool,
-        perf: PerformanceManager,
-    ) : HeatmapTileProviderBase(repo, pool, perf) {
-
-        override fun specFor(x: Int, y: Int, zoom: Int): HeatmapLayerSpec {
-            return com.adsamcik.tracker.map.tiles.heatmapSpec {
-                source = GeoSource.CELL
-                weightColumn = "asu"
-                aggregation = Aggregation.Max
-                weightNormalizer = { v -> (v / DEFAULT_MAX_HEAT).toFloat().coerceIn(0f, 1f) }
-                neighborClamp = 1f
-
-                colorScheme = HeatmapColorScheme.viridis()
-                maxHeat = DEFAULT_MAX_HEAT
-                ageThresholdSec = DEFAULT_AGE_THRESHOLD_SECONDS
-                weightMerge = MergePolicies.maximum
-                alphaMerge = MergePolicies.alphaMax
-                valueCurve = ValueCurves.smoothstep(0.5f)
-
-                heatmapBaseSize = HeatmapEngine.BASE_HEATMAP_SIZE
-                scaleWithQuality = true
-                radiusComputer = { _, metersPerPixel, _ ->
-                    val baseRadius = ceil(APPROXIMATE_SIZE_IN_METERS / metersPerPixel).toInt().coerceAtLeast(1)
-                    RadiusInfo(baseRadius, baseRadius)
-                }
-                buildStamp = { r -> HeatmapStamp.generateNonlinear(r) { it.pow(FALLOFF_EXPONENT) } }
-                dynamicStampProvider = null
-                ambientStampProvider = null
-                ambientWeightScale = 0f
-                neighborNormSize = 64
-            }
+    override fun processData(
+        input: List<WeightedGeoFeature>,
+        budgets: PerformanceManager.PerformanceBudgets
+    ): String {
+        val capped = if (input.size > budgets.maxPoints) {
+            val step = input.size / budgets.maxPoints
+            input.filterIndexed { index, _ -> index % step == 0 }
+        } else {
+            input
         }
-
-        companion object {
-            private const val APPROXIMATE_SIZE_IN_METERS = 50.0
-            private const val FALLOFF_EXPONENT = 4.0f
-            private const val DEFAULT_MAX_HEAT = 100f
-            private const val DEFAULT_AGE_THRESHOLD_SECONDS = 15 * 60
-        }
+        return GeoJsonConverter.pointsToFeatureCollection(capped)
     }
 }

@@ -1,6 +1,5 @@
 plugins {
 	alias(libs.plugins.android.application)
-	alias(libs.plugins.secrets)
 	alias(libs.plugins.google.services)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.parcelize)
@@ -240,9 +239,7 @@ dependencies {
 	androidTestImplementation(libs.espresso)
 	androidTestImplementation(libs.mockk.android)
 	androidTestImplementation(project(":testing-common"))
-	// workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":smap"))
-	implementation(libs.google.play.services.maps)
 }
 
 // Configure JUnit 5 for unit tests

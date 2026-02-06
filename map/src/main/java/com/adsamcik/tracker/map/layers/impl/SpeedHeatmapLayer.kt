@@ -1,104 +1,58 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
-import com.adsamcik.tracker.map.MapConstants
-import com.adsamcik.tracker.map.MapFunctions
-import com.adsamcik.tracker.map.heatmap.HeatmapColorScheme
-import com.adsamcik.tracker.map.heatmap.HeatmapStamp
-import com.adsamcik.tracker.map.heatmap.HeatmapEngine
-import com.adsamcik.tracker.map.heatmap.ValueCurves
-import com.adsamcik.tracker.map.heatmap.implementation.MergePolicies
-import com.adsamcik.tracker.map.heatmap.creators.HeatmapTileData
-import com.adsamcik.tracker.map.heatmap.creators.HeatmapConfig
-import com.adsamcik.tracker.map.heatmap.implementation.AgeWeightedHeatmap
-import com.adsamcik.tracker.map.data.Aggregation
-import com.adsamcik.tracker.map.data.Bounds
+import android.graphics.Color
+import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoSource
-import com.adsamcik.tracker.map.graphics.BitmapPool
+import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.layers.base.HeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
-import com.adsamcik.tracker.map.tiles.HeatmapLayerSpec
-import com.adsamcik.tracker.map.tiles.HeatmapTileProviderBase
-import com.adsamcik.tracker.map.tiles.RadiusInfo
-import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
-import com.adsamcik.tracker.shared.map.CoordinateBounds
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.Tile
-import com.google.android.gms.maps.model.TileOverlayOptions
-import com.google.android.gms.maps.model.TileProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlin.math.ceil
-import kotlin.math.pow
 
+/**
+ * Heatmap layer showing speed distribution.
+ * Queries speed-weighted location data and produces GeoJSON for MapLibre's native heatmap.
+ */
 class SpeedHeatmapLayer(
     private val repo: GeoRepository,
-    private val pool: BitmapPool,
     private val perf: PerformanceManager = PerformanceManager()
-) : HeatmapLayer<SpeedHeatmapLayer.Input, SpeedHeatmapLayer.Prepared>() {
+) : HeatmapLayer<List<WeightedGeoFeature>, String>() {
 
-    data class Input(val dummy: Unit = Unit)
-    data class Prepared(val provider: TileProvider)
+    override fun colorStops(): List<Pair<Float, Int>> = listOf(
+        0.0f to Color.rgb(153, 102, 255),  // Very Slow: Purple
+        0.2f to Color.rgb(102, 204, 255),  // Walking: Light Blue
+        0.4f to Color.rgb(102, 255, 102),  // Running: Light Green
+        0.6f to Color.rgb(255, 255, 102),  // Bike: Yellow
+        0.8f to Color.rgb(255, 128, 0),    // Transport: Orange
+        1.0f to Color.rgb(255, 51, 51)     // Car: Red
+    )
 
-    private lateinit var provider: TileProviderV2
+    override fun geoJsonFrom(processed: String): String = processed
 
-    override fun beforeEnable(context: Context, map: GoogleMap) {}
+    override fun radiusPx(): Float = 20f * quality
 
-    override suspend fun loadData(context: Context): Input = Input()
+    override fun intensity(): Float = quality
 
-    override fun processData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared {
-        provider = TileProviderV2(repo, pool, perf)
-        provider.updateQuality(quality)
-        return Prepared(provider)
+    override suspend fun loadData(context: Context): List<WeightedGeoFeature> {
+        val query = GeoQuery(
+            source = GeoSource.LOCATION,
+            weight = "speed"
+        )
+        return repo.queryWeighted(query, "speed").first()
     }
 
-    override fun buildTileOverlay(processed: Prepared): TileOverlayOptions =
-        TileOverlayOptions().tileProvider(processed.provider)
-
-    private class TileProviderV2(
-        repo: GeoRepository,
-        private val pool: BitmapPool,
-        perf: PerformanceManager,
-    ) : HeatmapTileProviderBase(repo, pool, perf) {
-
-        override fun specFor(x: Int, y: Int, zoom: Int): HeatmapLayerSpec {
-            return com.adsamcik.tracker.map.tiles.heatmapSpec {
-                source = GeoSource.LOCATION
-                weightColumn = "speed"
-                aggregation = Aggregation.Avg
-                weightNormalizer = { v -> (v / DEFAULT_MAX_HEAT).toFloat().coerceIn(0f, 1f) }
-                neighborClamp = 1f
-
-                colorScheme = HeatmapColorScheme.viridis()
-                maxHeat = DEFAULT_MAX_HEAT
-                ageThresholdSec = DEFAULT_AGE_THRESHOLD_SECONDS
-
-                weightMerge = MergePolicies.alphaLerp
-                alphaMerge = MergePolicies.alphaScaledByWeightDiv(DEFAULT_MAX_HEAT)
-                valueCurve = ValueCurves.smoothstep(0.65f)
-
-                heatmapBaseSize = HeatmapEngine.BASE_HEATMAP_SIZE
-                scaleWithQuality = true
-                radiusComputer = { z, metersPerPixel, _ ->
-                    val baseMeterSize = BASE_HEAT_SIZE_IN_METERS * HEATMAP_ZOOM_SCALE.pow((MapConstants.MAX_ZOOM - z).toDouble())
-                    val baseRadius = ceil(baseMeterSize / metersPerPixel).toInt().coerceAtLeast(1)
-                    RadiusInfo(baseRadius, baseRadius)
-                }
-                buildStamp = { r -> HeatmapStamp.generateGaussian(r) }
-                dynamicStampProvider = null
-                ambientStampProvider = null
-                ambientWeightScale = 0f
-                neighborNormSize = 64
-            }
+    override fun processData(
+        input: List<WeightedGeoFeature>,
+        budgets: PerformanceManager.PerformanceBudgets
+    ): String {
+        val capped = if (input.size > budgets.maxPoints) {
+            val step = input.size / budgets.maxPoints
+            input.filterIndexed { index, _ -> index % step == 0 }
+        } else {
+            input
         }
-
-        companion object {
-            private const val BASE_HEAT_SIZE_IN_METERS = 40.0
-            private const val HEATMAP_ZOOM_SCALE = 1.4
-            private const val DEFAULT_MAX_HEAT = 100f
-            private const val DEFAULT_AGE_THRESHOLD_SECONDS = 15 * 60
-        }
+        return GeoJsonConverter.pointsToFeatureCollection(capped)
     }
 }
