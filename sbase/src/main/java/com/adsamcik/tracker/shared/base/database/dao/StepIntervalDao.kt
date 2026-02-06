@@ -36,6 +36,12 @@ interface StepIntervalDao : BaseDao<StepInterval> {
 	suspend fun getLatest(): StepInterval?
 
 	/**
+	 * Delete all step intervals.
+	 */
+	@Query("DELETE FROM step_interval")
+	fun deleteAll()
+
+	/**
 	 * Delete intervals older than given timestamp.
 	 */
 	@Query("DELETE FROM step_interval WHERE end_time_ms < :beforeMs")

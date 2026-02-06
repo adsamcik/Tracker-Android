@@ -36,6 +36,12 @@ interface ActivitySnapshotDao : BaseDao<ActivitySnapshot> {
 	suspend fun getLatest(): ActivitySnapshot?
 
 	/**
+	 * Delete all activity snapshots.
+	 */
+	@Query("DELETE FROM activity_snapshot")
+	fun deleteAll()
+
+	/**
 	 * Delete snapshots older than given timestamp.
 	 */
 	@Query("DELETE FROM activity_snapshot WHERE time_ms < :beforeMs")

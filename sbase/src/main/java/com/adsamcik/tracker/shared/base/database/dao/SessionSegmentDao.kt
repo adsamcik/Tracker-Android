@@ -49,6 +49,12 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun countBySource(source: SegmentSource): Int
 
 	/**
+	 * Delete all session segments.
+	 */
+	@Query("DELETE FROM session_segment")
+	fun deleteAll()
+
+	/**
 	 * Delete segments older than given timestamp.
 	 */
 	@Query("DELETE FROM session_segment WHERE end_time_ms < :beforeMs")

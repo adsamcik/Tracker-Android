@@ -3,8 +3,6 @@ package com.adsamcik.tracker.shared.base.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.RewriteQueriesToDropUnusedColumns
-import androidx.room.Transaction
-import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.DateRange
 import com.adsamcik.tracker.shared.base.database.data.location.TimeLocation2DWeighted
@@ -19,13 +17,6 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	 */
 	@Query("DELETE from location_data")
 	fun deleteAll()
-
-	/**
-	 * Get all location data.
-	 */
-	@RewriteQueriesToDropUnusedColumns
-	@Query("SELECT * from location_data")
-	fun getAll(): List<DatabaseLocation>
 
 	/**
 	 * Get all location data with time constraints.

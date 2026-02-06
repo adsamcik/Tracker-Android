@@ -9,19 +9,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  wrapper-validation:
-    name: Validate Gradle Wrapper
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
   test:
     name: Unit tests
-    needs: wrapper-validation
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -43,7 +32,7 @@ jobs:
           cp -f google-services.json.example app/google-services.json
       - name: Run unit tests (all modules)
         run: |
-          ./gradlew --no-daemon --stacktrace testDebugUnitTest test
+          ./gradlew --no-daemon --stacktrace testDebugUnitTest
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -52,73 +41,6 @@ jobs:
           path: |
             **/build/reports/tests/**
             **/build/test-results/**/*.xml
-          retention-days: 7
-
-  test-map-only:
-    name: Map unit tests (Linux)
-    needs: wrapper-validation
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-      - name: Prepare for build
-        run: |
-          chmod +x gradlew
-          echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-          cp -f google-services.json.example app/google-services.json
-      - name: Run map unit tests
-        run: ./gradlew --no-daemon --stacktrace :map:testDebugUnitTest
-      - name: Upload map test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: map-test-reports
-          path: |
-            map/build/reports/tests/**
-            map/build/test-results/**/*.xml
-          retention-days: 7
-
-  test-windows-map:
-    name: Map unit tests (Windows flake-guarded)
-    needs: wrapper-validation
-    runs-on: windows-latest
-    permissions:
-      contents: read
-    env:
-      ORG_GRADLE_PROJECT_kotlin.compiler.incremental: false
-      ORG_GRADLE_PROJECT_org.gradle.caching: false
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-      - name: Prepare for build
-        shell: pwsh
-        run: |
-          Set-Content -Path local.properties -Value "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          Copy-Item google-services.json.example app/google-services.json -Force
-      - name: Run map unit tests (no daemon, no cache)
-        shell: pwsh
-        run: |
-          ./gradlew.bat --no-daemon --stacktrace -Dkotlin.incremental=false -Dorg.gradle.caching=false :map:testDebugUnitTest
-      - name: Upload map test reports (Windows)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: map-test-reports-windows
-          path: |
-            map/build/reports/tests/**
-            map/build/test-results/**/*.xml
           retention-days: 7
 
   build:

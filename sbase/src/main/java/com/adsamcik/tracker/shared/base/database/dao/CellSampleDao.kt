@@ -43,6 +43,12 @@ interface CellSampleDao : BaseDao<CellSample> {
 	suspend fun countWithoutCoordinates(): Int
 
 	/**
+	 * Delete all cell samples.
+	 */
+	@Query("DELETE FROM cell_sample")
+	fun deleteAll()
+
+	/**
 	 * Delete samples older than given timestamp.
 	 */
 	@Query("DELETE FROM cell_sample WHERE time_ms < :beforeMs")

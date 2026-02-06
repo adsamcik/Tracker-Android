@@ -251,10 +251,12 @@ class DefaultLayerRegistry : LayerRegistry {
                             LocationPathLayer(
                                 pointsProvider = { range ->
                                     withContext(Dispatchers.IO) {
-                                        val from = range.start
-                                        val to = range.endInclusive
-                                        // Prefer ordered query within range; fallback to all if empty range
-                                        val rows = if (!range.isEmpty()) dao.getAllBetweenOrdered(from, to) else dao.getAll()
+                                        // Resolve effective time bounds: use provided range or fall back to actual data range
+                                        val effective = if (!range.isEmpty()) range else {
+                                            val dr = dao.range()
+                                            LongRange(dr.start, dr.endInclusive)
+                                        }
+                                        val rows = if (!effective.isEmpty()) dao.getAllBetweenOrdered(effective.first, effective.last) else emptyList()
                                         if (rows.isEmpty()) emptyList() else {
                                             // Light pre-sampling to cap the size before decimation
                                             val maxPrePoints = 30_000

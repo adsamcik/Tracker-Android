@@ -418,21 +418,19 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	override fun onUpdate(tempData: MutableCollectionTempData): Job = launch {
-		componentMutex.lock()
+		componentMutex.withLock {
+			if (!controller.isServiceRunning) {
+				return@launch
+			}
 
-		if (!controller.isServiceRunning) {
-			componentMutex.unlock()
-			return@launch
-		}
-
-		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
-		try {
-			updateData(tempData)
-		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-			Reporter.report(e)
-		} finally {
-			wakeLock.release()
-			componentMutex.unlock()
+			wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
+			try {
+				updateData(tempData)
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				Reporter.report(e)
+			} finally {
+				wakeLock.release()
+			}
 		}
 	}
 

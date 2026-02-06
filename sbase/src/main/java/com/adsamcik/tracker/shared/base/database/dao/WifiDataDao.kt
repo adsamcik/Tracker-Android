@@ -18,7 +18,7 @@ interface WifiDataDao : BaseDao<DatabaseWifiData> {
 	/**
 	 * Delete all Wi-Fi networks from database.
 	 */
-	@Query("DELETE FROM tracker_session")
+	@Query("DELETE FROM wifi_data")
 	fun deleteAll()
 
 	/**

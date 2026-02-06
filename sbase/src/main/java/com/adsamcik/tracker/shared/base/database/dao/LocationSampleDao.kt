@@ -42,6 +42,12 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	suspend fun countBetween(fromMs: Long, toMs: Long): Int
 
 	/**
+	 * Delete all location samples.
+	 */
+	@Query("DELETE FROM location_sample")
+	fun deleteAll()
+
+	/**
 	 * Delete samples older than given timestamp.
 	 */
 	@Query("DELETE FROM location_sample WHERE time_ms < :beforeMs")

@@ -49,6 +49,12 @@ interface WifiObservationDao : BaseDao<WifiObservation> {
 	suspend fun countWithoutCoordinates(): Int
 
 	/**
+	 * Delete all Wi-Fi observations.
+	 */
+	@Query("DELETE FROM wifi_observation")
+	fun deleteAll()
+
+	/**
 	 * Delete observations older than given timestamp.
 	 */
 	@Query("DELETE FROM wifi_observation WHERE time_ms < :beforeMs")
