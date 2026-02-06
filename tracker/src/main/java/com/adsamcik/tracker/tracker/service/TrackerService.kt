@@ -49,6 +49,7 @@ import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
+import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.PolicyAwareLocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
@@ -184,8 +185,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					lastActivityType = currentActivityType
 				}
 
-				// Feed location changes for displacement detection
+				// Feed location changes for displacement detection and speed updates
 				collectionData.location?.let { location ->
+					// Update speed in the escalation engine for GPS interval refinement
+					policyMgr.escalationEngine?.updateSpeed(location.speed)
+
 					lastLocation?.let { prevLocation ->
 						val distance = prevLocation.distance(
 							location,
@@ -283,12 +287,24 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// independent of app module. DataProducerManager falls back to its internal default provider.
 		dataProducerManager = DataProducerManager(this).apply { onEnable() }
 
-		// Initialize adaptive tracking policy manager
+		// Initialize the new 4-tier escalation engine
+		val escalationEngine = DefaultPolicyEscalationEngine()
+
+		// Initialize adaptive tracking policy manager with engine delegation
 		trackingPolicyManager = TrackingPolicyManager(
 			context = this,
-			isUserInitiated = isSessionUserInitiated
+			isUserInitiated = isSessionUserInitiated,
+			escalationEngine = escalationEngine,
+			scope = this@TrackerService,
 		).apply {
-			start() // Start tracking run
+			start() // Start tracking run + engine
+		}
+
+		// Observe engine state changes for UI and timer updates
+		launch {
+			escalationEngine.policyState.collect { state ->
+				controller.updatePolicyState(state)
+			}
 		}
 
 		// Phase 4: Observe policy changes and update timer intervals dynamically
@@ -468,6 +484,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updateSession(null)
 		controller.updateCollectionData(null)
 		controller.updatePersistenceErrorFlow(null)
+		controller.updatePolicyState(null)
+		controller.updatePolicyTier(com.adsamcik.tracker.stats.api.PolicyTier.OFF)
 		persistenceErrorCollector = null
 	}
 

@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.controller
 
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.stats.api.PolicyState
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.SharedFlow
@@ -70,6 +72,19 @@ interface TrackerServiceController {
     val lastPathPointsFlow: StateFlow<Pair<Long, List<com.adsamcik.tracker.shared.base.data.Location>>?>
     
     /**
+     * Current policy tier (OFF/AMBIENT/ACTIVE/PRECISION).
+     * Defaults to OFF when service is not running.
+     */
+    val policyTierFlow: StateFlow<PolicyTier>
+
+    /**
+     * Detailed policy engine state including accumulator value,
+     * detected activity, GPS interval, and minimum tier lock.
+     * Null when the escalation engine is not active.
+     */
+    val policyStateFlow: StateFlow<PolicyState?>
+
+    /**
      * Flow of database persistence errors.
      * Observers can display to user, log, or take corrective action.
      * Null when no error collector is active (tracking not running).
@@ -105,4 +120,16 @@ interface TrackerServiceController {
      * Called by TrackerService when component manager is initialized/destroyed.
      */
     fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?)
+
+    /**
+     * Internal: Update policy tier.
+     * Called by TrackerService when the escalation engine changes tier.
+     */
+    fun updatePolicyTier(tier: PolicyTier)
+
+    /**
+     * Internal: Update detailed policy state.
+     * Called by TrackerService when the escalation engine emits a new state.
+     */
+    fun updatePolicyState(state: PolicyState?)
 }

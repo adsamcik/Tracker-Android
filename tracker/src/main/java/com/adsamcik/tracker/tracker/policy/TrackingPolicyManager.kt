@@ -5,10 +5,15 @@ import com.adsamcik.tracker.tracker.BuildConfig
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -17,29 +22,32 @@ import kotlinx.coroutines.withContext
  * Manages adaptive tracking policy state machine.
  * Decides when to collect GPS vs location-less data based on movement heuristics.
  *
- * Contract:
- * - Input: Activity transitions, step deltas, location changes
- * - Output: Current tracking policy (PASSIVE_LOW → ACTIVE_ELEVATED)
- * - State: Persisted to tracker_run table for later analysis
+ * When [escalationEngine] is provided, all signal processing delegates to
+ * the new 4-tier engine. The engine's [PolicyTier] output is mapped to
+ * [TrackingPolicy] via [PolicyTierMapper] for backward compatibility with
+ * existing components (timer, pre-components, etc.).
+ *
+ * When [escalationEngine] is null, falls back to the legacy built-in
+ * state machine (step rate thresholds + cooldown).
  *
  * Thread safety: All public methods are suspend and use internal synchronization.
  *
  * @param context Android context for database access.
  * @param isUserInitiated Whether tracking was initiated by user action.
- * @param database Optional database instance for testability. When null, resolves
- *                 via [AppDatabase.database]. Pass a test/mock database in unit tests
- *                 to avoid Android framework dependencies. This pattern enables
- *                 constructor-based dependency injection without requiring a DI framework.
+ * @param escalationEngine Optional new-style engine for signal processing.
+ * @param scope Coroutine scope for observing engine state changes.
+ * @param database Optional database instance for testability.
  */
 class TrackingPolicyManager(
 	private val context: Context,
 	private val isUserInitiated: Boolean,
-	database: AppDatabase? = null
+	val escalationEngine: DefaultPolicyEscalationEngine? = null,
+	private val scope: CoroutineScope? = null,
+	database: AppDatabase? = null,
 ) {
 	private val database = database ?: AppDatabase.database(context)
 	private val trackerRunDao by lazy { this.database.trackerRunDao() }
 
-	// Mutex to serialize all state modifications and prevent race conditions
 	private val stateMutex = Mutex()
 
 	private val _currentPolicy = MutableStateFlow(
@@ -54,10 +62,13 @@ class TrackingPolicyManager(
 	private var currentRunId: Long? = null
 	private var lastTransitionTime: Long = 0L
 
-	// Movement detection state
+	// Legacy movement detection state (used only when engine is null)
 	private var lastStepCount: Int = 0
 	private var lastStepTime: Long = 0L
 	private var lastActivityType: Int = -1
+
+	// Engine observation job
+	private var engineObservationJob: Job? = null
 
 	/**
 	 * Initialize the policy manager and start a new tracker run.
@@ -72,19 +83,44 @@ class TrackingPolicyManager(
 			policy = policy.name,
 			policyParams = buildPolicyParams(),
 			userInitiated = isUserInitiated,
-			createdAt = now
+			createdAt = now,
 		)
 
 		currentRunId = withContext(Dispatchers.IO) {
 			trackerRunDao.insert(run)
 		}
 		lastTransitionTime = now
+
+		// Start the escalation engine and observe tier changes
+		escalationEngine?.let { engine ->
+			val initialTier = if (isUserInitiated) {
+				PolicyTier.PRECISION
+			} else {
+				PolicyTier.AMBIENT
+			}
+			engine.start(initialTier, now)
+
+			engineObservationJob = scope?.launch {
+				engine.policyState.collect { state ->
+					val newPolicy = if (isUserInitiated) {
+						TrackingPolicy.USER_INITIATED
+					} else {
+						PolicyTierMapper.toTrackingPolicy(state.tier)
+					}
+					onEngineStateChanged(newPolicy, state.transitionReason.name, now)
+				}
+			}
+		}
 	}
 
 	/**
 	 * Stop the policy manager and close the current tracker run.
 	 */
 	suspend fun stop() = stateMutex.withLock {
+		engineObservationJob?.cancel()
+		engineObservationJob = null
+		escalationEngine?.stop()
+
 		val runId = currentRunId ?: return@withLock
 		trackerRunDao.endRun(runId, Time.nowMillis)
 		currentRunId = null
@@ -96,7 +132,7 @@ class TrackingPolicyManager(
 	fun shouldRequestLocation(): Boolean {
 		return when (_currentPolicy.value) {
 			TrackingPolicy.PASSIVE_LOW -> false
-			TrackingPolicy.MOVEMENT_SUSPECTED -> false // Coarse only
+			TrackingPolicy.MOVEMENT_SUSPECTED -> false
 			TrackingPolicy.ACTIVE_MODERATE -> true
 			TrackingPolicy.ACTIVE_ELEVATED -> true
 			TrackingPolicy.USER_INITIATED -> true
@@ -105,93 +141,145 @@ class TrackingPolicyManager(
 
 	/**
 	 * Update policy based on step counter delta.
-	 * Called by StepDataProducer after each collection cycle.
 	 */
-	suspend fun onStepUpdate(stepCount: Int, timeMs: Long) = stateMutex.withLock {
-		if (isUserInitiated) return@withLock // User sessions don't adapt
-
-		val deltaSteps = if (lastStepCount > 0) stepCount - lastStepCount else 0
-		val deltaTime = if (lastStepTime > 0) timeMs - lastStepTime else 0L
-
-		lastStepCount = stepCount
-		lastStepTime = timeMs
-
-		// Calculate step rate (steps per minute)
-		if (deltaTime > 0 && deltaSteps > 0) {
-			val stepsPerMinute = (deltaSteps.toFloat() / deltaTime) * 60_000f
-
-			// Escalation thresholds
-			when (_currentPolicy.value) {
-				TrackingPolicy.PASSIVE_LOW -> {
-					if (stepsPerMinute > STEP_RATE_MOVEMENT_SUSPECTED) {
-						transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
-					}
-				}
-				TrackingPolicy.MOVEMENT_SUSPECTED -> {
-					if (stepsPerMinute > STEP_RATE_ACTIVE_MODERATE) {
-						transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
-					}
-				}
-				TrackingPolicy.ACTIVE_MODERATE -> {
-					if (stepsPerMinute > STEP_RATE_ACTIVE_ELEVATED) {
-						transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
-					}
-				}
-				else -> { /* No escalation from ACTIVE_ELEVATED */ }
-			}
+	suspend fun onStepUpdate(stepCount: Int, timeMs: Long) {
+		escalationEngine?.let { engine ->
+			// Delegate to engine (it handles cumulative step count as Long)
+			engine.onStepCount(stepCount.toLong(), timeMs)
+			return
 		}
 
-		// Cooldown logic: de-escalate if no movement for threshold duration
-		checkCooldown(timeMs)
+		// Legacy path
+		stateMutex.withLock {
+			if (isUserInitiated) return@withLock
+
+			val deltaSteps = if (lastStepCount > 0) stepCount - lastStepCount else 0
+			val deltaTime = if (lastStepTime > 0) timeMs - lastStepTime else 0L
+
+			lastStepCount = stepCount
+			lastStepTime = timeMs
+
+			if (deltaTime > 0 && deltaSteps > 0) {
+				val stepsPerMinute = (deltaSteps.toFloat() / deltaTime) * 60_000f
+
+				when (_currentPolicy.value) {
+					TrackingPolicy.PASSIVE_LOW -> {
+						if (stepsPerMinute > STEP_RATE_MOVEMENT_SUSPECTED) {
+							transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
+						}
+					}
+					TrackingPolicy.MOVEMENT_SUSPECTED -> {
+						if (stepsPerMinute > STEP_RATE_ACTIVE_MODERATE) {
+							transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
+						}
+					}
+					TrackingPolicy.ACTIVE_MODERATE -> {
+						if (stepsPerMinute > STEP_RATE_ACTIVE_ELEVATED) {
+							transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.STEP_RATE_THRESHOLD, timeMs)
+						}
+					}
+					else -> { /* No escalation from ACTIVE_ELEVATED */ }
+				}
+			}
+
+			checkCooldown(timeMs)
+		}
 	}
 
 	/**
 	 * Update policy based on activity recognition transition.
-	 * Called by ActivityDataProducer when activity changes.
 	 */
-	suspend fun onActivityTransition(activityType: Int, confidence: Int, timeMs: Long) = stateMutex.withLock {
-		if (isUserInitiated) return@withLock
+	suspend fun onActivityTransition(activityType: Int, confidence: Int, timeMs: Long) {
+		escalationEngine?.let { engine ->
+			val activity = PolicyTierMapper.toDetectedActivityType(activityType)
+			engine.onActivityDetected(activity, confidence, timeMs)
+			return
+		}
 
-		val previousActivity = lastActivityType
-		lastActivityType = activityType
+		// Legacy path
+		stateMutex.withLock {
+			if (isUserInitiated) return@withLock
 
-		// Activity codes from DetectedActivity
-		// 0 = IN_VEHICLE, 1 = ON_BICYCLE, 2 = ON_FOOT, 3 = STILL, 7 = WALKING, 8 = RUNNING
-		val isMoving = activityType in listOf(0, 1, 2, 7, 8)
-		val wasStill = previousActivity == 3
+			val previousActivity = lastActivityType
+			lastActivityType = activityType
 
-		if (wasStill && isMoving && confidence > ACTIVITY_CONFIDENCE_THRESHOLD) {
-			// Transition from STILL to movement
-			when (_currentPolicy.value) {
-				TrackingPolicy.PASSIVE_LOW -> {
-					transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.ACTIVITY_TRANSITION, timeMs)
+			val isMoving = activityType in listOf(0, 1, 2, 7, 8)
+			val wasStill = previousActivity == 3
+
+			if (wasStill && isMoving && confidence > ACTIVITY_CONFIDENCE_THRESHOLD) {
+				when (_currentPolicy.value) {
+					TrackingPolicy.PASSIVE_LOW -> {
+						transitionTo(TrackingPolicy.MOVEMENT_SUSPECTED, PolicyTransitionReason.ACTIVITY_TRANSITION, timeMs)
+					}
+					TrackingPolicy.MOVEMENT_SUSPECTED -> {
+						transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.ACTIVITY_TRANSITION, timeMs)
+					}
+					else -> { /* Already elevated */ }
 				}
-				TrackingPolicy.MOVEMENT_SUSPECTED -> {
-					transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.ACTIVITY_TRANSITION, timeMs)
-				}
-				else -> { /* Already elevated */ }
 			}
 		}
 	}
 
 	/**
 	 * Update policy based on significant location change.
-	 * Called when GPS fix obtained and displacement detected.
 	 */
-	suspend fun onLocationChange(displacementMeters: Float, timeMs: Long) = stateMutex.withLock {
-		if (isUserInitiated) return@withLock
+	suspend fun onLocationChange(displacementMeters: Float, timeMs: Long) {
+		// Engine doesn't use displacement directly — it uses activity + steps.
+		// We still pass to legacy path for backward compat.
+		if (escalationEngine != null) return
 
-		// Significant movement detected → escalate
-		if (displacementMeters > DISPLACEMENT_THRESHOLD_METERS) {
-			when (_currentPolicy.value) {
-				TrackingPolicy.PASSIVE_LOW, TrackingPolicy.MOVEMENT_SUSPECTED -> {
-					transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.LOCATION_CHANGE, timeMs)
+		stateMutex.withLock {
+			if (isUserInitiated) return@withLock
+
+			if (displacementMeters > DISPLACEMENT_THRESHOLD_METERS) {
+				when (_currentPolicy.value) {
+					TrackingPolicy.PASSIVE_LOW, TrackingPolicy.MOVEMENT_SUSPECTED -> {
+						transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.LOCATION_CHANGE, timeMs)
+					}
+					TrackingPolicy.ACTIVE_MODERATE -> {
+						transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.LOCATION_CHANGE, timeMs)
+					}
+					else -> { /* Already at max */ }
 				}
-				TrackingPolicy.ACTIVE_MODERATE -> {
-					transitionTo(TrackingPolicy.ACTIVE_ELEVATED, PolicyTransitionReason.LOCATION_CHANGE, timeMs)
-				}
-				else -> { /* Already at max */ }
 			}
+		}
+	}
+
+	/**
+	 * Called when the escalation engine emits a new state.
+	 * Maps to [TrackingPolicy] and persists to tracker_run.
+	 */
+	private suspend fun onEngineStateChanged(
+		newPolicy: TrackingPolicy,
+		reasonName: String,
+		timeMs: Long,
+	) = stateMutex.withLock {
+		val oldPolicy = _currentPolicy.value
+		if (oldPolicy == newPolicy) return@withLock
+
+		_currentPolicy.value = newPolicy
+
+		// Persist transition to tracker_run
+		currentRunId?.let { trackerRunDao.endRun(it, timeMs) }
+
+		val run = TrackerRun(
+			startTimeMs = timeMs,
+			endTimeMs = null,
+			policy = newPolicy.name,
+			policyParams = buildEngineParams(reasonName),
+			userInitiated = isUserInitiated,
+			createdAt = timeMs,
+		)
+		currentRunId = withContext(Dispatchers.IO) {
+			trackerRunDao.insert(run)
+		}
+		lastTransitionTime = timeMs
+
+		if (BuildConfig.DEBUG) {
+			android.util.Log.d(
+				"TrackingPolicy",
+				"Engine transition: $oldPolicy -> $newPolicy (reason: $reasonName)"
+			)
 		}
 	}
 
@@ -201,7 +289,6 @@ class TrackingPolicyManager(
 
 		_currentPolicy.value = newPolicy
 
-		// Close current run, start new run with updated policy
 		currentRunId?.let { trackerRunDao.endRun(it, timeMs) }
 
 		val run = TrackerRun(
@@ -210,18 +297,17 @@ class TrackingPolicyManager(
 			policy = newPolicy.name,
 			policyParams = buildPolicyParams(reason),
 			userInitiated = isUserInitiated,
-			createdAt = timeMs
+			createdAt = timeMs,
 		)
 		currentRunId = withContext(Dispatchers.IO) {
 			trackerRunDao.insert(run)
 		}
 		lastTransitionTime = timeMs
 
-		// Log transition for debugging (debug builds only)
 		if (BuildConfig.DEBUG) {
 			android.util.Log.d(
 				"TrackingPolicy",
-				"Transition: $oldPolicy → $newPolicy (reason: $reason)"
+				"Transition: $oldPolicy -> $newPolicy (reason: $reason)"
 			)
 		}
 	}
@@ -230,7 +316,6 @@ class TrackingPolicyManager(
 		val timeSinceTransition = currentTimeMs - lastTransitionTime
 		if (timeSinceTransition < COOLDOWN_DURATION_MS) return
 
-		// De-escalate after cooldown period with no activity
 		when (_currentPolicy.value) {
 			TrackingPolicy.ACTIVE_ELEVATED -> {
 				transitionTo(TrackingPolicy.ACTIVE_MODERATE, PolicyTransitionReason.MOVEMENT_COOLDOWN, currentTimeMs)
@@ -262,19 +347,25 @@ class TrackingPolicyManager(
 		}
 	}
 
+	private fun buildEngineParams(reasonName: String): String {
+		val accValue = escalationEngine?.policyState?.value?.accumulatorValue ?: 0.0
+		val tier = escalationEngine?.policyState?.value?.tier?.name ?: "UNKNOWN"
+		return buildString {
+			append("{")
+			append("\"engine\":\"PolicyEscalationEngine\",")
+			append("\"tier\":\"$tier\",")
+			append("\"accumulatorValue\":$accValue,")
+			append("\"transitionReason\":\"$reasonName\"")
+			append("}")
+		}
+	}
+
 	companion object {
-		// Step rate thresholds (steps per minute)
-		private const val STEP_RATE_MOVEMENT_SUSPECTED = 10f // ~0.5 km/h walking pace
-		private const val STEP_RATE_ACTIVE_MODERATE = 40f // ~3 km/h casual walking
-		private const val STEP_RATE_ACTIVE_ELEVATED = 80f // ~5 km/h brisk walking/jogging
-
-		// Activity recognition confidence threshold (0-100)
+		private const val STEP_RATE_MOVEMENT_SUSPECTED = 10f
+		private const val STEP_RATE_ACTIVE_MODERATE = 40f
+		private const val STEP_RATE_ACTIVE_ELEVATED = 80f
 		private const val ACTIVITY_CONFIDENCE_THRESHOLD = 50
-
-		// Displacement threshold for location-based escalation (meters)
 		private const val DISPLACEMENT_THRESHOLD_METERS = 50f
-
-		// Cooldown duration before de-escalation (milliseconds)
-		private const val COOLDOWN_DURATION_MS = 5 * 60 * 1000L // 5 minutes
+		private const val COOLDOWN_DURATION_MS = 5 * 60 * 1000L
 	}
 }
