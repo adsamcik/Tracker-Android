@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.ui
 
+import android.location.Geocoder
 import android.util.Log
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -29,9 +30,12 @@ import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
+import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.adsamcik.tracker.shared.map.MapStyleProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
@@ -205,7 +209,51 @@ fun MapScreen(
                         Log.e(TAG, "Failed to show snackbar: ${e.message}", e)
                     }
                 }
-                is MapEffect.PerformGeocode -> { /* geocoding not yet implemented */ }
+                is MapEffect.PerformGeocode -> {
+                    try {
+                        if (!Geocoder.isPresent()) {
+                            snackbarHostState.showSnackbar(
+                                context.getString(com.adsamcik.tracker.map.R.string.map_search_no_geocoder)
+                            )
+                        } else {
+                            val geocoder = Geocoder(context)
+                            @Suppress("DEPRECATION")
+                            val addresses = withContext(Dispatchers.IO) {
+                                geocoder.getFromLocationName(effect.query, 1)
+                            }
+                            if (addresses.isNullOrEmpty()) {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(
+                                        com.adsamcik.tracker.map.R.string.map_search_no_results,
+                                        effect.query
+                                    )
+                                )
+                            } else {
+                                val address = addresses[0]
+                                val lat = address.latitude
+                                val lng = address.longitude
+                                // ~1.1 km delta around the geocoded point,
+                                // giving a reasonable zoom level for the result.
+                                val delta = 0.01
+                                val bounds = CoordinateBounds(
+                                    topBound = lat + delta,
+                                    rightBound = lng + delta,
+                                    bottomBound = lat - delta,
+                                    leftBound = lng - delta,
+                                )
+                                store.dispatch(MapEvent.GeocodeResult(bounds))
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Geocoding failed for '${effect.query}': ${e.message}", e)
+                        snackbarHostState.showSnackbar(
+                            context.getString(
+                                com.adsamcik.tracker.map.R.string.map_search_no_results,
+                                effect.query
+                            )
+                        )
+                    }
+                }
             }
         }
     }

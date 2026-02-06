@@ -53,6 +53,7 @@
     <string name="map_no_play_services">Map requires up-to-date Play Services</string>
     <string name="map_search">Search…</string>
     <string name="map_search_no_geocoder">Search disabled, no geocoder found.</string>
+    <string name="map_search_no_results">No results found for \"%s\"</string>
     <string name="map_search_no_text">Searching for nothing is not very useful</string>
 
     <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
