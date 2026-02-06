@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.adsamcik.tracker.app.onboarding.data
 
 /**

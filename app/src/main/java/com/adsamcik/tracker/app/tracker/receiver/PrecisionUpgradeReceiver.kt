@@ -7,6 +7,11 @@ import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 
 /**
@@ -29,6 +34,17 @@ class PrecisionUpgradeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != TrackerSession.ACTION_SESSION_FINAL) return
         
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                handleSessionFinal(context)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+    
+    private suspend fun handleSessionFinal(context: Context) {
         Logger.log(LogData(
             message = "Session finalized, checking precision upgrade eligibility",
             source = PRECISION_UPGRADE_LOG_SOURCE
@@ -37,10 +53,8 @@ class PrecisionUpgradeReceiver : BroadcastReceiver() {
         val prefs = Preferences.getPref(context)
         
         // Check if user already dismissed the prompt
-        val wasDismissed = prefs.getBooleanRes(
-            PrefR.string.settings_precision_upgrade_dismissed_key,
-            false
-        )
+        val dismissedKey = context.getString(PrefR.string.settings_precision_upgrade_dismissed_key)
+        val wasDismissed = prefs.fetchBoolean(dismissedKey, false)
         if (wasDismissed) {
             Logger.log(LogData(
                 message = "Precision upgrade prompt previously dismissed",
@@ -50,10 +64,8 @@ class PrecisionUpgradeReceiver : BroadcastReceiver() {
         }
         
         // Check current location precision mode
-        val precisionMode = prefs.getStringRes(
-            PrefR.string.settings_location_precision_key,
-            PrefR.string.settings_location_precision_default
-        )
+        val precisionMode = prefs.fetchStringRes(PrefR.string.settings_location_precision_key)
+            ?: context.getString(PrefR.string.settings_location_precision_default)
         
         if (precisionMode != "APPROXIMATE") {
             // User already using precise mode, no need to prompt
@@ -65,10 +77,8 @@ class PrecisionUpgradeReceiver : BroadcastReceiver() {
         }
         
         // Increment session counter for approximate mode
-        val currentCount = prefs.getIntResValue(
-            PrefR.string.settings_approximate_session_count_key,
-            0
-        )
+        val key = context.getString(PrefR.string.settings_approximate_session_count_key)
+        val currentCount = prefs.fetchInt(key, 0)
         val newCount = currentCount + 1
         
         prefs.edit {

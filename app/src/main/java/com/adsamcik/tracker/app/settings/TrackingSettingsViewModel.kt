@@ -8,7 +8,9 @@ import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.app.settings.data.TrackingPresetSettings
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -23,89 +25,124 @@ class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
     private val prefs = Preferences.getPref(context)
     
     // Preset tracking
-    private val _currentPreset = MutableStateFlow<TrackingPolicyPreset?>(
-        TrackingPolicyPreset.values().firstOrNull { 
-            it.name == prefs.getString("tracking_preset", TrackingPolicyPreset.DEFAULT.name) 
-        } ?: TrackingPolicyPreset.DEFAULT
-    )
+    private val _currentPreset = MutableStateFlow<TrackingPolicyPreset?>(TrackingPolicyPreset.DEFAULT)
     val currentPreset: StateFlow<TrackingPolicyPreset?> = _currentPreset.asStateFlow()
     
     private val _currentBatteryImpact = MutableStateFlow(BatteryImpact.MODERATE)
     val currentBatteryImpact: StateFlow<BatteryImpact> = _currentBatteryImpact.asStateFlow()
     
     // Enable/disable tracking sources
-    private val _locationEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
-    )
+    private val _locationEnabled = MutableStateFlow(true)
     val locationEnabled: StateFlow<Boolean> = _locationEnabled.asStateFlow()
     
-    private val _activityEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)
-    )
+    private val _activityEnabled = MutableStateFlow(true)
     val activityEnabled: StateFlow<Boolean> = _activityEnabled.asStateFlow()
     
-    private val _stepsEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default)
-    )
+    private val _stepsEnabled = MutableStateFlow(true)
     val stepsEnabled: StateFlow<Boolean> = _stepsEnabled.asStateFlow()
     
-    private val _wifiEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_wifi_enabled_key, PrefR.string.settings_wifi_enabled_default)
-    )
+    private val _wifiEnabled = MutableStateFlow(true)
     val wifiEnabled: StateFlow<Boolean> = _wifiEnabled.asStateFlow()
     
-    private val _cellEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
-    )
+    private val _cellEnabled = MutableStateFlow(true)
     val cellEnabled: StateFlow<Boolean> = _cellEnabled.asStateFlow()
     
     // WiFi sub-options
-    private val _wifiNetworkEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
-    )
+    private val _wifiNetworkEnabled = MutableStateFlow(true)
     val wifiNetworkEnabled: StateFlow<Boolean> = _wifiNetworkEnabled.asStateFlow()
     
-    private val _wifiLocationCountEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default)
-    )
+    private val _wifiLocationCountEnabled = MutableStateFlow(true)
     val wifiLocationCountEnabled: StateFlow<Boolean> = _wifiLocationCountEnabled.asStateFlow()
     
     // Auto-tracking
-    private val _autoTrackingEnabled = MutableStateFlow(
-        prefs.getIntResString(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default) > 0
-    )
+    private val _autoTrackingEnabled = MutableStateFlow(false)
     val autoTrackingEnabled: StateFlow<Boolean> = _autoTrackingEnabled.asStateFlow()
     
-    private val _transitionDetectionEnabled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_auto_tracking_transition_key, PrefR.string.settings_auto_tracking_transition_default)
-    )
+    private val _transitionDetectionEnabled = MutableStateFlow(true)
     val transitionDetectionEnabled: StateFlow<Boolean> = _transitionDetectionEnabled.asStateFlow()
     
     // Notification
-    private val _notificationStyled = MutableStateFlow(
-        prefs.getBooleanRes(PrefR.string.settings_notification_styled_key, PrefR.string.settings_notification_styled_default)
-    )
+    private val _notificationStyled = MutableStateFlow(true)
     val notificationStyled: StateFlow<Boolean> = _notificationStyled.asStateFlow()
     
     // Tracking parameters
-    private val _minDistance = MutableStateFlow(
-        prefs.getIntRes(PrefR.string.settings_tracking_min_distance_key, 10) // Default value directly
-    )
+    private val _minDistance = MutableStateFlow(10)
     val minDistance: StateFlow<Int> = _minDistance.asStateFlow()
     
-    private val _minTime = MutableStateFlow(
-        prefs.getIntRes(PrefR.string.settings_tracking_min_time_key, 2) // Default value directly
-    )
+    private val _minTime = MutableStateFlow(2)
     val minTime: StateFlow<Int> = _minTime.asStateFlow()
     
-    private val _requiredAccuracy = MutableStateFlow(
-        prefs.getIntRes(PrefR.string.settings_tracking_required_accuracy_key, 50) // Default value directly
-    )
+    private val _requiredAccuracy = MutableStateFlow(50)
     val requiredAccuracy: StateFlow<Int> = _requiredAccuracy.asStateFlow()
     
     // Validation: at least one source must be enabled
     private val _hasValidSources = MutableStateFlow(true)
     val hasValidSources: StateFlow<Boolean> = _hasValidSources.asStateFlow()
+    
+    init {
+        // Observe preset changes
+        viewModelScope.launch {
+            prefs.observeString("tracking_preset", TrackingPolicyPreset.DEFAULT.name).collect { presetName ->
+                _currentPreset.value = TrackingPolicyPreset.values().firstOrNull { it.name == presetName }
+                    ?: TrackingPolicyPreset.DEFAULT
+            }
+        }
+        // Observe tracking source preferences
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
+                .collect { _locationEnabled.value = it; validateSources() }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)
+                .collect { _activityEnabled.value = it; validateSources() }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default)
+                .collect { _stepsEnabled.value = it; validateSources() }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_wifi_enabled_key, PrefR.string.settings_wifi_enabled_default)
+                .collect { _wifiEnabled.value = it; validateSources() }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
+                .collect { _cellEnabled.value = it; validateSources() }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
+                .collect { _wifiNetworkEnabled.value = it }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default)
+                .collect { _wifiLocationCountEnabled.value = it }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.intFromString(context, PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default)
+                .map { it > 0 }
+                .collect { _autoTrackingEnabled.value = it }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_auto_tracking_transition_key, PrefR.string.settings_auto_tracking_transition_default)
+                .collect { _transitionDetectionEnabled.value = it }
+        }
+        viewModelScope.launch {
+            PreferenceFlows.boolean(context, PrefR.string.settings_notification_styled_key, PrefR.string.settings_notification_styled_default)
+                .collect { _notificationStyled.value = it }
+        }
+        // Observe tracking parameters using raw key + default since these use IntegerRes
+        viewModelScope.launch {
+            val key = context.getString(PrefR.string.settings_tracking_min_distance_key)
+            prefs.observeInt(key, 10).collect { _minDistance.value = it }
+        }
+        viewModelScope.launch {
+            val key = context.getString(PrefR.string.settings_tracking_min_time_key)
+            prefs.observeInt(key, 2).collect { _minTime.value = it }
+        }
+        viewModelScope.launch {
+            val key = context.getString(PrefR.string.settings_tracking_required_accuracy_key)
+            prefs.observeInt(key, 50).collect { _requiredAccuracy.value = it }
+        }
+    }
     
     // Setters
     fun setLocationEnabled(enabled: Boolean) {

@@ -271,16 +271,6 @@ class OnboardingActivity : ComponentActivity() {
             // Notification styling as a proxy user-visible toggle (no global enable switch exists)
             setBoolean(PrefR.string.settings_notification_styled_key, prefs.enableNotifications)
 
-            // Auto/background tracking mode: use selected index when available; fall back to default/disabled
-            val selectedMode = prefs.autoTrackingModeIndex
-            val autoTrackingValue = when {
-                selectedMode > 0 && this@OnboardingActivity.hasActivityPermission -> selectedMode
-                prefs.enableAutomaticTracking && this@OnboardingActivity.hasActivityPermission ->
-                    resources.getString(PrefR.string.settings_tracking_activity_default).toInt()
-                else -> 0
-            }
-            setInt(PrefR.string.settings_tracking_activity_key, autoTrackingValue)
-
             // Map additional auto-tracking toggles to Settings screen keys so onboarding matches Settings
             setBoolean(PrefR.string.settings_auto_tracking_transition_key, prefs.autoTransitionsEnabled)
             setBoolean(ActivityR.string.settings_activity_watcher_key, prefs.activityWatcherEnabled)
@@ -296,13 +286,19 @@ class OnboardingActivity : ComponentActivity() {
             setBoolean(com.adsamcik.tracker.R.string.settings_auto_cleanup_old_data_key, prefs.autoCleanupOldData)
         }
 
-        // Apply side-effects for auto tracking changes
-        val desiredAuto = preferences.getIntResString(
-            PrefR.string.settings_tracking_activity_key,
-            PrefR.string.settings_tracking_activity_default
-        )
-        ActivityWatcherService.onAutoTrackingPreferenceChange(this, desiredAuto)
-        if (desiredAuto > 0) {
+        // Auto/background tracking mode: use selected index when available; fall back to default/disabled
+        val selectedMode = prefs.autoTrackingModeIndex
+        val autoTrackingValue = when {
+            selectedMode > 0 && hasActivityPermission -> selectedMode
+            prefs.enableAutomaticTracking && hasActivityPermission ->
+                resources.getString(PrefR.string.settings_tracking_activity_default).toInt()
+            else -> 0
+        }
+        preferences.edit { setInt(PrefR.string.settings_tracking_activity_key, autoTrackingValue) }
+
+        // Apply side-effects for auto tracking changes (use computed value, not re-read from prefs)
+        ActivityWatcherService.onAutoTrackingPreferenceChange(this, autoTrackingValue)
+        if (autoTrackingValue > 0) {
             // Ensure watcher evaluates immediately
             ActivityWatcherService.poke(this)
         }

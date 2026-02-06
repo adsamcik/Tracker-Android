@@ -3,8 +3,10 @@ package com.adsamcik.tracker.tracker.controller
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -53,6 +55,9 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _lastPathPointsFlow
+
+    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
+    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
     
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
@@ -68,5 +73,9 @@ class FakeTrackerServiceController : TrackerServiceController {
     
     override fun updateCollectionData(data: CollectionData?) {
         _collectionDataFlow.value = data
+    }
+
+    override fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?) {
+        _persistenceErrorFlow = errorFlow
     }
 }

@@ -31,10 +31,36 @@ class PrecisionUpgradeReceiverTest {
     private lateinit var receiver: PrecisionUpgradeReceiver
     private lateinit var prefs: Preferences
 
+    /**
+     * Helper to wait for the receiver's async coroutine to complete.
+     * The receiver uses CoroutineScope(Dispatchers.Default).launch which returns immediately.
+     */
+    private fun waitForReceiverAsync() {
+        Thread.sleep(200)
+    }
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         prefs = FakePreferencesHelper.setup()
+        
+        // Register key mappings for suspend function lookups
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_approximate_session_count_key,
+            "approximateSessionCount"
+        )
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_should_show_precision_upgrade_key,
+            "shouldShowPrecisionUpgrade"
+        )
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_precision_upgrade_dismissed_key,
+            "precisionUpgradeDismissed"
+        )
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_location_precision_key,
+            "locationPrecisionMode"
+        )
         
         // Mock Logger to avoid initialization requirement - stub log to do nothing
         mockkObject(Logger)
@@ -42,6 +68,7 @@ class PrecisionUpgradeReceiverTest {
         
         // Set default values
         FakePreferencesHelper.data[PrefR.string.settings_location_precision_key] = "APPROXIMATE"
+        FakePreferencesHelper.stringKeyData["locationPrecisionMode"] = "APPROXIMATE"
         
         receiver = PrecisionUpgradeReceiver()
         
@@ -79,6 +106,7 @@ class PrecisionUpgradeReceiverTest {
         val intent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         
         receiver.onReceive(context, intent)
+        waitForReceiverAsync()
         
         val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(1, count)
@@ -90,6 +118,7 @@ class PrecisionUpgradeReceiverTest {
         
         // First session
         receiver.onReceive(context, intent)
+        waitForReceiverAsync()
         var shouldShow = prefs.getBooleanRes(
             PrefR.string.settings_should_show_precision_upgrade_key,
             false
@@ -98,6 +127,7 @@ class PrecisionUpgradeReceiverTest {
         
         // Second session (reaches threshold of 2)
         receiver.onReceive(context, intent)
+        waitForReceiverAsync()
         shouldShow = prefs.getBooleanRes(
             PrefR.string.settings_should_show_precision_upgrade_key,
             false
@@ -114,9 +144,11 @@ class PrecisionUpgradeReceiverTest {
         prefs.edit {
             setBoolean(PrefR.string.settings_precision_upgrade_dismissed_key, true)
         }
+        FakePreferencesHelper.stringKeyData["precisionUpgradeDismissed"] = true
         
         val intent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         receiver.onReceive(context, intent)
+        waitForReceiverAsync()
         
         val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(0, count)
@@ -139,9 +171,11 @@ class PrecisionUpgradeReceiverTest {
         }
         // Update mock data directly to ensure getStringRes returns PRECISE
         FakePreferencesHelper.data[PrefR.string.settings_location_precision_key] = "PRECISE"
+        FakePreferencesHelper.stringKeyData["locationPrecisionMode"] = "PRECISE"
         
         val intent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         receiver.onReceive(context, intent)
+        waitForReceiverAsync()
         
         val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(0, count)
@@ -160,6 +194,7 @@ class PrecisionUpgradeReceiverTest {
         // Complete 3 sessions
         repeat(3) {
             receiver.onReceive(context, intent)
+            waitForReceiverAsync()
         }
         
         val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
@@ -179,6 +214,7 @@ class PrecisionUpgradeReceiverTest {
         // First receiver instance
         val receiver1 = PrecisionUpgradeReceiver()
         receiver1.onReceive(context, intent)
+        waitForReceiverAsync()
         
         var count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(1, count)
@@ -186,6 +222,7 @@ class PrecisionUpgradeReceiverTest {
         // Second receiver instance (simulates app restart)
         val receiver2 = PrecisionUpgradeReceiver()
         receiver2.onReceive(context, intent)
+        waitForReceiverAsync()
         
         count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(2, count)
@@ -196,12 +233,14 @@ class PrecisionUpgradeReceiverTest {
         prefs.edit {
             setBoolean(PrefR.string.settings_precision_upgrade_dismissed_key, true)
         }
+        FakePreferencesHelper.stringKeyData["precisionUpgradeDismissed"] = true
         
         val intent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         
         // Complete sessions beyond threshold
         repeat(5) {
             receiver.onReceive(context, intent)
+            waitForReceiverAsync()
         }
         
         val count = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
@@ -219,6 +258,7 @@ class PrecisionUpgradeReceiverTest {
         val intent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         
         receiver.onReceive(context, intent)
+        waitForReceiverAsync()
         var shouldShow = prefs.getBooleanRes(
             PrefR.string.settings_should_show_precision_upgrade_key,
             false
@@ -226,6 +266,7 @@ class PrecisionUpgradeReceiverTest {
         assertFalse("1 session: should not show", shouldShow)
         
         receiver.onReceive(context, intent)
+        waitForReceiverAsync()
         shouldShow = prefs.getBooleanRes(
             PrefR.string.settings_should_show_precision_upgrade_key,
             false

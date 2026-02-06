@@ -1,35 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <issues by="lint 2.3" format="4">
 
-    <issue id="UnusedResources"
-        message="The resource `R.dimen.setting_title_text_size` appears to be unused">
-        <location file="src\main\res\values\dimens.xml" line="15" />
-    </issue>
 
-    <issue id="UnusedResources"
-        message="The resource `R.string.notification_nothing_found` appears to be unused">
-        <location file="src\main\res\values\notifications.xml" line="8" />
-    </issue>
-
-    <issue id="UnusedResources"
-        message="The resource `R.string.notification_action_disable` appears to be unused">
-        <location file="src\main\res\values\notifications.xml" line="14" />
-    </issue>
-
-    <issue id="UnusedResources"
-        message="The resource `R.string.notification_action_do_not_show_again` appears to be unused">
-        <location file="src\main\res\values\notifications.xml" line="15" />
-    </issue>
-
-    <issue id="UnusedResources"
-        message="The resource `R.string.error_failed_to_update_stats` appears to be unused">
-        <location file="src\main\res\values\notifications.xml" line="17" />
-    </issue>
-
-    <issue id="UnusedResources"
-        message="The resource `R.string.signin_connecting` appears to be unused">
-        <location file="src\main\res\values\strings.xml" line="66" />
-    </issue>
 
     <issue id="IconLocation"
         message="Found bitmap drawable `res/drawable/intro_autotracking.png` in densityless folder">

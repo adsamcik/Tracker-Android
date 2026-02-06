@@ -185,10 +185,7 @@ private fun SystemStatusSection(
                 StatusRow("Is locked until recharge", isChargeLocked)
                 StatusRow("Is locked", isLocked)
                 
-                when (hasRechargeJob) {
-                    null -> StatusRow("Has active wait for recharge job", null)
-                    else -> StatusRow("Has active wait for recharge job", hasRechargeJob!!)
-                }
+                StatusRow("Has active wait for recharge job", hasRechargeJob)
             }
         }
     }

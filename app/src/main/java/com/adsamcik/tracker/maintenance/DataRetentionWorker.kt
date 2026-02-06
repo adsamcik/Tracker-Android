@@ -29,19 +29,18 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Co
 
     override suspend fun doWork(): Result {
         val prefs = Preferences.getPref(applicationContext)
-        val enabled = prefs.getBooleanRes(
+        val enabled = prefs.fetchBooleanRes(
             R.string.settings_auto_cleanup_old_data_key,
             R.string.settings_auto_cleanup_old_data_default
         )
         if (!enabled) {
-            // Safety: don’t run when user disabled it
+            // Safety: don't run when user disabled it
             return Result.success()
         }
 
-        val years = prefs.getStringRes(
-            R.string.settings_data_retention_years_key,
-            R.string.settings_data_retention_years_default
-        ).toIntOrNull() ?: 1
+        val yearsString = prefs.fetchStringRes(R.string.settings_data_retention_years_key)
+            ?: applicationContext.getString(R.string.settings_data_retention_years_default)
+        val years = yearsString.toIntOrNull() ?: 1
         val cutoff = System.currentTimeMillis() - yearsToMillis(years)
         tryWithReport {
             pruneOlderThan(applicationContext, cutoff)
@@ -61,12 +60,7 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Co
          */
         fun initialize(context: Context) {
             val appContext = context.applicationContext
-            val prefs = Preferences.getPref(appContext)
-            syncScheduling(appContext, prefs.getBooleanRes(
-                R.string.settings_auto_cleanup_old_data_key,
-                R.string.settings_auto_cleanup_old_data_default
-            ))
-
+            // Use PreferenceFlows to get initial value and observe changes
             preferenceJob?.cancel()
             preferenceJob = PreferenceFlows.boolean(
                 appContext,

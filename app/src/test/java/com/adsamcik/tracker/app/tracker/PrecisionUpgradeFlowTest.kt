@@ -38,10 +38,36 @@ class PrecisionUpgradeFlowTest {
     private lateinit var context: Context
     private lateinit var prefs: Preferences
 
+    /**
+     * Helper to wait for the receiver's async coroutine to complete.
+     * The receiver uses CoroutineScope(Dispatchers.Default).launch which returns immediately.
+     */
+    private fun waitForReceiverAsync() {
+        Thread.sleep(200)
+    }
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         prefs = FakePreferencesHelper.setup()
+        
+        // Register key mappings for suspend function lookups
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_approximate_session_count_key,
+            "approximateSessionCount"
+        )
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_should_show_precision_upgrade_key,
+            "shouldShowPrecisionUpgrade"
+        )
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_precision_upgrade_dismissed_key,
+            "precisionUpgradeDismissed"
+        )
+        FakePreferencesHelper.registerKeyMapping(
+            PrefR.string.settings_location_precision_key,
+            "locationPrecisionMode"
+        )
         
         // Mock Logger to avoid initialization requirement - stub log to do nothing
         mockkObject(Logger)
@@ -49,6 +75,7 @@ class PrecisionUpgradeFlowTest {
         
         // Set default values expected by logic
         FakePreferencesHelper.data[PrefR.string.settings_location_precision_key] = "APPROXIMATE"
+        FakePreferencesHelper.stringKeyData["locationPrecisionMode"] = "APPROXIMATE"
         
         resetPreferences()
     }
@@ -86,7 +113,9 @@ class PrecisionUpgradeFlowTest {
         val sessionIntent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         
         receiver.onReceive(context, sessionIntent) // Session 1
+        waitForReceiverAsync()
         receiver.onReceive(context, sessionIntent) // Session 2
+        waitForReceiverAsync()
 
         // Step 3: Verify prompt flag is set
         var shouldShow = prefs.getBooleanRes(
@@ -126,7 +155,9 @@ class PrecisionUpgradeFlowTest {
         assertFalse("Prompt flag should be cleared after upgrade", shouldShow)
 
         // Step 6: Future sessions should NOT increment counter (now in PRECISE mode)
+        FakePreferencesHelper.stringKeyData["locationPrecisionMode"] = context.getString(PrefR.string.settings_location_precision_precise)
         receiver.onReceive(context, sessionIntent)
+        waitForReceiverAsync()
         val newCounter = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(0, newCounter)
     }
@@ -146,7 +177,9 @@ class PrecisionUpgradeFlowTest {
         val sessionIntent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         
         receiver.onReceive(context, sessionIntent)
+        waitForReceiverAsync()
         receiver.onReceive(context, sessionIntent)
+        waitForReceiverAsync()
 
         // Verify prompt triggered
         var shouldShow = prefs.getBooleanRes(
@@ -207,6 +240,7 @@ class PrecisionUpgradeFlowTest {
         // Complete many sessions
         repeat(10) {
             receiver.onReceive(context, sessionIntent)
+            waitForReceiverAsync()
         }
 
         // Verify no counter increments
@@ -236,6 +270,7 @@ class PrecisionUpgradeFlowTest {
 
         // Complete 1 session
         receiver.onReceive(context, sessionIntent)
+        waitForReceiverAsync()
         var counter = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(1, counter)
 
@@ -249,6 +284,7 @@ class PrecisionUpgradeFlowTest {
 
         // Complete another session
         receiver.onReceive(context, sessionIntent)
+        waitForReceiverAsync()
 
         // Counter should NOT increment (already in PRECISE mode)
         counter = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
@@ -298,6 +334,7 @@ class PrecisionUpgradeFlowTest {
         val receiver1 = PrecisionUpgradeReceiver()
         val sessionIntent = Intent(TrackerSession.ACTION_SESSION_FINAL)
         receiver1.onReceive(context, sessionIntent)
+        waitForReceiverAsync()
 
         var counter = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(1, counter)
@@ -305,6 +342,7 @@ class PrecisionUpgradeFlowTest {
         // Simulate app restart (new receiver instance, but same preferences)
         val receiver2 = PrecisionUpgradeReceiver()
         receiver2.onReceive(context, sessionIntent)
+        waitForReceiverAsync()
 
         counter = prefs.getIntRes(PrefR.string.settings_approximate_session_count_key, 0)
         assertEquals(2, counter)

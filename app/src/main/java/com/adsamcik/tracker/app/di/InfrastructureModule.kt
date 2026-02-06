@@ -4,6 +4,11 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.di.DefaultDispatcher
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
@@ -63,9 +68,15 @@ object InfrastructureModule {
     fun provideClock(): Clock = SystemClock
 
     /**
-     * Provides application-scoped CoroutineScope.
-     * Use for long-running operations that outlive individual components.
-     * Uses SupervisorJob to prevent failure propagation between children.
+     * Provides application-scoped CoroutineScope for DI injection.
+     *
+     * This scope is intentionally tied to the application's process lifetime.
+     * It lives for the entire duration of the app process and requires no explicit
+     * cancellation, as it will be cleaned up when the process terminates.
+     *
+     * Use for long-running operations that outlive individual components (ViewModels,
+     * Activities, Services). Uses [SupervisorJob] to prevent failure propagation
+     * between independent child coroutines.
      */
     @Provides
     @Singleton
@@ -81,4 +92,41 @@ object InfrastructureModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         AppDatabase.database(context)
+
+    // DAO Providers - enable direct DAO injection without going through AppDatabase
+
+    /**
+     * Provides SessionDataDao for tracking session persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideSessionDao(database: AppDatabase): SessionDataDao = database.sessionDao()
+
+    /**
+     * Provides LocationDataDao for location data persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideLocationDao(database: AppDatabase): LocationDataDao = database.locationDao()
+
+    /**
+     * Provides WifiDataDao for Wi-Fi data persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideWifiDao(database: AppDatabase): WifiDataDao = database.wifiDao()
+
+    /**
+     * Provides CellLocationDao for cell location data persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideCellLocationDao(database: AppDatabase): CellLocationDao = database.cellLocationDao()
+
+    /**
+     * Provides TrackerRunDao for tracker run state persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideTrackerRunDao(database: AppDatabase): TrackerRunDao = database.trackerRunDao()
 }
