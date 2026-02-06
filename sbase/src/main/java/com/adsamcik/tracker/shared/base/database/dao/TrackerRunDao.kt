@@ -36,6 +36,12 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	suspend fun endRun(id: Long, endTimeMs: Long)
 
 	/**
+	 * Delete all tracker runs.
+	 */
+	@Query("DELETE FROM tracker_run")
+	fun deleteAll()
+
+	/**
 	 * Delete runs older than given timestamp.
 	 */
 	@Query("DELETE FROM tracker_run WHERE IFNULL(end_time_ms, start_time_ms) < :beforeMs")

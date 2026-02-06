@@ -182,17 +182,28 @@ abstract class AppDatabase : RoomDatabase() {
 		/**
 		 * Deletes all collected data from the database.
 		 * Does not delete database itself.
+		 * Clears both legacy session-based tables and new sessionless tables.
 		 */
 		@WorkerThread
 		fun deleteAllCollectedData(context: Context) {
 			val database = database(context)
 
 			database.runInTransaction {
+				// Legacy session-based tables
 				database.sessionDao().deleteAll()
 				database.cellLocationDao().deleteAll()
 				database.cellOperatorDao().deleteAll()
 				database.locationDao().deleteAll()
 				database.wifiDao().deleteAll()
+
+				// Sessionless architecture tables
+				database.locationSampleDao().deleteAll()
+				database.stepIntervalDao().deleteAll()
+				database.activitySnapshotDao().deleteAll()
+				database.cellSampleDao().deleteAll()
+				database.wifiObservationDao().deleteAll()
+				database.trackerRunDao().deleteAll()
+				database.sessionSegmentDao().deleteAll()
 			}
 		}
 	}
