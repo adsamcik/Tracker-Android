@@ -1,0 +1,105 @@
+plugins {
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.ksp)
+}
+
+android {
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
+
+	defaultConfig {
+		minSdk = Android.MIN_VERSION
+
+		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+		consumerProguardFiles("consumer-rules.pro")
+
+		ksp {
+			arg("room.schemaLocation", "$projectDir/schemas")
+			arg("room.incremental", "true")
+			arg("room.generateKotlin", "true")
+		}
+	}
+
+	sourceSets {
+		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+	}
+
+	compileOptions {
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
+	}
+
+	kotlin {
+		jvmToolchain(Android.JAVA_VERSION)
+	}
+
+	buildTypes {
+		getByName("debug") {
+			enableAndroidTestCoverage = true
+			enableUnitTestCoverage = true
+		}
+
+		create("release_nominify") {
+			isMinifyEnabled = false
+		}
+		getByName("release") {
+			isMinifyEnabled = true
+			proguardFiles(
+				getDefaultProguardFile("proguard-android-optimize.txt"),
+				"proguard-rules.pro"
+			)
+		}
+	}
+
+	lint {
+		checkReleaseBuilds = true
+		abortOnError = false
+	}
+
+	namespace = "com.adsamcik.tracker.stats.data"
+}
+
+dependencies {
+	api(project(":stats-api"))
+	implementation(project(":sbase"))
+
+	// Core
+	implementation(libs.kotlin.stdlib.jdk8)
+	implementation(libs.kotlinx.coroutines.android)
+	implementation(libs.androidx.core.ktx)
+
+	// Room
+	implementation(libs.androidx.room.runtime)
+	ksp(libs.androidx.room.compiler)
+	implementation(libs.androidx.room.ktx)
+	implementation(libs.sqlite.android)
+	androidTestImplementation(libs.androidx.room.testing)
+
+	// Unit Tests
+	testImplementation(platform(libs.junit5.bom))
+	testImplementation(libs.junit5.jupiter)
+	testImplementation(libs.junit5.jupiter.params)
+	testRuntimeOnly(libs.junit5.jupiter.engine)
+	testRuntimeOnly(libs.junit5.vintage.engine)
+	testImplementation(libs.junit4)
+	testImplementation(libs.kotlin.test)
+	testImplementation(libs.mockk)
+	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.turbine)
+	testImplementation(libs.robolectric)
+	testImplementation(libs.androidx.test.core)
+	testImplementation(libs.kotest.assertions.core)
+
+	// Instrumented Tests
+	androidTestImplementation(libs.junit4)
+	androidTestImplementation(libs.androidx.test.runner)
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation(libs.espresso)
+	androidTestImplementation(libs.kotlinx.coroutines.test)
+	androidTestImplementation(libs.mockk.android)
+}
+
+tasks.withType<Test>().configureEach {
+	useJUnitPlatform()
+}
