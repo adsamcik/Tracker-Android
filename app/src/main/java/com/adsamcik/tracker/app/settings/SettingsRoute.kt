@@ -263,6 +263,61 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
                 )
             }
         }
+
+        // Version info card (always visible; 7-tap enables developer mode in release builds)
+        item {
+            var tapCount by remember { mutableIntStateOf(0) }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .run {
+                        if (!com.adsamcik.tracker.BuildConfig.DEBUG && !developerModeEnabled) {
+                            clickable {
+                                tapCount++
+                                if (tapCount >= 7) {
+                                    com.adsamcik.tracker.shared.preferences.DeveloperPreferences.setDeveloperMode(context, true)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(R.string.settings_developer_mode_enabled_toast),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    tapCount = 0
+                                }
+                            }
+                        } else {
+                            this
+                        }
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.settings_version_info_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        stringResource(R.string.settings_version_format, com.adsamcik.tracker.BuildConfig.VERSION_NAME, com.adsamcik.tracker.BuildConfig.VERSION_CODE),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (!com.adsamcik.tracker.BuildConfig.DEBUG && tapCount > 0 && tapCount < 7) {
+                        Text(
+                            stringResource(R.string.settings_developer_mode_tap_countdown, 7 - tapCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -370,7 +425,7 @@ private fun TrackingSettings() {
         // Battery warning for high impact
         if (currentBatteryImpact == com.adsamcik.tracker.app.common.ui.BatteryImpact.HIGH) {
             item {
-                com.adsamcik.tracker.app.settings.components.BatteryImpactWarning()
+                com.adsamcik.tracker.app.common.ui.BatteryImpactWarning()
             }
         }
         
@@ -643,10 +698,7 @@ private fun DataSettings() {
         ExportFormatDialog(
             onDismiss = { showExportFormatDialog = false },
             onFormatSelected = { format ->
-                val intent = Intent(context, com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity::class.java).apply {
-                    putExtra("EXPORT_FORMAT", format)
-                }
-                context.startActivity(intent)
+                launchExportActivity(context, format)
             }
         )
     }
@@ -673,7 +725,6 @@ private fun ExportSettings() {
 private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
     val context = LocalContext.current
     val debugVm: DebugSettingsViewModel = viewModel()
-    var tapCount by remember { mutableIntStateOf(0) }
     val developerModeEnabled by com.adsamcik.tracker.shared.preferences.DeveloperPreferences
         .observeDeveloperMode(context)
         .collectAsState(initial = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
@@ -682,59 +733,6 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
-        // Version info (tap 7 times to enable developer mode)
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .run {
-                        if (!com.adsamcik.tracker.BuildConfig.DEBUG && !developerModeEnabled) {
-                            clickable {
-                                tapCount++
-                                if (tapCount >= 7) {
-                                    com.adsamcik.tracker.shared.preferences.DeveloperPreferences.setDeveloperMode(context, true)
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        context.getString(R.string.settings_developer_mode_enabled_toast),
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                    tapCount = 0
-                                }
-                            }
-                        } else {
-                            this
-                        }
-                    },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        "Version Information",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "Version: ${com.adsamcik.tracker.BuildConfig.VERSION_NAME} (${com.adsamcik.tracker.BuildConfig.VERSION_CODE})",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (!com.adsamcik.tracker.BuildConfig.DEBUG && tapCount > 0 && tapCount < 7) {
-                        Text(
-                            "Tap ${7 - tapCount} more time${if (7 - tapCount != 1) "s" else ""} to enable developer mode",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-        }
-        
         // Disable developer mode option (only in release builds when enabled)
         if (!com.adsamcik.tracker.BuildConfig.DEBUG && developerModeEnabled) {
             item {

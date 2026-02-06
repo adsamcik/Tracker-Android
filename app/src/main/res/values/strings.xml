@@ -59,6 +59,9 @@
     <string name="settings_developer_mode_enabled_toast">Developer mode enabled</string>
     <string name="settings_developer_mode_disable">Disable developer mode</string>
     <string name="settings_developer_mode_subtitle">Developer mode active</string>
+    <string name="settings_developer_mode_tap_countdown">Tap %d more times to enable developer mode</string>
+    <string name="settings_version_info_title">Version information</string>
+    <string name="settings_version_format">Version: %1$s (%2$d)</string>
     <string name="settings_error_reporting_summary">Automatic error reporting helps with fixing all crashes and some errors. Some generic device information will be sent with each report.</string>
     <string name="settings_error_reporting_title">Automatic error reporting</string>
 

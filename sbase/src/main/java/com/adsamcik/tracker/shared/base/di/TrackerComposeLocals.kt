@@ -34,6 +34,9 @@ import kotlinx.coroutines.flow.StateFlow
  * }
  * ```
  */
+// Note: These use compositionLocalOf<Any> intentionally because the concrete interfaces
+// (TrackerServiceController, LockManager) live in the tracker module, which sbase cannot
+// depend on. Consumers must cast: `LocalTrackerController.current as TrackerServiceController`.
 val LocalTrackerController = compositionLocalOf<Any> {
     error("TrackerServiceController not provided. Ensure CompositionLocalProvider wraps root composition.")
 }

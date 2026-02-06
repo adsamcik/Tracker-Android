@@ -139,7 +139,7 @@ fun launchExportActivity(context: Context, format: ExportFormat) {
             context,
             com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity::class.java
         ).apply {
-            putExtra("EXPORTER_KEY", exporterClass)
+            putExtra(com.adsamcik.tracker.impexp.exporter.activity.ImportExportComposeActivity.EXPORTER_KEY, exporterClass)
         }
     )
 }
