@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-	compileSdk = libs.versions.android.compile.get().toInt()
-	buildToolsVersion = libs.versions.android.build.tools.get()
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = libs.versions.android.min.get().toInt()
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -29,17 +29,19 @@ android {
 	}
 
 	compileOptions {
-		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
-		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	kotlin {
-		jvmToolchain(libs.versions.java.get().toInt())
+		jvmToolchain(Android.JAVA_VERSION)
 	}
 
 	buildFeatures {
 		// Enable Jetpack Compose for tracker UI migration
 		compose = true
+		// Enable BuildConfig generation for debug flag checking
+		buildConfig = true
 	}
 
 	buildTypes {
@@ -76,7 +78,6 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
-	implementation(project(":statistics"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
@@ -98,19 +99,15 @@ dependencies {
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)
 	implementation(libs.hilt.work)
-	implementation(libs.hilt.navigation.compose)
 
 	// Compose (UI migration)
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.material3)
-	implementation(libs.compose.material3.window.size)
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
 	implementation(libs.compose.foundation)
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
-	implementation(libs.google.maps.compose)
-	implementation(libs.google.play.services.maps)
 	// DataStore (proto for typed settings, preferences for migration compatibility)
 	implementation(libs.androidx.datastore.core)
 	implementation(libs.androidx.datastore.preferences)
@@ -139,13 +136,21 @@ dependencies {
 	implementation(libs.androidx.work.runtime.ktx)
 	androidTestImplementation(libs.androidx.work.testing)
 
-	// Tests
+	// Tests - JUnit 5 for unit tests
+	testImplementation(platform(libs.junit5.bom))
+	testImplementation(libs.junit5.jupiter)
+	testImplementation(libs.junit5.jupiter.params)
+	testRuntimeOnly(libs.junit5.jupiter.engine)
+	// Vintage engine for running JUnit 4 tests during migration period
+	testRuntimeOnly(libs.junit5.vintage.engine)
 	testImplementation(libs.junit4)
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.androidx.test.core)
+	testImplementation(libs.turbine)
+	testImplementation(libs.kotest.assertions.core)
 	
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
@@ -154,6 +159,11 @@ dependencies {
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.espresso)
 	androidTestImplementation(project(":testing-common"))
+}
+
+// Configure JUnit 5 for unit tests
+tasks.withType<Test>().configureEach {
+	useJUnitPlatform()
 }
 
 protobuf {

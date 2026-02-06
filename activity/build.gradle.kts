@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-	compileSdk = libs.versions.android.compile.get().toInt()
-	buildToolsVersion = libs.versions.android.build.tools.get()
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = libs.versions.android.min.get().toInt()
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
@@ -21,12 +21,12 @@ android {
 	}
 
 	compileOptions {
-		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
-		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	kotlin {
-		jvmToolchain(libs.versions.java.get().toInt())
+		jvmToolchain(Android.JAVA_VERSION)
 	}
 
 	buildFeatures {
@@ -95,16 +95,30 @@ dependencies {
 	implementation(libs.androidx.work.runtime.ktx)
 	androidTestImplementation(libs.androidx.work.testing)
 
-	// Tests
+	// Unit Tests - JUnit 5 for modern testing
+	testImplementation(platform(libs.junit5.bom))
+	testImplementation(libs.junit5.jupiter)
+	testImplementation(libs.junit5.jupiter.params)
+	testRuntimeOnly(libs.junit5.jupiter.engine)
+	testRuntimeOnly(libs.junit5.vintage.engine)
 	testImplementation(libs.junit4)
+	testImplementation(libs.kotlin.test)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.arch.core.testing)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.kotest.assertions.core)
+
+	// Android Tests
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.espresso)
+}
+
+// Configure JUnit 5 for unit tests
+tasks.withType<Test>().configureEach {
+	useJUnitPlatform()
 }

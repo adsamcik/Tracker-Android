@@ -4,22 +4,20 @@ plugins {
 	alias(libs.plugins.google.services)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.parcelize)
-	alias(libs.plugins.kotlin.serialization)
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.hilt)
-	alias(libs.plugins.oss.licenses)
 }
 
 // Google services plugin applied via alias above
 
 android {
-	compileSdk = libs.versions.android.compile.get().toInt()
-	buildToolsVersion = libs.versions.android.build.tools.get()
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 	defaultConfig {
 		applicationId = "com.adsamcik.tracker"
-		minSdk = libs.versions.android.min.get().toInt()
-		targetSdk = libs.versions.android.target.get().toInt()
+		minSdk = Android.MIN_VERSION
+		targetSdk = Android.TARGET_VERSION
 		versionCode = 385
 		versionName = "2024.3.0 α2"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -34,13 +32,13 @@ android {
 	}
 
 	compileOptions {
-		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
-		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 		isCoreLibraryDesugaringEnabled = true
 	}
 
 	kotlin {
-		jvmToolchain(libs.versions.java.get().toInt())
+		jvmToolchain(Android.JAVA_VERSION)
 		compilerOptions {
 			optIn.add("kotlin.ExperimentalUnsignedTypes")
 		}
@@ -48,8 +46,8 @@ android {
 
 	java {
 		toolchain {
-			setSourceCompatibility(libs.versions.java.get().toInt())
-			setTargetCompatibility(libs.versions.java.get().toInt())
+			setSourceCompatibility(Android.JAVA_VERSION)
+			setTargetCompatibility(Android.JAVA_VERSION)
 		}
 	}
 
@@ -140,12 +138,11 @@ dependencies {
 	implementation(project(":map"))
 	implementation(project(":game"))
 
-	debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
+	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
-	implementation(libs.kotlinx.serialization.json)
 	implementation(libs.components.recycler)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
@@ -184,9 +181,9 @@ dependencies {
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.compose.runtime)
 	implementation(libs.constraintlayout.compose)
+	implementation(libs.haze)
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
-	// Accompanist libraries removed (migrated to AndroidX)
 	// 1st party dependencies
 	implementation(libs.component.slider)
 	// Draggable overlay removed with legacy fallback
@@ -199,9 +196,6 @@ dependencies {
 
 	// Google dependencies
 	implementation(libs.androidx.cardview)
-
-	// Haze (Glassmorphism)
-	implementation(libs.haze)
 
 	// Preference
 	implementation(libs.androidx.preference)
@@ -221,13 +215,21 @@ dependencies {
 	implementation(libs.sqlite.android)
 	androidTestImplementation(libs.androidx.room.testing)
 
-	// Unit test deps
+	// Unit test deps - JUnit 5 for modern testing
+	testImplementation(platform(libs.junit5.bom))
+	testImplementation(libs.junit5.jupiter)
+	testImplementation(libs.junit5.jupiter.params)
+	testRuntimeOnly(libs.junit5.jupiter.engine)
+	testRuntimeOnly(libs.junit5.vintage.engine)
 	testImplementation(libs.junit4)
+	testImplementation(libs.kotlin.test)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.androidx.work.testing)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.mockk)
+	testImplementation(libs.turbine)
+	testImplementation(libs.kotest.assertions.core)
 
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
@@ -241,6 +243,11 @@ dependencies {
 	// workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":smap"))
 	implementation(libs.google.play.services.maps)
+}
+
+// Configure JUnit 5 for unit tests
+tasks.withType<Test>().configureEach {
+	useJUnitPlatform()
 }
 
 // Fix for KSP running before R class generation

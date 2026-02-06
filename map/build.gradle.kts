@@ -4,27 +4,28 @@ plugins {
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
+	alias(libs.plugins.hilt)
 }
 
 
 android {
-	compileSdk = libs.versions.android.compile.get().toInt()
-	buildToolsVersion = libs.versions.android.build.tools.get()
+	compileSdk = Android.COMPILE_VERSION
+	buildToolsVersion = Android.BUILD_TOOLS_VERSION
 
 	defaultConfig {
-		minSdk = libs.versions.android.min.get().toInt()
+		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 	}
 
 
 	compileOptions {
-		sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
-		targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+		sourceCompatibility = Android.javaTarget
+		targetCompatibility = Android.javaTarget
 	}
 
 	kotlin {
-		jvmToolchain(libs.versions.java.get().toInt())
+		jvmToolchain(Android.JAVA_VERSION)
 		compilerOptions {
 			optIn.add("kotlin.ExperimentalUnsignedTypes")
 		}
@@ -102,35 +103,50 @@ dependencies {
 	implementation(libs.constraintlayout.compose)
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
-	// Accompanist removed
 	implementation(libs.kotlinx.collections.immutable)
 	// Maps Compose
 	implementation(libs.google.maps.compose)
+
+	// Hilt (Dependency Injection)
+	implementation(libs.hilt.android)
+	ksp(libs.hilt.compiler)
+	implementation(libs.hilt.navigation.compose)
 	implementation(libs.spotlight)
 
-	// Tests
+	// Tests - JUnit 5 for unit tests
+	testImplementation(platform(libs.junit5.bom))
+	testImplementation(libs.junit5.jupiter)
+	testImplementation(libs.junit5.jupiter.params)
+	testRuntimeOnly(libs.junit5.jupiter.engine)
+	// Vintage engine for running JUnit 4 tests during migration period
+	testRuntimeOnly(libs.junit5.vintage.engine)
 	testImplementation(libs.junit4)
+	testImplementation(libs.kotlin.test)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.kotlinx.coroutines.test)
-	testImplementation(libs.mockito.core)
-	testImplementation(libs.mockito.inline)
-	testImplementation(libs.mockito.kotlin)
+	testImplementation(libs.mockk)
 	testImplementation(libs.turbine)
 	testImplementation(libs.arch.core.testing) // for InstantTaskExecutorRule
 	testImplementation(libs.androidx.test.core) // for ApplicationProvider
+	testImplementation(libs.kotest.assertions.core)
+	// Keep Mockito during migration period for existing tests
+	testImplementation(libs.mockito.core)
+	testImplementation(libs.mockito.inline)
+	testImplementation(libs.mockito.kotlin)
+
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.espresso)
-	androidTestImplementation(libs.mockito.android)
-	androidTestImplementation(libs.mockito.kotlin)
+	androidTestImplementation(libs.mockk.android)
 	androidTestImplementation(project(":testing-common"))
 }
 
-// Disable release unit tests for this module (minification can break mocks/types at runtime)
+// Configure JUnit 5 for unit tests + disable release tests
 tasks.withType<Test>().configureEach {
+	useJUnitPlatform()
 	if (name.contains("ReleaseUnitTest")) {
 		enabled = false
 	}

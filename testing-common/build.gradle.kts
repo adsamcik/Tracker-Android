@@ -55,6 +55,7 @@ android {
 dependencies {
 	// Project dependencies for domain models
 	implementation(project(":sbase"))
+	implementation(project(":spreferences"))
 
 	// Kotlin & Coroutines
 	implementation(libs.kotlin.stdlib.jdk8)
@@ -68,7 +69,15 @@ dependencies {
 	implementation(libs.compose.foundation)
 	implementation(libs.compose.material3)
 
-	// AndroidX Test
+	// JUnit 5 (for modern unit tests)
+	implementation(platform(libs.junit5.bom))
+	implementation(libs.junit5.jupiter)
+	implementation(libs.junit5.jupiter.params)
+	runtimeOnly(libs.junit5.jupiter.engine)
+	// Vintage engine for JUnit 4 compatibility during migration
+	runtimeOnly(libs.junit5.vintage.engine)
+
+	// AndroidX Test (JUnit 4 for instrumented tests)
 	implementation(libs.junit4)
 	implementation(libs.androidx.test.runner)
 	implementation(libs.androidx.test.core)
@@ -77,7 +86,9 @@ dependencies {
 	implementation(libs.espresso)
 	implementation(libs.espresso.intents)
 
-	// Mocking
+	// Mocking & Assertions
 	implementation(libs.mockk)
 	implementation(libs.turbine)
+	implementation(libs.kotest.assertions.core)
+	implementation(libs.kotlin.test)
 }
