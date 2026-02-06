@@ -153,23 +153,4 @@ tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
 }
 
-protobuf {
-	protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}" }
-	generateProtoTasks {
-		all().forEach { task ->
-			task.builtins { create("java") }
-		}
-	}
-}
-
-afterEvaluate {
-    tasks.forEach { task ->
-        if (task.name.startsWith("ksp") && task.name.endsWith("Kotlin")) {
-            if (task.name.contains("Debug")) {
-                task.dependsOn("generateDebugProto")
-            } else if (task.name.contains("Release")) {
-                task.dependsOn("generateReleaseProto")
-            }
-        }
-    }
-}
+configureProtobuf()

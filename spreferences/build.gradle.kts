@@ -18,12 +18,6 @@ android {
 
 	sourceSets {
 		this.maybeCreate("androidTest").assets.srcDirs(files("$projectDir/schemas"))
-		getByName("debug") {
-			java.srcDir("build/generated/source/proto/debug/java")
-		}
-		getByName("release") {
-			java.srcDir("build/generated/source/proto/release/java")
-		}
 	}
 
 	compileOptions {
@@ -120,28 +114,4 @@ tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
 }
 
-protobuf {
-	protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}" }
-	generateProtoTasks {
-		all().forEach { task ->
-			task.builtins { create("java") }
-		}
-	}
-}
-
-afterEvaluate {
-    project.tasks.findByName("kspDebugKotlin")?.dependsOn("generateDebugProto")
-    project.tasks.findByName("kspReleaseKotlin")?.dependsOn("generateReleaseProto")
-}
-
-afterEvaluate {
-    tasks.forEach { task ->
-        if (task.name.startsWith("ksp") && task.name.endsWith("Kotlin")) {
-            if (task.name.contains("Debug")) {
-                task.dependsOn("generateDebugProto")
-            } else if (task.name.contains("Release")) {
-                task.dependsOn("generateReleaseProto")
-            }
-        }
-    }
-}
+configureProtobuf()
