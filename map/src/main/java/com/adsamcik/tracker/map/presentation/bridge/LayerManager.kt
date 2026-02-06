@@ -47,4 +47,9 @@ class LayerManager(
             kotlinx.collections.immutable.persistentListOf()
         }
     }
+
+    override fun destroy() {
+        clear()
+        controller.destroy()
+    }
 }

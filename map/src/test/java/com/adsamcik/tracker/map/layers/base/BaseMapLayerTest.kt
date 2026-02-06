@@ -20,7 +20,7 @@ private class TestLayer : BaseMapLayer<List<Int>, List<Int>>(PerformanceManager(
         before = true
     }
 
-    override fun loadData(context: Context): List<Int> {
+    override suspend fun loadData(context: Context): List<Int> {
         loaded = true
         return listOf(1, 2, 3)
     }

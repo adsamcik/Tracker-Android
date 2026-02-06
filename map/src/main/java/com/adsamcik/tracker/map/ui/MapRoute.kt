@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import android.Manifest
 import android.content.pm.PackageManager
 import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
@@ -66,8 +67,8 @@ fun MapRoute(
 
     var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
     val registry = remember { DefaultLayerRegistry() }
-    // Create store once at the start (engine will be set when GoogleMap is ready)
-    val store = remember { MapStore() }
+    // Get store via Hilt ViewModel injection (proper lifecycle management)
+    val store: MapStore = hiltViewModel()
 
     // Set the layer engine when GoogleMap arrives
     LaunchedEffect(googleMap) {

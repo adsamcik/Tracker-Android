@@ -53,7 +53,8 @@ class MapStoreTest {
     whenever(mockLayerEngine.activeLegend()).thenReturn(null)
     whenever(mockLayerEngine.activeTileProvider()).thenReturn(null)
     whenever(mockLayerEngine.overlays()).thenReturn(persistentListOf())
-        mapStore = MapStore(mockLayerEngine)
+        mapStore = MapStore()
+        mapStore.setLayerEngine(mockLayerEngine)
     }
 
     @After
@@ -143,6 +144,8 @@ class MapStoreTest {
         
         mapStore.dispatch(MapEvent.SetQuality(newQuality))
         testDispatcher.scheduler.advanceUntilIdle()
+        // Wait a bit for withContext(Dispatchers.Default) work to complete (race condition workaround)
+        kotlinx.coroutines.delay(50)
         
     val state = mapStore.state.first()
     assertEquals(newQuality, state.quality)

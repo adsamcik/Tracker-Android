@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.tiles
 
+import android.util.Log
 import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
@@ -73,7 +74,8 @@ internal class HeatmapDataCache(
                     cellSizeLonDeg = cellLonDeg,
                 ).first()
                 entries[key] = if (data.isEmpty()) EntryState.Empty else EntryState.Ready(data)
-            } catch (_: Throwable) {
+            } catch (e: Throwable) {
+                Log.w("HeatmapDataCache", "Failed to query aggregated data for tile ($x, $y) at zoom $zoom: ${e.message}")
                 entries[key] = EntryState.Empty
             } finally {
                 inFlight.remove(key)

@@ -76,7 +76,7 @@ internal abstract class HeatmapTileProviderBase(
 
     /** Prefetch tiles covering the given geographic bounds (lat/lon degrees) at zoom plus a border. */
     private var lastPrefetchMs: Long = -1L
-    fun prefetchViewport(bounds: CoordinateBounds, zoom: Int, borderTiles: Int = 1, inline: Boolean = false) {
+    fun prefetchViewport(bounds: CoordinateBounds, zoom: Int, borderTiles: Int = 1) {
         if (zoom < 5) return // skip overly broad prefetch
 
         suspend fun doWork() {
@@ -137,12 +137,8 @@ internal abstract class HeatmapTileProviderBase(
             }
         }
 
-        if (inline) {
-            // Run synchronously for deterministic unit tests.
-            kotlinx.coroutines.runBlocking(prefetchDispatcher) { doWork() }
-        } else {
-            prefetchJob = cacheScope.launch(prefetchDispatcher) { doWork() }
-        }
+        // Always use async execution via cacheScope.launch; no blocking calls.
+        prefetchJob = cacheScope.launch(prefetchDispatcher) { doWork() }
     }
 
     protected abstract fun specFor(x: Int, y: Int, zoom: Int): HeatmapLayerSpec

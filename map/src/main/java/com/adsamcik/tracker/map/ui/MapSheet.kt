@@ -23,10 +23,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.LocationOn
@@ -46,6 +46,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -68,6 +70,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -103,6 +108,7 @@ fun MapSheet(
     val context = LocalContext.current
     val layers = remember(registry) { registry.getAllLayers() }
     var showErrorMessage by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     var showDateRangeDialog by remember { mutableStateOf(false) }
     var searchRowHeightPx by remember { mutableStateOf(0) }
     // Track keyboard visibility via ime bottom inset
@@ -135,6 +141,13 @@ fun MapSheet(
             }
     }
 
+    // Show snackbar when error occurs (visible even when sheet is collapsed)
+    LaunchedEffect(showErrorMessage) {
+        showErrorMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+
     // Compute layout
     val density = LocalDensity.current
     
@@ -142,11 +155,9 @@ fun MapSheet(
     val searchBarHeightDp = with(density) { searchRowHeightPx.toDp() }
     val bottomInsetDp = with(density) { effectiveBottomInsetPx.toDp() }
     
-    // Peek height: 0 because we handle the "Peek" UI (Search Bar) outside the sheet.
-    // The sheet only contains the expanded content (Filters, Layers).
-    // IMPORTANT: If peekHeight is 0, user cannot drag it up easily. 
-    // We need a way to trigger expand. The Search Bar click or Layers button does that.
-    val peekHeight = 0.dp
+    // Peek height: 64.dp so users can drag the sheet up. The drag handle provides 
+    // a visible affordance for sheet interaction.
+    val peekHeight = 64.dp
 
     Box(modifier = modifier.fillMaxSize()) {
         BottomSheetScaffold(
@@ -162,6 +173,24 @@ fun MapSheet(
                      searchBarHeightDp + bottomInsetDp + 16.dp 
                 } else {
                      88.dp + bottomInsetDp // Fallback approximate
+                }
+
+                // Drag handle for sheet affordance
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(4.dp)
+                            .background(
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(2.dp)
+                            )
+                    )
                 }
 
                 LazyColumn(
@@ -223,7 +252,12 @@ fun MapSheet(
                                     onValueChange = { v -> store.setQuality(v) },
                                     valueRange = 0.25f..2.0f,
                                     steps = 6,
-                                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 8.dp)
+                                        .semantics {
+                                            contentDescription = "Quality setting: ${String.format("%.2f", uiState.quality)} times"
+                                        }
                                 )
                                 Text("High", style = MaterialTheme.typography.labelSmall)
                             }
@@ -347,7 +381,7 @@ fun MapSheet(
                     }
                     if (uiState.search.query.isNotEmpty()) {
                         IconButton(onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_search_clear))
                         }
                     }
                 }
@@ -378,24 +412,7 @@ fun MapSheet(
                         }) {
                             Icon(
                                 Icons.Filled.Layers, 
-                                contentDescription = "Layers",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    // Date
-                     Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                        tonalElevation = 2.dp,
-                        shadowElevation = 4.dp,
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        IconButton(onClick = { showDateRangeDialog = true }) {
-                            Icon(
-                                Icons.Filled.DateRange, 
-                                contentDescription = "Date",
+                                contentDescription = stringResource(R.string.map_layers_button),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -421,6 +438,14 @@ fun MapSheet(
                  }
             }
         }
+
+        // Snackbar for layer loading errors - positioned above search bar
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = bottomInsetDp + searchBarHeightDp + 16.dp)
+        )
     }
 
     if (showDateRangeDialog) {
@@ -458,9 +483,11 @@ fun MapSheet(
     }
 
     // Report current bottom padding for the map (visible sheet height)
+    // peekHeight is 64.dp; convert to px and add to total
     LaunchedEffect(bottomSheetState, peekHeight, effectiveBottomInsetPx, searchRowHeightPx) {
          val searchHeightPx = searchRowHeightPx
-         val totalBottom = (effectiveBottomInsetPx + searchHeightPx + 48).coerceAtLeast(0) 
+         val peekHeightPx = with(density) { peekHeight.roundToPx() }
+         val totalBottom = (effectiveBottomInsetPx + searchHeightPx + peekHeightPx).coerceAtLeast(0) 
          onBottomPaddingChanged(totalBottom)
     }
 }
@@ -488,7 +515,8 @@ fun MapLayerCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onSelect),
+            .clickable(onClick = onSelect)
+            .semantics { selected = isSelected },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) {
@@ -598,7 +626,7 @@ private fun getLayerIcon(layerId: String): ImageVector {
         "cell_heatmap" -> Icons.Filled.CellTower
         "wifi_heatmap" -> Icons.Filled.Wifi
         "wifi_count_heatmap" -> Icons.Filled.Wifi
-        "speed_heatmap" -> Icons.Filled.DirectionsRun
+        "speed_heatmap" -> Icons.AutoMirrored.Filled.DirectionsRun
         "location_polyline" -> Icons.Filled.Timeline
         "none" -> Icons.Filled.LayersClear
         else -> Icons.Filled.Layers

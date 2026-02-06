@@ -30,7 +30,7 @@ class LayerSwitchIntegrationTest {
         private val onRender: () -> Unit,
         private val onDisableHook: () -> Unit
     ) : BaseMapLayer<Unit, Unit>() {
-        override fun loadData(context: Context): Unit = Unit
+        override suspend fun loadData(context: Context): Unit = Unit
         override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets): Unit = Unit
         override fun render(map: GoogleMap, processed: Unit) {
             onRender()

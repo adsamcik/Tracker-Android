@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.tiles
 
+import android.util.Log
 import com.adsamcik.tracker.map.MapFunctions
 import com.adsamcik.tracker.map.data.Aggregation
 import com.adsamcik.tracker.map.data.Bounds
@@ -15,7 +16,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -29,8 +29,6 @@ internal class NormalizationNeighborhood(
     private val scope: CoroutineScope,
     private val scheduleInvalidate: () -> Unit,
     private val dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
-    // Test hook: when true, compute neighborhood synchronously without launching coroutine.
-    private val inlineMode: Boolean = false,
 ) {
 
     internal data class Config(
@@ -140,22 +138,16 @@ internal class NormalizationNeighborhood(
                             scheduleInvalidate()
                             smoothed
                         }
-                    } catch (_: Throwable) {
+                    } catch (e: Throwable) {
+                        Log.w("NormalizationNeighborhood", "Failed to compute neighborhood saturation for tile $tileKey: ${e.message}")
                         neighborhoodStates.remove(tileKey)
                         scheduleInvalidate()
                         null
                     }
                 }
-                // inlineMode: Test hook for synchronous execution.
-                // Production code (inlineMode = false) uses scope.launch for async execution.
-                // Plan 5 note: runBlocking is acceptable in test contexts only.
-                val immediate: Float? = if (inlineMode) {
-                    runBlocking(dispatcher) { compute() }
-                } else {
-                    scope.launch(dispatcher) { compute() }
-                    null
-                }
-                return immediate
+                // Always use async execution via scope.launch; no blocking calls.
+                scope.launch(dispatcher) { compute() }
+                return null
             }
         }
     }

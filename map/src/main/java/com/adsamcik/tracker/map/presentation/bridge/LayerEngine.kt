@@ -13,4 +13,7 @@ interface LayerEngine {
     fun activeTileProvider(): com.google.android.gms.maps.model.TileProvider?
     /** Declarative overlays for current layer selection (e.g., polylines). */
     fun overlays(): kotlinx.collections.immutable.ImmutableList<com.adsamcik.tracker.map.presentation.udf.MapOverlayState>
+
+    /** Releases all resources including internal coroutine scopes. */
+    fun destroy() {}
 }

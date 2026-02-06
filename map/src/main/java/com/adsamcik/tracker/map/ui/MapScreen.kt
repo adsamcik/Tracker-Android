@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.ui
 
+import android.util.Log
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -67,6 +68,8 @@ import com.google.maps.android.compose.MapUiSettings as ComposeMapUiSettings
 import com.google.maps.android.compose.Polyline as ComposePolyline
 import kotlinx.coroutines.flow.collectLatest
 
+private const val TAG = "MapScreen"
+
 /**
  * Phase 3 scaffolding: Compose-based MapScreen using Maps Compose.
  * Redesigned with custom Glass controls for "Immersive Cartography".
@@ -127,7 +130,7 @@ fun MapScreen(
         ) {
             // Expose GoogleMap instance when available and set up listeners
             MapEffect(Unit) { gMap ->
-                try { onGoogleMapReady?.invoke(gMap) } catch (_: Throwable) {}
+                try { onGoogleMapReady?.invoke(gMap) } catch (e: Throwable) { Log.e("MapScreen", "Error in onGoogleMapReady callback: ${e.message}", e) }
                 gMap.setOnCameraMoveStartedListener { reason ->
                     if (!overlayMode && reason == com.google.android.gms.maps.GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
                         store.dispatch(MapEvent.FollowCanceled)
@@ -148,7 +151,7 @@ fun MapScreen(
                             )
                             val zoom = gMap.cameraPosition.zoom.toInt()
                             hp.prefetchViewport(bounds, zoom, borderTiles = 1)
-                        } catch (_: Throwable) {}
+                        } catch (e: Throwable) { Log.w("MapScreen", "Failed to prefetch heatmap viewport: ${e.message}") }
                     }
                 }
             }
@@ -156,7 +159,7 @@ fun MapScreen(
             MapEffect(bottomPaddingPx) { gMap ->
                 try {
                     gMap.setPadding(0, 0, 0, bottomPaddingPx)
-                } catch (_: Throwable) { /* ignore */ }
+                } catch (e: Throwable) { Log.w("MapScreen", "Failed to set map padding: ${e.message}") }
             }
             // Declarative overlays
             val overlays = state.overlays
@@ -179,8 +182,8 @@ fun MapScreen(
                         Circle(
                             center = com.google.android.gms.maps.model.LatLng(overlay.latLng.lat, overlay.latLng.lng),
                             radius = overlay.radiusM,
-                            strokeColor = Color(0x55007AFF),
-                            fillColor = Color(0x22007AFF),
+                            strokeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.33f),
+                            fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f),
                             strokeWidth = 2f
                         )
                     }
@@ -258,10 +261,10 @@ fun MapScreen(
                             .build()
                         val update = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(newPos)
                         cameraPositionState.animate(update, 500)
-                    } catch (e: Exception) { }
+                    } catch (e: Exception) { Log.e(TAG, "Failed to set camera bearing: ${e.message}", e) }
                 }
                 is com.adsamcik.tracker.map.presentation.udf.MapEffect.ShowFollowCanceled -> {
-                    try { snackbarHostState.showSnackbar("Follow canceled") } catch (e: Exception) { }
+                    try { snackbarHostState.showSnackbar("Follow canceled") } catch (e: Exception) { Log.e(TAG, "Failed to show snackbar: ${e.message}", e) }
                 }
                 is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode -> { }
             }

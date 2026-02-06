@@ -47,7 +47,7 @@ class NormalizationNeighborhoodAsyncCoreTest {
     @Test
     fun emptyReturnsNullAndNoCache() = runTest {
         val repo = FakeRepo(emptyList())
-    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler), inlineMode = false)
+    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler))
         nn.updateConfig(config())
         val b = Bounds(3.0,3.0,0.0,0.0)
         val stamp = NormalizationNeighborhood.NormalizationStampPolicy(3,10.0, deltaStamp())
@@ -61,7 +61,7 @@ class NormalizationNeighborhoodAsyncCoreTest {
     @Test
     fun sparseNeighborProducesValue() = runTest {
         val repo = FakeRepo(listOf(WeightedGeoFeature(1.5,1.5,1000L,1.0)))
-    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler), inlineMode = false)
+    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler))
         nn.updateConfig(config())
         val b = Bounds(3.0,3.0,0.0,0.0)
         val stamp = NormalizationNeighborhood.NormalizationStampPolicy(2,200.0, deltaStamp())
@@ -76,7 +76,7 @@ class NormalizationNeighborhoodAsyncCoreTest {
     @Test
     fun highCoverageHigherThanLow() = runTest {
         val repo = FakeRepo()
-    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler), inlineMode = false)
+    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler))
         nn.updateConfig(config())
         val b = Bounds(3.0,3.0,0.0,0.0)
         val stamp = NormalizationNeighborhood.NormalizationStampPolicy(1,1.0, deltaStamp())
@@ -100,7 +100,7 @@ class NormalizationNeighborhoodAsyncCoreTest {
     @Test
     fun ageDecayRecentDominates() = runTest {
         val repo = FakeRepo()
-    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler), inlineMode = false)
+    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler))
         nn.updateConfig(config())
         val b = Bounds(3.0,3.0,0.0,0.0)
         val stamp = NormalizationNeighborhood.NormalizationStampPolicy(1,1.0, deltaStamp())
@@ -128,7 +128,7 @@ class NormalizationNeighborhoodAsyncCoreTest {
                 emit(listOf(WeightedGeoFeature(1.5,1.5,1000L,1.0)))
             }
         }
-    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler), inlineMode = false)
+    val nn = NormalizationNeighborhood(repo, this, {}, StandardTestDispatcher(testScheduler))
         nn.updateConfig(config())
         val b = Bounds(3.0,3.0,0.0,0.0)
         val stamp = NormalizationNeighborhood.NormalizationStampPolicy(2,10.0, deltaStamp())

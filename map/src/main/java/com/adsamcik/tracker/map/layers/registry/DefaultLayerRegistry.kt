@@ -39,7 +39,7 @@ class DefaultLayerRegistry : LayerRegistry {
      * trigger Kotlin UAST/FIR lint crashes in some AGP/Kotlin toolchain versions.
      */
     private class NoMapLayer : BaseMapLayer<Unit, Unit>() {
-        override fun loadData(context: android.content.Context) = Unit
+        override suspend fun loadData(context: android.content.Context) = Unit
         override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
         override fun render(map: com.google.android.gms.maps.GoogleMap, processed: Unit) {}
     }
@@ -280,5 +280,8 @@ class DefaultLayerRegistry : LayerRegistry {
         )
     }
 
-    override fun getAllLayers(): List<LayerDescriptor> = buildLayers()
+    // Lazy cache for layers - avoids rebuilding on every call
+    private val cachedLayers: List<LayerDescriptor> by lazy { buildLayers() }
+
+    override fun getAllLayers(): List<LayerDescriptor> = cachedLayers
 }

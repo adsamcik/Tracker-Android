@@ -1,14 +1,15 @@
 package com.adsamcik.tracker.map.layers.base
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
+import android.util.Log
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.google.android.gms.maps.GoogleMap
-import java.util.concurrent.Callable
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Base template for map layers.
@@ -20,11 +21,11 @@ import java.util.concurrent.Future
  * while map mutations (render/afterEnable/onDisable) are executed on Main.
  */
 abstract class BaseMapLayer<I, P>(
-    private val performanceManager: PerformanceManager = PerformanceManager(),
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val performanceManager: PerformanceManager = PerformanceManager()
 ) {
 
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private val layerJob = SupervisorJob()
+    private val layerScope = CoroutineScope(Dispatchers.Default + layerJob)
 
     @Volatile
     private var enabled: Boolean = false
@@ -35,7 +36,7 @@ abstract class BaseMapLayer<I, P>(
     protected lateinit var map: GoogleMap
         private set
 
-    private var runningTask: Future<*>? = null
+    private var runningTask: Job? = null
 
     /**
      * Start the layer. If already enabled, the running work is cancelled and the layer restarts.
@@ -51,7 +52,7 @@ abstract class BaseMapLayer<I, P>(
         this.quality = quality
         enabled = true
 
-        runningTask = executor.submit(Callable {
+        runningTask = layerScope.launch {
             try {
                 beforeEnable(context, map)
                 
@@ -65,7 +66,7 @@ abstract class BaseMapLayer<I, P>(
                 val processDuration = System.currentTimeMillis() - processStartTime
                 
                 if (enabled) {
-                    mainHandler.post {
+                    withContext(Dispatchers.Main) {
                         if (enabled) {
                             try {
                                 val renderStartTime = System.currentTimeMillis()
@@ -86,20 +87,21 @@ abstract class BaseMapLayer<I, P>(
                 // Swallow to keep app stable; subclasses may override to report
                 onPipelineError(t)
             }
-        })
+        }
     }
 
     /** Cancel work and teardown any map artifacts on the main thread. */
     fun disable() {
         if (!enabled) return
         enabled = false
-        runningTask?.cancel(true)
+        runningTask?.cancel()
         runningTask = null
         if (this::map.isInitialized) {
-            mainHandler.post {
+            layerScope.launch(Dispatchers.Main) {
                 try {
                     onDisable(map)
-                } catch (_: Throwable) {
+                } catch (e: Throwable) {
+                    Log.w("BaseMapLayer", "Error during map layer disable: ${e.message}")
                 }
             }
         }
@@ -108,8 +110,8 @@ abstract class BaseMapLayer<I, P>(
     /** Hook: called on background thread before loading data. */
     protected open fun beforeEnable(context: Context, map: GoogleMap) {}
 
-    /** Implement: load domain data (I) from repositories/DAOs. Heavy work allowed. */
-    protected abstract fun loadData(context: Context): I
+    /** Implement: load domain data (I) from repositories/DAOs. Heavy work allowed. Suspend allowed. */
+    protected abstract suspend fun loadData(context: Context): I
 
     /** Implement/override: transform/filter data using performance budgets. Heavy work allowed. */
     protected abstract fun processData(

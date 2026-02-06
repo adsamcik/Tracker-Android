@@ -118,19 +118,18 @@ class LayerController {
     }
     
     /**
-     * Clean up resources when controller is no longer needed
+     * Clean up resources when controller is no longer needed.
+     * Cancels the internal coroutine scope to prevent leaks.
      */
     fun destroy() {
         Log.d(TAG, "Destroying LayerController")
-        scope.launch {
-            try {
-                clearCurrentLayer()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during cleanup", e)
-            } finally {
-                clearState()
-                scope.cancel()
-            }
+        try {
+            clearCurrentLayer()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during cleanup", e)
+        } finally {
+            clearState()
+            scope.cancel()
         }
     }
     

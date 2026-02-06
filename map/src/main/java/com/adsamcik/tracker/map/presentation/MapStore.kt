@@ -10,6 +10,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.google.android.gms.maps.model.TileProvider
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import javax.inject.Inject
 
 /**
  * MapStore (Phase 1/2): holds central MapState, reduces MapEvent, and bridges to legacy LayerController.
@@ -32,11 +34,10 @@ import kotlinx.coroutines.Dispatchers
  * - Better memory management
  * - LayerEngine can be set after construction to support async GoogleMap initialization
  */
-class MapStore(
-    initialLayerManager: LayerEngine? = null,
-) : ViewModel() {
+@HiltViewModel
+class MapStore @Inject constructor() : ViewModel() {
 
-    private var layerManager: LayerEngine? = initialLayerManager
+    private var layerManager: LayerEngine? = null
     
     /** 
      * Updates the layer engine after GoogleMap becomes available.
@@ -300,9 +301,9 @@ class MapStore(
         super.onCleared()
         // Cancel any pending overlay updates
         overlayUpdateJob?.cancel()
-        // Clear the layer manager
+        // Destroy the layer manager (also cancels internal coroutine scopes)
         try {
-            layerManager?.clear()
+            layerManager?.destroy()
         } catch (e: Exception) {
             // Ignore cleanup errors
         }

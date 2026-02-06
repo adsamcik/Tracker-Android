@@ -5,6 +5,8 @@ import com.adsamcik.tracker.map.graphics.BitmapPool
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.google.android.gms.maps.model.Tile
 import com.google.android.gms.maps.model.TileProvider
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
@@ -65,6 +67,8 @@ abstract class OptimizedTileProvider(
                     generateTile(x, y, zoom, bitmapPool, budgets)
                 } catch (e: OutOfMemoryError) {
                     System.gc()
+                    // Simple sleep is appropriate here since we're in an executor thread,
+                    // and runBlocking in a Callable can cause deadlocks under load.
                     Thread.sleep(250)
                     generateTile(x, y, zoom, bitmapPool, budgets)
                 }

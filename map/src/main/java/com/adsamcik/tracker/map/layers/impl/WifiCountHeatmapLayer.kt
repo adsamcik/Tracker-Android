@@ -40,7 +40,7 @@ class WifiCountHeatmapLayer(
 
     override fun beforeEnable(context: Context, map: GoogleMap) {}
 
-    override fun loadData(context: Context): Input = Input()
+    override suspend fun loadData(context: Context): Input = Input()
 
     override fun processData(input: Input, budgets: PerformanceManager.PerformanceBudgets): Prepared {
         provider = TileProviderV2(repo, pool, perf)

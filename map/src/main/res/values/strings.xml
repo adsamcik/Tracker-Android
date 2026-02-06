@@ -76,6 +76,8 @@
 
     <!-- Map Sheet Controls -->
     <string name="map_search_placeholder">Search…</string>
+    <string name="map_search_clear">Clear search</string>
+    <string name="map_layers_button">Map layers</string>
     <string name="map_date_range_button">Date range</string>
     <string name="map_date_range_dialog_ok">OK</string>
     <string name="map_date_range_dialog_cancel">Cancel</string>

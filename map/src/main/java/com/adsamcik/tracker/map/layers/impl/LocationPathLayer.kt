@@ -25,9 +25,8 @@ class LocationPathLayer(
 
     override fun beforeEnable(context: Context, map: GoogleMap) {}
 
-    override fun loadData(context: Context): Input {
-        // Blocking fetch; adapters can supply a provider using DAOs.
-        val points = kotlinx.coroutines.runBlocking { pointsProvider(dateRange) }
+    override suspend fun loadData(context: Context): Input {
+        val points = pointsProvider(dateRange)
         return Input(points)
     }
 
