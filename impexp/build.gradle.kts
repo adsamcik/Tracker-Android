@@ -115,7 +115,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     androidTestImplementation(libs.androidx.work.testing)
 
-    // Android Tests
+    // Instrumented Tests
     androidTestImplementation(libs.junit4)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.uiautomator)

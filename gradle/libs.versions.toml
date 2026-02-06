@@ -89,7 +89,7 @@ mockitoCore = "5.19.0"
 mockitoInline = "5.2.0"
 mockitoAndroid = "5.19.0"
 mockitoKotlin = "6.0.0"
-mockk = "1.13.14"
+mockk = "1.13.16"
 turbine = "1.2.1"
 androidxTestCore = "1.7.0"
 kotlinxCoroutinesTest = "1.10.2"
@@ -120,6 +120,7 @@ mockito-android = { module = "org.mockito:mockito-android", version.ref = "mocki
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
+mockk-agent = { module = "io.mockk:mockk-agent", version.ref = "mockk" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

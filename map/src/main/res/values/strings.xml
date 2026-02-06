@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Map</string>
+
     <string name="date_range_selector_all_days">All</string>
     <string name="date_range_selector_custom_days">Custom</string>
     <plurals name="date_range_selector_x_days">

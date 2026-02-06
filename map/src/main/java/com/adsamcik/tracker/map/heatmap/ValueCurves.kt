@@ -16,6 +16,6 @@ object ValueCurves {
         val g = gamma.coerceIn(0.1f, 3f)
         val a = Math.pow(v.toDouble(), g.toDouble()).toFloat()
         val b = Math.pow(v.toDouble(), (2.0 - g)).toFloat()
-        0.5f * (a + b).coerceIn(0f, 1f)
+        (0.5f * (a + b)).coerceIn(0f, 1f)
     }
 }

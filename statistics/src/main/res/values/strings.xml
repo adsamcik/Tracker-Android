@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Statistics</string>
+
     <string name="change_activity">Change activity</string>
 
     <string name="edit_session">Edit session</string>

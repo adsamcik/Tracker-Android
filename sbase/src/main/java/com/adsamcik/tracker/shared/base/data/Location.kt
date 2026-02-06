@@ -167,7 +167,10 @@ data class Location(
 					sinLonDistance * sinLonDistance
 			val c = 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
 
-			val distance = EARTH_CIRCUMFERENCE * c
+			// Haversine formula: distance = radius * c
+			// Since we have circumference, radius = circumference / (2 * pi)
+			val earthRadius = EARTH_CIRCUMFERENCE / (2 * kotlin.math.PI)
+			val distance = earthRadius * c
 			return when (unit) {
 				LengthUnit.Meter -> distance
 				LengthUnit.Kilometer -> distance / LengthConstants.METERS_IN_KILOMETER

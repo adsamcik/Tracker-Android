@@ -238,7 +238,7 @@ dependencies {
 	androidTestImplementation(libs.androidx.test.rules)
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.espresso)
-	androidTestImplementation(libs.espresso)
+	androidTestImplementation(libs.mockk.android)
 	androidTestImplementation(project(":testing-common"))
 	// workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":smap"))

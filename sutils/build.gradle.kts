@@ -117,10 +117,12 @@ dependencies {
 	testRuntimeOnly(libs.junit5.vintage.engine)
 	testImplementation(libs.junit4)
 	testImplementation(libs.kotlin.test)
+	testImplementation(libs.mockk)
+	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.turbine)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.arch.core.testing)
-	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.kotest.assertions.core)
 
 	// Instrumented Tests
@@ -130,6 +132,7 @@ dependencies {
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.espresso)
+	androidTestImplementation(libs.mockk.android)
 }
 
 // Configure JUnit 5 for unit tests
