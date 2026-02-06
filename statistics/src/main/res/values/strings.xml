@@ -40,7 +40,10 @@
     <string name="stats_sum_title">Summary</string>
     <string name="stats_time">Time spent tracking</string>
     <string name="stats_title_text" translatable="false">%1$s %2$s %3$s</string>
-    <string name="stats_walk">walk</string>    <string name="stats_weekly_title">Last 7 days</string>
+    <string name="stats_walk">walk</string>
+    <string name="stats_weekly_title">Last 7 days</string>
+    <string name="stats_weekly_chart_title">This week</string>
+    <string name="stats_weekly_chart_steps_total">steps this week</string>
     <string name="stats_wifi_count">Wi-Fi count</string>
     <string name="stats_wifi_label">Wi‑Fi</string>
     <string name="stats_error_generic">Something went wrong</string>

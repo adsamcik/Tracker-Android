@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
+import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
@@ -137,4 +138,11 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideTripDao(database: AppDatabase): TripDao = database.tripDao()
+
+    /**
+     * Provides DailySummaryDao for daily aggregate statistics.
+     */
+    @Provides
+    @Singleton
+    fun provideDailySummaryDao(database: AppDatabase): DailySummaryDao = database.dailySummaryDao()
 }

@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.base.di.LocalLockManager
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -57,6 +58,9 @@ fun TrackerRoute(
     
     // Observe lock state via injected manager (replaces TrackerLocker static access)
     val isLocked by lockManager.isLockedFlow.collectAsState()
+
+    // Observe policy tier via injected controller (Phase 4a: visual indicator)
+    val policyTier by controller.policyTierFlow.collectAsState()
     
     // Observe session info via injected controller
     val sessionInfo by controller.sessionInfoFlow.collectAsState()
@@ -120,7 +124,8 @@ fun TrackerRoute(
             sessionData = displaySession,
             collectionData = collectionData,
             hasLocationPermission = hasLocationPermission,
-            pathPoints = relevantPathPoints
+            pathPoints = relevantPathPoints,
+            policyTier = policyTier
         ),
         onSettingsClick = onOpenSettings,
         onMapClick = onOpenMap,

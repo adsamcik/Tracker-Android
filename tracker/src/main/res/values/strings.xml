@@ -248,4 +248,12 @@
     <string name="help_wifi_location_count">Track how many times you\&#039;ve been to places based on nearby Wi-Fi networks (no network names are stored).</string>
     <string name="help_transition_detection">Tracker starts/stops automatically based on your movement. Uses less battery than constant GPS but may delay detection of activity changes.</string>
 
+    <!-- Policy Tier Indicator (Phase 4a) -->
+    <string name="policy_tier_ambient">Ambient</string>
+    <string name="policy_tier_active">Active</string>
+    <string name="policy_tier_precision">Precision</string>
+
+    <!-- Recent Trips Card (Phase 4d) -->
+    <string name="dashboard_recent_trips">Recent trips</string>
+
 </resources>

@@ -50,13 +50,20 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationSearching
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SignalCellularAlt
@@ -138,6 +145,9 @@ import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 
@@ -148,7 +158,8 @@ internal data class TrackerDashboardUiState(
     val sessionData: TrackerSession? = null,
     val collectionData: CollectionData? = null,
     val hasLocationPermission: Boolean = false,
-    val pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null
+    val pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
+    val policyTier: PolicyTier = PolicyTier.OFF
 )
 
 @Composable
@@ -185,6 +196,7 @@ internal fun TrackerDashboard(
             TrackerTopBar(
                 isTracking = isTracking,
                 isLocked = isLocked,
+                policyTier = state.policyTier,
                 onSettingsClick = onSettingsClick,
                 onGameClick = onGameClick
             )
@@ -284,6 +296,7 @@ private fun MilestoneHapticEffect(
 private fun TrackerTopBar(
     isTracking: Boolean,
     isLocked: Boolean,
+    policyTier: PolicyTier = PolicyTier.OFF,
     onSettingsClick: () -> Unit,
     onGameClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -311,6 +324,9 @@ private fun TrackerTopBar(
                     }
                 },
                 actions = {
+                    // Policy tier chip - show current tracking tier when active
+                    PolicyTierChip(tier = policyTier)
+
                     // Points chip - show when gamification has points
                     if (pointsToday > 0 && onGameClick != null) {
                         Surface(
@@ -466,7 +482,23 @@ private fun TrackingContent(
                     )
                 }
             }
-            
+
+            // Recent trips card - shows last 3 trips when not tracking
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "recent_trips") {
+                AnimatedVisibility(
+                    visible = !isTracking,
+                    enter = expandVertically(
+                        animationSpec = tween(300, delayMillis = 200)
+                    ) + fadeIn(animationSpec = tween(300, delayMillis = 200)),
+                    exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                ) {
+                    RecentTripsCard(
+                        settings = trackerSettings,
+                        onTripClick = onSessionDetailClick
+                    )
+                }
+            }
+
             // Detailed session card - show when not tracking for historical data
             if (sessionData != null && !isTracking) {
                 item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "session") {
@@ -2359,3 +2391,177 @@ private fun GoalProgressRing(
         }
     }
 }
+
+// region Phase 4a: PolicyTierChip
+
+/**
+ * Compact chip displaying the current tracking policy tier in the top bar.
+ * Hidden when tier is [PolicyTier.OFF].
+ */
+@Composable
+private fun PolicyTierChip(tier: PolicyTier, modifier: Modifier = Modifier) {
+    if (tier == PolicyTier.OFF) return
+    val (label, containerColor) = when (tier) {
+        PolicyTier.AMBIENT -> stringResource(R.string.policy_tier_ambient) to MaterialTheme.colorScheme.tertiaryContainer
+        PolicyTier.ACTIVE -> stringResource(R.string.policy_tier_active) to MaterialTheme.colorScheme.primaryContainer
+        PolicyTier.PRECISION -> stringResource(R.string.policy_tier_precision) to MaterialTheme.colorScheme.secondaryContainer
+        PolicyTier.OFF -> return
+    }
+    val contentColor = when (tier) {
+        PolicyTier.AMBIENT -> MaterialTheme.colorScheme.onTertiaryContainer
+        PolicyTier.ACTIVE -> MaterialTheme.colorScheme.onPrimaryContainer
+        PolicyTier.PRECISION -> MaterialTheme.colorScheme.onSecondaryContainer
+        PolicyTier.OFF -> return
+    }
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = containerColor,
+        modifier = modifier.padding(end = 4.dp)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor
+        )
+    }
+}
+
+// endregion
+
+// region Phase 4d: RecentTripsCard
+
+/**
+ * Card showing up to 3 most recent trips from the session_segment table.
+ * Only rendered when trips exist; hidden otherwise.
+ */
+@Composable
+private fun RecentTripsCard(
+    settings: TrackerSettingsState,
+    onTripClick: ((Long) -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var trips by remember { mutableStateOf<List<Trip>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        trips = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            AppDatabase.database(context).tripDao().getRecentTrips(3)
+        }
+    }
+
+    if (trips.isEmpty()) return
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.dashboard_recent_trips),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            trips.forEach { trip ->
+                RecentTripRow(
+                    trip = trip,
+                    settings = settings,
+                    onClick = if (onTripClick != null) {
+                        { onTripClick(trip.id) }
+                    } else null
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentTripRow(
+    trip: Trip,
+    settings: TrackerSettingsState,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val resources = context.resources
+    val icon = getTripIcon(trip.primaryActivity)
+    val distanceText = resources.formatDistance(trip.distanceM, 1, settings.lengthSystem)
+    val durationText = trip.durationMs.formatAsDuration(context)
+    val timeText = DateUtils.getRelativeTimeSpanString(
+        trip.startTimeMs,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS,
+        DateUtils.FORMAT_ABBREV_RELATIVE
+    ).toString()
+
+    val rowModifier = if (onClick != null) {
+        modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp, horizontal = 4.dp)
+    } else {
+        modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 4.dp)
+    }
+
+    Row(
+        modifier = rowModifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = distanceText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = durationText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = timeText,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (onClick != null) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+private fun getTripIcon(primaryActivity: Int?): ImageVector {
+    return when (primaryActivity) {
+        -2 -> Icons.AutoMirrored.Filled.DirectionsWalk
+        -3 -> Icons.AutoMirrored.Filled.DirectionsRun
+        -4 -> Icons.AutoMirrored.Filled.DirectionsBike
+        -5, -34 -> Icons.Filled.DirectionsCar
+        -26 -> Icons.Filled.Sailing
+        -31 -> Icons.Filled.Flight
+        else -> Icons.Filled.Route
+    }
+}
+
+// endregion

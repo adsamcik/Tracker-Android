@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.statistics.fragment
 
 import android.content.Context
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +65,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
@@ -68,6 +73,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.AppShapes
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
+import com.adsamcik.tracker.statistics.viewmodel.DayBar
 
 /**
  * Refresh state for statistics route. Mirrors the test expectations.
@@ -88,7 +94,7 @@ sealed interface AppendUiState {
     data object Error : AppendUiState
 }
 
-/** Test host expects this signature. */
+/** Test host expects this signature. New parameters use defaults for backward compatibility. */
 @Composable
 fun StatsScreen(
     refreshState: RefreshUiState,
@@ -100,6 +106,7 @@ fun StatsScreen(
     // Optional paging sessions supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<TrackerSession>? = null,
     onSessionClick: (Long) -> Unit = {},
+    weeklyBars: List<DayBar> = emptyList(),
 ) {
     Box(
         modifier = Modifier
@@ -110,7 +117,10 @@ fun StatsScreen(
             RefreshUiState.Loading -> LoadingState()
             RefreshUiState.Empty -> EmptyState()
             RefreshUiState.Error -> ErrorState(onRetry)
-            RefreshUiState.Content -> ContentState(appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi, sessions, onSessionClick)
+            RefreshUiState.Content -> ContentState(
+                appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi,
+                sessions, onSessionClick, weeklyBars
+            )
         }
     }
 }
@@ -151,7 +161,7 @@ private fun ErrorState(onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         // Using module-specific generic error string
         Text(
-            text = stringResource(R.string.stats_error_generic), 
+            text = stringResource(R.string.stats_error_generic),
             modifier = Modifier.padding(horizontal = 24.dp),
             color = MaterialTheme.colorScheme.error
         )
@@ -159,8 +169,8 @@ private fun ErrorState(onRetry: () -> Unit) {
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-        ) { 
-            Text(stringResource(R.string.action_retry)) 
+        ) {
+            Text(stringResource(R.string.action_retry))
         }
     }
 }
@@ -174,6 +184,7 @@ private fun ContentState(
     onOpenWifi: () -> Unit,
     pagingItems: LazyPagingItems<TrackerSession>? = null,
     onSessionClick: (Long) -> Unit = {},
+    weeklyBars: List<DayBar> = emptyList(),
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -185,14 +196,20 @@ private fun ContentState(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item(key = "header_actions") { 
-            HeaderActions(onShowSummary, onShowWeek, onOpenWifi) 
+        if (weeklyBars.isNotEmpty() && weeklyBars.any { it.distanceM > 0f }) {
+            item(key = "weekly_chart") {
+                WeeklySummaryChart(bars = weeklyBars)
+            }
         }
-        
+
+        item(key = "header_actions") {
+            HeaderActions(onShowSummary, onShowWeek, onOpenWifi)
+        }
+
         if (pagingItems != null) {
             val count = pagingItems.itemCount
             var lastDateKey: String? = null
-            
+
             items(count) { index ->
                 val session = pagingItems[index]
                 if (session != null) {
@@ -202,9 +219,9 @@ private fun ContentState(
                             .atZone(ZoneId.systemDefault())
                             .toLocalDate()
                     } else null
-                    
+
                     val currentDateKey = sessionDate?.toString()
-                    
+
                     // Show date header when date changes
                     if (currentDateKey != null && currentDateKey != lastDateKey) {
                         DateHeader(session.start)
@@ -219,17 +236,146 @@ private fun ContentState(
             }
         } else {
             // Placeholder state for tests
-            items(5) { index -> 
+            items(5) { index ->
                 if (index == 0) {
                     DateHeader(System.currentTimeMillis())
                 }
-                SessionRow(TrackerSession(id = index.toLong(), start = 0, end = 0)) 
+                SessionRow(TrackerSession(id = index.toLong(), start = 0, end = 0))
             }
         }
-        
+
         // Footer append UI state inline
         item(key = "append_state_footer") {
             AppendStateSection(appendState, onRetry)
+        }
+    }
+}
+
+/**
+ * Canvas-based bar chart showing distance per day for the last 7 days.
+ */
+@Composable
+private fun WeeklySummaryChart(bars: List<DayBar>) {
+    val context = LocalContext.current
+    val resources = context.resources
+    val settings = remember { TrackerSettingsQuick.snapshot(context) }
+
+    val maxDistance = remember(bars) { bars.maxOf { it.distanceM }.coerceAtLeast(1f) }
+    val totalDistance = remember(bars) { bars.sumOf { it.distanceM.toDouble() }.toFloat() }
+    val totalSteps = remember(bars) { bars.sumOf { it.steps } }
+
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.stats_weekly_chart_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = resources.formatDistance(totalDistance, digits = 1, unit = settings.lengthSystem),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Bar chart
+            val barColor = MaterialTheme.colorScheme.primary
+            val emptyBarColor = MaterialTheme.colorScheme.surfaceContainerHighest
+            val chartContentDescription = stringResource(R.string.stats_weekly_chart_title)
+
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .semantics { contentDescription = chartContentDescription }
+            ) {
+                val barCount = bars.size
+                val spacing = 8.dp.toPx()
+                val barWidth = (size.width - spacing * (barCount - 1)) / barCount
+                val maxBarHeight = size.height
+
+                bars.forEachIndexed { index, bar ->
+                    val x = index * (barWidth + spacing)
+                    val barHeight = if (maxDistance > 0f) {
+                        (bar.distanceM / maxDistance * maxBarHeight).coerceAtLeast(4.dp.toPx())
+                    } else {
+                        4.dp.toPx()
+                    }
+                    val y = maxBarHeight - barHeight
+
+                    // Bar background (empty portion)
+                    drawRoundRect(
+                        color = emptyBarColor,
+                        topLeft = Offset(x, 0f),
+                        size = Size(barWidth, maxBarHeight),
+                        cornerRadius = CornerRadius(4.dp.toPx())
+                    )
+
+                    // Filled bar
+                    if (bar.distanceM > 0f) {
+                        drawRoundRect(
+                            color = barColor,
+                            topLeft = Offset(x, y),
+                            size = Size(barWidth, barHeight),
+                            cornerRadius = CornerRadius(4.dp.toPx())
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Day labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                bars.forEach { bar ->
+                    Text(
+                        text = bar.dayLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            // Total steps if any
+            if (totalSteps > 0) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = totalSteps.formatReadable() + " " + stringResource(R.string.stats_weekly_chart_steps_total),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
@@ -248,7 +394,7 @@ private fun HeaderActions(onShowSummary: () -> Unit, onShowWeek: () -> Unit, onO
     val summaryLabel = stringResource(R.string.stats_sum_title)
     val weekLabel = stringResource(R.string.stats_weekly_title)
     val wifiLabel = stringResource(R.string.stats_wifi_label)
-    
+
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -349,17 +495,17 @@ internal fun SessionRow(
     val context = LocalContext.current
     val resources = context.resources
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
-    
+
     val durationMs = if (session.end > session.start && session.end != 0L) {
         session.end - session.start
     } else {
         0L
     }
-    
+
     val durationText = remember(durationMs) {
         if (durationMs > 0) durationMs.formatAsDuration(context) else null
     }
-    
+
     val distanceText = remember(session.distanceInM, settings) {
         if (session.distanceInM > 0) {
             resources.formatDistance(
@@ -369,7 +515,7 @@ internal fun SessionRow(
             )
         } else null
     }
-    
+
     val timeText = remember(session.start) {
         if (session.start != 0L) {
             sessionTimeFormatter.format(
@@ -377,9 +523,9 @@ internal fun SessionRow(
             )
         } else "--"
     }
-    
+
     val sessionIcon = remember(session) { getSessionIcon(session) }
-    
+
     GlassCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -406,9 +552,9 @@ internal fun SessionRow(
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
-            
+
             Spacer(Modifier.width(16.dp))
-            
+
             // Main content
             Column(modifier = Modifier.weight(1f)) {
                 // Time and activity label
@@ -424,15 +570,15 @@ internal fun SessionRow(
                     )
                     if (durationText != null) {
                         Text(
-                            text = "• $durationText",
+                            text = "\u2022 $durationText",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-                
+
                 Spacer(Modifier.height(4.dp))
-                
+
                 // Metrics row
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -497,7 +643,7 @@ internal fun DateHeader(dateMillis: Long) {
     val dateText = remember(dateMillis) {
         formatRelativeDate(context, dateMillis)
     }
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -532,7 +678,7 @@ private fun formatRelativeDate(context: Context, dateMillis: Long): String {
         .toLocalDate()
     val today = LocalDate.now()
     val daysDiff = ChronoUnit.DAYS.between(sessionDate, today)
-    
+
     return when {
         daysDiff == 0L -> context.getString(R.string.stats_date_today)
         daysDiff == 1L -> context.getString(R.string.stats_date_yesterday)

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
+import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.statistics.repository.SessionRepository
 import com.adsamcik.tracker.statistics.data.Stat
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 /**
@@ -25,12 +28,27 @@ sealed class StatsLoadState {
 }
 
 /**
+ * Per-day bar data for the weekly summary chart.
+ * @param dayLabel Short day name (e.g. "Mon")
+ * @param distanceM Total distance in meters for this day
+ * @param steps Total step count for this day
+ * @param epochDay The java.time epoch day value
+ */
+data class DayBar(
+    val dayLabel: String,
+    val distanceM: Float,
+    val steps: Int,
+    val epochDay: Long,
+)
+
+/**
  * ViewModel providing paged tracker sessions for statistics screen.
  * Uses constructor-injected SessionRepository for clean testing and modularity.
  */
 @HiltViewModel
 class StatsViewModel @Inject constructor(
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val dailySummaryDao: DailySummaryDao,
 ) : ViewModel() {
 
     // Pager producing sessions ordered by start DESC (Room PagingSource provided by repository)
@@ -39,15 +57,51 @@ class StatsViewModel @Inject constructor(
     ) { sessionRepository.getAllSessionsPaged() }
         .flow
         .cachedIn(viewModelScope)
-    
+
     // Summary statistics state with error handling
     private val _summaryStatsState = MutableStateFlow<StatsLoadState>(StatsLoadState.Idle)
     val summaryStatsState: StateFlow<StatsLoadState> = _summaryStatsState.asStateFlow()
-    
+
     // Weekly statistics state with error handling
     private val _weeklyStatsState = MutableStateFlow<StatsLoadState>(StatsLoadState.Idle)
     val weeklyStatsState: StateFlow<StatsLoadState> = _weeklyStatsState.asStateFlow()
-    
+
+    // Weekly bar chart data for the last 7 days
+    private val _weeklyBars = MutableStateFlow<List<DayBar>>(emptyList())
+    val weeklyBars: StateFlow<List<DayBar>> = _weeklyBars.asStateFlow()
+
+    init {
+        loadWeeklyBars()
+    }
+
+    private fun loadWeeklyBars() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val todayEpochDay = LocalDate.now().toEpochDay()
+                val fromDay = todayEpochDay - 6 // last 7 days inclusive
+                val summaries = dailySummaryDao.getBetween(fromDay, todayEpochDay)
+                val summaryMap = summaries.associateBy { it.dateEpochDay }
+
+                val dayFormatter = DateTimeFormatter.ofPattern("EEE")
+                val bars = (0L..6L).map { offset ->
+                    val epochDay = fromDay + offset
+                    val date = LocalDate.ofEpochDay(epochDay)
+                    val label = date.format(dayFormatter)
+                    val summary = summaryMap[epochDay]
+                    DayBar(
+                        dayLabel = label,
+                        distanceM = summary?.totalDistanceM ?: 0f,
+                        steps = summary?.totalSteps ?: 0,
+                        epochDay = epochDay
+                    )
+                }
+                _weeklyBars.value = bars
+            } catch (_: Exception) {
+                _weeklyBars.value = emptyList()
+            }
+        }
+    }
+
     /**
      * Load summary statistics from repository.
      * Emits Loading -> Success/Error states via summaryStatsState flow.
@@ -65,7 +119,7 @@ class StatsViewModel @Inject constructor(
             }
         }
     }
-    
+
     /**
      * Load weekly statistics from repository.
      * Emits Loading -> Success/Error states via weeklyStatsState flow.

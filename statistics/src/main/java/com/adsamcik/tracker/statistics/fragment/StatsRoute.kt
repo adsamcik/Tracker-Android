@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.StatsViewModel
+import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.ui.compose.SummaryDialog
 import com.adsamcik.tracker.statistics.ui.compose.WeekDialog
 
@@ -36,6 +37,7 @@ fun StatsRoute(
     // Collect statistics state from ViewModel
     val summaryStatsState by vm.summaryStatsState.collectAsState()
     val weeklyStatsState by vm.weeklyStatsState.collectAsState()
+    val weeklyBars by vm.weeklyBars.collectAsState()
 
     val refreshState = when (val s = pagingItems.loadState.refresh) {
         is LoadState.Loading -> RefreshUiState.Loading
@@ -68,7 +70,8 @@ fun StatsRoute(
                 Toast.LENGTH_SHORT
             ).show()
         },
-        onSessionClick = onTripClick
+        onSessionClick = onTripClick,
+        weeklyBars = weeklyBars
     )
     
     // Show dialogs when state is true
