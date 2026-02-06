@@ -610,6 +610,13 @@ suspend fun exportStream(
     }
 }
 
+/**
+ * Page size for chunked location data export. Each page is loaded from the
+ * database independently so that at most [EXPORT_PAGE_SIZE] rows reside in
+ * memory at any given time (plus whatever the exporter's writer retains).
+ */
+private const val EXPORT_PAGE_SIZE = 2000
+
 @WorkerThread
 suspend fun export(
     outputStream: OutputStream,
@@ -621,19 +628,34 @@ suspend fun export(
         if (exporter.canSelectDateRange && range != null) {
             val database = AppDatabase.database(context)
             val locationDao = database.locationDao()
-            val from = range.start
-            val to = range.endInclusive
-            val locations = locationDao.getAllBetween(from.toEpochMillis(), to.toEpochMillis())
+            val fromMs = range.start.toEpochMillis()
+            val toMs = range.endInclusive.toEpochMillis()
 
-            if (locations.isEmpty()) {
+            val totalCount = locationDao.count(fromMs, toMs)
+            if (totalCount == 0L) {
                 return@withContext ExportResult(
                     false,
                     LocalizedString(R.string.export_error_no_locations_in_interval)
                 )
             }
-            exporter.export(context, locations, outputStream)
+
+            // Build a lazy sequence that pages through the database in chunks
+            // so the full dataset is never materialised in memory at once.
+            val locationSequence = sequence {
+                var offset = 0
+                while (true) {
+                    val page = locationDao.getBetweenPaged(fromMs, toMs, EXPORT_PAGE_SIZE, offset)
+                    if (page.isEmpty()) break
+                    yieldAll(page)
+                    if (page.size < EXPORT_PAGE_SIZE) break
+                    offset += page.size
+                }
+            }
+
+            val dateRange = LongRange(fromMs, toMs)
+            exporter.export(context, locationSequence, outputStream, dateRange)
         } else {
-            exporter.export(context, listOf(), outputStream)
+            exporter.export(context, emptySequence(), outputStream)
         }
     }
 }
@@ -647,8 +669,9 @@ fun ExportScreenPreview() {
         override val extension: String = "zip"
         override fun export(
             context: Context,
-            locationData: List<DatabaseLocation>,
-            outputStream: OutputStream
+            locationData: Sequence<DatabaseLocation>,
+            outputStream: OutputStream,
+            dateRange: LongRange?
         ): ExportResult {
             return ExportResult(isSuccess = true)
         }

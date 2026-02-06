@@ -89,7 +89,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -106,7 +106,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(mockContext, locations, outputStream)
+            exporter.export(mockContext, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             output shouldStartWith "<?xml"
@@ -116,17 +116,35 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `includes metadata`() {
+        fun `includes metadata when dateRange is provided`() {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),
                 createTestLocation(time = 1700001000000L, latitude = 50.1, longitude = 14.1, altitude = 210.0)
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(mockContext, locations, outputStream)
+            exporter.export(
+                mockContext,
+                locations.asSequence(),
+                outputStream,
+                dateRange = 1700000000000L..1700001000000L
+            )
             val output = outputStream.toString("UTF-8")
 
             output shouldContain "<metadata>"
+        }
+
+        @Test
+        fun `omits metadata when dateRange is null`() {
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            exporter.export(mockContext, locations.asSequence(), outputStream)
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "<metadata>"
         }
     }
 
@@ -141,7 +159,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -163,7 +181,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(mockContext, locations, outputStream)
+            exporter.export(mockContext, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             output shouldContain "lat=\"50.123456\""
@@ -178,7 +196,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -196,7 +214,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -216,7 +234,7 @@ class GpxExporterTest {
             }
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -236,7 +254,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(mockContext, locations, outputStream)
+            exporter.export(mockContext, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             output shouldContain "<time>"
@@ -256,7 +274,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(mockContext, locations, outputStream)
+            exporter.export(mockContext, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             val firstIndex = output.indexOf("50.111")
@@ -282,7 +300,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -304,7 +322,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -325,7 +343,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -347,7 +365,7 @@ class GpxExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(mockContext, locations, outputStream)
+            val result = exporter.export(mockContext, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")

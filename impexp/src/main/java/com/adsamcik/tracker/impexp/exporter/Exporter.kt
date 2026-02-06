@@ -25,11 +25,20 @@ interface Exporter {
 
 	/**
 	 * Called when data should be exported by the exporter to desired location in the filesystem.
+	 * Location data is provided as a [Sequence] to enable chunked/streaming reads from the
+	 * database, avoiding loading the entire dataset into memory at once.
+	 *
+	 * @param context Application context
+	 * @param locationData Lazy sequence of location data; may only be iterated once
+	 * @param outputStream Destination stream for the export file
+	 * @param dateRange Optional time range (epochMillis start..end) for metadata; avoids
+	 *   needing to scan the full sequence just for boundary timestamps
 	 */
 	fun export(
 			context: Context,
-			locationData: List<DatabaseLocation>,
-			outputStream: OutputStream
+			locationData: Sequence<DatabaseLocation>,
+			outputStream: OutputStream,
+			dateRange: LongRange? = null
 	): ExportResult
 }
 

@@ -23,19 +23,26 @@ class GpxExporter : Exporter {
 
 	override fun export(
 			context: Context,
-			locationData: List<DatabaseLocation>,
-			outputStream: OutputStream
+			locationData: Sequence<DatabaseLocation>,
+			outputStream: OutputStream,
+			dateRange: LongRange?
 	): ExportResult {
-		val gpx = GPX.builder().metadata {
-			it.author(context.applicationName)
-			it.desc(
-					context.getString(
-							R.string.export_gpx_description,
-							locationData.first().time.formatAsDateTime(),
-							locationData.last().time.formatAsDateTime()
-					)
-			)
-		}.addTrack { track ->
+		val gpxBuilder = GPX.builder()
+
+		if (dateRange != null) {
+			gpxBuilder.metadata {
+				it.author(context.applicationName)
+				it.desc(
+						context.getString(
+								R.string.export_gpx_description,
+								dateRange.first.formatAsDateTime(),
+								dateRange.last.formatAsDateTime()
+						)
+				)
+			}
+		}
+
+		gpxBuilder.addTrack { track ->
 			track.addSegment { segment ->
 				// Single segment per track; future enhancement: split on time gaps or motion state
 				locationData.forEach {
@@ -54,7 +61,9 @@ class GpxExporter : Exporter {
 					segment.addPoint(waypoint)
 				}
 			}
-		}.build()
+		}
+
+		val gpx = gpxBuilder.build()
 
 		try {
 			GPX.Writer.DEFAULT.write(gpx, outputStream)

@@ -70,7 +70,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(context, locations, outputStream)
+            val result = exporter.export(context, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -89,7 +89,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(context, locations, outputStream)
+            exporter.export(context, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             output shouldStartWith "<?xml"
@@ -111,7 +111,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(context, locations, outputStream)
+            val result = exporter.export(context, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -127,7 +127,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(context, locations, outputStream)
+            val result = exporter.export(context, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -150,7 +150,7 @@ class KmlExporterTest {
             }
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(context, locations, outputStream)
+            val result = exporter.export(context, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -175,7 +175,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(context, locations, outputStream)
+            exporter.export(context, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             // KML format: longitude,latitude,altitude
@@ -191,7 +191,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(context, locations, outputStream)
+            val result = exporter.export(context, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -210,7 +210,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            val result = exporter.export(context, locations, outputStream)
+            val result = exporter.export(context, locations.asSequence(), outputStream)
 
             result.isSuccess.shouldBeTrue()
             val output = outputStream.toString("UTF-8")
@@ -233,7 +233,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(context, locations, outputStream)
+            exporter.export(context, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             output shouldContain "<TimeStamp>"
@@ -256,7 +256,7 @@ class KmlExporterTest {
             )
 
             val outputStream = ByteArrayOutputStream()
-            exporter.export(context, locations, outputStream)
+            exporter.export(context, locations.asSequence(), outputStream)
             val output = outputStream.toString("UTF-8")
 
             val firstIndex = output.indexOf("14.0,50.0")

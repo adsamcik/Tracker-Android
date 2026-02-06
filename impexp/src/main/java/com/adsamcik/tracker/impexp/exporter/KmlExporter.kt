@@ -19,8 +19,9 @@ class KmlExporter : Exporter {
 
 	override fun export(
 			context: Context,
-			locationData: List<DatabaseLocation>,
-			outputStream: OutputStream
+			locationData: Sequence<DatabaseLocation>,
+			outputStream: OutputStream,
+			dateRange: LongRange?
 	): ExportResult {
 		serialize(outputStream, locationData)
 
@@ -30,7 +31,7 @@ class KmlExporter : Exporter {
 
 	private fun serialize(
 			stream: OutputStream,
-			locationData: List<DatabaseLocation>
+			locationData: Sequence<DatabaseLocation>
 	) {
 		OutputStreamWriter(stream).use { osw ->
 			writeBeginning(osw)

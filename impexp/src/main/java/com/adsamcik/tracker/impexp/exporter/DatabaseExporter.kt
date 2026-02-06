@@ -18,8 +18,9 @@ class DatabaseExporter : Exporter {
 
 	override fun export(
 			context: Context,
-			locationData: List<DatabaseLocation>,
-			outputStream: OutputStream
+			locationData: Sequence<DatabaseLocation>,
+			outputStream: OutputStream,
+			dateRange: LongRange?
 	): ExportResult {
 		val db = AppDatabase.database(context)
 		val dbFile = DocumentFile.fromFile(context.getDatabasePath(db.openHelper.databaseName))
