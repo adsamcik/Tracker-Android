@@ -108,13 +108,12 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
     val context = LocalContext.current
     val state by viewModel.settings.collectAsState()
     
-    // Debug menu visibility (outside LazyColumn to avoid Composable context issues)
-    val showDebug by remember { 
-        mutableStateOf(
-            com.adsamcik.tracker.BuildConfig.DEBUG || 
-            com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context)
-        )
-    }
+    // Debug menu visibility: reactive via DataStore Flow so toggling developer mode
+    // immediately shows/hides the debug entry without recomposition tricks.
+    val developerModeEnabled by com.adsamcik.tracker.shared.preferences.DeveloperPreferences
+        .observeDeveloperMode(context)
+        .collectAsState(initial = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
+    val showDebug = com.adsamcik.tracker.BuildConfig.DEBUG || developerModeEnabled
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -675,7 +674,10 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
     val context = LocalContext.current
     val debugVm: DebugSettingsViewModel = viewModel()
     var tapCount by remember { mutableIntStateOf(0) }
-    
+    val developerModeEnabled by com.adsamcik.tracker.shared.preferences.DeveloperPreferences
+        .observeDeveloperMode(context)
+        .collectAsState(initial = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
@@ -687,8 +689,7 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .run {
-                        if (!com.adsamcik.tracker.BuildConfig.DEBUG && 
-                            !com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context)) {
+                        if (!com.adsamcik.tracker.BuildConfig.DEBUG && !developerModeEnabled) {
                             clickable {
                                 tapCount++
                                 if (tapCount >= 7) {
@@ -735,8 +736,7 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
         }
         
         // Disable developer mode option (only in release builds when enabled)
-        if (!com.adsamcik.tracker.BuildConfig.DEBUG && 
-            com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context)) {
+        if (!com.adsamcik.tracker.BuildConfig.DEBUG && developerModeEnabled) {
             item {
                 SettingsItem(
                     title = stringResource(R.string.settings_developer_mode_disable),
