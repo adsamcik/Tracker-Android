@@ -21,6 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 15         │ 385         │ 🚧 UNRELEASED - Trip inference tables     │
+ * │            │             │    (frequent_place, inferred_trip,       │
+ * │            │             │    trip_leg)                             │
  * │ 14         │ 385         │ 🚧 UNRELEASED - Aggregator/summary       │
  * │            │             │    tables (daily_summary, live_stats)    │
  * │ 13         │ 385         │ 🚧 UNRELEASED - Sessionless tracking     │
@@ -543,6 +546,133 @@ val MIGRATION_13_14: Migration = object : Migration(13, 14) {
 			""".trimIndent())
 
 			android.util.Log.i("AppDatabase", "Migration 13→14: Created daily_summary and live_stats tables")
+		}
+	}
+}
+
+// Migration to add trip inference tables for Phase 3b (place clustering, enriched trips, trip legs).
+// Creates frequent_place (place clusters), inferred_trip (enriched trips with FK to places),
+// and trip_leg (trip segments with FK CASCADE to inferred_trip).
+val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// 1. Create frequent_place table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS frequent_place (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					center_lat_e7 INTEGER NOT NULL,
+					center_lon_e7 INTEGER NOT NULL,
+					radius_m REAL NOT NULL,
+					visit_count INTEGER NOT NULL,
+					last_visit_ms INTEGER NOT NULL,
+					label TEXT,
+					source TEXT NOT NULL,
+					created_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS index_frequent_place_center_lat_e7_center_lon_e7 ON frequent_place(center_lat_e7, center_lon_e7)")
+
+			// 2. Create inferred_trip table (FKs to frequent_place, ON DELETE SET NULL)
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS inferred_trip (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					distance_m REAL NOT NULL,
+					steps INTEGER NOT NULL,
+					primary_activity INTEGER NOT NULL,
+					average_confidence INTEGER NOT NULL,
+					transport_mode TEXT NOT NULL,
+					source TEXT NOT NULL,
+					inference_version TEXT NOT NULL,
+					segment_id INTEGER,
+					departure_place_id INTEGER,
+					arrival_place_id INTEGER,
+					created_at INTEGER NOT NULL,
+					FOREIGN KEY(departure_place_id) REFERENCES frequent_place(id) ON UPDATE NO ACTION ON DELETE SET NULL,
+					FOREIGN KEY(arrival_place_id) REFERENCES frequent_place(id) ON UPDATE NO ACTION ON DELETE SET NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_start_time_ms_end_time_ms ON inferred_trip(start_time_ms, end_time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_departure_place_id ON inferred_trip(departure_place_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_arrival_place_id ON inferred_trip(arrival_place_id)")
+
+			// 3. Create trip_leg table (FK CASCADE to inferred_trip)
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS trip_leg (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					trip_id INTEGER NOT NULL,
+					sequence_index INTEGER NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					distance_m REAL NOT NULL,
+					transport_mode TEXT NOT NULL,
+					created_at INTEGER NOT NULL,
+					FOREIGN KEY(trip_id) REFERENCES inferred_trip(id) ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+			""".trimIndent())
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_trip_leg_trip_id_sequence_index ON trip_leg(trip_id, sequence_index)")
+
+			android.util.Log.i("AppDatabase", "Migration 14→15: Created frequent_place, inferred_trip, and trip_leg tables")
+		}
+	}
+}
+// Migration to add exploration and achievement tables for Phase 3c.
+val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS exploration_cell (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					cell_token TEXT NOT NULL,
+					level INTEGER NOT NULL,
+					quality INTEGER NOT NULL,
+					first_discovered_at INTEGER NOT NULL,
+					last_visited_at INTEGER NOT NULL,
+					visit_count INTEGER NOT NULL DEFAULT 1,
+					season_bitmask INTEGER NOT NULL DEFAULT 0,
+					center_lat_e7 INTEGER NOT NULL,
+					center_lon_e7 INTEGER NOT NULL,
+					created_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_exploration_cell_cell_token ON exploration_cell(cell_token)")
+
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS exploration_streak (
+					type TEXT NOT NULL PRIMARY KEY,
+					current_count INTEGER NOT NULL DEFAULT 0,
+					best_count INTEGER NOT NULL DEFAULT 0,
+					last_increment_day INTEGER NOT NULL DEFAULT 0,
+					updated_at INTEGER NOT NULL DEFAULT 0
+				)
+			""".trimIndent())
+
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS achievement_progress (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					achievement_id TEXT NOT NULL,
+					current_value INTEGER NOT NULL DEFAULT 0,
+					target_value INTEGER NOT NULL,
+					tier INTEGER NOT NULL DEFAULT 0,
+					unlocked_at INTEGER,
+					updated_at INTEGER NOT NULL DEFAULT 0
+				)
+			""".trimIndent())
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_achievement_id ON achievement_progress(achievement_id)")
+
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS personal_record (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					metric TEXT NOT NULL,
+					value REAL NOT NULL,
+					achieved_at INTEGER NOT NULL,
+					updated_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_personal_record_metric ON personal_record(metric)")
+
+			android.util.Log.i("AppDatabase", "Migration 15->16: Created exploration and achievement tables")
 		}
 	}
 }

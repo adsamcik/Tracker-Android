@@ -17,7 +17,11 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
+import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
+import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
+import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationWifiCountDao
@@ -26,11 +30,10 @@ import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
+import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
+import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
-import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
-import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
-import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
@@ -38,11 +41,14 @@ import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.database.data.FrequentPlaceEntity
+import com.adsamcik.tracker.shared.base.database.data.InferredTripEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.shared.base.database.data.TripLegEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 
 
@@ -50,11 +56,11 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 14 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 15 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 14,
+		version = 15,
 		entities = [
 			// Legacy entities (kept for read-only access during migration period)
 			DatabaseLocation::class,
@@ -73,7 +79,11 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 			TrackerRun::class,
 			SessionSegment::class,
 			DailySummaryEntity::class,
-			LiveStatsEntity::class
+			LiveStatsEntity::class,
+			// Trip inference entities (Phase 3b)
+			FrequentPlaceEntity::class,
+			InferredTripEntity::class,
+			TripLegEntity::class,
 		]
 )
 @TypeConverters(
@@ -183,6 +193,23 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun liveStatsDao(): LiveStatsDao
 
+	/**
+	 * Provides access to frequent place clusters.
+	 */
+	abstract fun frequentPlaceDao(): FrequentPlaceDao
+
+	/**
+	 * Provides access to enriched inferred trips.
+	 */
+	abstract fun inferredTripDao(): InferredTripDao
+
+	/**
+	 * Provides access to trip legs.
+	 */
+	abstract fun tripLegDao(): TripLegDao
+
+
+
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -198,7 +225,8 @@ abstract class AppDatabase : RoomDatabase() {
 						MIGRATION_10_11,
 						MIGRATION_11_12,
 						MIGRATION_12_13,
-						MIGRATION_13_14
+						MIGRATION_13_14,
+						MIGRATION_14_15
 				)
 		}
 
@@ -229,8 +257,12 @@ abstract class AppDatabase : RoomDatabase() {
 				database.sessionSegmentDao().deleteAll()
 				database.dailySummaryDao().deleteAll()
 				database.liveStatsDao().deleteAll()
+
+				// Trip inference tables (FK-aware order: children first)
+				database.tripLegDao().deleteAll()
+				database.inferredTripDao().deleteAll()
+				database.frequentPlaceDao().deleteAll()
 			}
 		}
 	}
 }
-

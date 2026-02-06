@@ -4,13 +4,21 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.FrequentPlaceEntity
+import com.adsamcik.tracker.shared.base.database.data.InferredTripEntity
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.TripLegEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.SegmentEvent
 import com.adsamcik.tracker.stats.api.SegmentSignal
+import com.adsamcik.tracker.stats.engine.place.EnrichedTrip
+import com.adsamcik.tracker.stats.engine.place.PlaceCluster
+import com.adsamcik.tracker.stats.engine.place.PlaceClusterConfig
+import com.adsamcik.tracker.stats.engine.place.PlaceMatchResult
+import com.adsamcik.tracker.stats.engine.place.TripEnricher
 import com.adsamcik.tracker.stats.engine.segment.SessionSegmentDetector
 import com.adsamcik.tracker.stats.engine.segment.SegmentDetectorConfig
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
@@ -46,10 +54,15 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 	private var escalationEngine: PolicyEscalationEngine? = null
 	private var userInitiated: Boolean = false
 	private var config: SegmentDetectorConfig = SegmentDetectorConfig()
+	private val tripEnricher: TripEnricher = TripEnricher(PlaceClusterConfig())
 
 	// Previous location for distance delta calculation
 	private var prevLatE7: Int? = null
 	private var prevLonE7: Int? = null
+
+	// Departure coordinates for trip enrichment
+	private var departureLatE7: Int? = null
+	private var departureLonE7: Int? = null
 
 	/**
 	 * Set the policy escalation engine for GPS locking during trips.
@@ -73,6 +86,8 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 		detector = SessionSegmentDetector(config = config)
 		prevLatE7 = null
 		prevLonE7 = null
+		departureLatE7 = null
+		departureLonE7 = null
 	}
 
 	override suspend fun onDisable(context: Context) {
@@ -83,6 +98,8 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 		detector = null
 		prevLatE7 = null
 		prevLonE7 = null
+		departureLatE7 = null
+		departureLonE7 = null
 		escalationEngine?.clearMinimumTier()
 		scope?.cancel()
 		scope = null
@@ -149,13 +166,17 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 		when (event) {
 			is SegmentEvent.TripStarted -> {
 				escalationEngine?.setMinimumTier(PolicyTier.ACTIVE, "trip detected")
+				departureLatE7 = prevLatE7
+				departureLonE7 = prevLonE7
 			}
 			is SegmentEvent.TripEnded -> {
 				escalationEngine?.clearMinimumTier()
-				persistSegment(event)
+				persistSegmentAndTrip(event)
 			}
 			is SegmentEvent.DepartureCancelled -> {
 				escalationEngine?.clearMinimumTier()
+				departureLatE7 = null
+				departureLonE7 = null
 			}
 			is SegmentEvent.TripUpdated -> {
 				// No action needed for updates
@@ -163,8 +184,9 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 		}
 	}
 
-	private fun persistSegment(event: SegmentEvent.TripEnded) {
+	private fun persistSegmentAndTrip(event: SegmentEvent.TripEnded) {
 		val source = classifySource(event)
+		val now = Time.nowMillis
 
 		val segment = SessionSegment(
 			startTimeMs = event.startTimeMs,
@@ -176,11 +198,99 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 			sampleCount = event.sampleCount,
 			source = source,
 			inferenceVersion = config.inferenceVersion,
-			createdAt = Time.nowMillis,
+			createdAt = now,
 		)
 
+		val depLat = departureLatE7
+		val depLon = departureLonE7
+		val arrLat = prevLatE7
+		val arrLon = prevLonE7
+
+		// Reset departure tracking
+		departureLatE7 = null
+		departureLonE7 = null
+
 		scope?.launch(Dispatchers.IO) {
-			database.sessionSegmentDao().insert(segment)
+			val segmentId = database.sessionSegmentDao().insert(segment)
+
+			// Enrich trip with place matching
+			val clusters = database.frequentPlaceDao().getAll().map { it.toPlaceCluster() }
+			val tripSourceStr = if (userInitiated) "USER_CREATED" else "REALTIME_DETECTION"
+
+			val enriched = tripEnricher.enrich(
+				event = event,
+				departureLatE7 = depLat,
+				departureLonE7 = depLon,
+				arrivalLatE7 = arrLat,
+				arrivalLonE7 = arrLon,
+				existingClusters = clusters,
+				source = tripSourceStr,
+				inferenceVersion = config.inferenceVersion,
+				segmentId = segmentId,
+			)
+
+			persistEnrichedTrip(enriched, now)
+		}
+	}
+
+	private suspend fun persistEnrichedTrip(enriched: EnrichedTrip, now: Long) {
+		val departurePlaceId = enriched.departurePlaceMatch?.let { resolvePlaceMatch(it, now) }
+		val arrivalPlaceId = enriched.arrivalPlaceMatch?.let { resolvePlaceMatch(it, now) }
+
+		val tripEntity = InferredTripEntity(
+			segmentId = enriched.segmentId,
+			startTimeMs = enriched.startTimeMs,
+			endTimeMs = enriched.endTimeMs,
+			distanceM = enriched.distanceM,
+			steps = enriched.steps,
+			primaryActivity = enriched.primaryActivity,
+			transportMode = enriched.transportMode.name,
+			departurePlaceId = departurePlaceId,
+			arrivalPlaceId = arrivalPlaceId,
+			source = enriched.source,
+			inferenceVersion = enriched.inferenceVersion,
+			legCount = enriched.legs.size,
+			createdAt = now,
+		)
+
+		val tripId = database.inferredTripDao().insertAndGetId(tripEntity)
+
+		if (enriched.legs.isNotEmpty()) {
+			val legEntities = enriched.legs.map { leg ->
+				TripLegEntity(
+					tripId = tripId,
+					sequenceIndex = leg.sequenceIndex,
+					startTimeMs = leg.startTimeMs,
+					endTimeMs = leg.endTimeMs,
+					distanceM = leg.distanceM,
+					transportMode = leg.transportMode.name,
+					createdAt = now,
+				)
+			}
+			database.tripLegDao().insertAll(legEntities)
+		}
+	}
+
+	private suspend fun resolvePlaceMatch(match: PlaceMatchResult, now: Long): Long? {
+		return when (match) {
+			is PlaceMatchResult.Matched -> {
+				database.frequentPlaceDao().incrementVisitCount(match.cluster.id, now)
+				match.cluster.id
+			}
+			is PlaceMatchResult.NewPlace -> {
+				database.frequentPlaceDao().insertAndGetId(
+					FrequentPlaceEntity(
+						centerLatE7 = match.latE7,
+						centerLonE7 = match.lonE7,
+						radiusM = 100f,
+						visitCount = 1,
+						firstVisitMs = now,
+						lastVisitMs = now,
+						autoCategory = null,
+						createdAt = now,
+					)
+				)
+			}
 		}
 	}
 
@@ -228,3 +338,11 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 		}
 	}
 }
+
+private fun FrequentPlaceEntity.toPlaceCluster() = PlaceCluster(
+	id = id,
+	centerLatE7 = centerLatE7,
+	centerLonE7 = centerLonE7,
+	radiusM = radiusM,
+	visitCount = visitCount,
+)
