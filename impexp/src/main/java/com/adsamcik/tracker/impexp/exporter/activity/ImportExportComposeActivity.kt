@@ -225,9 +225,9 @@ fun ExportScreen(
                             )
                         )
                     }
-                    if (fileNameErrorState.value != null) {
+                    fileNameErrorState.value?.let { errorText ->
                         Text(
-                            text = fileNameErrorState.value!!,
+                            text = errorText,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(start = 48.dp)

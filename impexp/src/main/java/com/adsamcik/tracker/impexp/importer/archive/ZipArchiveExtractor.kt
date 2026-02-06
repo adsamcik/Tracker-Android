@@ -20,11 +20,20 @@ internal class ZipArchiveExtractor : ArchiveExtractor {
 				var entry = zipStream.nextEntry
 				return sequence {
 					while (entry != null) {
+						// Security: Skip directory entries
 						if (entry.isDirectory) {
+							entry = zipStream.nextEntry
 							continue
 						}
 
-						yield(FileImportStream(zipStream, entry.name))
+						// Security: Prevent zip-slip path traversal attacks
+						val entryName = entry.name
+						if (entryName.contains("..") || entryName.startsWith("/") || entryName.startsWith("\\")) {
+							entry = zipStream.nextEntry
+							continue
+						}
+
+						yield(FileImportStream(zipStream, entryName))
 
 						entry = zipStream.nextEntry
 					}

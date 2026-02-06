@@ -14,4 +14,8 @@ abstract class CoreService : LifecycleService(), CoroutineScope {
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
 
+	override fun onDestroy() {
+		super.onDestroy()
+		job.cancel()
+	}
 }

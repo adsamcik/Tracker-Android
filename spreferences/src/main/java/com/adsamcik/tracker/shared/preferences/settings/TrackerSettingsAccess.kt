@@ -16,6 +16,14 @@ import kotlinx.coroutines.flow.stateIn
  * Plan 5 migration: Removed runBlocking; uses default values until first emission arrives.
  */
 internal object TrackerSettingsAccess {
+    /**
+     * Application-scoped CoroutineScope for settings state collection.
+     *
+     * This scope is intentionally tied to the application's process lifetime.
+     * It lives for the entire duration of the app process and requires no explicit
+     * cancellation, as it will be cleaned up when the process terminates.
+     * Uses [SupervisorJob] to prevent failure propagation between independent operations.
+     */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @Volatile

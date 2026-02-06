@@ -29,7 +29,7 @@ class PreferencesGoalPersistence(context: Context) : GoalPersistence {
 	}
 
 	override suspend fun load(key: String): Int? {
-		val persistedValue = preferences.getInt(key, -1)
+		val persistedValue = preferences.fetchInt(key, -1)
 		return if (persistedValue >= 0) persistedValue else null
 	}
 

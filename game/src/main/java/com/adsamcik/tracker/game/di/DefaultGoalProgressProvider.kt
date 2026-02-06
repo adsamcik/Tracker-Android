@@ -31,9 +31,14 @@ class DefaultGoalProgressProvider(
     private val prefs = Preferences(context)
     private val challengeEnabledKey = context.getString(R.string.settings_game_challenge_enable_key)
     
+    // Sync read for initial value; acceptable at construction time
+    @Suppress("DEPRECATION")
+    private val initialGamificationEnabled = prefs.getBoolean(challengeEnabledKey, true)
+    
     override val goalProgressFlow: StateFlow<GoalProgress> = gameRepository.getStepsSummary()
         .map { stepsSummary ->
-            // Read gamification preference synchronously when steps update
+            // Sync read inside Flow map: acceptable for infrequent updates; avoids combineLatest complexity
+            @Suppress("DEPRECATION")
             val gamificationEnabled = prefs.getBoolean(challengeEnabledKey, true)
             GoalProgress(
                 stepsToday = stepsSummary?.stepsToday ?: 0,
@@ -47,7 +52,7 @@ class DefaultGoalProgressProvider(
             initialValue = GoalProgress(
                 stepsToday = 0,
                 goalSteps = 0,
-                gamificationEnabled = prefs.getBoolean(challengeEnabledKey, true)
+                gamificationEnabled = initialGamificationEnabled
             )
         )
 }

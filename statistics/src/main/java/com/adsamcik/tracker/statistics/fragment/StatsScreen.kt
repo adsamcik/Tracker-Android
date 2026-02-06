@@ -31,10 +31,10 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Route
@@ -324,7 +324,7 @@ private fun getSessionIcon(session: TrackerSession): ImageVector {
     return when (session.sessionActivityId) {
         -2L -> Icons.AutoMirrored.Filled.DirectionsWalk // Walking
         -3L -> Icons.AutoMirrored.Filled.DirectionsRun  // Running
-        -4L -> Icons.Filled.DirectionsBike              // Bicycle
+        -4L -> Icons.AutoMirrored.Filled.DirectionsBike // Bicycle
         -5L, -34L -> Icons.Filled.DirectionsCar         // Vehicle / Land Vehicle
         -26L -> Icons.Filled.Sailing                    // Water Vehicle
         -31L -> Icons.Filled.Flight                     // Air Vehicle

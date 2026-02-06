@@ -58,7 +58,9 @@ class ChallengeSessionReceiver : BroadcastReceiver(), CoroutineScope {
 						source = CHALLENGE_LOG_SOURCE
 				)
 		)
-		//The receiver might be subscribed even though the challenges are disabled. Subscribing on demand could be really complicated.
+		// TODO: Consider caching enabled state via Flow in a companion/singleton to avoid sync read.
+		// BroadcastReceiver.onReceive is non-suspend; sync read required for immediate gate check.
+		@Suppress("DEPRECATION")
 		if (Preferences.getPref(context).getBooleanRes(
 						R.string.settings_game_challenge_enable_key,
 						R.string.settings_game_challenge_enable_default

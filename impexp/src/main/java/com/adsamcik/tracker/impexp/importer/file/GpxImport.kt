@@ -93,20 +93,27 @@ internal class GpxImport : FileImport {
 	) {
 		var lastLocation: Location? = null
 
-		val locationDao = database.locationDao()
+		val locationList = ArrayList<DatabaseLocation>(segment.points.size)
+
 		segment.points().forEach { waypoint ->
-			val location = saveWaypointToDb(locationDao, waypoint)
+			val databaseLocation = createDatabaseLocation(waypoint) ?: return@forEach
+			locationList.add(databaseLocation)
+
+			val location = databaseLocation.location
 
 			val lastLocationTmp = lastLocation
-			if (lastLocationTmp != null && location != null) {
+			if (lastLocationTmp != null) {
 				val distance = location.distance(lastLocationTmp, LengthUnit.Meter)
 				session.distanceInM += distance.toFloat()
 			}
 
-			if (location != null) {
-				session.collections++
-				lastLocation = location
-			}
+			session.collections++
+			lastLocation = location
+		}
+
+		val locationDao = database.locationDao()
+		locationList.chunked(100).forEach {
+			locationDao.insert(it)
 		}
 
 		saveSession(database, session)
@@ -120,7 +127,7 @@ internal class GpxImport : FileImport {
 		sessionDao.insert(session)
 	}
 
-	private fun saveWaypointToDb(locationDao: LocationDataDao, waypoint: WayPoint): Location? {
+	private fun createDatabaseLocation(waypoint: WayPoint): DatabaseLocation? {
 		if (!waypoint.time.isPresent) return null
 
 		val time = waypoint.time.get().toEpochMilli()
@@ -129,8 +136,7 @@ internal class GpxImport : FileImport {
 		val altitude = waypoint.elevation.orElse(null)?.toDouble()
 		val speed = waypoint.speed.orElse(null)?.to(Speed.Unit.METERS_PER_SECOND)?.toFloat()
 		val location = Location(time, latitude, longitude, altitude, null, null, speed, null)
-		locationDao.insert(DatabaseLocation(location, ActivityInfo.UNKNOWN))
-		return location
+		return DatabaseLocation(location, ActivityInfo.UNKNOWN)
 	}
 }
 

@@ -384,8 +384,8 @@ class StatisticDataManager : CoroutineScope {
 
 			if (!skipCache) {
 				val moshi = buildMoshi()
-
-				cacheData(moshi, cacheDao!!, sessionId, newList)
+				val dao = requireNotNull(cacheDao) { "cacheDao must be initialized when skipCache is false" }
+				cacheData(moshi, dao, sessionId, newList)
 
 				val cachedStats = cached.mapNotNull { cacheData ->
 					val consumer = consumers.find { it.providerId == cacheData.providerId }

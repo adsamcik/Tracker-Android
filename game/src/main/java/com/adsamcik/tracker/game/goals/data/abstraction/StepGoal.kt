@@ -35,6 +35,8 @@ abstract class StepGoal(persistence: GoalPersistence) : BaseGoal(persistence) {
 
 	@CallSuper
 	override suspend fun onEnableInternal(context: Context) {
+		// Initial sync read for immediate availability; Flow subscription follows for updates
+		@Suppress("DEPRECATION")
 		target = Preferences.getPref(context).getIntResString(
 			goalPreferenceKeyRes,
 			goalPreferenceDefaultRes

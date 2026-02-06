@@ -12,9 +12,18 @@ import java.lang.ref.WeakReference
 
 /**
  * Object that provides color updates to maps.
+ *
+ * This is an application-scoped singleton. The internal [CoroutineScope] has application
+ * lifetime and is lazily cleaned up when all map listeners are removed via [destroy].
+ * Since this is a process-global singleton, the scope persists for the app's lifetime
+ * in typical usage.
  */
 object ColorMap {
-	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+	/**
+	 * Application-scoped coroutine scope for background style operations.
+	 * Cancelled in [destroy] when all listeners are removed.
+	 */
+	private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 	private val styleChangeListeners = mutableListOf<WeakReference<GoogleMap>>()
 	private var resources: Resources? = null
 
@@ -32,12 +41,14 @@ object ColorMap {
 	}
 
 	private fun destroy() {
-		scope.launch {
-			synchronized(styleChangeListeners) {
-				if (styleChangeListeners.isEmpty()) {
-					resources = null
-					activeMapStyle = null
-				}
+		synchronized(styleChangeListeners) {
+			if (styleChangeListeners.isEmpty()) {
+				resources = null
+				activeMapStyle = null
+				activeMapStyleRes = 0
+				scope.cancel()
+				// Recreate scope for potential re-initialization
+				scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 			}
 		}
 	}

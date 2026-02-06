@@ -65,6 +65,8 @@ object Logger : CoroutineScope {
     
     private fun logInternal(data: LogData) {
         val prefs = preferences ?: return
+        // Sync read acceptable: called after async initialization; latency not critical for log gating
+        @Suppress("DEPRECATION")
         if (prefs.getBooleanRes(
                 R.string.settings_log_enabled_key,
                 R.string.settings_log_enabled_default
@@ -80,6 +82,8 @@ object Logger : CoroutineScope {
     fun logWithPreference(data: LogData, @StringRes key: Int, @StringRes default: Int) {
         if (isInitialized) {
             preferences?.let { prefs ->
+               // Sync read acceptable: called after async initialization; latency not critical for log gating
+               @Suppress("DEPRECATION")
                if (prefs.getBooleanRes(key, default)) {
                    log(data)
                }
@@ -101,6 +105,8 @@ object Logger : CoroutineScope {
                  while (!isInitialized) {
                      kotlinx.coroutines.delay(100)
                  }
+                 // Sync read acceptable: called after async initialization completes
+                 @Suppress("DEPRECATION")
                  if (preferences?.getBooleanRes(key, default) == true) {
                      log(data)
                  }

@@ -53,9 +53,9 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 
 		if (results.isEmpty()) return@coroutineScope Result.success()
 
-		val activityRecognitionResult = results.maxByOrNull {
-			it.first.precisionConfidence * it.second.confidence
-		}!!
+		val activityRecognitionResult = requireNotNull(
+			results.maxByOrNull { it.first.precisionConfidence * it.second.confidence }
+		) { "results was checked non-empty but maxByOrNull returned null" }
 
 		val mutableSession = MutableTrackerSession(session).apply {
 			sessionActivityId = activityRecognitionResult.second.requireRecognizedActivity.id

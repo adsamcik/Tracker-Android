@@ -41,6 +41,7 @@ open class Preferences {
 
     protected fun snapshot(): DataPreferences = LegacyPreferenceStore.snapshot(appContext)
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeString or suspend getString", ReplaceWith("getString(key, default)"))
     fun getStringRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): String {
         val key = getKey(keyRes)
@@ -53,6 +54,7 @@ open class Preferences {
         return fetchString(key)
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeString or suspend getString", ReplaceWith("getString(key)"))
     fun getStringResSync(@StringRes keyRes: Int): String? {
         val key = getKey(keyRes)
@@ -63,6 +65,7 @@ open class Preferences {
         return observeString(key, default).first()
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeString or suspend getString", ReplaceWith("observeString(key, default).first()"))
     fun getString(key: String, default: String): String {
         return getStringSync(key) ?: default
@@ -81,6 +84,7 @@ open class Preferences {
         return LegacyPreferenceStore.stringFlow(appContext, key, default)
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeInt or suspend getInt", ReplaceWith("getInt(key, default)"))
     fun getIntRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Int {
         val key = getKey(keyRes)
@@ -94,6 +98,7 @@ open class Preferences {
         return fetchInt(key, default)
     }
 
+    @Suppress("DEPRECATION")
     fun getIntResValue(@StringRes keyRes: Int, default: Int): Int {
         val key = getKey(keyRes)
         return getInt(key, default)
@@ -105,6 +110,7 @@ open class Preferences {
         return fetchInt(key, default)
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeInt or suspend getInt", ReplaceWith("getIntResString(keyRes, defaultRes)"))
     fun getIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
         val key = getKey(keyRes)
@@ -112,10 +118,12 @@ open class Preferences {
         return getInt(key, default)
     }
 
+    @Suppress("DEPRECATION")
     fun getStringAsIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
         return getStringRes(keyRes, defaultRes).toInt()
     }
 
+    @Suppress("DEPRECATION")
     fun getStringAsInt(key: String, default: Int = 0): Int {
         return getString(key, default.toString()).toInt()
     }
@@ -124,6 +132,7 @@ open class Preferences {
         return observeInt(key, default).first()
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeInt or suspend getInt", ReplaceWith("observeInt(key, default).first()"))
     fun getInt(key: String, default: Int = 0): Int {
         return getIntSync(key, default)
@@ -143,12 +152,14 @@ open class Preferences {
         return fetchBoolean(getKey(keyRes), default)
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeBoolean or suspend getBoolean", ReplaceWith("getBooleanRes(keyRes, defaultRes)"))
     fun getBooleanRes(@StringRes keyRes: Int, @StringRes defaultRes: Int): Boolean {
         val default = resources.getString(defaultRes).toBoolean()
         return getBoolean(getKey(keyRes), default)
     }
 
+    @Suppress("DEPRECATION")
     fun getBooleanRes(@StringRes keyRes: Int, default: Boolean): Boolean {
         val key = getKey(keyRes)
         return getBoolean(key, default)
@@ -158,6 +169,7 @@ open class Preferences {
         return observeBoolean(key, default).first()
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeBoolean or suspend getBoolean", ReplaceWith("observeBoolean(key, default).first()"))
     fun getBoolean(key: String, default: Boolean = false): Boolean {
         return getBooleanSync(key, default)
@@ -172,18 +184,21 @@ open class Preferences {
         return LegacyPreferenceStore.booleanFlow(appContext, key, default)
     }
 
+    @Suppress("DEPRECATION")
     fun getColorRes(@StringRes keyRes: Int, @ColorRes defaultRes: Int, theme: Resources.Theme? = null): Int {
         val key = getKey(keyRes)
         val color = ResourcesCompat.getColor(resources, defaultRes, theme)
         return getInt(key, color)
     }
 
+    @Suppress("DEPRECATION")
     fun getLongRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Long {
         val key = getKey(keyRes)
         val default = resources.getInteger(defaultRes).toLong()
         return getLong(key, default)
     }
 
+    @Suppress("DEPRECATION")
     fun getLongResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Long {
         val key = getKey(keyRes)
         val default = resources.getString(defaultRes).toLong()
@@ -194,6 +209,7 @@ open class Preferences {
         return observeLong(key, default).first()
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeLong or suspend getLong", ReplaceWith("observeLong(key, default).first()"))
     fun getLong(key: String, default: Long = 0L): Long {
         return getLongSync(key, default)
@@ -214,6 +230,7 @@ open class Preferences {
         return fetchFloat(key, default)
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeFloat or suspend getFloat", ReplaceWith("getFloatResString(keyRes, defaultRes)"))
     fun getFloatResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Float {
         val key = getKey(keyRes)
@@ -221,6 +238,7 @@ open class Preferences {
         return getFloat(key, default)
     }
 
+    @Suppress("DEPRECATION")
     fun getFloatRes(@StringRes keyRes: Int, @DimenRes defaultRes: Int): Float {
         val key = getKey(keyRes)
         val default = ResourcesCompat.getFloat(resources, defaultRes)
@@ -231,6 +249,7 @@ open class Preferences {
         return observeFloat(key, default).first()
     }
 
+    @Suppress("DEPRECATION")
     @Deprecated("Use observeFloat or suspend getFloat", ReplaceWith("observeFloat(key, default).first()"))
     fun getFloat(key: String, default: Float = Float.NaN): Float {
         return getFloatSync(key, default)
@@ -245,6 +264,7 @@ open class Preferences {
         return LegacyPreferenceStore.floatFlow(appContext, key, default)
     }
 
+    @Suppress("DEPRECATION")
     fun getDouble(key: String, default: Double = Double.NaN): Double {
         val bits = getLong(key, default.toRawBits())
         return Double.fromBits(bits)

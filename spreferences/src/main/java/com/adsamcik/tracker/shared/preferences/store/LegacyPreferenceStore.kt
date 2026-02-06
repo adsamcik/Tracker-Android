@@ -31,6 +31,14 @@ import java.util.concurrent.atomic.AtomicReference
  */
 internal object LegacyPreferenceStore {
 
+    /**
+     * Application-scoped CoroutineScope for DataStore operations.
+     *
+     * This scope is intentionally tied to the application's process lifetime.
+     * It lives for the entire duration of the app process and requires no explicit
+     * cancellation, as it will be cleaned up when the process terminates.
+     * Uses [SupervisorJob] to prevent failure propagation between independent operations.
+     */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val stateFlowRef = AtomicReference<StateFlow<Preferences>?>(null)
@@ -76,12 +84,16 @@ internal object LegacyPreferenceStore {
         }
     }
 
+    /**
+     * Suspend version of [edit] that awaits completion.
+     * Used when caller needs to ensure operations are persisted before continuing.
+     */
     suspend fun editSuspend(context: Context, operations: List<(androidx.datastore.preferences.core.MutablePreferences) -> Unit>) {
         if (operations.isEmpty()) return
         val appContext = context.applicationContext
         val ops = operations.toList()
         appContext.legacyDataStore.edit { prefs ->
-             ops.forEach { it(prefs) }
+            ops.forEach { it(prefs) }
         }
     }
 

@@ -171,6 +171,9 @@ class DefaultGoalsSettingsRepository(
         }
     }
 
+    // Legacy migration helper: reads from SharedPreferences for one-time DataStore migration.
+    // Sync reads acceptable here as this runs only during migration or as fallback.
+    @Suppress("DEPRECATION")
     private fun readFromPreferences(): GoalsSettingsState {
         val notificationsEnabled = prefs.getBoolean(
             context.getString(R.string.settings_game_goals_notification_enabled_key),
