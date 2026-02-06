@@ -35,11 +35,11 @@ internal class DatabaseImport : FileImport {
 			stream: FileImportStream
 	) {
 		val databaseTmpFile = File.createTempFile(stream.fileName, null)
-		databaseTmpFile.outputStream().use {
-			stream.copyTo(it)
-		}
 		var fromDatabase: SQLiteDatabase? = null
 		try {
+			databaseTmpFile.outputStream().use {
+				stream.copyTo(it)
+			}
 			fromDatabase = SQLiteDatabase.openDatabase(
 					databaseTmpFile.path,
 					null,
