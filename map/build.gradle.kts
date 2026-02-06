@@ -140,6 +140,8 @@ dependencies {
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.espresso)
+	androidTestImplementation(libs.mockito.android)
+	androidTestImplementation(libs.mockito.kotlin)
 	androidTestImplementation(libs.mockk.android)
 	androidTestImplementation(project(":testing-common"))
 }

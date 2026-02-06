@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.extension
 
 import java.time.Instant
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoField
 
@@ -15,11 +16,14 @@ fun ZonedDateTime.isBeforeOrEqual(other: ZonedDateTime): Boolean = isBefore(othe
 fun ZonedDateTime.isAfterOrEqual(other: ZonedDateTime): Boolean = isAfter(other) || isEqual(other)
 
 /**
- * Checks if two instants represent the same day
+ * Checks if two instants represent the same day in UTC
  */
-fun Instant.isTheSameDay(other: Instant): Boolean =
-		get(ChronoField.DAY_OF_YEAR) == other.get(ChronoField.DAY_OF_YEAR) &&
-				get(ChronoField.YEAR) == other.get(ChronoField.YEAR)
+fun Instant.isTheSameDay(other: Instant): Boolean {
+	val thisZdt = this.atZone(ZoneOffset.UTC)
+	val otherZdt = other.atZone(ZoneOffset.UTC)
+	return thisZdt.get(ChronoField.DAY_OF_YEAR) == otherZdt.get(ChronoField.DAY_OF_YEAR) &&
+			thisZdt.get(ChronoField.YEAR) == otherZdt.get(ChronoField.YEAR)
+}
 
 
 /**

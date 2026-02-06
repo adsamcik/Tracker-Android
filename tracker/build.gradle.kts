@@ -150,14 +150,17 @@ dependencies {
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.turbine)
+	testImplementation(libs.androidx.work.testing)
 	testImplementation(libs.kotest.assertions.core)
-	
+
+	// Instrumented Tests
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
 	androidTestImplementation(libs.uiautomator)
 	androidTestImplementation(libs.androidx.test.ext.junit)
 	androidTestImplementation(libs.arch.core.testing)
 	androidTestImplementation(libs.espresso)
+	androidTestImplementation(libs.mockk.android)
 	androidTestImplementation(project(":testing-common"))
 }
 
