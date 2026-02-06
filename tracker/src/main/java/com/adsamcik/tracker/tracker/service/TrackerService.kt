@@ -43,6 +43,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
+import com.adsamcik.tracker.tracker.component.consumer.post.SessionSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
@@ -350,6 +351,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(RawLocationWriter())
 			add(StepIntervalWriter())
 			add(ActivitySnapshotWriter())
+			// Phase 2: Trip detection + segment persistence
+			add(SessionSegmentWriter().also {
+				it.setEscalationEngine(escalationEngine)
+				it.setUserInitiated(isSessionUserInitiated)
+			})
 		}.forEach { it.onEnable(this) }
 	}
 
