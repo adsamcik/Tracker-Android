@@ -57,6 +57,10 @@
 
     <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
 
+    <string name="settings_map_basemap_path_key">map.basemap.path</string>
+    <string name="settings_map_basemap_title">Basemap</string>
+    <string name="settings_map_basemap_custom">Custom (tap to reset)</string>
+    <string name="settings_map_basemap_default">Default (z0-z6 overview)</string>
     <string name="settings_map_advanced_section_title">Advanced Settings</string>
     <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
     <string name="settings_map_max_heat_title">Max heat after visits</string>
