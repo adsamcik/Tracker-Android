@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 14         │ 385         │ 🚧 UNRELEASED - Aggregator/summary       │
+ * │            │             │    tables (daily_summary, live_stats)    │
  * │ 13         │ 385         │ 🚧 UNRELEASED - Sessionless tracking     │
  * │            │             │    foundation (7 new tables)             │
  * │ 12         │ 384         │ ✅ RELEASED - Last session-based schema  │
@@ -499,6 +501,48 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 
 			// Log successful migration (visible in logcat during migration)
 			android.util.Log.i("AppDatabase", "Migration 12→13: Migrated $sampleCount location samples successfully")
+		}
+	}
+}
+
+// Migration to add aggregator and live stats tables for Phase 3 (streaming aggregator/summary).
+// Creates daily_summary (materialized daily aggregates) and live_stats (single-row dashboard stats).
+val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// 1. Create daily_summary table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS daily_summary (
+					date_epoch_day INTEGER NOT NULL,
+					total_distance_m REAL NOT NULL,
+					total_steps INTEGER NOT NULL,
+					total_duration_ms INTEGER NOT NULL,
+					trip_count INTEGER NOT NULL,
+					active_tracking_ms INTEGER NOT NULL,
+					last_updated_ms INTEGER NOT NULL,
+					created_at INTEGER NOT NULL,
+					PRIMARY KEY(date_epoch_day)
+				)
+			""".trimIndent())
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_daily_summary_date_epoch_day ON daily_summary(date_epoch_day)")
+
+			// 2. Create live_stats table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS live_stats (
+					id INTEGER NOT NULL,
+					date_epoch_day INTEGER NOT NULL,
+					session_distance_m REAL NOT NULL,
+					session_steps INTEGER NOT NULL,
+					session_duration_ms INTEGER NOT NULL,
+					day_total_distance_m REAL NOT NULL,
+					day_total_steps INTEGER NOT NULL,
+					day_total_duration_ms INTEGER NOT NULL,
+					last_updated_ms INTEGER NOT NULL,
+					PRIMARY KEY(id)
+				)
+			""".trimIndent())
+
+			android.util.Log.i("AppDatabase", "Migration 13→14: Created daily_summary and live_stats tables")
 		}
 	}
 }

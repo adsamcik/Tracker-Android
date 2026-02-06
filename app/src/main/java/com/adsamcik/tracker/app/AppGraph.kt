@@ -86,7 +86,12 @@ class AppGraph(
     
     // Dashboard providers (application-scoped)
     val dailySummaryProvider: DailySummaryProvider by lazy {
-        DefaultDailySummaryProvider(database.sessionDao(), dispatchers.io)
+        DefaultDailySummaryProvider(
+            database.sessionDao(),
+            database.dailySummaryDao(),
+            database.liveStatsDao(),
+            dispatchers.io
+        )
     }
     
     val dailyPointsProvider: DailyPointsProvider by lazy {

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.maintenance.DataRetentionWorker
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
+import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.activity.ActivityModuleInitializer
 import com.adsamcik.tracker.tracker.module.TrackerModuleInitializer
 import com.adsamcik.tracker.game.GameModuleInitializer
@@ -128,6 +129,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 			// In unit tests (Robolectric), WorkManager might not be initialized yet.
 			// Tests that need it will initialize WorkManager manually.
 			Log.w("App", "Skipping DataRetentionWorker.initialize during unit tests: ${e.message}")
+		}
+		// Schedule daily summary materialization (stats rearchitecture Phase 3)
+		try {
+			DailySummaryMaterializationWorker.schedule(this)
+		} catch (e: IllegalStateException) {
+			// In unit tests (Robolectric), WorkManager might not be initialized yet.
+			Log.w("App", "Skipping DailySummaryMaterializationWorker.schedule during unit tests: ${e.message}")
 		}
 	}
 

@@ -29,12 +29,16 @@ import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
+import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
+import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
+import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
@@ -46,11 +50,11 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 13 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 14 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 13,
+		version = 14,
 		entities = [
 			// Legacy entities (kept for read-only access during migration period)
 			DatabaseLocation::class,
@@ -67,7 +71,9 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 			CellSample::class,
 			WifiObservation::class,
 			TrackerRun::class,
-			SessionSegment::class
+			SessionSegment::class,
+			DailySummaryEntity::class,
+			LiveStatsEntity::class
 		]
 )
 @TypeConverters(
@@ -167,6 +173,16 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun tripDao(): TripDao
 
+	/**
+	 * Provides access to materialized daily summary data.
+	 */
+	abstract fun dailySummaryDao(): DailySummaryDao
+
+	/**
+	 * Provides access to live tracking stats (single-row table).
+	 */
+	abstract fun liveStatsDao(): LiveStatsDao
+
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -181,7 +197,8 @@ abstract class AppDatabase : RoomDatabase() {
 						MIGRATION_9_10,
 						MIGRATION_10_11,
 						MIGRATION_11_12,
-						MIGRATION_12_13
+						MIGRATION_12_13,
+						MIGRATION_13_14
 				)
 		}
 
@@ -210,6 +227,8 @@ abstract class AppDatabase : RoomDatabase() {
 				database.wifiObservationDao().deleteAll()
 				database.trackerRunDao().deleteAll()
 				database.sessionSegmentDao().deleteAll()
+				database.dailySummaryDao().deleteAll()
+				database.liveStatsDao().deleteAll()
 			}
 		}
 	}

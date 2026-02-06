@@ -45,6 +45,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SessionSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
+import com.adsamcik.tracker.tracker.component.consumer.post.StreamingAggregatorWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
@@ -356,6 +357,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				it.setEscalationEngine(escalationEngine)
 				it.setUserInitiated(isSessionUserInitiated)
 			})
+			// Phase 3: Real-time stats aggregation + daily summary
+			add(StreamingAggregatorWriter())
 		}.forEach { it.onEnable(this) }
 	}
 

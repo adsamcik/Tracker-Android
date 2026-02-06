@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.di
 
 import androidx.compose.runtime.compositionLocalOf
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -70,6 +71,13 @@ interface DailySummaryProvider {
      * @return DailySummary or null if no sessions today
      */
     suspend fun fetchTodaySummary(): DailySummary?
+
+    /**
+     * Observe today's live stats as a Flow.
+     * Emits updates every ~30s during active tracking.
+     * Returns a flow that emits null when no data is available.
+     */
+    fun observeTodayLive(): Flow<DailySummary?>
 }
 
 val LocalDailySummaryProvider = compositionLocalOf<DailySummaryProvider> {
