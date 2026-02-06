@@ -5,14 +5,22 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
+import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
-	@OptIn(ExperimentalStdlibApi::class)
 	override fun onReceive(context: Context, intent: Intent) {
 		if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-			val lockManager = (context.applicationContext as Application).appGraph.lockManager
-			lockManager.initializeFromPersistence(context)
-			ActivityWatcherService.poke(context)
+			val app = context.applicationContext as Application
+			val appGraph = app.appGraph
+			val pendingResult = goAsync()
+			appGraph.appScope.launch {
+				try {
+					appGraph.lockManager.initializeFromPersistence(context)
+					ActivityWatcherService.poke(context)
+				} finally {
+					pendingResult.finish()
+				}
+			}
 		}
 	}
 }

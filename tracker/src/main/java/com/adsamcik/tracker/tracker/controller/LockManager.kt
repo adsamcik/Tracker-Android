@@ -38,10 +38,10 @@ interface LockManager {
     val isChargeLocked: Boolean
     
     /**
-     * Initialize lock state from persistent storage (SharedPreferences).
+     * Initialize lock state from persistent storage.
      * Called during app startup to restore locks across sessions.
      */
-    fun initializeFromPersistence(context: Context)
+    suspend fun initializeFromPersistence(context: Context)
     
     /**
      * Locks tracking until device is connected to charger.

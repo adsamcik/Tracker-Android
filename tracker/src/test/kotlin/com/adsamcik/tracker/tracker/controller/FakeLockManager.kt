@@ -43,7 +43,7 @@ class FakeLockManager : LockManager {
     override val isChargeLocked: Boolean
         get() = _isChargeLocked
     
-    override fun initializeFromPersistence(context: Context) {
+    override suspend fun initializeFromPersistence(context: Context) {
         // No-op in fake (tests control state directly)
     }
     

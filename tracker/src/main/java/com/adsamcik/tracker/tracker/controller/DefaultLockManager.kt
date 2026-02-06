@@ -33,7 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
  * 1. Time lock: Expires after specified duration (AlarmManager-based)
  * 2. Recharge lock: Expires when device charges (WorkManager-based)
  * 
- * Persists lock state to SharedPreferences for cross-session restoration.
+ * Persists lock state to DataStore for cross-session restoration.
  */
 class DefaultLockManager(
     private val trackerServiceController: TrackerServiceController
@@ -66,25 +66,19 @@ class DefaultLockManager(
         }
     }
     
-    // TODO: Preference Migration - initializeFromPersistence uses deprecated sync access.
-    //  Options:
-    //  1) Make this a suspend function and call from a coroutine context
-    //  2) Convert to Flow-based observation and initialize reactively
-    //  Note: The method also uses getLongResString which may need similar treatment.
-    @Suppress("DEPRECATION")
-    override fun initializeFromPersistence(context: Context) {
+    override suspend fun initializeFromPersistence(context: Context) {
         val preferences = Preferences.getPref(context)
-        
+
+        val timeKey = context.getString(R.string.settings_disabled_time_key)
+        val timeDefault = context.getString(R.string.settings_disabled_time_default).toLong()
         setTimeLock(
             context,
-            preferences.getLongResString(
-                R.string.settings_disabled_time_key,
-                R.string.settings_disabled_time_default
-            )
+            preferences.fetchLong(timeKey, timeDefault)
         )
+
         setRechargeLock(
             context,
-            preferences.getBooleanRes(
+            preferences.fetchBooleanRes(
                 R.string.settings_disabled_recharge_key,
                 R.string.settings_disabled_recharge_default
             )
