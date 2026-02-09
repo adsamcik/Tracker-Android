@@ -9,12 +9,13 @@ import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
 import com.adsamcik.tracker.stats.engine.exploration.CellDiscovery
 import com.adsamcik.tracker.stats.engine.exploration.CellDiscoveryEngine
 import com.adsamcik.tracker.stats.engine.exploration.CellDiscoveryConfig
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -45,7 +46,7 @@ internal class ExplorationWriter : PostTrackerComponent {
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
-		scope = CoroutineScope(Job() + Dispatchers.Default)
+		scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 		// Load known tokens from DB to avoid re-marking as new
 		val knownTokens = database.explorationCellDao()
@@ -106,8 +107,12 @@ internal class ExplorationWriter : PostTrackerComponent {
 
 	private fun persistDiscovery(discovery: CellDiscovery, now: Long) {
 		scope?.launch(Dispatchers.IO) {
-			writeMutex.withLock {
-				persistDiscoverySync(discovery, now)
+			try {
+				writeMutex.withLock {
+					persistDiscoverySync(discovery, now)
+				}
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				ReporterFacade.report(e)
 			}
 		}
 	}

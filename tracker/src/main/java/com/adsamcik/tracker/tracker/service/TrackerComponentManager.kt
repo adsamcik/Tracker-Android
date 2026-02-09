@@ -277,9 +277,9 @@ internal class TrackerComponentManager @Inject constructor() {
         dataProducerManager?.onDisable()
         trackingPolicyManager?.stop()
         
-        preComponentList.forEach { it.onDisable(context) }
-        dataComponentList.forEach { it.onDisable(context) }
-        postComponentList.forEach { it.onDisable(context) }
+        preComponentList.forEach { tryWithReport { it.onDisable(context) } }
+        dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
+        postComponentList.forEach { tryWithReport { it.onDisable(context) } }
         
         persistenceErrorCollector = null
     }

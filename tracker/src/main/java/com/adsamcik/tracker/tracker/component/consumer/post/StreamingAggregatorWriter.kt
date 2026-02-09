@@ -7,13 +7,14 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.stats.api.AggregatorSignal
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.engine.aggregator.StreamingAggregator
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -46,7 +47,7 @@ internal class StreamingAggregatorWriter : PostTrackerComponent {
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
-		scope = CoroutineScope(Job() + Dispatchers.Default)
+		scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 		// Create aggregator and seed with today's existing data
 		val now = Time.nowMillis
@@ -118,7 +119,11 @@ internal class StreamingAggregatorWriter : PostTrackerComponent {
 		val now = Time.nowMillis
 		if (now - lastFlushMs >= FLUSH_INTERVAL_MS) {
 			scope?.launch(Dispatchers.IO) {
-				flushSnapshot()
+				try {
+					flushSnapshot()
+				} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+					ReporterFacade.report(e)
+				}
 			}
 			lastFlushMs = now
 		}

@@ -44,6 +44,9 @@ interface ExplorationCellDao {
 	@Query("SELECT * FROM exploration_cell WHERE level = :level ORDER BY first_discovered_at DESC LIMIT :limit")
 	suspend fun getRecentAtLevel(level: Int, limit: Int): List<ExplorationCellEntity>
 
+	@Query("SELECT * FROM exploration_cell WHERE level = :level ORDER BY first_discovered_at DESC LIMIT :limit")
+	fun getRecentAtLevelFlow(level: Int, limit: Int): Flow<List<ExplorationCellEntity>>
+
 	/**
 	 * Returns all distinct season_bitmask values across cells at the given level.
 	 * Caller should bitwise-OR these together to determine which seasons have been explored
@@ -51,6 +54,9 @@ interface ExplorationCellDao {
 	 */
 	@Query("SELECT DISTINCT season_bitmask FROM exploration_cell WHERE level = :level")
 	suspend fun getDistinctSeasonBitmasks(level: Int): List<Int>
+
+	@Query("SELECT DISTINCT season_bitmask FROM exploration_cell WHERE level = :level")
+	fun getDistinctSeasonBitmasksFlow(level: Int): Flow<List<Int>>
 
 	@Query("DELETE FROM exploration_cell")
 	fun deleteAll()

@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.controller
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.stats.api.PolicyState
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,5 +79,13 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     override fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?) {
         _persistenceErrorFlow = errorFlow
+    }
+
+    override fun updatePolicyTier(tier: PolicyTier) {
+        _policyTierFlow.value = tier
+    }
+
+    override fun updatePolicyState(state: PolicyState?) {
+        _policyStateFlow.value = state
     }
 }

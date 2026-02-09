@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -68,7 +69,9 @@ class ExplorationViewModel @Inject constructor(
 			seasonsCovered = streakData.seasonsCovered,
 			recentDiscoveries = streakData.recentCells,
 		)
-	}.stateIn(viewModelScope, SharingStarted.Lazily, ExplorationState())
+	}
+		.catch { emit(ExplorationState()) }
+		.stateIn(viewModelScope, SharingStarted.Lazily, ExplorationState())
 
 	val achievementState: StateFlow<AchievementSummaryState> =
 		achievementProgressDao.getAllFlow()
@@ -93,6 +96,7 @@ class ExplorationViewModel @Inject constructor(
 					nextClosest = nextClosest,
 				)
 			}
+			.catch { emit(AchievementSummaryState()) }
 			.flowOn(Dispatchers.IO)
 			.stateIn(viewModelScope, SharingStarted.Lazily, AchievementSummaryState())
 
@@ -108,25 +112,26 @@ class ExplorationViewModel @Inject constructor(
 	 * Reactive flow that re-emits when the streak row changes.
 	 * Season + recent cell data is loaded alongside each streak update.
 	 */
-	private fun streakFlow() = explorationStreakDao.getByTypeFlow(STREAK_TYPE_DAILY)
-		.map { streak ->
-			val seasonBitmasks = explorationCellDao.getDistinctSeasonBitmasks(EXPLORATION_LEVEL)
-			val combinedBitmask = seasonBitmasks.fold(0) { acc, mask -> acc or mask }
-			val seasonCount = Integer.bitCount(combinedBitmask)
-			val recentEntities = explorationCellDao.getRecentAtLevel(EXPLORATION_LEVEL, RECENT_LIMIT)
-			StreakData(
-				currentStreak = streak?.currentCount ?: 0,
-				bestStreak = streak?.bestCount ?: 0,
-				seasonsCovered = seasonCount,
-				recentCells = recentEntities.map { entity ->
-					RecentCell(
-						token = entity.cellToken,
-						quality = entity.quality,
-						discoveredAt = entity.firstDiscoveredAt,
-					)
-				},
-			)
-		}.flowOn(Dispatchers.IO)
+	private fun streakFlow() = combine(
+		explorationStreakDao.getByTypeFlow(STREAK_TYPE_DAILY),
+		explorationCellDao.getDistinctSeasonBitmasksFlow(EXPLORATION_LEVEL),
+		explorationCellDao.getRecentAtLevelFlow(EXPLORATION_LEVEL, RECENT_LIMIT),
+	) { streak, seasonBitmasks, recentEntities ->
+		val combinedBitmask = seasonBitmasks.fold(0) { acc, mask -> acc or mask }
+		val seasonCount = Integer.bitCount(combinedBitmask)
+		StreakData(
+			currentStreak = streak?.currentCount ?: 0,
+			bestStreak = streak?.bestCount ?: 0,
+			seasonsCovered = seasonCount,
+			recentCells = recentEntities.map { entity ->
+				RecentCell(
+					token = entity.cellToken,
+					quality = entity.quality,
+					discoveredAt = entity.firstDiscoveredAt,
+				)
+			},
+		)
+	}.flowOn(Dispatchers.IO)
 
 	companion object {
 		/** S2 cell level used for exploration (approx 0.8 km^2 per cell). */

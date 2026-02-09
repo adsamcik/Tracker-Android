@@ -8,6 +8,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import kotlinx.coroutines.Dispatchers
@@ -25,17 +26,29 @@ class RetentionPipelineWorker(
 
         if (!config.autoPurgeEnabled) return Result.success()
 
-        val db = AppDatabase.database(applicationContext)
-        val now = System.currentTimeMillis()
+        if (config.exportBeforePurge) {
+            ReporterFacade.report(
+                IllegalStateException("exportBeforePurge is enabled but not yet implemented; skipping purge")
+            )
+            return Result.success()
+        }
 
-        purgeRawData(db, config, now)
-        purgeWifiCellData(db, config, now)
-        purgeTripData(db, config, now)
-        purgeDailySummaries(db, config, now)
-        purgeExplorationData(db, config, now)
-        purgeLegacySessions(db, config, now)
+        return try {
+            val db = AppDatabase.database(applicationContext)
+            val now = System.currentTimeMillis()
 
-        return Result.success()
+            purgeRawData(db, config, now)
+            purgeWifiCellData(db, config, now)
+            purgeTripData(db, config, now)
+            purgeDailySummaries(db, config, now)
+            purgeExplorationData(db, config, now)
+            purgeLegacySessions(db, config, now)
+
+            Result.success()
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            ReporterFacade.report(e)
+            Result.retry()
+        }
     }
 
     private suspend fun purgeRawData(db: AppDatabase, config: RetentionConfigState, now: Long) {
@@ -83,19 +96,19 @@ class RetentionPipelineWorker(
         if (config.legacySessionRetentionDays == 0) return
         val cutoff = now - config.legacySessionRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
         val sqLiteDb = db.openHelper.writableDatabase
-        for (table in LEGACY_TABLES) {
-            sqLiteDb.execSQL("DELETE FROM " + table + " WHERE time < " + cutoff)
+        for ((table, column) in LEGACY_TABLE_COLUMNS) {
+            sqLiteDb.execSQL("DELETE FROM $table WHERE $column < $cutoff")
         }
     }
 
     companion object {
         private const val WORK_NAME = "retention_pipeline"
 
-        private val LEGACY_TABLES = listOf(
-            "tracker_session",
-            "location_data",
-            "wifi_data",
-            "cell_location",
+        private val LEGACY_TABLE_COLUMNS = listOf(
+            "tracker_session" to "start",
+            "location_data" to "time",
+            "wifi_data" to "last_seen",
+            "cell_location" to "time",
         )
 
         fun schedule(context: Context) {

@@ -21,13 +21,14 @@ import com.adsamcik.tracker.stats.engine.place.PlaceMatchResult
 import com.adsamcik.tracker.stats.engine.place.TripEnricher
 import com.adsamcik.tracker.stats.engine.segment.SessionSegmentDetector
 import com.adsamcik.tracker.stats.engine.segment.SegmentDetectorConfig
+import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -82,7 +83,7 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
-		scope = CoroutineScope(Job() + Dispatchers.Default)
+		scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 		detector = SessionSegmentDetector(config = config)
 		prevLatE7 = null
 		prevLonE7 = null
@@ -211,25 +212,29 @@ internal class SessionSegmentWriter : PostTrackerComponent {
 		departureLonE7 = null
 
 		scope?.launch(Dispatchers.IO) {
-			val segmentId = database.sessionSegmentDao().insert(segment)
+			try {
+				val segmentId = database.sessionSegmentDao().insert(segment)
 
-			// Enrich trip with place matching
-			val clusters = database.frequentPlaceDao().getAll().map { it.toPlaceCluster() }
-			val tripSourceStr = if (userInitiated) "USER_CREATED" else "REALTIME_DETECTION"
+				// Enrich trip with place matching
+				val clusters = database.frequentPlaceDao().getAll().map { it.toPlaceCluster() }
+				val tripSourceStr = if (userInitiated) "USER_CREATED" else "REALTIME_DETECTION"
 
-			val enriched = tripEnricher.enrich(
-				event = event,
-				departureLatE7 = depLat,
-				departureLonE7 = depLon,
-				arrivalLatE7 = arrLat,
-				arrivalLonE7 = arrLon,
-				existingClusters = clusters,
-				source = tripSourceStr,
-				inferenceVersion = config.inferenceVersion,
-				segmentId = segmentId,
-			)
+				val enriched = tripEnricher.enrich(
+					event = event,
+					departureLatE7 = depLat,
+					departureLonE7 = depLon,
+					arrivalLatE7 = arrLat,
+					arrivalLonE7 = arrLon,
+					existingClusters = clusters,
+					source = tripSourceStr,
+					inferenceVersion = config.inferenceVersion,
+					segmentId = segmentId,
+				)
 
-			persistEnrichedTrip(enriched, now)
+				persistEnrichedTrip(enriched, now)
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				ReporterFacade.report(e)
+			}
 		}
 	}
 
