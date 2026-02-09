@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.ActivitySnapshotWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.ExplorationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
@@ -137,6 +138,7 @@ internal class TrackerComponentManager @Inject constructor() {
             add(RawLocationWriter())
             add(StepIntervalWriter())
             add(ActivitySnapshotWriter())
+            add(ExplorationWriter())
         }.forEach { it.onEnable(context) }
     }
 

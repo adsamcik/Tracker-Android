@@ -38,6 +38,7 @@ import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.ActivitySnapshotWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.ExplorationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
@@ -359,6 +360,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			})
 			// Phase 3: Real-time stats aggregation + daily summary
 			add(StreamingAggregatorWriter())
+			// Phase 4: S2 cell exploration tracking
+			add(ExplorationWriter())
 		}.forEach { it.onEnable(this) }
 	}
 

@@ -1,0 +1,40 @@
+package com.adsamcik.tracker.shared.base.database.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
+
+@Dao
+interface ExplorationStreakDao {
+	@Insert(onConflict = OnConflictStrategy.REPLACE)
+	suspend fun upsert(streak: ExplorationStreakEntity)
+
+	@Query("SELECT * FROM exploration_streak WHERE type = :type")
+	suspend fun getByType(type: String): ExplorationStreakEntity?
+
+	@Query("SELECT * FROM exploration_streak")
+	suspend fun getAll(): List<ExplorationStreakEntity>
+
+	@Query("""
+		UPDATE exploration_streak
+		SET current_count = current_count + 1,
+			best_count = MAX(best_count, current_count + 1),
+			last_increment_day = :epochDay,
+			updated_at = :updatedAt
+		WHERE type = :type
+	""")
+	suspend fun incrementStreak(type: String, epochDay: Long, updatedAt: Long)
+
+	@Query("""
+		UPDATE exploration_streak
+		SET current_count = 0,
+			updated_at = :updatedAt
+		WHERE type = :type
+	""")
+	suspend fun resetStreak(type: String, updatedAt: Long)
+
+	@Query("DELETE FROM exploration_streak")
+	fun deleteAll()
+}

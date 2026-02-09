@@ -50,17 +50,25 @@ import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.base.database.data.TripLegEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
+import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
+import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
+import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
+import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
+import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
+import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
+import com.adsamcik.tracker.shared.base.database.data.PersonalRecordEntity
 
 
 /**
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 15 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 16 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 15,
+		version = 16,
 		entities = [
 			// Legacy entities (kept for read-only access during migration period)
 			DatabaseLocation::class,
@@ -84,6 +92,11 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 			FrequentPlaceEntity::class,
 			InferredTripEntity::class,
 			TripLegEntity::class,
+			// Exploration and achievement entities (Phase 3c)
+			ExplorationCellEntity::class,
+			ExplorationStreakEntity::class,
+			AchievementProgressEntity::class,
+			PersonalRecordEntity::class,
 		]
 )
 @TypeConverters(
@@ -208,7 +221,27 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun tripLegDao(): TripLegDao
 
+	// Exploration DAOs (Phase 4)
 
+	/**
+	 * Provides access to exploration cell data.
+	 */
+	abstract fun explorationCellDao(): ExplorationCellDao
+
+	/**
+	 * Provides access to exploration streak data.
+	 */
+	abstract fun explorationStreakDao(): ExplorationStreakDao
+
+	/**
+	 * Provides access to achievement progress data.
+	 */
+	abstract fun achievementProgressDao(): AchievementProgressDao
+
+	/**
+	 * Provides access to personal record data.
+	 */
+	abstract fun personalRecordDao(): PersonalRecordDao
 
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
@@ -226,7 +259,8 @@ abstract class AppDatabase : RoomDatabase() {
 						MIGRATION_11_12,
 						MIGRATION_12_13,
 						MIGRATION_13_14,
-						MIGRATION_14_15
+						MIGRATION_14_15,
+						MIGRATION_15_16
 				)
 		}
 
@@ -262,6 +296,12 @@ abstract class AppDatabase : RoomDatabase() {
 				database.tripLegDao().deleteAll()
 				database.inferredTripDao().deleteAll()
 				database.frequentPlaceDao().deleteAll()
+
+				// Exploration tables
+				database.explorationCellDao().deleteAll()
+				database.explorationStreakDao().deleteAll()
+				database.achievementProgressDao().deleteAll()
+				database.personalRecordDao().deleteAll()
 			}
 		}
 	}

@@ -21,6 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 16         │ 385         │ 🚧 UNRELEASED - Exploration & gamification  │
+ * │            │             │    (exploration_cell, exploration_streak,│
+ * │            │             │    achievement_progress, personal_record)│
  * │ 15         │ 385         │ 🚧 UNRELEASED - Trip inference tables     │
  * │            │             │    (frequent_place, inferred_trip,       │
  * │            │             │    trip_leg)                             │
@@ -617,10 +620,12 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
 		}
 	}
 }
-// Migration to add exploration and achievement tables for Phase 3c.
+// Migration to add S2 cell exploration tracking tables (Phase 4).
+// Creates exploration_cell (discovered geographic cells) and exploration_streak (daily/weekly streaks).
 val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
+			// 1. Create exploration_cell table
 			execSQL("""
 				CREATE TABLE IF NOT EXISTS exploration_cell (
 					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -637,17 +642,22 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 				)
 			""".trimIndent())
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_exploration_cell_cell_token ON exploration_cell(cell_token)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_exploration_cell_level ON exploration_cell(level)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_exploration_cell_first_discovered_at ON exploration_cell(first_discovered_at)")
 
+			// 2. Create exploration_streak table
 			execSQL("""
 				CREATE TABLE IF NOT EXISTS exploration_streak (
-					type TEXT NOT NULL PRIMARY KEY,
+					type TEXT NOT NULL,
 					current_count INTEGER NOT NULL DEFAULT 0,
 					best_count INTEGER NOT NULL DEFAULT 0,
 					last_increment_day INTEGER NOT NULL DEFAULT 0,
-					updated_at INTEGER NOT NULL DEFAULT 0
+					updated_at INTEGER NOT NULL DEFAULT 0,
+					PRIMARY KEY(type)
 				)
 			""".trimIndent())
 
+			// 3. Create achievement_progress table
 			execSQL("""
 				CREATE TABLE IF NOT EXISTS achievement_progress (
 					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -661,6 +671,7 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 			""".trimIndent())
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_achievement_id ON achievement_progress(achievement_id)")
 
+			// 4. Create personal_record table
 			execSQL("""
 				CREATE TABLE IF NOT EXISTS personal_record (
 					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -672,7 +683,7 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 			""".trimIndent())
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_personal_record_metric ON personal_record(metric)")
 
-			android.util.Log.i("AppDatabase", "Migration 15->16: Created exploration and achievement tables")
+			android.util.Log.i("AppDatabase", "Migration 15→16: Created exploration_cell, exploration_streak, achievement_progress, and personal_record tables")
 		}
 	}
 }

@@ -5,8 +5,12 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
+import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
+import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
+import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
@@ -145,4 +149,32 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideDailySummaryDao(database: AppDatabase): DailySummaryDao = database.dailySummaryDao()
+
+    /**
+     * Provides ExplorationCellDao for exploration cell data persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideExplorationCellDao(database: AppDatabase): ExplorationCellDao = database.explorationCellDao()
+
+    /**
+     * Provides ExplorationStreakDao for exploration streak data persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideExplorationStreakDao(database: AppDatabase): ExplorationStreakDao = database.explorationStreakDao()
+
+    /**
+     * Provides AchievementProgressDao for achievement progress data persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideAchievementProgressDao(database: AppDatabase): AchievementProgressDao = database.achievementProgressDao()
+
+    /**
+     * Provides PersonalRecordDao for personal record data persistence.
+     */
+    @Provides
+    @Singleton
+    fun providePersonalRecordDao(database: AppDatabase): PersonalRecordDao = database.personalRecordDao()
 }
