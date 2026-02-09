@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.statistics.data.Stat
+import com.adsamcik.tracker.statistics.detail.StatisticDisplayType
 import com.adsamcik.tracker.statistics.repository.SessionRepository
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -166,7 +167,7 @@ class StatsViewModelTest {
 
         @Test
         fun `loadSummaryStats transitions to Loading then Success`() = runTest {
-            val stats = listOf(Stat(0, 0, null, "test"))
+            val stats = listOf(Stat(0, 0, StatisticDisplayType.INFORMATION, "test"))
             coEvery { sessionRepository.getSummaryStats() } returns stats
 
             val vm = createViewModel()
@@ -206,7 +207,7 @@ class StatsViewModelTest {
 
         @Test
         fun `loadWeeklyStats transitions to Loading then Success`() = runTest {
-            val stats = listOf(Stat(0, 0, null, "weekly"))
+            val stats = listOf(Stat(0, 0, StatisticDisplayType.INFORMATION, "weekly"))
             coEvery { sessionRepository.getWeeklyStats() } returns stats
 
             val vm = createViewModel()
