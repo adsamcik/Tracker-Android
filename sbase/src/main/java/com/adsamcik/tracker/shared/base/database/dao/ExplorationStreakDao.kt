@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExplorationStreakDao {
@@ -13,6 +14,9 @@ interface ExplorationStreakDao {
 
 	@Query("SELECT * FROM exploration_streak WHERE type = :type")
 	suspend fun getByType(type: String): ExplorationStreakEntity?
+
+	@Query("SELECT * FROM exploration_streak WHERE type = :type")
+	fun getByTypeFlow(type: String): Flow<ExplorationStreakEntity?>
 
 	@Query("SELECT * FROM exploration_streak")
 	suspend fun getAll(): List<ExplorationStreakEntity>

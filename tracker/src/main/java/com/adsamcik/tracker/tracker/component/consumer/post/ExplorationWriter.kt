@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -36,6 +38,7 @@ internal class ExplorationWriter : PostTrackerComponent {
 	private var scope: CoroutineScope? = null
 	private var engine: CellDiscoveryEngine? = null
 	private var config: CellDiscoveryConfig = CellDiscoveryConfig()
+	private val writeMutex = Mutex()
 
 	// Track whether we discovered any new cells this session for streak logic
 	private var newCellsThisSession: Int = 0
@@ -103,7 +106,9 @@ internal class ExplorationWriter : PostTrackerComponent {
 
 	private fun persistDiscovery(discovery: CellDiscovery, now: Long) {
 		scope?.launch(Dispatchers.IO) {
-			persistDiscoverySync(discovery, now)
+			writeMutex.withLock {
+				persistDiscoverySync(discovery, now)
+			}
 		}
 	}
 

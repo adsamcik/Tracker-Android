@@ -6,10 +6,12 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -70,40 +72,28 @@ class ExplorationViewModel @Inject constructor(
 
 	val achievementState: StateFlow<AchievementSummaryState> =
 		achievementProgressDao.getAllFlow()
-			.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-			.let { progressFlow ->
-				flow {
-					progressFlow.collect { allProgress ->
-						val unlocked = allProgress.filter { it.unlockedAt != null }
-						val bronzeCount = unlocked.count { it.tier == TIER_BRONZE }
-						val silverCount = unlocked.count { it.tier == TIER_SILVER }
-						val goldCount = unlocked.count { it.tier == TIER_GOLD }
-						val diamondCount = unlocked.count { it.tier == TIER_DIAMOND }
-
-						val nextClosest = allProgress
-							.filter { it.unlockedAt == null && it.targetValue > 0 }
-							.maxByOrNull { it.currentValue.toFloat() / it.targetValue }
-							?.let { entity ->
-								NextAchievement(
-									id = entity.achievementId,
-									progress = (entity.currentValue.toFloat() / entity.targetValue)
-										.coerceIn(0f, 1f),
-								)
-							}
-
-						emit(
-							AchievementSummaryState(
-								bronzeCount = bronzeCount,
-								silverCount = silverCount,
-								goldCount = goldCount,
-								diamondCount = diamondCount,
-								totalUnlocked = unlocked.size,
-								nextClosest = nextClosest,
-							)
+			.map { allProgress ->
+				val unlocked = allProgress.filter { it.unlockedAt != null }
+				val nextClosest = allProgress
+					.filter { it.unlockedAt == null && it.targetValue > 0 }
+					.maxByOrNull { it.currentValue.toFloat() / it.targetValue }
+					?.let { entity ->
+						NextAchievement(
+							id = entity.achievementId,
+							progress = (entity.currentValue.toFloat() / entity.targetValue)
+								.coerceIn(0f, 1f),
 						)
 					}
-				}
+				AchievementSummaryState(
+					bronzeCount = unlocked.count { it.tier == TIER_BRONZE },
+					silverCount = unlocked.count { it.tier == TIER_SILVER },
+					goldCount = unlocked.count { it.tier == TIER_GOLD },
+					diamondCount = unlocked.count { it.tier == TIER_DIAMOND },
+					totalUnlocked = unlocked.size,
+					nextClosest = nextClosest,
+				)
 			}
+			.flowOn(Dispatchers.IO)
 			.stateIn(viewModelScope, SharingStarted.Lazily, AchievementSummaryState())
 
 	/** Intermediate data holder for streak + season + recent cell loading. */
@@ -115,17 +105,15 @@ class ExplorationViewModel @Inject constructor(
 	)
 
 	/**
-	 * Loads streak info, season bitmask, and recent discoveries as a single flow.
-	 * These are suspend DAO calls, so they are wrapped in a flow.
+	 * Reactive flow that re-emits when the streak row changes.
+	 * Season + recent cell data is loaded alongside each streak update.
 	 */
-	private fun streakFlow() = flow {
-		val streak = explorationStreakDao.getByType(STREAK_TYPE_DAILY)
-		val seasonBitmasks = explorationCellDao.getDistinctSeasonBitmasks(EXPLORATION_LEVEL)
-		val combinedBitmask = seasonBitmasks.fold(0) { acc, mask -> acc or mask }
-		val seasonCount = Integer.bitCount(combinedBitmask)
-		val recentEntities = explorationCellDao.getRecentAtLevel(EXPLORATION_LEVEL, RECENT_LIMIT)
-
-		emit(
+	private fun streakFlow() = explorationStreakDao.getByTypeFlow(STREAK_TYPE_DAILY)
+		.map { streak ->
+			val seasonBitmasks = explorationCellDao.getDistinctSeasonBitmasks(EXPLORATION_LEVEL)
+			val combinedBitmask = seasonBitmasks.fold(0) { acc, mask -> acc or mask }
+			val seasonCount = Integer.bitCount(combinedBitmask)
+			val recentEntities = explorationCellDao.getRecentAtLevel(EXPLORATION_LEVEL, RECENT_LIMIT)
 			StreakData(
 				currentStreak = streak?.currentCount ?: 0,
 				bestStreak = streak?.bestCount ?: 0,
@@ -138,8 +126,7 @@ class ExplorationViewModel @Inject constructor(
 					)
 				},
 			)
-		)
-	}
+		}.flowOn(Dispatchers.IO)
 
 	companion object {
 		/** S2 cell level used for exploration (approx 0.8 km^2 per cell). */
