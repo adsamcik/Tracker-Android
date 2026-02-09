@@ -10,6 +10,7 @@ import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
@@ -73,6 +74,7 @@ internal class TrackerComponentManager @Inject constructor() {
         context: Context,
         scope: CoroutineScope,
         isSessionUserInitiated: Boolean,
+        initialTier: PolicyTier = PolicyTier.PRECISION,
         controller: TrackerServiceController,
         onPolicyChanged: suspend (com.adsamcik.tracker.tracker.policy.TrackingPolicy) -> Unit
     ) {
@@ -90,7 +92,7 @@ internal class TrackerComponentManager @Inject constructor() {
         mobileSessionComponent?.let { controller.updateSession(it.session) }
 
         // Data Producer
-        dataProducerManager = DataProducerManager(context).apply { onEnable() }
+        dataProducerManager = DataProducerManager(context, initialTier).apply { onEnable() }
 
         // Policy Manager
         trackingPolicyManager = TrackingPolicyManager(
@@ -121,9 +123,11 @@ internal class TrackerComponentManager @Inject constructor() {
         // Data Components
         dataComponentList.apply {
             add(ActivityTrackerComponent())
-            add(CellTrackerComponent())
-            add(LocationTrackerComponent())
-            add(WifiTrackerComponent())
+            if (initialTier.isGpsEnabled) {
+                add(CellTrackerComponent())
+                add(LocationTrackerComponent())
+                add(WifiTrackerComponent())
+            }
         }.forEach { it.onEnable(context) }
 
         // Create persistence error collector
@@ -133,16 +137,18 @@ internal class TrackerComponentManager @Inject constructor() {
         // Post Components - inject error collector into database components
         postComponentList.apply {
             add(notificationComponent)
-            add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
-            add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-            add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
-            add(DatabaseWifiLocationCountComponent())
-            add(RawLocationWriter())
             add(StepIntervalWriter())
             add(ActivitySnapshotWriter())
             add(SessionSegmentWriter())
             add(StreamingAggregatorWriter())
             add(ExplorationWriter())
+            if (initialTier.isGpsEnabled) {
+                add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
+                add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
+                add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
+                add(DatabaseWifiLocationCountComponent())
+                add(RawLocationWriter())
+            }
         }.forEach { it.onEnable(context) }
     }
 

@@ -48,6 +48,8 @@ import com.adsamcik.tracker.tracker.component.consumer.post.SessionSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StreamingAggregatorWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
+import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
@@ -114,6 +116,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private var sessionInfo: TrackerSessionInfo? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private val session: TrackerSession get() = requireNotNull(sessionComponent).session
+
+	// Current tracking tier - determines which components/producers are active
+	private var currentTier: PolicyTier = PolicyTier.PRECISION
 
 	// Policy update state tracking
 	private var lastActivityType: Int = -1
@@ -261,11 +266,13 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			)
 		}
 
-		initializeTimer()
 	}
 
 	@MainThread
-	private suspend fun initializeComponents(isSessionUserInitiated: Boolean) = componentMutex.withLock {
+	private suspend fun initializeComponents(
+		isSessionUserInitiated: Boolean,
+		initialTier: PolicyTier
+	) = componentMutex.withLock {
 		// Clear existing components to prevent duplicates and ConcurrentModificationException
 		// if onStartCommand is called multiple times or concurrently with onUpdate.
 		preComponentList.forEach { it.onDisable(this@TrackerService) }
@@ -288,7 +295,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		// DispatchersProvider injection from AppGraph intentionally avoided to keep tracker module
 		// independent of app module. DataProducerManager falls back to its internal default provider.
-		dataProducerManager = DataProducerManager(this).apply { onEnable() }
+		dataProducerManager = DataProducerManager(this, initialTier).apply { onEnable() }
 
 		// Initialize the new 4-tier escalation engine
 		val escalationEngine = DefaultPolicyEscalationEngine()
@@ -331,9 +338,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		dataComponentList.apply {
 			add(ActivityTrackerComponent())
-			add(CellTrackerComponent())
-			add(LocationTrackerComponent())
-			add(WifiTrackerComponent())
+			if (initialTier.isGpsEnabled) {
+				add(CellTrackerComponent())
+				add(LocationTrackerComponent())
+				add(WifiTrackerComponent())
+			}
 		}.forEach { it.onEnable(this) }
 
 		// Create persistence error collector for database components
@@ -341,27 +350,26 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		persistenceErrorCollector = errorCollector
 		controller.updatePersistenceErrorFlow(errorCollector.errors)
 
-		// Add post-processing components
-		// Future: Filter based on available sensors/permissions
+		// Post-processing components, filtered by tier.
+		// AMBIENT: notification + sessionless step/activity writers + aggregator.
+		// ACTIVE+: full set including GPS-dependent DB writers and trip detection.
 		postComponentList.apply {
 			add(notificationComponent)
-			add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
-			add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-			add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
-			add(DatabaseWifiLocationCountComponent())
-			// Phase 1: Sessionless tracking raw writers
-			add(RawLocationWriter())
 			add(StepIntervalWriter())
 			add(ActivitySnapshotWriter())
-			// Phase 2: Trip detection + segment persistence
-			add(SessionSegmentWriter().also {
-				it.setEscalationEngine(escalationEngine)
-				it.setUserInitiated(isSessionUserInitiated)
-			})
-			// Phase 3: Real-time stats aggregation + daily summary
 			add(StreamingAggregatorWriter())
-			// Phase 4: S2 cell exploration tracking
-			add(ExplorationWriter())
+			if (initialTier.isGpsEnabled) {
+				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
+				add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
+				add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
+				add(DatabaseWifiLocationCountComponent())
+				add(RawLocationWriter())
+				add(SessionSegmentWriter().also {
+					it.setEscalationEngine(escalationEngine)
+					it.setUserInitiated(isSessionUserInitiated)
+				})
+				add(ExplorationWriter())
+			}
 		}.forEach { it.onEnable(this) }
 	}
 
@@ -374,6 +382,23 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		val isUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
 				?: DEFAULT_IS_USER_INITIATED
+		val isAmbient = intent?.getBooleanExtra(ARG_IS_AMBIENT, false) ?: false
+
+		// Determine initial tier from intent flags
+		val initialTier = when {
+			isUserInitiated -> PolicyTier.PRECISION
+			isAmbient -> PolicyTier.AMBIENT
+			else -> PolicyTier.AMBIENT // auto-tracking starts ambient, escalates via engine
+		}
+		currentTier = initialTier
+		controller.updatePolicyTier(initialTier)
+
+		// Select timer based on tier: AMBIENT uses lightweight handler, ACTIVE+ uses GPS-based timer
+		timerComponent = if (initialTier == PolicyTier.AMBIENT) {
+			AmbientCollectionTrigger()
+		} else {
+			TrackerTimerManager.getSelected(this)
+		}
 
 		controller.updateServiceRunning(true)
 
@@ -393,7 +418,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 		launch {
 			val componentInitialization = async(Dispatchers.Main) {
-				initializeComponents(isSessionUserInitiated = isUserInitiated)
+				initializeComponents(
+					isSessionUserInitiated = isUserInitiated,
+					initialTier = initialTier
+				)
 			}
 
 			componentInitialization.await()
@@ -422,20 +450,29 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		)
 	}
 
-	private fun initializeTimer() {
-		timerComponent = TrackerTimerManager.getSelected(this)
-	}
-
 	/**
 	 * Update timer collection interval based on tracking policy level.
-	 * Phase 4: Dynamic interval adjustment for battery optimization.
+	 * Handles tier escalation (AMBIENT -> ACTIVE) by swapping timers and adding components.
 	 *
 	 * @param policy New tracking policy
 	 */
 	private fun updateTimerIntervalForPolicy(policy: com.adsamcik.tracker.tracker.policy.TrackingPolicy) {
+		val newTier = com.adsamcik.tracker.tracker.policy.PolicyTierMapper.toTier(policy)
+		val oldTier = currentTier
+
+		// Update tier and notify UI
+		if (newTier != oldTier) {
+			currentTier = newTier
+			controller.updatePolicyTier(newTier)
+
+			// Handle tier escalation: AMBIENT -> ACTIVE requires timer swap + component additions
+			if (!oldTier.isGpsEnabled && newTier.isGpsEnabled) {
+				onTierEscalation(newTier)
+			}
+		}
+
 		val timer = timerComponent
 		if (timer !is com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger) {
-			// Timer doesn't support dynamic updates, skip
 			return
 		}
 
@@ -443,6 +480,68 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		val minDistanceMeters = com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper.getMinDistanceMeters(policy)
 
 		timer.updateInterval(this, intervalSeconds, minDistanceMeters)
+	}
+
+	/**
+	 * Handle tier escalation from AMBIENT (no GPS) to ACTIVE/PRECISION (GPS enabled).
+	 * Swaps the ambient timer for a GPS-based timer and recreates the DataProducerManager
+	 * with full producers. GPS-dependent data and post components are added.
+	 *
+	 * All list mutations are protected by [componentMutex] to prevent
+	 * ConcurrentModificationException with [onUpdate] iterating the same lists.
+	 */
+	private fun onTierEscalation(newTier: PolicyTier) {
+		launch {
+			componentMutex.withLock {
+				// Swap timer: disable ambient, enable GPS-based (inside mutex so
+				// no collection cycle can fire between disable and re-enable).
+				timerComponent.onDisable(this@TrackerService)
+				val gpsTimer = TrackerTimerManager.getSelected(this@TrackerService)
+				timerComponent = gpsTimer
+
+				// Recreate DataProducerManager with full producer set
+				dataProducerManager?.onDisable()
+				val newManager = DataProducerManager(this@TrackerService, newTier)
+				newManager.onEnable()
+				dataProducerManager = newManager
+
+				// Add GPS-dependent data components
+				val newDataComponents = listOf(
+					CellTrackerComponent(),
+					LocationTrackerComponent(),
+					WifiTrackerComponent()
+				)
+				newDataComponents.forEach { it.onEnable(this@TrackerService) }
+				dataComponentList.addAll(newDataComponents)
+
+				// Add GPS-dependent post components
+				val errorCollector = persistenceErrorCollector as? DefaultPersistenceErrorCollector
+				val newPostComponents = mutableListOf<PostTrackerComponent>()
+				if (errorCollector != null) {
+					newPostComponents.add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
+					newPostComponents.add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
+					newPostComponents.add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
+				}
+				newPostComponents.add(DatabaseWifiLocationCountComponent())
+				newPostComponents.add(RawLocationWriter())
+				val isUserInitiated = sessionInfo?.isInitiatedByUser ?: false
+				val escalationEngine = trackingPolicyManager?.escalationEngine
+				newPostComponents.add(SessionSegmentWriter().also {
+					if (escalationEngine != null) it.setEscalationEngine(escalationEngine)
+					it.setUserInitiated(isUserInitiated)
+				})
+				newPostComponents.add(ExplorationWriter())
+				newPostComponents.forEach { it.onEnable(this@TrackerService) }
+				postComponentList.addAll(newPostComponents)
+
+				// Enable the GPS timer after components are ready
+				if (hasSelfPermissions(gpsTimer.requiredPermissions).all { it }) {
+					gpsTimer.onEnable(this@TrackerService, this@TrackerService)
+				} else {
+					Reporter.report("Missing permissions for GPS timer during escalation")
+				}
+			}
+		}
 	}
 
 	override fun onUpdate(tempData: MutableCollectionTempData): Job = launch {
@@ -552,6 +651,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	companion object {
 		const val ARG_IS_USER_INITIATED = "userInitiated"
+		const val ARG_IS_AMBIENT = "isAmbient"
 		private const val DEFAULT_IS_USER_INITIATED = false
 	}
 }

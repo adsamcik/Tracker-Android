@@ -68,6 +68,17 @@ object TrackerServiceApi {
 	}
 
 	/**
+	 * Starts tracker service in AMBIENT mode (steps + activity only, no GPS).
+	 * Does not require location permission.
+	 */
+	fun startAmbientService(context: Context) {
+		context.startForegroundService<TrackerService> {
+			putExtra(TrackerService.ARG_IS_USER_INITIATED, false)
+			putExtra(TrackerService.ARG_IS_AMBIENT, true)
+		}
+	}
+
+	/**
 	 * Stops tracker service.
 	 */
 	fun stopService(context: Context) {

@@ -7,6 +7,7 @@ import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +27,7 @@ import kotlin.coroutines.CoroutineContext
  */
 internal class DataProducerManager(
 	context: Context,
+	private val initialTier: PolicyTier = PolicyTier.PRECISION,
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider
 ) : TrackerDataProducerObserver, CoroutineScope {
 	private val appContext = context.applicationContext
@@ -38,12 +40,14 @@ internal class DataProducerManager(
 	 * Keeps all producers from being recycled. Producers should take only very little memory so this is fine.
 	 */
 	@Suppress("unused")
-	private val producerList = listOf(
-			WifiDataProducer(this),
-			CellDataProducer(this),
-			ActivityDataProducer(this),
-			StepDataProducer(this)
-	)
+	private val producerList = buildList {
+		if (initialTier >= PolicyTier.ACTIVE) {
+			add(WifiDataProducer(this@DataProducerManager))
+			add(CellDataProducer(this@DataProducerManager))
+		}
+		add(ActivityDataProducer(this@DataProducerManager))
+		add(StepDataProducer(this@DataProducerManager))
+	}
 
 	private val activeProducerList = mutableListOf<TrackerDataProducerComponent>()
 
