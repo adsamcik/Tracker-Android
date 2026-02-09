@@ -97,7 +97,7 @@ class RetentionPipelineWorker(
         val cutoff = now - config.legacySessionRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
         val sqLiteDb = db.openHelper.writableDatabase
         for ((table, column) in LEGACY_TABLE_COLUMNS) {
-            sqLiteDb.execSQL("DELETE FROM $table WHERE $column < $cutoff")
+            sqLiteDb.execSQL("DELETE FROM $table WHERE $column < ?", arrayOf(cutoff))
         }
     }
 

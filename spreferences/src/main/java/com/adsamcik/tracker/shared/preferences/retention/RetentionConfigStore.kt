@@ -80,4 +80,4 @@ private fun RetentionConfigState.toProto(): RetentionConfigProto =
         .setInitialized(true)
         .build()
 
-private fun Int.withDefault(default: Int): Int = if (this == 0) default else coerceAtLeast(0)
+private fun Int.withDefault(default: Int): Int = if (this <= 0) default else this

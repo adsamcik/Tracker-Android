@@ -299,7 +299,7 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
 				sensor_value_start INTEGER NOT NULL,
 				sensor_value_end INTEGER NOT NULL,
 				sensor_reset INTEGER NOT NULL,
-				createdAt INTEGER NOT NULL
+				created_at INTEGER NOT NULL
 			)
 	""".trimIndent())
 	execSQL("CREATE INDEX IF NOT EXISTS idx_step_interval_time_range ON step_interval(start_time_ms, end_time_ms)")
