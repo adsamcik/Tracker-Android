@@ -11,41 +11,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/**
- * Fake implementation of TrackerServiceController for testing.
- * 
- * Contract:
- * - Input: Test code calls updateXxx methods to simulate tracking events
- * - Output: Reactive StateFlows emit test-controlled values
- * - Thread-safety: MutableStateFlow is thread-safe
- * - Lifecycle: Test-scoped (create new instance per test)
- * 
- * Usage:
- * ```kotlin
- * val fakeController = FakeTrackerServiceController()
- * val testGraph = TestAppGraphBuilder()
- *     .withTrackerServiceController(fakeController)
- *     .build()
- * 
- * // Simulate tracking start
- * fakeController.updateServiceRunning(true)
- * fakeController.updateSessionInfo(TrackerSessionInfo(isUserInitiated = true))
- * 
- * // Assert UI state
- * composeTestRule.onNodeWithText("Tracking Active").assertExists()
- * ```
- */
 class FakeTrackerServiceController : TrackerServiceController {
     private val _isServiceRunning = MutableStateFlow(false)
     override val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
     override val isServiceRunning: Boolean get() = _isServiceRunning.value
-    
+
     private val _sessionInfoFlow = MutableStateFlow<TrackerSessionInfo?>(null)
     override val sessionInfoFlow: StateFlow<TrackerSessionInfo?> get() = _sessionInfoFlow
-    
+
     private val _sessionFlow = MutableStateFlow<TrackerSession?>(null)
     override val sessionFlow: StateFlow<TrackerSession?> get() = _sessionFlow
-    
+
     private val _collectionDataFlow = MutableStateFlow<CollectionData?>(null)
     override val collectionDataFlow: StateFlow<CollectionData?> get() = _collectionDataFlow
 
@@ -60,19 +36,25 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
     override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
-    
+
+    private val _policyTierFlow = MutableStateFlow(PolicyTier.OFF)
+    override val policyTierFlow: StateFlow<PolicyTier> get() = _policyTierFlow
+
+    private val _policyStateFlow = MutableStateFlow<PolicyState?>(null)
+    override val policyStateFlow: StateFlow<PolicyState?> get() = _policyStateFlow
+
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
     }
-    
+
     override fun updateSessionInfo(info: TrackerSessionInfo?) {
         _sessionInfoFlow.value = info
     }
-    
+
     override fun updateSession(session: TrackerSession?) {
         _sessionFlow.value = session
     }
-    
+
     override fun updateCollectionData(data: CollectionData?) {
         _collectionDataFlow.value = data
     }
