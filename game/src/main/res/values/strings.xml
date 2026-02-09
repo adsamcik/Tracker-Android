@@ -38,7 +38,26 @@
     <string name="game_challenges_empty_subtitle">Complete tracking sessions to unlock new challenges</string>
     <string name="game_loading">Loading…</string>
     <string name="game_points_breakdown_coming_soon">Points breakdown coming soon</string>
-    
+
+    <!-- Exploration card -->
+    <string name="exploration_title">Exploration</string>
+    <string name="exploration_cells_discovered">Cells Discovered</string>
+    <string name="exploration_current_streak">Current Streak</string>
+    <string name="exploration_best_streak">Best Streak</string>
+    <string name="exploration_seasons_explored">Seasons Explored</string>
+    <string name="exploration_days">days</string>
+    <string name="exploration_of_four">of 4</string>
+
+    <!-- Achievements card -->
+    <string name="achievements_title">Achievements</string>
+    <string name="achievements_unlocked">Unlocked</string>
+    <string name="achievements_view_all">View All</string>
+    <string name="achievements_bronze">Bronze</string>
+    <string name="achievements_silver">Silver</string>
+    <string name="achievements_gold">Gold</string>
+    <string name="achievements_diamond">Diamond</string>
+    <string name="achievements_none_yet">No achievements unlocked yet. Start exploring!</string>
+
     <string-array name="goals_encouragement">
         <item>Good job</item>
         <item>Well done</item>

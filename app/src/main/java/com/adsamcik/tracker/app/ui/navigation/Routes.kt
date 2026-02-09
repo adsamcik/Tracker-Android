@@ -21,6 +21,9 @@ data object Game : AppRoute
 data class TripDetail(val tripId: Long) : AppRoute
 
 @Serializable
+data object History : AppRoute
+
+@Serializable
 data object Debug : AppRoute
 
 @Serializable

@@ -24,7 +24,8 @@ import com.adsamcik.tracker.statistics.ui.compose.WeekDialog
  */
 @Composable
 fun StatsRoute(
-    onTripClick: (Long) -> Unit = {}
+    onTripClick: (Long) -> Unit = {},
+    onNavigateToHistory: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val vm: StatsViewModel = hiltViewModel()
@@ -71,6 +72,7 @@ fun StatsRoute(
             ).show()
         },
         onSessionClick = onTripClick,
+        onNavigateToHistory = onNavigateToHistory,
         weeklyBars = weeklyBars
     )
     

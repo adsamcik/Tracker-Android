@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Summarize
@@ -106,6 +107,7 @@ fun StatsScreen(
     // Optional paging sessions supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<TrackerSession>? = null,
     onSessionClick: (Long) -> Unit = {},
+    onNavigateToHistory: () -> Unit = {},
     weeklyBars: List<DayBar> = emptyList(),
 ) {
     Box(
@@ -119,7 +121,7 @@ fun StatsScreen(
             RefreshUiState.Error -> ErrorState(onRetry)
             RefreshUiState.Content -> ContentState(
                 appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi,
-                sessions, onSessionClick, weeklyBars
+                sessions, onSessionClick, onNavigateToHistory, weeklyBars
             )
         }
     }
@@ -184,6 +186,7 @@ private fun ContentState(
     onOpenWifi: () -> Unit,
     pagingItems: LazyPagingItems<TrackerSession>? = null,
     onSessionClick: (Long) -> Unit = {},
+    onNavigateToHistory: () -> Unit = {},
     weeklyBars: List<DayBar> = emptyList(),
 ) {
     LazyColumn(
@@ -203,7 +206,7 @@ private fun ContentState(
         }
 
         item(key = "header_actions") {
-            HeaderActions(onShowSummary, onShowWeek, onOpenWifi)
+            HeaderActions(onShowSummary, onShowWeek, onOpenWifi, onNavigateToHistory)
         }
 
         if (pagingItems != null) {
@@ -390,33 +393,52 @@ private fun AppendStateSection(state: AppendUiState, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun HeaderActions(onShowSummary: () -> Unit, onShowWeek: () -> Unit, onOpenWifi: () -> Unit) {
+private fun HeaderActions(
+    onShowSummary: () -> Unit,
+    onShowWeek: () -> Unit,
+    onOpenWifi: () -> Unit,
+    onNavigateToHistory: () -> Unit,
+) {
     val summaryLabel = stringResource(R.string.stats_sum_title)
     val weekLabel = stringResource(R.string.stats_weekly_title)
     val wifiLabel = stringResource(R.string.stats_wifi_label)
+    val historyLabel = stringResource(R.string.history_button_label)
 
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        ActionChip(
-            onClick = onShowSummary,
-            icon = Icons.Filled.Summarize,
-            label = summaryLabel,
-            modifier = Modifier.weight(1f)
-        )
-        ActionChip(
-            onClick = onShowWeek,
-            icon = Icons.Filled.CalendarMonth,
-            label = weekLabel,
-            modifier = Modifier.weight(1f)
-        )
-        ActionChip(
-            onClick = onOpenWifi,
-            icon = Icons.Filled.Wifi,
-            label = wifiLabel,
-            modifier = Modifier.weight(1f)
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ActionChip(
+                onClick = onShowSummary,
+                icon = Icons.Filled.Summarize,
+                label = summaryLabel,
+                modifier = Modifier.weight(1f)
+            )
+            ActionChip(
+                onClick = onShowWeek,
+                icon = Icons.Filled.CalendarMonth,
+                label = weekLabel,
+                modifier = Modifier.weight(1f)
+            )
+            ActionChip(
+                onClick = onOpenWifi,
+                icon = Icons.Filled.Wifi,
+                label = wifiLabel,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ActionChip(
+                onClick = onNavigateToHistory,
+                icon = Icons.Filled.History,
+                label = historyLabel,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 

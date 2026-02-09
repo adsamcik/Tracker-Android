@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DirectionsWalk
+import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,6 +43,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
+import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
@@ -68,8 +70,11 @@ fun GameScreen(
     pointsToday: Int,
     steps: StepsSummaryUi?,
     challenges: List<ChallengeUi>,
+    explorationState: ExplorationState,
+    achievementState: AchievementSummaryState,
     modifier: Modifier = Modifier,
-    isLoadingChallenges: Boolean = false
+    isLoadingChallenges: Boolean = false,
+    onViewAllAchievements: () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -88,6 +93,15 @@ fun GameScreen(
             }
             item {
                 steps?.let { StepsCard(it) }
+            }
+            item {
+                ExplorationCard(state = explorationState)
+            }
+            item {
+                AchievementCard(
+                    state = achievementState,
+                    onViewAll = onViewAllAchievements,
+                )
             }
             item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
             when {
@@ -180,7 +194,7 @@ private fun StepsCard(steps: StepsSummaryUi) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Outlined.DirectionsWalk,
+                    Icons.AutoMirrored.Outlined.DirectionsWalk,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
                     tint = AppColors.ActivityWalk // Keeping specific activity color

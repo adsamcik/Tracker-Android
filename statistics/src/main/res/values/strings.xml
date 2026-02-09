@@ -104,4 +104,33 @@
     <string name="wifilist_title_frequency">Frequency</string>
     <string name="wifilist_title_last_seen">Last seen</string>
     <string name="wifilist_title_ssid">SSID</string>
+
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Timeline</string>
+    <string name="history_tab_trips">Trips</string>
+    <string name="history_tab_calendar">Calendar</string>
+
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">No activity yet</string>
+    <string name="history_timeline_empty_desc">Start tracking to see your movement history here</string>
+
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">No trips recorded</string>
+    <string name="history_trips_empty_desc">Trips will appear here as you move around</string>
+
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Previous month</string>
+    <string name="history_calendar_next_month">Next month</string>
+    <string name="history_calendar_distance">Distance</string>
+    <string name="history_calendar_steps">Steps</string>
+    <string name="history_calendar_trips">Trips</string>
+
+    <!-- Exploration -->
+    <string name="history_exploration_title">Exploration</string>
+    <string name="history_exploration_cells">Cells</string>
+    <string name="history_exploration_streak">Streak</string>
+    <string name="history_exploration_best">Best</string>
+
+    <!-- History navigation -->
+    <string name="history_button_label">History</string>
 </resources>

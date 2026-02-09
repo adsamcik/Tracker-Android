@@ -46,6 +46,7 @@ import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.app.ui.navigation.TripDetail
+import com.adsamcik.tracker.app.ui.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
 import com.adsamcik.tracker.app.ui.navigation.Settings
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
@@ -243,10 +244,24 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                         navController.navigate(TripDetail(tripId)) {
                             launchSingleTop = true
                         }
-                    }
+                    },
+                    onNavigateToHistory = {
+                        navController.navigate(History) {
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
             composable<Game> { com.adsamcik.tracker.game.ui.compose.GameRoute() }
+            composable<History> {
+                com.adsamcik.tracker.statistics.ui.HistoryRoute(
+                    onNavigateToTripDetail = { tripId ->
+                        navController.navigate(TripDetail(tripId)) {
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
             composable<TripDetail> { backStackEntry ->
                 val route = backStackEntry.toRoute<TripDetail>()
                 com.adsamcik.tracker.statistics.ui.TripDetailRoute(
