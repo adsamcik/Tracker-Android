@@ -6,6 +6,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.statistics.repository.SessionRepository
 import com.adsamcik.tracker.statistics.data.Stat
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,19 +43,21 @@ data class DayBar(
 )
 
 /**
- * ViewModel providing paged tracker sessions for statistics screen.
- * Uses constructor-injected SessionRepository for clean testing and modularity.
+ * ViewModel providing paged trips for the statistics screen.
+ * Uses TripDao for the main list (session_segment table) and
+ * SessionRepository for legacy summary/weekly stats dialogs.
  */
 @HiltViewModel
 class StatsViewModel @Inject constructor(
+    private val tripDao: TripDao,
     private val sessionRepository: SessionRepository,
     private val dailySummaryDao: DailySummaryDao,
 ) : ViewModel() {
 
-    // Pager producing sessions ordered by start DESC (Room PagingSource provided by repository)
-    val sessionsFlow = Pager(
+    // Pager producing trips ordered by start_time_ms DESC
+    val tripsFlow = Pager(
         config = PagingConfig(pageSize = 20, prefetchDistance = 5, initialLoadSize = 40, enablePlaceholders = false)
-    ) { sessionRepository.getAllSessionsPaged() }
+    ) { tripDao.getAllPaged() }
         .flow
         .cachedIn(viewModelScope)
 
@@ -104,7 +107,7 @@ class StatsViewModel @Inject constructor(
 
     /**
      * Load summary statistics from repository.
-     * Emits Loading -> Success/Error states via summaryStatsState flow.
+     * Uses legacy SessionRepository which delegates to SummaryGenerator.
      */
     fun loadSummaryStats() {
         viewModelScope.launch {
@@ -122,7 +125,7 @@ class StatsViewModel @Inject constructor(
 
     /**
      * Load weekly statistics from repository.
-     * Emits Loading -> Success/Error states via weeklyStatsState flow.
+     * Uses legacy SessionRepository which delegates to SummaryGenerator.
      */
     fun loadWeeklyStats() {
         viewModelScope.launch {

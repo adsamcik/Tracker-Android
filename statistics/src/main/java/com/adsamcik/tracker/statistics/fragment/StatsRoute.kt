@@ -11,11 +11,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.LoadState
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.StatsViewModel
-import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.ui.compose.SummaryDialog
 import com.adsamcik.tracker.statistics.ui.compose.WeekDialog
 
@@ -29,12 +26,12 @@ fun StatsRoute(
 ) {
     val context = LocalContext.current
     val vm: StatsViewModel = hiltViewModel()
-    val pagingItems = vm.sessionsFlow.collectAsLazyPagingItems()
+    val pagingItems = vm.tripsFlow.collectAsLazyPagingItems()
 
     // Dialog state management
     var showSummaryDialog by remember { mutableStateOf(false) }
     var showWeekDialog by remember { mutableStateOf(false) }
-    
+
     // Collect statistics state from ViewModel
     val summaryStatsState by vm.summaryStatsState.collectAsState()
     val weeklyStatsState by vm.weeklyStatsState.collectAsState()
@@ -54,7 +51,7 @@ fun StatsRoute(
     StatsScreen(
         refreshState = refreshState,
         appendState = appendState,
-        sessions = pagingItems,
+        trips = pagingItems,
         onRetry = { pagingItems.retry() },
         onShowSummary = {
             vm.loadSummaryStats()
@@ -71,11 +68,11 @@ fun StatsRoute(
                 Toast.LENGTH_SHORT
             ).show()
         },
-        onSessionClick = onTripClick,
+        onTripClick = onTripClick,
         onNavigateToHistory = onNavigateToHistory,
         weeklyBars = weeklyBars
     )
-    
+
     // Show dialogs when state is true
     if (showSummaryDialog) {
         SummaryDialog(
@@ -84,7 +81,7 @@ fun StatsRoute(
             onDismiss = { showSummaryDialog = false }
         )
     }
-    
+
     if (showWeekDialog) {
         WeekDialog(
             visible = showWeekDialog,

@@ -16,11 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.paging.compose.LazyPagingItems
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -32,15 +31,10 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsBike
-import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Route
-import androidx.compose.material.icons.filled.Sailing
 import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
@@ -67,7 +61,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.AppShapes
@@ -75,6 +68,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
+import com.adsamcik.tracker.statistics.viewmodel.activityIcon
 
 /**
  * Refresh state for statistics route. Mirrors the test expectations.
@@ -104,9 +98,9 @@ fun StatsScreen(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
-    // Optional paging sessions supplied by route; tests omit it and rely on placeholders.
-    sessions: LazyPagingItems<TrackerSession>? = null,
-    onSessionClick: (Long) -> Unit = {},
+    // Optional paging trips supplied by route; tests omit it and rely on placeholders.
+    trips: LazyPagingItems<Trip>? = null,
+    onTripClick: (Long) -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     weeklyBars: List<DayBar> = emptyList(),
 ) {
@@ -121,7 +115,7 @@ fun StatsScreen(
             RefreshUiState.Error -> ErrorState(onRetry)
             RefreshUiState.Content -> ContentState(
                 appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi,
-                sessions, onSessionClick, onNavigateToHistory, weeklyBars
+                trips, onTripClick, onNavigateToHistory, weeklyBars
             )
         }
     }
@@ -161,7 +155,6 @@ private fun EmptyState() {
 @Composable
 private fun ErrorState(onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        // Using module-specific generic error string
         Text(
             text = stringResource(R.string.stats_error_generic),
             modifier = Modifier.padding(horizontal = 24.dp),
@@ -184,16 +177,16 @@ private fun ContentState(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
-    pagingItems: LazyPagingItems<TrackerSession>? = null,
-    onSessionClick: (Long) -> Unit = {},
+    pagingItems: LazyPagingItems<Trip>? = null,
+    onTripClick: (Long) -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     weeklyBars: List<DayBar> = emptyList(),
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = 16.dp, // Increased top padding
-            bottom = 120.dp, // Space for floating nav bar
+            top = 16.dp,
+            bottom = 120.dp,
             start = 16.dp,
             end = 16.dp
         ),
@@ -214,36 +207,34 @@ private fun ContentState(
             var lastDateKey: String? = null
 
             items(count) { index ->
-                val session = pagingItems[index]
-                if (session != null) {
-                    // Calculate date key for grouping
-                    val sessionDate = if (session.start > 0) {
-                        Instant.ofEpochMilli(session.start)
+                val trip = pagingItems[index]
+                if (trip != null) {
+                    val tripDate = if (trip.startTimeMs > 0) {
+                        Instant.ofEpochMilli(trip.startTimeMs)
                             .atZone(ZoneId.systemDefault())
                             .toLocalDate()
                     } else null
 
-                    val currentDateKey = sessionDate?.toString()
+                    val currentDateKey = tripDate?.toString()
 
-                    // Show date header when date changes
                     if (currentDateKey != null && currentDateKey != lastDateKey) {
-                        DateHeader(session.start)
+                        DateHeader(trip.startTimeMs)
                         lastDateKey = currentDateKey
                     }
 
-                    SessionRow(
-                        session = session,
-                        onClick = { onSessionClick(session.id) }
+                    TripRow(
+                        trip = trip,
+                        onClick = { onTripClick(trip.id) }
                     )
                 }
             }
         } else {
-            // Placeholder state for tests
+            // Placeholder state for tests — renders empty cards
             items(5) { index ->
                 if (index == 0) {
                     DateHeader(System.currentTimeMillis())
                 }
-                SessionRow(TrackerSession(id = index.toLong(), start = 0, end = 0))
+                PlaceholderRow(index)
             }
         }
 
@@ -320,7 +311,6 @@ private fun WeeklySummaryChart(bars: List<DayBar>) {
                     }
                     val y = maxBarHeight - barHeight
 
-                    // Bar background (empty portion)
                     drawRoundRect(
                         color = emptyBarColor,
                         topLeft = Offset(x, 0f),
@@ -328,7 +318,6 @@ private fun WeeklySummaryChart(bars: List<DayBar>) {
                         cornerRadius = CornerRadius(4.dp.toPx())
                     )
 
-                    // Filled bar
                     if (bar.distanceM > 0f) {
                         drawRoundRect(
                             color = barColor,
@@ -457,7 +446,7 @@ private fun ActionChip(
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxSize(), // GlassCard applies padding internally, need to be careful
+            modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -467,92 +456,61 @@ private fun ActionChip(
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            // Hide label on small screens? Or ensure GlassCard padding isn't too big.
-            // GlassCard has 16.dp padding. Might be tight.
         }
     }
 }
 
-private val sessionTimeFormatter: DateTimeFormatter by lazy {
+private val tripTimeFormatter: DateTimeFormatter by lazy {
     DateTimeFormatter.ofPattern("HH:mm")
 }
 
-private val sessionDateFormatter: DateTimeFormatter by lazy {
+private val tripDateFormatter: DateTimeFormatter by lazy {
     DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
 }
 
 /**
- * Returns an appropriate icon for the session based on activity type and metrics.
- */
-private fun getSessionIcon(session: TrackerSession): ImageVector {
-    // Determine based on activity ID if available, otherwise infer from metrics
-    return when (session.sessionActivityId) {
-        -2L -> Icons.AutoMirrored.Filled.DirectionsWalk // Walking
-        -3L -> Icons.AutoMirrored.Filled.DirectionsRun  // Running
-        -4L -> Icons.AutoMirrored.Filled.DirectionsBike // Bicycle
-        -5L, -34L -> Icons.Filled.DirectionsCar         // Vehicle / Land Vehicle
-        -26L -> Icons.Filled.Sailing                    // Water Vehicle
-        -31L -> Icons.Filled.Flight                     // Air Vehicle
-        else -> {
-            // Infer from metrics if no activity type
-            when {
-                session.distanceInVehicleInM > session.distanceOnFootInM -> Icons.Filled.DirectionsCar
-                session.steps > 0 && session.distanceOnFootInM > 1000 -> Icons.AutoMirrored.Filled.DirectionsRun
-                session.steps > 0 -> Icons.AutoMirrored.Filled.DirectionsWalk
-                session.distanceInM > 0 -> Icons.Filled.Route
-                else -> Icons.Filled.Route
-            }
-        }
-    }
-}
-
-/**
- * Enhanced session row with activity icon, formatted duration, distance, and steps.
+ * Trip row displaying activity icon, time, duration, distance, and steps.
  */
 @Composable
-internal fun SessionRow(
-    session: TrackerSession,
+internal fun TripRow(
+    trip: Trip,
     onClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val resources = context.resources
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
 
-    val durationMs = if (session.end > session.start && session.end != 0L) {
-        session.end - session.start
-    } else {
-        0L
-    }
+    val durationMs = trip.durationMs
 
     val durationText = remember(durationMs) {
         if (durationMs > 0) durationMs.formatAsDuration(context) else null
     }
 
-    val distanceText = remember(session.distanceInM, settings) {
-        if (session.distanceInM > 0) {
+    val distanceText = remember(trip.distanceM, settings) {
+        if (trip.distanceM > 0) {
             resources.formatDistance(
-                session.distanceInM,
-                digits = if (session.distanceInM >= 1000f) 1 else 2,
+                trip.distanceM,
+                digits = if (trip.distanceM >= 1000f) 1 else 2,
                 unit = settings.lengthSystem
             )
         } else null
     }
 
-    val timeText = remember(session.start) {
-        if (session.start != 0L) {
-            sessionTimeFormatter.format(
-                Instant.ofEpochMilli(session.start).atZone(ZoneId.systemDefault())
+    val timeText = remember(trip.startTimeMs) {
+        if (trip.startTimeMs != 0L) {
+            tripTimeFormatter.format(
+                Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault())
             )
         } else "--"
     }
 
-    val sessionIcon = remember(session) { getSessionIcon(session) }
+    val tripIcon = remember(trip.primaryActivity) { activityIcon(trip.primaryActivity) }
 
     GlassCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .testTag("stats_session_row"),
+            .testTag("stats_trip_row"),
         shape = AppShapes.GlassCard
     ) {
         Row(
@@ -568,7 +526,7 @@ internal fun SessionRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = sessionIcon,
+                    imageVector = tripIcon,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -579,7 +537,6 @@ internal fun SessionRow(
 
             // Main content
             Column(modifier = Modifier.weight(1f)) {
-                // Time and activity label
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -601,7 +558,6 @@ internal fun SessionRow(
 
                 Spacer(Modifier.height(4.dp))
 
-                // Metrics row
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -612,13 +568,14 @@ internal fun SessionRow(
                             value = distanceText
                         )
                     }
-                    if (session.steps > 0) {
+                    val steps = trip.steps ?: 0
+                    if (steps > 0) {
                         MetricBadge(
                             icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                            value = session.steps.formatReadable()
+                            value = steps.formatReadable()
                         )
                     }
-                    if (distanceText == null && session.steps == 0) {
+                    if (distanceText == null && steps == 0) {
                         Text(
                             text = stringResource(R.string.stats_session_subtitle_placeholder),
                             style = MaterialTheme.typography.bodySmall,
@@ -657,7 +614,7 @@ private fun MetricBadge(
 }
 
 /**
- * Date header separator for grouping sessions by day.
+ * Date header separator for grouping trips by day.
  */
 @Composable
 internal fun DateHeader(dateMillis: Long) {
@@ -704,8 +661,7 @@ private fun formatRelativeDate(context: Context, dateMillis: Long): String {
     return when {
         daysDiff == 0L -> context.getString(R.string.stats_date_today)
         daysDiff == 1L -> context.getString(R.string.stats_date_yesterday)
-        daysDiff < 7L -> sessionDateFormatter.format(sessionDate)
-        else -> sessionDateFormatter.format(sessionDate)
+        else -> tripDateFormatter.format(sessionDate)
     }
 }
 
@@ -717,7 +673,6 @@ private fun PlaceholderRow(index: Int) {
             .height(80.dp)
             .testTag("stats_placeholder_$index")
     ) {
-        // Placeholder content
         Row(verticalAlignment = Alignment.CenterVertically) {
              Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)))
         }

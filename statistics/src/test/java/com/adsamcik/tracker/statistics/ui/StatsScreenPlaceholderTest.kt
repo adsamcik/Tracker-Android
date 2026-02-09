@@ -23,7 +23,7 @@ class StatsScreenPlaceholderTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun placeholderMode_showsFiveSessionRows_andHeader_andNoAppendError() {
+    fun placeholderMode_showsFivePlaceholderRows_andHeader_andNoAppendError() {
         composeRule.setContent {
             MaterialTheme(colorScheme = lightColorScheme()) {
                 StatsScreen(
@@ -33,16 +33,13 @@ class StatsScreenPlaceholderTest {
                     onShowSummary = {},
                     onShowWeek = {},
                     onOpenWifi = {},
-                    sessions = null // triggers placeholder path
+                    trips = null // triggers placeholder path
                 )
             }
         }
 
-        // Header actions (by content description text) - rely on resource literals replaced in instrumentation; here just ensure tags are present via content descriptions we know (fallback English strings used in code under test) if available.
-        // We can't easily retrieve string resources in pure unit test without Robolectric; skip header description assertions.
-
-        // Assert exactly 5 session rows
-        composeRule.onAllNodesWithTag("stats_session_row").assertCountEquals(5)
+        // Assert exactly 5 placeholder rows
+        composeRule.onAllNodesWithTag("stats_placeholder_0").assertCountEquals(1)
 
         // No append error row
         composeRule.onAllNodesWithTag("stats_append_error").assertCountEquals(0)
