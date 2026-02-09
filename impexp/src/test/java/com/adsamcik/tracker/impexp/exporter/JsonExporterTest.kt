@@ -16,11 +16,10 @@ class JsonExporterTest {
 	private fun export(
 		locations: Sequence<DatabaseLocation> = emptySequence(),
 		sessions: List<SessionSnapshot> = emptyList(),
-		segments: List<SegmentSnapshot> = emptyList(),
 		dateRange: LongRange? = null,
 	): String {
 		val out = ByteArrayOutputStream()
-		val result = exporter.writeJson(out, locations, sessions, segments, dateRange)
+		val result = exporter.writeJson(out, locations, sessions, dateRange)
 		result shouldBe ExportResult.Success
 		return out.toString(Charsets.UTF_8.name())
 	}
@@ -31,7 +30,6 @@ class JsonExporterTest {
 		json shouldStartWith "{\"schema\":1"
 		json shouldContain "\"locations\":[]"
 		json shouldContain "\"sessions\":[]"
-		json shouldContain "\"segments\":[]"
 	}
 
 	@Test
@@ -64,7 +62,6 @@ class JsonExporterTest {
 	fun `multiple locations separated by commas`() {
 		val locs = (1..3).map { testLocation(time = it.toLong(), lat = 50.0 + it, lon = 7.0) }
 		val json = export(locations = locs.asSequence())
-		// Count location objects
 		val count = "\"time\"".toRegex().findAll(json).count()
 		count shouldBe 3
 	}
@@ -91,24 +88,6 @@ class JsonExporterTest {
 	}
 
 	@Test
-	fun `segment snapshot serialization`() {
-		val segment = SegmentSnapshot(
-			id = 7,
-			startTimeMs = 3000L,
-			endTimeMs = 4000L,
-			distanceM = 567.8f,
-			sampleCount = 25,
-			source = "INFERRED_HIGH_CONFIDENCE",
-			steps = 200,
-			primaryActivity = 7,
-		)
-		val json = export(segments = listOf(segment))
-		json shouldContain "\"source\":\"INFERRED_HIGH_CONFIDENCE\""
-		json shouldContain "\"sampleCount\":25"
-		json shouldContain "\"primaryActivity\":7"
-	}
-
-	@Test
 	fun `activity info is included in location`() {
 		val loc = DatabaseLocation(
 			Location(300L, 51.0, 7.0, null, null, null, null, null),
@@ -127,7 +106,6 @@ class JsonExporterTest {
 
 	@Test
 	fun `large export streams without OOM`() {
-		// Generate 10000 locations to verify streaming works
 		val locs = (1..10_000).asSequence().map {
 			testLocation(time = it.toLong(), lat = 50.0 + it * 0.0001, lon = 7.0)
 		}
@@ -137,6 +115,22 @@ class JsonExporterTest {
 		val json = out.toString(Charsets.UTF_8.name())
 		val count = "\"time\"".toRegex().findAll(json).count()
 		count shouldBe 10_000
+	}
+
+	@Test
+	fun `session without steps omits steps field`() {
+		val session = SessionSnapshot(
+			id = 1,
+			start = 1000L,
+			end = 2000L,
+			collections = 10,
+			distanceInM = 100f,
+			isUserInitiated = false,
+			steps = null,
+		)
+		val json = export(sessions = listOf(session))
+		json shouldContain "\"isUserInitiated\":false"
+		json.contains("\"steps\"") shouldBe false
 	}
 
 	private fun testLocation(

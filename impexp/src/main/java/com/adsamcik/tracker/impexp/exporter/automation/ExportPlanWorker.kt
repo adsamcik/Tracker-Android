@@ -83,6 +83,8 @@ class ExportPlanWorker(
 
     private suspend fun executePlan(plan: ExportBackupPlan): PlanExportResult = withContext(Dispatchers.IO) {
         val exporter = resolveExporter(plan.format)
+        // WorkManager Workers can't use constructor injection without HiltWorkerFactory;
+        // direct DB access is acceptable here as Workers are scoped to background execution.
         val db = AppDatabase.database(applicationContext)
 
         // Resolve date range from scope
@@ -121,8 +123,9 @@ class ExportPlanWorker(
                 recordCount = recordCount,
             )
             is ExportResult.Error -> {
+                Reporter.w(EXPORT_LOG_SOURCE, "Export failed for ${outputFile.name}")
                 outputFile.delete()
-                PlanExportResult.Failed("Export returned error")
+                PlanExportResult.Failed("Export returned error for ${plan.name}")
             }
         }
     }
@@ -184,7 +187,9 @@ class ExportPlanWorker(
         completedAt: Long,
     ) {
         try {
-            val db = AppDatabase.database(applicationContext)
+            // WorkManager Workers can't use constructor injection without HiltWorkerFactory;
+        // direct DB access is acceptable here as Workers are scoped to background execution.
+        val db = AppDatabase.database(applicationContext)
             val entity = when (result) {
                 is PlanExportResult.Success -> ExportLogEntity(
                     format = plan.format.name,

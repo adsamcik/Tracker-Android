@@ -18,6 +18,9 @@ import java.io.InputStreamReader
  *
  * Streaming reader — processes locations one at a time via [JsonReader]
  * to avoid loading the entire file into memory.
+ *
+ * Session IDs are reassigned on import. This allows merging data from
+ * multiple devices but breaks references to specific session IDs.
  */
 internal class JsonImport : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("json")
@@ -27,23 +30,29 @@ internal class JsonImport : FileImport {
 		database: AppDatabase,
 		stream: FileImportStream,
 	) = withContext(Dispatchers.IO) {
-		val reader = JsonReader(InputStreamReader(stream, Charsets.UTF_8))
-		reader.isLenient = true
+		JsonReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
+			reader.isLenient = true
 
-		reader.beginObject()
-		while (reader.hasNext()) {
-			when (reader.nextName()) {
-				"schema" -> reader.nextInt() // consume; forward-compatible
-				"exportedAt" -> reader.nextLong()
-				"dateRangeStart" -> reader.nextLong()
-				"dateRangeEnd" -> reader.nextLong()
-				"locations" -> importLocations(reader, database)
-				"sessions" -> importSessions(reader, database)
-				"segments" -> skipArray(reader) // segments can be regenerated
-				else -> reader.skipValue()
+			reader.beginObject()
+			while (reader.hasNext()) {
+				when (reader.nextName()) {
+					"schema" -> {
+						val version = reader.nextInt()
+						require(version in 1..CURRENT_SCHEMA_VERSION) {
+							"Unsupported JSON schema version: $version"
+						}
+					}
+					"exportedAt" -> reader.nextLong()
+					"dateRangeStart" -> reader.nextLong()
+					"dateRangeEnd" -> reader.nextLong()
+					"locations" -> importLocations(reader, database)
+					"sessions" -> importSessions(reader, database)
+					"segments" -> skipArray(reader) // segments can be regenerated
+					else -> reader.skipValue()
+				}
 			}
+			reader.endObject()
 		}
-		reader.endObject()
 	}
 
 	private fun importLocations(reader: JsonReader, database: AppDatabase) {
@@ -94,7 +103,11 @@ internal class JsonImport : FileImport {
 		}
 		reader.endObject()
 
+		// Validate required fields and bounds
 		if (time == 0L) return null
+		if (time < MIN_VALID_TIMESTAMP || time > MAX_VALID_TIMESTAMP) return null
+		if (lat < -90.0 || lat > 90.0) return null
+		if (lon < -180.0 || lon > 180.0) return null
 
 		val location = Location(time, lat, lon, alt, accuracy, null, speed, null)
 		return DatabaseLocation(location, ActivityInfo(activityType, activityConf))
@@ -145,7 +158,10 @@ internal class JsonImport : FileImport {
 		}
 		reader.endObject()
 
+		// Validate session data
 		if (start == 0L) return null
+		if (start < MIN_VALID_TIMESTAMP || start > MAX_VALID_TIMESTAMP) return null
+		if (end < start) return null
 
 		val session = MutableTrackerSession(start = start, isUserInitiated = isUserInitiated)
 		session.end = end
@@ -165,5 +181,10 @@ internal class JsonImport : FileImport {
 
 	companion object {
 		private const val BATCH_SIZE = 200
+		private const val CURRENT_SCHEMA_VERSION = 1
+		// 2010-01-01 00:00:00 UTC
+		private const val MIN_VALID_TIMESTAMP = 1_262_304_000_000L
+		// 2100-01-01 00:00:00 UTC
+		private const val MAX_VALID_TIMESTAMP = 4_102_444_800_000L
 	}
 }

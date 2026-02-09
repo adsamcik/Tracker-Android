@@ -1,20 +1,23 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import kotlinx.coroutines.runBlocking
 import java.io.BufferedWriter
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 
 /**
- * Exports location data (and optionally session segments + route cache)
- * as a streaming JSON document with schema versioning.
+ * Exports location data and session metadata as a streaming JSON document
+ * with schema versioning.
  *
- * Format is designed for full-fidelity backup/restore:
+ * Segments are intentionally excluded because they can be regenerated
+ * from raw location data during import (see [JsonImport]).
+ *
+ * Format:
  * ```json
- * {"schema":1,"exportedAt":1707500000000,"locations":[...],"sessions":[...]}
+ * {"schema":1,"exportedAt":...,"locations":[...],"sessions":[...]}
  * ```
  */
 class JsonExporter : Exporter {
@@ -30,6 +33,7 @@ class JsonExporter : Exporter {
 	): ExportResult {
 		val db = AppDatabase.database(context)
 
+		// SessionDataDao.getAll() is non-suspend, safe to call directly
 		val sessions = try {
 			db.sessionDao().getAll().map { s ->
 				SessionSnapshot(
@@ -42,28 +46,12 @@ class JsonExporter : Exporter {
 					steps = s.steps.takeIf { it > 0 },
 				)
 			}
-		} catch (_: Exception) {
+		} catch (e: Exception) {
+			Reporter.w(EXPORT_LOG_SOURCE, "Failed to load sessions for JSON export: ${e.message}")
 			emptyList()
 		}
 
-		val segments = try {
-			runBlocking { db.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE) }.map { seg ->
-				SegmentSnapshot(
-					id = seg.id,
-					startTimeMs = seg.startTimeMs,
-					endTimeMs = seg.endTimeMs,
-					distanceM = seg.distanceM,
-					sampleCount = seg.sampleCount,
-					source = seg.source.name,
-					steps = seg.steps,
-					primaryActivity = seg.primaryActivity,
-				)
-			}
-		} catch (_: Exception) {
-			emptyList()
-		}
-
-		return writeJson(outputStream, locationData, sessions, segments, dateRange)
+		return writeJson(outputStream, locationData, sessions, dateRange)
 	}
 
 	/**
@@ -74,7 +62,6 @@ class JsonExporter : Exporter {
 		outputStream: OutputStream,
 		locations: Sequence<DatabaseLocation>,
 		sessions: List<SessionSnapshot> = emptyList(),
-		segments: List<SegmentSnapshot> = emptyList(),
 		dateRange: LongRange? = null,
 	): ExportResult {
 		return try {
@@ -102,14 +89,6 @@ class JsonExporter : Exporter {
 				sessions.forEachIndexed { i, s ->
 					if (i > 0) w.write(",")
 					writeSession(w, s)
-				}
-				w.write("]")
-
-				// Segments array
-				w.write(",\"segments\":[")
-				segments.forEachIndexed { i, s ->
-					if (i > 0) w.write(",")
-					writeSegment(w, s)
 				}
 				w.write("]")
 
@@ -146,18 +125,6 @@ class JsonExporter : Exporter {
 		w.write("}")
 	}
 
-	private fun writeSegment(w: BufferedWriter, s: SegmentSnapshot) {
-		w.write("{\"id\":${s.id}")
-		w.write(",\"startTimeMs\":${s.startTimeMs}")
-		w.write(",\"endTimeMs\":${s.endTimeMs}")
-		w.write(",\"distanceM\":${s.distanceM}")
-		w.write(",\"sampleCount\":${s.sampleCount}")
-		w.write(",\"source\":\"${escapeJson(s.source)}\"")
-		s.steps?.let { w.write(",\"steps\":$it") }
-		s.primaryActivity?.let { w.write(",\"primaryActivity\":$it") }
-		w.write("}")
-	}
-
 	companion object {
 		internal fun escapeJson(s: String): String = s
 			.replace("\\", "\\\\")
@@ -180,18 +147,4 @@ data class SessionSnapshot(
 	val distanceInM: Float,
 	val isUserInitiated: Boolean,
 	val steps: Int? = null,
-)
-
-/**
- * Lightweight snapshot of a SessionSegment for JSON export.
- */
-data class SegmentSnapshot(
-	val id: Long,
-	val startTimeMs: Long,
-	val endTimeMs: Long,
-	val distanceM: Float,
-	val sampleCount: Int,
-	val source: String,
-	val steps: Int? = null,
-	val primaryActivity: Int? = null,
 )
