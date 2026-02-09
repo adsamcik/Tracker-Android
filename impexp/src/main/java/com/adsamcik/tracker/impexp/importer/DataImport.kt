@@ -5,6 +5,7 @@ import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImport
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.GpxImport
+import com.adsamcik.tracker.impexp.importer.file.JsonImport
 
 /**
  * Takes care of data importing.
@@ -38,7 +39,7 @@ class DataImport {
 		get() = supportedImporterExtensions.union(supportedArchiveExtractorExtensions)
 
 	init {
-		this.activeImporterList = mutableListOf(GpxImport(), DatabaseImport())
+		this.activeImporterList = mutableListOf(GpxImport(), DatabaseImport(), JsonImport())
 		val archiveList = mutableListOf<ArchiveExtractor>()
 		archiveList.add(ZipArchiveExtractor())
 		this.activeArchiveExtractorList = archiveList

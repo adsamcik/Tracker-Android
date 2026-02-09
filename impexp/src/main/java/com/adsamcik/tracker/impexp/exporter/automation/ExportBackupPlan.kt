@@ -32,18 +32,21 @@ value class ExportPlanId(val value: Long)
 enum class ExportFormat {
     GPX,
     KML,
-    DATABASE;
+    DATABASE,
+    JSON;
 
     internal fun toProto(): ExportFormatProto = when (this) {
         GPX -> ExportFormatProto.EXPORT_FORMAT_GPX
         KML -> ExportFormatProto.EXPORT_FORMAT_KML
         DATABASE -> ExportFormatProto.EXPORT_FORMAT_DATABASE
+        JSON -> ExportFormatProto.EXPORT_FORMAT_JSON
     }
 
     internal companion object {
         fun fromProto(proto: ExportFormatProto): ExportFormat = when (proto) {
             ExportFormatProto.EXPORT_FORMAT_KML -> KML
             ExportFormatProto.EXPORT_FORMAT_DATABASE -> DATABASE
+            ExportFormatProto.EXPORT_FORMAT_JSON -> JSON
             ExportFormatProto.EXPORT_FORMAT_GPX,
             ExportFormatProto.EXPORT_FORMAT_UNSPECIFIED,
             ExportFormatProto.UNRECOGNIZED -> GPX

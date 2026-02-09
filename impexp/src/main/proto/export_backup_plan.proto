@@ -27,6 +27,7 @@ enum ExportFormatProto {
   EXPORT_FORMAT_GPX = 1;
   EXPORT_FORMAT_KML = 2;
   EXPORT_FORMAT_DATABASE = 3;
+  EXPORT_FORMAT_JSON = 4;
 }
 
 message ExportCadenceProto {
