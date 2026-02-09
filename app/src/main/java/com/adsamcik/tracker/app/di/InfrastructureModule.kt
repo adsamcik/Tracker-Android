@@ -10,6 +10,10 @@ import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
+import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
+import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
+import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
+import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
@@ -201,4 +205,32 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideStorageSizeSnapshotDao(database: AppDatabase): StorageSizeSnapshotDao = database.storageSizeSnapshotDao()
+
+    /**
+     * Provides LiveStatsDao for real-time dashboard stats.
+     */
+    @Provides
+    @Singleton
+    fun provideLiveStatsDao(database: AppDatabase): LiveStatsDao = database.liveStatsDao()
+
+    /**
+     * Provides FrequentPlaceDao for trip enrichment (Phase 3b).
+     */
+    @Provides
+    @Singleton
+    fun provideFrequentPlaceDao(database: AppDatabase): FrequentPlaceDao = database.frequentPlaceDao()
+
+    /**
+     * Provides InferredTripDao for enriched trip data (Phase 3b).
+     */
+    @Provides
+    @Singleton
+    fun provideInferredTripDao(database: AppDatabase): InferredTripDao = database.inferredTripDao()
+
+    /**
+     * Provides TripLegDao for trip segment data (Phase 3b).
+     */
+    @Provides
+    @Singleton
+    fun provideTripLegDao(database: AppDatabase): TripLegDao = database.tripLegDao()
 }

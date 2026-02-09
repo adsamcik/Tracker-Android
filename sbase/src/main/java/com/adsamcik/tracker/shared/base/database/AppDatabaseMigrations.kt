@@ -570,38 +570,38 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
 					center_lon_e7 INTEGER NOT NULL,
 					radius_m REAL NOT NULL,
 					visit_count INTEGER NOT NULL,
+					first_visit_ms INTEGER NOT NULL,
 					last_visit_ms INTEGER NOT NULL,
-					label TEXT,
-					source TEXT NOT NULL,
+					auto_category TEXT,
 					created_at INTEGER NOT NULL
 				)
 			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS index_frequent_place_center_lat_e7_center_lon_e7 ON frequent_place(center_lat_e7, center_lon_e7)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_frequent_place_coords ON frequent_place(center_lat_e7, center_lon_e7)")
 
 			// 2. Create inferred_trip table (FKs to frequent_place, ON DELETE SET NULL)
 			execSQL("""
 				CREATE TABLE IF NOT EXISTS inferred_trip (
 					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					segment_id INTEGER NOT NULL,
 					start_time_ms INTEGER NOT NULL,
 					end_time_ms INTEGER NOT NULL,
 					distance_m REAL NOT NULL,
-					steps INTEGER NOT NULL,
-					primary_activity INTEGER NOT NULL,
-					average_confidence INTEGER NOT NULL,
+					steps INTEGER,
+					primary_activity INTEGER,
 					transport_mode TEXT NOT NULL,
-					source TEXT NOT NULL,
-					inference_version TEXT NOT NULL,
-					segment_id INTEGER,
 					departure_place_id INTEGER,
 					arrival_place_id INTEGER,
+					source TEXT NOT NULL,
+					inference_version TEXT,
+					leg_count INTEGER NOT NULL,
 					created_at INTEGER NOT NULL,
 					FOREIGN KEY(departure_place_id) REFERENCES frequent_place(id) ON UPDATE NO ACTION ON DELETE SET NULL,
 					FOREIGN KEY(arrival_place_id) REFERENCES frequent_place(id) ON UPDATE NO ACTION ON DELETE SET NULL
 				)
 			""".trimIndent())
-			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_start_time_ms_end_time_ms ON inferred_trip(start_time_ms, end_time_ms)")
-			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_departure_place_id ON inferred_trip(departure_place_id)")
-			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_arrival_place_id ON inferred_trip(arrival_place_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_inferred_trip_time_range ON inferred_trip(start_time_ms, end_time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_inferred_trip_departure ON inferred_trip(departure_place_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_inferred_trip_arrival ON inferred_trip(arrival_place_id)")
 
 			// 3. Create trip_leg table (FK CASCADE to inferred_trip)
 			execSQL("""
@@ -617,7 +617,7 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
 					FOREIGN KEY(trip_id) REFERENCES inferred_trip(id) ON UPDATE NO ACTION ON DELETE CASCADE
 				)
 			""".trimIndent())
-			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_trip_leg_trip_id_sequence_index ON trip_leg(trip_id, sequence_index)")
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_leg_trip_seq ON trip_leg(trip_id, sequence_index)")
 
 			android.util.Log.i("AppDatabase", "Migration 14→15: Created frequent_place, inferred_trip, and trip_leg tables")
 		}
@@ -665,11 +665,11 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 				CREATE TABLE IF NOT EXISTS achievement_progress (
 					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 					achievement_id TEXT NOT NULL,
-					current_value INTEGER NOT NULL DEFAULT 0,
+					current_value INTEGER NOT NULL,
 					target_value INTEGER NOT NULL,
-					tier INTEGER NOT NULL DEFAULT 0,
+					tier INTEGER NOT NULL,
 					unlocked_at INTEGER,
-					updated_at INTEGER NOT NULL DEFAULT 0
+					updated_at INTEGER NOT NULL
 				)
 			""".trimIndent())
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_achievement_progress_achievement_id ON achievement_progress(achievement_id)")
