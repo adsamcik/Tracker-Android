@@ -22,4 +22,6 @@ interface InferredTripDao {
 
 	@Query("DELETE FROM inferred_trip")
 	fun deleteAll()
+    @Query("DELETE FROM inferred_trip WHERE start_time_ms < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
 }

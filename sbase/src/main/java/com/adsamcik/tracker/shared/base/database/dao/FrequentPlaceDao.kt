@@ -18,4 +18,6 @@ interface FrequentPlaceDao {
 
 	@Query("DELETE FROM frequent_place")
 	fun deleteAll()
+    @Query("DELETE FROM frequent_place WHERE last_visit_ms < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
 }

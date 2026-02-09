@@ -9,8 +9,11 @@ import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
+import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
+import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
+import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
@@ -177,4 +180,25 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun providePersonalRecordDao(database: AppDatabase): PersonalRecordDao = database.personalRecordDao()
+
+    /**
+     * Provides RouteCacheDao for compressed route polyline persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideRouteCacheDao(database: AppDatabase): RouteCacheDao = database.routeCacheDao()
+
+    /**
+     * Provides ExportLogDao for export history persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideExportLogDao(database: AppDatabase): ExportLogDao = database.exportLogDao()
+
+    /**
+     * Provides StorageSizeSnapshotDao for daily storage metrics persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideStorageSizeSnapshotDao(database: AppDatabase): StorageSizeSnapshotDao = database.storageSizeSnapshotDao()
 }

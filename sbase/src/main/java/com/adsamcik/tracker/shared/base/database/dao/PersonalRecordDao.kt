@@ -19,4 +19,6 @@ interface PersonalRecordDao {
 
 	@Query("DELETE FROM personal_record")
 	fun deleteAll()
+    @Query("DELETE FROM personal_record WHERE updated_at < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
 }

@@ -41,4 +41,6 @@ interface ExplorationStreakDao {
 
 	@Query("DELETE FROM exploration_streak")
 	fun deleteAll()
+    @Query("DELETE FROM exploration_streak WHERE updated_at < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
 }

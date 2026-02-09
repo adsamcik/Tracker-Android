@@ -21,6 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 17         │ 385         │ 🚧 UNRELEASED - Route compression & storage │
+ * │            │             │    (route_cache, export_log,             │
+ * │            │             │    storage_size_snapshot)                │
  * │ 16         │ 385         │ 🚧 UNRELEASED - Exploration & gamification  │
  * │            │             │    (exploration_cell, exploration_streak,│
  * │            │             │    achievement_progress, personal_record)│
@@ -684,6 +687,68 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_personal_record_metric ON personal_record(metric)")
 
 			android.util.Log.i("AppDatabase", "Migration 15→16: Created exploration_cell, exploration_streak, achievement_progress, and personal_record tables")
+		}
+	}
+}
+
+// Migration to add route compression cache, export log, and storage size snapshot tables (Phase 6a).
+// Creates route_cache (compressed polylines), export_log (export history), and storage_size_snapshot (daily metrics).
+val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// 1. Create route_cache table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS route_cache (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					session_id INTEGER,
+					segment_id INTEGER,
+					encoded_polyline TEXT NOT NULL,
+					point_count INTEGER NOT NULL,
+					simplified_count INTEGER NOT NULL,
+					start_time INTEGER NOT NULL,
+					end_time INTEGER NOT NULL,
+					distance_meters REAL NOT NULL,
+					created_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS index_route_cache_session_id ON route_cache(session_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_route_cache_start_time ON route_cache(start_time)")
+
+			// 2. Create export_log table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS export_log (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					format TEXT NOT NULL,
+					scope TEXT NOT NULL,
+					file_name TEXT NOT NULL,
+					file_size_bytes INTEGER NOT NULL,
+					record_count INTEGER NOT NULL,
+					started_at INTEGER NOT NULL,
+					completed_at INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					error_message TEXT,
+					created_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+
+			// 3. Create storage_size_snapshot table
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS storage_size_snapshot (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					epoch_day INTEGER NOT NULL,
+					database_size_bytes INTEGER NOT NULL,
+					location_count INTEGER NOT NULL,
+					session_count INTEGER NOT NULL,
+					wifi_count INTEGER NOT NULL,
+					cell_count INTEGER NOT NULL,
+					exploration_cell_count INTEGER NOT NULL,
+					route_cache_count INTEGER NOT NULL,
+					created_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_storage_size_snapshot_epoch_day ON storage_size_snapshot(epoch_day)")
+
+			android.util.Log.i("AppDatabase", "Migration 16->17: Created route_cache, export_log, and storage_size_snapshot tables")
 		}
 	}
 }

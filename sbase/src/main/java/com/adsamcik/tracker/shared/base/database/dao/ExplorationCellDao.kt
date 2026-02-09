@@ -54,4 +54,6 @@ interface ExplorationCellDao {
 
 	@Query("DELETE FROM exploration_cell")
 	fun deleteAll()
+    @Query("DELETE FROM exploration_cell WHERE first_discovered_at < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
 }

@@ -15,4 +15,6 @@ interface TripLegDao {
 
 	@Query("DELETE FROM trip_leg")
 	fun deleteAll()
+    @Query("DELETE FROM trip_leg WHERE start_time_ms < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
 }

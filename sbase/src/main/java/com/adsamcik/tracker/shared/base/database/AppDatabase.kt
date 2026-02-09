@@ -53,22 +53,28 @@ import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
+import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
+import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
+import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
+import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.database.data.PersonalRecordEntity
+import com.adsamcik.tracker.shared.base.database.data.RouteCacheEntity
+import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
 
 
 /**
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 16 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 17 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 16,
+		version = 17,
 		entities = [
 			// Legacy entities (kept for read-only access during migration period)
 			DatabaseLocation::class,
@@ -97,6 +103,10 @@ import com.adsamcik.tracker.shared.base.database.data.PersonalRecordEntity
 			ExplorationStreakEntity::class,
 			AchievementProgressEntity::class,
 			PersonalRecordEntity::class,
+			// Route compression and storage monitoring (Phase 6a)
+			RouteCacheEntity::class,
+			ExportLogEntity::class,
+			StorageSizeSnapshotEntity::class,
 		]
 )
 @TypeConverters(
@@ -243,6 +253,23 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun personalRecordDao(): PersonalRecordDao
 
+	// Route compression and storage monitoring DAOs (Phase 6a)
+
+	/**
+	 * Provides access to compressed route cache data.
+	 */
+	abstract fun routeCacheDao(): RouteCacheDao
+
+	/**
+	 * Provides access to export log records.
+	 */
+	abstract fun exportLogDao(): ExportLogDao
+
+	/**
+	 * Provides access to daily storage size snapshots.
+	 */
+	abstract fun storageSizeSnapshotDao(): StorageSizeSnapshotDao
+
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -260,7 +287,8 @@ abstract class AppDatabase : RoomDatabase() {
 						MIGRATION_12_13,
 						MIGRATION_13_14,
 						MIGRATION_14_15,
-						MIGRATION_15_16
+						MIGRATION_15_16,
+						MIGRATION_16_17
 				)
 		}
 
@@ -302,6 +330,11 @@ abstract class AppDatabase : RoomDatabase() {
 				database.explorationStreakDao().deleteAll()
 				database.achievementProgressDao().deleteAll()
 				database.personalRecordDao().deleteAll()
+
+				// Route compression and storage monitoring tables
+				database.routeCacheDao().deleteAll()
+				database.exportLogDao().deleteAll()
+				database.storageSizeSnapshotDao().deleteAll()
 			}
 		}
 	}

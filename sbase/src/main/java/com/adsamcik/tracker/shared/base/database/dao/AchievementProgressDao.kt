@@ -26,4 +26,6 @@ interface AchievementProgressDao {
 
 	@Query("DELETE FROM achievement_progress")
 	fun deleteAll()
+    @Query("DELETE FROM achievement_progress WHERE updated_at < :beforeMs")
+    suspend fun deleteOlderThan(beforeMs: Long): Int
 }

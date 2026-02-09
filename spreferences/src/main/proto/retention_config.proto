@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package com.adsamcik.tracker.shared.preferences.retention;
+
+option java_package = "com.adsamcik.tracker.shared.preferences.retention";
+option java_multiple_files = true;
+
+message RetentionConfigProto {
+  int32 raw_data_retention_days = 1;
+  int32 wifi_cell_retention_days = 2;
+  int32 trip_retention_days = 3;
+  int32 daily_summary_retention_days = 4;
+  int32 exploration_retention_days = 5;
+  bool auto_purge_enabled = 6;
+  bool export_before_purge = 7;
+  int32 legacy_session_retention_days = 8;
+  bool initialized = 100;
+}
