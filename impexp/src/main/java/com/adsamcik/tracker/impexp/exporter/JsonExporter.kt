@@ -3,6 +3,7 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import kotlinx.coroutines.runBlocking
 import java.io.BufferedWriter
 import java.io.OutputStream
 import java.io.OutputStreamWriter
@@ -46,7 +47,7 @@ class JsonExporter : Exporter {
 		}
 
 		val segments = try {
-			db.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE).map { seg ->
+			runBlocking { db.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE) }.map { seg ->
 				SegmentSnapshot(
 					id = seg.id,
 					startTimeMs = seg.startTimeMs,
@@ -129,7 +130,6 @@ class JsonExporter : Exporter {
 		l.altitude?.let { w.write(",\"alt\":$it") }
 		l.speed?.let { w.write(",\"spd\":$it") }
 		l.horizontalAccuracy?.let { w.write(",\"acc\":$it") }
-		l.bearing?.let { w.write(",\"bear\":$it") }
 		w.write(",\"act\":${loc.activityInfo.activityType}")
 		w.write(",\"actConf\":${loc.activityInfo.confidence}")
 		w.write("}")

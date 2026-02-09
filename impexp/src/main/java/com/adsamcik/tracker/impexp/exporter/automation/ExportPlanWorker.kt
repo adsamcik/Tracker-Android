@@ -75,7 +75,7 @@ class ExportPlanWorker(
                 }
             }
         } catch (e: Exception) {
-            Reporter.e(EXPORT_LOG_SOURCE, "Plan '${plan.name}' threw exception: ${e.message}")
+            Reporter.w(EXPORT_LOG_SOURCE, "Plan '${plan.name}' threw exception: ${e.message}")
             logExport(plan, PlanExportResult.Failed(e.message ?: "Unknown error"), startedAt, SystemClock.currentTimeMillis())
             Result.retry()
         }

@@ -75,7 +75,6 @@ internal class JsonImport : FileImport {
 		var alt: Double? = null
 		var speed: Float? = null
 		var accuracy: Float? = null
-		var bearing: Float? = null
 		var activityType = 0
 		var activityConf = 0
 
@@ -88,7 +87,6 @@ internal class JsonImport : FileImport {
 				"alt" -> alt = readNullableDouble(reader)
 				"spd" -> speed = readNullableDouble(reader)?.toFloat()
 				"acc" -> accuracy = readNullableDouble(reader)?.toFloat()
-				"bear" -> bearing = readNullableDouble(reader)?.toFloat()
 				"act" -> activityType = reader.nextInt()
 				"actConf" -> activityConf = reader.nextInt()
 				else -> reader.skipValue()
@@ -98,7 +96,7 @@ internal class JsonImport : FileImport {
 
 		if (time == 0L) return null
 
-		val location = Location(time, lat, lon, alt, null, bearing, speed, accuracy)
+		val location = Location(time, lat, lon, alt, accuracy, null, speed, null)
 		return DatabaseLocation(location, ActivityInfo(activityType, activityConf))
 	}
 
