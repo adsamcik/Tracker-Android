@@ -78,7 +78,7 @@ class StatsViewModel @Inject constructor(
     }
 
     private fun loadWeeklyBars() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch {
             try {
                 val todayEpochDay = LocalDate.now().toEpochDay()
                 val fromDay = todayEpochDay - 6 // last 7 days inclusive
