@@ -1,15 +1,11 @@
 plugins {
 	alias(libs.plugins.android.application)
-	alias(libs.plugins.secrets)
-	alias(libs.plugins.google.services)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.hilt)
 }
-
-// Google services plugin applied via alias above
 
 android {
 	compileSdk = Android.COMPILE_VERSION
@@ -202,7 +198,6 @@ dependencies {
 
 	// Open-source licenses
 	implementation(libs.licensesdialog)
-	implementation(libs.play.services.oss.licenses)
 
 	// PlayServices
 	implementation(libs.google.play.services.location)
@@ -241,9 +236,7 @@ dependencies {
 	androidTestImplementation(libs.espresso)
 	androidTestImplementation(libs.mockk.android)
 	androidTestImplementation(project(":testing-common"))
-	// workaround  Multiple APKs packaging the same library can cause runtime errors.
 	implementation(project(":smap"))
-	implementation(libs.google.play.services.maps)
 }
 
 // Configure JUnit 5 for unit tests

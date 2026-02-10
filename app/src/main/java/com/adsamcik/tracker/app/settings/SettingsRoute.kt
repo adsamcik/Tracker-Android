@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose
 import com.adsamcik.tracker.app.settings.components.*
+import com.adsamcik.tracker.map.basemap.BasemapManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -837,6 +838,47 @@ private fun MapSettings() {
             }
         }
         
+        // Basemap import/reset
+        item {
+            val scope = rememberCoroutineScope()
+            val basemapManager = remember { BasemapManager(context) }
+            val basemapPathKey = remember {
+                context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
+            }
+            var basemapPath by remember { mutableStateOf(basemapManager.customBasemapPath()) }
+
+            val importLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    scope.launch(Dispatchers.IO) {
+                        val path = basemapManager.importBasemap(uri)
+                        prefs.edit { setString(basemapPathKey, path) }
+                        basemapPath = path
+                    }
+                }
+            }
+
+            SettingsItem(
+                title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_title),
+                subtitle = if (basemapPath != null) {
+                    stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_custom)
+                } else {
+                    stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_default)
+                },
+                icon = Icons.Default.Map,
+                onClick = {
+                    if (basemapPath != null) {
+                        basemapManager.clearCustomBasemap()
+                        prefs.edit { setString(basemapPathKey, "") }
+                        basemapPath = null
+                    } else {
+                        importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+                    }
+                }
+            )
+        }
+
         // All map settings are advanced - wrap in expandable section
         item {
             com.adsamcik.tracker.app.settings.components.ExpandableSection(

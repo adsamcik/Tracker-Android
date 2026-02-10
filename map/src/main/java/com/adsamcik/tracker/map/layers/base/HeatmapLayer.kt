@@ -1,41 +1,39 @@
 package com.adsamcik.tracker.map.layers.base
 
-import android.content.Context
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.TileOverlay
-import com.google.android.gms.maps.model.TileOverlayOptions
-import com.adsamcik.tracker.map.tiles.HeatmapTileProviderBase
+import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 
 /**
- * Base class for heatmap-like layers using Google Maps TileOverlay.
- * Specializes BaseMapLayer with convenient overlay lifecycle handling.
+ * Base class for heatmap layers producing [MapLibreLayerConfig.Heatmap].
+ * Subclasses provide color stops and GeoJSON data; this base handles
+ * common config construction.
  */
 abstract class HeatmapLayer<I, P> : BaseMapLayer<I, P>() {
 
-    private var overlay: TileOverlay? = null
-    protected var lastTileProvider: com.google.android.gms.maps.model.TileProvider? = null
+    /** Color stops for the heatmap gradient. Override in subclasses. */
+    protected abstract fun colorStops(): List<Pair<Float, Int>>
 
-    /** Provide the TileOverlayOptions to add to the map in render(). */
-    protected abstract fun buildTileOverlay(processed: P): TileOverlayOptions
+    /** Extract GeoJSON string from processed data. */
+    protected abstract fun geoJsonFrom(processed: P): String
 
-    override fun render(map: GoogleMap, processed: P) {
-        // Remove previous overlay if any
-        overlay?.remove()
-        val opts = buildTileOverlay(processed)
-        lastTileProvider = opts.tileProvider
-        overlay = map.addTileOverlay(opts)
+    /** Heatmap radius in pixels. Override to customize. */
+    protected open fun radiusPx(): Float = 20f
 
-        // Wire provider invalidation callback -> clearTileCache (debounced upstream)
-        (lastTileProvider as? HeatmapTileProviderBase)?.setInvalidateTilesCallback {
-            overlay?.clearTileCache()
-        }
+    /** Heatmap intensity. Override to customize. */
+    protected open fun intensity(): Float = 1f
+
+    /** Heatmap opacity. Override to customize. */
+    protected open fun opacity(): Float = 0.8f
+
+    override fun produceConfig(processed: P): MapLibreLayerConfig? {
+        val geoJson = geoJsonFrom(processed)
+        if (geoJson.isEmpty()) return null
+        return MapLibreLayerConfig.Heatmap(
+            geoJson = geoJson,
+            colorStops = colorStops(),
+            radiusPx = radiusPx(),
+            intensity = intensity(),
+            opacity = opacity(),
+            weightProperty = "weight"
+        )
     }
-
-    override fun onDisable(map: GoogleMap) {
-        overlay?.remove()
-        overlay = null
-        lastTileProvider = null
-    }
-
-    fun currentTileProvider(): com.google.android.gms.maps.model.TileProvider? = lastTileProvider
 }

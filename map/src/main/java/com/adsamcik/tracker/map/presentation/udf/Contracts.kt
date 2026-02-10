@@ -1,11 +1,12 @@
 package com.adsamcik.tracker.map.presentation.udf
 
 import androidx.compose.runtime.Immutable
+import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.shared.map.CoordinateBounds
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
-import com.google.android.gms.maps.model.TileProvider
 
 @Immutable
 data class CameraModel(
@@ -71,41 +72,34 @@ data class MapState(
     val legend: ImmutableList<LegendItem> = persistentListOf(),
     val search: SearchState = SearchState(),
     val uiSettings: MapUiSettings = MapUiSettings(),
-    // Phase 2 additions
     val quality: Float = 1f,
     val dateRange: LongRange = 0L..Long.MAX_VALUE,
-    val tileGenerationInProgress: Int = 0,
-    // Phase 3: expose active TileProvider for Compose TileOverlay
-    val tileProvider: TileProvider? = null,
+    val layerLoadingProgress: Int = 0,
+    val layerConfig: MapLibreLayerConfig? = null,
 )
 
 sealed interface MapEvent {
     data object ToggleFollow : MapEvent
     data class SetFollowing(val isFollowing: Boolean) : MapEvent
     data object FollowCanceled : MapEvent
-    data object ShowSheet : MapEvent // kept for compatibility; maps to Expanded
-    data object HideSheet : MapEvent // kept for compatibility; maps to Hidden
+    data object ShowSheet : MapEvent
+    data object HideSheet : MapEvent
     data class SetSheet(val visibility: SheetVisibility) : MapEvent
-    // Search UI
     data class SelectLayer(val id: String) : MapEvent
     data class CameraMoved(val position: CameraModel, val byGesture: Boolean) : MapEvent
     data class SetQuality(val value: Float) : MapEvent
     data class SetDateRange(val range: LongRange) : MapEvent
-    // Search
     data class UpdateSearchQuery(val query: String) : MapEvent
     data class SetSearchFocus(val hasFocus: Boolean) : MapEvent
     data object SubmitSearch : MapEvent
-    data class GeocodeResult(val bounds: com.google.android.gms.maps.model.LatLngBounds?) : MapEvent
-    // Emitted by sensor pipeline to render user marker and accuracy circle declaratively
+    data class GeocodeResult(val bounds: CoordinateBounds?) : MapEvent
     data class SetUserLocation(val latLng: LatLngModel, val accuracyM: Double) : MapEvent
-    // Emitted by sensor pipeline to update user/device bearing in degrees [0, 360)
     data class SetBearing(val bearing: Float) : MapEvent
 }
 
 sealed interface MapEffect {
     data object ShowFollowCanceled : MapEffect
-    data class CenterCamera(val bounds: com.google.android.gms.maps.model.LatLngBounds) : MapEffect
+    data class CenterCamera(val bounds: CoordinateBounds) : MapEffect
     data class SetCameraBearing(val bearing: Float) : MapEffect
-    // Ask host to perform geocoding for the given query (Android service)
     data class PerformGeocode(val query: String) : MapEffect
 }

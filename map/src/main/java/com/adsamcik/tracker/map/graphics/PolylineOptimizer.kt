@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.map.graphics
 
-import com.google.android.gms.maps.model.LatLng
+import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.cos
@@ -14,14 +14,13 @@ object PolylineOptimizer {
 
     /**
      * Simplify a polyline with Douglas-Peucker then enforce [maxPoints] by down sampling and optional even spacing.
-     * Primary entry used internally; prefer the simpler overload unless custom spacing control required.
      */
     fun optimize(
-        points: List<LatLng>,
+        points: List<LatLngModel>,
         toleranceMeters: Double,
         maxPoints: Int,
         evenSpacing: Boolean = true,
-    ): List<LatLng> {
+    ): List<LatLngModel> {
         if (points.size <= 2 || (points.size <= maxPoints && toleranceMeters <= 0.0)) return points
         val simplified = if (toleranceMeters > 0) douglasPeucker(points, toleranceMeters) else points
         val capped = if (simplified.size > maxPoints) downSampleEvenly(simplified, maxPoints) else simplified
@@ -29,13 +28,7 @@ object PolylineOptimizer {
         return if (capped.size <= 2) capped else resampleEvenDistance(capped, min(maxPoints, capped.size))
     }
 
-    /**
-     * Spec-conforming overload (points, tolerance, maxPoints) -> List<LatLng> with even spacing enabled.
-     */
-    fun optimize(points: List<LatLng>, toleranceMeters: Double, maxPoints: Int): List<LatLng> =
-        optimize(points, toleranceMeters, maxPoints, evenSpacing = true)
-
-    private fun douglasPeucker(points: List<LatLng>, tolerance: Double): List<LatLng> {
+    private fun douglasPeucker(points: List<LatLngModel>, tolerance: Double): List<LatLngModel> {
         if (points.size < 3) return points
         val keep = BooleanArray(points.size)
         keep[0] = true
@@ -61,15 +54,15 @@ object PolylineOptimizer {
                 stack.addLast(index to end)
             }
         }
-        val out = ArrayList<LatLng>(keep.count { it })
+        val out = ArrayList<LatLngModel>(keep.count { it })
         for (i in points.indices) if (keep[i]) out.add(points[i])
         return out
     }
 
-    private fun downSampleEvenly(points: List<LatLng>, maxPoints: Int): List<LatLng> {
+    private fun downSampleEvenly(points: List<LatLngModel>, maxPoints: Int): List<LatLngModel> {
         if (points.size <= maxPoints) return points
         val step = (points.size - 1).toDouble() / (maxPoints - 1)
-        val out = ArrayList<LatLng>(maxPoints)
+        val out = ArrayList<LatLngModel>(maxPoints)
         var acc = 0.0
         while (out.size < maxPoints) {
             val idx = acc.toInt()
@@ -80,7 +73,7 @@ object PolylineOptimizer {
         return out
     }
 
-    private fun resampleEvenDistance(points: List<LatLng>, desired: Int): List<LatLng> {
+    private fun resampleEvenDistance(points: List<LatLngModel>, desired: Int): List<LatLngModel> {
         if (desired <= 2 || points.size <= 2) return points
         val distances = DoubleArray(points.size)
         var total = 0.0
@@ -90,18 +83,16 @@ object PolylineOptimizer {
         }
         if (total == 0.0) return points
         val step = total / (desired - 1)
-        val out = ArrayList<LatLng>(desired)
+        val out = ArrayList<LatLngModel>(desired)
         out.add(points.first())
         var target = step
         var j = 1
         while (out.size < desired - 1 && j < points.size) {
-            val prev = points[j - 1]
-            val next = points[j]
             val prevDist = distances[j - 1]
             val nextDist = distances[j]
             while (target <= nextDist && out.size < desired - 1) {
                 val ratio = (target - prevDist) / (nextDist - prevDist).coerceAtLeast(1e-9)
-                out.add(interpolate(prev, next, ratio))
+                out.add(interpolate(points[j - 1], points[j], ratio))
                 target += step
             }
             j++
@@ -110,36 +101,34 @@ object PolylineOptimizer {
         return out
     }
 
-    private fun distanceMeters(a: LatLng, b: LatLng): Double {
+    private fun distanceMeters(a: LatLngModel, b: LatLngModel): Double {
         val R = 6371000.0
-        val dLat = Math.toRadians(b.latitude - a.latitude)
-        val dLon = Math.toRadians(b.longitude - a.longitude)
-        val lat1 = Math.toRadians(a.latitude)
-        val lat2 = Math.toRadians(b.latitude)
+        val dLat = Math.toRadians(b.lat - a.lat)
+        val dLon = Math.toRadians(b.lng - a.lng)
+        val lat1 = Math.toRadians(a.lat)
+        val lat2 = Math.toRadians(b.lat)
         val h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
         val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(h), kotlin.math.sqrt(1 - h))
         return R * c
     }
 
-    private fun interpolate(a: LatLng, b: LatLng, t: Double): LatLng = LatLng(
-        a.latitude + (b.latitude - a.latitude) * t,
-        a.longitude + (b.longitude - a.longitude) * t,
+    private fun interpolate(a: LatLngModel, b: LatLngModel, t: Double): LatLngModel = LatLngModel(
+        lat = a.lat + (b.lat - a.lat) * t,
+        lng = a.lng + (b.lng - a.lng) * t,
     )
 
-    private fun perpendicularDistanceMeters(c: LatLng, a: LatLng, b: LatLng): Double {
+    private fun perpendicularDistanceMeters(c: LatLngModel, a: LatLngModel, b: LatLngModel): Double {
         val distAB = distanceMeters(a, b)
         if (distAB == 0.0) return distanceMeters(a, c)
-        val latRad = Math.toRadians((a.latitude + b.latitude) / 2.0)
-        val xA = 0.0
-        val yA = 0.0
-        val xB = Math.toRadians(b.longitude - a.longitude) * cos(latRad)
-        val yB = Math.toRadians(b.latitude - a.latitude)
-        val xC = Math.toRadians(c.longitude - a.longitude) * cos(latRad)
-        val yC = Math.toRadians(c.latitude - a.latitude)
+        val latRad = Math.toRadians((a.lat + b.lat) / 2.0)
+        val xB = Math.toRadians(b.lng - a.lng) * cos(latRad)
+        val yB = Math.toRadians(b.lat - a.lat)
+        val xC = Math.toRadians(c.lng - a.lng) * cos(latRad)
+        val yC = Math.toRadians(c.lat - a.lat)
         val proj = ((xC * xB) + (yC * yB)) / (xB * xB + yB * yB)
         val clamped = proj.coerceIn(0.0, 1.0)
-        val xP = xA + xB * clamped
-        val yP = yA + yB * clamped
+        val xP = xB * clamped
+        val yP = yB * clamped
         val dx = xC - xP
         val dy = yC - yP
         val earthR = 6371000.0

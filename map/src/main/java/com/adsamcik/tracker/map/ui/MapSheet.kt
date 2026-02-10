@@ -111,6 +111,7 @@ fun MapSheet(
     val snackbarHostState = remember { SnackbarHostState() }
     var showDateRangeDialog by remember { mutableStateOf(false) }
     var searchRowHeightPx by remember { mutableStateOf(0) }
+    var expandedByKeyboard by remember { mutableStateOf(false) }
     // Track keyboard visibility via ime bottom inset
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
     val navBottom = WindowInsets.navigationBars.getBottom(LocalDensity.current)
@@ -472,12 +473,15 @@ fun MapSheet(
         }
     }
 
-    // Auto-expand when user focuses search or keyboard is visible; auto-peek when keyboard hides and not manually expanded
+    // Auto-expand when user focuses search or keyboard is visible; auto-peek when keyboard hides
     LaunchedEffect(uiState.search.hasFocus, imeBottom) {
         if (uiState.search.hasFocus || imeBottom > 0) {
+            if (visibility != SheetVisibility.Expanded) {
+                expandedByKeyboard = true
+            }
             bottomSheetState.expand()
-        } else if (visibility == SheetVisibility.Expanded) {
-            // Return to peek when keyboard closes and input not focused
+        } else if (expandedByKeyboard && visibility == SheetVisibility.Expanded) {
+            expandedByKeyboard = false
             bottomSheetState.partialExpand()
         }
     }

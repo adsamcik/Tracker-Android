@@ -1,9 +1,8 @@
 package com.adsamcik.tracker.map.layers.base
 
 import android.content.Context
-import android.util.Log
 import com.adsamcik.tracker.map.perf.PerformanceManager
-import com.google.android.gms.maps.GoogleMap
+import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -14,11 +13,11 @@ import kotlinx.coroutines.withContext
 /**
  * Base template for map layers.
  *
- * enable(context, map, quality) runs the pipeline:
- *  beforeEnable -> loadData -> processData(with budgets) -> render (on Main) -> afterEnable (on Main)
+ * enable(context, quality) runs the pipeline:
+ *  beforeEnable -> loadData -> processData(with budgets) -> produce config
  *
- * Subclasses implement the abstract steps. All heavy work is off the main thread,
- * while map mutations (render/afterEnable/onDisable) are executed on Main.
+ * Subclasses implement the abstract steps. All heavy work is off the main thread.
+ * Layers produce [MapLibreLayerConfig] data rather than imperatively mutating a map.
  */
 abstract class BaseMapLayer<I, P>(
     private val performanceManager: PerformanceManager = PerformanceManager()
@@ -30,85 +29,82 @@ abstract class BaseMapLayer<I, P>(
     @Volatile
     private var enabled: Boolean = false
 
+    @Volatile
     protected var quality: Float = 1.0f
-        private set
-
-    protected lateinit var map: GoogleMap
         private set
 
     private var runningTask: Job? = null
 
+    /** The last produced layer config, available for the engine to read. */
+    @Volatile
+    var lastConfig: MapLibreLayerConfig? = null
+        private set
+
     /**
      * Start the layer. If already enabled, the running work is cancelled and the layer restarts.
      */
-    fun enable(context: Context, map: GoogleMap, quality: Float) {
+    fun enable(context: Context, quality: Float): Job {
         val startTime = System.currentTimeMillis()
-        
-        // Restart behavior: cancel any existing work and mark disabled before starting anew
-        if (enabled) {
-            disable()
-        }
-        this.map = map
-        this.quality = quality
-        enabled = true
 
-        runningTask = layerScope.launch {
+        synchronized(this@BaseMapLayer) {
+            if (enabled) {
+                disable()
+            }
+            this.quality = quality
+            enabled = true
+        }
+
+        val job = layerScope.launch {
             try {
-                beforeEnable(context, map)
-                
+                beforeEnable(context)
+
                 val loadStartTime = System.currentTimeMillis()
                 val input = loadData(context)
                 val loadDuration = System.currentTimeMillis() - loadStartTime
-                
+
                 val processStartTime = System.currentTimeMillis()
                 val budgets = performanceManager.budgets(quality)
                 val processed = processData(input, budgets)
                 val processDuration = System.currentTimeMillis() - processStartTime
-                
+
                 if (enabled) {
+                    val renderStartTime = System.currentTimeMillis()
+                    val config = produceConfig(processed)
+                    lastConfig = config
+                    val renderDuration = System.currentTimeMillis() - renderStartTime
+
                     withContext(Dispatchers.Main) {
                         if (enabled) {
-                            try {
-                                val renderStartTime = System.currentTimeMillis()
-                                render(map, processed)
-                                val renderDuration = System.currentTimeMillis() - renderStartTime
-                                
-                                afterEnable(map)
-                                
-                                val totalDuration = System.currentTimeMillis() - startTime
-                                onPerformanceMetrics(loadDuration, processDuration, renderDuration, totalDuration)
-                            } catch (t: Throwable) {
-                                onPipelineError(t)
-                            }
+                            afterEnable()
+                            val totalDuration = System.currentTimeMillis() - startTime
+                            onPerformanceMetrics(loadDuration, processDuration, renderDuration, totalDuration)
                         }
                     }
                 }
             } catch (t: Throwable) {
-                // Swallow to keep app stable; subclasses may override to report
                 onPipelineError(t)
             }
         }
+        synchronized(this@BaseMapLayer) {
+            runningTask = job
+        }
+        return job
     }
 
-    /** Cancel work and teardown any map artifacts on the main thread. */
+    /** Cancel work and reset config. */
     fun disable() {
-        if (!enabled) return
-        enabled = false
-        runningTask?.cancel()
-        runningTask = null
-        if (this::map.isInitialized) {
-            layerScope.launch(Dispatchers.Main) {
-                try {
-                    onDisable(map)
-                } catch (e: Throwable) {
-                    Log.w("BaseMapLayer", "Error during map layer disable: ${e.message}")
-                }
-            }
+        synchronized(this@BaseMapLayer) {
+            if (!enabled) return
+            enabled = false
+            runningTask?.cancel()
+            runningTask = null
+            lastConfig = null
         }
+        onDisable()
     }
 
     /** Hook: called on background thread before loading data. */
-    protected open fun beforeEnable(context: Context, map: GoogleMap) {}
+    protected open fun beforeEnable(context: Context) {}
 
     /** Implement: load domain data (I) from repositories/DAOs. Heavy work allowed. Suspend allowed. */
     protected abstract suspend fun loadData(context: Context): I
@@ -119,25 +115,25 @@ abstract class BaseMapLayer<I, P>(
         budgets: PerformanceManager.PerformanceBudgets
     ): P
 
-    /** Implement: draw/update map with processed data on Main thread. */
-    protected abstract fun render(map: GoogleMap, processed: P)
+    /** Implement: produce a [MapLibreLayerConfig] from processed data. */
+    protected abstract fun produceConfig(processed: P): MapLibreLayerConfig?
 
-    /** Hook: on Main after render completes. */
-    protected open fun afterEnable(map: GoogleMap) {}
+    /** Hook: on Main after config is produced. */
+    protected open fun afterEnable() {}
 
-    /** Hook: on Main when disabling; remove overlays, listeners, etc. */
-    protected open fun onDisable(map: GoogleMap) {}
+    /** Hook: when disabling; cleanup resources. */
+    protected open fun onDisable() {}
 
     /** Hook: background error reporting for the pipeline. */
     protected open fun onPipelineError(error: Throwable) { /* no-op by default */ }
-    
+
     /** Hook: performance metrics reporting. All durations in milliseconds. */
     protected open fun onPerformanceMetrics(
         loadDuration: Long,
-        processDuration: Long, 
+        processDuration: Long,
         renderDuration: Long,
         totalDuration: Long
-    ) { 
+    ) {
         // no-op by default; subclasses can override for monitoring
     }
 }

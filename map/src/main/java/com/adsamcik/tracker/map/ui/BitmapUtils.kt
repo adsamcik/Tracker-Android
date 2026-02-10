@@ -5,17 +5,17 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.annotation.DrawableRes
 import androidx.appcompat.content.res.AppCompatResources
-import com.google.android.gms.maps.model.BitmapDescriptor
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import kotlin.math.roundToInt
 
-fun bitmapDescriptorFromVector(
+/**
+ * Converts a vector drawable to a Bitmap suitable for use as a MapLibre symbol image.
+ */
+fun bitmapFromVector(
     context: Context,
     @DrawableRes drawableResId: Int,
     scale: Float = 1f
-): BitmapDescriptor {
-    val drawable = AppCompatResources.getDrawable(context, drawableResId)
-        ?: return BitmapDescriptorFactory.defaultMarker()
+): Bitmap? {
+    val drawable = AppCompatResources.getDrawable(context, drawableResId) ?: return null
 
     val width = (drawable.intrinsicWidth * scale).coerceAtLeast(1f).roundToInt()
     val height = (drawable.intrinsicHeight * scale).coerceAtLeast(1f).roundToInt()
@@ -23,5 +23,5 @@ fun bitmapDescriptorFromVector(
     val canvas = Canvas(bitmap)
     drawable.setBounds(0, 0, width, height)
     drawable.draw(canvas)
-    return BitmapDescriptorFactory.fromBitmap(bitmap)
+    return bitmap
 }

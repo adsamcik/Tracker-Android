@@ -51,7 +51,7 @@ class MapStoreTest {
         Dispatchers.setMain(testDispatcher)
     // Default stubs to avoid nulls during applyLayer state updates
     whenever(mockLayerEngine.activeLegend()).thenReturn(null)
-    whenever(mockLayerEngine.activeTileProvider()).thenReturn(null)
+    whenever(mockLayerEngine.activeLayerConfig()).thenReturn(null)
     whenever(mockLayerEngine.overlays()).thenReturn(persistentListOf())
         mapStore = MapStore()
         mapStore.setLayerEngine(mockLayerEngine)
@@ -73,8 +73,8 @@ class MapStoreTest {
         assertEquals(persistentListOf<MapLayerData>(), initialState.legend)
         assertEquals(1f, initialState.quality)
         assertEquals(0L..Long.MAX_VALUE, initialState.dateRange)
-        assertEquals(0, initialState.tileGenerationInProgress)
-        assertNull(initialState.tileProvider)
+        assertEquals(0, initialState.layerLoadingProgress)
+        assertNull(initialState.layerConfig)
     }
 
     @Test
@@ -285,9 +285,12 @@ class MapStoreTest {
 
     @Test
     fun `geocode result emits CenterCamera effect`() = runTest {
-        val sw = com.google.android.gms.maps.model.LatLng(1.0, 2.0)
-        val ne = com.google.android.gms.maps.model.LatLng(3.0, 4.0)
-        val bounds = com.google.android.gms.maps.model.LatLngBounds(sw, ne)
+        val bounds = com.adsamcik.tracker.shared.map.CoordinateBounds(
+            topBound = 3.0,
+            rightBound = 4.0,
+            bottomBound = 1.0,
+            leftBound = 2.0
+        )
 
         mapStore.effects.test {
             mapStore.dispatch(MapEvent.GeocodeResult(bounds))

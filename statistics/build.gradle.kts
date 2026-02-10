@@ -79,7 +79,6 @@ dependencies {
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
-	implementation(libs.google.play.services.maps)
 	// Draggable overlay removed
 	// JSON
 	implementation(libs.moshi)
@@ -107,9 +106,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.compose.ui.tooling.preview)
-	// Maps Compose for in-detail map preview
-	implementation(libs.google.maps.compose)
-
 	// Unit Tests - JUnit 5 for modern testing
 	testImplementation(platform(libs.junit5.bom))
 	testImplementation(libs.junit5.jupiter)

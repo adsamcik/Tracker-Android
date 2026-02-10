@@ -1,0 +1,57 @@
+{
+  "version": 8,
+  "name": "Tracker Dark",
+  "sources": {
+    "basemap": {
+      "type": "vector",
+      "url": "pmtiles://asset://basemap.pmtiles"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#1a1a2e"
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#0a1628"
+      }
+    },
+    {
+      "id": "landuse",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "landuse",
+      "paint": {
+        "fill-color": "#1a2a1a"
+      }
+    },
+    {
+      "id": "boundary",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "boundary",
+      "paint": {
+        "line-color": "#555555",
+        "line-width": 1
+      }
+    },
+    {
+      "id": "road",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "road",
+      "paint": {
+        "line-color": "#333333",
+        "line-width": 1
+      }
+    }
+  ]
+}

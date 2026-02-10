@@ -14,7 +14,6 @@ java = "17"
 # Tools
 benmanes = "0.52.0"
 googleServices = "4.4.3"
-secrets = "2.0.1"
 ossLicenses = "0.10.7"
 desugarJdkLibs = "2.1.5"
 
@@ -46,8 +45,9 @@ hiltAndroidx = "1.2.0"
 # Google Play Services
 playServicesBase = "18.7.2"
 playLocation = "21.3.0"
-maps = "19.2.0"
-mapsCompose = "6.7.2"
+
+# MapLibre
+maplibreCompose = "0.12.1"
 
 # KotlinX
 coroutines = "1.10.2"
@@ -160,11 +160,12 @@ androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", 
 # Google Material
 google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
-# Play Services & Maps
+# Play Services (location + base only; Maps removed)
 google-play-services-base = { group = "com.google.android.gms", name = "play-services-base", version.ref = "playServicesBase" }
-google-play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "maps" }
 google-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playLocation" }
-google-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+
+# MapLibre
+maplibre-compose = { group = "org.maplibre.compose", name = "maplibre-compose", version.ref = "maplibreCompose" }
 
 # Moshi
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }
@@ -249,7 +250,6 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
-secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secrets" }
 oss-licenses = { id = "com.google.android.gms.oss-licenses-plugin", version.ref = "ossLicenses" }
 benmanes-versions = { id = "com.github.ben-manes.versions", version.ref = "benmanes" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }

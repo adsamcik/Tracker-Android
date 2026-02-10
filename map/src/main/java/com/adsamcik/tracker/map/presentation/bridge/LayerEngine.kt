@@ -1,19 +1,18 @@
 package com.adsamcik.tracker.map.presentation.bridge
 
+import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.shared.map.MapLayerData
+import kotlinx.collections.immutable.ImmutableList
 
 /**
- * Phase 4: Pure engine interface for layers without leaking GoogleMap to the feature layer.
- * Implementations may use GoogleMap internally but callers only see data.
+ * Pure engine interface for layers. No map SDK types in the contract.
+ * Produces [MapLibreLayerConfig] data for rendering and [MapOverlayState] for overlays.
  */
 interface LayerEngine {
-    fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange)
+    suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange)
     fun clear()
     fun activeLegend(): MapLayerData?
-    fun activeTileProvider(): com.google.android.gms.maps.model.TileProvider?
-    /** Declarative overlays for current layer selection (e.g., polylines). */
-    fun overlays(): kotlinx.collections.immutable.ImmutableList<com.adsamcik.tracker.map.presentation.udf.MapOverlayState>
-
-    /** Releases all resources including internal coroutine scopes. */
+    fun activeLayerConfig(): MapLibreLayerConfig?
+    fun overlays(): ImmutableList<MapOverlayState>
     fun destroy() {}
 }
