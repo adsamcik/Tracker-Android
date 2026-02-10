@@ -46,11 +46,13 @@ abstract class BaseMapLayer<I, P>(
     fun enable(context: Context, quality: Float): Job {
         val startTime = System.currentTimeMillis()
 
-        if (enabled) {
-            disable()
+        synchronized(this@BaseMapLayer) {
+            if (enabled) {
+                disable()
+            }
+            this.quality = quality
+            enabled = true
         }
-        this.quality = quality
-        enabled = true
 
         val job = layerScope.launch {
             try {
@@ -83,17 +85,21 @@ abstract class BaseMapLayer<I, P>(
                 onPipelineError(t)
             }
         }
-        runningTask = job
+        synchronized(this@BaseMapLayer) {
+            runningTask = job
+        }
         return job
     }
 
     /** Cancel work and reset config. */
     fun disable() {
-        if (!enabled) return
-        enabled = false
-        runningTask?.cancel()
-        runningTask = null
-        lastConfig = null
+        synchronized(this@BaseMapLayer) {
+            if (!enabled) return
+            enabled = false
+            runningTask?.cancel()
+            runningTask = null
+            lastConfig = null
+        }
         onDisable()
     }
 

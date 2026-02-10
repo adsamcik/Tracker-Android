@@ -251,7 +251,7 @@ class DefaultLayerRegistry : LayerRegistry {
                                 pointsProvider = { range ->
                                     withContext(Dispatchers.IO) {
                                         val effective = if (!range.isEmpty()) range else {
-                                            val dr = dao.range()
+                                            val dr = dao.range() ?: return@withContext emptyList()
                                             LongRange(dr.start, dr.endInclusive)
                                         }
                                         val rows = if (!effective.isEmpty()) dao.getAllBetweenOrdered(effective.first, effective.last) else emptyList()

@@ -46,7 +46,7 @@ class WifiCountHeatmapLayer(
         budgets: PerformanceManager.PerformanceBudgets
     ): String {
         val capped = if (input.size > budgets.maxPoints) {
-            val step = input.size / budgets.maxPoints
+            val step = (input.size / budgets.maxPoints).coerceAtLeast(1)
             input.filterIndexed { index, _ -> index % step == 0 }
         } else {
             input

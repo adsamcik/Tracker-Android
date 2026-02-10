@@ -35,6 +35,7 @@ import com.adsamcik.tracker.shared.map.MapStyleProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
@@ -153,6 +154,7 @@ fun MapScreen(
     // Report camera position changes
     LaunchedEffect(cameraState) {
         snapshotFlow { cameraState.position }
+            .distinctUntilChanged()
             .collect { pos ->
                 store.dispatch(
                     MapEvent.CameraMoved(

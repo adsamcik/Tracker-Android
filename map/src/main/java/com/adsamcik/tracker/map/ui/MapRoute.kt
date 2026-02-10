@@ -69,7 +69,7 @@ fun MapRoute(
     // Wire MapLibreLayerEngine immediately -- no map instance required
     LaunchedEffect(Unit) {
         if (!store.isEngineReady) {
-            val engine = MapLibreLayerEngine(context, registry)
+            val engine = MapLibreLayerEngine(context.applicationContext, registry)
             store.setLayerEngine(engine)
         }
     }
