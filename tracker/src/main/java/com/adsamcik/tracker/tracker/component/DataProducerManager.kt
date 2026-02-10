@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
+import java.util.concurrent.CopyOnWriteArrayList
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +50,7 @@ internal class DataProducerManager(
 		add(StepDataProducer(this@DataProducerManager))
 	}
 
-	private val activeProducerList = mutableListOf<TrackerDataProducerComponent>()
+	private val activeProducerList = CopyOnWriteArrayList<TrackerDataProducerComponent>()
 
 	suspend fun onEnable() = coroutineScope {
 		producerList.forEach {
