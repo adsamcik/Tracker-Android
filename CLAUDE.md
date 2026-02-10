@@ -185,3 +185,11 @@ Tracking cycle:
 
 <!-- context-init:user-content-below -->
 <!-- Add custom instructions below this line -->
+
+## Branch Consolidation (2026-02-10)
+
+All local work has been consolidated into the `dev/v10` branch:
+- **Stats rearchitecture** (Phases 0-6 + Phase 4b + Final QC): all stats-phase-* branches merged
+- **MapLibre migration**: feature/maplibre-migration merged into dev/v10
+- **All commits authored by `adsamcik`**
+- Stale phase branches: `stats-phase-0-foundation` through `stats-phase-6-retention`, `stats-rearchitecture`, `fix/gradle-toolchain-auto-provisioning` — all content captured in dev/v10
