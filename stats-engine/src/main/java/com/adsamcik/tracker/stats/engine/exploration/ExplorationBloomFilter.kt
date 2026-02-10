@@ -34,7 +34,7 @@ class ExplorationBloomFilter private constructor(
 		val (h1, h2) = murmurHash3Pair(element)
 		for (i in 0 until numHashFunctions) {
 			val combinedHash = h1 + i * h2
-			val idx = ((combinedHash % numBits) + numBits) % numBits
+			val idx = Math.floorMod(combinedHash, numBits)
 			bits.set(idx)
 		}
 		count++
@@ -48,7 +48,7 @@ class ExplorationBloomFilter private constructor(
 		val (h1, h2) = murmurHash3Pair(element)
 		for (i in 0 until numHashFunctions) {
 			val combinedHash = h1 + i * h2
-			val idx = ((combinedHash % numBits) + numBits) % numBits
+			val idx = Math.floorMod(combinedHash, numBits)
 			if (!bits.get(idx)) return false
 		}
 		return true

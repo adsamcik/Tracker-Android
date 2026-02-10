@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -42,7 +43,7 @@ internal class ExplorationWriter : PostTrackerComponent {
 	private val writeMutex = Mutex()
 
 	// Track whether we discovered any new cells this session for streak logic
-	private var newCellsThisSession: Int = 0
+	private val newCellsThisSession = AtomicInteger(0)
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
@@ -57,7 +58,7 @@ internal class ExplorationWriter : PostTrackerComponent {
 			config = config,
 			knownTokens = knownTokens,
 		)
-		newCellsThisSession = 0
+		newCellsThisSession.set(0)
 	}
 
 	override suspend fun onDisable(context: Context) {
@@ -70,7 +71,7 @@ internal class ExplorationWriter : PostTrackerComponent {
 			}
 
 			// Update daily discovery streak if we found new cells
-			if (newCellsThisSession > 0) {
+			if (newCellsThisSession.get() > 0) {
 				updateDailyStreakSync(now)
 			}
 		}
@@ -99,7 +100,7 @@ internal class ExplorationWriter : PostTrackerComponent {
 		if (discovery != null) {
 			val now = Time.nowMillis
 			if (discovery.isNew) {
-				newCellsThisSession++
+				newCellsThisSession.incrementAndGet()
 			}
 			persistDiscovery(discovery, now)
 		}

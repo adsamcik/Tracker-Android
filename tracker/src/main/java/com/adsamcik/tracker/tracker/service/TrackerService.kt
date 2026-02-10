@@ -275,9 +275,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	) = componentMutex.withLock {
 		// Clear existing components to prevent duplicates and ConcurrentModificationException
 		// if onStartCommand is called multiple times or concurrently with onUpdate.
-		preComponentList.forEach { it.onDisable(this@TrackerService) }
-		dataComponentList.forEach { it.onDisable(this@TrackerService) }
-		postComponentList.forEach { it.onDisable(this@TrackerService) }
+		preComponentList.forEach { tryWithReport { it.onDisable(this@TrackerService) } }
+		dataComponentList.forEach { tryWithReport { it.onDisable(this@TrackerService) } }
+		postComponentList.forEach { tryWithReport { it.onDisable(this@TrackerService) } }
 		preComponentList.clear()
 		dataComponentList.clear()
 		postComponentList.clear()
@@ -578,9 +578,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		dataProducerManager?.onDisable()
 		trackingPolicyManager?.stop()
 		trackingPolicyManager = null
-		preComponentList.forEach { it.onDisable(context) }
-		dataComponentList.forEach { it.onDisable(context) }
-		postComponentList.forEach { it.onDisable(context) }
+		preComponentList.forEach { tryWithReport { it.onDisable(context) } }
+		dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
+		postComponentList.forEach { tryWithReport { it.onDisable(context) } }
 
 		// Can be null if TrackerServices is immediately stopped after start
 		val sessionComponent = sessionComponent

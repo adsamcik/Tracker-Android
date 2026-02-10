@@ -7,8 +7,8 @@ import com.adsamcik.tracker.shared.base.database.data.FrequentPlaceEntity
 
 @Dao
 interface FrequentPlaceDao {
-	@Query("SELECT * FROM frequent_place")
-	suspend fun getAll(): List<FrequentPlaceEntity>
+	@Query("SELECT * FROM frequent_place ORDER BY last_visit_ms DESC LIMIT :limit")
+	suspend fun getAll(limit: Int = 500): List<FrequentPlaceEntity>
 
 	@Insert
 	suspend fun insertAndGetId(place: FrequentPlaceEntity): Long

@@ -14,7 +14,7 @@ interface InferredTripDao {
 	@Query("SELECT * FROM inferred_trip WHERE start_time_ms >= :startMs AND end_time_ms <= :endMs ORDER BY start_time_ms")
 	suspend fun getAllBetween(startMs: Long, endMs: Long): List<InferredTripEntity>
 
-	@Query("SELECT * FROM inferred_trip ORDER BY start_time_ms DESC")
+	@Query("SELECT * FROM inferred_trip ORDER BY start_time_ms DESC LIMIT 500")
 	fun getAllFlow(): Flow<List<InferredTripEntity>>
 
 	@Query("SELECT * FROM inferred_trip WHERE id = :id")

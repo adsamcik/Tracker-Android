@@ -41,6 +41,7 @@ class SessionSegmentDetector(
 	private var departureLonE7: Int? = null
 	private var departureTriggerActivity: DetectedActivityType? = null
 	private var departureAccumulatedSteps: Int = 0
+	private var departureAccumulatedDistance: Float = 0f
 
 	// Trip accumulation
 	private var tripStartMs: Long = 0L
@@ -136,6 +137,7 @@ class SessionSegmentDetector(
 
 	private fun handleDeparting(signal: SegmentSignal): SegmentEvent? {
 		departureAccumulatedSteps += signal.stepDelta
+		signal.distanceDeltaM?.let { departureAccumulatedDistance += it }
 		val elapsed = signal.timestampMs - departureStartMs
 
 		if (elapsed >= config.departureConfirmationMs) {
@@ -252,12 +254,13 @@ class SessionSegmentDetector(
 		departureLonE7 = signal.lonE7
 		departureTriggerActivity = signal.activityType
 		departureAccumulatedSteps = signal.stepDelta
+		departureAccumulatedDistance = signal.distanceDeltaM ?: 0f
 	}
 
 	private fun confirmDeparture(signal: SegmentSignal): SegmentEvent {
 		state = TripState.IN_TRIP
 		tripStartMs = departureStartMs
-		tripDistanceM = 0f
+		tripDistanceM = departureAccumulatedDistance
 		tripSteps = departureAccumulatedSteps
 		tripSampleCount = 0
 		tripMaxSpeedMps = 0f
@@ -424,6 +427,7 @@ class SessionSegmentDetector(
 		departureLonE7 = null
 		departureTriggerActivity = null
 		departureAccumulatedSteps = 0
+		departureAccumulatedDistance = 0f
 	}
 
 	private fun clearTripState() {

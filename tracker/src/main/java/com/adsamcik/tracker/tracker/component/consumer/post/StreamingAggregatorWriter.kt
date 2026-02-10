@@ -44,6 +44,7 @@ internal class StreamingAggregatorWriter : PostTrackerComponent {
 
 	// Flush interval tracking
 	private var lastFlushMs: Long = 0L
+	private var currentEpochDay: Long = 0L
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
@@ -71,6 +72,7 @@ internal class StreamingAggregatorWriter : PostTrackerComponent {
 		prevLatitude = null
 		prevLongitude = null
 		lastFlushMs = now
+		currentEpochDay = todayEpochDay
 	}
 
 	override suspend fun onDisable(context: Context) {
@@ -113,6 +115,13 @@ internal class StreamingAggregatorWriter : PostTrackerComponent {
 	) {
 		val agg = aggregator ?: return
 		val signal = buildSignal(collectionData, tempData)
+
+		// Check for midnight rollover before processing signal
+		val signalEpochDay = tempData.timeMillis / Time.DAY_IN_MILLISECONDS
+		if (signalEpochDay != currentEpochDay && currentEpochDay > 0L) {
+			handleDayRollover(signalEpochDay)
+		}
+
 		agg.onSignal(signal)
 
 		// Periodic flush to database
@@ -127,6 +136,57 @@ internal class StreamingAggregatorWriter : PostTrackerComponent {
 			}
 			lastFlushMs = now
 		}
+	}
+
+	/**
+	 * Handle day boundary crossing during active tracking.
+	 * Materializes the old day's summary, resets the aggregator, and seeds new day.
+	 */
+	private fun handleDayRollover(newEpochDay: Long) {
+		val agg = aggregator ?: return
+		val oldSnapshot = agg.snapshot()
+
+		// Materialize old day's summary
+		scope?.launch(Dispatchers.IO) {
+			try {
+				database.dailySummaryDao().upsert(
+					dateEpochDay = currentEpochDay,
+					totalDistanceM = oldSnapshot.dayTotalDistanceM,
+					totalSteps = oldSnapshot.dayTotalSteps,
+					totalDurationMs = oldSnapshot.dayTotalDurationMs,
+					tripCount = oldSnapshot.tripCount,
+					activeTrackingMs = oldSnapshot.sessionDurationMs,
+					lastUpdatedMs = Time.nowMillis
+				)
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				ReporterFacade.report(e)
+			}
+		}
+
+		// Reset aggregator for new day (keep session running)
+		agg.reset()
+		agg.start(sessionStartMs = Time.nowMillis)
+
+		// Seed with new day's existing data (if any)
+		scope?.launch(Dispatchers.IO) {
+			try {
+				val existing = database.dailySummaryDao().getByDay(newEpochDay)
+				if (existing != null) {
+					agg.seedDayTotals(
+						distanceM = existing.totalDistanceM,
+						steps = existing.totalSteps,
+						durationMs = existing.totalDurationMs,
+						trips = existing.tripCount
+					)
+				}
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				ReporterFacade.report(e)
+			}
+		}
+
+		currentEpochDay = newEpochDay
+		prevLatitude = null
+		prevLongitude = null
 	}
 
 	private fun buildSignal(
