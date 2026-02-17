@@ -1,27 +1,28 @@
-<!-- context-init:version:3.0.2 -->
-<!-- context-init:generated:2026-01-30 -->
+<!-- context-init:version:3.0.3 -->
+<!-- context-init:generated:2026-02-17 -->
 
 # Code Patterns Reference
 
 <!-- context-init:managed -->
-Quick reference for coding conventions in Tracker Android. For comprehensive standards, see [.github/copilot-instructions.md](../copilot-instructions.md).
+Coding conventions for Tracker Android. For comprehensive LLM standards, see [.github/copilot-instructions.md](../copilot-instructions.md).
 
 ## Naming Conventions
 
 <!-- context-init:managed -->
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Modules | lowercase, domain-based | `tracker`, `sbase`, `impexp` |
-| Packages | reverse domain | `com.adsamcik.tracker.tracker` |
-| Classes | PascalCase, descriptive | `TrackerServiceController` |
-| Interfaces | Domain name (no I prefix) | `TrackerRepository` |
-| Implementations | Default prefix | `DefaultTrackerRepository` |
-| Factories | *Factory suffix | `SessionScopeFactory` |
-| ViewModels | *ViewModel suffix | `TrackingSettingsViewModel` |
-| Composables | PascalCase, Route/Screen suffix | `TrackerRoute`, `StatsScreen` |
-| DAOs | *Dao suffix | `LocationDataDao` |
-| Entities | Database* or *Sample | `DatabaseLocation`, `LocationSample` |
+| Type | Convention | Example | Location |
+|------|------------|---------|----------|
+| Modules | lowercase, domain-based | `tracker`, `sbase`, `impexp` | `settings.gradle.kts` |
+| Packages | reverse domain | `com.adsamcik.tracker.tracker` | All modules |
+| Classes | PascalCase, descriptive | `TrackerServiceController` | Throughout |
+| Interfaces | Domain name (no I prefix) | `TrackerRepository`, `LockManager` | Module APIs |
+| Implementations | `Default*` prefix | `DefaultTrackerServiceController` | Internal |
+| Factories | `*Factory` suffix | `SessionScopeFactory` | DI layer |
+| ViewModels | `*ViewModel`, `@HiltViewModel` | `TrackingSettingsViewModel` | UI layer |
+| Composables | PascalCase, `*Route`/`*Screen`/`*Dashboard` | `TrackerRoute`, `MapScreen` | UI layer |
+| DAOs | `*Dao` suffix | `LocationSampleDao` | `sbase/database/dao/` |
+| Entities | `*Entity`/`*Sample`/`Database*` | `LocationSample`, `FrequentPlaceEntity` | `sbase/database/data/` |
+| Sealed Results | `*Result` suffix | `ExportResult`, `LockResult` | Cross-module APIs |
 
 ## Architecture Patterns
 
@@ -29,317 +30,214 @@ Quick reference for coding conventions in Tracker Android. For comprehensive sta
 
 ### Repository Pattern
 ```kotlin
-// Interface (module API)
+// Interface (module public API)
 interface LocationRepository {
     fun getLocations(sessionId: Long): Flow<List<Location>>
 }
 
 // Implementation (internal)
 class DefaultLocationRepository(
-    private val dao: LocationDataDao,
+    private val dao: LocationSampleDao,
     private val dispatchers: DispatchersProvider
 ) : LocationRepository {
-    override fun getLocations(sessionId: Long) = 
-        dao.getLocationsBySession(sessionId)
-            .flowOn(dispatchers.io)
+    override fun getLocations(sessionId: Long) =
+        dao.getAllBetween(start, end).flowOn(dispatchers.io)
 }
 ```
 
-### Flow-Based State
+### ViewModel Pattern (Hilt)
 ```kotlin
-// ✅ Correct: StateFlow in ViewModel
-class FeatureViewModel(
+// Correct: @HiltViewModel with constructor injection
+@HiltViewModel
+class FeatureViewModel @Inject constructor(
     private val repository: FeatureRepository
 ) : ViewModel() {
     val uiState: StateFlow<UiState> = repository.getData()
         .map { data -> UiState.Success(data) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = UiState.Loading
-        )
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 }
 
-// ❌ Wrong: Don't use LiveData
-// ❌ Wrong: Don't use MutableStateFlow exposed directly
+// Wrong: AndroidViewModel, direct DB access, LiveData
 ```
 
-### Sealed Result Types
+### Sealed Result Types (Cross-Module)
 ```kotlin
-// For cross-module operations
 sealed class ExportResult {
     data class Success(val file: File) : ExportResult()
     data class Error(val message: String, val cause: Throwable?) : ExportResult()
     data object Cancelled : ExportResult()
 }
-
-// Usage
-fun export(data: ExportData): ExportResult {
-    return try {
-        val file = writeExport(data)
-        ExportResult.Success(file)
-    } catch (e: IOException) {
-        ExportResult.Error("Failed to write export", e)
-    }
-}
+// Never throw across module boundaries -- return sealed results
 ```
 
-## Compose Patterns
-
-<!-- context-init:managed -->
-
-### Route Structure
+### Composable Route Pattern
 ```kotlin
 @Composable
-fun FeatureRoute(
-    viewModel: FeatureViewModel = hiltViewModel(),
-    onNavigate: (String) -> Unit
+fun TrackerRoute(
+    viewModel: TrackerViewModel = hiltViewModel(),
+    onNavigateToSettings: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    
-    FeatureScreen(
-        state = state,
-        onAction = viewModel::onAction,
-        onNavigate = onNavigate
-    )
+    TrackerScreen(state = state, onSettingsClick = onNavigateToSettings)
 }
 
 @Composable
-private fun FeatureScreen(
-    state: UiState,
-    onAction: (Action) -> Unit,
-    onNavigate: (String) -> Unit
-) {
-    // Stateless UI implementation
-}
+private fun TrackerScreen(
+    state: TrackerUiState,
+    onSettingsClick: () -> Unit
+) { /* pure UI, stateless */ }
 ```
 
-### State Hoisting
+### Component Pipeline Pattern (Tracker)
 ```kotlin
-// ✅ Correct: Accept state + callbacks
-@Composable
-fun DataCard(
-    data: DisplayData,
-    onEditClick: () -> Unit,
-    modifier: Modifier = Modifier
-)
-
-// ❌ Wrong: ViewModel inside composable
-@Composable
-fun DataCard() {
-    val viewModel = viewModel<CardViewModel>() // Don't do this
+interface TrackerComponent {
+    fun onEnable(context: Context)
+    fun onDisable(context: Context)
 }
+
+interface TrackerDataConsumerComponent : TrackerComponent {
+    val requiredData: Collection<TrackerComponentRequirement>
+    fun requirementsMet(tempData: CollectionTempData): Boolean
+}
+
+// Pipeline stages: Pre -> Data -> Post
+interface PreTrackerComponent : TrackerDataConsumerComponent
+interface DataTrackerComponent : TrackerDataConsumerComponent
+interface PostTrackerComponent : TrackerDataConsumerComponent
 ```
 
-### CompositionLocal Access
+### UDF Store Pattern (Map Module)
 ```kotlin
-@Composable
-fun TrackingControls() {
-    val controller = LocalTrackerController.current
-    val lockManager = LocalLockManager.current
-    
-    val isTracking by controller.isServiceRunningFlow.collectAsState()
-    val isLocked by lockManager.isLockedFlow.collectAsState()
-    
-    // Use controller for actions
-    Button(
-        onClick = { controller.startTracking() },
-        enabled = !isLocked
-    ) {
-        Text(if (isTracking) "Stop" else "Start")
-    }
+class MapStore : ViewModel() {
+    val state: StateFlow<MapState>        // State
+    fun onEvent(event: MapEvent)          // User actions
+    val effects: SharedFlow<MapEffect>    // One-shot side effects
 }
 ```
 
-### Controller Pattern
-```kotlin
-// Interface defines contract
-interface TrackerServiceController {
-    val isServiceRunningFlow: StateFlow<Boolean>
-    val sessionInfoFlow: StateFlow<TrackerSessionInfo?>
-    fun updateServiceRunning(value: Boolean)
-    fun updateSessionInfo(value: TrackerSessionInfo?)
-}
-
-// Implementation manages state
-class DefaultTrackerServiceController : TrackerServiceController {
-    private val _isServiceRunning = MutableStateFlow(false)
-    override val isServiceRunningFlow: StateFlow<Boolean> = _isServiceRunning
-    
-    override fun updateServiceRunning(value: Boolean) {
-        _isServiceRunning.value = value
-    }
-    // ...
-}
-
-// UI observes, Service updates
-// Composable: controller.isServiceRunningFlow.collectAsState()
-// Service: controller.updateServiceRunning(true)
-```
-
-## Dependency Injection
+## Dependency Injection Patterns
 
 <!-- context-init:managed -->
 
-### Constructor Injection
+### Hilt Module Pattern
 ```kotlin
-// ✅ Correct: Explicit dependencies
-class TrackerRepository(
-    private val locationDao: LocationDao,
-    private val clock: Clock,
-    private val dispatchers: DispatchersProvider
-)
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+    @Binds @Singleton
+    abstract fun bindSessionRepository(impl: DefaultSessionRepository): SessionRepository
+}
 
-// ❌ Wrong: Static singletons
-companion object {
-    val instance: TrackerRepository // Don't do this
+@Module
+@InstallIn(SingletonComponent::class)
+object InfrastructureModule {
+    @Provides @Singleton
+    fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
+        AppDatabase.getInstance(context)
+    @Provides
+    fun provideLocationDao(db: AppDatabase): LocationSampleDao = db.locationSampleDao()
 }
 ```
 
-### Hilt ViewModels
+### CompositionLocal Provider Pattern
 ```kotlin
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
-    private val preferencesRepository: PreferencesRepository,
-    @ApplicationContext private val context: Context
-) : ViewModel()
+CompositionLocalProvider(
+    LocalTrackerController provides appGraph.trackerServiceController,
+    LocalLockManager provides appGraph.lockManager,
+    LocalDailySummaryProvider provides appGraph.dailySummaryProvider,
+) { AppTheme { MainRoot() } }
 ```
 
-### AppGraph Registration
-```kotlin
-// In AppGraph.kt
-val newService: NewService by lazy {
-    DefaultNewService(database.newDao(), dispatchers)
-}
-```
-
-## Error Handling
+## State & Concurrency Patterns
 
 <!-- context-init:managed -->
 
-### Sealed Results (Cross-Module)
-```kotlin
-// Define result type
-sealed class TrackingStartResult {
-    data object Success : TrackingStartResult()
-    data class PermissionDenied(val permission: String) : TrackingStartResult()
-    data class Error(val message: String) : TrackingStartResult()
-}
-
-// Return results, don't throw
-fun startTracking(): TrackingStartResult {
-    if (!hasPermission()) return TrackingStartResult.PermissionDenied("LOCATION")
-    // ...
-}
-```
-
-### Error Surface Guidelines
-| Category | User Surface | Notes |
-|----------|-------------|-------|
-| PermissionDenied | Snackbar + action | Open Settings |
-| StorageFull | Dialog | Offer cleanup tips |
-| ValidationError | Inline error | In import screen |
-| NetworkError | N/A | App is offline-only |
+| Pattern | Correct | Wrong |
+|---------|---------|-------|
+| Flow collection | `collectAsStateWithLifecycle()` | `collectAsState()` |
+| Dispatchers | Inject `DispatchersProvider` | Direct `Dispatchers.IO` |
+| Scoping | `viewModelScope`, injected scope | `GlobalScope` |
+| State | `StateFlow` / `Flow` | `LiveData` |
+| Preferences | DataStore (proto) | SharedPreferences |
 
 ## Testing Patterns
 
 <!-- context-init:managed -->
 
-### Coroutine Tests
+### Flow Testing with Turbine
 ```kotlin
 @Test
-fun `feature works correctly`() = runTest {
-    val testDispatcher = StandardTestDispatcher(testScheduler)
-    val repository = FakeRepository()
-    val viewModel = FeatureViewModel(repository, testDispatcher)
-    
-    viewModel.load()
-    advanceUntilIdle()
-    
-    assertEquals(expected, viewModel.state.value)
-}
-```
-
-### MockK Usage
-```kotlin
-@Test
-fun `service calls repository`() {
-    val repository = mockk<Repository>(relaxed = true)
-    val service = MyService(repository)
-    
-    service.doAction()
-    
-    verify { repository.save(any()) }
-}
-```
-
-### Compose Testing
-```kotlin
-@Test
-fun `button triggers action`() {
-    composeTestRule.setContent {
-        FeatureScreen(state = testState, onAction = mockAction)
+fun `emits updated state`() = runTest {
+    viewModel.uiState.test {
+        awaitItem() shouldBe UiState.Loading
+        awaitItem() shouldBe UiState.Success(testData)
     }
-    
-    composeTestRule.onNodeWithText("Submit").performClick()
-    
-    verify { mockAction(Action.Submit) }
 }
 ```
 
-## Async Patterns
+### Fakes over Mocks
+```kotlin
+// Preferred: Fakes from testing-common
+val settings = FakeTrackerSettingsRepository()
+val locationSource = FakeLocationSource()
+locationSource.emitLocation(lat = 50.0, lon = 14.0)
+```
+
+### Compose UI Test Pattern
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class TrackerDashboardTest {
+    @get:Rule val composeRule = createComposeRule()
+    @Test
+    fun testSemantics() {
+        composeRule.setContent { TrackerDashboard(state = testState) }
+        composeRule.onNodeWithTag("settingsButton").assertIsDisplayed()
+    }
+}
+```
+
+## Database Patterns
 
 <!-- context-init:managed -->
 
-### Dispatcher Usage
-| Work Type | Dispatcher | Example |
-|-----------|------------|---------|
-| Database I/O | `Dispatchers.IO` | Room queries |
-| File I/O | `Dispatchers.IO` | Export/import |
-| CPU-heavy | `Dispatchers.Default` | Heatmap calculation |
-| UI updates | `Dispatchers.Main` | State updates |
-
-### Coroutine Scopes
+### DAO Query Pattern
 ```kotlin
-// ViewModel scope
-viewModelScope.launch {
-    // Cancelled when ViewModel clears
-}
+@Dao
+interface LocationSampleDao {
+    @Query("SELECT * FROM location_sample WHERE time_ms BETWEEN :from AND :to ORDER BY time_ms")
+    fun getAllBetween(from: Long, to: Long): Flow<List<LocationSample>>
 
-// App scope (from AppGraph)
-appScope.launch {
-    // Long-running, survives config changes
+    @Query("SELECT * FROM location_sample ORDER BY time_ms DESC")
+    fun getAllPaged(): PagingSource<Int, LocationSample>
 }
 ```
 
-### Flow Collection
+### Entity Pattern
 ```kotlin
-// In Compose
-val state by viewModel.state.collectAsStateWithLifecycle()
-
-// In ViewModel
-init {
-    repository.data()
-        .onEach { updateState(it) }
-        .launchIn(viewModelScope)
-}
+@Entity(tableName = "location_sample", indices = [Index("time_ms"), Index("lat", "lon")])
+data class LocationSample(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "time_ms") val timeMs: Long,
+    val lat: Double, val lon: Double,
+    val altitude: Double?, val accuracy: Float, val speed: Float?
+)
 ```
 
-## Anti-Patterns (Avoid)
+## Anti-Patterns (Do NOT Use)
 
 <!-- context-init:managed -->
 
-| ❌ Avoid | ✅ Instead |
-|---------|-----------|
-| LiveData | Flow / StateFlow |
-| Fragments | Compose routes |
-| XML layouts | Compose UI |
-| AndroidViewModel | Regular ViewModel + Hilt |
-| GlobalScope | viewModelScope or injected scope |
-| SharedPreferences (new) | DataStore |
-| Static singletons | Constructor injection |
-| KAPT | KSP |
-| Network calls | Keep offline (privacy) |
-| Inline dependency versions | Version catalog |
+| Pattern | Why | Instead |
+|---------|-----|---------|
+| XML layouts / Fragments | Legacy | Compose `@Composable` |
+| `AndroidView` interop | Perpetuates legacy | Native Compose |
+| LiveData | Legacy reactive | `StateFlow` / `Flow` |
+| `GlobalScope` | Unstructured | `viewModelScope`, injected scope |
+| SharedPreferences (new) | Not type-safe | DataStore (proto) |
+| `Dispatchers.IO` directly | Not testable | `DispatchersProvider` |
+| KAPT | Slow builds | KSP |
+| Inline versions | Unmanageable | `libs.versions.toml` |
+| Static mutable singletons | Untestable | Constructor injection |
+| Throwing across modules | Unsafe | Sealed `Result` types |
 
 <!-- context-init:user-content-below -->

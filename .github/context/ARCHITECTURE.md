@@ -1,237 +1,172 @@
-<!-- context-init:version:3.0.2 -->
-<!-- context-init:generated:2026-01-30 -->
+<!-- context-init:version:3.0.3 -->
+<!-- context-init:generated:2026-02-17 -->
 
 # Architecture Reference
 
 <!-- context-init:managed -->
-Quick reference for Tracker Android architecture. For complete details, see [docs/ARCHITECTURE_OVERVIEW.md](../../docs/ARCHITECTURE_OVERVIEW.md).
+Comprehensive architecture reference for Tracker Android.
 
 ## System Diagram
 
+<!-- context-init:managed -->
+
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        APPLICATION LAYER                             │
-│                              app                                     │
-│         (Entry point, DI, Navigation, Settings, Onboarding)         │
-└─────────────────────────────────────────────────────────────────────┘
-                                   │
-           ┌───────────────────────┼───────────────────────┐
-           ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│    tracker      │    │      map        │    │   statistics    │
-│ (Core Tracking) │    │ (Visualization) │    │ (Sessions/Stats)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-           │                       │                       │
-           │           ┌───────────┴───────────┐           │
-           ▼           ▼                       ▼           ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│    activity     │ │      game       │ │     impexp      │
-│ (Recognition)   │ │  (Challenges)   │ │ (Import/Export) │
-└─────────────────┘ └─────────────────┘ └─────────────────┘
-           │                │                    │
-           └────────────────┼────────────────────┘
-                            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        SHARED LIBRARIES                              │
-│  sbase (Database)  │  sutils  │  smap  │  spreferences  │ logger   │
-└─────────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                     SUPPORTING MODULES                               │
-│                  points  │  testing-common                           │
-└─────────────────────────────────────────────────────────────────────┘
+APPLICATION LAYER: app
+  Entry point, Hilt DI, Navigation, Settings, Onboarding
+  AppGraph.kt | MainActivityCompose | MainRoot | Routes.kt
+
+FEATURE MODULES:
+  tracker       - TrackerService, Components, Producers, PolicyManager
+  map           - MapLibre Compose, Heatmap Layers, UDF MapStore
+  statistics    - Sessions/Trips, Summary/Detail, ViewModels
+  activity      - Recognition, Receivers (OnFoot/Vehicle)
+  game          - Challenges, Goals (Steps), ChallengeDB
+  impexp        - GPX/KML/JSON, Streaming Exporter interface
+
+SHARED LIBRARIES:
+  sbase (Room DB v17) | sutils (AppTheme) | smap | spreferences
+
+DOMAIN/ANALYTICS:
+  stats-api (contracts) | stats-engine (algorithms) | stats-data
+
+SUPPORTING:
+  logger | points | testing-common
 ```
 
 ## Module Details
 
 <!-- context-init:managed -->
 
-### Feature Modules
+### App Module
+| Component | File | Purpose |
+|-----------|------|---------|
+| Application | `app/.../Application.kt` | `@HiltAndroidApp`, WorkManager config |
+| AppGraph | `app/.../AppGraph.kt` | Composition root: DispatchersProvider, Clock, DB, repos |
+| MainActivityCompose | `app/.../activity/MainActivityCompose.kt` | `@AndroidEntryPoint`, CompositionLocalProvider |
+| MainRoot | `app/.../ui/MainRoot.kt` | NavHost, floating bottom bar, Haze effect |
+| Routes | `app/.../ui/navigation/Routes.kt` | `@Serializable` route definitions |
+| Hilt Modules | `app/.../di/` | AppGraphModule, RepositoryModule, InfrastructureModule |
+| Settings | `app/.../settings/` | SettingsRoute, TrackingSettingsViewModel |
+| Onboarding | `app/.../onboarding/` | StreamlinedOnboardingScreen, permission flow |
 
-| Module | Key Files | Dependencies |
-|--------|-----------|--------------|
-| **app** | `AppGraph.kt`, `MainActivityCompose.kt`, `MainRoot.kt` | All feature modules |
-| **tracker** | `TrackerService.kt`, `TrackerComponentManager.kt` | sbase, activity |
-| **map** | `MapRoute.kt`, heatmap layers | sbase, smap |
-| **statistics** | `StatsRoute.kt`, session views | sbase |
-| **game** | `GameRoute.kt`, challenges | sbase, points |
-| **impexp** | Exporters, importers (GPX, KML, JSON) | sbase |
-| **activity** | `ActivityRecognitionReceiver`, transitions | sbase |
-
-### Shared Modules
-
-| Module | Purpose | Key Files |
-|--------|---------|-----------|
-| **sbase** | Database, entities, DAOs | `AppDatabase.kt`, entity classes |
-| **sutils** | Extensions, formatters, math | Utility functions |
-| **smap** | Map utilities | Shared map helpers |
-| **spreferences** | Typed preferences | Preference accessors |
-| **logger** | Logging facade | Privacy-redacting loggers |
-| **points** | Points calculation | Scoring algorithms |
-
-## Component Map
+### Tracker Module - Component Pipeline
 
 <!-- context-init:managed -->
 
-### Tracker Service Architecture
-
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         TrackerService                               │
-│                     (Foreground Service)                             │
-├─────────────────────────────────────────────────────────────────────┤
-│  TrackerTimerManager  ←──── TrackingPolicyManager                    │
-│         │                                                            │
-│         ▼                                                            │
-│  TrackerComponentManager                                             │
-│         │                                                            │
-│    ┌────┴────────────────┬─────────────────────┐                    │
-│    ▼                     ▼                     ▼                    │
-│ Pre-Components     Data Producers      Post-Components              │
-│ ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐        │
-│ │LocationPre   │  │StepData      │  │DatabaseLocation      │        │
-│ │Tracker       │  │Producer      │  │Component             │        │
-│ └──────────────┘  ├──────────────┤  ├──────────────────────┤        │
-│                   │ActivityData  │  │DatabaseCellComponent │        │
-│                   │Producer      │  ├──────────────────────┤        │
-│                   ├──────────────┤  │DatabaseWifiComponent │        │
-│                   │CellData      │  ├──────────────────────┤        │
-│                   │Producer      │  │NotificationComponent │        │
-│                   ├──────────────┤  └──────────────────────┘        │
-│                   │WifiData      │                                   │
-│                   │Producer      │                                   │
-│                   └──────────────┘                                   │
-└─────────────────────────────────────────────────────────────────────┘
+TrackerService (Foreground Service + WakeLock)
+  |
+  DataProducerManager (concurrent on Dispatchers.Default)
+  |- ActivityDataProducer
+  |- StepDataProducer
+  |- WifiDataProducer (ACTIVE+ tier only)
+  |- CellDataProducer (ACTIVE+ tier only)
+  |
+  Pre-Components (validation)
+  |- PolicyAwareLocationPreTrackerComponent
+  |
+  Data-Components (enrichment)
+  |- ActivityTrackerComponent, CellTrackerComponent
+  |- LocationTrackerComponent, WifiTrackerComponent
+  |
+  SessionTrackerComponent (metrics update)
+  |
+  Post-Components (persistence & notification)
+  |- DatabaseLocationComponent, DatabaseWifiComponent, DatabaseCellComponent
+  |- SessionSegmentWriter, StreamingAggregatorWriter, ExplorationWriter
+  |- ActivitySnapshotWriter, StepIntervalWriter, RawLocationWriter
+  |- NotificationComponent
+  |
+  TrackingPolicyManager -> Tier escalation (AMBIENT -> ACTIVE -> PRECISION)
 ```
 
-### UI Architecture
-
-```
-MainActivityCompose
-        │
-        ▼
-    AppTheme (Material 3)
-        │
-        ▼
-CompositionLocalProvider (AppGraph providers)
-        │
-        ▼
-    MainRoot
-        │
-        ├── NavHost
-        │     ├── TrackerRoute (Home)
-        │     ├── StatsRoute (Statistics)
-        │     ├── MapRoute (Map)
-        │     ├── GameRoute (Challenges)
-        │     └── SettingsRoute
-        │
-        └── BottomNavigationBar
-```
-
-## Data Flow
+### State Management (TrackerServiceController)
 
 <!-- context-init:managed -->
 
-### Tracking Flow
-```
-User/Auto Trigger
-        │
-        ▼
-TrackerServiceController.startTracking()
-        │
-        ▼
-TrackerService (Foreground)
-        │
-        ▼
-TrackerComponentManager.initialize()
-        │
-        ├── PreComponents (location prep)
-        ├── DataProducers (collect sensor data)
-        └── PostComponents (write to database)
-        │
-        ▼
-Room Database (persistent storage)
-```
+| StateFlow | Type | Purpose |
+|-----------|------|---------|
+| `isServiceRunningFlow` | `Boolean` | Service lifecycle |
+| `sessionFlow` | `TrackerSessionInfo` | Distance, steps, collections, timestamps |
+| `collectionDataFlow` | `CollectionDataEcho` | Live location, activity, wifi, cell |
+| `policyTierFlow` | `PolicyTier` | Current tier (OFF/AMBIENT/ACTIVE/PRECISION) |
+| `policyStateFlow` | `PolicyState` | Escalation engine internals |
+| `persistenceErrorFlow` | `PersistenceResult` | DB error notifications |
+| `lastSessionFlow` | `TrackerSessionInfo?` | Retained after stop |
 
-### UI State Flow
-```
-Room Database
-        │
-        ▼
-DAO.getFlow() → Repository → ViewModel.stateIn() → Compose UI
-```
+### Lock Management (LockManager)
 
-## Dependency Injection
+| Lock Type | Mechanism | Trigger |
+|-----------|-----------|---------|
+| Time Lock | AlarmManager auto-unlock | User-set duration |
+| Charge Lock | WorkManager `DisableTillRechargeWorker` | User action |
+
+### Map Module (MapLibre)
 
 <!-- context-init:managed -->
 
-### AppGraph (Composition Root)
-- Location: `app/src/main/java/.../AppGraph.kt`
-- Provides: database, dispatchers, clock, controllers, providers
-- Injected via: `CompositionLocalProvider` in `MainRoot`
+| Component | File | Purpose |
+|-----------|------|---------|
+| MapStore | `map/.../presentation/MapStore.kt` | ViewModel, UDF state management |
+| MapLibreLayerEngine | `map/.../presentation/bridge/MapLibreLayerEngine.kt` | Rendering bridge |
+| LocationHeatmapLayer | `map/.../layers/impl/` | Location heatmap |
+| WifiHeatmapLayer | `map/.../layers/impl/` | WiFi density heatmap |
+| CellHeatmapLayer | `map/.../layers/impl/` | Cell tower heatmap |
+| SpeedHeatmapLayer | `map/.../layers/impl/` | Speed heatmap |
+| LocationPathLayer | `map/.../layers/impl/` | Route path rendering |
+| LayerRegistry | `map/.../layers/registry/` | Layer management |
 
-### Hilt Integration
-- `@HiltAndroidApp` on Application
-- `@AndroidEntryPoint` on activities
-- `@HiltViewModel` for ViewModels
-- `RepositoryModule` binds repository implementations
+### Database (sbase)
 
-### Accessing Dependencies
+<!-- context-init:managed -->
 
-```kotlin
-// In Composables
-val appGraph = LocalAppGraph.current
-val controller = LocalTrackerController.current
+- **Version:** 17
+- **27 Entities:** LocationSample, StepInterval, ActivitySnapshot, CellSample, WifiObservation, TrackerRun, SessionSegment, DailySummaryEntity, LiveStatsEntity, FrequentPlaceEntity, InferredTripEntity, TripLegEntity, ExplorationCellEntity, ExplorationStreakEntity, AchievementProgressEntity, PersonalRecordEntity, RouteCacheEntity, ExportLogEntity, StorageSizeSnapshotEntity + legacy entities
+- **Type Converters:** CellType, DetectedActivity, GeoFeatureProperties, Sessionless
+- **Key DAOs:** LocationSampleDao, WifiObservationDao, CellSampleDao, SessionSegmentDao, TripDao, ActivitySnapshotDao, StepIntervalDao, FrequentPlaceDao, ExplorationCellDao
 
-// In ViewModels (via Hilt)
-@HiltViewModel
-class MyViewModel @Inject constructor(
-    private val repository: MyRepository
-) : ViewModel()
+### Navigation Graph
+
+<!-- context-init:managed -->
+
+```
+NavHost (MainRoot)
+|- Tracker (home) -> TrackerRoute -> TrackerDashboard
+|- Stats -> StatsRoute -> session list
+|  |- TripDetail(tripId) -> trip detail view
+|  |- History -> historical trips
+|- Map -> MapRoute -> MapScreen (MapLibre)
+|- Game -> GameRoute -> challenges & goals
+|- Settings -> SettingsRoute
+|- Debug -> DebugRoute
 ```
 
-## Database
+Routes use `@Serializable` data objects: `Tracker`, `Stats`, `Map`, `Game`, `TripDetail(tripId: Long)`, `History`, `Settings`, `Debug`.
+
+## Data Flow Diagrams
 
 <!-- context-init:managed -->
 
-- Technology: Room (SQLite)
-- Current version: 13
-- Location: `sbase/src/main/java/.../database/AppDatabase.kt`
+### Tracking Session Lifecycle
+```
+User taps Start -> TrackerServiceController.startTracking()
+  -> TrackerService.onStartCommand() -> startForeground() + WakeLock
+  -> TrackerComponentManager.startComponents()
+  -> Timer fires (configurable interval)
+    -> DataProducerManager.getData() (4 producers concurrent)
+    -> Pre -> Data -> Session -> Post pipeline
+    -> Room DB writes + StateFlow updates
+    -> TrackingPolicyManager.feedBack() (may escalate tier)
+  -> User taps Stop / LockManager locks
+  -> TrackerService.onDestroy() -> Release WakeLock, persist final stats
+```
 
-### Key Entities
-
-| Entity | Table | Purpose |
-|--------|-------|---------|
-| `DatabaseLocation` | `location_data` | Location points |
-| `TrackerSession` | `tracker_session` | Session metadata |
-| `DatabaseWifiData` | `wifi_data` | Wi-Fi observations |
-| `DatabaseCellLocation` | `cell_location` | Cell tower data |
-| `SessionActivity` | - | Session activities |
-
-### Key DAOs
-
-| DAO | Purpose |
-|-----|---------|
-| `LocationDataDao` | Location CRUD and queries |
-| `SessionDataDao` | Session management |
-| `WifiDataDao` | Wi-Fi data access |
-| `CellLocationDao` | Cell location queries |
-
-## Background Processing
-
-<!-- context-init:managed -->
-
-### Services
-| Service | Type | Purpose |
-|---------|------|---------|
-| `TrackerService` | Foreground | Active tracking |
-| `ActivityWatcherService` | Background | Auto-start detection |
-
-### Workers (WorkManager)
-| Worker | Schedule | Purpose |
-|--------|----------|---------|
-| `DatabaseMaintenanceWorker` | Periodic | DB optimization |
-| `DataRetentionWorker` | Weekly | Delete old data |
+### Import/Export Flow
+```
+User selects format (GPX/KML/JSON/SQLite)
+  -> Exporter interface -> streaming writer (O(1) memory)
+  -> Query sessions/locations from Room DB (windowed)
+  -> Write to file -> user picks save location
+```
 
 <!-- context-init:user-content-below -->
