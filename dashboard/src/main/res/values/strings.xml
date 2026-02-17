@@ -49,6 +49,39 @@
     <string name="dashboard_exploration_total_cells">Total cells</string>
     <string name="dashboard_exploration_seasons">Seasons</string>
 
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_title">Live Charts</string>
+    <string name="dashboard_live_charts_speed">Speed</string>
+    <string name="dashboard_live_charts_altitude">Altitude</string>
+
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Sensor Details</string>
+    <string name="dashboard_sensor_expand">Expand sensor details</string>
+    <string name="dashboard_sensor_collapse">Collapse sensor details</string>
+    <string name="dashboard_sensor_location_accuracy">Location accuracy</string>
+    <string name="dashboard_sensor_activity">Activity</string>
+    <string name="dashboard_sensor_wifi">WiFi networks</string>
+    <string name="dashboard_sensor_cell">Cell towers</string>
+    <string name="dashboard_sensor_altitude">Altitude</string>
+    <string name="dashboard_sensor_speed">Speed</string>
+    <string name="dashboard_sensor_cell_types">Cell types</string>
+    <string name="dashboard_sensor_raw_coords">Coordinates (debug)</string>
+
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Trending up</string>
+    <string name="dashboard_trend_down">Trending down</string>
+
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Just getting started…</string>
+    <string name="dashboard_motivational_keep_going">Keep going! 💪</string>
+    <string name="dashboard_motivational_impressive">Impressive session!</string>
+    <string name="dashboard_motivational_marathon">Marathon explorer! 🏆</string>
+    <string name="dashboard_motivational_morning">Good morning! Ready to explore?</string>
+    <string name="dashboard_motivational_afternoon">Good afternoon</string>
+    <string name="dashboard_motivational_evening">Good evening</string>
+    <string name="dashboard_motivational_night">Night owl mode 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$d-day streak!</string>
+
     <!-- Empty state -->
     <string name="dashboard_empty_title">Your Journey Starts Here</string>
     <string name="dashboard_empty_subtitle">Tap the button below to begin tracking your first adventure</string>

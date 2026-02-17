@@ -38,8 +38,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.components.SensorDetailsCard
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.visualization.AltitudeSparkline
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SessionPathPreview
+import com.adsamcik.tracker.dashboard.ui.compose.visualization.SpeedSparkline
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
@@ -88,9 +91,56 @@ internal fun TrackingContent(
 				}
 			}
 
+			// Live Charts — speed and altitude sparklines from path data
+			val points = state.pathPoints
+			if (!points.isNullOrEmpty()) {
+				val speedHistory = points.mapNotNull { it.speed }
+				val altitudeHistory = points.mapNotNull { it.altitude?.toFloat() }
+
+				if (speedHistory.size >= 2) {
+					item(key = "live_speed") {
+						LiveChartCard(
+							title = stringResource(R.string.dashboard_live_charts_speed),
+						) {
+							SpeedSparkline(
+								speedHistory = speedHistory,
+								currentSpeed = speedHistory.lastOrNull(),
+								maxSpeed = speedHistory.maxOrNull(),
+								modifier = Modifier
+									.fillMaxWidth()
+									.height(140.dp),
+							)
+						}
+					}
+				}
+
+				if (altitudeHistory.size >= 2) {
+					item(key = "live_altitude") {
+						LiveChartCard(
+							title = stringResource(R.string.dashboard_live_charts_altitude),
+						) {
+							AltitudeSparkline(
+								altitudeHistory = altitudeHistory,
+								currentAltitude = altitudeHistory.lastOrNull(),
+								modifier = Modifier
+									.fillMaxWidth()
+									.height(140.dp),
+							)
+						}
+					}
+				}
+			}
+
 			item(key = "challenges") {
 				LiveChallengeProgress(
 					challenges = state.activeChallenges,
+				)
+			}
+
+			item(key = "sensor_details") {
+				SensorDetailsCard(
+					collectionData = state.collectionData,
+					isTracking = state.isTracking,
 				)
 			}
 
@@ -304,4 +354,32 @@ private fun RecordingDot(modifier: Modifier = Modifier) {
 			.clip(MaterialTheme.shapes.extraLarge)
 			.background(MaterialTheme.colorScheme.error),
 	)
+}
+
+/**
+ * Wrapper card for live chart sections (speed, altitude) during tracking.
+ */
+@Composable
+private fun LiveChartCard(
+	title: String,
+	modifier: Modifier = Modifier,
+	content: @Composable () -> Unit,
+) {
+	Card(
+		modifier = modifier.fillMaxWidth(),
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+		),
+	) {
+		Column(modifier = Modifier.padding(16.dp)) {
+			Text(
+				text = title,
+				style = MaterialTheme.typography.titleSmall,
+				fontWeight = FontWeight.Medium,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Spacer(Modifier.height(8.dp))
+			content()
+		}
+	}
 }
