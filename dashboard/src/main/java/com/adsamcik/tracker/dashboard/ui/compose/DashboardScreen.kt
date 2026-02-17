@@ -5,31 +5,29 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FabPosition
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.cards.IdleContent
 import com.adsamcik.tracker.dashboard.ui.compose.components.DashboardTopBar
 import com.adsamcik.tracker.dashboard.ui.compose.components.EmptyStateCard
 import com.adsamcik.tracker.dashboard.ui.compose.components.MilestoneHapticEffect
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingFAB
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
 
 /**
  * Main scaffold composable orchestrating the dashboard layout.
  *
  * Delegates to [DashboardTopBar], [TrackingFAB], and mode-specific content:
  * - EMPTY → [EmptyStateContent]
- * - IDLE → [IdleContent] (placeholder for Phase 4)
+ * - IDLE → [IdleContent] (daily summary, challenges, streaks, trips, exploration)
  * - TRACKING → [TrackingContent] (placeholder for Phase 3)
  */
 @Composable
@@ -98,8 +96,16 @@ internal fun DashboardScreen(
 		) {
 			when (state.dashboardMode) {
 				DashboardMode.EMPTY -> EmptyStateContent()
-				DashboardMode.IDLE -> IdleContent()
-				DashboardMode.TRACKING -> TrackingContent()
+				DashboardMode.IDLE -> IdleContent(
+					state = state,
+					onMapClick = onMapClick,
+					onGameClick = onGameClick,
+					onSessionDetailClick = onSessionDetailClick,
+				)
+				DashboardMode.TRACKING -> TrackingContent(
+					state = state,
+					onMapClick = onMapClick,
+				)
 			}
 		}
 	}
@@ -117,30 +123,4 @@ private fun EmptyStateContent(modifier: Modifier = Modifier) {
 	}
 }
 
-@Composable
-private fun IdleContent(modifier: Modifier = Modifier) {
-	Box(
-		modifier = modifier.fillMaxSize(),
-		contentAlignment = Alignment.Center,
-	) {
-		Text(
-			text = stringResource(R.string.dashboard_idle_placeholder),
-			style = MaterialTheme.typography.bodyLarge,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
-		)
-	}
-}
 
-@Composable
-private fun TrackingContent(modifier: Modifier = Modifier) {
-	Box(
-		modifier = modifier.fillMaxSize(),
-		contentAlignment = Alignment.Center,
-	) {
-		Text(
-			text = stringResource(R.string.dashboard_tracking_placeholder),
-			style = MaterialTheme.typography.bodyLarge,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
-		)
-	}
-}

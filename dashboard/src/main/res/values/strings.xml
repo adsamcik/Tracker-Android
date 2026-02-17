@@ -6,6 +6,49 @@
     <string name="dashboard_idle_placeholder">Idle Dashboard — Phase 4</string>
     <string name="dashboard_tracking_placeholder">Tracking Dashboard — Phase 3</string>
 
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">Awaiting GPS signal…</string>
+    <string name="dashboard_milestone_distance">km reached!</string>
+    <string name="dashboard_milestone_steps">steps reached!</string>
+    <string name="dashboard_milestone_time">min tracked!</string>
+    <string name="dashboard_milestone_points">+10 pts</string>
+
+    <!-- Idle state -->
+    <string name="dashboard_greeting_morning">Good morning</string>
+    <string name="dashboard_greeting_afternoon">Good afternoon</string>
+    <string name="dashboard_greeting_evening">Good evening</string>
+    <string name="dashboard_greeting_night">Good night</string>
+    <string name="dashboard_today_title">Today</string>
+    <string name="dashboard_today_no_activity">No activity yet today</string>
+    <string name="dashboard_today_duration">Duration</string>
+    <string name="dashboard_today_steps">Steps</string>
+    <string name="dashboard_today_trips">Trips</string>
+    <string name="dashboard_daily_goal">Daily</string>
+    <string name="dashboard_weekly_goal">Weekly</string>
+    <string name="dashboard_goal_on_track">On track</string>
+    <string name="dashboard_goal_ahead">Ahead</string>
+    <string name="dashboard_goal_behind">Behind</string>
+    <string name="dashboard_streak_day_streak">day streak</string>
+    <string name="dashboard_streak_start">Start a streak!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%%</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%%</string>
+    <string name="dashboard_challenges_title">Challenges</string>
+    <string name="dashboard_challenges_empty">Start a challenge →</string>
+    <string name="dashboard_challenge_easy">Easy</string>
+    <string name="dashboard_challenge_medium">Medium</string>
+    <string name="dashboard_challenge_hard">Hard</string>
+    <string name="dashboard_challenge_time_remaining">%1$s left</string>
+    <string name="dashboard_last_session_title">Last Session</string>
+    <string name="dashboard_last_session_duration">Duration</string>
+    <string name="dashboard_last_session_distance">Distance</string>
+    <string name="dashboard_last_session_steps">Steps</string>
+    <string name="dashboard_last_session_view_map">View Map</string>
+    <string name="dashboard_recent_trips_title">Recent Trips</string>
+    <string name="dashboard_exploration_title">Exploration</string>
+    <string name="dashboard_exploration_new_today">New today</string>
+    <string name="dashboard_exploration_total_cells">Total cells</string>
+    <string name="dashboard_exploration_seasons">Seasons</string>
+
     <!-- Empty state -->
     <string name="dashboard_empty_title">Your Journey Starts Here</string>
     <string name="dashboard_empty_subtitle">Tap the button below to begin tracking your first adventure</string>
