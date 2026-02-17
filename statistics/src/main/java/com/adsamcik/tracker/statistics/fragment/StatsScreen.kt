@@ -451,7 +451,7 @@ private fun ActionChip(
             .height(56.dp)
             .clickable { onClick() }
             .semantics { contentDescription = label },
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.large
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),

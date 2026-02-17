@@ -80,7 +80,7 @@ fun AchievementCard(
 				// View all action
 				Row(
 					modifier = Modifier
-						.clip(RoundedCornerShape(8.dp))
+						.clip(MaterialTheme.shapes.small)
 						.clickable(onClick = onViewAll)
 						.padding(horizontal = 8.dp, vertical = 4.dp),
 					verticalAlignment = Alignment.CenterVertically
