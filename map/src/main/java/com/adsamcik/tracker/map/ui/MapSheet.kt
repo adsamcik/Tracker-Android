@@ -163,6 +163,7 @@ fun MapSheet(
             sheetPeekHeight = peekHeight,
             sheetDragHandle = {},
             topBar = {},
+            containerColor = Color.Transparent,
             sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             sheetContent = {
                 // Content only visible when expanded
