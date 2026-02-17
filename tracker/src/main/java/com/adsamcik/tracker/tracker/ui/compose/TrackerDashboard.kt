@@ -77,6 +77,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -1996,7 +1998,7 @@ private fun formatRelativeUpdate(context: Context, timestamp: Long?): String? {
  * - Smooth icon transitions with scale animations
  * - Clear state distinction through color and shape
  */
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun TrackingFAB(
     isTracking: Boolean,
@@ -2008,8 +2010,8 @@ private fun TrackingFAB(
     
     // Morphing corner radius: More rounded when tracking
     val cornerRadius by animateFloatAsState(
-        targetValue = if (isTracking) 50f else 28f,
-        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        targetValue = if (isTracking) 48f else 28f,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "corner_radius"
     )
     
@@ -2038,14 +2040,14 @@ private fun TrackingFAB(
     // Alpha for glow effect
     val glowAlpha by animateFloatAsState(
         targetValue = if (isTracking) 0.6f else 0f,
-        animationSpec = tween(durationMillis = 500),
+        animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
         label = "glow_alpha"
     )
     
     // Icon scale for press feedback
     val iconScale by animateFloatAsState(
         targetValue = if (isTracking) 0.9f else 1f,
-        animationSpec = tween(durationMillis = 300),
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "icon_scale"
     )
     
@@ -2134,15 +2136,17 @@ private fun TrackingFAB(
                     else -> stringResource(R.string.description_tracking_start)
                 }
                 
+                val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                val fastSpatial = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
                 AnimatedContent(
                     targetState = icon,
                     label = "fab_icon",
                     transitionSpec = {
-                        (fadeIn(animationSpec = tween(300)) + 
-                            androidx.compose.animation.scaleIn(initialScale = 0.8f, animationSpec = tween(300)))
+                        (fadeIn(animationSpec = fastEffects) + 
+                            androidx.compose.animation.scaleIn(initialScale = 0.8f, animationSpec = fastSpatial))
                             .togetherWith(
-                                fadeOut(animationSpec = tween(200)) +
-                                    androidx.compose.animation.scaleOut(targetScale = 0.8f, animationSpec = tween(200))
+                                fadeOut(animationSpec = fastEffects) +
+                                    androidx.compose.animation.scaleOut(targetScale = 0.8f, animationSpec = fastSpatial)
                             )
                     }
                 ) { targetIcon ->
@@ -2342,6 +2346,7 @@ private fun TodayProgressCard(
  * A circular progress indicator showing daily step goal progress.
  * Replaces the linear bar for a more modern look.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun GoalProgressRing(
     modifier: Modifier = Modifier
@@ -2353,7 +2358,7 @@ private fun GoalProgressRing(
     
     val animatedProgress by animateFloatAsState(
         targetValue = goalProgress.progress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        animationSpec = MaterialTheme.motionScheme.slowSpatialSpec(),
         label = "goal_progress"
     )
     
