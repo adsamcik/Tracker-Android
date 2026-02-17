@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -102,6 +103,7 @@ fun StatsScreen(
     trips: LazyPagingItems<Trip>? = null,
     onTripClick: (Long) -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
+    onNavigateToTracker: () -> Unit = {},
     weeklyBars: List<DayBar> = emptyList(),
 ) {
     Box(
@@ -111,7 +113,7 @@ fun StatsScreen(
     ) {
         when (refreshState) {
             RefreshUiState.Loading -> LoadingState()
-            RefreshUiState.Empty -> EmptyState()
+            RefreshUiState.Empty -> EmptyState(onNavigateToTracker)
             RefreshUiState.Error -> ErrorState(onRetry)
             RefreshUiState.Content -> ContentState(
                 appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi,
@@ -137,7 +139,7 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(onNavigateToTracker: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -147,7 +149,12 @@ private fun EmptyState() {
         EmptyStateCard(
             icon = Icons.Filled.Route,
             title = stringResource(R.string.stats_no_tracker_sessions),
-            subtitle = stringResource(R.string.stats_empty_subtitle)
+            subtitle = stringResource(R.string.stats_empty_subtitle),
+            action = {
+                FilledTonalButton(onClick = onNavigateToTracker) {
+                    Text(stringResource(R.string.stats_start_tracking_cta))
+                }
+            }
         )
     }
 }

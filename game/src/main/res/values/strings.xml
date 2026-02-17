@@ -38,6 +38,7 @@
     <string name="game_challenges_empty_subtitle">Complete tracking sessions to unlock new challenges</string>
     <string name="game_loading">Loading…</string>
     <string name="game_points_breakdown_coming_soon">Points breakdown coming soon</string>
+    <string name="game_points_start_tracking_hint">Start tracking to earn points!</string>
 
     <!-- Exploration card -->
     <string name="exploration_title">Exploration</string>

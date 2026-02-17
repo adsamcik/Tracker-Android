@@ -250,6 +250,13 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                             launchSingleTop = true
                         }
                     },
+                    onNavigateToTracker = {
+                        navController.navigate(Tracker) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable<Game> { com.adsamcik.tracker.game.ui.compose.GameRoute() }

@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -163,7 +165,11 @@ private fun PointsCard(points: Int) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = stringResource(R.string.points_earned_today),
+                        text = if (points == 0) {
+                            stringResource(R.string.game_points_start_tracking_hint)
+                        } else {
+                            stringResource(R.string.points_earned_today)
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -238,6 +244,12 @@ private fun Stat(label: String, value: Int, goal: Int) {
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                .semantics {
+                    progressBarRangeInfo = ProgressBarRangeInfo(
+                        current = progress,
+                        range = 0f..1f
+                    )
+                }
         ) {
             Box(
                 modifier = Modifier
@@ -335,6 +347,12 @@ private fun ChallengeCard(ch: ChallengeUi) {
                         .height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                        .semantics {
+                            progressBarRangeInfo = ProgressBarRangeInfo(
+                                current = ch.progress,
+                                range = 0f..1f
+                            )
+                        }
                 ) {
                     Box(
                         modifier = Modifier
