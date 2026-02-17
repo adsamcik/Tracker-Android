@@ -58,6 +58,8 @@ import android.content.pm.PackageManager
 import com.adsamcik.tracker.app.tracker.ui.UpgradeToPrecisePrompt
 import com.adsamcik.tracker.app.tracker.ui.UpgradeReason
 import com.adsamcik.tracker.shared.preferences.R as PrefR
+import com.adsamcik.tracker.R
+import androidx.compose.ui.res.stringResource
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 
 /**
@@ -184,12 +186,16 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
     }
 
     // Navigation Items
-    val navItems = remember {
+    val trackerLabel = stringResource(R.string.main_nav_tracker)
+    val statsLabel = stringResource(R.string.main_nav_stats)
+    val mapLabel = stringResource(R.string.main_nav_map)
+    val gameLabel = stringResource(R.string.main_nav_game)
+    val navItems = remember(trackerLabel, statsLabel, mapLabel, gameLabel) {
         listOf(
-            NavigationItem(Tracker, Icons.Filled.Home, "Tracker", "nav_tracker"),
-            NavigationItem(Stats, Icons.Filled.BarChart, "Stats", "nav_stats"),
-            NavigationItem(Map, Icons.Filled.Map, "Map", "nav_map"),
-            NavigationItem(Game, Icons.Filled.VideogameAsset, "Game", "nav_game")
+            NavigationItem(Tracker, Icons.Filled.Home, "Tracker", "nav_tracker", label = trackerLabel),
+            NavigationItem(Stats, Icons.Filled.BarChart, "Stats", "nav_stats", label = statsLabel),
+            NavigationItem(Map, Icons.Filled.Map, "Map", "nav_map", label = mapLabel),
+            NavigationItem(Game, Icons.Filled.VideogameAsset, "Game", "nav_game", label = gameLabel)
         )
     }
 

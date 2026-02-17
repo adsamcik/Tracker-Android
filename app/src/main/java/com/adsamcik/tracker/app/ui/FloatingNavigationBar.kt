@@ -20,11 +20,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.semantics.stateDescription
@@ -121,10 +120,10 @@ private fun FloatingNavItem(
                     this.stateDescription = item.stateDescription
                 }
             }
-            .requiredSize(48.dp)
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null, // Custom ripple or none for cleaner look
+                indication = null,
                 onClick = onClick
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -137,17 +136,26 @@ private fun FloatingNavItem(
             modifier = Modifier.size(24.dp).scale(scale)
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // Dot indicator
-        Box(
-            modifier = Modifier
-                .size(4.dp)
-                .background(
-                    if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    androidx.compose.foundation.shape.CircleShape
-                )
-        )
+        // Show label for selected item, dot for unselected
+        if (item.label != null && isSelected) {
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                maxLines = 1
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .background(
+                        if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        androidx.compose.foundation.shape.CircleShape
+                    )
+            )
+        }
     }
 }
 
@@ -156,5 +164,6 @@ data class NavigationItem(
     val icon: ImageVector,
     val contentDescription: String,
     val testTag: String,
+    val label: String? = null,
     val stateDescription: String? = null
 )

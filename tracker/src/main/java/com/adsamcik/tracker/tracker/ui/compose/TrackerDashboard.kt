@@ -1481,7 +1481,7 @@ private fun EmptyStateCard() {
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .height(260.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Animated Background Pattern
@@ -1561,7 +1561,7 @@ private fun EmptyStateCard() {
                 Spacer(Modifier.height(20.dp))
                 
                 Text(
-                    text = stringResource(R.string.settings_tracking_title),
+                    text = stringResource(R.string.tracker_empty_state_title),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -1570,18 +1570,18 @@ private fun EmptyStateCard() {
                 Spacer(Modifier.height(8.dp))
                 
                 Text(
-                    text = stringResource(R.string.shortcut_start_tracking_long),
+                    text = stringResource(R.string.tracker_empty_state_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
                 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 
                 // Hint arrow pointing to FAB
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowDown,
-                    contentDescription = "Tap below to start",
+                    contentDescription = stringResource(R.string.shortcut_start_tracking),
                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                     modifier = Modifier
                         .size(28.dp)
@@ -2283,15 +2283,20 @@ private fun TodayProgressCard(
                     
                     // Secondary Metrics Grid
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        // Duration
+                        // Duration — show "Just started" for very short durations
                         Column {
                             Text(
                                 text = stringResource(R.string.dashboard_today_duration),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
                             )
+                            val durationDisplay = if (summary.totalDurationMs < 60_000L) {
+                                stringResource(R.string.tracker_duration_just_started)
+                            } else {
+                                summary.totalDurationMs.formatAsDuration(context)
+                            }
                             Text(
-                                text = summary.totalDurationMs.formatAsDuration(context),
+                                text = durationDisplay,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -2355,41 +2360,56 @@ private fun GoalProgressRing(
     val primaryColor = MaterialTheme.colorScheme.primary
     val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     
-    Box(contentAlignment = Alignment.Center, modifier = modifier.size(72.dp)) {
-        // Track
-        CircularProgressIndicator(
-            progress = { 1f },
-            modifier = Modifier.fillMaxSize(),
-            color = trackColor,
-            strokeWidth = 6.dp,
-            trackColor = Color.Transparent,
-        )
-        
-        // Progress
-        CircularProgressIndicator(
-            progress = { animatedProgress },
-            modifier = Modifier.fillMaxSize(),
-            color = primaryColor,
-            strokeWidth = 6.dp,
-            trackColor = Color.Transparent,
-            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-        )
-        
-        // Icon or Percentage inside
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Outlined.Star,
-                contentDescription = stringResource(R.string.tracker_points_icon_desc),
-                tint = primaryColor,
-                modifier = Modifier.size(20.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(72.dp)) {
+            // Track
+            CircularProgressIndicator(
+                progress = { 1f },
+                modifier = Modifier.fillMaxSize(),
+                color = trackColor,
+                strokeWidth = 6.dp,
+                trackColor = Color.Transparent,
             )
+            
+            // Progress
+            CircularProgressIndicator(
+                progress = { animatedProgress },
+                modifier = Modifier.fillMaxSize(),
+                color = primaryColor,
+                strokeWidth = 6.dp,
+                trackColor = Color.Transparent,
+                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            
+            // Percentage inside
             Text(
                 text = "${(goalProgress.progress * 100).toInt()}%",
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
+        
+        Spacer(Modifier.height(4.dp))
+        
+        // Steps count with unit
+        Text(
+            text = stringResource(
+                R.string.tracker_goal_steps_progress,
+                goalProgress.stepsToday.formatReadable(),
+                goalProgress.goalSteps.formatReadable()
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = stringResource(R.string.tracker_goal_steps_label),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
     }
 }
 

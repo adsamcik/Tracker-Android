@@ -35,6 +35,8 @@
 
     <string name="main_nav_stats">Statistics</string>
     <string name="main_nav_game">Game</string>
+    <string name="main_nav_tracker">Home</string>
+    <string name="main_nav_map">Map</string>
     <string name="main_nav_map_expand">Open map</string>
     <string name="main_nav_map_collapse">Close map</string>
     <string name="main_nav_map_state_expanded">Map expanded</string>

@@ -271,4 +271,21 @@
     <string name="tracker_settings_icon_desc">Component settings</string>
     <string name="tracker_points_icon_desc">Points progress</string>
 
+    <!-- Goal Progress Ring -->
+    <string name="tracker_goal_steps_label">steps</string>
+    <string name="tracker_goal_steps_progress">%1$s / %2$s</string>
+
+    <!-- Empty State Improvements -->
+    <string name="tracker_empty_state_title">Ready to explore?</string>
+    <string name="tracker_empty_state_subtitle">Tap the button below to begin your first session. Your routes, steps, and activity are tracked privately on this device.</string>
+
+    <!-- Duration formatting -->
+    <string name="tracker_duration_just_started">Just started</string>
+
+    <!-- Nav bar labels -->
+    <string name="nav_label_tracker">Home</string>
+    <string name="nav_label_stats">Stats</string>
+    <string name="nav_label_map">Map</string>
+    <string name="nav_label_game">Game</string>
+
 </resources>
