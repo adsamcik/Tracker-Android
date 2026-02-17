@@ -3,8 +3,7 @@
     <string name="dashboard_title">Dashboard</string>
     <string name="dashboard_tracking_title">Tracking</string>
     <string name="dashboard_recording">Recording</string>
-    <string name="dashboard_idle_placeholder">Idle Dashboard — Phase 4</string>
-    <string name="dashboard_tracking_placeholder">Tracking Dashboard — Phase 3</string>
+
 
     <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Awaiting GPS signal…</string>

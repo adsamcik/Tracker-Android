@@ -28,7 +28,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
  * Delegates to [DashboardTopBar], [TrackingFAB], and mode-specific content:
  * - EMPTY → [EmptyStateContent]
  * - IDLE → [IdleContent] (daily summary, challenges, streaks, trips, exploration)
- * - TRACKING → [TrackingContent] (placeholder for Phase 3)
+ * - TRACKING → [TrackingContent] (live stats, map hero, milestones, challenges)
  */
 @Composable
 internal fun DashboardScreen(
