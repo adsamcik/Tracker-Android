@@ -2,7 +2,9 @@ package com.adsamcik.tracker.shared.utils.style.compose
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
@@ -20,6 +22,7 @@ private val ExpressiveSeedColor = AppColors.NeonLime
  * - Android 12+ (S): system dynamic colors (Monet) when [useDynamicColor] is true.
  * - Pre-Android 12: generated Expressive palette derived from [seedColor].
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AppTheme(
     useDynamicColor: Boolean = true,
@@ -42,5 +45,11 @@ fun AppTheme(
         }
     }
 
-    MaterialTheme(colorScheme = colorScheme, content = content)
+    MaterialExpressiveTheme(
+        colorScheme = colorScheme,
+        motionScheme = MotionScheme.expressive(),
+        shapes = TrackerShapes,
+        typography = TrackerTypography,
+        content = content
+    )
 }
