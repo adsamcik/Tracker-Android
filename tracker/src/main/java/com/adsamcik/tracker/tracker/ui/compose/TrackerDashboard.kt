@@ -391,6 +391,7 @@ private fun TrackerTopBar(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun TrackingContent(
     sessionData: TrackerSession?,
@@ -451,17 +452,14 @@ private fun TrackingContent(
                 AnimatedVisibility(
                     visible = isTracking,
                     enter = expandVertically(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
-                        )
-                    ) + fadeIn(animationSpec = tween(300)) + scaleIn(
+                        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
+                    ) + fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + scaleIn(
                         initialScale = 0.95f,
-                        animationSpec = tween(300)
+                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()
                     ),
                     exit = shrinkVertically(
-                        animationSpec = tween(200)
-                    ) + fadeOut(animationSpec = tween(150))
+                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()
+                    ) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
                 ) {
                     StatusAndQuickStatsCard(
                         isTracking = isTracking,
@@ -479,7 +477,7 @@ private fun TrackingContent(
                     enter = expandVertically(
                         animationSpec = tween(300, delayMillis = 100)
                     ) + fadeIn(animationSpec = tween(300, delayMillis = 100)),
-                    exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                    exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
                 ) {
                     TodayProgressCard(
                         isTracking = isTracking,
@@ -495,7 +493,7 @@ private fun TrackingContent(
                     enter = expandVertically(
                         animationSpec = tween(300, delayMillis = 200)
                     ) + fadeIn(animationSpec = tween(300, delayMillis = 200)),
-                    exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                    exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
                 ) {
                     RecentTripsCard(
                         settings = trackerSettings,
@@ -512,7 +510,7 @@ private fun TrackingContent(
                         enter = expandVertically(
                             animationSpec = tween(300, delayMillis = 150)
                         ) + fadeIn(animationSpec = tween(300, delayMillis = 150)),
-                        exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+                        exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
                     ) {
                         SessionOverviewCard(
                             session = sessionData,
@@ -1171,6 +1169,7 @@ private fun ActiveStatItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CompactStatItem(
     label: String,
@@ -1185,12 +1184,13 @@ private fun CompactStatItem(
             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
         )
         if (animated) {
+            val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
             AnimatedContent(
                 targetState = value,
                 label = "compact_stat",
                 transitionSpec = {
-                    (fadeIn(animationSpec = tween(200)) + scaleIn(initialScale = 0.95f))
-                        .togetherWith(fadeOut(animationSpec = tween(100)))
+                    (fadeIn(animationSpec = fastEffects) + scaleIn(initialScale = 0.95f))
+                        .togetherWith(fadeOut(animationSpec = fastEffects))
                 }
             ) { targetValue ->
                 Text(
@@ -1246,6 +1246,7 @@ private fun TechnicalStatItem(
  * AnimatedStatValue - Displays a value with smooth counting animation when it changes.
  * Uses AnimatedContent with vertical slide for a slot-machine effect.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AnimatedStatValue(
     value: String,
@@ -1254,13 +1255,15 @@ private fun AnimatedStatValue(
     fontWeight: FontWeight = FontWeight.Bold,
     color: Color = MaterialTheme.colorScheme.onPrimaryContainer
 ) {
+    val defaultEffects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
     AnimatedContent(
         targetState = value,
         label = "stat_value",
         transitionSpec = {
             // Slide up with fade for counting effect
-            (slideInVertically { height -> height / 4 } + fadeIn(animationSpec = tween(300)))
-                .togetherWith(slideOutVertically { height -> -height / 4 } + fadeOut(animationSpec = tween(150)))
+            (slideInVertically { height -> height / 4 } + fadeIn(animationSpec = defaultEffects))
+                .togetherWith(slideOutVertically { height -> -height / 4 } + fadeOut(animationSpec = fastEffects))
         },
         modifier = modifier
     ) { targetValue ->
@@ -1276,6 +1279,7 @@ private fun AnimatedStatValue(
 /**
  * PulseOnChange - Wraps content and adds a subtle scale pulse when value changes.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PulseOnChange(
     key: Any,
@@ -1283,19 +1287,17 @@ private fun PulseOnChange(
     content: @Composable () -> Unit
 ) {
     val scale = remember { Animatable(1f) }
+    val pulseSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     
     LaunchedEffect(key) {
         // Quick pulse: scale up then back
         scale.animateTo(
             targetValue = 1.08f,
-            animationSpec = tween(100, easing = FastOutSlowInEasing)
+            animationSpec = pulseSpec
         )
         scale.animateTo(
             targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium
-            )
+            animationSpec = pulseSpec
         )
     }
     
@@ -1309,6 +1311,7 @@ private fun PulseOnChange(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SessionPathPreview(
     points: List<com.adsamcik.tracker.shared.base.data.Location>,
@@ -1321,15 +1324,13 @@ private fun SessionPathPreview(
     
     // Animate path drawing progress from 0 to 1
     val pathProgress = remember { Animatable(0f) }
+    val pathSpec = MaterialTheme.motionScheme.slowSpatialSpec<Float>()
     
     LaunchedEffect(points) {
         pathProgress.snapTo(0f)
         pathProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = 800,
-                easing = FastOutSlowInEasing
-            )
+            animationSpec = pathSpec
         )
     }
     

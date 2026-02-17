@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -99,6 +100,7 @@ fun StreamlinedOnboardingScreen(
 /**
  * Welcome screen content
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun WelcomeScreen(
     onGetStarted: () -> Unit,
@@ -121,10 +123,11 @@ private fun WelcomeScreen(
             
             // Animated app icon
             val scale = remember { Animatable(0f) }
+            val scaleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
             LaunchedEffect(Unit) {
                 scale.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = 600)
+                    animationSpec = scaleSpec
                 )
             }
             
