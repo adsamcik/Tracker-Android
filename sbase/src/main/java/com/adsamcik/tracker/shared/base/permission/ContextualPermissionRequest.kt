@@ -50,7 +50,8 @@ fun ContextualPermissionRequest(
     permissionType: PermissionType,
     permission: String,
     onPermissionResult: (granted: Boolean) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    rationaleMessageOverride: Int? = null
 ) {
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
@@ -62,6 +63,7 @@ fun ContextualPermissionRequest(
     if (showRationale) {
         PermissionRationaleDialog(
             permissionType = permissionType,
+            rationaleMessageOverride = rationaleMessageOverride,
             onAllow = {
                 showRationale = false
                 permissionLauncher.launch(permission)
@@ -81,6 +83,7 @@ fun ContextualPermissionRequest(
 @Composable
 private fun PermissionRationaleDialog(
     permissionType: PermissionType,
+    rationaleMessageOverride: Int? = null,
     onAllow: () -> Unit,
     onDeny: () -> Unit
 ) {
@@ -96,7 +99,7 @@ private fun PermissionRationaleDialog(
             Text(stringResource(permissionType.rationaleTitle))
         },
         text = {
-            Text(stringResource(permissionType.rationaleMessage))
+            Text(stringResource(rationaleMessageOverride ?: permissionType.rationaleMessage))
         },
         confirmButton = {
             Button(onClick = onAllow) {

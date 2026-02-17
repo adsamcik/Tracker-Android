@@ -69,7 +69,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -110,7 +109,6 @@ fun MapSheet(
     var showErrorMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     var showDateRangeDialog by remember { mutableStateOf(false) }
-    var searchRowHeightPx by remember { mutableStateOf(0) }
     var expandedByKeyboard by remember { mutableStateOf(false) }
     // Track keyboard visibility via ime bottom inset
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
@@ -152,29 +150,23 @@ fun MapSheet(
     // Compute layout
     val density = LocalDensity.current
     
-    // We want the search bar to float above the nav bar / bottom inset.
-    val searchBarHeightDp = with(density) { searchRowHeightPx.toDp() }
     val bottomInsetDp = with(density) { effectiveBottomInsetPx.toDp() }
     
-    // Peek height: 64.dp so users can drag the sheet up. The drag handle provides 
-    // a visible affordance for sheet interaction.
-    val peekHeight = 64.dp
+    // Peek height must clear bottom insets (app nav bar + system nav bar) 
+    // plus space for drag handle (20dp) + search bar (56dp) + padding (24dp)
+    val peekHeight = 100.dp + bottomInsetDp
 
     Box(modifier = modifier.fillMaxSize()) {
         BottomSheetScaffold(
             modifier = Modifier.fillMaxSize(),
             scaffoldState = scaffoldState,
             sheetPeekHeight = peekHeight,
+            sheetDragHandle = {},
             topBar = {},
             sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             sheetContent = {
                 // Content only visible when expanded
-                // Use safe content padding so last items are not hidden behind floating search bar
-                val safeBottomPadding = if (searchRowHeightPx > 0) {
-                     searchBarHeightDp + bottomInsetDp + 16.dp 
-                } else {
-                     88.dp + bottomInsetDp // Fallback approximate
-                }
+                val safeBottomPadding = bottomInsetDp + 16.dp
 
                 // Drag handle for sheet affordance
                 Box(
@@ -194,16 +186,71 @@ fun MapSheet(
                     )
                 }
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                    contentPadding = PaddingValues(
-                        top = 16.dp, 
-                        bottom = safeBottomPadding, 
-                        start = 16.dp, 
-                        end = 16.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                // Search bar — always visible in peek
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 8.dp)
+                        .height(56.dp)
                 ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 12.dp, end = 12.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            TextField(
+                                value = uiState.search.query,
+                                onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onFocusChanged { f ->
+                                        if (f.isFocused != uiState.search.hasFocus) {
+                                            store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
+                                        }
+                                    },
+                                singleLine = true,
+                                placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    disabledIndicatorColor = Color.Transparent
+                                )
+                            )
+                        }
+                        if (uiState.search.query.isNotEmpty()) {
+                            IconButton(onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) }) {
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_search_clear))
+                            }
+                        }
+                    }
+                }
+
+                // Sheet body — only render when not in peek to avoid content bleeding below
+                if (visibility != SheetVisibility.Peek && visibility != SheetVisibility.Hidden) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                        contentPadding = PaddingValues(
+                            top = 16.dp,
+                            bottom = safeBottomPadding,
+                            start = 16.dp,
+                            end = 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                     // --- Header & Error ---
                     if (showErrorMessage != null) {
                         item {
@@ -320,132 +367,73 @@ fun MapSheet(
                             }
                         )
                     }
+                    }
                 }
             },
             content = { }
         )
         
-        // Floating Search Bar & Controls (Outside Sheet)
-        // Positioned at BottomCenter, respecting inset
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(bottom = (effectiveBottomInsetPx.takeIf { it > 0 }?.let { with(density) { it.toDp() } } ?: 0.dp) + 16.dp)
-                .padding(horizontal = 16.dp)
-                .onSizeChanged { searchRowHeightPx = it.height }
-        ) {
-            // Search Field - Frosted Glass Style
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                tonalElevation = 2.dp,
-                shadowElevation = 4.dp,
+        // Floating map controls (outside sheet)
+        if (imeBottom == 0 && visibility != SheetVisibility.Expanded) {
+            Column(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(end = 64.dp) // Leave space for the vertical stack
-                    .fillMaxWidth()
-                    .height(56.dp)
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = 16.dp,
+                        bottom = peekHeight + bottomInsetDp + 16.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                   verticalAlignment = Alignment.CenterVertically,
-                   modifier = Modifier.padding(horizontal = 8.dp)
+                // Layers
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.size(52.dp)
                 ) {
-                    Icon(
-                        Icons.Filled.Search, 
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Box(modifier = Modifier.weight(1f)) {
-                         TextField(
-                            value = uiState.search.query,
-                            onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { f ->
-                                    if (f.isFocused != uiState.search.hasFocus) {
-                                        store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
-                                    }
-                                },
-                            singleLine = true,
-                            placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                disabledIndicatorColor = Color.Transparent
-                            )
+                    IconButton(onClick = {
+                        if (visibility == SheetVisibility.Expanded) {
+                            store.dispatch(MapEvent.SetSheet(SheetVisibility.Peek))
+                        } else {
+                            store.dispatch(MapEvent.SetSheet(SheetVisibility.Expanded))
+                        }
+                    }) {
+                        Icon(
+                            Icons.Filled.Layers,
+                            contentDescription = stringResource(R.string.map_layers_button),
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    if (uiState.search.query.isNotEmpty()) {
-                        IconButton(onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) }) {
-                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_search_clear))
-                        }
+                }
+
+                // Location
+                val isFollowing = uiState.isFollowing
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    IconButton(onClick = { store.dispatch(MapEvent.ToggleFollow) }) {
+                        Icon(
+                            Icons.Filled.MyLocation,
+                            contentDescription = stringResource(R.string.tips_map_my_location_title),
+                            tint = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }
-            
-            // vertical stack of controls - Frosted Glass Style
-            // Hide when sheet is expanded or keyboard is visible to prevent overlap
-            if (imeBottom == 0 && visibility != SheetVisibility.Expanded) {
-                 Column(
-                     modifier = Modifier.align(Alignment.BottomEnd),
-                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                     horizontalAlignment = Alignment.CenterHorizontally
-                 ) {
-                     // Layers
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                        tonalElevation = 2.dp,
-                        shadowElevation = 4.dp,
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        IconButton(onClick = { 
-                            if (visibility == SheetVisibility.Expanded) {
-                                store.dispatch(MapEvent.SetSheet(SheetVisibility.Peek))
-                            } else {
-                                store.dispatch(MapEvent.SetSheet(SheetVisibility.Expanded))
-                            }
-                        }) {
-                            Icon(
-                                Icons.Filled.Layers, 
-                                contentDescription = stringResource(R.string.map_layers_button),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                    
-                    // Location
-                    val isFollowing = uiState.isFollowing
-                     Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                        tonalElevation = 2.dp,
-                        shadowElevation = 4.dp,
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        IconButton(onClick = { store.dispatch(MapEvent.ToggleFollow) }) {
-                            Icon(
-                                Icons.Filled.MyLocation, 
-                                contentDescription = stringResource(R.string.tips_map_my_location_title), 
-                                tint = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                 }
-            }
         }
 
-        // Snackbar for layer loading errors - positioned above search bar
+        // Snackbar for layer loading errors - positioned above sheet
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = bottomInsetDp + searchBarHeightDp + 16.dp)
+                .padding(bottom = peekHeight + bottomInsetDp + 8.dp)
         )
     }
 
@@ -486,12 +474,10 @@ fun MapSheet(
         }
     }
 
-    // Report current bottom padding for the map (visible sheet height)
-    // peekHeight is 64.dp; convert to px and add to total
-    LaunchedEffect(bottomSheetState, peekHeight, effectiveBottomInsetPx, searchRowHeightPx) {
-         val searchHeightPx = searchRowHeightPx
+    // Report current bottom padding for the map (visible sheet peek height)
+    LaunchedEffect(bottomSheetState, peekHeight, effectiveBottomInsetPx) {
          val peekHeightPx = with(density) { peekHeight.roundToPx() }
-         val totalBottom = (effectiveBottomInsetPx + searchHeightPx + peekHeightPx).coerceAtLeast(0) 
+         val totalBottom = (effectiveBottomInsetPx + peekHeightPx).coerceAtLeast(0) 
          onBottomPaddingChanged(totalBottom)
     }
 }

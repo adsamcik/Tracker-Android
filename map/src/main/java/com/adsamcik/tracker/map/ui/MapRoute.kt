@@ -59,7 +59,8 @@ fun MapRoute(
             },
             onDismiss = {
                 permissionRequested = true
-            }
+            },
+            rationaleMessageOverride = com.adsamcik.tracker.map.R.string.permission_rationale_location_map
         )
     }
 

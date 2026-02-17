@@ -56,7 +56,7 @@
     <string name="map_search_no_results">No results found for \"%s\"</string>
     <string name="map_search_no_text">Searching for nothing is not very useful</string>
 
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
+    <string name="permission_rationale_location_map">To show your location on the map, Tracker needs location access. All data stays on your device.</string>
 
     <string name="settings_map_basemap_path_key">map.basemap.path</string>
     <string name="settings_map_basemap_title">Basemap</string>
