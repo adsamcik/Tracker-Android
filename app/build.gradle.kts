@@ -134,6 +134,7 @@ dependencies {
 	implementation(project(":statistics"))
 	implementation(project(":map"))
 	implementation(project(":game"))
+	implementation(project(":dashboard"))
 
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
