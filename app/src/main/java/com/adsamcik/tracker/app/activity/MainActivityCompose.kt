@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
+import com.adsamcik.tracker.shared.base.debug.DummyDataSeeder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -101,6 +102,11 @@ class MainActivityCompose : ComponentActivity() {
 
         // Handle initial intent
         handleIntent(intent)
+
+        // Seed dummy data for dashboard testing (debug only)
+        lifecycleScope.launch(Dispatchers.IO) {
+            DummyDataSeeder.seedIfEmpty(this@MainActivityCompose)
+        }
 
         setContent { ComposeRoot(selectedTab) }
     }
