@@ -16,7 +16,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,7 +84,9 @@ fun MapScreen(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
 
-    // Resolve basemap style: custom imported PMTiles or bundled default
+    // Resolve basemap style: custom imported PMTiles or bundled default.
+    // PMTiles requires random-access I/O, so the bundled asset must be
+    // extracted to the filesystem before MapLibre can read it.
     val basemapManager = remember { BasemapManager(context) }
     val prefs = remember { Preferences.getPref(context) }
     val basemapPathKey = remember {
@@ -91,12 +95,32 @@ fun MapScreen(
     val customPath by prefs.observeString(basemapPathKey, "")
         .collectAsState(initial = "")
 
-    val baseStyle = remember(customPath, isDark) {
-        if (customPath.isNotEmpty()) {
-            val json = MapStyleProvider.customStyleJson(customPath, isDark)
-            if (json != null) BaseStyle.Json(json) else BaseStyle.Uri(MapStyleProvider.styleUri(isDark))
-        } else {
-            BaseStyle.Uri(MapStyleProvider.styleUri(isDark))
+    var defaultBasemapPath by remember {
+        mutableStateOf(basemapManager.defaultBasemapPath())
+    }
+
+    LaunchedEffect(Unit) {
+        defaultBasemapPath = basemapManager.ensureDefaultBasemap()
+    }
+
+    val baseStyle = remember(customPath, isDark, defaultBasemapPath) {
+        when {
+            customPath.isNotEmpty() -> {
+                val json = MapStyleProvider.customStyleJson(customPath, isDark)
+                if (json != null) {
+                    BaseStyle.Json(json)
+                } else {
+                    defaultBasemapPath?.let {
+                        BaseStyle.Json(MapStyleProvider.defaultStyleJson(it, isDark))
+                    }
+                }
+            }
+            defaultBasemapPath != null -> {
+                BaseStyle.Json(
+                    MapStyleProvider.defaultStyleJson(defaultBasemapPath!!, isDark)
+                )
+            }
+            else -> null
         }
     }
 
@@ -125,16 +149,18 @@ fun MapScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-        MaplibreMap(
-            modifier = Modifier.fillMaxSize(),
-            baseStyle = baseStyle,
-            cameraState = cameraState,
-            options = MapOptions(gestureOptions = gestureOptions),
-        ) {
-            // Declarative data layers -- reactive via Compose recomposition
-            MapDataLayers(layerConfig = state.layerConfig)
-            // Declarative user overlays
-            MapUserOverlays(overlays = state.overlays.toList())
+        if (baseStyle != null) {
+            MaplibreMap(
+                modifier = Modifier.fillMaxSize(),
+                baseStyle = baseStyle,
+                cameraState = cameraState,
+                options = MapOptions(gestureOptions = gestureOptions),
+            ) {
+                // Declarative data layers -- reactive via Compose recomposition
+                MapDataLayers(layerConfig = state.layerConfig)
+                // Declarative user overlays
+                MapUserOverlays(overlays = state.overlays.toList())
+            }
         }
 
         SnackbarHost(
