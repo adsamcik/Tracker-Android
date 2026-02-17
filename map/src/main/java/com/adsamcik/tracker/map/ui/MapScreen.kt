@@ -22,9 +22,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
@@ -148,6 +151,8 @@ fun MapScreen(
         }
     }
 
+    val followCanceledText = stringResource(com.adsamcik.tracker.map.R.string.map_follow_canceled)
+
     Box(Modifier.fillMaxSize()) {
         if (baseStyle != null) {
             MaplibreMap(
@@ -161,6 +166,10 @@ fun MapScreen(
                 // Declarative user overlays
                 MapUserOverlays(overlays = state.overlays.toList())
             }
+        } else {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
 
         SnackbarHost(
@@ -236,7 +245,7 @@ fun MapScreen(
                 }
                 is MapEffect.ShowFollowCanceled -> {
                     try {
-                        snackbarHostState.showSnackbar("Follow canceled")
+                        snackbarHostState.showSnackbar(followCanceledText)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to show snackbar: ${e.message}", e)
                     }
@@ -338,6 +347,8 @@ private fun MapUserOverlays(overlays: List<MapOverlayState>) {
     overlays.forEachIndexed { index, overlay ->
         when (overlay) {
             is MapOverlayState.UserMarker -> {
+                val markerColor = MaterialTheme.colorScheme.primary
+                val strokeColor = MaterialTheme.colorScheme.surface
                 val src = rememberGeoJsonSource(
                     data = GeoJsonData.JsonString(
                         GeoJsonConverter.pointToFeature(overlay.latLng.lat, overlay.latLng.lng)
@@ -347,12 +358,13 @@ private fun MapUserOverlays(overlays: List<MapOverlayState>) {
                     id = "user-dot-$index",
                     source = src,
                     radius = const(8.dp),
-                    color = const(Color.Blue),
-                    strokeColor = const(Color.White),
+                    color = const(markerColor),
+                    strokeColor = const(strokeColor),
                     strokeWidth = const(2.dp),
                 )
             }
             is MapOverlayState.AccuracyCircle -> {
+                val accuracyColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)
                 val src = rememberGeoJsonSource(
                     data = GeoJsonData.JsonString(
                         GeoJsonConverter.pointToFeature(overlay.latLng.lat, overlay.latLng.lng)
@@ -362,7 +374,7 @@ private fun MapUserOverlays(overlays: List<MapOverlayState>) {
                     id = "accuracy-$index",
                     source = src,
                     radius = const(20.dp),
-                    color = const(Color(0x224285F4)),
+                    color = const(accuracyColor),
                     opacity = const(0.3f),
                 )
             }

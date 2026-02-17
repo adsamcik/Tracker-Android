@@ -205,7 +205,7 @@ fun MapSheet(
                     ) {
                         Icon(
                             Icons.Filled.Search,
-                            contentDescription = null,
+                            contentDescription = stringResource(R.string.description_map_search),
                             modifier = Modifier.padding(start = 12.dp, end = 12.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -273,7 +273,7 @@ fun MapSheet(
                     // --- Filters Section ---
                     item {
                         Text(
-                            text = "Filters",
+                            text = stringResource(R.string.map_filters_title),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
@@ -287,7 +287,7 @@ fun MapSheet(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Quality", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.map_quality_label), style = MaterialTheme.typography.titleMedium)
                                 Text(
                                     text = "%.2fx".format(uiState.quality), 
                                     style = MaterialTheme.typography.bodyMedium,
@@ -295,7 +295,7 @@ fun MapSheet(
                                 )
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Low", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.map_quality_low), style = MaterialTheme.typography.labelSmall)
                                 Slider(
                                     value = uiState.quality,
                                     onValueChange = { v -> store.setQuality(v) },
@@ -308,7 +308,7 @@ fun MapSheet(
                                             contentDescription = "Quality setting: ${String.format("%.2f", uiState.quality)} times"
                                         }
                                 )
-                                Text("High", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.map_quality_high), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -321,7 +321,7 @@ fun MapSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("All time", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.map_date_range_all_time), style = MaterialTheme.typography.titleMedium)
                                 val rangeText = remember(uiState.dateRange) {
                                     val start = uiState.dateRange.first
                                     val end = uiState.dateRange.last
@@ -348,7 +348,7 @@ fun MapSheet(
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Map Layers",
+                            text = stringResource(R.string.map_layers_title),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         )
                     }

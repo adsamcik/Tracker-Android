@@ -91,7 +91,13 @@
     <string name="map_date_range_dialog_cancel">Cancel</string>
     <string name="map_controls_title">Map Controls</string>
     <string name="map_filters_title">Filters</string>
+    <string name="map_quality_label">Quality</string>
+    <string name="map_quality_low">Low</string>
+    <string name="map_quality_high">High</string>
+    <string name="map_date_range_all_time">All time</string>
     <string name="map_layers_title">Map Layers</string>
+    <string name="map_loading">Loading map…</string>
+    <string name="map_follow_canceled">Location following canceled</string>
     <string name="map_legend_button">Legend</string>
     <string name="map_generating_tiles">Generating %d tiles…</string>
     
