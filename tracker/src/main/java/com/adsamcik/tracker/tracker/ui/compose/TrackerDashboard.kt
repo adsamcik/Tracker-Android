@@ -599,7 +599,7 @@ private fun TrackingContent(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (showDetails) "Hide details" else "Show sensor details",
+                                    text = if (showDetails) stringResource(R.string.tracker_hide_details) else stringResource(R.string.tracker_show_sensor_details),
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -867,7 +867,7 @@ private fun SessionOverviewCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "View Map",
+                            text = stringResource(R.string.tracker_view_map),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -1049,7 +1049,7 @@ private fun StatusAndQuickStatsCard(
                             modifier = Modifier.weight(1f)
                         )
                         CompactStatItem(
-                            label = "Avg",
+                            label = stringResource(R.string.tracker_average_label),
                             value = avgSpeedText,
                             modifier = Modifier.weight(1f)
                         )
@@ -1091,7 +1091,7 @@ private fun StatusAndQuickStatsCard(
                         
                         if (accuracy != null) {
                             CompactStatItem(
-                                label = "Accuracy",
+                                label = stringResource(R.string.tracker_accuracy_label),
                                 value = "±${resources.formatDistance(accuracy, 0, settings.lengthSystem)}",
                                 modifier = Modifier.weight(1f)
                             )
@@ -1552,7 +1552,7 @@ private fun EmptyStateCard() {
                 ) {
                     Icon(
                         imageVector = Icons.Default.LocationSearching,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.tracker_empty_state_icon_desc),
                         modifier = Modifier.size(36.dp),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -1738,7 +1738,7 @@ private fun ComponentCard(
                     )
                 } else {
                     Text(
-                        text = "Disabled",
+                        text = stringResource(R.string.tracker_disabled),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2178,9 +2178,9 @@ private fun LockBanner(onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Outlined.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Outlined.Lock, contentDescription = stringResource(R.string.tracker_lock_icon_desc), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(text = stringResource(R.string.settings_disabled_recharge_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Icon(Icons.Outlined.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Outlined.Tune, contentDescription = stringResource(R.string.tracker_settings_icon_desc), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -2379,7 +2379,7 @@ private fun GoalProgressRing(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = Icons.Outlined.Star,
-                contentDescription = null,
+                contentDescription = stringResource(R.string.tracker_points_icon_desc),
                 tint = primaryColor,
                 modifier = Modifier.size(20.dp)
             )

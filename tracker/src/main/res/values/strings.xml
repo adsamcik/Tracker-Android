@@ -257,4 +257,18 @@
     <!-- Recent Trips Card (Phase 4d) -->
     <string name="dashboard_recent_trips">Recent trips</string>
 
+    <!-- Hardcoded string extractions -->
+    <string name="tracker_hide_details">Hide details</string>
+    <string name="tracker_show_sensor_details">Show sensor details</string>
+    <string name="tracker_view_map">View Map</string>
+    <string name="tracker_average_label">Avg</string>
+    <string name="tracker_accuracy_label">Accuracy</string>
+    <string name="tracker_disabled">Disabled</string>
+
+    <!-- Content descriptions -->
+    <string name="tracker_empty_state_icon_desc">Location tracking illustration</string>
+    <string name="tracker_lock_icon_desc">Lock status</string>
+    <string name="tracker_settings_icon_desc">Component settings</string>
+    <string name="tracker_points_icon_desc">Points progress</string>
+
 </resources>
