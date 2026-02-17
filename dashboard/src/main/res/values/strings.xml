@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_tracking_title">Tracking</string>
+    <string name="dashboard_recording">Recording</string>
+    <string name="dashboard_idle_placeholder">Idle Dashboard — Phase 4</string>
+    <string name="dashboard_tracking_placeholder">Tracking Dashboard — Phase 3</string>
+
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Your Journey Starts Here</string>
+    <string name="dashboard_empty_subtitle">Tap the button below to begin tracking your first adventure</string>
+    <string name="dashboard_empty_feature_explore">Explore</string>
+    <string name="dashboard_empty_feature_explore_desc">Discover new places and routes</string>
+    <string name="dashboard_empty_feature_achieve">Achieve</string>
+    <string name="dashboard_empty_feature_achieve_desc">Set goals and earn points</string>
+    <string name="dashboard_empty_feature_track">Track</string>
+    <string name="dashboard_empty_feature_track_desc">Record walks, runs, and rides</string>
+    <string name="dashboard_empty_feature_privacy">Privacy</string>
+    <string name="dashboard_empty_feature_privacy_desc">All data stays on your device</string>
+    <string name="dashboard_empty_icon_desc">Location tracking illustration</string>
 </resources>
