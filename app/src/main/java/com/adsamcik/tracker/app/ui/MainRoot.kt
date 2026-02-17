@@ -42,7 +42,6 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.toRoute
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
-import com.adsamcik.tracker.app.ui.navigation.Tracker
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Game
@@ -108,7 +107,6 @@ fun MainRoot(startDestination: Any = Dashboard, onRouteChanged: (Any) -> Unit = 
             // Priority order for route resolution
             val route = when {
                 destination.hasRoute<Dashboard>() -> Dashboard
-                destination.hasRoute<Tracker>() -> Tracker
                 destination.hasRoute<Stats>() -> Stats
                 destination.hasRoute<Map>() -> Map
                 destination.hasRoute<Game>() -> Game
@@ -234,28 +232,6 @@ fun MainRoot(startDestination: Any = Dashboard, onRouteChanged: (Any) -> Unit = 
                     contentPadding = PaddingValues(bottom = 96.dp + navBarPad)
                 )
             }
-            composable<Tracker> {
-                val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                com.adsamcik.tracker.tracker.ui.compose.TrackerRoute(
-                    onOpenSettings = {
-                        navController.navigate(Settings) {
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenMap = {
-                        navController.navigate(Map) {
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    onSessionDetailClick = { sessionId ->
-                        navController.navigate(TripDetail(sessionId)) {
-                            launchSingleTop = true
-                        }
-                    },
-                    contentPadding = PaddingValues(bottom = 96.dp + navBarPad)
-                )
-            }
             composable<Map> { 
                 val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 com.adsamcik.tracker.map.ui.MapRoute(
@@ -275,7 +251,7 @@ fun MainRoot(startDestination: Any = Dashboard, onRouteChanged: (Any) -> Unit = 
                         }
                     },
                     onNavigateToTracker = {
-                        navController.navigate(Tracker) {
+                        navController.navigate(Dashboard) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
