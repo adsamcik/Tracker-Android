@@ -31,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -338,7 +339,7 @@ private fun BenefitItem(
 @Preview(showBackground = true)
 @Composable
 fun StreamlinedOnboardingScreenPreview() {
-    MaterialTheme {
+    AppTheme {
         StreamlinedOnboardingScreen(
             onComplete = {}
         )
