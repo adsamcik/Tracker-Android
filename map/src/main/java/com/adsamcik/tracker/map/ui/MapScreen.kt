@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.map.ui
 
+import android.location.Address
 import android.location.Geocoder
+import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -33,9 +35,11 @@ import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.adsamcik.tracker.shared.map.MapStyleProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
+import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
@@ -219,11 +223,10 @@ fun MapScreen(
                             )
                         } else {
                             val geocoder = Geocoder(context)
-                            @Suppress("DEPRECATION")
-                            val addresses = withContext(Dispatchers.IO) {
-                                geocoder.getFromLocationName(effect.query, 1)
-                            }
-                            if (addresses.isNullOrEmpty()) {
+                            val addresses = geocodeLocationName(geocoder, effect.query)
+                            val address = addresses
+                                ?.firstOrNull { it.hasLatitude() && it.hasLongitude() }
+                            if (address == null) {
                                 snackbarHostState.showSnackbar(
                                     context.getString(
                                         com.adsamcik.tracker.map.R.string.map_search_no_results,
@@ -231,7 +234,6 @@ fun MapScreen(
                                     )
                                 )
                             } else {
-                                val address = addresses[0]
                                 val lat = address.latitude
                                 val lng = address.longitude
                                 // ~1.1 km delta around the geocoded point,
@@ -363,3 +365,36 @@ private fun buildHeatmapColorExpr(
 }
 
 private fun Float.toNumber(): Number = this
+
+/**
+ * Version-aware geocoding: uses the callback-based API on Android 13+ (API 33)
+ * and falls back to the deprecated synchronous API on older devices.
+ */
+private suspend fun geocodeLocationName(
+    geocoder: Geocoder,
+    query: String,
+    maxResults: Int = 1,
+): List<Address>? {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        suspendCancellableCoroutine { continuation ->
+            geocoder.getFromLocationName(
+                query,
+                maxResults,
+                object : Geocoder.GeocodeListener {
+                    override fun onGeocode(addresses: MutableList<Address>) {
+                        continuation.resume(addresses)
+                    }
+
+                    override fun onError(errorMessage: String?) {
+                        continuation.resume(null)
+                    }
+                },
+            )
+        }
+    } else {
+        withContext(Dispatchers.IO) {
+            @Suppress("DEPRECATION")
+            geocoder.getFromLocationName(query, maxResults)
+        }
+    }
+}
