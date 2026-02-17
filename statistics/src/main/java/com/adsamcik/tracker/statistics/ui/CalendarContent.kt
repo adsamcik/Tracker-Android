@@ -328,6 +328,10 @@ private fun CalendarTripCard(
 
 private fun formatCalendarTripTitle(trip: Trip): String {
 	val mode = activityLabel(trip.primaryActivity)
-	val formatter = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
-	return "$mode at ${formatter.format(java.util.Date(trip.startTimeMs))}"
+	val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
+	val time = java.time.Instant.ofEpochMilli(trip.startTimeMs)
+		.atZone(java.time.ZoneId.systemDefault())
+		.toLocalTime()
+		.format(formatter)
+	return "$mode at $time"
 }

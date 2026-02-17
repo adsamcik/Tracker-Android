@@ -23,6 +23,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 
+// --- DIMENSIONS ---
+object AppDimensions {
+    /** Bottom padding to clear the floating navigation bar. */
+    val FloatingNavBarClearance = 120.dp
+}
+
 // --- COLORS ---
 object AppColors {
     val NeonLime = Color(0xFFCCFF00)

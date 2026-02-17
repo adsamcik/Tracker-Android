@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -87,7 +88,7 @@ fun GameScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp), // Bottom padding for floating nav
+            contentPadding = PaddingValues(top = 16.dp, bottom = AppDimensions.FloatingNavBarClearance),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {

@@ -26,8 +26,9 @@ import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.activityIcon
 import com.adsamcik.tracker.statistics.viewmodel.activityLabel
 import com.adsamcik.tracker.statistics.viewmodel.formatDistanceLabel
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -126,8 +127,11 @@ internal fun TripCard(
  * Format a time range as "HH:mm - HH:mm".
  */
 internal fun formatTripTimeRange(startMs: Long, endMs: Long): String {
-	val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
-	return "${formatter.format(Date(startMs))} - ${formatter.format(Date(endMs))}"
+	val formatter = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
+	val zone = ZoneId.systemDefault()
+	val start = Instant.ofEpochMilli(startMs).atZone(zone).toLocalTime().format(formatter)
+	val end = Instant.ofEpochMilli(endMs).atZone(zone).toLocalTime().format(formatter)
+	return "$start - $end"
 }
 
 /**

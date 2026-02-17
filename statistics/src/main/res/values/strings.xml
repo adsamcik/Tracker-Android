@@ -132,6 +132,9 @@
     <string name="history_exploration_streak">Streak</string>
     <string name="history_exploration_best">Best</string>
 
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Navigate back</string>
+
     <!-- History navigation -->
     <string name="history_button_label">History</string>
 </resources>

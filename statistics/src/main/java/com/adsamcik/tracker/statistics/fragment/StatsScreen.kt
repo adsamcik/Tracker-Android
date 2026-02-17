@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
@@ -193,7 +194,7 @@ private fun ContentState(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
             top = 16.dp,
-            bottom = 120.dp,
+            bottom = AppDimensions.FloatingNavBarClearance,
             start = 16.dp,
             end = 16.dp
         ),

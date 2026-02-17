@@ -75,7 +75,7 @@ fun TripDetailRoute(
 					IconButton(onClick = onBack) {
 						Icon(
 							Icons.AutoMirrored.Filled.ArrowBack,
-							contentDescription = "Back"
+							contentDescription = stringResource(R.string.action_navigate_back)
 						)
 					}
 				},
