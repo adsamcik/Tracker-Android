@@ -34,7 +34,7 @@ import java.util.Locale
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsRoute(onNavigateToDebug: () -> Unit = {}) {
+fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit = {}) {
     val vm: SettingsViewModel = hiltViewModel()
     var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
 
@@ -50,7 +50,14 @@ fun SettingsRoute(onNavigateToDebug: () -> Unit = {}) {
                     }
                 )
             } else {
-                TopAppBar(title = { Text(stringResource(R.string.settings_title)) })
+                TopAppBar(
+                    title = { Text(stringResource(R.string.settings_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_navigate_back))
+                        }
+                    }
+                )
             }
         }
     ) { padding ->
@@ -172,8 +179,8 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         // Auto unit switch
         item {
             SwitchSettingsItem(
-                title = "Automatic unit switching",
-                subtitle = if (state.autoUnitSwitch) "Will adapt length system to activity" else "Uses default length system only",
+                title = stringResource(R.string.settings_auto_unit_switch_title),
+                subtitle = stringResource(if (state.autoUnitSwitch) R.string.settings_units_auto_summary_on else R.string.settings_units_auto_summary_off),
                 checked = state.autoUnitSwitch,
                 onCheckedChange = { viewModel.setAutoUnitSwitch(it) }
             )
@@ -216,7 +223,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         item {
             SettingsItem(
                 title = stringResource(R.string.module_map_title),
-                subtitle = "Heatmap quality and visualization options",
+                subtitle = stringResource(R.string.settings_module_map_subtitle),
                 icon = Icons.Default.Map,
                 onClick = { onNavigate(SettingsScreen.Map) }
             )
@@ -225,7 +232,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         item {
             SettingsItem(
                 title = stringResource(R.string.module_game_title),
-                subtitle = "Challenges and goals configuration",
+                subtitle = stringResource(R.string.settings_module_game_subtitle),
                 icon = Icons.Default.EmojiEvents,
                 onClick = { onNavigate(SettingsScreen.Game) }
             )
@@ -234,7 +241,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
         item {
             SettingsItem(
                 title = stringResource(R.string.module_statistics_title),
-                subtitle = "Unit preferences and display options",
+                subtitle = stringResource(R.string.settings_module_statistics_subtitle),
                 icon = Icons.Default.BarChart,
                 onClick = { onNavigate(SettingsScreen.Statistics) }
             )

@@ -27,10 +27,10 @@
 
     <string name="module_download_progress">Downloaded %1$s / %2$s</string>
     <string name="module_error">Failed to install modules %1$s (error code %2$d)</string>
-    <string name="module_game_title">games</string>
+    <string name="module_game_title">Games</string>
     <string name="module_installing">Installing module %s</string>
-    <string name="module_map_title">map</string>
-    <string name="module_statistics_title">statistics</string>
+    <string name="module_map_title">Map</string>
+    <string name="module_statistics_title">Statistics</string>
     <string name="module_success">Installation completed successfully</string>
 
     <string name="main_nav_stats">Statistics</string>
@@ -609,5 +609,13 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Automatic unit switching</string>
+    <string name="settings_module_map_subtitle">Heatmap quality and visualization options</string>
+    <string name="settings_module_game_subtitle">Challenges and goals configuration</string>
+    <string name="settings_module_statistics_subtitle">Unit preferences and display options</string>
+    <string name="action_navigate_back">Navigate back</string>
+    <string name="action_help">Help</string>
 
 </resources>

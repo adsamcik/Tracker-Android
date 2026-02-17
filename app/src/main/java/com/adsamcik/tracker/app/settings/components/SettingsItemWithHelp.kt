@@ -68,12 +68,11 @@ fun SliderSettingsItemWithHelp(
             
             if (helpTextRes != null) {
                 IconButton(
-                    onClick = { showHelp = true },
-                    modifier = Modifier.size(32.dp)
+                    onClick = { showHelp = true }
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.HelpOutline,
-                        contentDescription = "Help",
+                        contentDescription = stringResource(com.adsamcik.tracker.R.string.action_help),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
@@ -149,12 +148,11 @@ fun SwitchSettingsItemWithHelp(
                 
                 if (helpTextRes != null) {
                     IconButton(
-                        onClick = { showHelp = true },
-                        modifier = Modifier.size(32.dp)
+                        onClick = { showHelp = true }
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
-                            contentDescription = "Help",
+                            contentDescription = stringResource(com.adsamcik.tracker.R.string.action_help),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
