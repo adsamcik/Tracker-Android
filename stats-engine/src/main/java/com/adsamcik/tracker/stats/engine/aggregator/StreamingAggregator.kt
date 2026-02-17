@@ -86,8 +86,8 @@ class StreamingAggregator(
 	fun onSignal(signal: AggregatorSignal) {
 		check(active) { "Cannot process signal: aggregator not active" }
 
-		// Duration: time since last signal (skip for first signal)
-		if (lastSignalMs > 0 && lastSignalMs != sessionStartMs && signal.timestampMs > lastSignalMs) {
+		// Duration: time since last signal (or since session start for first signal)
+		if (lastSignalMs > 0 && signal.timestampMs > lastSignalMs) {
 			sessionDurationMs += (signal.timestampMs - lastSignalMs)
 		}
 		lastSignalMs = signal.timestampMs

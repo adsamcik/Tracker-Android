@@ -141,7 +141,7 @@ class StreamingAggregatorTest {
 			aggregator.onSignal(movingSignal(currentTimeMs + 6000))
 
 			val snapshot = aggregator.snapshot()
-			snapshot.sessionDurationMs shouldBe 5000L // (3000-1000) + (6000-3000)
+			snapshot.sessionDurationMs shouldBe 6000L // (1000-0) + (3000-1000) + (6000-3000)
 		}
 
 		@Test
@@ -242,10 +242,10 @@ class StreamingAggregatorTest {
 			val snapshot = aggregator.snapshot()
 			snapshot.sessionDistanceM shouldBe 500f
 			snapshot.sessionSteps shouldBe 125
-			snapshot.sessionDurationMs shouldBe 2000L
+			snapshot.sessionDurationMs shouldBe 3000L
 			snapshot.dayTotalDistanceM shouldBe 5500f // 5000 + 500
 			snapshot.dayTotalSteps shouldBe 1125 // 1000 + 125
-			snapshot.dayTotalDurationMs shouldBe 62000L // 60000 + 2000
+			snapshot.dayTotalDurationMs shouldBe 63000L // 60000 + 3000
 		}
 
 		@Test
@@ -393,7 +393,7 @@ class StreamingAggregatorTest {
 			val snapshot = aggregator.stop()
 			snapshot.sessionDistanceM shouldBe 50f
 			snapshot.sessionSteps shouldBe 5
-			snapshot.sessionDurationMs shouldBe 0L // only one signal, no duration yet
+			snapshot.sessionDurationMs shouldBe 1000L // start to single signal
 			snapshot.currentSpeedMps shouldBe 2.5f
 			snapshot.sampleCount shouldBe 1
 		}
@@ -416,7 +416,7 @@ class StreamingAggregatorTest {
 			val snapshot = aggregator.snapshot()
 			snapshot.sessionDistanceM shouldBe (10f * signalCount)
 			snapshot.sessionSteps shouldBe (2 * signalCount)
-			snapshot.sessionDurationMs shouldBe ((signalCount - 1) * 1000L)
+			snapshot.sessionDurationMs shouldBe (signalCount * 1000L)
 			snapshot.sampleCount shouldBe signalCount
 		}
 
@@ -465,7 +465,7 @@ class StreamingAggregatorTest {
 			val snapshot = aggregator.snapshot()
 			snapshot.sessionDistanceM shouldBe 45f // all accumulated
 			snapshot.sessionSteps shouldBe 9 // all accumulated
-			snapshot.sessionDurationMs shouldBe 0L // no time progression
+			snapshot.sessionDurationMs shouldBe 1000L // start to first signal, then no time progression
 		}
 
 		@Test
