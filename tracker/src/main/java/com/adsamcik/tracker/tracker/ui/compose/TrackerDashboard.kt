@@ -90,6 +90,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -2470,13 +2471,15 @@ private fun RecentTripsCard(
             )
 
             trips.forEach { trip ->
-                RecentTripRow(
-                    trip = trip,
-                    settings = settings,
-                    onClick = if (onTripClick != null) {
-                        { onTripClick(trip.id) }
-                    } else null
-                )
+                key(trip.id) {
+                    RecentTripRow(
+                        trip = trip,
+                        settings = settings,
+                        onClick = if (onTripClick != null) {
+                            { onTripClick(trip.id) }
+                        } else null
+                    )
+                }
             }
         }
     }
