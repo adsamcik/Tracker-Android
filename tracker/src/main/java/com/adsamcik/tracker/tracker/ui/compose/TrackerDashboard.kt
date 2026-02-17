@@ -76,6 +76,8 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MotionScheme
@@ -2363,30 +2365,21 @@ private fun GoalProgressRing(
     )
     
     val primaryColor = MaterialTheme.colorScheme.primary
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(72.dp)) {
-            // Track
-            CircularProgressIndicator(
-                progress = { 1f },
-                modifier = Modifier.fillMaxSize(),
-                color = trackColor,
-                strokeWidth = 6.dp,
-                trackColor = Color.Transparent,
-            )
-            
-            // Progress
-            CircularProgressIndicator(
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
+            CircularWavyProgressIndicator(
                 progress = { animatedProgress },
                 modifier = Modifier.fillMaxSize(),
                 color = primaryColor,
-                strokeWidth = 6.dp,
-                trackColor = Color.Transparent,
-                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                trackColor = trackColor,
+                stroke = WavyProgressIndicatorDefaults.circularIndicatorStroke,
+                trackStroke = WavyProgressIndicatorDefaults.circularTrackStroke,
+                amplitude = { animatedProgress },
             )
             
             // Percentage inside
