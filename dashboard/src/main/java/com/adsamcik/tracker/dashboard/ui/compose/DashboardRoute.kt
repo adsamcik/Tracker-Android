@@ -20,6 +20,9 @@ import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
@@ -31,6 +34,8 @@ import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Entry point composable for the Dashboard tab.
@@ -81,8 +86,26 @@ fun DashboardRoute(
 		todaySummary = dailySummaryProvider.fetchTodaySummary()
 	}
 
-	// Resolve display session (active or last)
-	val displaySession = if (isTracking) sessionData else (sessionData ?: lastSessionData)
+	// Query last session from DB when controller doesn't have one
+	var dbLastSession by remember { mutableStateOf<TrackerSession?>(null) }
+	LaunchedEffect(lastSessionData) {
+		if (lastSessionData == null) {
+			dbLastSession = withContext(Dispatchers.IO) {
+				AppDatabase.database(context).sessionDao().getLast(1)
+			}
+		}
+	}
+
+	// Query recent trips for idle dashboard cards
+	var recentTrips by remember { mutableStateOf<List<Trip>>(emptyList()) }
+	LaunchedEffect(isTracking) {
+		recentTrips = withContext(Dispatchers.IO) {
+			AppDatabase.database(context).tripDao().getRecentTrips(5)
+		}
+	}
+
+	// Resolve display session (active → controller last → DB last)
+	val displaySession = if (isTracking) sessionData else (sessionData ?: lastSessionData ?: dbLastSession)
 	val displayPathPoints = if (isTracking) pathPoints else (pathPoints ?: lastPathPoints)
 
 	val relevantPathPoints = remember(displaySession, displayPathPoints) {
@@ -120,6 +143,7 @@ fun DashboardRoute(
 			dailyGoalSteps = goalProgress.goalSteps,
 			dailyProgress = goalProgress.progress,
 		),
+		recentTrips = recentTrips,
 	)
 
 	// Contextual permission request dialog

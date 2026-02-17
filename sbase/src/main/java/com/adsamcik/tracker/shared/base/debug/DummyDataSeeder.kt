@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.google.android.gms.location.DetectedActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -80,6 +82,7 @@ object DummyDataSeeder {
     private fun insertDummyData(database: AppDatabase) {
         val sessionDao = database.sessionDao()
         val locationDao = database.locationDao()
+        val sessionSegmentDao = database.sessionSegmentDao()
 
         // Create NYC trail checkpoints (Central Park to Brooklyn Bridge)
         val checkpoints = listOf(
@@ -153,6 +156,21 @@ object DummyDataSeeder {
                 )
                 locationDao.insert(databaseLocation)
             }
+
+            // Insert matching session segment for trip DAO queries
+            val segment = SessionSegment(
+                startTimeMs = startTime,
+                endTimeMs = endTime,
+                distanceM = session.distanceInM,
+                steps = session.steps,
+                primaryActivity = DetectedActivity.WALKING,
+                activityConfidence = Random.nextInt(75, 100),
+                sampleCount = locations.size,
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = null,
+                createdAt = System.currentTimeMillis()
+            )
+            sessionSegmentDao.insert(segment)
         }
     }
 

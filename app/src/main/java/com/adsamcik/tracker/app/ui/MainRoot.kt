@@ -224,6 +224,12 @@ fun MainRoot(startDestination: Any = Dashboard, onRouteChanged: (Any) -> Unit = 
                             restoreState = true
                         }
                     },
+                    onOpenGame = {
+                        navController.navigate(Game) {
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onSessionDetailClick = { sessionId ->
                         navController.navigate(TripDetail(sessionId)) {
                             launchSingleTop = true
