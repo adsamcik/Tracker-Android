@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 
 /**
  * Type converters for sessionless tracking enums.
@@ -48,6 +49,16 @@ class SessionlessTypeConverter {
 
 	@TypeConverter
 	fun fromSegmentSource(value: SegmentSource): String {
+		return value.name
+	}
+
+	@TypeConverter
+	fun toSkiSegmentType(value: String): SkiSegmentType {
+		return SkiSegmentType.valueOf(value)
+	}
+
+	@TypeConverter
+	fun fromSkiSegmentType(value: SkiSegmentType): String {
 		return value.name
 	}
 }

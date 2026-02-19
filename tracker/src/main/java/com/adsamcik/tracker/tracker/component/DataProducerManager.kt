@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.component
 
 import android.content.Context
 import com.adsamcik.tracker.tracker.component.producer.ActivityDataProducer
+import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
 import com.adsamcik.tracker.tracker.component.producer.CellDataProducer
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
@@ -48,6 +49,7 @@ internal class DataProducerManager(
 		}
 		add(ActivityDataProducer(this@DataProducerManager))
 		add(StepDataProducer(this@DataProducerManager))
+		add(BarometerDataProducer(this@DataProducerManager))
 	}
 
 	private val activeProducerList = CopyOnWriteArrayList<TrackerDataProducerComponent>()

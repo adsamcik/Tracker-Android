@@ -59,6 +59,7 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
+	implementation(project(":stats-engine"))
 
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)

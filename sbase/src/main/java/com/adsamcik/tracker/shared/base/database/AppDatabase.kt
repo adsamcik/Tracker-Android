@@ -56,6 +56,8 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
+import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
@@ -63,6 +65,8 @@ import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.database.data.PersonalRecordEntity
 import com.adsamcik.tracker.shared.base.database.data.RouteCacheEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
 
 
@@ -70,11 +74,11 @@ import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 17 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 18 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 17,
+		version = 18,
 		entities = [
 			// Legacy entities (kept for read-only access during migration period)
 			DatabaseLocation::class,
@@ -107,6 +111,9 @@ import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
 			RouteCacheEntity::class,
 			ExportLogEntity::class,
 			StorageSizeSnapshotEntity::class,
+			// Ski detection entities (Phase 7)
+			PressureSample::class,
+			SkiRunSegment::class,
 		]
 )
 @TypeConverters(
@@ -270,6 +277,18 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun storageSizeSnapshotDao(): StorageSizeSnapshotDao
 
+	// Ski detection DAOs (Phase 7)
+
+	/**
+	 * Provides access to barometric pressure samples.
+	 */
+	abstract fun pressureSampleDao(): PressureSampleDao
+
+	/**
+	 * Provides access to ski run segment data.
+	 */
+	abstract fun skiRunSegmentDao(): SkiRunSegmentDao
+
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -288,7 +307,8 @@ abstract class AppDatabase : RoomDatabase() {
 						MIGRATION_13_14,
 						MIGRATION_14_15,
 						MIGRATION_15_16,
-						MIGRATION_16_17
+						MIGRATION_16_17,
+				MIGRATION_17_18
 				)
 		}
 
@@ -335,6 +355,10 @@ abstract class AppDatabase : RoomDatabase() {
 				database.routeCacheDao().deleteAll()
 				database.exportLogDao().deleteAll()
 				database.storageSizeSnapshotDao().deleteAll()
+
+				// Ski detection tables
+				database.pressureSampleDao().deleteAll()
+				database.skiRunSegmentDao().deleteAll()
 			}
 		}
 	}
