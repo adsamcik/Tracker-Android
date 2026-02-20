@@ -53,6 +53,13 @@ class RetentionConfigStore(
     }
 }
 
+@Suppress("unused")
+suspend fun resetRetentionConfigForTests(context: Context) {
+    context.retentionConfigDataStore.updateData {
+        RetentionConfigProto.getDefaultInstance()
+    }
+}
+
 private fun RetentionConfigProto.toDomain(): RetentionConfigState {
     if (!initialized) return RetentionConfigState()
     return RetentionConfigState(
