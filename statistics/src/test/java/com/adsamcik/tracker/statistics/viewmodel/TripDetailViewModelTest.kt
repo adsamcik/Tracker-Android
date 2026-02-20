@@ -13,9 +13,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -58,7 +58,7 @@ class TripDetailViewModelTest {
 		coEvery { tripDao.getById(42L) } returns sampleTrip
 
 		val vm = createViewModel(42L)
-		assertEquals(TripDetailState.Loading, vm.state.value)
+		vm.state.value shouldBe TripDetailState.Loading
 	}
 
 	@Test
@@ -68,9 +68,8 @@ class TripDetailViewModelTest {
 		val vm = createViewModel(42L)
 		advanceUntilIdle()
 
-		val state = vm.state.value
-		assertTrue(state is TripDetailState.Loaded)
-		assertEquals(sampleTrip, (state as TripDetailState.Loaded).trip)
+		val state = vm.state.value.shouldBeInstanceOf<TripDetailState.Loaded>()
+		state.trip shouldBe sampleTrip
 	}
 
 	@Test
@@ -80,6 +79,6 @@ class TripDetailViewModelTest {
 		val vm = createViewModel(999L)
 		advanceUntilIdle()
 
-		assertEquals(TripDetailState.NotFound, vm.state.value)
+		vm.state.value shouldBe TripDetailState.NotFound
 	}
 }

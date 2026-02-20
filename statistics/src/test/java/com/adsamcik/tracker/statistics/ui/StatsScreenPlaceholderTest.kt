@@ -8,8 +8,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import org.junit.Rule
-import org.junit.Test
+import org.junit.jupiter.api.extension.RegisterExtension
+import org.junit.jupiter.api.Test
 import com.adsamcik.tracker.statistics.fragment.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
@@ -19,7 +19,8 @@ import androidx.compose.material3.lightColorScheme
  * and no append error row.
  */
 class StatsScreenPlaceholderTest {
-    @get:Rule
+    @JvmField
+    @RegisterExtension
     val composeRule = createComposeRule()
 
     @Test

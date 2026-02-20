@@ -22,7 +22,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
+import io.kotest.assertions.throwables.shouldThrow
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.reflect.KClass
 
@@ -107,7 +107,7 @@ class SimplePlaceholderUnitTest {
 		@Test
 		fun `get throws on missing key`() {
 			val map = MutableMultiTypeMap<String, Any>()
-			assertThrows<IllegalArgumentException> {
+			shouldThrow<IllegalArgumentException> {
 				map["missing"]
 			}
 		}
@@ -126,7 +126,7 @@ class SimplePlaceholderUnitTest {
 			val map = MutableMultiTypeMap<String, Any>()
 			map["value"] = "not a number"
 
-			assertThrows<IllegalArgumentException> {
+			shouldThrow<IllegalArgumentException> {
 				map.requiredTyped<Int>("value")
 			}
 		}
