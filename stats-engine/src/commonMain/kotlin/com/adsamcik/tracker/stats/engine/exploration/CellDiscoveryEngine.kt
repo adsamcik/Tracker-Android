@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.stats.engine.exploration
 
 import com.adsamcik.tracker.stats.api.DiscoveryQuality
-import java.util.Calendar
-import java.util.TimeZone
 
 /**
  * Configuration for cell discovery behavior.
@@ -216,14 +214,23 @@ class CellDiscoveryEngine(
 		 * - Winter (Dec-Feb): 8
 		 */
 		fun seasonBit(timestampMs: Long): Int {
-			val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-				timeInMillis = timestampMs
-			}
-			return when (cal.get(Calendar.MONTH)) {
-				Calendar.MARCH, Calendar.APRIL, Calendar.MAY -> 1
-				Calendar.JUNE, Calendar.JULY, Calendar.AUGUST -> 2
-				Calendar.SEPTEMBER, Calendar.OCTOBER, Calendar.NOVEMBER -> 4
-				else -> 8 // Dec, Jan, Feb
+			// Calculate month from epoch using simple arithmetic (UTC).
+			// Days since epoch / approximate days to get month.
+			val daysSinceEpoch = timestampMs / 86_400_000L
+			// Estimate year and month using Gregorian calendar math
+			val totalDays = daysSinceEpoch + 719_468 // days from year 0 to epoch
+			val era = (if (totalDays >= 0) totalDays else totalDays - 146_096) / 146_097
+			val doe = totalDays - era * 146_097
+			val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365
+			val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+			val mp = (5 * doy + 2) / 153
+			val month = (if (mp < 10) mp + 3 else mp - 9).toInt() // 1-12
+
+			return when (month) {
+				3, 4, 5 -> 1       // Spring
+				6, 7, 8 -> 2       // Summer
+				9, 10, 11 -> 4     // Autumn
+				else -> 8           // Winter (Dec=12, Jan=1, Feb=2)
 			}
 		}
 	}

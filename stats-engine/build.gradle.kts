@@ -1,6 +1,41 @@
 plugins {
+	alias(libs.plugins.kotlin.multiplatform)
 	alias(libs.plugins.android.library)
-	alias(libs.plugins.kotlin.android)
+}
+
+kotlin {
+	androidTarget {
+		compilerOptions {
+			jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(Android.javaTarget.toString()))
+		}
+	}
+	jvm()
+
+	jvmToolchain(Android.JAVA_VERSION)
+
+	sourceSets {
+		commonMain.dependencies {
+			api(project(":stats-api"))
+			implementation(libs.kotlinx.coroutines.core)
+			implementation(libs.javax.inject)
+		}
+		commonTest.dependencies {
+			implementation(libs.junit5.jupiter)
+			implementation(libs.junit5.jupiter.params)
+			runtimeOnly(libs.junit5.jupiter.engine)
+			implementation(libs.kotlin.test)
+			implementation(libs.mockk)
+			implementation(libs.kotlinx.coroutines.test)
+			implementation(libs.turbine)
+			implementation(libs.kotest.assertions.core)
+		}
+		androidMain.dependencies {
+			// Android-specific implementations
+		}
+		jvmMain.dependencies {
+			// JVM-specific implementations
+		}
+	}
 }
 
 android {
@@ -15,10 +50,6 @@ android {
 	compileOptions {
 		sourceCompatibility = Android.javaTarget
 		targetCompatibility = Android.javaTarget
-	}
-
-	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
 	}
 
 	buildTypes {
@@ -43,27 +74,6 @@ android {
 	}
 
 	namespace = "com.adsamcik.tracker.stats.engine"
-}
-
-dependencies {
-	api(project(":stats-api"))
-
-	// Coroutines
-	implementation(libs.kotlinx.coroutines.android)
-
-	// DI annotations
-	implementation(libs.javax.inject)
-
-	// Unit Tests
-	testImplementation(platform(libs.junit5.bom))
-	testImplementation(libs.junit5.jupiter)
-	testImplementation(libs.junit5.jupiter.params)
-	testRuntimeOnly(libs.junit5.jupiter.engine)
-	testImplementation(libs.kotlin.test)
-	testImplementation(libs.mockk)
-	testImplementation(libs.kotlinx.coroutines.test)
-	testImplementation(libs.turbine)
-	testImplementation(libs.kotest.assertions.core)
 }
 
 tasks.withType<Test>().configureEach {
