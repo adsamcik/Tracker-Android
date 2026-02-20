@@ -4,6 +4,7 @@ plugins {
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
+	alias(libs.plugins.robolectric.junit5)
 }
 
 android {
@@ -101,8 +102,6 @@ dependencies {
 	testImplementation(libs.junit5.jupiter)
 	testImplementation(libs.junit5.jupiter.params)
 	testRuntimeOnly(libs.junit5.jupiter.engine)
-	testRuntimeOnly(libs.junit5.vintage.engine)
-	testImplementation(libs.junit4)
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.arch.core.testing)
