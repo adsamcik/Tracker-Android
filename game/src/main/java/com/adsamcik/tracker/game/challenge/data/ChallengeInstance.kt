@@ -30,7 +30,7 @@ abstract class ChallengeInstance<ExtraData : ChallengeEntryExtra, Instance : Cha
 
 	abstract fun getDescription(context: Context): String
 
-	fun getTitle(context: Context): String = context.getString(definition.titleRes)
+	open fun getTitle(context: Context): String = context.getString(definition.titleRes)
 
 	protected abstract val persistence: ChallengePersistence<Instance>
 

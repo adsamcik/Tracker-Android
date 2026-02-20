@@ -25,6 +25,10 @@ class ActiveTimeChallengeInstance(
         return context.getString(definition.descriptionRes, extra.requiredActiveTimeInMinutes)
     }
 
+    override fun getTitle(context: Context): String {
+        return context.getString(definition.titleRes, extra.requiredActiveTimeInMinutes)
+    }
+
     override val progress: Double
         get() = extra.activeTimeInMinutes.toDouble() / extra.requiredActiveTimeInMinutes.toDouble()
 
