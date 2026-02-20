@@ -799,7 +799,7 @@ private fun DebugSettings(onNavigateToDebug: () -> Unit = {}) {
                     subtitle = "Create test tracking data (DEBUG only)",
                     icon = Icons.Default.Science,
                     onClick = {
-                        debugVm.showDummyDataDialog()
+                        onNavigateToDebug()
                     }
                 )
             }

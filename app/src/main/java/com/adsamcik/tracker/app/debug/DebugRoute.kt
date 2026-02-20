@@ -103,37 +103,39 @@ fun DebugRoute() {
                 }
             }
 
-            item {
-                Button(
-                    onClick = {
-                        isSeeding = true
-                        seedStatus = null
-                        scope.launch {
-                            val result = DummyDataSeeder.seed(ctx)
-                            seedStatus = if (result.inserted) "✅ Seeded 3 sessions" else "❌ ${result.reason}"
-                            isSeeding = false
+            if (com.adsamcik.tracker.BuildConfig.DEBUG) {
+                item {
+                    Button(
+                        onClick = {
+                            isSeeding = true
+                            seedStatus = null
+                            scope.launch {
+                                val result = DummyDataSeeder.seed(ctx)
+                                seedStatus = if (result.inserted) "✅ Seeded 3 sessions" else "❌ ${result.reason}"
+                                isSeeding = false
+                            }
+                        },
+                        enabled = !isSeeding,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("debug_seed_data_button")
+                    ) {
+                        if (isSeeding) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.width(16.dp).height(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
-                    },
-                    enabled = !isSeeding,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("debug_seed_data_button")
-                ) {
-                    if (isSeeding) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.width(16.dp).height(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Seed Dummy Data (3 NYC sessions)")
                     }
-                    Text("Seed Dummy Data (3 NYC sessions)")
-                }
-                if (seedStatus != null) {
-                    Text(
-                        text = seedStatus!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                    )
+                    if (seedStatus != null) {
+                        Text(
+                            text = seedStatus!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                        )
+                    }
                 }
             }
 
