@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -84,6 +85,7 @@ fun DashboardRoute(
 	var todaySummary by remember { mutableStateOf<com.adsamcik.tracker.shared.base.di.DailySummary?>(null) }
 	var dbLastSession by remember { mutableStateOf<TrackerSession?>(null) }
 	var recentTrips by remember { mutableStateOf<List<Trip>>(emptyList()) }
+	var explorationState by remember { mutableStateOf(ExplorationUiState()) }
 
 	LaunchedEffect(isTracking, sessionData) {
 		todaySummary = try {
@@ -101,6 +103,27 @@ fun DashboardRoute(
 						dbLastSession = db.sessionDao().getLast(1)
 					}
 					recentTrips = db.tripDao().getRecentTrips(5)
+
+					// Load exploration data
+					val cellDao = db.explorationCellDao()
+					val totalCells = cellDao.countAtLevel(14)
+					if (totalCells > 0) {
+						val todayStartMs = java.util.Calendar.getInstance().apply {
+							set(java.util.Calendar.HOUR_OF_DAY, 0)
+							set(java.util.Calendar.MINUTE, 0)
+							set(java.util.Calendar.SECOND, 0)
+							set(java.util.Calendar.MILLISECOND, 0)
+						}.timeInMillis
+						val newToday = cellDao.countDiscoveredSince(todayStartMs, 14)
+						val bitmasks = cellDao.getDistinctSeasonBitmasks(14)
+						val combinedBitmask = bitmasks.fold(0) { acc, b -> acc or b }
+						explorationState = ExplorationUiState(
+							totalCells = totalCells,
+							newCellsToday = newToday,
+							seasonsCovered = Integer.bitCount(combinedBitmask),
+							hasExplorationData = true,
+						)
+					}
 				} catch (_: Exception) {
 					// DB errors are non-fatal — cards simply won't show
 				}
@@ -148,6 +171,7 @@ fun DashboardRoute(
 			dailyProgress = goalProgress.progress,
 		),
 		recentTrips = recentTrips,
+		explorationState = explorationState,
 	)
 
 	// Contextual permission request dialog
