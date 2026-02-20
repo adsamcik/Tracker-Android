@@ -107,6 +107,7 @@ dependencies {
 	testImplementation(libs.arch.core.testing)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.mockk)
 	testImplementation(libs.turbine)
 	testImplementation(libs.androidx.work.testing)
