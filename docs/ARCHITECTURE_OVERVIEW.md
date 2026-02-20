@@ -26,7 +26,7 @@
 
 ## 2. Module Architecture
 
-The application is organized into **14 Gradle modules**:
+The application is organized into **17 Gradle modules**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -76,6 +76,9 @@ The application is organized into **14 Gradle modules**:
 | **impexp** | Import/export in GPX, KML, JSON, SQLite formats |
 | **logger** | Crash handling, logging, error reporting |
 | **points** | Points calculation and scoring |
+| **stats-api** | Stats domain contracts: value classes, SignalProcessor, repositories, domain events (KMP) |
+| **stats-engine** | Stats algorithms: aggregation, segment detection, exploration, achievements (KMP) |
+| **stats-data** | Stats data layer: repository implementations, Hilt DI bindings |
 | **sbase** | Shared base: Room database, data classes, entities, DAOs |
 | **sutils** | Shared utilities: extensions, formatters, helpers |
 | **smap** | Shared map utilities |
@@ -361,6 +364,8 @@ class BadViewModel(app: Application) : AndroidViewModel(app) {
 |----------|---------|
 | `README.md` | Project overview |
 | `docs/APP_FUNCTIONALITY.md` | Detailed feature documentation |
+| `docs/STATS_PIPELINE_ARCHITECTURE.md` | Stats domain architecture (Processor Pipeline) |
+| `docs/STATS_MIGRATION_TODO.md` | Remaining stats migration work |
 | `docs/migration/` | Active migration guides (Agent A–D) |
 
 ### Archived Documentation
