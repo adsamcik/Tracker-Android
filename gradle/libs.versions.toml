@@ -115,6 +115,7 @@ arch-core-testing = { group = "androidx.arch.core", name = "core-testing", versi
 espresso = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 espresso-intents = { group = "androidx.test.espresso", name = "espresso-intents", version.ref = "espresso" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+junit5-robolectric = { module = "tech.apter.junit5.jupiter:robolectric-extension", version.ref = "robolectricJunit5" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockitoInline" }
 mockito-android = { module = "org.mockito:mockito-android", version.ref = "mockitoAndroid" }

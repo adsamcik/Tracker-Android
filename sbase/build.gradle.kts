@@ -135,6 +135,7 @@ dependencies {
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.turbine)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.kotest.assertions.core)
 

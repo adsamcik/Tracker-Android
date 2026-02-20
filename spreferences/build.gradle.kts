@@ -107,6 +107,8 @@ dependencies {
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.junit5.robolectric)
+	testImplementation(libs.mockk)
 }
 
 // Configure JUnit 5 for unit tests
