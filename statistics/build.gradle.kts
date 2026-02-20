@@ -62,6 +62,13 @@ dependencies {
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 
+	// Stats architecture
+	implementation(project(":stats-api"))
+	implementation(project(":stats-data"))
+
+	// Arrow
+	implementation(libs.arrow.core)
+
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
