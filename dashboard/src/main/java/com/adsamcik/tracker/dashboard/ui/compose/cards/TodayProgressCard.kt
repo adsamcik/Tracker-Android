@@ -28,7 +28,6 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
-import java.util.Calendar
 
 /**
  * Today's progress card with contextual greeting, daily summary metrics,
@@ -44,8 +43,6 @@ internal fun TodayProgressCard(
 	val settings = TrackerSettingsQuick.snapshot(context)
 	val summary = state.todaySummary
 
-	val greeting = contextualGreeting()
-
 	Card(
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
@@ -60,13 +57,13 @@ internal fun TodayProgressCard(
 			horizontalArrangement = Arrangement.SpaceBetween,
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			// Left side: greeting + stats
+			// Left side: header + stats
 			Column(
 				verticalArrangement = Arrangement.spacedBy(4.dp),
 				modifier = Modifier.weight(1f),
 			) {
 				Text(
-					text = greeting,
+					text = stringResource(R.string.dashboard_today_title),
 					style = MaterialTheme.typography.titleMedium,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
@@ -161,13 +158,3 @@ internal fun TodayProgressCard(
 	}
 }
 
-@Composable
-private fun contextualGreeting(): String {
-	val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-	return when {
-		hour < 6 -> stringResource(R.string.dashboard_greeting_night)
-		hour < 12 -> stringResource(R.string.dashboard_greeting_morning)
-		hour < 18 -> stringResource(R.string.dashboard_greeting_afternoon)
-		else -> stringResource(R.string.dashboard_greeting_evening)
-	}
-}

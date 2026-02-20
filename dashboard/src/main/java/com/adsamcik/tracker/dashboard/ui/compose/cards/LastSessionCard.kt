@@ -78,7 +78,7 @@ internal fun LastSessionCard(
 				contentDescription = cardContentDescription
 			},
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.primaryContainer,
+			containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
 		),
 		shape = MaterialTheme.shapes.large,
 	) {
@@ -88,13 +88,13 @@ internal fun LastSessionCard(
 					text = stringResource(R.string.dashboard_last_session_title),
 					style = MaterialTheme.typography.titleSmall,
 					fontWeight = FontWeight.Medium,
-					color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+					color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
 				)
 				Spacer(Modifier.weight(1f))
 				Text(
 					text = sessionAge,
 					style = MaterialTheme.typography.labelSmall,
-					color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+					color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
 				)
 			}
 
@@ -103,12 +103,12 @@ internal fun LastSessionCard(
 				text = durationText,
 				style = MaterialTheme.typography.headlineMedium,
 				fontWeight = FontWeight.Bold,
-				color = MaterialTheme.colorScheme.onPrimaryContainer,
+				color = MaterialTheme.colorScheme.onSurface,
 			)
 			Text(
 				text = stringResource(R.string.dashboard_last_session_duration),
 				style = MaterialTheme.typography.bodyMedium,
-				color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+				color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
 			)
 
 			Spacer(Modifier.height(16.dp))
@@ -143,7 +143,7 @@ internal fun LastSessionCard(
 						modifier = Modifier
 							.fillMaxSize()
 							.background(
-								MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.05f),
+								MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
 							),
 					)
 
@@ -180,14 +180,14 @@ private fun SessionMetricItem(
 		Text(
 			text = label,
 			style = MaterialTheme.typography.labelMedium,
-			color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+			color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
 		)
 		Spacer(Modifier.height(4.dp))
 		Text(
 			text = value,
 			style = MaterialTheme.typography.titleMedium,
 			fontWeight = FontWeight.SemiBold,
-			color = MaterialTheme.colorScheme.onPrimaryContainer,
+			color = MaterialTheme.colorScheme.onSurface,
 		)
 	}
 }
