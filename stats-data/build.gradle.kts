@@ -62,6 +62,7 @@ android {
 
 dependencies {
 	api(project(":stats-api"))
+	implementation(project(":stats-engine"))
 	implementation(project(":sbase"))
 
 	// Core
@@ -69,12 +70,22 @@ dependencies {
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.androidx.core.ktx)
 
+	// Arrow
+	implementation(libs.arrow.core)
+
 	// Room
 	implementation(libs.androidx.room.runtime)
 	ksp(libs.androidx.room.compiler)
 	implementation(libs.androidx.room.ktx)
 	implementation(libs.sqlite.android)
 	androidTestImplementation(libs.androidx.room.testing)
+
+	// Hilt
+	implementation(libs.hilt.android)
+	ksp(libs.hilt.compiler)
+
+	// DI annotations
+	implementation(libs.javax.inject)
 
 	// Unit Tests
 	testImplementation(platform(libs.junit5.bom))
