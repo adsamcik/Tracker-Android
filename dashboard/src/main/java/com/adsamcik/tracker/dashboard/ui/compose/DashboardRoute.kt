@@ -1,8 +1,7 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
+import android.app.Application
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
@@ -10,23 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
-import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
-import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
-import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
-import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
-import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
@@ -39,8 +29,6 @@ import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * Entry point composable for the Dashboard tab.
@@ -57,6 +45,9 @@ fun DashboardRoute(
 	contentPadding: PaddingValues = PaddingValues(),
 ) {
 	val context = LocalContext.current
+	val viewModel: DashboardViewModel = viewModel {
+		DashboardViewModel(context.applicationContext as Application)
+	}
 
 	// Dependencies via CompositionLocal
 	val controller = LocalTrackerController.current as TrackerServiceController
@@ -66,10 +57,10 @@ fun DashboardRoute(
 	val goalProgressProvider = LocalGoalProgressProvider.current
 	val activeChallengesProvider = LocalActiveChallengesProvider.current
 
-	// Permission state
-	var hasLocationPermission by remember { mutableStateOf(checkLocationPermission(context)) }
-	var showLocationPermissionRequest by remember { mutableStateOf(false) }
-	var permissionDenied by remember { mutableStateOf(false) }
+	// Permission state from ViewModel
+	val hasLocationPermission by viewModel.hasLocationPermission.collectAsState()
+	val showLocationPermissionRequest by viewModel.showLocationPermissionRequest.collectAsState()
+	val permissionDenied by viewModel.permissionDenied.collectAsState()
 	val snackbarHostState = remember { SnackbarHostState() }
 
 	// Observe tracking state
@@ -87,84 +78,17 @@ fun DashboardRoute(
 	val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
 	val activeChallengeInfos by activeChallengesProvider.activeChallengesFlow.collectAsState()
 
+	// Historical data from ViewModel
+	val todaySummary by viewModel.todaySummary.collectAsState()
+	val dbLastSession by viewModel.dbLastSession.collectAsState()
+	val recentTrips by viewModel.recentTrips.collectAsState()
+	val explorationState by viewModel.explorationState.collectAsState()
+	val streakState by viewModel.streakState.collectAsState()
+
 	// Fetch daily summary and historical data reactively
-	var todaySummary by remember { mutableStateOf<com.adsamcik.tracker.shared.base.di.DailySummary?>(null) }
-	var dbLastSession by remember { mutableStateOf<TrackerSession?>(null) }
-	var recentTrips by remember { mutableStateOf<List<Trip>>(emptyList()) }
-	var explorationState by remember { mutableStateOf(ExplorationUiState()) }
-	var streakState by remember { mutableStateOf(StreakState()) }
-
 	LaunchedEffect(isTracking, sessionData) {
-		todaySummary = try {
-			dailySummaryProvider.fetchTodaySummary()
-		} catch (_: Exception) {
-			null
-		}
-
-		// Load historical data from DB when not actively tracking
-		if (!isTracking) {
-			withContext(Dispatchers.IO) {
-				val db = AppDatabase.database(context)
-				try {
-					if (lastSessionData == null) {
-						dbLastSession = db.sessionDao().getLast(1)
-					}
-					recentTrips = db.tripDao().getRecentTrips(5)
-
-					// Load exploration data
-					val cellDao = db.explorationCellDao()
-					val totalCells = cellDao.countAtLevel(14)
-					if (totalCells > 0) {
-						val todayStartMs = java.util.Calendar.getInstance().apply {
-							set(java.util.Calendar.HOUR_OF_DAY, 0)
-							set(java.util.Calendar.MINUTE, 0)
-							set(java.util.Calendar.SECOND, 0)
-							set(java.util.Calendar.MILLISECOND, 0)
-						}.timeInMillis
-						val newToday = cellDao.countDiscoveredSince(todayStartMs, 14)
-						val bitmasks = cellDao.getDistinctSeasonBitmasks(14)
-						val combinedBitmask = bitmasks.fold(0) { acc, b -> acc or b }
-						explorationState = ExplorationUiState(
-							totalCells = totalCells,
-							newCellsToday = newToday,
-							seasonsCovered = Integer.bitCount(combinedBitmask),
-							hasExplorationData = true,
-						)
-					}
-
-					// Load streak data
-					val streak = db.explorationStreakDao().getByType("DAILY_DISCOVERY")
-					val weeklyDistances = mutableListOf<Float>()
-					val cal = java.util.Calendar.getInstance()
-					cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-					cal.set(java.util.Calendar.MINUTE, 0)
-					cal.set(java.util.Calendar.SECOND, 0)
-					cal.set(java.util.Calendar.MILLISECOND, 0)
-					// Get distances for each of last 7 days (oldest first)
-					for (daysAgo in 6 downTo 0) {
-						val dayStart = cal.timeInMillis - daysAgo * 86_400_000L
-						val dayEnd = dayStart + 86_400_000L
-						val trips = db.tripDao().getBetween(dayStart, dayEnd)
-						weeklyDistances.add(trips.sumOf { it.distanceM.toDouble() }.toFloat())
-					}
-					val thisWeek = weeklyDistances.takeLast(3).sum()
-					val lastWeek = weeklyDistances.take(3).sum()
-					val trend = when {
-						thisWeek > lastWeek * 1.1f -> WeeklyTrend.UP
-						thisWeek < lastWeek * 0.9f -> WeeklyTrend.DOWN
-						else -> WeeklyTrend.STEADY
-					}
-					streakState = StreakState(
-						currentStreak = streak?.currentCount ?: 0,
-						bestStreak = streak?.bestCount ?: 0,
-						weeklyDistances = weeklyDistances,
-						weeklyTrend = trend,
-					)
-				} catch (_: Exception) {
-					// DB errors are non-fatal — cards simply won't show
-				}
-			}
-		}
+		viewModel.refreshTodaySummary(dailySummaryProvider)
+		viewModel.loadHistoricalData(isTracking, lastSessionData)
 	}
 
 	// Resolve display session (active → controller last → DB last)
@@ -190,18 +114,7 @@ fun DashboardRoute(
 	}
 
 	val challengeModels = remember(activeChallengeInfos) {
-		activeChallengeInfos.map { info ->
-			ChallengeUiModel(
-				id = info.id,
-				title = info.title,
-				description = info.description,
-				progress = info.progress,
-				iconResName = "",
-				difficulty = info.difficulty,
-				timeRemainingMs = info.timeRemainingMs,
-				rewardPoints = 0,
-			)
-		}
+		viewModel.mapChallenges(activeChallengeInfos)
 	}
 
 	val dashboardState = DashboardUiState(
@@ -233,15 +146,13 @@ fun DashboardRoute(
 			permissionType = PermissionType.LOCATION_FOREGROUND,
 			permission = Manifest.permission.ACCESS_FINE_LOCATION,
 			onPermissionResult = { granted ->
-				hasLocationPermission = granted
+				viewModel.onPermissionResult(granted)
 				if (granted) {
 					TrackerServiceApi.startService(context, isUserInitiated = true)
-				} else {
-					permissionDenied = true
 				}
 			},
 			onDismiss = {
-				showLocationPermissionRequest = false
+				viewModel.dismissPermissionRequest()
 			},
 		)
 	}
@@ -256,7 +167,7 @@ fun DashboardRoute(
 			message = message,
 		)
 		LaunchedEffect(Unit) {
-			permissionDenied = false
+			viewModel.clearPermissionDenied()
 		}
 	}
 
@@ -269,27 +180,16 @@ fun DashboardRoute(
 				if (hasLocationPermission) {
 					TrackerServiceApi.startService(context, isUserInitiated = true)
 				} else {
-					showLocationPermissionRequest = true
+					viewModel.requestPermission()
 				}
 			} else {
 				TrackerServiceApi.stopService(context)
 			}
 		},
-		onRequestPermission = { showLocationPermissionRequest = true },
+		onRequestPermission = { viewModel.requestPermission() },
 		onGameClick = onOpenGame,
 		onSessionDetailClick = onSessionDetailClick,
 		snackbarHostState = snackbarHostState,
 		modifier = Modifier.padding(contentPadding),
 	)
-}
-
-private fun checkLocationPermission(context: Context): Boolean {
-	return ContextCompat.checkSelfPermission(
-		context,
-		Manifest.permission.ACCESS_FINE_LOCATION,
-	) == PackageManager.PERMISSION_GRANTED ||
-		ContextCompat.checkSelfPermission(
-			context,
-			Manifest.permission.ACCESS_COARSE_LOCATION,
-		) == PackageManager.PERMISSION_GRANTED
 }
