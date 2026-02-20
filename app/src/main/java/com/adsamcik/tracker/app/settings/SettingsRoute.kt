@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose
 import com.adsamcik.tracker.app.settings.components.*
+import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -884,6 +885,67 @@ private fun MapSettings() {
                     }
                 }
             )
+        }
+
+        // Ski infrastructure import/reset
+        item {
+            val scope = rememberCoroutineScope()
+            val infraManager = remember { SkiInfrastructureManager(context) }
+            var isLoaded by remember { mutableStateOf(infraManager.isAvailable()) }
+
+            val importLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            infraManager.importDatabase(uri)
+                            isLoaded = true
+                        } catch (e: Exception) {
+                            // Import failed — already cleaned up by manager
+                        }
+                    }
+                }
+            }
+
+            val subtitle = if (isLoaded) {
+                val liftCount = infraManager.getMetadata("lift_count")
+                val generatedAt = infraManager.getMetadata("generated_at")?.take(10)
+                if (liftCount != null && generatedAt != null) {
+                    stringResource(
+                        com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_subtitle_info,
+                        liftCount.toIntOrNull() ?: 0,
+                        generatedAt
+                    )
+                } else {
+                    stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_subtitle_loaded)
+                }
+            } else {
+                stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_subtitle_none)
+            }
+
+            SettingsItem(
+                title = stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_title),
+                subtitle = subtitle,
+                icon = Icons.Default.Terrain,
+                onClick = {
+                    if (isLoaded) {
+                        infraManager.clearDatabase()
+                        isLoaded = false
+                    } else {
+                        importLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*"))
+                    }
+                }
+            )
+
+            if (isLoaded) {
+                Text(
+                    text = stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_attribution),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 56.dp, end = 16.dp, bottom = 8.dp)
+                )
+            }
         }
 
         // All map settings are advanced - wrap in expandable section
