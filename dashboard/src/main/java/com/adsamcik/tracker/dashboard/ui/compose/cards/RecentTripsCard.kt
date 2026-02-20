@@ -130,7 +130,7 @@ private fun RecentTripRow(
 	) {
 		Icon(
 			imageVector = icon,
-			contentDescription = null,
+			contentDescription = stringResource(R.string.dashboard_cd_activity_icon),
 			tint = MaterialTheme.colorScheme.onSurfaceVariant,
 			modifier = Modifier.size(24.dp),
 		)
@@ -154,7 +154,7 @@ private fun RecentTripRow(
 		if (onClick != null) {
 			Icon(
 				imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-				contentDescription = null,
+				contentDescription = stringResource(R.string.dashboard_cd_forward_arrow),
 				tint = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.size(16.dp),
 			)

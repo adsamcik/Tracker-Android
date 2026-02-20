@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.dashboard.R as DashboardR
 import com.adsamcik.tracker.tracker.R
 
 /**
@@ -119,6 +120,12 @@ internal fun TrackingFAB(
 		else -> MaterialTheme.colorScheme.onPrimary
 	}
 
+	val fabContentDescription = when {
+		!hasPermission -> stringResource(DashboardR.string.dashboard_cd_start_tracking_permission)
+		isTracking -> stringResource(DashboardR.string.dashboard_cd_stop_tracking)
+		else -> stringResource(DashboardR.string.dashboard_cd_start_tracking)
+	}
+
 	Box(
 		contentAlignment = Alignment.Center,
 		modifier = modifier.size(buttonSize + 16.dp),
@@ -164,11 +171,7 @@ internal fun TrackingFAB(
 				}
 				.testTag("tracking_fab")
 				.semantics {
-					contentDescription = when {
-						!hasPermission -> "Start tracking - permission required"
-						isTracking -> "Stop tracking"
-						else -> "Start tracking"
-					}
+					contentDescription = fabContentDescription
 				},
 		) {
 			Box(

@@ -122,6 +122,8 @@ internal fun AltitudeSparkline(
 			Offset(x, y)
 		}
 
+		if (points.isEmpty()) return@Canvas
+
 		// Left-to-right clip for wipe animation
 		val clipRight = leftPadding + chartWidth * drawProgress.value
 

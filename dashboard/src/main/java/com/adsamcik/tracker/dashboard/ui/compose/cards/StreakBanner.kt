@@ -67,7 +67,7 @@ internal fun StreakBanner(
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Icon(
 					imageVector = Icons.Filled.LocalFireDepartment,
-					contentDescription = null,
+					contentDescription = stringResource(R.string.dashboard_cd_fire_icon),
 					tint = if (streakState.currentStreak > 0) {
 						MaterialTheme.colorScheme.error
 					} else {
@@ -157,7 +157,7 @@ private fun EncouragementBanner(modifier: Modifier = Modifier) {
 		) {
 			Icon(
 				imageVector = Icons.Filled.LocalFireDepartment,
-				contentDescription = null,
+				contentDescription = stringResource(R.string.dashboard_cd_fire_icon),
 				tint = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.size(24.dp),
 			)

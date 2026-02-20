@@ -84,7 +84,7 @@ internal fun DashboardTopBar(
 					) {
 						BadgedBox(badge = {
 							if (isLocked) {
-								Badge { Text("🔒") }
+								Badge { Text(stringResource(R.string.dashboard_cd_locked_badge)) }
 							}
 						}) {
 							Text(

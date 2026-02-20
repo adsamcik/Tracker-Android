@@ -80,27 +80,31 @@ fun DashboardRoute(
 	val pointsToday by dailyPointsProvider.pointsTodayFlow.collectAsState()
 	val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
 
-	// Fetch daily summary reactively
+	// Fetch daily summary and historical data reactively
 	var todaySummary by remember { mutableStateOf<com.adsamcik.tracker.shared.base.di.DailySummary?>(null) }
-	LaunchedEffect(isTracking, sessionData) {
-		todaySummary = dailySummaryProvider.fetchTodaySummary()
-	}
-
-	// Query last session from DB when controller doesn't have one
 	var dbLastSession by remember { mutableStateOf<TrackerSession?>(null) }
-	LaunchedEffect(lastSessionData) {
-		if (lastSessionData == null) {
-			dbLastSession = withContext(Dispatchers.IO) {
-				AppDatabase.database(context).sessionDao().getLast(1)
-			}
-		}
-	}
-
-	// Query recent trips for idle dashboard cards
 	var recentTrips by remember { mutableStateOf<List<Trip>>(emptyList()) }
-	LaunchedEffect(isTracking) {
-		recentTrips = withContext(Dispatchers.IO) {
-			AppDatabase.database(context).tripDao().getRecentTrips(5)
+
+	LaunchedEffect(isTracking, sessionData) {
+		todaySummary = try {
+			dailySummaryProvider.fetchTodaySummary()
+		} catch (_: Exception) {
+			null
+		}
+
+		// Load historical data from DB when not actively tracking
+		if (!isTracking) {
+			withContext(Dispatchers.IO) {
+				val db = AppDatabase.database(context)
+				try {
+					if (lastSessionData == null) {
+						dbLastSession = db.sessionDao().getLast(1)
+					}
+					recentTrips = db.tripDao().getRecentTrips(5)
+				} catch (_: Exception) {
+					// DB errors are non-fatal — cards simply won't show
+				}
+			}
 		}
 	}
 
@@ -121,7 +125,7 @@ fun DashboardRoute(
 	// Determine dashboard mode
 	val dashboardMode = when {
 		isTracking -> DashboardMode.TRACKING
-		todaySummary != null && !todaySummary!!.isEmpty -> DashboardMode.IDLE
+		todaySummary?.isEmpty == false -> DashboardMode.IDLE
 		displaySession != null -> DashboardMode.IDLE
 		else -> DashboardMode.EMPTY
 	}

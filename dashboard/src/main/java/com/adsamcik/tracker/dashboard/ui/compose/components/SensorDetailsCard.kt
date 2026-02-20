@@ -209,7 +209,7 @@ internal fun SensorDetailsCard(
 						SensorDetailRow(
 							icon = Icons.Default.Speed,
 							label = stringResource(R.string.dashboard_sensor_speed),
-							value = "%.1f m/s".format(speed),
+							value = stringResource(R.string.dashboard_format_speed_ms, speed),
 						)
 					}
 
@@ -232,9 +232,11 @@ internal fun SensorDetailsCard(
 							SensorDetailRow(
 								icon = Icons.Default.MyLocation,
 								label = stringResource(R.string.dashboard_sensor_raw_coords),
-								value = "%.6f, %.6f".format(
-									location.latitude, location.longitude,
-								),
+								value = stringResource(
+R.string.dashboard_format_coordinates,
+location.latitude,
+location.longitude,
+),
 							)
 						}
 					}

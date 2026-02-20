@@ -138,6 +138,8 @@ internal fun SpeedSparkline(
 				Offset(x, y)
 			}
 
+			if (points.isEmpty()) return@Canvas
+
 			// Gradient fill below the curve
 			val fillPath = buildBezierPath(points)
 			val closedFillPath = Path().apply {

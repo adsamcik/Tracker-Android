@@ -201,7 +201,7 @@ private fun EmptyChallengeCard(
 		) {
 			Icon(
 				imageVector = Icons.Filled.EmojiEvents,
-				contentDescription = null,
+				contentDescription = stringResource(R.string.dashboard_cd_challenge_icon),
 				tint = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.size(32.dp),
 			)
@@ -213,7 +213,7 @@ private fun EmptyChallengeCard(
 			)
 			Icon(
 				imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-				contentDescription = null,
+				contentDescription = stringResource(R.string.dashboard_cd_forward_arrow),
 				tint = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.size(16.dp),
 			)

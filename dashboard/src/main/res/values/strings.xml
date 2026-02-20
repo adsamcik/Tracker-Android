@@ -5,6 +5,24 @@
     <string name="dashboard_recording">Recording</string>
 
 
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Activity type</string>
+    <string name="dashboard_cd_challenge_icon">Challenge</string>
+    <string name="dashboard_cd_explore_icon">Exploration</string>
+    <string name="dashboard_cd_fire_icon">Streak</string>
+    <string name="dashboard_cd_forward_arrow">View details</string>
+    <string name="dashboard_cd_last_session">Last session: %1$s duration, %2$s distance</string>
+    <string name="dashboard_cd_locked_badge">Tracking locked</string>
+    <string name="dashboard_cd_start_tracking">Start tracking</string>
+    <string name="dashboard_cd_start_tracking_permission">Start tracking, permission required</string>
+    <string name="dashboard_cd_stop_tracking">Stop tracking</string>
+
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Altitude profile, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_altitude_value">%1$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+
     <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Awaiting GPS signal…</string>
     <string name="dashboard_milestone_distance">km reached!</string>

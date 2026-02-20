@@ -65,12 +65,17 @@ internal fun LastSessionCard(
 		DateUtils.FORMAT_ABBREV_RELATIVE,
 	).toString()
 
+	val cardContentDescription = stringResource(
+		R.string.dashboard_cd_last_session,
+		durationText,
+		distanceText,
+	)
+
 	Card(
 		modifier = modifier
 			.fillMaxWidth()
 			.semantics {
-				contentDescription =
-					"Last session: $durationText duration, $distanceText distance"
+				contentDescription = cardContentDescription
 			},
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.primaryContainer,

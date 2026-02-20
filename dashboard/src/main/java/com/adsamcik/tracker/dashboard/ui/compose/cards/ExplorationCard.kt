@@ -54,7 +54,7 @@ internal fun ExplorationCard(
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Icon(
 					imageVector = Icons.Filled.Explore,
-					contentDescription = null,
+					contentDescription = stringResource(R.string.dashboard_cd_explore_icon),
 					tint = MaterialTheme.colorScheme.primary,
 					modifier = Modifier.size(20.dp),
 				)
