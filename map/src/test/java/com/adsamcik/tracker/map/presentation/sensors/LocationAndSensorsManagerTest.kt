@@ -16,13 +16,12 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
-import org.junit.Assert.*
-import org.junit.Before
-import org.junit.Test
-import org.junit.Ignore
-import org.mockito.Mock
-import org.mockito.Mockito.*
-import org.mockito.MockitoAnnotations
+import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockk
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Test
 import org.robolectric.shadows.ShadowLocationManager
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -31,38 +30,36 @@ class LocationAndSensorsManagerTest {
     private lateinit var context: Context
     private lateinit var manager: LocationAndSensorsManager
 
-    @Mock
-    private lateinit var mockFusedLocationClient: FusedLocationProviderClient
+    private val mockFusedLocationClient: FusedLocationProviderClient = mockk(relaxed = true)
 
-    @Before
+    @BeforeEach
     fun setup() {
-        MockitoAnnotations.openMocks(this)
-    context = mock(Context::class.java)
-    manager = LocationAndSensorsManager(context)
+        context = mockk(relaxed = true)
+        manager = LocationAndSensorsManager(context)
     }
 
     @Test
-    @Ignore("Requires Android permission framework; skip in unit tests")
+    @Disabled("Requires Android permission framework; skip in unit tests")
     fun `location updates flow completes gracefully without permission`() = runTest { }
 
     @Test
     fun `bearing updates flow handles missing sensor gracefully`() = runTest {
         // Mock context with no rotation vector sensor
-    val sensorManager = mock(SensorManager::class.java)
-    `when`(sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)).thenReturn(null)
-    @Suppress("DEPRECATION")
-    `when`(sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION)).thenReturn(null)
+        val sensorManager = mockk<SensorManager>(relaxed = true)
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) } returns null
+        @Suppress("DEPRECATION")
+        every { sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION) } returns null
 
-    // Stub getSystemService to return our mocked SensorManager
-    `when`(context.getSystemService(Context.SENSOR_SERVICE)).thenReturn(sensorManager)
-    val managerWithoutSensor = LocationAndSensorsManager(context)
+        // Stub getSystemService to return our mocked SensorManager
+        every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
+        val managerWithoutSensor = LocationAndSensorsManager(context)
         
         // Should emit a default bearing and complete
         val result = withTimeoutOrNull(1000) {
             managerWithoutSensor.bearingUpdates().first()
         }
         
-        assertEquals(0f, result)
+        result shouldBe 0f
     }
 
     @Test
@@ -81,7 +78,7 @@ class LocationAndSensorsManagerTest {
         
         testCases.forEach { (input, expected) ->
             val normalized = ((input % 360f) + 360f) % 360f
-            assertEquals("Failed for input $input", expected, normalized, 0.01f)
+            normalized shouldBe expected
         }
     }
 
@@ -96,26 +93,26 @@ class LocationAndSensorsManagerTest {
         
         validLocations.forEach { (lat, lng, shouldBeValid) ->
             val isValid = lat != 0.0 || lng != 0.0
-            assertEquals("Failed for ($lat, $lng)", shouldBeValid, isValid)
+            isValid shouldBe shouldBeValid
         }
     }
 
     @Test
     fun `location accuracy validation works`() {
-        val location = mock(Location::class.java)
+        val location = mockk<Location>(relaxed = true)
         
         // Test with accuracy
-        `when`(location.hasAccuracy()).thenReturn(true)
-        `when`(location.accuracy).thenReturn(5.0f)
+        every { location.hasAccuracy() } returns true
+        every { location.accuracy } returns 5.0f
         
         val accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else 0.0
-        assertEquals(5.0, accuracy, 0.01)
+        accuracy shouldBe 5.0
         
         // Test without accuracy
-        `when`(location.hasAccuracy()).thenReturn(false)
+        every { location.hasAccuracy() } returns false
         
         val defaultAccuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else 0.0
-        assertEquals(0.0, defaultAccuracy, 0.01)
+        defaultAccuracy shouldBe 0.0
     }
 
     @Test
@@ -133,7 +130,7 @@ class LocationAndSensorsManagerTest {
             val (last, current) = bearings
             val change = kotlin.math.abs(current - last)
             val actualShouldEmit = change > threshold
-            assertEquals("Failed for bearings $last -> $current", shouldEmit, actualShouldEmit)
+            actualShouldEmit shouldBe shouldEmit
         }
     }
 }
