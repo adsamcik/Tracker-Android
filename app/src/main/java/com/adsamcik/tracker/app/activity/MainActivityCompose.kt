@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.di.LocalLockManager
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.LocalActiveChallengesProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -146,7 +147,8 @@ class MainActivityCompose : ComponentActivity() {
                 LocalLockManager provides appGraph.lockManager,
                 LocalDailySummaryProvider provides appGraph.dailySummaryProvider,
                 LocalDailyPointsProvider provides appGraph.dailyPointsProvider,
-                LocalGoalProgressProvider provides appGraph.goalProgressProvider
+                LocalGoalProgressProvider provides appGraph.goalProgressProvider,
+                LocalActiveChallengesProvider provides appGraph.activeChallengesProvider
             ) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     Box(Modifier.fillMaxSize()) {

@@ -4,9 +4,11 @@ import android.app.Application
 import android.content.Context
 import com.adsamcik.tracker.game.di.DefaultDailyPointsProvider
 import com.adsamcik.tracker.game.di.DefaultGoalProgressProvider
+import com.adsamcik.tracker.game.di.DefaultActiveChallengesProvider
 import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
@@ -100,6 +102,10 @@ class AppGraph(
     
     val goalProgressProvider: GoalProgressProvider by lazy {
         DefaultGoalProgressProvider(application, gameRepository, appScope)
+    }
+
+    val activeChallengesProvider: ActiveChallengesProvider by lazy {
+        DefaultActiveChallengesProvider(application, appScope)
     }
     
     companion object {

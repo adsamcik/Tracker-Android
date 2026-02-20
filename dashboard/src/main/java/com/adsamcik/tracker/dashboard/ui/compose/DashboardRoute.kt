@@ -19,14 +19,18 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
+import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.LocalActiveChallengesProvider
 import com.adsamcik.tracker.shared.base.di.LocalLockManager
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
@@ -60,6 +64,7 @@ fun DashboardRoute(
 	val dailySummaryProvider = LocalDailySummaryProvider.current
 	val dailyPointsProvider = LocalDailyPointsProvider.current
 	val goalProgressProvider = LocalGoalProgressProvider.current
+	val activeChallengesProvider = LocalActiveChallengesProvider.current
 
 	// Permission state
 	var hasLocationPermission by remember { mutableStateOf(checkLocationPermission(context)) }
@@ -80,12 +85,14 @@ fun DashboardRoute(
 	// Observe daily/gamification state
 	val pointsToday by dailyPointsProvider.pointsTodayFlow.collectAsState()
 	val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
+	val activeChallengeInfos by activeChallengesProvider.activeChallengesFlow.collectAsState()
 
 	// Fetch daily summary and historical data reactively
 	var todaySummary by remember { mutableStateOf<com.adsamcik.tracker.shared.base.di.DailySummary?>(null) }
 	var dbLastSession by remember { mutableStateOf<TrackerSession?>(null) }
 	var recentTrips by remember { mutableStateOf<List<Trip>>(emptyList()) }
 	var explorationState by remember { mutableStateOf(ExplorationUiState()) }
+	var streakState by remember { mutableStateOf(StreakState()) }
 
 	LaunchedEffect(isTracking, sessionData) {
 		todaySummary = try {
@@ -124,6 +131,35 @@ fun DashboardRoute(
 							hasExplorationData = true,
 						)
 					}
+
+					// Load streak data
+					val streak = db.explorationStreakDao().getByType("DAILY_DISCOVERY")
+					val weeklyDistances = mutableListOf<Float>()
+					val cal = java.util.Calendar.getInstance()
+					cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+					cal.set(java.util.Calendar.MINUTE, 0)
+					cal.set(java.util.Calendar.SECOND, 0)
+					cal.set(java.util.Calendar.MILLISECOND, 0)
+					// Get distances for each of last 7 days (oldest first)
+					for (daysAgo in 6 downTo 0) {
+						val dayStart = cal.timeInMillis - daysAgo * 86_400_000L
+						val dayEnd = dayStart + 86_400_000L
+						val trips = db.tripDao().getBetween(dayStart, dayEnd)
+						weeklyDistances.add(trips.sumOf { it.distanceM.toDouble() }.toFloat())
+					}
+					val thisWeek = weeklyDistances.takeLast(3).sum()
+					val lastWeek = weeklyDistances.take(3).sum()
+					val trend = when {
+						thisWeek > lastWeek * 1.1f -> WeeklyTrend.UP
+						thisWeek < lastWeek * 0.9f -> WeeklyTrend.DOWN
+						else -> WeeklyTrend.STEADY
+					}
+					streakState = StreakState(
+						currentStreak = streak?.currentCount ?: 0,
+						bestStreak = streak?.bestCount ?: 0,
+						weeklyDistances = weeklyDistances,
+						weeklyTrend = trend,
+					)
 				} catch (_: Exception) {
 					// DB errors are non-fatal — cards simply won't show
 				}
@@ -153,6 +189,21 @@ fun DashboardRoute(
 		else -> DashboardMode.EMPTY
 	}
 
+	val challengeModels = remember(activeChallengeInfos) {
+		activeChallengeInfos.map { info ->
+			ChallengeUiModel(
+				id = info.id,
+				title = info.title,
+				description = info.description,
+				progress = info.progress,
+				iconResName = "",
+				difficulty = info.difficulty,
+				timeRemainingMs = info.timeRemainingMs,
+				rewardPoints = 0,
+			)
+		}
+	}
+
 	val dashboardState = DashboardUiState(
 		dashboardMode = dashboardMode,
 		isTracking = isTracking,
@@ -170,8 +221,10 @@ fun DashboardRoute(
 			dailyGoalSteps = goalProgress.goalSteps,
 			dailyProgress = goalProgress.progress,
 		),
+		activeChallenges = challengeModels,
 		recentTrips = recentTrips,
 		explorationState = explorationState,
+		streakState = streakState,
 	)
 
 	// Contextual permission request dialog
