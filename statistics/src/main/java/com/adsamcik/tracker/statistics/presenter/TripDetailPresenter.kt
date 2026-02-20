@@ -19,7 +19,9 @@ sealed interface TripDetailState {
 }
 
 /** UI events from the trip detail screen. */
-sealed interface TripDetailEvent
+sealed interface TripDetailEvent {
+	data class LoadTrip(val tripId: Long) : TripDetailEvent
+}
 
 /**
  * Presenter for the trip detail screen.
@@ -29,26 +31,27 @@ class TripDetailPresenter @Inject constructor(
 	private val tripRepository: TripRepository,
 ) : Presenter<TripDetailEvent, TripDetailState> {
 
-	/** The trip ID must be set before calling present(). */
-	var tripId: Long = -1L
-
 	override fun present(events: Flow<TripDetailEvent>): Flow<TripDetailState> {
-		return flow {
-			emit(TripDetailState.Loading)
-			val result = tripRepository.getTripDetail(tripId)
-			result.fold(
-				ifLeft = { error ->
-					when (error) {
-						is com.adsamcik.tracker.stats.api.error.StatsError.NotFound ->
-							emit(TripDetailState.NotFound(tripId))
-						else ->
-							emit(TripDetailState.Error(error.message))
-					}
-				},
-				ifRight = { trip ->
-					emit(TripDetailState.Loaded(trip))
-				},
-			)
+		return events.flatMapLatest { event ->
+			when (event) {
+				is TripDetailEvent.LoadTrip -> flow {
+					emit(TripDetailState.Loading)
+					val result = tripRepository.getTripDetail(event.tripId)
+					result.fold(
+						ifLeft = { error ->
+							when (error) {
+								is com.adsamcik.tracker.stats.api.error.StatsError.NotFound ->
+									emit(TripDetailState.NotFound(event.tripId))
+								else ->
+									emit(TripDetailState.Error(error.message))
+							}
+						},
+						ifRight = { trip ->
+							emit(TripDetailState.Loaded(trip))
+						},
+					)
+				}
+			}
 		}
 	}
 }

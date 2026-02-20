@@ -29,9 +29,8 @@ class DefaultDailySummaryRepository @Inject constructor(
 	override fun observeWeek(): Flow<List<DailySummary>> {
 		val today = LocalDate.now().toEpochDay()
 		val weekAgo = today - 7
-		return kotlinx.coroutines.flow.flow {
-			val entities = dailySummaryDao.getBetween(weekAgo, today)
-			emit(entities.map { it.toDailySummary() })
+		return dailySummaryDao.getBetweenFlow(weekAgo, today).map { entities ->
+			entities.map { it.toDailySummary() }
 		}
 	}
 

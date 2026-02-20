@@ -14,16 +14,15 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class DefaultTripRepository @Inject constructor(
 	private val tripDao: TripDao,
 ) : TripRepository {
 
-	override fun observeTrips(): Flow<List<TripSummary>> = flow {
-		val trips = tripDao.getRecentTrips(100)
-		emit(trips.map { it.toSummary() })
-	}
+	override fun observeTrips(): Flow<List<TripSummary>> =
+		tripDao.getRecentTripsFlow(100).map { trips -> trips.map { it.toSummary() } }
 
 	override fun observeTripsBetween(from: EpochMs, to: EpochMs): Flow<List<TripSummary>> = flow {
 		val trips = tripDao.getBetween(from.raw, to.raw)

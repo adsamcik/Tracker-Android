@@ -11,7 +11,7 @@ value class SpeedMps(val raw: Float) : Comparable<SpeedMps> {
 
 	override fun compareTo(other: SpeedMps) = raw.compareTo(other.raw)
 	operator fun plus(other: SpeedMps) = SpeedMps(raw + other.raw)
-	operator fun minus(other: SpeedMps): Float = raw - other.raw
+	operator fun minus(other: SpeedMps) = SpeedMps((raw - other.raw).coerceAtLeast(0f))
 
 	companion object {
 		val ZERO = SpeedMps(0f)
