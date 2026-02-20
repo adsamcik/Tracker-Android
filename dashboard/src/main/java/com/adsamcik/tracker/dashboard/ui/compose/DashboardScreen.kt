@@ -86,7 +86,7 @@ internal fun DashboardScreen(
 				},
 			)
 		},
-		floatingActionButtonPosition = FabPosition.Center,
+		floatingActionButtonPosition = FabPosition.End,
 		snackbarHost = { SnackbarHost(snackbarHostState) },
 	) { paddingValues ->
 		Box(

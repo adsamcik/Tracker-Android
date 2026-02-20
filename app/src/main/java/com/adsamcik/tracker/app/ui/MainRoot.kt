@@ -283,7 +283,7 @@ fun MainRoot(startDestination: Any = Dashboard, onRouteChanged: (Any) -> Unit = 
                 )
             }
             composable<Debug> { com.adsamcik.tracker.app.debug.DebugRoute() }
-            composable<Settings> { com.adsamcik.tracker.app.settings.SettingsRoute(onNavigateBack = { navController.popBackStack() }) }
+            composable<Settings> { com.adsamcik.tracker.app.settings.SettingsRoute(onNavigateBack = { navController.popBackStack() }, onNavigateToDebug = { navController.navigate(Debug) }) }
         }
 
         // Floating Navigation Bar (overlay)

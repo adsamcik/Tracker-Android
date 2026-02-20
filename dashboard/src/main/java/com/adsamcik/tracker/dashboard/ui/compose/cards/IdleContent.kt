@@ -88,7 +88,7 @@ internal fun IdleContent(
 
 		// Bottom spacer for FAB clearance
 		item(key = "bottom_spacer") {
-			Spacer(Modifier.height(80.dp))
+			Spacer(Modifier.height(120.dp))
 		}
 	}
 }

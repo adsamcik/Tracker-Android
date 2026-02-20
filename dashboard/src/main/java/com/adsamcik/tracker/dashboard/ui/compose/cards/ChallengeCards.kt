@@ -211,12 +211,7 @@ private fun EmptyChallengeCard(
 				style = MaterialTheme.typography.bodySmall,
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
-			Icon(
-				imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-				contentDescription = stringResource(R.string.dashboard_cd_forward_arrow),
-				tint = MaterialTheme.colorScheme.onSurfaceVariant,
-				modifier = Modifier.size(16.dp),
-			)
+	
 		}
 	}
 }
