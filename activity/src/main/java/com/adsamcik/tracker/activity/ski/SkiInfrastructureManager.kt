@@ -1,0 +1,133 @@
+package com.adsamcik.tracker.activity.ski
+
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.net.Uri
+import com.adsamcik.tracker.stats.engine.ski.SkiLift
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
+
+/**
+ * Manages the optional ski infrastructure database.
+ *
+ * The database is a pre-built SQLite file containing worldwide ski lift data
+ * from OpenStreetMap (via OpenSkiMap). Users import it via SAF picker.
+ *
+ * Directory: context.filesDir/ski-data/ski_infrastructure.db
+ */
+class SkiInfrastructureManager(private val context: Context) {
+
+	private val dataDir = File(context.filesDir, "ski-data")
+	private val dbFile = File(dataDir, "ski_infrastructure.db")
+
+	/** Check if the ski infrastructure database is available */
+	fun isAvailable(): Boolean = dbFile.exists() && dbFile.length() > 0
+
+	/** Import a ski infrastructure database from a URI (SAF picker) */
+	suspend fun importDatabase(uri: Uri): String = withContext(Dispatchers.IO) {
+		dataDir.mkdirs()
+		context.contentResolver.openInputStream(uri)?.use { input ->
+			dbFile.outputStream().use { output ->
+				input.copyTo(output)
+			}
+		} ?: throw IOException("Cannot open URI: $uri")
+
+		// Validate it's a valid SQLite with expected tables
+		try {
+			openDatabase().use { db ->
+				db.rawQuery("SELECT COUNT(*) FROM ski_lift", null).use { cursor ->
+					cursor.moveToFirst()
+					val count = cursor.getInt(0)
+					if (count == 0) throw IOException("Database contains no lift data")
+				}
+			}
+		} catch (e: Exception) {
+			dbFile.delete()
+			throw IOException("Invalid ski infrastructure database: ${e.message}", e)
+		}
+
+		dbFile.absolutePath
+	}
+
+	/** Clear the imported database */
+	fun clearDatabase() {
+		dbFile.delete()
+	}
+
+	/** Get metadata value from database */
+	fun getMetadata(key: String): String? {
+		if (!isAvailable()) return null
+		return try {
+			openDatabase().use { db ->
+				db.rawQuery(
+					"SELECT value FROM metadata WHERE key = ?",
+					arrayOf(key)
+				).use { cursor ->
+					if (cursor.moveToFirst()) cursor.getString(0) else null
+				}
+			}
+		} catch (e: Exception) {
+			null
+		}
+	}
+
+	/**
+	 * Find ski lifts near a coordinate using bounding-box pre-filter + haversine post-filter.
+	 * Returns empty list if database is not available.
+	 */
+	fun findLiftsNearby(lat: Double, lon: Double, radiusDeg: Double): List<SkiLift> {
+		if (!isAvailable()) return emptyList()
+
+		val minLat = lat - radiusDeg
+		val maxLat = lat + radiusDeg
+		val minLon = lon - radiusDeg
+		val maxLon = lon + radiusDeg
+
+		return try {
+			openDatabase().use { db ->
+				val lifts = mutableListOf<SkiLift>()
+				db.rawQuery(
+					"""SELECT id, lift_type, name, 
+					   start_lat, start_lon, start_elev,
+					   end_lat, end_lon, end_elev
+					   FROM ski_lift 
+					   WHERE min_lat <= ? AND max_lat >= ?
+					   AND min_lon <= ? AND max_lon >= ?""",
+					arrayOf(
+						maxLat.toString(), minLat.toString(),
+						maxLon.toString(), minLon.toString()
+					)
+				).use { cursor ->
+					while (cursor.moveToNext()) {
+						lifts.add(
+							SkiLift(
+								id = cursor.getLong(0),
+								liftType = cursor.getString(1),
+								name = if (cursor.isNull(2)) null else cursor.getString(2),
+								startLat = cursor.getDouble(3),
+								startLon = cursor.getDouble(4),
+								startElev = if (cursor.isNull(5)) null else cursor.getDouble(5),
+								endLat = cursor.getDouble(6),
+								endLon = cursor.getDouble(7),
+								endElev = if (cursor.isNull(8)) null else cursor.getDouble(8)
+							)
+						)
+					}
+				}
+				lifts
+			}
+		} catch (e: Exception) {
+			emptyList()
+		}
+	}
+
+	private fun openDatabase(): SQLiteDatabase {
+		return SQLiteDatabase.openDatabase(
+			dbFile.absolutePath,
+			null,
+			SQLiteDatabase.OPEN_READONLY
+		)
+	}
+}

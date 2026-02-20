@@ -4,7 +4,9 @@ import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
+import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.stats.engine.ski.SkiDetectionConfig
+import com.adsamcik.tracker.stats.engine.ski.SkiLiftProximityScorer
 import com.adsamcik.tracker.stats.engine.ski.SkiLocationPoint
 import com.adsamcik.tracker.stats.engine.ski.SkiRunExtractor
 import com.adsamcik.tracker.stats.engine.ski.SkiSessionSummary
@@ -36,6 +38,12 @@ internal class SkiActivityRecognizer(
 	 * Null means no barometer data available (fall back to GPS altitude).
 	 */
 	var pressureSamples: List<PressureSample>? = null
+
+	/**
+	 * Optional ski infrastructure manager for lift proximity scoring.
+	 * Set externally by the worker. Null means no infrastructure data available.
+	 */
+	var infrastructureManager: SkiInfrastructureManager? = null
 
 	/**
 	 * After successful recognition, contains the ski session summary.
@@ -82,11 +90,7 @@ internal class SkiActivityRecognizer(
 		val segments = stateMachine.process(signals)
 		val cycles = stateMachine.countSkiCycles(segments)
 
-		if (cycles < config.minCyclesForClassification) {
-			return ActivityRecognitionResult(null, 0)
-		}
-
-		// Extract ski runs for summary
+		// Extract ski locations for summary and proximity scoring
 		val skiLocations = locations.map { loc ->
 			SkiLocationPoint(
 				timeMs = loc.time,
@@ -96,15 +100,44 @@ internal class SkiActivityRecognizer(
 				speedMps = loc.location.speed
 			)
 		}
+
+		// Check lift proximity if infrastructure data is available
+		val proximityResult = infrastructureManager?.let { manager ->
+			if (manager.isAvailable()) {
+				SkiLiftProximityScorer.score(
+					segments = segments,
+					locations = skiLocations,
+					nearbyLiftFinder = { lat, lon, radiusDeg ->
+						manager.findLiftsNearby(lat, lon, radiusDeg)
+					}
+				)
+			} else {
+				null
+			}
+		}
+
+		// Allow single-cycle detection if on a known lift
+		val effectiveMinCycles = if (proximityResult?.onKnownLift == true) {
+			1
+		} else {
+			config.minCyclesForClassification
+		}
+
+		if (cycles < effectiveMinCycles) {
+			return ActivityRecognitionResult(null, 0)
+		}
+
 		skiSessionSummary = SkiRunExtractor.extract(segments, skiLocations)
 
-		// Confidence based on cycle count: more cycles = higher confidence
-		val confidence = when {
+		// Confidence based on cycle count + proximity boost
+		val proximityBoost = proximityResult?.confidenceBoost ?: 0
+		val confidence = (when {
 			cycles >= 5 -> 95
 			cycles >= 3 -> 85
 			cycles >= 2 -> 70
+			cycles >= 1 -> 60
 			else -> 0
-		}
+		} + proximityBoost).coerceAtMost(100)
 
 		return ActivityRecognitionResult(NativeSessionActivity.SLOPE_SPORTS, confidence)
 	}

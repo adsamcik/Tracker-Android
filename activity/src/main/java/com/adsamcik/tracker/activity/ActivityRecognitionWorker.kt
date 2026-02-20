@@ -7,6 +7,7 @@ import com.adsamcik.tracker.activity.recognizer.ActivityRecognitionResult
 import com.adsamcik.tracker.activity.recognizer.OnFootActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.SkiActivityRecognizer
 import com.adsamcik.tracker.activity.recognizer.VehicleActivityRecognizer
+import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 import com.adsamcik.tracker.logger.Reporter
@@ -40,8 +41,10 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 
 		// Pre-fetch pressure data for ski recognition
 		val pressureSamples = database.pressureSampleDao().getAllBetween(session.start, session.end)
+		val infraManager = SkiInfrastructureManager(applicationContext)
 		activeRecognizers.filterIsInstance<SkiActivityRecognizer>().forEach {
 			it.pressureSamples = pressureSamples
+			it.infrastructureManager = infraManager
 		}
 
 		val deferredResults = activeRecognizers.map {

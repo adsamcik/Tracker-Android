@@ -45,4 +45,7 @@
 
     <string name="show_tips_default" translatable="false">true</string>
     <string name="show_tips_key" translatable="false">tipsEnabled</string>
+
+    <string name="settings_ski_infrastructure_enabled_key" translatable="false">ski_infrastructure_enabled</string>
+    <string name="settings_ski_infrastructure_enabled_default" translatable="false">false</string>
 </resources>
