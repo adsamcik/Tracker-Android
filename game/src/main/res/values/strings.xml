@@ -162,4 +162,26 @@
     <string name="settings_game_goals_day_steps_summary">Current target: %1$s steps</string>
     <string name="settings_game_goals_week_steps_summary">Current target: %1$s steps</string>
     <string name="settings_game_goals_week_steps_percentage_label">Max daily progress: %1$d%% of weekly goal</string>
+
+    <!-- Streak Milestones -->
+    <string name="game_streak_milestone_3">Getting warmed up 🔥</string>
+    <string name="game_streak_milestone_7">On fire!</string>
+    <string name="game_streak_milestone_14">Unstoppable 💪</string>
+    <string name="game_streak_milestone_30">Legend 👑</string>
+
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">New Unlock!</string>
+    <string name="game_unlock_personal_records">Personal Records</string>
+    <string name="game_unlock_outrun">Outrun Mini-Game</string>
+    <string name="game_unlock_streak_freeze">Streak Freeze</string>
+    <string name="game_unlock_speed_challenge">Speed Challenge</string>
+    <string name="game_unlock_territory">Territory Mini-Game</string>
+    <string name="game_unlock_lifetime_stats">Lifetime Stats</string>
+    <string name="game_unlock_consistency">Consistency Challenge</string>
+    <string name="game_unlock_zen_walk">Zen Walk Mini-Game</string>
+    <string name="game_unlock_weekly_rank">Weekly Rank</string>
+    <string name="game_unlock_message">You reached Level %1$d!</string>
+
+    <!-- Level Up -->
+    <string name="game_level_up">Level Up!</string>
 </resources>

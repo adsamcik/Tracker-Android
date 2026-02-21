@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.game.ui.compose
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,10 +19,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -29,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.challenge.data.StreakMilestone
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 /**
@@ -116,14 +123,44 @@ private fun LevelContent(
 			streakBest = streakBest,
 			freezeCount = freezeCount,
 		)
+
+		val milestone = StreakMilestone.forStreak(streakCount)
+		if (milestone != null) {
+			Text(
+				text = stringResource(milestone.messageRes),
+				style = MaterialTheme.typography.labelMedium,
+				color = MaterialTheme.colorScheme.primary,
+				modifier = Modifier.padding(top = 4.dp),
+			)
+		}
 	}
 }
 
 @Composable
 private fun LevelCircle(level: Int) {
+	val previousLevel = remember { mutableIntStateOf(level) }
+	val isLevelUp = level > previousLevel.intValue
+
+	val scale by animateFloatAsState(
+		targetValue = if (isLevelUp) LEVEL_UP_SCALE else 1f,
+		animationSpec = spring(
+			dampingRatio = Spring.DampingRatioMediumBouncy,
+			stiffness = Spring.StiffnessMedium,
+		),
+		label = "levelScale",
+	)
+
+	LaunchedEffect(level) {
+		previousLevel.intValue = level
+	}
+
 	Box(
 		modifier = Modifier
 			.size(56.dp)
+			.graphicsLayer {
+				scaleX = scale
+				scaleY = scale
+			}
 			.clip(CircleShape)
 			.background(MaterialTheme.colorScheme.primary),
 		contentAlignment = Alignment.Center,
@@ -236,6 +273,7 @@ private fun streakEmoji(streak: Int): String = when {
 	else -> "\uD83D\uDD6F\uFE0F"
 }
 
+private const val LEVEL_UP_SCALE = 1.3f
 private const val XP_ANIMATION_DURATION_MS = 600
 private const val STREAK_TIER_FLAME = 5
 private const val STREAK_TIER_BLAZE = 10
