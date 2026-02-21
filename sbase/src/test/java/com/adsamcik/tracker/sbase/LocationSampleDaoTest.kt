@@ -71,7 +71,7 @@ class LocationSampleDaoTest {
 	)
 
 	@Test
-	fun `insert and retrieve sample by time range`() = runTest {
+	fun `insert and retrieve sample by time range`()  { runTest {
 		val sample = createSample(timeMs = 5000L, latE7 = 500_000_000, lonE7 = 140_000_000)
 		dao.insert(sample)
 
@@ -80,17 +80,17 @@ class LocationSampleDaoTest {
 		results[0].timeMs shouldBe 5000L
 		results[0].latE7 shouldBe 500_000_000
 		results[0].lonE7 shouldBe 140_000_000
-	}
+	} }
 
 	@Test
-	fun `getAllBetween returns empty for no matches`() = runTest {
+	fun `getAllBetween returns empty for no matches`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 
 		dao.getAllBetween(5000L, 6000L).shouldBeEmpty()
-	}
+	} }
 
 	@Test
-	fun `getAllBetween returns samples ordered by time`() = runTest {
+	fun `getAllBetween returns samples ordered by time`()  { runTest {
 		dao.insert(createSample(timeMs = 3000L))
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
@@ -100,20 +100,20 @@ class LocationSampleDaoTest {
 		results[0].timeMs shouldBe 1000L
 		results[1].timeMs shouldBe 2000L
 		results[2].timeMs shouldBe 3000L
-	}
+	} }
 
 	@Test
-	fun `getAllBetweenFlow emits matching samples`() = runTest {
+	fun `getAllBetweenFlow emits matching samples`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
 		dao.insert(createSample(timeMs = 5000L))
 
 		val results = dao.getAllBetweenFlow(0L, 3000L).first()
 		results shouldHaveSize 2
-	}
+	} }
 
 	@Test
-	fun `getNearestWithCoordinates finds closest sample`() = runTest {
+	fun `getNearestWithCoordinates finds closest sample`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L, latE7 = 500_000_000, lonE7 = 140_000_000))
 		dao.insert(createSample(timeMs = 3000L, latE7 = 510_000_000, lonE7 = 141_000_000))
 		dao.insert(createSample(timeMs = 5000L, latE7 = 520_000_000, lonE7 = 142_000_000))
@@ -121,63 +121,63 @@ class LocationSampleDaoTest {
 		val nearest = dao.getNearestWithCoordinates(timeMs = 2800L, toleranceMs = 1000L)
 		nearest.shouldNotBeNull()
 		nearest.timeMs shouldBe 3000L
-	}
+	} }
 
 	@Test
-	fun `getNearestWithCoordinates returns null when no sample in tolerance`() = runTest {
+	fun `getNearestWithCoordinates returns null when no sample in tolerance`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 
 		dao.getNearestWithCoordinates(timeMs = 5000L, toleranceMs = 100L).shouldBeNull()
-	}
+	} }
 
 	@Test
-	fun `getNearestWithCoordinates skips samples without coordinates`() = runTest {
+	fun `getNearestWithCoordinates skips samples without coordinates`()  { runTest {
 		dao.insert(createSample(timeMs = 3000L, latE7 = null, lonE7 = null))
 		dao.insert(createSample(timeMs = 5000L, latE7 = 500_000_000, lonE7 = 140_000_000))
 
 		val nearest = dao.getNearestWithCoordinates(timeMs = 3000L, toleranceMs = 5000L)
 		nearest.shouldNotBeNull()
 		nearest.timeMs shouldBe 5000L
-	}
+	} }
 
 	@Test
-	fun `countBetween counts samples in range`() = runTest {
+	fun `countBetween counts samples in range`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
 		dao.insert(createSample(timeMs = 5000L))
 
 		dao.countBetween(0L, 3000L) shouldBe 2
-	}
+	} }
 
 	@Test
-	fun `countBetween returns zero for empty range`() = runTest {
+	fun `countBetween returns zero for empty range`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 
 		dao.countBetween(5000L, 6000L) shouldBe 0
-	}
+	} }
 
 	@Test
-	fun `batch insert inserts all samples`() = runTest {
+	fun `batch insert inserts all samples`()  { runTest {
 		val samples = (1..50).map { i ->
 			createSample(timeMs = i * 1000L)
 		}
 		dao.insert(samples)
 
 		dao.countBetween(0L, Long.MAX_VALUE) shouldBe 50
-	}
+	} }
 
 	@Test
-	fun `deleteAll removes all samples`() = runTest {
+	fun `deleteAll removes all samples`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
 
 		dao.deleteAll()
 
 		dao.countBetween(0L, Long.MAX_VALUE) shouldBe 0
-	}
+	} }
 
 	@Test
-	fun `deleteOlderThan removes old samples and returns count`() = runTest {
+	fun `deleteOlderThan removes old samples and returns count`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
 		dao.insert(createSample(timeMs = 5000L))
@@ -188,26 +188,26 @@ class LocationSampleDaoTest {
 		dao.countBetween(0L, Long.MAX_VALUE) shouldBe 1
 		val remaining = dao.getAllBetween(0L, Long.MAX_VALUE)
 		remaining[0].timeMs shouldBe 5000L
-	}
+	} }
 
 	@Test
-	fun `deleteOlderThan returns zero when nothing to delete`() = runTest {
+	fun `deleteOlderThan returns zero when nothing to delete`()  { runTest {
 		dao.insert(createSample(timeMs = 5000L))
 
 		dao.deleteOlderThan(1000L) shouldBe 0
-	}
+	} }
 
 	@Test
-	fun `countWithoutCoordinates counts null coordinate samples`() = runTest {
+	fun `countWithoutCoordinates counts null coordinate samples`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L, latE7 = 500_000_000, lonE7 = 140_000_000))
 		dao.insert(createSample(timeMs = 2000L, latE7 = null, lonE7 = null))
 		dao.insert(createSample(timeMs = 3000L, latE7 = null, lonE7 = 140_000_000))
 
 		dao.countWithoutCoordinates() shouldBe 2
-	}
+	} }
 
 	@Test
-	fun `insert preserves all sample fields`() = runTest {
+	fun `insert preserves all sample fields`()  { runTest {
 		val sample = createSample(
 			timeMs = 5000L,
 			latE7 = 500_123_456,
@@ -236,10 +236,10 @@ class LocationSampleDaoTest {
 		result.motionState shouldBe MotionState.STILL
 		result.policy shouldBe "ACTIVE_ELEVATED"
 		result.bucketId shouldBe 42L
-	}
+	} }
 
 	@Test
-	fun `insert sample with null optional fields`() = runTest {
+	fun `insert sample with null optional fields`()  { runTest {
 		val sample = createSample(
 			timeMs = 1000L,
 			latE7 = null,
@@ -262,5 +262,5 @@ class LocationSampleDaoTest {
 		result.motionState.shouldBeNull()
 		result.policy.shouldBeNull()
 		result.bucketId.shouldBeNull()
-	}
+	} }
 }

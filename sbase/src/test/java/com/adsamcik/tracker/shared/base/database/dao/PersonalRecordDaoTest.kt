@@ -47,13 +47,13 @@ class PersonalRecordDaoTest {
 	)
 
 	@Test
-	fun getByMetricReturnsNullForMissing() = runTest {
+	fun getByMetricReturnsNullForMissing()  { runTest {
 		val result = dao.getByMetric("nonexistent")
 		result.shouldBeNull()
-	}
+	} }
 
 	@Test
-	fun upsertAndGetByMetric() = runTest {
+	fun upsertAndGetByMetric()  { runTest {
 		val record = createRecord(metric = "max_speed", value = 25.5)
 		dao.upsert(record)
 
@@ -61,10 +61,10 @@ class PersonalRecordDaoTest {
 		result.shouldNotBeNull()
 		result!!.metric shouldBe "max_speed"
 		result.value shouldBe 25.5
-	}
+	} }
 
 	@Test
-	fun upsertReplacesExistingMetric() = runTest {
+	fun upsertReplacesExistingMetric()  { runTest {
 		dao.upsert(createRecord(metric = "max_speed", value = 20.0, updatedAt = 100L))
 		dao.upsert(createRecord(metric = "max_speed", value = 30.0, updatedAt = 200L))
 
@@ -72,20 +72,20 @@ class PersonalRecordDaoTest {
 		result.shouldNotBeNull()
 		result!!.value shouldBe 30.0
 		result.updatedAt shouldBe 200L
-	}
+	} }
 
 	@Test
-	fun getAllReturnsAllRecords() = runTest {
+	fun getAllReturnsAllRecords()  { runTest {
 		dao.upsert(createRecord(metric = "max_speed", updatedAt = 300L))
 		dao.upsert(createRecord(metric = "longest_trip", updatedAt = 200L))
 		dao.upsert(createRecord(metric = "most_steps", updatedAt = 100L))
 
 		val results = dao.getAll()
 		results shouldHaveSize 3
-	}
+	} }
 
 	@Test
-	fun getAllOrdersByUpdatedAtDesc() = runTest {
+	fun getAllOrdersByUpdatedAtDesc()  { runTest {
 		dao.upsert(createRecord(metric = "a", updatedAt = 100L))
 		dao.upsert(createRecord(metric = "b", updatedAt = 300L))
 		dao.upsert(createRecord(metric = "c", updatedAt = 200L))
@@ -94,10 +94,10 @@ class PersonalRecordDaoTest {
 		results[0].metric shouldBe "b"
 		results[1].metric shouldBe "c"
 		results[2].metric shouldBe "a"
-	}
+	} }
 
 	@Test
-	fun deleteAllRemovesAllRecords() = runTest {
+	fun deleteAllRemovesAllRecords()  { runTest {
 		dao.upsert(createRecord(metric = "max_speed"))
 		dao.upsert(createRecord(metric = "longest_trip"))
 
@@ -105,10 +105,10 @@ class PersonalRecordDaoTest {
 
 		val results = dao.getAll()
 		results.shouldBeEmpty()
-	}
+	} }
 
 	@Test
-	fun deleteOlderThanRemovesOldRecords() = runTest {
+	fun deleteOlderThanRemovesOldRecords()  { runTest {
 		dao.upsert(createRecord(metric = "old", updatedAt = 100L))
 		dao.upsert(createRecord(metric = "medium", updatedAt = 500L))
 		dao.upsert(createRecord(metric = "new", updatedAt = 1000L))
@@ -119,14 +119,14 @@ class PersonalRecordDaoTest {
 		dao.getByMetric("old").shouldBeNull()
 		dao.getByMetric("medium").shouldBeNull()
 		dao.getByMetric("new").shouldNotBeNull()
-	}
+	} }
 
 	@Test
-	fun getByMetricReturnsNullAfterDeleteAll() = runTest {
+	fun getByMetricReturnsNullAfterDeleteAll()  { runTest {
 		dao.upsert(createRecord(metric = "max_speed"))
 
 		dao.deleteAll()
 
 		dao.getByMetric("max_speed").shouldBeNull()
-	}
+	} }
 }

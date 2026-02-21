@@ -81,7 +81,7 @@ class JsonImportTest {
 	// -- Valid JSON Parsing --
 
 	@Test
-	fun `imports valid JSON with locations`() = runTest {
+	fun `imports valid JSON with locations`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -104,10 +104,10 @@ class JsonImportTest {
 		capturedLocations[0].activityInfo.activityType shouldBe 0
 		capturedLocations[0].activityInfo.confidence shouldBe 100
 		capturedLocations[1].location.latitude shouldBeExactly 50.1
-	}
+	} }
 
 	@Test
-	fun `imports valid JSON with sessions`() = runTest {
+	fun `imports valid JSON with sessions`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -129,45 +129,45 @@ class JsonImportTest {
 		session.distanceInM shouldBe 1234.5f
 		session.isUserInitiated shouldBe true
 		session.steps shouldBe 500
-	}
+	} }
 
 	// -- Schema Version --
 
 	@Test
-	fun `schema version 1 is accepted`() = runTest {
+	fun `schema version 1 is accepted`()  { runTest {
 		val json = """{"schema": 1, "locations": [], "sessions": []}"""
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		// No exception means success
-	}
+	} }
 
 	@Test
-	fun `unsupported schema version throws`() = runTest {
+	fun `unsupported schema version throws`()  { runTest {
 		val json = """{"schema": 99, "locations": [], "sessions": []}"""
 		shouldThrow<IllegalArgumentException> {
 			jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		}
-	}
+	} }
 
 	@Test
-	fun `schema version 0 throws`() = runTest {
+	fun `schema version 0 throws`()  { runTest {
 		val json = """{"schema": 0, "locations": [], "sessions": []}"""
 		shouldThrow<IllegalArgumentException> {
 			jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		}
-	}
+	} }
 
 	@Test
-	fun `negative schema version throws`() = runTest {
+	fun `negative schema version throws`()  { runTest {
 		val json = """{"schema": -1, "locations": [], "sessions": []}"""
 		shouldThrow<IllegalArgumentException> {
 			jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		}
-	}
+	} }
 
 	// -- Location Validation --
 
 	@Test
-	fun `location with time 0 is skipped`() = runTest {
+	fun `location with time 0 is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -181,10 +181,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedLocations shouldHaveSize 0
-	}
+	} }
 
 	@Test
-	fun `location with time before 2010 is skipped`() = runTest {
+	fun `location with time before 2010 is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -198,10 +198,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedLocations shouldHaveSize 0
-	}
+	} }
 
 	@Test
-	fun `location with time after 2100 is skipped`() = runTest {
+	fun `location with time after 2100 is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -215,10 +215,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedLocations shouldHaveSize 0
-	}
+	} }
 
 	@Test
-	fun `location with out-of-range latitude is skipped`() = runTest {
+	fun `location with out-of-range latitude is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -232,10 +232,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedLocations shouldHaveSize 0
-	}
+	} }
 
 	@Test
-	fun `location with out-of-range longitude is skipped`() = runTest {
+	fun `location with out-of-range longitude is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -249,10 +249,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedLocations shouldHaveSize 0
-	}
+	} }
 
 	@Test
-	fun `location with null alt and speed handles gracefully`() = runTest {
+	fun `location with null alt and speed handles gracefully`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -269,10 +269,10 @@ class JsonImportTest {
 		capturedLocations[0].location.altitude shouldBe null
 		capturedLocations[0].location.speed shouldBe null
 		capturedLocations[0].location.horizontalAccuracy shouldBe null
-	}
+	} }
 
 	@Test
-	fun `preserves coordinate precision`() = runTest {
+	fun `preserves coordinate precision`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -288,12 +288,12 @@ class JsonImportTest {
 		capturedLocations shouldHaveSize 1
 		capturedLocations[0].location.latitude shouldBeExactly 50.12345678
 		capturedLocations[0].location.longitude shouldBeExactly 14.98765432
-	}
+	} }
 
 	// -- Session Validation --
 
 	@Test
-	fun `session with start 0 is skipped`() = runTest {
+	fun `session with start 0 is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -307,10 +307,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedSessions shouldHaveSize 0
-	}
+	} }
 
 	@Test
-	fun `session with end before start is skipped`() = runTest {
+	fun `session with end before start is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -324,10 +324,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedSessions shouldHaveSize 0
-	}
+	} }
 
 	@Test
-	fun `session with null steps defaults to 0`() = runTest {
+	fun `session with null steps defaults to 0`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -343,12 +343,12 @@ class JsonImportTest {
 		capturedSessions shouldHaveSize 1
 		capturedSessions[0].steps shouldBe 0
 		capturedSessions[0].isUserInitiated shouldBe false
-	}
+	} }
 
 	// -- Unknown Fields --
 
 	@Test
-	fun `unknown top-level fields are skipped gracefully`() = runTest {
+	fun `unknown top-level fields are skipped gracefully`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -361,10 +361,10 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		// No exception means success
-	}
+	} }
 
 	@Test
-	fun `unknown location fields are skipped gracefully`() = runTest {
+	fun `unknown location fields are skipped gracefully`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -378,10 +378,10 @@ class JsonImportTest {
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedLocations shouldHaveSize 1
-	}
+	} }
 
 	@Test
-	fun `segments array is skipped`() = runTest {
+	fun `segments array is skipped`()  { runTest {
 		val json = """
 			{
 				"schema": 1,
@@ -393,12 +393,12 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		// No exception means segments were skipped
-	}
+	} }
 
 	// -- Batching --
 
 	@Test
-	fun `locations are batched by 200`() = runTest {
+	fun `locations are batched by 200`()  { runTest {
 		val locationEntries = (0 until 450).joinToString(",") { i ->
 			"""{"time": ${1700000000000L + i}, "lat": ${50.0 + i * 0.0001}, "lon": 14.0, "act": 0, "actConf": 0}"""
 		}
@@ -409,27 +409,27 @@ class JsonImportTest {
 		capturedLocations shouldHaveSize 450
 		// 200 + 200 + 50 = 3 batch inserts
 		locationInsertCallCount shouldBe 3
-	}
+	} }
 
 	// -- Empty JSON --
 
 	@Test
-	fun `empty locations and sessions arrays produce no inserts`() = runTest {
+	fun `empty locations and sessions arrays produce no inserts`()  { runTest {
 		val json = """{"schema": 1, "locations": [], "sessions": []}"""
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
 		capturedLocations shouldHaveSize 0
 		capturedSessions shouldHaveSize 0
-	}
+	} }
 
 	// -- Malformed JSON --
 
 	@Test
-	fun `malformed JSON throws exception`() = runTest {
+	fun `malformed JSON throws exception`()  { runTest {
 		val json = """{ not valid json }"""
 		shouldThrow<Exception> {
 			jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 		}
-	}
+	} }
 }

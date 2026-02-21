@@ -54,13 +54,13 @@ class StepIntervalDaoTest {
 	)
 
 	@Test
-	fun getAllBetweenReturnsEmptyForNoData() = runTest {
+	fun getAllBetweenReturnsEmptyForNoData()  { runTest {
 		val result = dao.getAllBetween(0L, 100_000L)
 		result.shouldBeEmpty()
-	}
+	} }
 
 	@Test
-	fun insertAndGetAllBetween() = runTest {
+	fun insertAndGetAllBetween()  { runTest {
 		val interval = createInterval(startTimeMs = 1000L, endTimeMs = 2000L, stepCount = 50)
 		dao.insert(interval)
 
@@ -68,10 +68,10 @@ class StepIntervalDaoTest {
 		results shouldHaveSize 1
 		results[0].stepCount shouldBe 50
 		results[0].startTimeMs shouldBe 1000L
-	}
+	} }
 
 	@Test
-	fun getAllBetweenFiltersOutOfRange() = runTest {
+	fun getAllBetweenFiltersOutOfRange()  { runTest {
 		dao.insert(createInterval(startTimeMs = 1000L, endTimeMs = 2000L))
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L))
 		dao.insert(createInterval(startTimeMs = 5000L, endTimeMs = 6000L))
@@ -79,10 +79,10 @@ class StepIntervalDaoTest {
 		val results = dao.getAllBetween(2500L, 4500L)
 		results shouldHaveSize 1
 		results[0].startTimeMs shouldBe 3000L
-	}
+	} }
 
 	@Test
-	fun getAllBetweenOrdersByStartTime() = runTest {
+	fun getAllBetweenOrdersByStartTime()  { runTest {
 		dao.insert(createInterval(startTimeMs = 5000L, endTimeMs = 6000L))
 		dao.insert(createInterval(startTimeMs = 1000L, endTimeMs = 2000L))
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L))
@@ -92,32 +92,32 @@ class StepIntervalDaoTest {
 		results[0].startTimeMs shouldBe 1000L
 		results[1].startTimeMs shouldBe 3000L
 		results[2].startTimeMs shouldBe 5000L
-	}
+	} }
 
 	@Test
-	fun getTotalStepsReturnsZeroForNoData() = runTest {
+	fun getTotalStepsReturnsZeroForNoData()  { runTest {
 		val total = dao.getTotalSteps(0L, 100_000L)
 		total shouldBe 0
-	}
+	} }
 
 	@Test
-	fun getTotalStepsSumsCorrectly() = runTest {
+	fun getTotalStepsSumsCorrectly()  { runTest {
 		dao.insert(createInterval(startTimeMs = 1000L, endTimeMs = 2000L, stepCount = 50))
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L, stepCount = 75))
 		dao.insert(createInterval(startTimeMs = 8000L, endTimeMs = 9000L, stepCount = 200))
 
 		val total = dao.getTotalSteps(0L, 5000L)
 		total shouldBe 125
-	}
+	} }
 
 	@Test
-	fun getLatestReturnsNullWhenEmpty() = runTest {
+	fun getLatestReturnsNullWhenEmpty()  { runTest {
 		val result = dao.getLatest()
 		result.shouldBeNull()
-	}
+	} }
 
 	@Test
-	fun getLatestReturnsMostRecent() = runTest {
+	fun getLatestReturnsMostRecent()  { runTest {
 		dao.insert(createInterval(startTimeMs = 1000L, endTimeMs = 2000L, stepCount = 10))
 		dao.insert(createInterval(startTimeMs = 5000L, endTimeMs = 6000L, stepCount = 30))
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L, stepCount = 20))
@@ -126,10 +126,10 @@ class StepIntervalDaoTest {
 		latest.shouldNotBeNull()
 		latest!!.endTimeMs shouldBe 6000L
 		latest.stepCount shouldBe 30
-	}
+	} }
 
 	@Test
-	fun deleteAllRemovesAllIntervals() = runTest {
+	fun deleteAllRemovesAllIntervals()  { runTest {
 		dao.insert(createInterval(startTimeMs = 1000L, endTimeMs = 2000L))
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L))
 
@@ -137,10 +137,10 @@ class StepIntervalDaoTest {
 
 		val results = dao.getAllBetween(0L, 100_000L)
 		results.shouldBeEmpty()
-	}
+	} }
 
 	@Test
-	fun deleteOlderThanRemovesOldRecords() = runTest {
+	fun deleteOlderThanRemovesOldRecords()  { runTest {
 		dao.insert(createInterval(startTimeMs = 1000L, endTimeMs = 2000L))
 		dao.insert(createInterval(startTimeMs = 3000L, endTimeMs = 4000L))
 		dao.insert(createInterval(startTimeMs = 5000L, endTimeMs = 6000L))
@@ -151,10 +151,10 @@ class StepIntervalDaoTest {
 		val remaining = dao.getAllBetween(0L, 100_000L)
 		remaining shouldHaveSize 1
 		remaining[0].startTimeMs shouldBe 5000L
-	}
+	} }
 
 	@Test
-	fun getAllBetweenFlowEmitsUpdates() = runTest {
+	fun getAllBetweenFlowEmitsUpdates()  { runTest {
 		val initial = dao.getAllBetweenFlow(0L, 10_000L).first()
 		initial.shouldBeEmpty()
 
@@ -162,5 +162,5 @@ class StepIntervalDaoTest {
 		val afterInsert = dao.getAllBetweenFlow(0L, 10_000L).first()
 		afterInsert shouldHaveSize 1
 		afterInsert[0].stepCount shouldBe 42
-	}
+	} }
 }

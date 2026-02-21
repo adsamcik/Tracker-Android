@@ -221,7 +221,7 @@ class SessionDataDaoTest {
 	}
 
 	@Test
-	fun `getTodaySummary returns summary for time range`() = runTest {
+	fun `getTodaySummary returns summary for time range`()  { runTest {
 		dao.insert(
 			createSession(
 				start = 1000L,
@@ -247,14 +247,14 @@ class SessionDataDaoTest {
 		summary.sessionCount shouldBe 2
 		summary.steps shouldBe 300
 		summary.distanceInM shouldBe 800f
-	}
+	} }
 
 	@Test
-	fun `getTodaySummary returns zero counts for empty range`() = runTest {
+	fun `getTodaySummary returns zero counts for empty range`()  { runTest {
 		val summary = dao.getTodaySummary(0L, 1000L)
 		summary.shouldNotBeNull()
 		summary.sessionCount shouldBe 0
-	}
+	} }
 
 	@Test
 	fun `range returns min start and max end`() {

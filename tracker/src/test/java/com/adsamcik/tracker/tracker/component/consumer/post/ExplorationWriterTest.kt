@@ -105,7 +105,7 @@ class ExplorationWriterTest {
 	// --- No Location ---
 
 	@Test
-	fun `onNewData without location does not interact with engine`() = runTest {
+	fun `onNewData without location does not interact with engine`()  { runTest {
 		writer.onEnable(context)
 
 		writer.onNewData(
@@ -118,12 +118,12 @@ class ExplorationWriterTest {
 
 		// No cells should be inserted when there's no location
 		coVerify(exactly = 0) { mockCellDao.insert(any()) }
-	}
+	} }
 
 	// --- New Cell Discovery ---
 
 	@Test
-	fun `new cell is inserted into database`() = runTest {
+	fun `new cell is inserted into database`()  { runTest {
 		writer.onEnable(context)
 
 		// Feed a location - CellDiscoveryEngine will compute the S2 cell
@@ -144,12 +144,12 @@ class ExplorationWriterTest {
 		coVerify(atLeast = 1) {
 			mockCellDao.insert(any<ExplorationCellEntity>())
 		}
-	}
+	} }
 
 	// --- Revisit Existing Cell ---
 
 	@Test
-	fun `revisited cell updates quality and last visited time`() = runTest {
+	fun `revisited cell updates quality and last visited time`()  { runTest {
 		// Pre-populate known token so the engine treats it as existing
 		val knownToken = "test_token"
 		coEvery { mockCellDao.getAllTokensAtLevel(any()) } returns listOf(knownToken)
@@ -188,12 +188,12 @@ class ExplorationWriterTest {
 				seasonBit = any(),
 			)
 		}
-	}
+	} }
 
 	// --- Daily Streak: New Streak ---
 
 	@Test
-	fun `first ever discovery creates new streak entry`() = runTest {
+	fun `first ever discovery creates new streak entry`()  { runTest {
 		coEvery { mockStreakDao.getByType("DAILY_DISCOVERY") } returns null
 
 		writer.onEnable(context)
@@ -218,12 +218,12 @@ class ExplorationWriterTest {
 				it.type == "DAILY_DISCOVERY" && it.currentCount == 1 && it.bestCount == 1
 			})
 		}
-	}
+	} }
 
 	// --- Daily Streak: Consecutive Day ---
 
 	@Test
-	fun `consecutive day increments streak`() = runTest {
+	fun `consecutive day increments streak`()  { runTest {
 		val yesterdayEpochDay = BASE_TIME / DAY_MS - 1
 		coEvery { mockStreakDao.getByType("DAILY_DISCOVERY") } returns ExplorationStreakEntity(
 			type = "DAILY_DISCOVERY",
@@ -255,12 +255,12 @@ class ExplorationWriterTest {
 				updatedAt = any(),
 			)
 		}
-	}
+	} }
 
 	// --- Daily Streak: Broken ---
 
 	@Test
-	fun `gap in days resets streak to 1`() = runTest {
+	fun `gap in days resets streak to 1`()  { runTest {
 		val twoDaysAgoEpochDay = BASE_TIME / DAY_MS - 2
 		coEvery { mockStreakDao.getByType("DAILY_DISCOVERY") } returns ExplorationStreakEntity(
 			type = "DAILY_DISCOVERY",
@@ -292,12 +292,12 @@ class ExplorationWriterTest {
 					it.bestCount == 15
 			})
 		}
-	}
+	} }
 
 	// --- Daily Streak: Same Day ---
 
 	@Test
-	fun `same day discovery does not double-increment streak`() = runTest {
+	fun `same day discovery does not double-increment streak`()  { runTest {
 		val todayEpochDay = BASE_TIME / DAY_MS
 		coEvery { mockStreakDao.getByType("DAILY_DISCOVERY") } returns ExplorationStreakEntity(
 			type = "DAILY_DISCOVERY",
@@ -323,12 +323,12 @@ class ExplorationWriterTest {
 
 		// Should not increment or upsert streak since it's the same day
 		coVerify(exactly = 0) { mockStreakDao.incrementStreak(any(), any(), any()) }
-	}
+	} }
 
 	// --- Lifecycle ---
 
 	@Test
-	fun `enable loads known tokens from database`() = runTest {
+	fun `enable loads known tokens from database`()  { runTest {
 		coEvery { mockCellDao.getAllTokensAtLevel(14) } returns listOf("token1", "token2")
 
 		writer.onEnable(context)
@@ -336,16 +336,16 @@ class ExplorationWriterTest {
 		coVerify(exactly = 1) { mockCellDao.getAllTokensAtLevel(14) }
 
 		writer.onDisable(context)
-	}
+	} }
 
 	@Test
-	fun `enable then immediate disable does not crash`() = runTest {
+	fun `enable then immediate disable does not crash`()  { runTest {
 		writer.onEnable(context)
 		writer.onDisable(context)
-	}
+	} }
 
 	@Test
-	fun `multiple enable-disable cycles reset state`() = runTest {
+	fun `multiple enable-disable cycles reset state`()  { runTest {
 		writer.onEnable(context)
 		writer.onNewData(
 			context, createSession(),
@@ -367,12 +367,12 @@ class ExplorationWriterTest {
 
 		// getAllTokensAtLevel called once per enable
 		coVerify(exactly = 2) { mockCellDao.getAllTokensAtLevel(any()) }
-	}
+	} }
 
 	// --- Poor Accuracy ---
 
 	@Test
-	fun `poor accuracy location may be ignored by engine`() = runTest {
+	fun `poor accuracy location may be ignored by engine`()  { runTest {
 		writer.onEnable(context)
 
 		// Accuracy worse than default minAccuracyM (100f)
@@ -388,7 +388,7 @@ class ExplorationWriterTest {
 
 		// Engine should skip locations with poor accuracy
 		// No new cell insertion expected (finalize may still produce one)
-	}
+	} }
 
 	// --- Required Data ---
 

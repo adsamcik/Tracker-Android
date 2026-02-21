@@ -103,7 +103,7 @@ class DatabaseLocationComponentTest {
 	// --- Basic Persistence ---
 
 	@Test
-	fun `single location is flushed on disable`() = runTest {
+	fun `single location is flushed on disable`()  { runTest {
 		component.onEnable(context)
 
 		component.onNewData(
@@ -117,10 +117,10 @@ class DatabaseLocationComponentTest {
 		coVerify(atLeast = 1) {
 			mockLocationDao.insert(match<Collection<DatabaseLocation>> { it.size == 1 })
 		}
-	}
+	} }
 
 	@Test
-	fun `null location skips persistence`() = runTest {
+	fun `null location skips persistence`()  { runTest {
 		component.onEnable(context)
 
 		component.onNewData(
@@ -132,12 +132,12 @@ class DatabaseLocationComponentTest {
 		component.onDisable(context)
 
 		coVerify(exactly = 0) { mockLocationDao.insert(any<Collection<DatabaseLocation>>()) }
-	}
+	} }
 
 	// --- Batch Flushing ---
 
 	@Test
-	fun `batch flushes at size 10`() = runTest {
+	fun `batch flushes at size 10`()  { runTest {
 		component.onEnable(context)
 
 		// Feed exactly BATCH_SIZE (10) items
@@ -158,10 +158,10 @@ class DatabaseLocationComponentTest {
 		}
 
 		component.onDisable(context)
-	}
+	} }
 
 	@Test
-	fun `items below batch threshold flush on disable`() = runTest {
+	fun `items below batch threshold flush on disable`()  { runTest {
 		component.onEnable(context)
 
 		// Feed fewer than BATCH_SIZE items
@@ -178,10 +178,10 @@ class DatabaseLocationComponentTest {
 		coVerify(atLeast = 1) {
 			mockLocationDao.insert(match<Collection<DatabaseLocation>> { it.size == 5 })
 		}
-	}
+	} }
 
 	@Test
-	fun `multiple batches accumulate correctly`() = runTest {
+	fun `multiple batches accumulate correctly`()  { runTest {
 		component.onEnable(context)
 
 		// Feed 25 items: should trigger 2 batch flushes (10+10) + 5 remaining
@@ -200,12 +200,12 @@ class DatabaseLocationComponentTest {
 		coVerify(atLeast = 3) {
 			mockLocationDao.insert(any<Collection<DatabaseLocation>>())
 		}
-	}
+	} }
 
 	// --- Error Handling ---
 
 	@Test
-	fun `dao exception triggers error collector`() = runTest {
+	fun `dao exception triggers error collector`()  { runTest {
 		val testException = RuntimeException("DB write failed")
 		coEvery { mockLocationDao.insert(any<Collection<DatabaseLocation>>()) } throws testException
 
@@ -235,12 +235,12 @@ class DatabaseLocationComponentTest {
 		// Reset mock to avoid exception on disable flush
 		coEvery { mockLocationDao.insert(any<Collection<DatabaseLocation>>()) } returns emptyList()
 		component.onDisable(context)
-	}
+	} }
 
 	// --- FlushPending ---
 
 	@Test
-	fun `flushPending drains buffered locations`() = runTest {
+	fun `flushPending drains buffered locations`()  { runTest {
 		component.onEnable(context)
 
 		repeat(3) { i ->
@@ -258,10 +258,10 @@ class DatabaseLocationComponentTest {
 		}
 
 		component.onDisable(context)
-	}
+	} }
 
 	@Test
-	fun `flushPending with empty buffer does not insert`() = runTest {
+	fun `flushPending with empty buffer does not insert`()  { runTest {
 		component.onEnable(context)
 
 		component.flushPending()
@@ -269,20 +269,20 @@ class DatabaseLocationComponentTest {
 		coVerify(exactly = 0) { mockLocationDao.insert(any<Collection<DatabaseLocation>>()) }
 
 		component.onDisable(context)
-	}
+	} }
 
 	// --- Lifecycle ---
 
 	@Test
-	fun `enable then immediate disable with no data`() = runTest {
+	fun `enable then immediate disable with no data`()  { runTest {
 		component.onEnable(context)
 		component.onDisable(context)
 
 		coVerify(exactly = 0) { mockLocationDao.insert(any<Collection<DatabaseLocation>>()) }
-	}
+	} }
 
 	@Test
-	fun `multiple enable-disable cycles reset buffer`() = runTest {
+	fun `multiple enable-disable cycles reset buffer`()  { runTest {
 		// First cycle
 		component.onEnable(context)
 		repeat(3) { i ->
@@ -307,7 +307,7 @@ class DatabaseLocationComponentTest {
 		coVerify {
 			mockLocationDao.insert(match<Collection<DatabaseLocation>> { it.size == 1 })
 		}
-	}
+	} }
 
 	// --- Required Data ---
 

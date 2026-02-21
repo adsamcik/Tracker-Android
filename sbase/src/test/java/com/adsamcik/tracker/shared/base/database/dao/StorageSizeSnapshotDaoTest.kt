@@ -57,13 +57,13 @@ class StorageSizeSnapshotDaoTest {
 	)
 
 	@Test
-	fun getByDayReturnsNullForMissingDay() = runTest {
+	fun getByDayReturnsNullForMissingDay()  { runTest {
 		val result = dao.getByDay(19000L)
 		result.shouldBeNull()
-	}
+	} }
 
 	@Test
-	fun upsertAndGetByDay() = runTest {
+	fun upsertAndGetByDay()  { runTest {
 		val snapshot = createSnapshot(epochDay = 19000L, databaseSizeBytes = 5_000_000L)
 		dao.upsert(snapshot)
 
@@ -71,20 +71,20 @@ class StorageSizeSnapshotDaoTest {
 		result.shouldNotBeNull()
 		result!!.epochDay shouldBe 19000L
 		result.databaseSizeBytes shouldBe 5_000_000L
-	}
+	} }
 
 	@Test
-	fun upsertReplacesExistingDay() = runTest {
+	fun upsertReplacesExistingDay()  { runTest {
 		dao.upsert(createSnapshot(epochDay = 19000L, databaseSizeBytes = 1_000L))
 		dao.upsert(createSnapshot(epochDay = 19000L, databaseSizeBytes = 2_000L))
 
 		val result = dao.getByDay(19000L)
 		result.shouldNotBeNull()
 		result!!.databaseSizeBytes shouldBe 2_000L
-	}
+	} }
 
 	@Test
-	fun getRecentReturnsNewestFirst() = runTest {
+	fun getRecentReturnsNewestFirst()  { runTest {
 		dao.upsert(createSnapshot(epochDay = 19000L))
 		dao.upsert(createSnapshot(epochDay = 19002L))
 		dao.upsert(createSnapshot(epochDay = 19001L))
@@ -94,10 +94,10 @@ class StorageSizeSnapshotDaoTest {
 		results[0].epochDay shouldBe 19002L
 		results[1].epochDay shouldBe 19001L
 		results[2].epochDay shouldBe 19000L
-	}
+	} }
 
 	@Test
-	fun getRecentRespectsLimit() = runTest {
+	fun getRecentRespectsLimit()  { runTest {
 		dao.upsert(createSnapshot(epochDay = 19000L))
 		dao.upsert(createSnapshot(epochDay = 19001L))
 		dao.upsert(createSnapshot(epochDay = 19002L))
@@ -106,16 +106,16 @@ class StorageSizeSnapshotDaoTest {
 		results shouldHaveSize 2
 		results[0].epochDay shouldBe 19002L
 		results[1].epochDay shouldBe 19001L
-	}
+	} }
 
 	@Test
-	fun getRecentReturnsEmptyWhenNoData() = runTest {
+	fun getRecentReturnsEmptyWhenNoData()  { runTest {
 		val results = dao.getRecent(10)
 		results.shouldBeEmpty()
-	}
+	} }
 
 	@Test
-	fun deleteOlderThanRemovesOldSnapshots() = runTest {
+	fun deleteOlderThanRemovesOldSnapshots()  { runTest {
 		dao.upsert(createSnapshot(epochDay = 19000L))
 		dao.upsert(createSnapshot(epochDay = 19001L))
 		dao.upsert(createSnapshot(epochDay = 19005L))
@@ -125,10 +125,10 @@ class StorageSizeSnapshotDaoTest {
 		dao.getByDay(19000L).shouldBeNull()
 		dao.getByDay(19001L).shouldBeNull()
 		dao.getByDay(19005L).shouldNotBeNull()
-	}
+	} }
 
 	@Test
-	fun deleteAllRemovesAllSnapshots() = runTest {
+	fun deleteAllRemovesAllSnapshots()  { runTest {
 		dao.upsert(createSnapshot(epochDay = 19000L))
 		dao.upsert(createSnapshot(epochDay = 19001L))
 
@@ -136,5 +136,5 @@ class StorageSizeSnapshotDaoTest {
 
 		val results = dao.getRecent(10)
 		results.shouldBeEmpty()
-	}
+	} }
 }

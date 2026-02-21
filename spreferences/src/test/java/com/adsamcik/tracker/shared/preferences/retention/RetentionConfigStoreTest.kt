@@ -58,10 +58,10 @@ class RetentionConfigStoreTest {
 	}
 
 	@Test
-	fun `store emits default config on first read`() = runTest {
+	fun `store emits default config on first read`()  { runTest {
 		val config = store.config.first()
 		config shouldBe RetentionConfigState()
-	}
+	} }
 
 	// endregion
 
@@ -122,7 +122,7 @@ class RetentionConfigStoreTest {
 	// region Store update round-trip
 
 	@Test
-	fun `update persists and reads back custom values`() = runTest {
+	fun `update persists and reads back custom values`()  { runTest {
 		store.update {
 			copy(
 				rawDataRetentionDays = 30,
@@ -145,58 +145,58 @@ class RetentionConfigStoreTest {
 		config.autoPurgeEnabled shouldBe true
 		config.exportBeforePurge shouldBe true
 		config.legacySessionRetentionDays shouldBe 120
-	}
+	} }
 
 	@Test
-	fun `update toggles boolean fields`() = runTest {
+	fun `update toggles boolean fields`()  { runTest {
 		store.update { copy(autoPurgeEnabled = true) }
 		store.config.first().autoPurgeEnabled shouldBe true
 
 		store.update { copy(autoPurgeEnabled = false) }
 		store.config.first().autoPurgeEnabled shouldBe false
-	}
+	} }
 
 	@Test
-	fun `sequential updates accumulate independently`() = runTest {
+	fun `sequential updates accumulate independently`()  { runTest {
 		store.update { copy(rawDataRetentionDays = 7) }
 		store.update { copy(tripRetentionDays = 14) }
 
 		val config = store.config.first()
 		config.rawDataRetentionDays shouldBe 7
 		config.tripRetentionDays shouldBe 14
-	}
+	} }
 
 	// endregion
 
 	// region Edge cases — withDefault behavior
 
 	@Test
-	fun `zero raw data days reads back as default after domain-proto round-trip`() = runTest {
+	fun `zero raw data days reads back as default after domain-proto round-trip`()  { runTest {
 		// When 0 is stored in proto, toDomain() applies withDefault → DEFAULT_RAW_DAYS
 		store.update { copy(rawDataRetentionDays = 0) }
 		store.config.first().rawDataRetentionDays shouldBe RetentionConfigState.DEFAULT_RAW_DAYS
-	}
+	} }
 
 	@Test
-	fun `negative raw data days reads back as default`() = runTest {
+	fun `negative raw data days reads back as default`()  { runTest {
 		store.update { copy(rawDataRetentionDays = -1) }
 		store.config.first().rawDataRetentionDays shouldBe RetentionConfigState.DEFAULT_RAW_DAYS
-	}
+	} }
 
 	@Test
-	fun `zero daily summary days reads back as default`() = runTest {
+	fun `zero daily summary days reads back as default`()  { runTest {
 		store.update { copy(dailySummaryRetentionDays = 0) }
 		store.config.first().dailySummaryRetentionDays shouldBe RetentionConfigState.DEFAULT_DAILY_SUMMARY_DAYS
-	}
+	} }
 
 	@Test
-	fun `negative exploration days coerced to zero`() = runTest {
+	fun `negative exploration days coerced to zero`()  { runTest {
 		store.update { copy(explorationRetentionDays = -10) }
 		store.config.first().explorationRetentionDays shouldBe 0
-	}
+	} }
 
 	@Test
-	fun `large retention values preserved`() = runTest {
+	fun `large retention values preserved`()  { runTest {
 		store.update {
 			copy(
 				rawDataRetentionDays = Int.MAX_VALUE,
@@ -206,25 +206,25 @@ class RetentionConfigStoreTest {
 		val config = store.config.first()
 		config.rawDataRetentionDays shouldBe Int.MAX_VALUE
 		config.dailySummaryRetentionDays shouldBe Int.MAX_VALUE
-	}
+	} }
 
 	@Test
-	fun `one-day retention preserved`() = runTest {
+	fun `one-day retention preserved`()  { runTest {
 		store.update { copy(rawDataRetentionDays = 1) }
 		store.config.first().rawDataRetentionDays shouldBe 1
-	}
+	} }
 
 	@Test
-	fun `zero wifi cell days reads back as default`() = runTest {
+	fun `zero wifi cell days reads back as default`()  { runTest {
 		store.update { copy(wifiCellRetentionDays = 0) }
 		store.config.first().wifiCellRetentionDays shouldBe RetentionConfigState.DEFAULT_RAW_DAYS
-	}
+	} }
 
 	@Test
-	fun `zero legacy session days reads back as default`() = runTest {
+	fun `zero legacy session days reads back as default`()  { runTest {
 		store.update { copy(legacySessionRetentionDays = 0) }
 		store.config.first().legacySessionRetentionDays shouldBe RetentionConfigState.DEFAULT_RAW_DAYS
-	}
+	} }
 
 	// endregion
 

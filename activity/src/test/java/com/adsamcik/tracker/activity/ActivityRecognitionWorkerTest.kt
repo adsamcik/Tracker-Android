@@ -40,7 +40,8 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 @DisplayName("ActivityRecognitionWorker")
 class ActivityRecognitionWorkerTest {
 
-	private val context: Context = mockk(relaxed = true)
+	private val context: Context
+		get() = androidx.test.core.app.ApplicationProvider.getApplicationContext()
 	private val database: AppDatabase = mockk(relaxed = true)
 	private val sessionDao: SessionDataDao = mockk(relaxed = true)
 	private val locationDao: LocationDataDao = mockk(relaxed = true)
@@ -122,27 +123,27 @@ class ActivityRecognitionWorkerTest {
 	inner class DoWork {
 
 		@Test
-		fun `returns failure when session id is not set`() = runTest {
+		fun `returns failure when session id is not set`()  { runTest {
 			val worker = buildWorkerWithNoSessionId()
 
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.failure()
 			verify { Reporter.report(any<Throwable>()) }
-		}
+		} }
 
 		@Test
-		fun `returns failure when session not found in database`() = runTest {
+		fun `returns failure when session not found in database`()  { runTest {
 			every { sessionDao.get(42L) } returns null
 			val worker = buildWorker(42L)
 
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.failure()
-		}
+		} }
 
 		@Test
-		fun `returns success when no recognizer produces a result`() = runTest {
+		fun `returns success when no recognizer produces a result`()  { runTest {
 			val session = createSession()
 			every { sessionDao.get(1L) } returns session
 			// Empty locations: recognizers will produce null results
@@ -152,10 +153,10 @@ class ActivityRecognitionWorkerTest {
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.success()
-		}
+		} }
 
 		@Test
-		fun `returns success and updates session for walking activity`() = runTest {
+		fun `returns success and updates session for walking activity`()  { runTest {
 			val session = createSession(id = 5L)
 			every { sessionDao.get(5L) } returns session
 			val locations = createLocations(DetectedActivity.WALKING, count = 20)
@@ -169,10 +170,10 @@ class ActivityRecognitionWorkerTest {
 			val sessionSlot = slot<MutableTrackerSession>()
 			verify { sessionDao.update(capture(sessionSlot)) }
 			sessionSlot.captured.sessionActivityId shouldBe NativeSessionActivity.WALKING.id
-		}
+		} }
 
 		@Test
-		fun `returns success and updates session for vehicle activity`() = runTest {
+		fun `returns success and updates session for vehicle activity`()  { runTest {
 			val session = createSession(id = 10L)
 			every { sessionDao.get(10L) } returns session
 			val locations = createLocations(DetectedActivity.IN_VEHICLE, count = 20)
@@ -186,10 +187,10 @@ class ActivityRecognitionWorkerTest {
 			val sessionSlot = slot<MutableTrackerSession>()
 			verify { sessionDao.update(capture(sessionSlot)) }
 			sessionSlot.captured.sessionActivityId shouldBe NativeSessionActivity.LAND_VEHICLE.id
-		}
+		} }
 
 		@Test
-		fun `returns failure for negative session id`() = runTest {
+		fun `returns failure for negative session id`()  { runTest {
 			val inputData = Data.Builder()
 				.putLong(ActivityRecognitionWorker.ARG_SESSION_ID, -5L)
 				.build()
@@ -201,7 +202,7 @@ class ActivityRecognitionWorkerTest {
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.failure()
-		}
+		} }
 	}
 
 	@Nested
