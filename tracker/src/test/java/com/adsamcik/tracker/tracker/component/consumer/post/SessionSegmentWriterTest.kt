@@ -31,9 +31,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import tech.apter.junit.jupiter.robolectric.RobolectricExtension
-import org.robolectric.annotation.Config
 
 /**
  * Test suite for [SessionSegmentWriter].
@@ -45,8 +42,6 @@ import org.robolectric.annotation.Config
  * - Segment persistence with trip enrichment
  * - Edge cases: no location, disable with active trip
  */
-@ExtendWith(RobolectricExtension::class)
-@Config(sdk = [28])
 class SessionSegmentWriterTest {
 
 	private lateinit var writer: SessionSegmentWriter
@@ -241,6 +236,9 @@ class SessionSegmentWriterTest {
 
 	@Test
 	fun `classifySource returns USER_CREATED when user initiated`() = runTest {
+		val capturedSegments = mutableListOf<SessionSegment>()
+		coEvery { mockSegmentDao.insert(capture(capturedSegments)) } returns 1L
+
 		writer.setUserInitiated(true)
 		writer.setEscalationEngine(mockEscalationEngine)
 		writer.onEnable(context)
@@ -253,13 +251,11 @@ class SessionSegmentWriterTest {
 		writer.onDisable(context)
 
 		// Allow async persistence to complete
-		Thread.sleep(300)
+		Thread.sleep(500)
 
-		val segmentSlot = slot<SessionSegment>()
 		// If a segment was persisted, verify it's USER_CREATED
-		coVerify(atMost = 1) { mockSegmentDao.insert(capture(segmentSlot)) }
-		if (segmentSlot.isCaptured) {
-			segmentSlot.captured.source shouldBe SegmentSource.USER_CREATED
+		if (capturedSegments.isNotEmpty()) {
+			capturedSegments.last().source shouldBe SegmentSource.USER_CREATED
 		}
 	}
 

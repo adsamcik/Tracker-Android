@@ -2,17 +2,20 @@ package com.adsamcik.tracker.activity.receiver
 
 import android.content.Context
 import android.content.Intent
-import androidx.work.OneTimeWorkRequest
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
 import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
+import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.unmockkAll
-import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -21,22 +24,21 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
-
+@DisplayName("ActivitySessionReceiver")
 @ExtendWith(RobolectricExtension::class)
 @Config(sdk = [28])
-@DisplayName("ActivitySessionReceiver")
 class ActivitySessionReceiverTest {
 
 	private val receiver = ActivitySessionReceiver()
-	private val context: Context = mockk(relaxed = true) {
-		every { applicationContext } returns this@mockk
-	}
-	private val workManager: WorkManager = mockk(relaxed = true)
+	private val context: Context
+		get() = ApplicationProvider.getApplicationContext()
 
 	@BeforeEach
 	fun setUp() {
-		mockkStatic(WorkManager::class)
-		every { WorkManager.getInstance(any()) } returns workManager
+		val config = Configuration.Builder()
+			.setMinimumLoggingLevel(android.util.Log.DEBUG)
+			.build()
+		WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
 	}
 
 	@AfterEach
@@ -58,14 +60,20 @@ class ActivitySessionReceiverTest {
 		fun `enqueues recognition work when session ended with valid id`() {
 			receiver.onReceive(context, sessionEndedIntent(42L))
 
-			verify(exactly = 1) { workManager.enqueue(any<OneTimeWorkRequest>()) }
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos shouldHaveSize 1
 		}
 
 		@Test
 		fun `enqueues work for session id zero`() {
 			receiver.onReceive(context, sessionEndedIntent(0L))
 
-			verify(exactly = 1) { workManager.enqueue(any<OneTimeWorkRequest>()) }
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos shouldHaveSize 1
 		}
 
 		@Test
@@ -73,14 +81,21 @@ class ActivitySessionReceiverTest {
 			receiver.onReceive(context, sessionEndedIntent(1L))
 			receiver.onReceive(context, sessionEndedIntent(2L))
 
-			verify(exactly = 2) { workManager.enqueue(any<OneTimeWorkRequest>()) }
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos shouldHaveSize 2
 		}
 
 		@Test
 		fun `obtains WorkManager with provided context`() {
 			receiver.onReceive(context, sessionEndedIntent(1L))
 
-			verify { WorkManager.getInstance(context) }
+			// Verify WorkManager was successfully obtained (no exception thrown)
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos shouldHaveSize 1
 		}
 
 		@Test
@@ -94,7 +109,10 @@ class ActivitySessionReceiverTest {
 
 			receiver.onReceive(context, intent)
 
-			verify(exactly = 0) { workManager.enqueue(any<OneTimeWorkRequest>()) }
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos.shouldBeEmpty()
 		}
 
 		@Test
@@ -105,7 +123,10 @@ class ActivitySessionReceiverTest {
 
 			receiver.onReceive(context, intent)
 
-			verify(exactly = 0) { workManager.enqueue(any<OneTimeWorkRequest>()) }
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos.shouldBeEmpty()
 		}
 
 		@Test
@@ -116,7 +137,10 @@ class ActivitySessionReceiverTest {
 
 			receiver.onReceive(context, intent)
 
-			verify(exactly = 0) { workManager.enqueue(any<OneTimeWorkRequest>()) }
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos.shouldBeEmpty()
 		}
 
 		@Test
@@ -127,7 +151,10 @@ class ActivitySessionReceiverTest {
 
 			receiver.onReceive(context, intent)
 
-			verify(exactly = 0) { workManager.enqueue(any<OneTimeWorkRequest>()) }
+			val workInfos = WorkManager.getInstance(context)
+				.getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+				.get()
+			workInfos.shouldBeEmpty()
 		}
 	}
 }

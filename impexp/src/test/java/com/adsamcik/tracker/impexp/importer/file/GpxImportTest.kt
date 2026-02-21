@@ -500,17 +500,15 @@ class GpxImportTest {
 				</trkpt>"""
 			}
 
-			val gpx = """
-				<?xml version="1.0" encoding="UTF-8"?>
-				<gpx version="1.1" creator="test"
-				     xmlns="http://www.topografix.com/GPX/1/1">
-				  <trk>
-				    <trkseg>
-				      $points
-				    </trkseg>
-				  </trk>
-				</gpx>
-			""".trimIndent()
+			val gpx = """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test"
+     xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <trkseg>
+      $points
+    </trkseg>
+  </trk>
+</gpx>"""
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 

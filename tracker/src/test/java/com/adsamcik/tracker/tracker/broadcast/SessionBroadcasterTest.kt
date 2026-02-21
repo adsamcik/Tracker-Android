@@ -1,10 +1,13 @@
 package com.adsamcik.tracker.tracker.broadcast
 
+import android.app.Application
 import android.content.Context
 import android.content.Intent
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequest
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
@@ -12,10 +15,9 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.spyk
 import io.mockk.unmockkObject
-import io.mockk.unmockkStatic
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -34,18 +36,13 @@ class SessionBroadcasterTest {
 
 	@BeforeEach
 	fun setup() {
-		context = mockk(relaxed = true)
-		every { context.packageName } returns "com.adsamcik.tracker.test"
-		every { context.applicationContext } returns context
-		every { context.sendBroadcast(any(), any<String>()) } just Runs
+		context = spyk(ApplicationProvider.getApplicationContext<Application>())
 
-		workManager = mockk(relaxed = true)
-
-		mockkStatic(WorkManager::class)
-		every { WorkManager.getInstance(any()) } returns workManager
-
-		mockkStatic("com.adsamcik.tracker.logger.LoggerKt")
-		every { com.adsamcik.tracker.logger.Logger.log(any()) } returns Unit
+		val config = Configuration.Builder()
+			.setMinimumLoggingLevel(android.util.Log.DEBUG)
+			.build()
+		WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
+		workManager = WorkManager.getInstance(context)
 
 		mockkObject(com.adsamcik.tracker.logger.Logger)
 		every { com.adsamcik.tracker.logger.Logger.log(any()) } just Runs
@@ -53,8 +50,6 @@ class SessionBroadcasterTest {
 
 	@AfterEach
 	fun teardown() {
-		unmockkStatic(WorkManager::class)
-		unmockkStatic("com.adsamcik.tracker.logger.LoggerKt")
 		unmockkObject(com.adsamcik.tracker.logger.Logger)
 	}
 
@@ -111,11 +106,17 @@ class SessionBroadcasterTest {
 
 		@Test
 		fun `cancels pending session finalization`() {
-			val session = createSession(id = 7L)
+			val session = createSession(id = 7L, isUserInitiated = false)
+
+			SessionBroadcaster.broadcastSessionEnd(context, session)
+
+			val before = workManager.getWorkInfosForUniqueWork("7finalSession").get()
+			before[0].state shouldBe WorkInfo.State.ENQUEUED
 
 			SessionBroadcaster.broadcastSessionStart(context, session, isNew = true)
 
-			verify { workManager.cancelUniqueWork("7finalSession") }
+			val after = workManager.getWorkInfosForUniqueWork("7finalSession").get()
+			after[0].state shouldBe WorkInfo.State.CANCELLED
 		}
 
 		@Test
@@ -124,8 +125,9 @@ class SessionBroadcasterTest {
 
 			SessionBroadcaster.broadcastSessionStart(context, session, isNew = true)
 
+			val expectedPermission = "${context.packageName}.permission.TRACKER"
 			verify {
-				context.sendBroadcast(any(), eq("com.adsamcik.tracker.test.permission.TRACKER"))
+				context.sendBroadcast(any(), eq(expectedPermission))
 			}
 		}
 	}
@@ -136,13 +138,13 @@ class SessionBroadcasterTest {
 		@Test
 		fun `sends broadcast with correct action`() {
 			val session = createSession(id = 1L, isUserInitiated = true)
-			val intentSlot = slot<Intent>()
+			val intents = mutableListOf<Intent>()
 
-			every { context.sendBroadcast(capture(intentSlot), any<String>()) } just Runs
+			every { context.sendBroadcast(capture(intents), any<String>()) } just Runs
 
 			SessionBroadcaster.broadcastSessionEnd(context, session)
 
-			intentSlot.captured.action shouldBe TrackerSession.ACTION_SESSION_ENDED
+			intents[0].action shouldBe TrackerSession.ACTION_SESSION_ENDED
 		}
 
 		@Test
@@ -167,13 +169,9 @@ class SessionBroadcasterTest {
 
 			SessionBroadcaster.broadcastSessionEnd(context, session)
 
-			verify {
-				workManager.enqueueUniqueWork(
-					eq("3finalSession"),
-					eq(ExistingWorkPolicy.REPLACE),
-					any<OneTimeWorkRequest>()
-				)
-			}
+			val workInfos = workManager.getWorkInfosForUniqueWork("3finalSession").get()
+			workInfos.size shouldBe 1
+			workInfos[0].state shouldBe WorkInfo.State.ENQUEUED
 		}
 
 		@Test
@@ -262,8 +260,10 @@ class SessionBroadcasterTest {
 			SessionBroadcaster.broadcastSessionEnd(context, session1)
 			SessionBroadcaster.broadcastSessionEnd(context, session2)
 
-			verify { workManager.enqueueUniqueWork(eq("1finalSession"), any(), any<OneTimeWorkRequest>()) }
-			verify { workManager.enqueueUniqueWork(eq("2finalSession"), any(), any<OneTimeWorkRequest>()) }
+			val workInfos1 = workManager.getWorkInfosForUniqueWork("1finalSession").get()
+			workInfos1.size shouldBe 1
+			val workInfos2 = workManager.getWorkInfosForUniqueWork("2finalSession").get()
+			workInfos2.size shouldBe 1
 		}
 
 		@Test
@@ -273,10 +273,14 @@ class SessionBroadcasterTest {
 			// End triggers scheduled finalization
 			SessionBroadcaster.broadcastSessionEnd(context, session)
 
+			val before = workManager.getWorkInfosForUniqueWork("5finalSession").get()
+			before[0].state shouldBe WorkInfo.State.ENQUEUED
+
 			// Start (resume) cancels it
 			SessionBroadcaster.broadcastSessionStart(context, session, isNew = false)
 
-			verify { workManager.cancelUniqueWork("5finalSession") }
+			val after = workManager.getWorkInfosForUniqueWork("5finalSession").get()
+			after[0].state shouldBe WorkInfo.State.CANCELLED
 		}
 	}
 }

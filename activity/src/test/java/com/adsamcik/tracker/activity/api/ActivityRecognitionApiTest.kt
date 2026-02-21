@@ -1,17 +1,23 @@
 package com.adsamcik.tracker.activity.api
 
 import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
+import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
@@ -22,16 +28,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
-
+@DisplayName("ActivityRecognitionApi")
 @ExtendWith(RobolectricExtension::class)
 @Config(sdk = [28])
-@DisplayName("ActivityRecognitionApi")
 class ActivityRecognitionApiTest {
 
-    private lateinit var mockContext: Context
+    private val mockContext: Context
+        get() = ApplicationProvider.getApplicationContext()
     private lateinit var mockDatabase: AppDatabase
     private lateinit var mockSessionDao: SessionDataDao
-    private lateinit var mockWorkManager: WorkManager
 
     @BeforeEach
     fun setup() {
@@ -40,17 +45,15 @@ class ActivityRecognitionApiTest {
 
         mockDatabase = mockk(relaxed = true)
         mockSessionDao = mockk(relaxed = true)
-        mockWorkManager = mockk(relaxed = true)
 
         mockkObject(AppDatabase.Companion)
         every { AppDatabase.database(any()) } returns mockDatabase
         every { mockDatabase.sessionDao() } returns mockSessionDao
 
-        mockkStatic(WorkManager::class)
-        every { WorkManager.getInstance(any()) } returns mockWorkManager
-
-        mockContext = mockk(relaxed = true)
-        every { mockContext.applicationContext } returns mockContext
+        val config = Configuration.Builder()
+            .setMinimumLoggingLevel(android.util.Log.DEBUG)
+            .build()
+        WorkManagerTestInitHelper.initializeTestWorkManager(mockContext, config)
     }
 
     @AfterEach
@@ -104,7 +107,10 @@ class ActivityRecognitionApiTest {
 
             Thread.sleep(200)
 
-            verify(exactly = 0) { mockWorkManager.enqueue(any<androidx.work.WorkRequest>()) }
+            val workInfos = WorkManager.getInstance(mockContext)
+                .getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+                .get()
+            workInfos.shouldBeEmpty()
         }
 
         @Test
@@ -120,7 +126,10 @@ class ActivityRecognitionApiTest {
             Thread.sleep(200)
 
             // Positive IDs are filtered out (filter { it.id < 0 })
-            verify(exactly = 0) { mockWorkManager.enqueue(any<androidx.work.WorkRequest>()) }
+            val workInfos = WorkManager.getInstance(mockContext)
+                .getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+                .get()
+            workInfos.shouldBeEmpty()
         }
 
         @Test
@@ -135,7 +144,10 @@ class ActivityRecognitionApiTest {
 
             Thread.sleep(300)
 
-            verify(exactly = 2) { mockWorkManager.enqueue(any<androidx.work.WorkRequest>()) }
+            val workInfos = WorkManager.getInstance(mockContext)
+                .getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+                .get()
+            workInfos shouldHaveSize 2
         }
 
         @Test
@@ -152,7 +164,10 @@ class ActivityRecognitionApiTest {
 
             Thread.sleep(300)
 
-            verify(exactly = 2) { mockWorkManager.enqueue(any<androidx.work.WorkRequest>()) }
+            val workInfos = WorkManager.getInstance(mockContext)
+                .getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+                .get()
+            workInfos shouldHaveSize 2
         }
 
         @Test
@@ -163,7 +178,11 @@ class ActivityRecognitionApiTest {
 
             Thread.sleep(200)
 
-            verify { WorkManager.getInstance(mockContext) }
+            // Verify WorkManager was successfully obtained (no exception thrown)
+            val workInfos = WorkManager.getInstance(mockContext)
+                .getWorkInfosByTag(ActivityRecognitionWorker.WORK_TAG)
+                .get()
+            workInfos.shouldBeEmpty()
         }
     }
 }

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.activity.receiver
 
 import android.content.Context
 import android.content.Intent
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
@@ -26,14 +27,14 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
-
+@DisplayName("ActivityReceiver")
 @ExtendWith(RobolectricExtension::class)
 @Config(sdk = [28])
-@DisplayName("ActivityReceiver")
 class ActivityReceiverTest {
 
 	private val receiver = ActivityReceiver()
-	private val context: Context = mockk(relaxed = true)
+	private val context: Context
+		get() = ApplicationProvider.getApplicationContext()
 
 	@BeforeEach
 	fun setUp() {
@@ -41,7 +42,7 @@ class ActivityReceiverTest {
 		mockkStatic(ActivityTransitionResult::class)
 		mockkObject(ActivityRequestManager)
 		mockkObject(Logger)
-		mockkStatic(Time::class)
+		mockkObject(Time)
 
 		every { Logger.logWithPreference(any(), any(), any()) } just runs
 		every { Time.elapsedRealtimeMillis } returns 5000L

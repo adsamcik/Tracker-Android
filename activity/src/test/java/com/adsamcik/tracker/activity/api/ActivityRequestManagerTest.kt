@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.activity.api
 
 import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
 import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
@@ -27,7 +28,6 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
-
 /**
  * Unit tests for [ActivityRequestManager] covering request lifecycle,
  * callback dispatching, interval calculation, and cleanup.
@@ -39,7 +39,8 @@ import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 @Config(sdk = [28])
 class ActivityRequestManagerTest {
 
-    private lateinit var context: Context
+    private val context: Context
+        get() = ApplicationProvider.getApplicationContext()
 
     @BeforeEach
     fun setup() {
@@ -58,8 +59,6 @@ class ActivityRequestManagerTest {
 
         // hasActivityPermission is inline and checks Build.VERSION.SDK_INT < Q.
         // In unit tests SDK_INT defaults to 0, so the permission check passes automatically.
-
-        context = mockk(relaxed = true)
     }
 
     @AfterEach
