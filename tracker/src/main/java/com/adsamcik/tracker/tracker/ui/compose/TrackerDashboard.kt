@@ -119,8 +119,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -2432,12 +2434,13 @@ private fun RecentTripsCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val db = remember { AppDatabase.database(context) }
     var trips by remember { mutableStateOf<List<Trip>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         try {
-            trips = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                AppDatabase.database(context).tripDao().getRecentTrips(3)
+            trips = withContext(Dispatchers.IO) {
+                db.tripDao().getRecentTrips(3)
             }
         } catch (e: Exception) {
             Log.e("RecentTripsCard", "Failed to fetch recent trips", e)

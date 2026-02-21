@@ -10,6 +10,7 @@ import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.ripple
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -125,7 +126,7 @@ private fun FloatingNavItem(
             .requiredSize(48.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null, // Custom ripple or none for cleaner look
+                indication = ripple(bounded = false, radius = 28.dp),
                 onClick = onClick
             ),
         horizontalAlignment = Alignment.CenterHorizontally,

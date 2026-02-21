@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.compose.material3.SnackbarHostState
 import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerEngine
@@ -76,12 +77,14 @@ fun MapRoute(
     }
 
     var extraBottomPadding by remember { mutableStateOf(0) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Box(Modifier.fillMaxSize()) {
         val finalBottomPadding = maxOf(bottomPaddingPx, extraBottomPadding)
 
         MapScreen(
             store = store,
+            snackbarHostState = snackbarHostState,
             overlayMode = false,
             bottomPaddingPx = finalBottomPadding,
             isLocationPermissionGranted = hasPermission
@@ -90,6 +93,7 @@ fun MapRoute(
         MapSheet(
             registry = registry,
             store = store,
+            snackbarHostState = snackbarHostState,
             bottomInsetPx = bottomPaddingPx,
             onBottomPaddingChanged = { padding ->
                 extraBottomPadding = padding

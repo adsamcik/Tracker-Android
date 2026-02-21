@@ -34,7 +34,7 @@ class ExplorationViewModel @Inject constructor(
 		val totalCells: Int = 0,
 		val dailyStreak: Int = 0,
 		val bestStreak: Int = 0,
-		val seasonsCovered: Int = 0,
+		val seasonsBitmask: Int = 0,
 		val recentDiscoveries: List<RecentCell> = emptyList(),
 	)
 
@@ -66,7 +66,7 @@ class ExplorationViewModel @Inject constructor(
 			totalCells = totalCells,
 			dailyStreak = streakData.currentStreak,
 			bestStreak = streakData.bestStreak,
-			seasonsCovered = streakData.seasonsCovered,
+			seasonsBitmask = streakData.seasonsBitmask,
 			recentDiscoveries = streakData.recentCells,
 		)
 	}
@@ -104,7 +104,7 @@ class ExplorationViewModel @Inject constructor(
 	private data class StreakData(
 		val currentStreak: Int = 0,
 		val bestStreak: Int = 0,
-		val seasonsCovered: Int = 0,
+		val seasonsBitmask: Int = 0,
 		val recentCells: List<RecentCell> = emptyList(),
 	)
 
@@ -118,11 +118,10 @@ class ExplorationViewModel @Inject constructor(
 		explorationCellDao.getRecentAtLevelFlow(EXPLORATION_LEVEL, RECENT_LIMIT),
 	) { streak, seasonBitmasks, recentEntities ->
 		val combinedBitmask = seasonBitmasks.fold(0) { acc, mask -> acc or mask }
-		val seasonCount = Integer.bitCount(combinedBitmask)
 		StreakData(
 			currentStreak = streak?.currentCount ?: 0,
 			bestStreak = streak?.bestCount ?: 0,
-			seasonsCovered = seasonCount,
+			seasonsBitmask = combinedBitmask,
 			recentCells = recentEntities.map { entity ->
 				RecentCell(
 					token = entity.cellToken,

@@ -2,7 +2,6 @@ package com.adsamcik.tracker.game.ui.compose
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,8 +50,6 @@ import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
 
 data class StepsSummaryUi(
     val stepsToday: Int,
@@ -130,9 +127,6 @@ private fun SectionHeader(text: String) {
 
 @Composable
 private fun PointsCard(points: Int) {
-    val detailsLabel = stringResource(R.string.game_points_details)
-    val context = LocalContext.current
-    val comingSoonText = stringResource(R.string.game_points_breakdown_coming_soon)
     GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -141,51 +135,37 @@ private fun PointsCard(points: Int) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.Star,
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Column(Modifier.padding(start = 16.dp)) {
-                    Text(
-                        text = points.toString(),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (points == 0) {
-                            stringResource(R.string.game_points_start_tracking_hint)
-                        } else {
-                            stringResource(R.string.points_earned_today)
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        Toast.makeText(context, comingSoonText, Toast.LENGTH_SHORT).show()
-                    }
-                    .padding(8.dp)
-                    .semantics { contentDescription = detailsLabel }
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
             ) {
-                 // Simplified action indicator, perhaps an arrow
+                Icon(
+                    Icons.Outlined.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(Modifier.padding(start = 16.dp)) {
+                Text(
+                    text = points.toString(),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = if (points == 0) {
+                        stringResource(R.string.game_points_start_tracking_hint)
+                    } else {
+                        stringResource(R.string.points_earned_today)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

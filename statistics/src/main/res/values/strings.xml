@@ -90,6 +90,21 @@
     <string name="trip_detail_samples">Samples</string>
     <string name="trip_detail_source">Source</string>
     <string name="trip_detail_wifi_coming_soon">Wi-Fi browser coming soon</string>
+    <string name="trip_detail_avg_speed">Avg speed</string>
+    <string name="trip_detail_max_speed">Max speed</string>
+    <string name="trip_detail_elevation_gain">Elevation gain</string>
+    <string name="trip_detail_max_altitude">Max altitude</string>
+    <string name="trip_detail_route_map">Route map</string>
+    <string name="trip_detail_no_location_data">No location data</string>
+    <string name="trip_detail_delete">Delete</string>
+    <string name="trip_detail_export_gpx">Export as GPX</string>
+    <string name="trip_detail_delete_confirm_title">Delete trip?</string>
+    <string name="trip_detail_delete_confirm_message">This trip will be permanently deleted.</string>
+    <string name="trip_detail_delete_confirm">Delete</string>
+    <string name="trip_detail_cancel">Cancel</string>
+    <string name="trip_detail_show_details">Show details</string>
+    <string name="trip_detail_hide_details">Hide details</string>
+    <string name="trip_detail_more_options">More options</string>
 
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>

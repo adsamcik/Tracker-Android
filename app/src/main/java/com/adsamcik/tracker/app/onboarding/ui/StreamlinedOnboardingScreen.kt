@@ -193,18 +193,6 @@ private fun WelcomeScreen(
                     .testTag("onboarding_cta_primary")
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Optional "Learn more" link (reserved for future feature overview)
-            TextButton(
-                onClick = { /* Future: navigate to feature overview */ }
-            ) {
-                Text(
-                    text = stringResource(R.string.onboarding_learn_more),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

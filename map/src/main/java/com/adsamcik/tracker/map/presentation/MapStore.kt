@@ -58,6 +58,7 @@ class MapStore @Inject constructor() : ViewModel() {
     private var overlayUpdateJob: Job? = null
     private var lastLocationUpdate: Long = 0L
     private val locationUpdateDebounceMs = 100L
+    private var hasReceivedInitialLocation: Boolean = false
 
     fun dispatch(event: MapEvent) {
         when (event) {
@@ -181,6 +182,11 @@ class MapStore @Inject constructor() : ViewModel() {
     }
 
     private fun updateUserLocation(latLng: LatLngModel, accuracyM: Double) {
+        val isInitial = !hasReceivedInitialLocation
+        if (isInitial) {
+            hasReceivedInitialLocation = true
+        }
+
         _state.update { st ->
             val userOverlayIndices = mutableListOf<Int>()
             st.overlays.forEachIndexed { index, overlay ->
@@ -197,7 +203,7 @@ class MapStore @Inject constructor() : ViewModel() {
             )
             st.copy(overlays = persistentListOf(*(filteredOverlays + newUserOverlays).toTypedArray()))
         }
-        if (_state.value.isFollowing) {
+        if (isInitial || _state.value.isFollowing) {
             val delta = kotlin.math.max(0.001, accuracyM / 111000.0)
             val bounds = CoordinateBounds(
                 topBound = latLng.lat + delta,
@@ -206,7 +212,9 @@ class MapStore @Inject constructor() : ViewModel() {
                 leftBound = latLng.lng - delta
             )
             _effects.tryEmit(MapEffect.CenterCamera(bounds))
-            _effects.tryEmit(MapEffect.SetCameraBearing(lastBearing))
+            if (_state.value.isFollowing) {
+                _effects.tryEmit(MapEffect.SetCameraBearing(lastBearing))
+            }
         }
     }
 

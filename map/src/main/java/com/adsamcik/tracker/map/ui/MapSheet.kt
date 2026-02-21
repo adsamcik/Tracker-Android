@@ -92,6 +92,7 @@ import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
 fun MapSheet(
     registry: LayerRegistry,
     store: MapStore,
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     bottomInsetPx: Int = 0,
     onBottomPaddingChanged: (Int) -> Unit = {}
@@ -110,7 +111,6 @@ fun MapSheet(
     val context = LocalContext.current
     val layers = remember(registry) { registry.getAllLayers() }
     var showErrorMessage by remember { mutableStateOf<String?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
     var showDateRangeDialog by remember { mutableStateOf(false) }
     var expandedByKeyboard by remember { mutableStateOf(false) }
     // Track keyboard visibility via ime bottom inset

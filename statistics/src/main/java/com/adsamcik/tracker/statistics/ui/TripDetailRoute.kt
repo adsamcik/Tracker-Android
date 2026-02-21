@@ -1,6 +1,11 @@
 package com.adsamcik.tracker.statistics.ui
 
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,20 +22,29 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +52,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
@@ -49,10 +65,49 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.TripDetailState
 import com.adsamcik.tracker.statistics.viewmodel.TripDetailViewModel
+import com.adsamcik.tracker.statistics.viewmodel.TripMetrics
+import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.camera.rememberCameraState
+import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.layers.LineLayer
+import org.maplibre.compose.map.GestureOptions
+import org.maplibre.compose.map.MapOptions
+import org.maplibre.compose.map.MaplibreMap
+import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.compose.sources.rememberGeoJsonSource
+import org.maplibre.compose.style.BaseStyle
+import org.maplibre.spatialk.geojson.Position
+import java.io.File
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+private const val ROUTE_MAP_STYLE_JSON = """
+{
+  "version": 8,
+  "name": "Route Preview",
+  "sources": {
+    "osm": {
+      "type": "raster",
+      "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      "tileSize": 256,
+      "attribution": "&copy; OpenStreetMap contributors"
+    }
+  },
+  "layers": [
+    {"id": "osm", "type": "raster", "source": "osm"}
+  ]
+}
+"""
+private const val MS_TO_KMH = 3.6
+private const val LINE_WIDTH = 3f
+private const val LINE_OPACITY = 0.85f
+private const val BOUNDS_PADDING = 0.001
 
 /**
  * Entry composable for trip detail screen.
@@ -66,6 +121,19 @@ fun TripDetailRoute(
 	viewModel: TripDetailViewModel = hiltViewModel()
 ) {
 	val state by viewModel.state.collectAsState()
+	var showDeleteDialog by remember { mutableStateOf(false) }
+	var showMenu by remember { mutableStateOf(false) }
+	val context = LocalContext.current
+
+	if (showDeleteDialog) {
+		DeleteConfirmationDialog(
+			onConfirm = {
+				showDeleteDialog = false
+				viewModel.deleteTrip(onDeleted = onBack)
+			},
+			onDismiss = { showDeleteDialog = false }
+		)
+	}
 
 	Scaffold(
 		topBar = {
@@ -77,6 +145,38 @@ fun TripDetailRoute(
 							Icons.AutoMirrored.Filled.ArrowBack,
 							contentDescription = stringResource(R.string.action_navigate_back)
 						)
+					}
+				},
+				actions = {
+					if (state is TripDetailState.Loaded) {
+						Box {
+							IconButton(onClick = { showMenu = true }) {
+								Icon(
+									Icons.Filled.MoreVert,
+									contentDescription = stringResource(R.string.trip_detail_more_options)
+								)
+							}
+							DropdownMenu(
+								expanded = showMenu,
+								onDismissRequest = { showMenu = false }
+							) {
+								DropdownMenuItem(
+									text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
+									onClick = {
+										showMenu = false
+										val loaded = state as TripDetailState.Loaded
+										exportGpx(context, loaded.trip, loaded.locationPoints)
+									}
+								)
+								DropdownMenuItem(
+									text = { Text(stringResource(R.string.trip_detail_delete)) },
+									onClick = {
+										showMenu = false
+										showDeleteDialog = true
+									}
+								)
+							}
+						}
 					}
 				},
 				colors = TopAppBarDefaults.topAppBarColors(
@@ -97,9 +197,15 @@ fun TripDetailRoute(
 						CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
 					}
 				}
+
 				is TripDetailState.Loaded -> {
-					TripOverview(trip = s.trip)
+					TripOverview(
+						trip = s.trip,
+						locationPoints = s.locationPoints,
+						metrics = s.metrics
+					)
 				}
+
 				is TripDetailState.NotFound -> {
 					Box(
 						Modifier
@@ -114,6 +220,7 @@ fun TripDetailRoute(
 						)
 					}
 				}
+
 				is TripDetailState.Error -> {
 					Box(
 						Modifier
@@ -144,7 +251,11 @@ private val dateTimeFormatter: DateTimeFormatter by lazy {
 }
 
 @Composable
-private fun TripOverview(trip: Trip) {
+private fun TripOverview(
+	trip: Trip,
+	locationPoints: List<DatabaseLocation>,
+	metrics: TripMetrics?
+) {
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = remember { TrackerSettingsQuick.snapshot(context) }
@@ -172,6 +283,11 @@ private fun TripOverview(trip: Trip) {
 			.padding(16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp)
 	) {
+		// Route map card (first, before metrics)
+		if (locationPoints.size >= 2) {
+			RouteMapCard(locationPoints)
+		}
+
 		// Header card with time and icon
 		GlassCard(modifier = Modifier.fillMaxWidth()) {
 			Row(
@@ -208,7 +324,7 @@ private fun TripOverview(trip: Trip) {
 			}
 		}
 
-		// Metrics grid
+		// Primary metrics grid
 		Row(
 			modifier = Modifier.fillMaxWidth(),
 			horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -225,6 +341,78 @@ private fun TripOverview(trip: Trip) {
 			)
 		}
 
+		// Speed and elevation metrics
+		if (metrics != null) {
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.spacedBy(12.dp)
+			) {
+				MetricCard(
+					label = stringResource(R.string.trip_detail_avg_speed),
+					value = "%.1f km/h".format(metrics.avgSpeedKmh),
+					modifier = Modifier.weight(1f)
+				)
+				MetricCard(
+					label = stringResource(R.string.trip_detail_max_speed),
+					value = "%.1f km/h".format(metrics.maxSpeedKmh),
+					modifier = Modifier.weight(1f)
+				)
+			}
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.spacedBy(12.dp)
+			) {
+				MetricCard(
+					label = stringResource(R.string.trip_detail_elevation_gain),
+					value = "%.0f m".format(metrics.elevationGainM),
+					modifier = Modifier.weight(1f)
+				)
+				MetricCard(
+					label = stringResource(R.string.trip_detail_max_altitude),
+					value = metrics.maxAltitudeM?.let { "%.0f m".format(it) } ?: "-",
+					modifier = Modifier.weight(1f)
+				)
+			}
+		}
+
+		// Developer metrics behind expandable toggle
+		DeveloperMetrics(trip)
+	}
+}
+
+@Composable
+private fun DeveloperMetrics(trip: Trip) {
+	var expanded by remember { mutableStateOf(false) }
+
+	Row(
+		modifier = Modifier
+			.fillMaxWidth()
+			.clickable { expanded = !expanded }
+			.padding(vertical = 4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.Center
+	) {
+		Text(
+			text = stringResource(
+				if (expanded) R.string.trip_detail_hide_details
+				else R.string.trip_detail_show_details
+			),
+			style = MaterialTheme.typography.labelMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant
+		)
+		Icon(
+			imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+			contentDescription = null,
+			modifier = Modifier.size(20.dp),
+			tint = MaterialTheme.colorScheme.onSurfaceVariant
+		)
+	}
+
+	AnimatedVisibility(
+		visible = expanded,
+		enter = expandVertically(),
+		exit = shrinkVertically()
+	) {
 		Row(
 			modifier = Modifier.fillMaxWidth(),
 			horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -241,9 +429,157 @@ private fun TripOverview(trip: Trip) {
 				modifier = Modifier.weight(1f)
 			)
 		}
-
-		Spacer(Modifier.height(80.dp))
 	}
+}
+
+@Composable
+private fun RouteMapCard(points: List<DatabaseLocation>) {
+	val geoJson = remember(points) { buildRouteGeoJson(points) }
+	val bounds = remember(points) { computeBounds(points) }
+
+	GlassCard(modifier = Modifier.fillMaxWidth()) {
+		Column(modifier = Modifier.fillMaxWidth()) {
+			Text(
+				text = stringResource(R.string.trip_detail_route_map),
+				style = MaterialTheme.typography.labelMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant
+			)
+			Spacer(Modifier.height(8.dp))
+
+			val cameraState = rememberCameraState(
+				firstPosition = CameraPosition(
+					target = Position(
+						longitude = (bounds.minLon + bounds.maxLon) / 2.0,
+						latitude = (bounds.minLat + bounds.maxLat) / 2.0
+					),
+					zoom = 12.0
+				)
+			)
+
+			val routeSource = rememberGeoJsonSource(
+				data = GeoJsonData.JsonString(geoJson)
+			)
+
+			Box(
+				modifier = Modifier
+					.fillMaxWidth()
+					.height(250.dp)
+					.clip(MaterialTheme.shapes.medium)
+			) {
+				val routeColor = MaterialTheme.colorScheme.primary
+				MaplibreMap(
+					modifier = Modifier.fillMaxSize(),
+					baseStyle = BaseStyle.Json(ROUTE_MAP_STYLE_JSON),
+					cameraState = cameraState,
+					options = MapOptions(
+						gestureOptions = GestureOptions(
+							isRotateEnabled = false,
+							isTiltEnabled = false
+						)
+					)
+				) {
+					LineLayer(
+						id = "route-line",
+						source = routeSource,
+						color = const(routeColor),
+						width = const(LINE_WIDTH.dp),
+						opacity = const(LINE_OPACITY),
+					)
+				}
+			}
+		}
+	}
+}
+
+private data class LatLonBounds(
+	val minLat: Double,
+	val maxLat: Double,
+	val minLon: Double,
+	val maxLon: Double
+)
+
+private fun computeBounds(points: List<DatabaseLocation>): LatLonBounds {
+	var minLat = Double.MAX_VALUE
+	var maxLat = -Double.MAX_VALUE
+	var minLon = Double.MAX_VALUE
+	var maxLon = -Double.MAX_VALUE
+	for (p in points) {
+		if (p.latitude < minLat) minLat = p.latitude
+		if (p.latitude > maxLat) maxLat = p.latitude
+		if (p.longitude < minLon) minLon = p.longitude
+		if (p.longitude > maxLon) maxLon = p.longitude
+	}
+	return LatLonBounds(
+		minLat = minLat - BOUNDS_PADDING,
+		maxLat = maxLat + BOUNDS_PADDING,
+		minLon = minLon - BOUNDS_PADDING,
+		maxLon = maxLon + BOUNDS_PADDING
+	)
+}
+
+private fun buildRouteGeoJson(points: List<DatabaseLocation>): String {
+	val coords = points.joinToString(",") { "[${it.longitude},${it.latitude}]" }
+	return """{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[$coords]},"properties":{}}]}"""
+}
+
+@Composable
+private fun DeleteConfirmationDialog(
+	onConfirm: () -> Unit,
+	onDismiss: () -> Unit
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.trip_detail_delete_confirm_title)) },
+		text = { Text(stringResource(R.string.trip_detail_delete_confirm_message)) },
+		confirmButton = {
+			TextButton(onClick = onConfirm) {
+				Text(stringResource(R.string.trip_detail_delete_confirm))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(R.string.trip_detail_cancel))
+			}
+		}
+	)
+}
+
+private fun exportGpx(
+	context: android.content.Context,
+	trip: Trip,
+	points: List<DatabaseLocation>
+) {
+	val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+		timeZone = TimeZone.getTimeZone("UTC")
+	}
+
+	val sb = StringBuilder()
+	sb.append("""<?xml version="1.0" encoding="UTF-8"?>""")
+	sb.append("""<gpx version="1.1" creator="Tracker">""")
+	sb.append("<trk><trkseg>")
+	for (pt in points) {
+		sb.append("""<trkpt lat="${pt.latitude}" lon="${pt.longitude}">""")
+		pt.altitude?.let { sb.append("<ele>$it</ele>") }
+		sb.append("<time>${sdf.format(Date(pt.time))}</time>")
+		sb.append("</trkpt>")
+	}
+	sb.append("</trkseg></trk></gpx>")
+
+	val file = File(context.cacheDir, "trip_${trip.id}.gpx")
+	file.writeText(sb.toString())
+
+	val uri = FileProvider.getUriForFile(
+		context,
+		"${context.packageName}.fileprovider",
+		file
+	)
+
+	val shareIntent = Intent(Intent.ACTION_SEND).apply {
+		type = "application/gpx+xml"
+		putExtra(Intent.EXTRA_STREAM, uri)
+		addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+	}
+	context.startActivity(Intent.createChooser(shareIntent, null))
 }
 
 @Composable

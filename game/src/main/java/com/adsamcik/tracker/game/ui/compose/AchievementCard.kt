@@ -187,9 +187,17 @@ private fun TierBadge(
 	}
 }
 
-// Tier badge colors
-private val BronzeColor = Color(0xFFCD7F32)
-private val SilverColor = Color(0xFFC0C0C0)
-private val GoldColor = Color(0xFFFFD700)
-private val DiamondColor = Color(0xFFB9F2FF)
+// Theme-aware tier badge colors
+private val BronzeColor: Color
+	@Composable get() = MaterialTheme.colorScheme.tertiary
+
+private val SilverColor: Color
+	@Composable get() = MaterialTheme.colorScheme.outlineVariant
+
+private val GoldColor: Color
+	@Composable get() = MaterialTheme.colorScheme.primary
+
+private val DiamondColor: Color
+	@Composable get() = MaterialTheme.colorScheme.inversePrimary
+
 private const val PERCENTAGE_MULTIPLIER = 100

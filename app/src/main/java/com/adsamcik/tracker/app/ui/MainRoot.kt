@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
@@ -291,6 +292,28 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                     else -> false
                 }
             } == true
+        }
+
+        // Settings icon overlay (visible on Stats, Map, Game — Tracker has its own)
+        if (currentRouteObj != null && !isTracker) {
+            IconButton(
+                onClick = {
+                    navController.navigate(Settings) {
+                        launchSingleTop = true
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 8.dp, top = 4.dp)
+                    .testTag("settings_global")
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = stringResource(R.string.settings_title),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
 
         if (currentRouteObj != null) {

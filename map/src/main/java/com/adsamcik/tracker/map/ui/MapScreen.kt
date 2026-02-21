@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,6 +80,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 fun MapScreen(
     store: MapStore,
+    snackbarHostState: SnackbarHostState,
     overlayMode: Boolean = false,
     bottomPaddingPx: Int = 0,
     isLocationPermissionGranted: Boolean = false,
@@ -132,10 +132,8 @@ fun MapScreen(
     val density = LocalDensity.current
     val bottomPaddingDp = with(density) { bottomPaddingPx.toDp() }
 
-    val snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
-
     val cameraState = rememberCameraState(
-        firstPosition = CameraPosition(target = Position(0.0, 0.0), zoom = 2.0)
+        firstPosition = CameraPosition(target = Position(0.0, 0.0), zoom = 1.0)
     )
 
     val gestureOptions = remember(overlayMode) {
@@ -214,12 +212,6 @@ fun MapScreen(
             }
         }
 
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = bottomPaddingDp + 16.dp)
-        )
     }
 
     // Observe gesture-initiated camera moves to cancel follow

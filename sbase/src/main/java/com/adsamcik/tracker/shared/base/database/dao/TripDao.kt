@@ -75,6 +75,12 @@ interface TripDao {
 	suspend fun getTodaySummary(startOfDayMs: Long, nowMs: Long): TripDaySummary?
 
 	/**
+	 * Delete a single trip (session segment) by ID.
+	 */
+	@Query("DELETE FROM session_segment WHERE id = :id")
+	suspend fun deleteById(id: Long)
+
+	/**
 	 * Most recent trips, limited to [limit] results. For dashboard quick view.
 	 */
 	@Query(

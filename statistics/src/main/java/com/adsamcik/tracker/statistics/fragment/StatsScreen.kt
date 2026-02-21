@@ -211,9 +211,11 @@ private fun ContentState(
 
         if (pagingItems != null) {
             val count = pagingItems.itemCount
-            var lastDateKey: String? = null
 
-            items(count) { index ->
+            items(
+                count = count,
+                key = { index -> pagingItems.peek(index)?.id ?: index },
+            ) { index ->
                 val trip = pagingItems[index]
                 if (trip != null) {
                     val tripDate = if (trip.startTimeMs > 0) {
@@ -222,11 +224,16 @@ private fun ContentState(
                             .toLocalDate()
                     } else null
 
-                    val currentDateKey = tripDate?.toString()
+                    // Compare with previous item to decide header — deterministic per-item, no mutable state
+                    val prevTrip = if (index > 0) pagingItems.peek(index - 1) else null
+                    val prevDate = if (prevTrip != null && prevTrip.startTimeMs > 0) {
+                        Instant.ofEpochMilli(prevTrip.startTimeMs)
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDate()
+                    } else null
 
-                    if (currentDateKey != null && currentDateKey != lastDateKey) {
+                    if (tripDate != null && (index == 0 || tripDate != prevDate)) {
                         DateHeader(trip.startTimeMs)
-                        lastDateKey = currentDateKey
                     }
 
                     TripRow(
