@@ -30,4 +30,14 @@ abstract class ChallengeProcessorModule {
 	@IntoMap
 	@ChallengeTypeKey(ChallengeType.Explorer)
 	abstract fun bindExplorer(impl: ExplorerChallengeProcessor): ChallengeProcessor
+
+	@Binds
+	@IntoMap
+	@ChallengeTypeKey(ChallengeType.Speed)
+	abstract fun bindSpeed(impl: SpeedChallengeProcessor): ChallengeProcessor
+
+	@Binds
+	@IntoMap
+	@ChallengeTypeKey(ChallengeType.Consistency)
+	abstract fun bindConsistency(impl: ConsistencyChallengeProcessor): ChallengeProcessor
 }

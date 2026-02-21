@@ -19,6 +19,10 @@
     <string name="challenge_walk_distance_title">Be the man who walks a thousand miles</string>
     <string name="challenge_active_time_description">Good Times Roll</string>
     <string name="challenge_active_time_title">Stay active for %s minutes</string>
+    <string name="challenge_speed_title">Speed Demon</string>
+    <string name="challenge_speed_description">Walk %1$s in a single burst</string>
+    <string name="challenge_consistency_title">Consistency is Key</string>
+    <string name="challenge_consistency_description">Track on %1$d different days</string>
 
     <string name="goals_reached_notification">%1$s! You reached your %2$s goal!</string>
     <string name="goals_daily_goal">daily</string>
