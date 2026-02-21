@@ -2,7 +2,7 @@ package com.adsamcik.tracker.logger
 
 import android.content.Context
 import android.util.Log
-import com.adsamcik.tracker.shared.base.BuildConfig
+import com.adsamcik.tracker.logger.BuildConfig
 import com.adsamcik.tracker.shared.base.isEmulator
 import com.adsamcik.tracker.shared.base.logging.ErrorReporter
 import com.adsamcik.tracker.shared.base.logging.ReporterFacade

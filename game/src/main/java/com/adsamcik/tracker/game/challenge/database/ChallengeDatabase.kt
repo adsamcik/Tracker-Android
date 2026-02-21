@@ -12,6 +12,7 @@ import com.adsamcik.tracker.game.challenge.data.entity.StepChallengeEntity
 import com.adsamcik.tracker.game.challenge.data.entity.WalkDistanceChallengeEntity
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase.VersionOneToTwoMigration
 import com.adsamcik.tracker.game.challenge.database.dao.ActiveTimeChallengeDao
+import com.adsamcik.tracker.game.challenge.database.dao.ChallengeDao
 import com.adsamcik.tracker.game.challenge.database.dao.ChallengeEntryDao
 import com.adsamcik.tracker.game.challenge.database.dao.ExplorerChallengeDao
 import com.adsamcik.tracker.game.challenge.database.dao.SessionChallengeDataDao
@@ -19,6 +20,8 @@ import com.adsamcik.tracker.game.challenge.database.dao.StepChallengeDao
 import com.adsamcik.tracker.game.challenge.database.dao.WalkDistanceChallengeDao
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
+import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_2_3
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
 import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 
@@ -29,6 +32,7 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
     entities = [
         ChallengeSessionData::class,
         ChallengeEntry::class,
+        ChallengeEntity::class,
         ExplorerChallengeEntity::class,
         WalkDistanceChallengeEntity::class,
         StepChallengeEntity::class,
@@ -37,10 +41,12 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
     autoMigrations = [
 		AutoMigration(from = 1, to = 2, spec = VersionOneToTwoMigration::class)
 	],
-    version = 2
+    version = 3
 )
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
+
+    abstract fun challengeDao(): ChallengeDao
 
     abstract fun entryDao(): ChallengeEntryDao
 
@@ -55,7 +61,9 @@ abstract class ChallengeDatabase : RoomDatabase() {
     abstract fun activeTimeDao(): ActiveTimeChallengeDao
 
     companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
-        override fun setupDatabase(database: Builder<ChallengeDatabase>): Unit = Unit
+        override fun setupDatabase(database: Builder<ChallengeDatabase>) {
+            database.addMigrations(MIGRATION_2_3)
+        }
 
         override val databaseName: String get() = DATABASE_NAME
 
