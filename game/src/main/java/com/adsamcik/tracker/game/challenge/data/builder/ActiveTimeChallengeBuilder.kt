@@ -48,7 +48,7 @@ internal class ActiveTimeChallengeBuilder(
     ): ActiveTimeChallengeInstance {
         return ActiveTimeChallengeInstance(
             entry, definition,
-            ActiveTimeChallengeEntity(entry.id, false, requiredActiveTimeInMinutes, 0)
+            ActiveTimeChallengeEntity(entry.id, false, 0, requiredActiveTimeInMinutes)
         )
     }
 

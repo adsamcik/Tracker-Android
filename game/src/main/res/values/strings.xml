@@ -40,6 +40,30 @@
     <string name="game_points_breakdown_coming_soon">Points breakdown coming soon</string>
     <string name="game_points_start_tracking_hint">Start tracking to earn points!</string>
 
+    <!-- Hero Level Card -->
+    <string name="game_level">Level %1$d</string>
+    <string name="game_level_label">Level</string>
+    <string name="game_xp_progress">%1$s / %2$s XP</string>
+    <string name="game_xp_to_next_level">%1$s XP to next level</string>
+    <string name="game_streak_label">Streak</string>
+    <string name="game_streak_count">%1$d</string>
+    <string name="game_streak_freezes">%1$d freezes</string>
+    <string name="game_streak_best">Best: %1$d</string>
+    
+    <!-- Active Challenges Row -->
+    <string name="game_active_challenges">Active Challenges</string>
+    <string name="game_challenge_time_remaining">%1$s remaining</string>
+    <string name="game_challenge_slot_empty">?</string>
+    <string name="game_challenge_start_hint">Start tracking!</string>
+    <string name="game_challenge_medal_gold_threshold">Gold: finish in %1$s</string>
+    <string name="game_challenge_medal_silver_threshold">Silver: finish in %1$s</string>
+    
+    <!-- Trophy Summary -->
+    <string name="game_trophy_summary">%1$d completed</string>
+    <string name="game_trophy_view_all">View Trophy Case</string>
+    <string name="game_trophies_title">Trophies</string>
+    <string name="game_no_trophies_yet">Complete challenges to earn trophies!</string>
+
     <!-- Exploration card -->
     <string name="exploration_title">Exploration</string>
     <string name="exploration_cells_discovered">Cells Discovered</string>

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.settings
 
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -255,6 +256,17 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
                 icon = Icons.AutoMirrored.Filled.Article,
                 onClick = {
                     context.startActivity(Intent().setClassName(context, "com.adsamcik.tracker.license.LicenseActivity"))
+                }
+            )
+        }
+
+        // Privacy Policy
+        item {
+            SettingsItem(
+                title = stringResource(R.string.settings_privacy_policy_title),
+                icon = Icons.Default.PrivacyTip,
+                onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/adsamcik/Tracker-Android/blob/master/PRIVACY_POLICY.md")))
                 }
             )
         }

@@ -303,7 +303,8 @@ private fun ChallengesEmptyState() {
 
 @Composable
 private fun ChallengeCard(ch: ChallengeUi) {
-    val challengeDesc = "${ch.title}: ${(ch.progress * 100).toInt()}% complete"
+    val clampedProgress = ch.progress.coerceIn(0f, 1f)
+    val challengeDesc = "${ch.title}: ${(clampedProgress * 100).toInt().coerceIn(0, 100)}% complete"
     GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
@@ -350,21 +351,21 @@ private fun ChallengeCard(ch: ChallengeUi) {
                         .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
                         .semantics {
                             progressBarRangeInfo = ProgressBarRangeInfo(
-                                current = ch.progress,
+                                current = clampedProgress,
                                 range = 0f..1f
                             )
                         }
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(ch.progress)
+                            .fillMaxWidth(clampedProgress)
                             .height(4.dp)
                             .background(MaterialTheme.colorScheme.primary)
                     )
                 }
             }
             Text(
-                text = "${(ch.progress * 100).toInt()}%",
+                text = "${(clampedProgress * 100).toInt().coerceIn(0, 100)}%",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 8.dp)

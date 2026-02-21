@@ -34,7 +34,11 @@ internal class WalkDistanceChallengeInstance(
 	}
 
 	override val progress: Double
-		get() = extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble()
+		get() = if (extra.requiredDistanceInM > 0) {
+			(extra.distanceInM.toDouble() / extra.requiredDistanceInM.toDouble()).coerceIn(0.0, 1.0)
+		} else {
+			0.0
+		}
 
 	override fun checkCompletionConditions() = extra.distanceInM >= extra.requiredDistanceInM
 

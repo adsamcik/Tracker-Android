@@ -21,12 +21,20 @@ class ActiveTimeChallengeInstance(
     override val persistence
         get() = ActiveTimeChallengePersistence()
 
+    override fun getTitle(context: Context): String {
+        return context.getString(definition.titleRes, extra.requiredActiveTimeInMinutes)
+    }
+
     override fun getDescription(context: Context): String {
         return context.getString(definition.descriptionRes, extra.requiredActiveTimeInMinutes)
     }
 
     override val progress: Double
-        get() = extra.activeTimeInMinutes.toDouble() / extra.requiredActiveTimeInMinutes.toDouble()
+        get() = if (extra.requiredActiveTimeInMinutes > 0) {
+            (extra.activeTimeInMinutes.toDouble() / extra.requiredActiveTimeInMinutes.toDouble()).coerceIn(0.0, 1.0)
+        } else {
+            0.0
+        }
 
     override fun checkCompletionConditions() = extra.activeTimeInMinutes >= extra.requiredActiveTimeInMinutes
 
@@ -43,7 +51,7 @@ class ActiveTimeChallengeInstance(
         // Ensure the calculated time does not exceed the session duration
         val sessionDurationInSeconds = (session.end - session.start) / 1000.0
 
-        return timeOnFootInSeconds.coerceAtMost(sessionDurationInSeconds).toInt()
+        return (timeOnFootInSeconds.coerceAtMost(sessionDurationInSeconds) / 60.0).toInt()
     }
 
 }

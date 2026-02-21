@@ -70,7 +70,7 @@ class DefaultGameRepository @Inject constructor(
                         id = inst.data.id,
                         title = inst.getTitle(application),
                         description = inst.getDescription(application),
-                        progress = inst.progress.toFloat()
+                        progress = inst.progress.toFloat().coerceIn(0f, 1f)
                     )
                 }
             }

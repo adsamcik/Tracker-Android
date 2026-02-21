@@ -16,7 +16,7 @@ android {
 		minSdk = Android.MIN_VERSION
 		targetSdk = Android.TARGET_VERSION
 		versionCode = 385
-		versionName = "2024.3.0 α2"
+		versionName = "2025.1.0"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		
 		androidResources {

@@ -297,7 +297,12 @@ private fun WeeklySummaryChart(bars: List<DayBar>) {
             // Bar chart
             val barColor = MaterialTheme.colorScheme.primary
             val emptyBarColor = MaterialTheme.colorScheme.surfaceContainerHighest
-            val chartContentDescription = stringResource(R.string.stats_weekly_chart_title)
+            val chartContentDescription = remember(bars, settings) {
+                val dayDetails = bars.joinToString(", ") { bar ->
+                    "${bar.dayLabel} ${resources.formatDistance(bar.distanceM, digits = 1, unit = settings.lengthSystem)}"
+                }
+                "${resources.getString(R.string.stats_weekly_chart_title)}: $dayDetails"
+            }
 
             Canvas(
                 modifier = Modifier
@@ -463,6 +468,12 @@ private fun ActionChip(
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }

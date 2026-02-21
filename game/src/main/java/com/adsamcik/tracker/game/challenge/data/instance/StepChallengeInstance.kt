@@ -25,7 +25,11 @@ class StepChallengeInstance(
 	}
 
 	override val progress: Double
-		get() = extra.stepCount.toDouble() / extra.requiredStepCount.toDouble()
+		get() = if (extra.requiredStepCount > 0) {
+			(extra.stepCount.toDouble() / extra.requiredStepCount.toDouble()).coerceIn(0.0, 1.0)
+		} else {
+			0.0
+		}
 
 	override fun checkCompletionConditions(): Boolean = extra.stepCount >= extra.requiredStepCount
 

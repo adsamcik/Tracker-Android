@@ -22,7 +22,11 @@ class ExplorerChallengeInstance(
 	override val persistence: ExplorerChallengePersistence = ExplorerChallengePersistence()
 
 	override val progress: Double
-		get() = extra.locationCount / extra.requiredLocationCount.toDouble()
+		get() = if (extra.requiredLocationCount > 0) {
+			(extra.locationCount / extra.requiredLocationCount.toDouble()).coerceIn(0.0, 1.0)
+		} else {
+			0.0
+		}
 
 	@PrimaryKey
 	var id: Int = 0

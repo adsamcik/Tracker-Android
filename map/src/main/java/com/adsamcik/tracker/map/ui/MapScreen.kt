@@ -3,7 +3,7 @@ package com.adsamcik.tracker.map.ui
 import android.location.Address
 import android.location.Geocoder
 import android.os.Build
-import android.util.Log
+import com.adsamcik.tracker.logger.Reporter
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -70,7 +70,6 @@ import org.maplibre.spatialk.geojson.BoundingBox
 import org.maplibre.spatialk.geojson.Position
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val TAG = "MapScreen"
 
 /**
  * MapLibre-based MapScreen. Renders heatmaps, polylines, user location via
@@ -228,7 +227,7 @@ fun MapScreen(
                             duration = 500.milliseconds,
                         )
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to center camera: ${e.message}", e)
+                        Reporter.report(e)
                     }
                 }
                 is MapEffect.SetCameraBearing -> {
@@ -240,14 +239,14 @@ fun MapScreen(
                             duration = 500.milliseconds,
                         )
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to set camera bearing: ${e.message}", e)
+                        Reporter.report(e)
                     }
                 }
                 is MapEffect.ShowFollowCanceled -> {
                     try {
                         snackbarHostState.showSnackbar(followCanceledText)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to show snackbar: ${e.message}", e)
+                        Reporter.report(e)
                     }
                 }
                 is MapEffect.PerformGeocode -> {
@@ -284,7 +283,7 @@ fun MapScreen(
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Geocoding failed for '${effect.query}': ${e.message}", e)
+                        Reporter.report(e)
                         snackbarHostState.showSnackbar(
                             context.getString(
                                 com.adsamcik.tracker.map.R.string.map_search_no_results,
