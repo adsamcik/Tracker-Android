@@ -24,6 +24,9 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Unit tests for [ActivityRequestManager] covering request lifecycle,
@@ -32,6 +35,8 @@ import org.junit.jupiter.api.assertThrows
  * Uses MockK to isolate from Android framework dependencies
  * ([android.util.SparseArray] is shadowed by mocking the static/object calls).
  */
+@ExtendWith(RobolectricExtension::class)
+@Config(sdk = [28])
 class ActivityRequestManagerTest {
 
     private lateinit var context: Context

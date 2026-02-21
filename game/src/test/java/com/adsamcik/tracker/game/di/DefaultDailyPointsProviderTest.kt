@@ -76,7 +76,7 @@ class DefaultDailyPointsProviderTest {
 
 		@Test
 		fun `updates when upstream flow emits new values`() = runTest {
-			val pointsFlow = MutableSharedFlow<Int>()
+			val pointsFlow = MutableSharedFlow<Int>(replay = 1)
 			every { gameRepository.getPointsToday() } returns pointsFlow
 
 			val provider = DefaultDailyPointsProvider(gameRepository, testScope)
@@ -93,7 +93,7 @@ class DefaultDailyPointsProviderTest {
 
 		@Test
 		fun `tracks latest emitted value`() = runTest {
-			val pointsFlow = MutableSharedFlow<Int>()
+			val pointsFlow = MutableSharedFlow<Int>(replay = 1)
 			every { gameRepository.getPointsToday() } returns pointsFlow
 
 			val provider = DefaultDailyPointsProvider(gameRepository, testScope)
@@ -127,7 +127,7 @@ class DefaultDailyPointsProviderTest {
 
 		@Test
 		fun `reflects cumulative points from repository`() = runTest {
-			val pointsFlow = MutableSharedFlow<Int>()
+			val pointsFlow = MutableSharedFlow<Int>(replay = 1)
 			every { gameRepository.getPointsToday() } returns pointsFlow
 
 			val provider = DefaultDailyPointsProvider(gameRepository, testScope)
@@ -150,7 +150,7 @@ class DefaultDailyPointsProviderTest {
 
 		@Test
 		fun `reflects reset when repository emits zero`() = runTest {
-			val pointsFlow = MutableSharedFlow<Int>()
+			val pointsFlow = MutableSharedFlow<Int>(replay = 1)
 			every { gameRepository.getPointsToday() } returns pointsFlow
 
 			val provider = DefaultDailyPointsProvider(gameRepository, testScope)

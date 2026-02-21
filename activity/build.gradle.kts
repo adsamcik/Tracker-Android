@@ -4,6 +4,7 @@ plugins {
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
+	alias(libs.plugins.robolectric.junit5)
 }
 
 android {
@@ -51,6 +52,11 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+
+	testOptions {
+		unitTests.isReturnDefaultValues = true
+	}
+
 	namespace = "com.adsamcik.tracker.activity"
 }
 

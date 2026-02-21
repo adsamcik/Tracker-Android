@@ -18,12 +18,19 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
+@ExtendWith(RobolectricExtension::class)
+@Config(sdk = [28])
 @DisplayName("ActivitySessionReceiver")
 class ActivitySessionReceiverTest {
 
 	private val receiver = ActivitySessionReceiver()
-	private val context: Context = mockk(relaxed = true)
+	private val context: Context = mockk(relaxed = true) {
+		every { applicationContext } returns this@mockk
+	}
 	private val workManager: WorkManager = mockk(relaxed = true)
 
 	@BeforeEach

@@ -11,7 +11,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.robolectric.junit5.RobolectricExtension
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import org.robolectric.annotation.Config
 
 /**

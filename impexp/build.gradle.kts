@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.protobuf)
+    alias(libs.plugins.robolectric.junit5)
 }
 
 android {
@@ -129,6 +130,9 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.junit5.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
 
 // Configure JUnit 5 for unit tests

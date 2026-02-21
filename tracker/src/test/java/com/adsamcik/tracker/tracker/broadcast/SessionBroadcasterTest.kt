@@ -21,7 +21,12 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
+@ExtendWith(RobolectricExtension::class)
+@Config(sdk = [28])
 class SessionBroadcasterTest {
 
 	private lateinit var context: Context
@@ -31,6 +36,8 @@ class SessionBroadcasterTest {
 	fun setup() {
 		context = mockk(relaxed = true)
 		every { context.packageName } returns "com.adsamcik.tracker.test"
+		every { context.applicationContext } returns context
+		every { context.sendBroadcast(any(), any<String>()) } just Runs
 
 		workManager = mockk(relaxed = true)
 

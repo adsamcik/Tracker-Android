@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import tech.apter.junit5.jupiter.robolectric.RobolectricExtension
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
 /**
  * Basic persistence tests for SessionActivity CRUD mirroring logic used by SessionActivityActivityCompose.

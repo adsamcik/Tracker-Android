@@ -51,6 +51,7 @@ android {
 	}
 	testOptions {
 		unitTests.isIncludeAndroidResources = true
+		unitTests.isReturnDefaultValues = true
 	}
     namespace = "com.adsamcik.tracker.map"
 }

@@ -14,11 +14,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import org.junit.jupiter.api.extension.ExtendWith
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
+@ExtendWith(RobolectricExtension::class)
 @Config(sdk = [28])
 @DisplayName("WifiDataProducer")
 class WifiDataProducerTest {

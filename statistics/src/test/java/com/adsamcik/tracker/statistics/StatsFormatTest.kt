@@ -115,12 +115,22 @@ class StatsFormatTest {
 
 			// Varargs getString for title templates
 			every { context.getString(R.string.stats_generic_title_text, *anyVararg()) } answers {
-				val parts = args.drop(1).map { it.toString() }
-				"${parts.getOrElse(0) { "" }} ${parts.getOrElse(1) { "" }}"
+				val varargs = args.drop(1).flatMap {
+					when (it) {
+						is Array<*> -> it.map { e -> e.toString() }
+						else -> listOf(it.toString())
+					}
+				}
+				"${varargs.getOrElse(0) { "" }} ${varargs.getOrElse(1) { "" }}"
 			}
 			every { context.getString(R.string.stats_title_text, *anyVararg()) } answers {
-				val parts = args.drop(1).map { it.toString() }
-				"${parts.getOrElse(0) { "" }} ${parts.getOrElse(1) { "" }} ${parts.getOrElse(2) { "" }}"
+				val varargs = args.drop(1).flatMap {
+					when (it) {
+						is Array<*> -> it.map { e -> e.toString() }
+						else -> listOf(it.toString())
+					}
+				}
+				"${varargs.getOrElse(0) { "" }} ${varargs.getOrElse(1) { "" }} ${varargs.getOrElse(2) { "" }}"
 			}
 		}
 

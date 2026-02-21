@@ -18,7 +18,7 @@ import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.EnumSource
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import org.robolectric.junit5.RobolectricExtension
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import java.util.Locale
 
 @ExtendWith(RobolectricExtension::class)
