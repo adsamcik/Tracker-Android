@@ -38,6 +38,12 @@
     <string name="game_challenges_empty">No active challenges</string>
     <string name="game_challenges_empty_subtitle">Complete tracking sessions to unlock new challenges</string>
     <string name="game_loading">Loading…</string>
+
+    <!-- Medal labels -->
+    <string name="medal_gold">Gold</string>
+    <string name="medal_silver">Silver</string>
+    <string name="medal_bronze">Bronze</string>
+    <string name="medal_none">None</string>
     <string name="game_points_breakdown_coming_soon">Points breakdown coming soon</string>
     <string name="game_points_start_tracking_hint">Start tracking to earn points!</string>
 

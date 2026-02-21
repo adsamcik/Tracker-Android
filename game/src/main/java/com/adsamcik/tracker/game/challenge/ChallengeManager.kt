@@ -8,6 +8,7 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.game.challenge.processor.ChallengeTypeRegistry
+import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.logger.LogData
@@ -34,7 +35,8 @@ import kotlin.random.Random
  */
 @Singleton
 class ChallengeManager @Inject constructor(
-	private val registry: ChallengeTypeRegistry
+	private val registry: ChallengeTypeRegistry,
+	private val progressionRepository: ProgressionRepository,
 ) {
 	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -114,12 +116,22 @@ class ChallengeManager @Inject constructor(
 					)
 
 					if (updatedInstance.isCompleted) {
+						val result = progressionRepository.onChallengeCompleted(context, updatedInstance)
+						logGame(
+							LogData(
+								message = "Challenge completed! Medal=${result.medal}, XP=${result.xpAwarded}, Streak=${result.streakCount}",
+								source = CHALLENGE_LOG_SOURCE
+							)
+						)
 						onChallengeCompletedListener(updatedInstance)
 					}
 				}
 			}
 			_activeChallenges.value = activeChallengeList.toList()
 		}
+
+		// Award passive session XP
+		progressionRepository.onTrackingSession(context, session)
 	}
 
 	private fun fillEmptyChallengeSlots(context: Context) {
@@ -158,6 +170,13 @@ class ChallengeManager @Inject constructor(
 		lock.withLock {
 			val expired = activeChallengeList.filter { it.entity.endTime <= now && !it.isCompleted }
 			if (expired.isNotEmpty()) {
+				val result = progressionRepository.onChallengesExpired(context, expired)
+				logGame(
+					LogData(
+						message = "Expired ${result.expiredCount} challenges. Streak broken=${result.streakBroken}, freeze used=${result.freezeUsed}",
+						source = CHALLENGE_LOG_SOURCE
+					)
+				)
 				activeChallengeList.removeAll(expired.toSet())
 				fillEmptyChallengeSlots(context)
 				_activeChallenges.value = activeChallengeList.toList()

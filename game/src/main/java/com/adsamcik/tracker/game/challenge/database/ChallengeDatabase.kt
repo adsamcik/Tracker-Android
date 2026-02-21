@@ -21,7 +21,18 @@ import com.adsamcik.tracker.game.challenge.database.dao.WalkDistanceChallengeDao
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeEntry
 import com.adsamcik.tracker.game.challenge.database.data.ChallengeSessionData
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.game.challenge.database.dao.ChallengeHistoryDao
+import com.adsamcik.tracker.game.challenge.database.dao.ChallengePersonalRecordDao
+import com.adsamcik.tracker.game.challenge.database.dao.ChallengeStreakDao
+import com.adsamcik.tracker.game.challenge.database.dao.PlayerProfileDao
+import com.adsamcik.tracker.game.challenge.database.dao.XpLedgerDao
+import com.adsamcik.tracker.game.challenge.database.entity.ChallengeHistoryEntity
+import com.adsamcik.tracker.game.challenge.database.entity.ChallengePersonalRecordEntity
+import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
+import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
+import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
 import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_2_3
+import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_3_4
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
 import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 
@@ -36,12 +47,17 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
         ExplorerChallengeEntity::class,
         WalkDistanceChallengeEntity::class,
         StepChallengeEntity::class,
-        ActiveTimeChallengeEntity::class
+        ActiveTimeChallengeEntity::class,
+        ChallengeHistoryEntity::class,
+        XpLedgerEntity::class,
+        PlayerProfileEntity::class,
+        ChallengeStreakEntity::class,
+        ChallengePersonalRecordEntity::class
     ],
     autoMigrations = [
 		AutoMigration(from = 1, to = 2, spec = VersionOneToTwoMigration::class)
 	],
-    version = 3
+    version = 4
 )
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
@@ -60,9 +76,19 @@ abstract class ChallengeDatabase : RoomDatabase() {
 
     abstract fun activeTimeDao(): ActiveTimeChallengeDao
 
+    abstract fun challengeHistoryDao(): ChallengeHistoryDao
+
+    abstract fun xpLedgerDao(): XpLedgerDao
+
+    abstract fun playerProfileDao(): PlayerProfileDao
+
+    abstract fun challengeStreakDao(): ChallengeStreakDao
+
+    abstract fun challengePersonalRecordDao(): ChallengePersonalRecordDao
+
     companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
         override fun setupDatabase(database: Builder<ChallengeDatabase>) {
-            database.addMigrations(MIGRATION_2_3)
+            database.addMigrations(MIGRATION_2_3, MIGRATION_3_4)
         }
 
         override val databaseName: String get() = DATABASE_NAME
