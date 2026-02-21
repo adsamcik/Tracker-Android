@@ -124,4 +124,60 @@ class DefaultGameRepository @Inject constructor(
             )
         }.flowOn(Dispatchers.IO)
     }
+
+    override fun getChallengeHistory(): Flow<List<TrophyItemUi>> {
+        return challengeDb.challengeHistoryDao().observeAll()
+            .map { list ->
+                list.map { entity ->
+                    TrophyItemUi(
+                        id = entity.id,
+                        challengeType = entity.challengeType,
+                        difficulty = entity.difficulty,
+                        medal = entity.medal,
+                        completedAt = entity.completedAt,
+                        xpAwarded = entity.xpAwarded,
+                        progressValue = entity.progressValue,
+                        targetValue = entity.targetValue,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.IO)
+    }
+
+    override fun getPersonalRecords(): Flow<List<PersonalRecordUi>> {
+        return challengeDb.challengePersonalRecordDao().observeAll()
+            .map { list ->
+                list.map { entity ->
+                    PersonalRecordUi(
+                        challengeType = entity.challengeType,
+                        metric = entity.metric,
+                        value = entity.value,
+                        achievedAt = entity.achievedAt,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.IO)
+    }
+
+    override fun getLifetimeStats(): Flow<LifetimeStatsUi> {
+        return combine(
+            challengeDb.challengeHistoryDao().observeAll(),
+            challengeDb.challengeHistoryDao().observeCompletedCount(),
+            challengeDb.challengeHistoryDao().observeMedalCount("GOLD"),
+            challengeDb.challengeHistoryDao().observeMedalCount("SILVER"),
+            challengeDb.challengeHistoryDao().observeMedalCount("BRONZE"),
+        ) { allHistory, completed, gold, silver, bronze ->
+            val total = allHistory.size
+            val totalXp = allHistory.sumOf { it.xpAwarded.toLong() }
+            LifetimeStatsUi(
+                totalChallenges = total,
+                completedCount = completed,
+                completionRate = if (total > 0) completed.toFloat() / total else 0f,
+                goldCount = gold,
+                silverCount = silver,
+                bronzeCount = bronze,
+                totalXpEarned = totalXp,
+            )
+        }.flowOn(Dispatchers.IO)
+    }
 }

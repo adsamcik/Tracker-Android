@@ -45,6 +45,7 @@ import com.adsamcik.tracker.app.ui.navigation.Tracker
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Game
+import com.adsamcik.tracker.app.ui.navigation.TrophyCase
 import com.adsamcik.tracker.app.ui.navigation.TripDetail
 import com.adsamcik.tracker.app.ui.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
@@ -259,7 +260,20 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                     },
                 )
             }
-            composable<Game> { com.adsamcik.tracker.game.ui.compose.GameRoute() }
+            composable<Game> {
+                com.adsamcik.tracker.game.ui.compose.GameRoute(
+                    onNavigateToTrophyCase = {
+                        navController.navigate(TrophyCase) {
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
+            composable<TrophyCase> {
+                com.adsamcik.tracker.game.ui.compose.TrophyCaseRoute(
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable<History> {
                 com.adsamcik.tracker.statistics.ui.HistoryRoute(
                     onNavigateToTripDetail = { tripId ->
@@ -312,4 +326,3 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
         }
     }
 }
-

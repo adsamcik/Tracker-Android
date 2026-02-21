@@ -10,7 +10,9 @@ import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel
  * Entry point composable for the Game tab. Uses Hilt for dependency injection.
  */
 @Composable
-fun GameRoute() {
+fun GameRoute(
+	onNavigateToTrophyCase: () -> Unit = {},
+) {
 	val vm: GameViewModel = hiltViewModel()
 	val explorationVm: ExplorationViewModel = hiltViewModel()
 	val progressionVm: ProgressionViewModel = hiltViewModel()
@@ -31,5 +33,6 @@ fun GameRoute() {
 		playerProfile = profile,
 		streak = streak,
 		trophySummary = trophySummary,
+		onNavigateToTrophyCase = onNavigateToTrophyCase,
 	)
 }

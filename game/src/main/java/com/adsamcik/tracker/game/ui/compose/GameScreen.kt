@@ -84,6 +84,7 @@ fun GameScreen(
     modifier: Modifier = Modifier,
     isLoadingChallenges: Boolean = false,
     onViewAllAchievements: () -> Unit = {},
+    onNavigateToTrophyCase: () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -132,6 +133,7 @@ fun GameScreen(
                     goldCount = trophySummary.goldCount,
                     silverCount = trophySummary.silverCount,
                     bronzeCount = trophySummary.bronzeCount,
+                    onViewTrophyCase = onNavigateToTrophyCase,
                 )
             }
         }

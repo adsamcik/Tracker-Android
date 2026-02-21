@@ -18,6 +18,9 @@ data object Map : AppRoute
 data object Game : AppRoute
 
 @Serializable
+data object TrophyCase : AppRoute
+
+@Serializable
 data class TripDetail(val tripId: Long) : AppRoute
 
 @Serializable

@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import com.adsamcik.tracker.game.di.DefaultDailyPointsProvider
 import com.adsamcik.tracker.game.di.DefaultGoalProgressProvider
-import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
@@ -62,9 +61,19 @@ class AppGraph(
         AppDatabase.database(application)
     }
     
-    // Private repository for dashboard providers (these still use AppGraph)
-    private val gameRepository by lazy { 
-        DefaultGameRepository(application, appScope) 
+    // GameRepository via Hilt EntryPoint (avoids manual construction of deep dependency chain)
+    private val gameRepository: com.adsamcik.tracker.game.repository.GameRepository by lazy {
+        val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
+            application,
+            GameRepositoryEntryPoint::class.java,
+        )
+        entryPoint.gameRepository()
+    }
+
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface GameRepositoryEntryPoint {
+        fun gameRepository(): com.adsamcik.tracker.game.repository.GameRepository
     }
 
     private val exportPlanStore by lazy {

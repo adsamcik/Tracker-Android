@@ -34,6 +34,15 @@ interface GameRepository {
 
     /** Observe trophy summary (completed count + medal counts) */
     fun getTrophySummary(): Flow<TrophySummaryUi>
+
+    /** Observe full challenge history for trophy case */
+    fun getChallengeHistory(): Flow<List<TrophyItemUi>>
+
+    /** Observe personal records */
+    fun getPersonalRecords(): Flow<List<PersonalRecordUi>>
+
+    /** Get lifetime stats */
+    fun getLifetimeStats(): Flow<LifetimeStatsUi>
 }
 
 /**
@@ -83,4 +92,41 @@ data class TrophySummaryUi(
     val goldCount: Int,
     val silverCount: Int,
     val bronzeCount: Int,
+)
+
+/**
+ * UI data class for a single trophy (completed challenge).
+ */
+data class TrophyItemUi(
+    val id: Long,
+    val challengeType: String,
+    val difficulty: String,
+    val medal: String?,
+    val completedAt: Long?,
+    val xpAwarded: Int,
+    val progressValue: Double,
+    val targetValue: Double,
+)
+
+/**
+ * UI data class for a personal record.
+ */
+data class PersonalRecordUi(
+    val challengeType: String,
+    val metric: String,
+    val value: Double,
+    val achievedAt: Long,
+)
+
+/**
+ * UI data class for lifetime statistics.
+ */
+data class LifetimeStatsUi(
+    val totalChallenges: Int,
+    val completedCount: Int,
+    val completionRate: Float,
+    val goldCount: Int,
+    val silverCount: Int,
+    val bronzeCount: Int,
+    val totalXpEarned: Long,
 )
