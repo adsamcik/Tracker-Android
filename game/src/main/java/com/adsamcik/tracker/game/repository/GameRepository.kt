@@ -25,6 +25,15 @@ interface GameRepository {
      * @return StateFlow with list of active challenges
      */
     fun getActiveChallenges(): StateFlow<List<ChallengeData>>
+
+    /** Observe player profile (level, XP, etc.) */
+    fun getPlayerProfile(): Flow<PlayerProfileUi?>
+
+    /** Observe challenge streak data */
+    fun getStreak(): Flow<StreakUi?>
+
+    /** Observe trophy summary (completed count + medal counts) */
+    fun getTrophySummary(): Flow<TrophySummaryUi>
 }
 
 /**
@@ -45,4 +54,33 @@ data class ChallengeData(
     val title: String,
     val description: String,
     val progress: Float
+)
+
+/**
+ * UI data class for player profile information.
+ */
+data class PlayerProfileUi(
+    val level: Int,
+    val totalXp: Long,
+    val xpIntoCurrentLevel: Long,
+    val xpForNextLevel: Long,
+)
+
+/**
+ * UI data class for streak information.
+ */
+data class StreakUi(
+    val currentCount: Int,
+    val bestCount: Int,
+    val freezeCount: Int,
+)
+
+/**
+ * UI data class for trophy summary.
+ */
+data class TrophySummaryUi(
+    val totalCompleted: Int,
+    val goldCount: Int,
+    val silverCount: Int,
+    val bronzeCount: Int,
 )

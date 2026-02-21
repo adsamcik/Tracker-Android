@@ -2,6 +2,7 @@ package com.adsamcik.tracker.game.repository
 
 import android.app.Application
 import com.adsamcik.tracker.game.challenge.ChallengeManager
+import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
@@ -32,6 +33,7 @@ class DefaultGameRepository @Inject constructor(
 ) : GameRepository {
     
     private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
+    private val challengeDb by lazy { ChallengeDatabase.database(application) }
     
     init {
         // Initialize game managers (idempotent)
@@ -76,5 +78,50 @@ class DefaultGameRepository @Inject constructor(
                 }
             }
             .stateIn(scope, SharingStarted.Lazily, emptyList())
+    }
+
+    override fun getPlayerProfile(): Flow<PlayerProfileUi?> {
+        return challengeDb.playerProfileDao().observe()
+            .map { entity ->
+                entity?.let {
+                    PlayerProfileUi(
+                        level = it.level,
+                        totalXp = it.totalXp,
+                        xpIntoCurrentLevel = it.xpIntoCurrentLevel,
+                        xpForNextLevel = it.xpForNextLevel,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.IO)
+    }
+
+    override fun getStreak(): Flow<StreakUi?> {
+        return challengeDb.challengeStreakDao().observe()
+            .map { entity ->
+                entity?.let {
+                    StreakUi(
+                        currentCount = it.currentCount,
+                        bestCount = it.bestCount,
+                        freezeCount = it.freezeCount,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.IO)
+    }
+
+    override fun getTrophySummary(): Flow<TrophySummaryUi> {
+        return combine(
+            challengeDb.challengeHistoryDao().observeCompletedCount(),
+            challengeDb.challengeHistoryDao().observeMedalCount("GOLD"),
+            challengeDb.challengeHistoryDao().observeMedalCount("SILVER"),
+            challengeDb.challengeHistoryDao().observeMedalCount("BRONZE"),
+        ) { completed, gold, silver, bronze ->
+            TrophySummaryUi(
+                totalCompleted = completed,
+                goldCount = gold,
+                silverCount = silver,
+                bronzeCount = bronze,
+            )
+        }.flowOn(Dispatchers.IO)
     }
 }

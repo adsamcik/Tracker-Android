@@ -53,6 +53,9 @@ import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import com.adsamcik.tracker.game.repository.PlayerProfileUi
+import com.adsamcik.tracker.game.repository.StreakUi
+import com.adsamcik.tracker.game.repository.TrophySummaryUi
 
 data class StepsSummaryUi(
     val stepsToday: Int,
@@ -75,6 +78,9 @@ fun GameScreen(
     challenges: List<ChallengeUi>,
     explorationState: ExplorationState,
     achievementState: AchievementSummaryState,
+    playerProfile: PlayerProfileUi?,
+    streak: StreakUi?,
+    trophySummary: TrophySummaryUi,
     modifier: Modifier = Modifier,
     isLoadingChallenges: Boolean = false,
     onViewAllAchievements: () -> Unit = {},
@@ -92,6 +98,16 @@ fun GameScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                HeroLevelCard(
+                    level = playerProfile?.level ?: 0,
+                    xpIntoCurrentLevel = playerProfile?.xpIntoCurrentLevel ?: 0L,
+                    xpForNextLevel = playerProfile?.xpForNextLevel ?: 0L,
+                    streakCount = streak?.currentCount ?: 0,
+                    streakBest = streak?.bestCount ?: 0,
+                    freezeCount = streak?.freezeCount ?: 0,
+                )
+            }
+            item {
                 PointsCard(pointsToday)
             }
             item {
@@ -106,13 +122,17 @@ fun GameScreen(
                     onViewAll = onViewAllAchievements,
                 )
             }
-            item { SectionHeader(text = stringResource(R.string.challenge_list_title)) }
-            when {
-                isLoadingChallenges -> item { ChallengesLoadingState() }
-                challenges.isEmpty() -> item { ChallengesEmptyState() }
-                else -> items(challenges, key = { it.id }) { ch ->
-                    ChallengeCard(ch)
-                }
+            item { SectionHeader(text = stringResource(R.string.game_active_challenges)) }
+            item {
+                ActiveChallengesRow(challenges = challenges)
+            }
+            item {
+                TrophySummaryCard(
+                    totalCompleted = trophySummary.totalCompleted,
+                    goldCount = trophySummary.goldCount,
+                    silverCount = trophySummary.silverCount,
+                    bronzeCount = trophySummary.bronzeCount,
+                )
             }
         }
     }

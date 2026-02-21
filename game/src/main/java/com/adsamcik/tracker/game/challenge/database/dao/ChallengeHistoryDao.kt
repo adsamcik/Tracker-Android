@@ -31,4 +31,10 @@ interface ChallengeHistoryDao : BaseDao<ChallengeHistoryEntity> {
 
 	@Query("SELECT COUNT(*) FROM challenge_history WHERE medal = :medal")
 	fun getMedalCount(medal: String): Int
+
+	@Query("SELECT COUNT(*) FROM challenge_history WHERE outcome = 'COMPLETED'")
+	fun observeCompletedCount(): Flow<Int>
+
+	@Query("SELECT COUNT(*) FROM challenge_history WHERE medal = :medal")
+	fun observeMedalCount(medal: String): Flow<Int>
 }
