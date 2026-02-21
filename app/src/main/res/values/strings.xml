@@ -33,7 +33,9 @@
     <string name="module_statistics_title">Statistics</string>
     <string name="module_success">Installation completed successfully</string>
 
+    <string name="main_nav_tracker">Tracker</string>
     <string name="main_nav_stats">Statistics</string>
+    <string name="main_nav_map">Map</string>
     <string name="main_nav_game">Game</string>
     <string name="main_nav_map_expand">Open map</string>
     <string name="main_nav_map_collapse">Close map</string>
@@ -100,6 +102,11 @@
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
     <string name="settings_licenses_title">Open source licenses</string>
     <string name="settings_privacy_policy_title">Privacy Policy</string>
+    <string name="settings_about_header">About</string>
+    <string name="settings_about_app_title">Tracker by adsamcik</string>
+    <string name="settings_about_app_subtitle">Privacy-first location &amp; activity tracker</string>
+    <string name="settings_send_feedback_title">Send feedback</string>
+    <string name="settings_send_feedback_subtitle">Report issues on GitHub</string>
     <string name="settings_log_activity_title">Log activity changes</string>
     <string name="settings_log_enabled_title">Enable logging</string>
     <string name="settings_log_performance_enabled_title">Enable performance logging</string>

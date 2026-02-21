@@ -37,7 +37,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Summarize
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -403,7 +402,6 @@ private fun HeaderActions(
 ) {
     val summaryLabel = stringResource(R.string.stats_sum_title)
     val weekLabel = stringResource(R.string.stats_weekly_title)
-    val wifiLabel = stringResource(R.string.stats_wifi_label)
     val historyLabel = stringResource(R.string.history_button_label)
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -423,17 +421,6 @@ private fun HeaderActions(
                 label = weekLabel,
                 modifier = Modifier.weight(1f)
             )
-            ActionChip(
-                onClick = onOpenWifi,
-                icon = Icons.Filled.Wifi,
-                label = wifiLabel,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
             ActionChip(
                 onClick = onNavigateToHistory,
                 icon = Icons.Filled.History,
@@ -525,9 +512,20 @@ internal fun TripRow(
 
     val tripIcon = remember(trip.primaryActivity) { activityIcon(trip.primaryActivity) }
 
+    val tripDescription = buildString {
+        append(timeText)
+        if (durationText != null) append(", $durationText")
+        if (distanceText != null) append(", $distanceText")
+        val steps = trip.steps ?: 0
+        if (steps > 0) append(", ${steps.formatReadable()} steps")
+    }
+
     GlassCard(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = tripDescription
+            }
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .testTag("stats_trip_row"),
         shape = AppShapes.GlassCard

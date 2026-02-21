@@ -38,7 +38,9 @@ class DefaultGameRepository @Inject constructor(
         ChallengeManager.initialize(application)
     }
     
-    private fun startOfDay(now: Long): Long = (now / 86_400_000L) * 86_400_000L
+    private fun startOfDay(now: Long): Long =
+        java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault())
+            .toInstant().toEpochMilli()
     
     override fun getPointsToday(): Flow<Int> {
         return flow {

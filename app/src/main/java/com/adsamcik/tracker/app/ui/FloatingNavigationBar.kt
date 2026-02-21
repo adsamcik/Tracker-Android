@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -137,16 +138,13 @@ private fun FloatingNavItem(
             modifier = Modifier.size(24.dp).scale(scale)
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // Dot indicator
-        Box(
-            modifier = Modifier
-                .size(4.dp)
-                .background(
-                    if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    androidx.compose.foundation.shape.CircleShape
-                )
+        Text(
+            text = item.contentDescription,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            maxLines = 1
         )
     }
 }

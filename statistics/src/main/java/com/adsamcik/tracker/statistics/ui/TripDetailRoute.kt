@@ -114,6 +114,26 @@ fun TripDetailRoute(
 						)
 					}
 				}
+				is TripDetailState.Error -> {
+					Box(
+						Modifier
+							.fillMaxSize()
+							.padding(32.dp),
+						contentAlignment = Alignment.Center
+					) {
+						Column(horizontalAlignment = Alignment.CenterHorizontally) {
+							EmptyStateCard(
+								icon = Icons.Filled.ErrorOutline,
+								title = stringResource(R.string.trip_detail_error_title),
+								subtitle = s.message
+							)
+							Spacer(Modifier.height(16.dp))
+							androidx.compose.material3.Button(onClick = { viewModel.retry() }) {
+								Text(stringResource(R.string.trip_detail_retry))
+							}
+						}
+					}
+				}
 			}
 		}
 	}

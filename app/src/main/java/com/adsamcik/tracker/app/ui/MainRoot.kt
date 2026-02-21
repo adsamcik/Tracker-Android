@@ -57,6 +57,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import com.adsamcik.tracker.app.tracker.ui.UpgradeToPrecisePrompt
 import com.adsamcik.tracker.app.tracker.ui.UpgradeReason
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 
@@ -184,14 +186,12 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
     }
 
     // Navigation Items
-    val navItems = remember {
-        listOf(
-            NavigationItem(Tracker, Icons.Filled.Home, "Tracker", "nav_tracker"),
-            NavigationItem(Stats, Icons.Filled.BarChart, "Stats", "nav_stats"),
-            NavigationItem(Map, Icons.Filled.Map, "Map", "nav_map"),
-            NavigationItem(Game, Icons.Filled.VideogameAsset, "Game", "nav_game")
-        )
-    }
+    val navItems = listOf(
+        NavigationItem(Tracker, Icons.Filled.Home, stringResource(R.string.main_nav_tracker), "nav_tracker"),
+        NavigationItem(Stats, Icons.Filled.BarChart, stringResource(R.string.main_nav_stats), "nav_stats"),
+        NavigationItem(Map, Icons.Filled.Map, stringResource(R.string.main_nav_map), "nav_map"),
+        NavigationItem(Game, Icons.Filled.VideogameAsset, stringResource(R.string.main_nav_game), "nav_game")
+    )
 
     // Determine if we need bottom padding (overlap map, pad others)
     val isMap = currentDestination?.hasRoute<Map>() == true

@@ -47,7 +47,7 @@ fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit
                     title = { Text(currentScreen.title()) },
                     navigationIcon = {
                         IconButton(onClick = { currentScreen = SettingsScreen.Root }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_navigate_back))
                         }
                     }
                 )
@@ -249,6 +249,25 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
             )
         }
 
+        // --- About section ---
+        item {
+            Text(
+                text = stringResource(R.string.settings_about_header),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        item {
+            SettingsItem(
+                title = stringResource(R.string.settings_about_app_title),
+                subtitle = stringResource(R.string.settings_about_app_subtitle),
+                icon = Icons.Default.Info,
+                onClick = { }
+            )
+        }
+
         // Licenses
         item {
             SettingsItem(
@@ -267,6 +286,18 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
                 icon = Icons.Default.PrivacyTip,
                 onClick = {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/adsamcik/Tracker-Android/blob/master/PRIVACY_POLICY.md")))
+                }
+            )
+        }
+
+        // Send feedback
+        item {
+            SettingsItem(
+                title = stringResource(R.string.settings_send_feedback_title),
+                subtitle = stringResource(R.string.settings_send_feedback_subtitle),
+                icon = Icons.Default.Feedback,
+                onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/adsamcik/Tracker-Android/issues")))
                 }
             )
         }

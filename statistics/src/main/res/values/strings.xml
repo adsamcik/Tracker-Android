@@ -82,6 +82,8 @@
     <string name="trip_detail_tab_stats">Stats</string>
     <string name="trip_detail_not_found">Trip not found</string>
     <string name="trip_detail_not_found_subtitle">This trip may have been deleted</string>
+    <string name="trip_detail_error_title">Failed to load trip</string>
+    <string name="trip_detail_retry">Retry</string>
     <string name="trip_detail_duration">Duration</string>
     <string name="trip_detail_distance">Distance</string>
     <string name="trip_detail_steps">Steps</string>

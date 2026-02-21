@@ -6,11 +6,14 @@ import android.os.Build
 import com.adsamcik.tracker.logger.Reporter
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -169,6 +172,46 @@ fun MapScreen(
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center)
             )
+        }
+
+        // Layer loading indicator
+        val isLayerLoading = state.layerLoadingProgress in 1..99
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isLayerLoading,
+            modifier = Modifier.align(Alignment.TopCenter),
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            androidx.compose.material3.LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Permission denied banner
+        if (!isLocationPermissionGranted) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(16.dp),
+            ) {
+                androidx.compose.material3.Card(
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(com.adsamcik.tracker.map.R.string.map_location_permission_denied),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
         }
 
         SnackbarHost(
@@ -369,10 +412,11 @@ private fun MapUserOverlays(overlays: List<MapOverlayState>) {
                         GeoJsonConverter.pointToFeature(overlay.latLng.lat, overlay.latLng.lng)
                     )
                 )
+                val radiusDp = overlay.radiusM.toFloat().coerceIn(10f, 200f).dp
                 CircleLayer(
                     id = "accuracy-$index",
                     source = src,
-                    radius = const(20.dp),
+                    radius = const(radiusDp),
                     color = const(accuracyColor),
                     opacity = const(0.3f),
                 )

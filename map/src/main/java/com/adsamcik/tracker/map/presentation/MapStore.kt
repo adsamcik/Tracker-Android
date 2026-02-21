@@ -214,6 +214,7 @@ class MapStore @Inject constructor() : ViewModel() {
         val engine = layerManager ?: return
         applyLayerJob?.cancel()
         applyLayerJob = viewModelScope.launch {
+            _state.update { it.copy(layerLoadingProgress = 50) }
             try {
                 val s = _state.value
                 withContext(Dispatchers.Default) {
@@ -233,11 +234,12 @@ class MapStore @Inject constructor() : ViewModel() {
                                 )
                             }.toTypedArray()),
                             layerConfig = config,
-                            overlays = overlays
+                            overlays = overlays,
+                            layerLoadingProgress = 0
                         )
                     }
                 } else {
-                    _state.update { it.copy(legend = persistentListOf(), layerConfig = config, overlays = overlays) }
+                    _state.update { it.copy(legend = persistentListOf(), layerConfig = config, overlays = overlays, layerLoadingProgress = 0) }
                 }
             } catch (_: Exception) {
                 _state.update {

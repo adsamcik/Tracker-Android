@@ -131,6 +131,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.material.icons.outlined.Star
+import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CollectionData
@@ -608,7 +609,7 @@ private fun TrackingContent(
                                         Icons.Default.KeyboardArrowUp 
                                     else 
                                         Icons.Default.KeyboardArrowDown,
-                                    contentDescription = if (showDetails) "Collapse" else "Expand",
+                                    contentDescription = if (showDetails) stringResource(R.string.tracker_collapse) else stringResource(R.string.tracker_expand),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -634,13 +635,7 @@ private fun TrackingContent(
                 }
             }
 
-            if (!isTracking && sessionData == null && collectionData == null) {
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "empty") {
-                    EmptyStateCard()
-                }
-            }
-
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) { Spacer(Modifier.height(80.dp)) }
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) { Spacer(Modifier.height(140.dp)) }
         }
     }
 }
@@ -725,7 +720,7 @@ private fun SessionOverviewCard(
                     copyToClipboard(context, haptics, "Session", sessionSummary)
                     scope.launch {
                         snackbarHostState.showSnackbar(
-                            message = "Session summary copied",
+                            message = context.getString(R.string.tracker_session_summary_copied),
                             duration = androidx.compose.material3.SnackbarDuration.Short
                         )
                     }
@@ -733,7 +728,7 @@ private fun SessionOverviewCard(
             )
             .semantics {
                 contentDescription = "Session overview: $durationText duration, $distanceText distance"
-                onClick(label = "Copy session summary") {
+                onClick(label = context.getString(R.string.tracker_copy_session_summary)) {
                     true
                 }
             },
@@ -762,11 +757,10 @@ private fun SessionOverviewCard(
                         val shareIntent = Intent.createChooser(sendIntent, null)
                         context.startActivity(shareIntent)
                     },
-                    modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
-                        contentDescription = "Share session summary",
+                        contentDescription = stringResource(R.string.tracker_share_session_summary),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(16.dp)
                     )
@@ -776,7 +770,7 @@ private fun SessionOverviewCard(
 
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Long-press to copy",
+                    contentDescription = stringResource(R.string.tracker_long_press_to_copy),
                     modifier = Modifier
                         .size(14.dp)
                         .alpha(0.5f),
@@ -959,7 +953,7 @@ private fun StatusAndQuickStatsCard(
                 
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "Go to map",
+                    contentDescription = stringResource(R.string.tracker_go_to_map),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )
@@ -1481,7 +1475,7 @@ private fun EmptyStateCard() {
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .height(180.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Animated Background Pattern
@@ -1525,9 +1519,9 @@ private fun EmptyStateCard() {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(24.dp),
+                    .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 56.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Top
             ) {
                 // Floating icon with pulse
                 Box(
@@ -1576,17 +1570,7 @@ private fun EmptyStateCard() {
                     textAlign = TextAlign.Center
                 )
                 
-                Spacer(Modifier.height(12.dp))
-                
-                // Hint arrow pointing to FAB
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowDown,
-                    contentDescription = "Tap below to start",
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .size(28.dp)
-                        .graphicsLayer { translationY = floatOffset * 0.5f }
-                )
+                Spacer(Modifier.height(4.dp))
             }
         }
     }
@@ -2221,7 +2205,12 @@ private fun TodayProgressCard(
     // Fetch on-demand when composition enters or when tracking state changes
     LaunchedEffect(isTracking) {
         isLoading = true
-        todaySummary = dailySummaryProvider.fetchTodaySummary()
+        try {
+            todaySummary = dailySummaryProvider.fetchTodaySummary()
+        } catch (e: Exception) {
+            Log.e("TodayProgressCard", "Failed to fetch today summary", e)
+            todaySummary = null
+        }
         isLoading = false
     }
     
@@ -2446,8 +2435,13 @@ private fun RecentTripsCard(
     var trips by remember { mutableStateOf<List<Trip>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        trips = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            AppDatabase.database(context).tripDao().getRecentTrips(3)
+        try {
+            trips = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                AppDatabase.database(context).tripDao().getRecentTrips(3)
+            }
+        } catch (e: Exception) {
+            Log.e("RecentTripsCard", "Failed to fetch recent trips", e)
+            trips = emptyList()
         }
     }
 

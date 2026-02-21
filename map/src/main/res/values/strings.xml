@@ -58,6 +58,8 @@
 
     <string name="permission_rationale_location_map">To show your location on the map, Tracker needs location access. All data stays on your device.</string>
 
+    <string name="map_location_permission_denied">Location permission required to show your position</string>
+
     <string name="settings_map_basemap_path_key">map.basemap.path</string>
     <string name="settings_map_basemap_title">Basemap</string>
     <string name="settings_map_basemap_custom">Custom (tap to reset)</string>

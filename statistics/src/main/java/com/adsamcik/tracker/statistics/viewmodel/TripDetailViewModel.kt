@@ -19,6 +19,7 @@ sealed interface TripDetailState {
 	data object Loading : TripDetailState
 	data class Loaded(val trip: Trip) : TripDetailState
 	data object NotFound : TripDetailState
+	data class Error(val message: String) : TripDetailState
 }
 
 /**
@@ -40,13 +41,23 @@ class TripDetailViewModel @Inject constructor(
 		loadTrip()
 	}
 
+	/** Retry loading the trip after an error. */
+	fun retry() {
+		_state.value = TripDetailState.Loading
+		loadTrip()
+	}
+
 	private fun loadTrip() {
 		viewModelScope.launch {
-			val trip = tripDao.getById(tripId)
-			_state.value = if (trip != null) {
-				TripDetailState.Loaded(trip)
-			} else {
-				TripDetailState.NotFound
+			try {
+				val trip = tripDao.getById(tripId)
+				_state.value = if (trip != null) {
+					TripDetailState.Loaded(trip)
+				} else {
+					TripDetailState.NotFound
+				}
+			} catch (e: Exception) {
+				_state.value = TripDetailState.Error(e.message ?: "Failed to load trip")
 			}
 		}
 	}

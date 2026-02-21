@@ -272,4 +272,20 @@
     <string name="tracker_settings_icon_desc">Component settings</string>
     <string name="tracker_points_icon_desc">Points progress</string>
 
+    <!-- Hardcoded string extractions (HI-03) -->
+    <string name="tracker_start_button">START</string>
+    <string name="tracker_duration_label">Duration</string>
+    <string name="tracker_distance_label">Distance</string>
+    <string name="tracker_wifi_label">WiFi</string>
+    <string name="tracker_cell_label">Cell</string>
+    <string name="tracker_collapse">Collapse</string>
+    <string name="tracker_expand">Expand</string>
+    <string name="tracker_tap_below_to_start">Tap below to start</string>
+    <string name="tracker_go_to_map">Go to map</string>
+    <string name="tracker_session_summary_copied">Session summary copied</string>
+    <string name="tracker_share_session_summary">Share session summary</string>
+    <string name="tracker_long_press_to_copy">Long-press to copy</string>
+    <string name="tracker_copy_session_summary">Copy session summary</string>
+    <string name="action_navigate_back">Navigate back</string>
+
 </resources>

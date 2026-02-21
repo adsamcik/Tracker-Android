@@ -235,7 +235,7 @@ private fun LocationPrecisionSelectorScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, 
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.action_navigate_back),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
