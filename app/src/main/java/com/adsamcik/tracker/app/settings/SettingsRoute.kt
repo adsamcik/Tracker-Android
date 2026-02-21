@@ -25,7 +25,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose
+
 import com.adsamcik.tracker.app.settings.components.*
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.map.basemap.BasemapManager
@@ -36,7 +36,7 @@ import java.util.Locale
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit = {}) {
+fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit = {}, onNavigateToActivities: () -> Unit = {}) {
     val vm: SettingsViewModel = hiltViewModel()
     var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
 
@@ -67,7 +67,8 @@ fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit
             when (val screen = currentScreen) {
                 SettingsScreen.Root -> RootSettings(
                     viewModel = vm,
-                    onNavigate = { currentScreen = it }
+                    onNavigate = { currentScreen = it },
+                    onNavigateToActivities = onNavigateToActivities
                 )
                 SettingsScreen.Tracking -> TrackingSettings()
                 SettingsScreen.Data -> DataSettings()
@@ -114,7 +115,7 @@ sealed class SettingsScreen {
 
 // Root settings list
 @Composable
-private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScreen) -> Unit) {
+private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScreen) -> Unit, onNavigateToActivities: () -> Unit = {}) {
     val context = LocalContext.current
     val state by viewModel.settings.collectAsState()
     
@@ -152,9 +153,7 @@ private fun RootSettings(viewModel: SettingsViewModel, onNavigate: (SettingsScre
             SettingsItem(
                 title = stringResource(com.adsamcik.tracker.activity.R.string.settings_activity_title),
                 icon = Icons.AutoMirrored.Filled.DirectionsRun,
-                onClick = {
-                    context.startActivity(Intent(context, SessionActivityActivityCompose::class.java))
-                }
+                onClick = onNavigateToActivities
             )
         }
 

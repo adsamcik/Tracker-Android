@@ -28,3 +28,6 @@ data object Debug : AppRoute
 
 @Serializable
 data object Settings : AppRoute
+
+@Serializable
+data object ActivitySettings : AppRoute

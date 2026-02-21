@@ -50,6 +50,7 @@ import com.adsamcik.tracker.app.ui.navigation.TripDetail
 import com.adsamcik.tracker.app.ui.navigation.History
 import com.adsamcik.tracker.app.ui.navigation.Debug
 import com.adsamcik.tracker.app.ui.navigation.Settings
+import com.adsamcik.tracker.app.ui.navigation.ActivitySettings
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
@@ -278,7 +279,19 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                 )
             }
             composable<Debug> { com.adsamcik.tracker.app.debug.DebugRoute() }
-            composable<Settings> { com.adsamcik.tracker.app.settings.SettingsRoute(onNavigateBack = { navController.popBackStack() }) }
+            composable<Settings> {
+                com.adsamcik.tracker.app.settings.SettingsRoute(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToActivities = {
+                        navController.navigate(ActivitySettings) { launchSingleTop = true }
+                    }
+                )
+            }
+            composable<ActivitySettings> {
+                com.adsamcik.tracker.activity.ui.SessionActivityRoute(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
         }
 
         // Floating Navigation Bar (overlay)
