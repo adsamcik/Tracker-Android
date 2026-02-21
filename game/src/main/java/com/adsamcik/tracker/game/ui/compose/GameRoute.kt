@@ -19,6 +19,7 @@ fun GameRoute(
 	val points by vm.pointsToday.collectAsState()
 	val steps by vm.stepsSummary.collectAsState()
 	val challenges by vm.challenges.collectAsState()
+	val miniGameEntries by vm.miniGameEntries.collectAsState()
 	val exploration by explorationVm.explorationState.collectAsState()
 	val achievements by explorationVm.achievementState.collectAsState()
 	val profile by progressionVm.playerProfile.collectAsState()
@@ -28,6 +29,7 @@ fun GameRoute(
 		pointsToday = points,
 		steps = steps,
 		challenges = challenges,
+		miniGameEntries = miniGameEntries,
 		explorationState = exploration,
 		achievementState = achievements,
 		playerProfile = profile,

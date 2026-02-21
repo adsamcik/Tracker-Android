@@ -76,6 +76,7 @@ fun GameScreen(
     pointsToday: Int,
     steps: StepsSummaryUi?,
     challenges: List<ChallengeUi>,
+    miniGameEntries: List<MiniGameEntry>,
     explorationState: ExplorationState,
     achievementState: AchievementSummaryState,
     playerProfile: PlayerProfileUi?,
@@ -126,6 +127,20 @@ fun GameScreen(
             item { SectionHeader(text = stringResource(R.string.game_active_challenges)) }
             item {
                 ActiveChallengesRow(challenges = challenges)
+            }
+            item { SectionHeader(text = stringResource(R.string.minigame_section_title)) }
+            item {
+                MiniGamesGrid(
+                    games = miniGameEntries.map { entry ->
+                        MiniGameUi(
+                            id = entry.id,
+                            name = stringResource(entry.nameRes),
+                            description = stringResource(entry.descriptionRes),
+                            unlockLevel = entry.unlockLevel,
+                            isUnlocked = entry.isUnlocked,
+                        )
+                    },
+                )
             }
             item {
                 TrophySummaryCard(

@@ -33,7 +33,10 @@ import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
 import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
 import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_2_3
 import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_3_4
+import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_4_5
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyTypeConverter
+import com.adsamcik.tracker.game.minigame.database.MiniGameScoreDao
+import com.adsamcik.tracker.game.minigame.database.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
 
 /**
@@ -52,12 +55,13 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
         XpLedgerEntity::class,
         PlayerProfileEntity::class,
         ChallengeStreakEntity::class,
-        ChallengePersonalRecordEntity::class
+        ChallengePersonalRecordEntity::class,
+        MiniGameScoreEntity::class
     ],
     autoMigrations = [
 		AutoMigration(from = 1, to = 2, spec = VersionOneToTwoMigration::class)
 	],
-    version = 4
+    version = 5
 )
 @TypeConverters(ChallengeDifficultyTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
@@ -86,9 +90,11 @@ abstract class ChallengeDatabase : RoomDatabase() {
 
     abstract fun challengePersonalRecordDao(): ChallengePersonalRecordDao
 
+    abstract fun miniGameScoreDao(): MiniGameScoreDao
+
     companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
         override fun setupDatabase(database: Builder<ChallengeDatabase>) {
-            database.addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            database.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         }
 
         override val databaseName: String get() = DATABASE_NAME
@@ -111,4 +117,3 @@ abstract class ChallengeDatabase : RoomDatabase() {
         }
     }
 }
-

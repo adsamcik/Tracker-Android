@@ -23,6 +23,17 @@
     <string name="challenge_speed_description">Walk %1$s in a single burst</string>
     <string name="challenge_consistency_title">Consistency is Key</string>
     <string name="challenge_consistency_description">Track on %1$d different days</string>
+    
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">Outrun</string>
+    <string name="minigame_outrun_description">Race a ghost. Stay ahead!</string>
+    <string name="minigame_territory_name">Territory</string>
+    <string name="minigame_territory_description">Claim new grid cells as you walk</string>
+    <string name="minigame_zenwalk_name">Zen Walk</string>
+    <string name="minigame_zenwalk_description">Keep your pace steady in the zone</string>
+    <string name="minigame_section_title">Mini-Games</string>
+    <string name="minigame_locked">Unlocks at Level %1$d</string>
+    <string name="minigame_coming_soon">Coming during tracking!</string>
 
     <string name="goals_reached_notification">%1$s! You reached your %2$s goal!</string>
     <string name="goals_daily_goal">daily</string>
