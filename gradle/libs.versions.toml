@@ -14,7 +14,6 @@ java = "17"
 # Tools
 benmanes = "0.52.0"
 googleServices = "4.4.3"
-secrets = "2.0.1"
 ossLicenses = "0.10.7"
 desugarJdkLibs = "2.1.5"
 
@@ -33,7 +32,6 @@ splashScreen = "1.0.1"
 navigationCompose = "2.9.3"
 constraintLayoutCompose = "1.1.1"
 composeBom = "2025.08.00"
-composeGoogleFonts = "1.7.8"
 accompanist = "0.36.0"
 materialKolor = "3.0.1"
 documentfile = "1.1.0"
@@ -47,8 +45,9 @@ hiltAndroidx = "1.2.0"
 # Google Play Services
 playServicesBase = "18.7.2"
 playLocation = "21.3.0"
-maps = "19.2.0"
-mapsCompose = "6.7.2"
+
+# MapLibre
+maplibreCompose = "0.12.1"
 
 # KotlinX
 coroutines = "1.10.2"
@@ -90,12 +89,13 @@ mockitoCore = "5.19.0"
 mockitoInline = "5.2.0"
 mockitoAndroid = "5.19.0"
 mockitoKotlin = "6.0.0"
-mockk = "1.13.14"
+mockk = "1.13.16"
 turbine = "1.2.1"
 androidxTestCore = "1.7.0"
 kotlinxCoroutinesTest = "1.10.2"
 androidxTestRules = "1.6.1"
 kotest = "6.0.0.M2"
+robolectricJunit5 = "0.9.0"
 
 [libraries]
 # Test libraries - JUnit 5 (for unit tests)
@@ -115,12 +115,14 @@ arch-core-testing = { group = "androidx.arch.core", name = "core-testing", versi
 espresso = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 espresso-intents = { group = "androidx.test.espresso", name = "espresso-intents", version.ref = "espresso" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+junit5-robolectric = { module = "tech.apter.junit5.jupiter:robolectric-extension", version.ref = "robolectricJunit5" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
 mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "mockitoInline" }
 mockito-android = { module = "org.mockito:mockito-android", version.ref = "mockitoAndroid" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
+mockk-agent = { module = "io.mockk:mockk-agent", version.ref = "mockk" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -160,11 +162,12 @@ androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", 
 # Google Material
 google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
-# Play Services & Maps
+# Play Services (location + base only; Maps removed)
 google-play-services-base = { group = "com.google.android.gms", name = "play-services-base", version.ref = "playServicesBase" }
-google-play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "maps" }
 google-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playLocation" }
-google-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+
+# MapLibre
+maplibre-compose = { group = "org.maplibre.compose", name = "maplibre-compose", version.ref = "maplibreCompose" }
 
 # Moshi
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }
@@ -249,7 +252,7 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
-secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secrets" }
 oss-licenses = { id = "com.google.android.gms.oss-licenses-plugin", version.ref = "ossLicenses" }
 benmanes-versions = { id = "com.github.ben-manes.versions", version.ref = "benmanes" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }
+robolectric-junit5 = { id = "tech.apter.junit5.jupiter.robolectric-extension-gradle-plugin", version.ref = "robolectricJunit5" }
