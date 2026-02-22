@@ -6,17 +6,19 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-// Contract: ViewModel for data & export settings screen
-// Inputs: Context for Preferences access
-// Outputs: StateFlows for auto-cleanup and data retention settings
-// Errors: None (preferences default to safe values)
-class DataSettingsViewModel(private val context: Context) : ViewModel() {
-    
+@HiltViewModel
+class DataSettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context
+) : ViewModel() {
+
     private val prefs = Preferences.getPref(context)
     
     // Auto-cleanup old data

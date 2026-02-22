@@ -9,19 +9,21 @@ import com.adsamcik.tracker.app.settings.data.TrackingPresetSettings
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 
-// Contract: ViewModel for tracking settings screen with preset support
-// Inputs: Context for Preferences access
-// Outputs: StateFlows for all tracking-related preferences + preset state
-// Errors: None (preferences default to safe values)
-class TrackingSettingsViewModel(private val context: Context) : ViewModel() {
-    
+@HiltViewModel
+class TrackingSettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context
+) : ViewModel() {
+
     private val prefs = Preferences.getPref(context)
     
     // Preset tracking

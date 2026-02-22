@@ -23,9 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.adsamcik.tracker.app.settings.TrackingSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.ExpandableSection
 import com.adsamcik.tracker.app.settings.components.SettingsItem
@@ -36,14 +34,7 @@ import com.adsamcik.tracker.app.settings.components.SwitchSettingsItemWithHelp
 @Composable
 fun TrackingSettingsScreen() {
     val context = LocalContext.current
-    val trackingVm: TrackingSettingsViewModel = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return TrackingSettingsViewModel(context) as T
-            }
-        }
-    )
+    val trackingVm: TrackingSettingsViewModel = hiltViewModel()
 
     // State from ViewModel
     val currentPreset by trackingVm.currentPreset.collectAsState()

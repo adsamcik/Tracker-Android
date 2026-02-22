@@ -28,9 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.DataSettingsViewModel
 import com.adsamcik.tracker.app.settings.DebugSettingsViewModel
@@ -47,15 +45,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun DataSettingsScreen() {
     val context = LocalContext.current
-    val dataVm: DataSettingsViewModel = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return DataSettingsViewModel(context) as T
-            }
-        }
-    )
-    val debugVm: DebugSettingsViewModel = viewModel()
+    val dataVm: DataSettingsViewModel = hiltViewModel()
+    val debugVm: DebugSettingsViewModel = hiltViewModel()
 
     val autoCleanupEnabled by dataVm.autoCleanupEnabled.collectAsState()
     val dataRetentionYears by dataVm.dataRetentionYears.collectAsState()
