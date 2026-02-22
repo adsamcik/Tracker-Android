@@ -6,9 +6,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Fallback to SansSerif if Outfit and Inter are not available
-val DisplayFontFamily = FontFamily.SansSerif
-val BodyFontFamily = FontFamily.SansSerif
+// System default (Roboto on Android) — the standard M3 type face
+val DisplayFontFamily = FontFamily.Default
+val BodyFontFamily = FontFamily.Default
 
 val AppTypography = Typography(
     displayLarge = TextStyle(
