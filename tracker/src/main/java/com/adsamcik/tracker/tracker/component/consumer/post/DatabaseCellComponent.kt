@@ -21,7 +21,7 @@ import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
@@ -180,6 +180,7 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 	}
 
 	override suspend fun onDisable(context: Context) {
+		scope?.coroutineContext?.get(kotlinx.coroutines.Job)?.children?.toList()?.forEach { it.join() }
 		scope?.cancel(); scope = null
 		cellLocationDao = null
 		cellOperatorDao = null
@@ -192,7 +193,7 @@ internal class DatabaseCellComponent : PostTrackerComponent {
 		cellLocationDao = database.cellLocationDao()
 		cellOperatorDao = database.cellOperatorDao()
 		cellSampleDao = database.cellSampleDao()
-		scope = CoroutineScope(Job() + Dispatchers.Default)
+		scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 	}
 }
 

@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.statistics.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
+import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
@@ -14,6 +16,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -24,10 +27,13 @@ class TripDetailViewModelTest {
 
 	private val testDispatcher = StandardTestDispatcher()
 	private val tripDao: TripDao = mockk()
+	private val locationDataDao: LocationDataDao = mockk()
+	private lateinit var dispatchersProvider: TestDispatchersProvider
 
 	@BeforeEach
 	fun setUp() {
 		Dispatchers.setMain(testDispatcher)
+		dispatchersProvider = TestDispatchersProvider(testDispatcher)
 	}
 
 	@AfterEach
@@ -37,7 +43,12 @@ class TripDetailViewModelTest {
 
 	private fun createViewModel(tripId: Long): TripDetailViewModel {
 		val savedStateHandle = SavedStateHandle(mapOf("tripId" to tripId))
-		return TripDetailViewModel(tripDao, savedStateHandle)
+		return TripDetailViewModel(tripDao, locationDataDao, dispatchersProvider, savedStateHandle)
+	}
+
+	private fun createViewModelWithoutTripId(): TripDetailViewModel {
+		val savedStateHandle = SavedStateHandle()
+		return TripDetailViewModel(tripDao, locationDataDao, dispatchersProvider, savedStateHandle)
 	}
 
 	private val sampleTrip = Trip(
@@ -56,6 +67,7 @@ class TripDetailViewModelTest {
 	@Test
 	fun `initial state is Loading`() = runTest {
 		coEvery { tripDao.getById(42L) } returns sampleTrip
+		coEvery { locationDataDao.getAllBetweenOrdered(any(), any()) } returns emptyList()
 
 		val vm = createViewModel(42L)
 		vm.state.value shouldBe TripDetailState.Loading
@@ -64,6 +76,7 @@ class TripDetailViewModelTest {
 	@Test
 	fun `loads trip successfully`() = runTest {
 		coEvery { tripDao.getById(42L) } returns sampleTrip
+		coEvery { locationDataDao.getAllBetweenOrdered(any(), any()) } returns emptyList()
 
 		val vm = createViewModel(42L)
 		advanceUntilIdle()
@@ -80,5 +93,25 @@ class TripDetailViewModelTest {
 		advanceUntilIdle()
 
 		vm.state.value shouldBe TripDetailState.NotFound
+	}
+
+	@Test
+	fun `missing tripId produces error state instead of crash`() = runTest {
+		val vm = createViewModelWithoutTripId()
+		advanceUntilIdle()
+
+		val state = vm.state.value.shouldBeInstanceOf<TripDetailState.Error>()
+		state.message shouldContain "Trip ID"
+	}
+
+	@Test
+	fun `retry with missing tripId stays in error state`() = runTest {
+		val vm = createViewModelWithoutTripId()
+		advanceUntilIdle()
+
+		vm.retry()
+		advanceUntilIdle()
+
+		vm.state.value.shouldBeInstanceOf<TripDetailState.Error>()
 	}
 }

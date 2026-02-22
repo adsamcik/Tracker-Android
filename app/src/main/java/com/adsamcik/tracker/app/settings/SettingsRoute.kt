@@ -38,13 +38,13 @@ import java.util.Locale
 @Composable
 fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit = {}, onNavigateToActivities: () -> Unit = {}) {
     val vm: SettingsViewModel = hiltViewModel()
-    var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
+    var currentScreen by remember { mutableStateOf<SettingsScreen?>(SettingsScreen.Root) }
 
     Scaffold(
         topBar = {
-            if (currentScreen != SettingsScreen.Root) {
+            if (currentScreen != null && currentScreen != SettingsScreen.Root) {
                 TopAppBar(
-                    title = { Text(currentScreen.title()) },
+                    title = { Text(currentScreen!!.title()) },
                     navigationIcon = {
                         IconButton(onClick = { currentScreen = SettingsScreen.Root }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_navigate_back))
@@ -65,6 +65,7 @@ fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (val screen = currentScreen) {
+                null,
                 SettingsScreen.Root -> RootSettings(
                     viewModel = vm,
                     onNavigate = { currentScreen = it },

@@ -18,6 +18,7 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -134,6 +135,7 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 		// Ensure any scheduled flush does not run after disable and flush remaining immediately.
 		scheduledFlushJob?.cancel(); scheduledFlushJob = null
 		flushImmediate()
+		scope?.coroutineContext?.get(Job)?.children?.toList()?.forEach { it.join() }
 		scope?.cancel(); scope = null
 		errorCollector = null
 		locationDao = null
@@ -142,7 +144,7 @@ internal class DatabaseLocationComponent : PostTrackerComponent {
 
 	override suspend fun onEnable(context: Context) {
 		locationDao = AppDatabase.database(context).locationDao()
-		scope = CoroutineScope(Job() + Dispatchers.Default)
+		scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 		scheduledFlushJob = null
 	}
 }

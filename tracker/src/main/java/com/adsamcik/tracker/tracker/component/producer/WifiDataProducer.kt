@@ -20,6 +20,8 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.notification.WifiPermissionHintNotifier
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
+import com.adsamcik.tracker.logger.Reporter
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,7 +38,9 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
     private lateinit var wifiManager: WifiManager
     private var receiver: WifiReceiver = WifiReceiver()
     private lateinit var appContext: Context
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
+    )
 
     private var scanTime: Long = -1L
     private var scanTimeRelative: Long = -1L

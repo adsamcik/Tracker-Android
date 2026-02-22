@@ -54,35 +54,48 @@ class TripDetailViewModel @Inject constructor(
 	savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-	private val tripId: Long = requireNotNull(savedStateHandle["tripId"])
+	private val tripId: Long? = savedStateHandle.get<Long>("tripId")
 
 	private val _state = MutableStateFlow<TripDetailState>(TripDetailState.Loading)
 	val state: StateFlow<TripDetailState> = _state.asStateFlow()
 
 	init {
-		loadTrip()
+		if (tripId == null) {
+			_state.value = TripDetailState.Error("Trip ID is missing")
+		} else {
+			loadTrip()
+		}
 	}
 
 	/** Retry loading the trip after an error. */
 	fun retry() {
+		if (tripId == null) {
+			_state.value = TripDetailState.Error("Trip ID is missing")
+			return
+		}
 		_state.value = TripDetailState.Loading
 		loadTrip()
 	}
 
 	/** Delete the current trip and signal completion via state. */
 	fun deleteTrip(onDeleted: () -> Unit) {
+		val id = tripId ?: return
 		viewModelScope.launch {
 			withContext(dispatchersProvider.io) {
-				tripDao.deleteById(tripId)
+				tripDao.deleteById(id)
 			}
 			onDeleted()
 		}
 	}
 
 	private fun loadTrip() {
+		val id = tripId ?: run {
+			_state.value = TripDetailState.Error("Trip ID is missing")
+			return
+		}
 		viewModelScope.launch {
 			try {
-				val trip = tripDao.getById(tripId)
+				val trip = tripDao.getById(id)
 				if (trip == null) {
 					_state.value = TripDetailState.NotFound
 					return@launch

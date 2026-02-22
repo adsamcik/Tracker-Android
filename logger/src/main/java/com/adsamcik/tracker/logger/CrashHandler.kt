@@ -38,6 +38,21 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
         private const val CRASH_DIR_NAME = "crashes"
         private const val MAX_CRASH_FILES = 50
         private const val CRASH_TIMEOUT_MS = 2000L
+
+        private val COORDINATE_PATTERN = Regex("""-?\d+\.\d{4,}""")
+        private val LAT_LON_PATTERN =
+            Regex("""(?i)(lat(?:itude)?|lon(?:gitude)?)\s*[=:]\s*-?\d+\.?\d*""")
+        private const val REDACTED = "[REDACTED]"
+
+        /**
+         * Redacts potential PII (coordinates) from crash messages.
+         * Replaces decimal numbers with 4+ decimal places and explicit lat/lon references.
+         */
+        internal fun redactPii(message: String): String {
+            var result = LAT_LON_PATTERN.replace(message, REDACTED)
+            result = COORDINATE_PATTERN.replace(result, REDACTED)
+            return result
+        }
     }
 
     private val crashDir: File by lazy {
@@ -144,7 +159,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     val logDao = LogDatabase.database(application).genericLogDao()
                     logDao.insert(
                         LogData(
-                            message = "Application crashed: ${crashData.exceptionMessage}",
+                            message = "Application crashed: ${redactPii(crashData.exceptionMessage)}",
                             source = CRASH_LOG_SOURCE
                         )
                     )
@@ -173,7 +188,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     writer.println("============")
                     writer.println("Time: ${Date(crashData.timeStamp)}")
                     writer.println("Exception: ${crashData.exceptionName}")
-                    writer.println("Message: ${crashData.exceptionMessage}")
+                    writer.println("Message: ${redactPii(crashData.exceptionMessage)}")
                     writer.println("Thread: ${crashData.threadName}")
                     writer.println("App Version: ${crashData.appVersion}")
                     writer.println("Android Version: ${crashData.androidVersion}")
@@ -182,7 +197,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     writer.println("Battery: ${crashData.batteryLevel}%")
                     writer.println("Network: ${crashData.networkType}")
                     writer.println("Background: ${crashData.isInBackground}")
-                    crashData.cause?.let { writer.println("Cause: $it") }
+                    crashData.cause?.let { writer.println("Cause: ${redactPii(it)}") }
                     writer.println()
                     writer.println("STACK TRACE:")
                     writer.println(crashData.stackTrace)
@@ -210,7 +225,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     writer.println("Time: ${Date()}")
                     writer.println("Thread: ${thread.name}")
                     writer.println("Exception: ${exception.javaClass.simpleName}")
-                    writer.println("Message: ${exception.message}")
+                    writer.println("Message: ${redactPii(exception.message ?: "")}")
                     writer.println("Stack Trace:")
                     writer.println(getStackTraceStringSafely(exception))
                     writer.flush()

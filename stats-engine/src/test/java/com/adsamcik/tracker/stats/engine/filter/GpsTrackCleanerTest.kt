@@ -239,6 +239,103 @@ class GpsTrackCleanerTest {
 	}
 
 	@Nested
+	inner class InputValidationTests {
+		@Test
+		fun `filters out points with latitude out of range`() {
+			val points = listOf(
+				point(1000, lat = 999.0),
+				point(2000, lat = -91.0),
+				point(3000, lat = 47.0000),
+				point(4000, lat = 47.0001),
+				point(5000, lat = 47.0002),
+			)
+			val config = GpsCleaningConfig(minSegmentPoints = 1)
+			val result = GpsTrackCleaner.clean(points, config)
+			val allPoints = result.flatMap { it.points }
+
+			allPoints.none { it.latitudeDeg > 90.0 || it.latitudeDeg < -90.0 } shouldBe true
+			allPoints shouldHaveSize 3
+		}
+
+		@Test
+		fun `filters out points with longitude out of range`() {
+			val points = listOf(
+				point(1000, lon = 181.0),
+				point(2000, lon = -181.0),
+				point(3000, lon = 11.0000),
+				point(4000, lon = 11.0001),
+				point(5000, lon = 11.0002),
+			)
+			val config = GpsCleaningConfig(minSegmentPoints = 1)
+			val result = GpsTrackCleaner.clean(points, config)
+			val allPoints = result.flatMap { it.points }
+
+			allPoints shouldHaveSize 3
+		}
+
+		@Test
+		fun `filters out NaN and Infinity coordinate values`() {
+			val points = listOf(
+				point(1000, lat = Double.NaN),
+				point(2000, lon = Double.NaN),
+				point(3000, lat = Double.POSITIVE_INFINITY),
+				point(4000, lon = Double.NEGATIVE_INFINITY),
+				point(5000, lat = 47.0000, lon = 11.0),
+				point(6000, lat = 47.0001, lon = 11.0),
+				point(7000, lat = 47.0002, lon = 11.0),
+			)
+			val config = GpsCleaningConfig(minSegmentPoints = 1)
+			val result = GpsTrackCleaner.clean(points, config)
+			val allPoints = result.flatMap { it.points }
+
+			allPoints shouldHaveSize 3
+			allPoints.all { it.latitudeDeg.isFinite() && it.longitudeDeg.isFinite() } shouldBe true
+		}
+
+		@Test
+		fun `filters out points with zero time`() {
+			val points = listOf(
+				point(0, lat = 47.0, lon = 11.0),
+				point(1000, lat = 47.0000, lon = 11.0),
+				point(2000, lat = 47.0001, lon = 11.0),
+				point(3000, lat = 47.0002, lon = 11.0),
+			)
+			val config = GpsCleaningConfig(minSegmentPoints = 1)
+			val result = GpsTrackCleaner.clean(points, config)
+			val allPoints = result.flatMap { it.points }
+
+			allPoints shouldHaveSize 3
+			allPoints.none { it.timeMs <= 0 } shouldBe true
+		}
+
+		@Test
+		fun `returns empty when all points are invalid`() {
+			val points = listOf(
+				point(0, lat = Double.NaN),
+				point(-1, lat = 999.0, lon = 999.0),
+				point(0, lat = Double.POSITIVE_INFINITY),
+			)
+			val result = GpsTrackCleaner.clean(points)
+
+			result shouldHaveSize 0
+		}
+
+		@Test
+		fun `valid data passes through unchanged`() {
+			val points = listOf(
+				point(1000, lat = 47.0, lon = 11.0),
+				point(2000, lat = 47.0001, lon = 11.0001),
+				point(3000, lat = 47.0002, lon = 11.0002),
+			)
+			val config = GpsCleaningConfig(minSegmentPoints = 1)
+			val result = GpsTrackCleaner.clean(points, config)
+			val allPoints = result.flatMap { it.points }
+
+			allPoints shouldHaveSize 3
+		}
+	}
+
+	@Nested
 	inner class HaversineTests {
 		@Test
 		fun `same point returns zero`() {

@@ -43,7 +43,10 @@ object GpsTrackCleaner {
 	): List<CleanedSegment> {
 		if (points.isEmpty()) return emptyList()
 
-		val sorted = points
+		val validated = points.filter { isValidPoint(it) }
+		if (validated.isEmpty()) return emptyList()
+
+		val sorted = validated
 			.sortedBy { it.timeMs }
 			.distinctBy { it.timeMs }
 
@@ -134,6 +137,17 @@ object GpsTrackCleaner {
 		return segments
 			.filter { it.size >= minPoints }
 			.map { CleanedSegment(it) }
+	}
+
+	/**
+	 * Returns true if the point has finite coordinates within valid ranges and positive time.
+	 */
+	internal fun isValidPoint(point: GpsPoint): Boolean {
+		return point.timeMs > 0 &&
+				point.latitudeDeg.isFinite() &&
+				point.longitudeDeg.isFinite() &&
+				point.latitudeDeg in -90.0..90.0 &&
+				point.longitudeDeg in -180.0..180.0
 	}
 
 	/**

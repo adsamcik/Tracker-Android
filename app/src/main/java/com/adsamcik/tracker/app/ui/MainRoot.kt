@@ -57,6 +57,7 @@ import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 import com.adsamcik.tracker.app.tracker.ui.UpgradeToPrecisePrompt
 import com.adsamcik.tracker.app.tracker.ui.UpgradeReason
 import androidx.compose.ui.res.stringResource
@@ -116,12 +117,13 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                 destination.hasRoute<Game>() -> Game
                 destination.hasRoute<Debug>() -> Debug
                 destination.hasRoute<Settings>() -> Settings
-                else -> null
+                else -> {
+                    Log.w("MainRoot", "Unrecognized destination: ${destination.route}, falling back to Tracker")
+                    Tracker
+                }
             }
             
-            if (route != null) {
-                viewModel.setCurrentRoute(route)
-            }
+            viewModel.setCurrentRoute(route)
         }
     }
     

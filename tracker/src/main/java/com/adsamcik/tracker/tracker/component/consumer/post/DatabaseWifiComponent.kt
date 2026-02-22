@@ -19,7 +19,7 @@ import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -95,6 +95,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		if (enableDualWrite) {
 			flushEstimator()
 		}
+		scope?.coroutineContext?.get(kotlinx.coroutines.Job)?.children?.toList()?.forEach { it.join() }
 		scope?.cancel()
 		scope = null
 		estimator = null
@@ -119,7 +120,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 			val database = AppDatabase.database(context)
 			wifiDao = database.wifiDao()
 			wifiObservationDao = database.wifiObservationDao()
-			scope = CoroutineScope(Job() + Dispatchers.Default)
+			scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 			if (enableDualWrite) {
 				estimator = DefaultWifiLocationEstimator()
 			}
