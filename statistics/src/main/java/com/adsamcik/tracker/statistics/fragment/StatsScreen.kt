@@ -551,7 +551,7 @@ private fun PlaceholderRow(index: Int) {
     ) {
         // Placeholder content
         Row(verticalAlignment = Alignment.CenterVertically) {
-             Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)))
+             Box(Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)))
         }
     }
 }

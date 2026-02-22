@@ -61,7 +61,7 @@ object AppColors {
 fun GlassCard(
     modifier: Modifier = Modifier,
     shape: Shape = TerrainCardShape,
-    showBorder: Boolean = false,
+    showBorder: Boolean = true,
     content: @Composable BoxScope.() -> Unit
 ) {
     Surface(
@@ -69,7 +69,7 @@ fun GlassCard(
             .then(
                 if (showBorder) {
                     Modifier.border(
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                         shape
                     )
                 } else {
@@ -78,7 +78,9 @@ fun GlassCard(
             ),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = shape
+        shape = shape,
+        tonalElevation = 1.dp,
+        shadowElevation = 1.dp
     ) {
         Box(
             modifier = Modifier.padding(16.dp),
