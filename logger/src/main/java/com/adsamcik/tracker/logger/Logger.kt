@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.StringRes
 import com.adsamcik.tracker.shared.preferences.Preferences
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +25,8 @@ object Logger : CoroutineScope {
 
     private var genericDao: GenericLogDao? = null
 
+    private var initDeferred = CompletableDeferred<Unit>()
+
     @Volatile
     private var isInitialized = false
 
@@ -39,6 +42,7 @@ object Logger : CoroutineScope {
             preferences = Preferences.getPref(context)
             genericDao = LogDatabase.database(context).genericLogDao()
             isInitialized = true
+            initDeferred.complete(Unit)
             
             // Flush buffer
             var log: LogData? = logBuffer.poll()
@@ -100,11 +104,8 @@ object Logger : CoroutineScope {
              // However, 'log' checks 'settings_log_enabled_key'.
              // 'logWithPreference' checks a SPECIFIC key.
              
-             // We will launch a coroutine to wait and check.
              launch {
-                 while (!isInitialized) {
-                     kotlinx.coroutines.delay(100)
-                 }
+                 initDeferred.await()
                  // Sync read acceptable: called after async initialization completes
                  @Suppress("DEPRECATION")
                  if (preferences?.getBooleanRes(key, default) == true) {

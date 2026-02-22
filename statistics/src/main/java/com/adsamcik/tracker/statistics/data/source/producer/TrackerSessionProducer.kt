@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.statistics.data.source.producer
 
+import android.util.Log
+import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.statistics.data.source.RawDataMap
 import com.adsamcik.tracker.statistics.data.source.StatDataMap
 import com.adsamcik.tracker.statistics.data.source.StatDataSource
@@ -15,9 +17,18 @@ class TrackerSessionProducer : StatDataProducer {
 		get() = listOf(StatDataSource.SESSION)
 
 	override fun produce(rawDataMap: RawDataMap, dataMap: StatDataMap): Any {
-		return requireNotNull(rawDataMap[StatDataSource.SESSION]?.data)
+		val data = rawDataMap[StatDataSource.SESSION]?.data
+		if (data == null) {
+			Log.w(TAG, "SESSION key missing from RawDataMap; returning empty session list")
+			return emptyList<TrackerSession>()
+		}
+		return data
 	}
 
 	override val dependsOn: List<KClass<StatDataProducer>>
 		get() = emptyList()
+
+	companion object {
+		private const val TAG = "TrackerSessionProducer"
+	}
 }
