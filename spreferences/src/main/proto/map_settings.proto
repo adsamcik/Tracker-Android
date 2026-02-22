@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package com.adsamcik.tracker.shared.preferences.map;
+
+option java_package = "com.adsamcik.tracker.shared.preferences.map";
+option java_multiple_files = true;
+
+// Proto for map display settings.
+// Extend with new optional fields; never reuse field numbers.
+message MapSettingsProto {
+  // Heatmap quality multiplier (e.g., 0.5, 1.0, 2.0)
+  float quality = 1;
+  // Maximum number of heat points rendered
+  int32 max_heat_points = 2;
+  // Minimum visit duration threshold in seconds
+  int32 visit_threshold_seconds = 3;
+  // Internal migration marker so legacy Preferences import runs only once.
+  bool legacy_migrated = 1000;
+}

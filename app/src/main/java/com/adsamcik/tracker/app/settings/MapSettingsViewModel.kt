@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
+import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -18,51 +20,44 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MapSettingsViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val mapSettingsRepository: MapSettingsRepository,
 ) : ViewModel() {
 
-    private val prefs = Preferences.getPref(context)
     val basemapManager = BasemapManager(context)
     val skiInfrastructureManager = SkiInfrastructureManager(context)
 
-    // Resolved preference keys
-    private val qualityKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_key)
-    private val qualityDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_default).toFloat()
-    private val heatKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_key)
-    private val heatDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_default).toInt()
-    private val visitKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_key)
-    private val visitDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_default).toInt()
+    // Basemap path key for legacy preference (basemap path not in proto — it's file-system state)
     private val basemapPathKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
+    private val prefs = Preferences.getPref(context)
 
-    // Basemap state
+    // Basemap state (file-system, not in proto)
     private val _basemapPath = MutableStateFlow(basemapManager.customBasemapPath())
     val basemapPath: StateFlow<String?> = _basemapPath.asStateFlow()
 
-    // Ski infrastructure state
+    // Ski infrastructure state (file-system, not in proto)
     private val _skiInfraLoaded = MutableStateFlow(skiInfrastructureManager.isAvailable())
     val skiInfraLoaded: StateFlow<Boolean> = _skiInfraLoaded.asStateFlow()
 
     // Map quality
-    private val _quality = MutableStateFlow(qualityDefault)
+    private val _quality = MutableStateFlow(MapSettingsState.DEFAULT_QUALITY)
     val quality: StateFlow<Float> = _quality.asStateFlow()
 
     // Max heat points
-    private val _maxHeat = MutableStateFlow(heatDefault)
+    private val _maxHeat = MutableStateFlow(MapSettingsState.DEFAULT_MAX_HEAT)
     val maxHeat: StateFlow<Int> = _maxHeat.asStateFlow()
 
     // Visit threshold
-    private val _visitThreshold = MutableStateFlow(visitDefault)
+    private val _visitThreshold = MutableStateFlow(MapSettingsState.DEFAULT_VISIT_THRESHOLD)
     val visitThreshold: StateFlow<Int> = _visitThreshold.asStateFlow()
 
     init {
         viewModelScope.launch {
-            prefs.observeFloat(qualityKey, qualityDefault).collect { _quality.value = it }
-        }
-        viewModelScope.launch {
-            prefs.observeInt(heatKey, heatDefault).collect { _maxHeat.value = it }
-        }
-        viewModelScope.launch {
-            prefs.observeInt(visitKey, visitDefault).collect { _visitThreshold.value = it }
+            mapSettingsRepository.data.collect { state ->
+                _quality.value = state.quality
+                _maxHeat.value = state.maxHeatPoints
+                _visitThreshold.value = state.visitThresholdSeconds
+            }
         }
     }
 
@@ -98,22 +93,19 @@ class MapSettingsViewModel @Inject constructor(
 
     fun setQuality(value: Float) {
         viewModelScope.launch {
-            prefs.edit { setFloat(qualityKey, value) }
-            _quality.value = value
+            mapSettingsRepository.setQuality(value)
         }
     }
 
     fun setMaxHeat(value: Int) {
         viewModelScope.launch {
-            prefs.edit { setInt(heatKey, value) }
-            _maxHeat.value = value
+            mapSettingsRepository.setMaxHeatPoints(value)
         }
     }
 
     fun setVisitThreshold(value: Int) {
         viewModelScope.launch {
-            prefs.edit { setInt(visitKey, value) }
-            _visitThreshold.value = value
+            mapSettingsRepository.setVisitThresholdSeconds(value)
         }
     }
 }

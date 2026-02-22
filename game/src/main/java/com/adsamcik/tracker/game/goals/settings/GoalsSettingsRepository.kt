@@ -27,7 +27,8 @@ data class GoalsSettingsState(
     val notificationsEnabled: Boolean,
     val dailyStepGoal: Int,
     val weeklyStepGoal: Int,
-    val weeklyProgressDailyLimit: Float
+    val weeklyProgressDailyLimit: Float,
+    val challengesEnabled: Boolean = true,
 )
 
 /** Repository boundary exposing goals settings as reactive state plus mutation APIs. */
@@ -49,6 +50,9 @@ interface GoalsSettingsRepository {
 
     /** Persist maximum daily portion of the weekly goal (fraction 0-1). */
     suspend fun setWeeklyDailyLimit(fraction: Float)
+
+    /** Toggle challenges feature. */
+    suspend fun setChallengesEnabled(enabled: Boolean)
 }
 
 private object GoalsSettingsSerializer : Serializer<GoalsSettingsProto> {
@@ -101,7 +105,8 @@ class DefaultGoalsSettingsRepository(
                 notificationsEnabled = proto.notificationsEnabled,
                 dailyStepGoal = proto.dailyStepGoal.takeIf { it > 0 } ?: dailyStepDefault,
                 weeklyStepGoal = proto.weeklyStepGoal.takeIf { it > 0 } ?: weeklyStepDefault,
-                weeklyProgressDailyLimit = proto.weeklyDailyLimit.takeIf { it > 0f } ?: dailyLimitDefault
+                weeklyProgressDailyLimit = proto.weeklyDailyLimit.takeIf { it > 0f } ?: dailyLimitDefault,
+                challengesEnabled = proto.challengesEnabled,
             )
         }
 
@@ -153,6 +158,16 @@ class DefaultGoalsSettingsRepository(
         }
     }
 
+    override suspend fun setChallengesEnabled(enabled: Boolean) {
+        withContext(io) {
+            context.goalsSettingsDataStore.updateData { current ->
+                current.toBuilder()
+                    .setChallengesEnabled(enabled)
+                    .build()
+            }
+        }
+    }
+
     private suspend fun ensureMigrated() {
         val current = context.goalsSettingsDataStore.data.first()
         if (current.legacyMigrated) return
@@ -166,6 +181,7 @@ class DefaultGoalsSettingsRepository(
                 .setDailyStepGoal(legacyState.dailyStepGoal)
                 .setWeeklyStepGoal(legacyState.weeklyStepGoal)
                 .setWeeklyDailyLimit(legacyState.weeklyProgressDailyLimit)
+                .setChallengesEnabled(legacyState.challengesEnabled)
                 .setLegacyMigrated(true)
                 .build()
         }
@@ -191,12 +207,17 @@ class DefaultGoalsSettingsRepository(
             R.string.settings_game_goals_week_steps_daily_percentage_key,
             R.string.settings_game_goals_week_steps_daily_percentage_default
         ).coerceIn(MIN_DAILY_PORTION, MAX_DAILY_PORTION)
+        val challengesEnabled = prefs.getBoolean(
+            context.getString(R.string.settings_game_challenge_enable_key),
+            context.getString(R.string.settings_game_challenge_enable_default).toBoolean()
+        )
 
         return GoalsSettingsState(
             notificationsEnabled = notificationsEnabled,
             dailyStepGoal = dailyGoal,
             weeklyStepGoal = weeklyGoal,
-            weeklyProgressDailyLimit = portion
+            weeklyProgressDailyLimit = portion,
+            challengesEnabled = challengesEnabled,
         )
     }
 
