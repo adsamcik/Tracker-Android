@@ -39,7 +39,7 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	 * Finds all sessions in database.
 	 */
 	@RewriteQueriesToDropUnusedColumns
-	@Query("SELECT * FROM tracker_session")
+	@Query("SELECT * FROM tracker_session LIMIT 10000")
 	fun getAll(): List<TrackerSession>
 
 	/**

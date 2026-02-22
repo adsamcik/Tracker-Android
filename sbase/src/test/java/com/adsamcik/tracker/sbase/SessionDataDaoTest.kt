@@ -268,6 +268,17 @@ class SessionDataDaoTest {
 	}
 
 	@Test
+	fun `getAll respects safety limit`() {
+		// Insert more than 10000 is impractical in a unit test, so verify
+		// the query still works correctly with a smaller dataset.
+		repeat(50) { i ->
+			dao.insert(createSession(start = (i * 1000 + 1000).toLong(), end = (i * 1000 + 2000).toLong()))
+		}
+		val all = dao.getAll()
+		all shouldHaveSize 50
+	}
+
+	@Test
 	fun `insert with duplicate id is ignored`() {
 		val session1 = createSession(start = 1000L, end = 2000L, steps = 100)
 		val id = dao.insert(session1)

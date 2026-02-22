@@ -40,6 +40,7 @@ interface TripDao {
 		FROM session_segment
 		WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs
 		ORDER BY start_time_ms DESC
+		LIMIT 500
 		"""
 	)
 	suspend fun getBetween(fromMs: Long, toMs: Long): List<Trip>
