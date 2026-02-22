@@ -48,10 +48,12 @@ class KmlExporter : Exporter {
 	}
 
 	private fun writeLocation(streamWriter: OutputStreamWriter, location: Location) {
+		if (!location.latitude.isFinite() || !location.longitude.isFinite()) return
+
 		streamWriter.write("<Placemark><TimeStamp><when>${formatTime(location.time)}</when></TimeStamp>")
+		val alt = location.altitude?.takeIf { it.isFinite() } ?: 0.0
 		streamWriter.write(
-				"""<Point><coordinates>${location.longitude},${location.latitude},
-					|${location.altitude}</coordinates></Point></Placemark>""".trimMargin()
+				"<Point><coordinates>${location.longitude},${location.latitude},${alt}</coordinates></Point></Placemark>"
 		)
 	}
 
