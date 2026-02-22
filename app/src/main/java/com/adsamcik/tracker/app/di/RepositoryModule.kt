@@ -8,6 +8,7 @@ import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.map.DefaultMapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
@@ -98,6 +99,16 @@ abstract class RepositoryModule {
         ): TrackingParamsRepository = DefaultTrackingParamsRepository(
             context = context,
             io = dispatchers.io
+        )
+
+        @Provides
+        @Singleton
+        fun provideRetentionConfigStore(
+            @ApplicationContext context: Context,
+            dispatchers: DispatchersProvider
+        ): RetentionConfigStore = RetentionConfigStore(
+            context = context,
+            ioDispatcher = dispatchers.io
         )
     }
 }
