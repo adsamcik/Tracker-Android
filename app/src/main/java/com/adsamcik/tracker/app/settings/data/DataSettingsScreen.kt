@@ -48,8 +48,7 @@ fun DataSettingsScreen() {
     val dataVm: DataSettingsViewModel = hiltViewModel()
     val debugVm: DebugSettingsViewModel = hiltViewModel()
 
-    val autoCleanupEnabled by dataVm.autoCleanupEnabled.collectAsState()
-    val dataRetentionYears by dataVm.dataRetentionYears.collectAsState()
+    val uiState by dataVm.uiState.collectAsState()
     val showDeleteDataDialog by debugVm.showDeleteDataDialog.collectAsState()
 
     val coroutineScope = rememberCoroutineScope()
@@ -108,7 +107,7 @@ fun DataSettingsScreen() {
             SwitchSettingsItem(
                 title = stringResource(R.string.settings_auto_cleanup_old_data_title),
                 subtitle = stringResource(R.string.settings_auto_cleanup_old_data_summary),
-                checked = autoCleanupEnabled,
+                checked = uiState.autoCleanupEnabled,
                 onCheckedChange = { dataVm.setAutoCleanupEnabled(it) }
             )
         }
@@ -118,11 +117,13 @@ fun DataSettingsScreen() {
             val retentionValues = stringArrayResource(R.array.settings_data_retention_years_values).toList()
             DialogListPreference(
                 title = stringResource(R.string.settings_data_retention_years_title),
-                currentValue = dataRetentionYears,
+                currentValue = uiState.dataRetentionYears.toString(),
                 entries = retentionTitles,
                 entryValues = retentionValues,
                 onValueChange = { selectedIndex ->
-                    dataVm.setDataRetentionYears(retentionValues[selectedIndex])
+                    val years = retentionValues[selectedIndex].toIntOrNull()
+                        ?: com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState.DEFAULT_RETENTION_YEARS
+                    dataVm.setDataRetentionYears(years)
                 }
             )
         }
