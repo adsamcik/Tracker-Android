@@ -136,42 +136,42 @@ class TrackingSettingsViewModelTest {
         fun `currentPreset defaults to DEFAULT`() = runTest {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.currentPreset.first() shouldBe TrackingPolicyPreset.DEFAULT
+            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.DEFAULT
         }
 
         @Test
         fun `locationEnabled defaults to true`() = runTest {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.locationEnabled.first() shouldBe true
+            vm.uiState.first().locationEnabled shouldBe true
         }
 
         @Test
         fun `hasValidSources is true when sources enabled`() = runTest {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.hasValidSources.first() shouldBe true
+            vm.uiState.first().hasValidSources shouldBe true
         }
 
         @Test
         fun `minDistance defaults to 10`() = runTest {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.minDistance.first() shouldBe 10
+            vm.uiState.first().minDistance shouldBe 10
         }
 
         @Test
         fun `minTime defaults to 2`() = runTest {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.minTime.first() shouldBe 2
+            vm.uiState.first().minTime shouldBe 2
         }
 
         @Test
         fun `requiredAccuracy defaults to 50`() = runTest {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.requiredAccuracy.first() shouldBe 50
+            vm.uiState.first().requiredAccuracy shouldBe 50
         }
     }
 
@@ -190,7 +190,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setLocationEnabled(false)
             advanceUntilIdle()
-            vm.locationEnabled.first() shouldBe false
+            vm.uiState.first().locationEnabled shouldBe false
         }
 
         @Test
@@ -200,7 +200,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setActivityEnabled(false)
             advanceUntilIdle()
-            vm.activityEnabled.first() shouldBe false
+            vm.uiState.first().activityEnabled shouldBe false
         }
 
         @Test
@@ -210,7 +210,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setStepsEnabled(false)
             advanceUntilIdle()
-            vm.stepsEnabled.first() shouldBe false
+            vm.uiState.first().stepsEnabled shouldBe false
         }
 
         @Test
@@ -220,7 +220,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setWifiEnabled(false)
             advanceUntilIdle()
-            vm.wifiEnabled.first() shouldBe false
+            vm.uiState.first().wifiEnabled shouldBe false
         }
 
         @Test
@@ -230,7 +230,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setCellEnabled(false)
             advanceUntilIdle()
-            vm.cellEnabled.first() shouldBe false
+            vm.uiState.first().cellEnabled shouldBe false
         }
     }
 
@@ -249,7 +249,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setWifiNetworkEnabled(false)
             advanceUntilIdle()
-            vm.wifiNetworkEnabled.first() shouldBe false
+            vm.uiState.first().wifiNetworkEnabled shouldBe false
         }
 
         @Test
@@ -259,7 +259,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setWifiLocationCountEnabled(false)
             advanceUntilIdle()
-            vm.wifiLocationCountEnabled.first() shouldBe false
+            vm.uiState.first().wifiLocationCountEnabled shouldBe false
         }
     }
 
@@ -278,7 +278,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setMinDistance(25)
             advanceUntilIdle()
-            vm.minDistance.first() shouldBe 25
+            vm.uiState.first().minDistance shouldBe 25
         }
 
         @Test
@@ -288,7 +288,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setMinTime(15)
             advanceUntilIdle()
-            vm.minTime.first() shouldBe 15
+            vm.uiState.first().minTime shouldBe 15
         }
 
         @Test
@@ -298,7 +298,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setRequiredAccuracy(100)
             advanceUntilIdle()
-            vm.requiredAccuracy.first() shouldBe 100
+            vm.uiState.first().requiredAccuracy shouldBe 100
         }
     }
 
@@ -317,7 +317,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setNotificationStyled(false)
             advanceUntilIdle()
-            vm.notificationStyled.first() shouldBe false
+            vm.uiState.first().notificationStyled shouldBe false
         }
 
         @Test
@@ -327,7 +327,7 @@ class TrackingSettingsViewModelTest {
 
             vm.setTransitionDetectionEnabled(false)
             advanceUntilIdle()
-            vm.transitionDetectionEnabled.first() shouldBe false
+            vm.uiState.first().transitionDetectionEnabled shouldBe false
         }
 
         @Test
@@ -335,11 +335,11 @@ class TrackingSettingsViewModelTest {
             val vm = createViewModel()
             advanceUntilIdle()
             // Default is 0 -> false
-            vm.autoTrackingEnabled.first() shouldBe false
+            vm.uiState.first().autoTrackingEnabled shouldBe false
 
             autoTrackingFlow.value = 1
             advanceUntilIdle()
-            vm.autoTrackingEnabled.first() shouldBe true
+            vm.uiState.first().autoTrackingEnabled shouldBe true
         }
     }
 
@@ -363,7 +363,7 @@ class TrackingSettingsViewModelTest {
             vm.setCellEnabled(false)
             advanceUntilIdle()
 
-            vm.hasValidSources.first() shouldBe false
+            vm.uiState.first().hasValidSources shouldBe false
         }
 
         @Test
@@ -377,11 +377,11 @@ class TrackingSettingsViewModelTest {
             vm.setWifiEnabled(false)
             vm.setCellEnabled(false)
             advanceUntilIdle()
-            vm.hasValidSources.first() shouldBe false
+            vm.uiState.first().hasValidSources shouldBe false
 
             vm.setLocationEnabled(true)
             advanceUntilIdle()
-            vm.hasValidSources.first() shouldBe true
+            vm.uiState.first().hasValidSources shouldBe true
         }
 
         @Test
@@ -396,7 +396,7 @@ class TrackingSettingsViewModelTest {
             // cellEnabled still true
             advanceUntilIdle()
 
-            vm.hasValidSources.first() shouldBe true
+            vm.uiState.first().hasValidSources shouldBe true
         }
     }
 
@@ -417,16 +417,16 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
 
             val config = TrackingPolicyPreset.BATTERY_SAVER.settings
-            vm.locationEnabled.first() shouldBe config.locationEnabled
-            vm.activityEnabled.first() shouldBe config.activityEnabled
-            vm.stepsEnabled.first() shouldBe config.stepsEnabled
-            vm.wifiEnabled.first() shouldBe config.wifiEnabled
-            vm.cellEnabled.first() shouldBe config.cellEnabled
-            vm.minDistance.first() shouldBe config.minDistanceMeters
-            vm.minTime.first() shouldBe config.minTimeSeconds
-            vm.requiredAccuracy.first() shouldBe config.requiredAccuracyMeters
-            vm.currentPreset.first() shouldBe TrackingPolicyPreset.BATTERY_SAVER
-            vm.currentBatteryImpact.first() shouldBe BatteryImpact.LOW
+            vm.uiState.first().locationEnabled shouldBe config.locationEnabled
+            vm.uiState.first().activityEnabled shouldBe config.activityEnabled
+            vm.uiState.first().stepsEnabled shouldBe config.stepsEnabled
+            vm.uiState.first().wifiEnabled shouldBe config.wifiEnabled
+            vm.uiState.first().cellEnabled shouldBe config.cellEnabled
+            vm.uiState.first().minDistance shouldBe config.minDistanceMeters
+            vm.uiState.first().minTime shouldBe config.minTimeSeconds
+            vm.uiState.first().requiredAccuracy shouldBe config.requiredAccuracyMeters
+            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.BATTERY_SAVER
+            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.LOW
         }
 
         @Test
@@ -438,16 +438,16 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
 
             val config = TrackingPolicyPreset.HIGH_PRECISION.settings
-            vm.locationEnabled.first() shouldBe config.locationEnabled
-            vm.wifiEnabled.first() shouldBe config.wifiEnabled
-            vm.wifiLocationCountEnabled.first() shouldBe config.wifiLocationCountEnabled
-            vm.cellEnabled.first() shouldBe config.cellEnabled
-            vm.transitionDetectionEnabled.first() shouldBe config.useTransitionDetection
-            vm.minDistance.first() shouldBe config.minDistanceMeters
-            vm.minTime.first() shouldBe config.minTimeSeconds
-            vm.requiredAccuracy.first() shouldBe config.requiredAccuracyMeters
-            vm.currentPreset.first() shouldBe TrackingPolicyPreset.HIGH_PRECISION
-            vm.currentBatteryImpact.first() shouldBe BatteryImpact.HIGH
+            vm.uiState.first().locationEnabled shouldBe config.locationEnabled
+            vm.uiState.first().wifiEnabled shouldBe config.wifiEnabled
+            vm.uiState.first().wifiLocationCountEnabled shouldBe config.wifiLocationCountEnabled
+            vm.uiState.first().cellEnabled shouldBe config.cellEnabled
+            vm.uiState.first().transitionDetectionEnabled shouldBe config.useTransitionDetection
+            vm.uiState.first().minDistance shouldBe config.minDistanceMeters
+            vm.uiState.first().minTime shouldBe config.minTimeSeconds
+            vm.uiState.first().requiredAccuracy shouldBe config.requiredAccuracyMeters
+            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.HIGH_PRECISION
+            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.HIGH
         }
 
         @Test
@@ -457,12 +457,12 @@ class TrackingSettingsViewModelTest {
 
             vm.applyPreset(TrackingPolicyPreset.BALANCED)
             advanceUntilIdle()
-            vm.currentPreset.first() shouldBe TrackingPolicyPreset.BALANCED
+            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.BALANCED
 
             vm.setMinDistance(999)
             advanceUntilIdle()
             // null indicates custom preset
-            vm.currentPreset.first().shouldBeNull()
+            vm.uiState.first().currentPreset.shouldBeNull()
         }
 
         @Test
@@ -473,12 +473,12 @@ class TrackingSettingsViewModelTest {
             // Go custom
             vm.setMinDistance(999)
             advanceUntilIdle()
-            vm.currentPreset.first().shouldBeNull()
+            vm.uiState.first().currentPreset.shouldBeNull()
 
             // Apply named preset
             vm.applyPreset(TrackingPolicyPreset.BALANCED)
             advanceUntilIdle()
-            vm.currentPreset.first() shouldBe TrackingPolicyPreset.BALANCED
+            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.BALANCED
         }
 
         @Test
@@ -489,7 +489,7 @@ class TrackingSettingsViewModelTest {
             // All presets have at least location enabled
             vm.applyPreset(TrackingPolicyPreset.BATTERY_SAVER)
             advanceUntilIdle()
-            vm.hasValidSources.first() shouldBe true
+            vm.uiState.first().hasValidSources shouldBe true
         }
     }
 
@@ -508,11 +508,11 @@ class TrackingSettingsViewModelTest {
 
             vm.applyPreset(TrackingPolicyPreset.BATTERY_SAVER)
             advanceUntilIdle()
-            vm.currentBatteryImpact.first() shouldBe BatteryImpact.LOW
+            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.LOW
 
             vm.applyPreset(TrackingPolicyPreset.HIGH_PRECISION)
             advanceUntilIdle()
-            vm.currentBatteryImpact.first() shouldBe BatteryImpact.HIGH
+            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.HIGH
         }
     }
 }
