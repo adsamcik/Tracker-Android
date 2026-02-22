@@ -46,11 +46,14 @@ interface LocationDataDao : BaseDao<DatabaseLocation> {
 	fun getBetweenPaged(from: Long, to: Long, limit: Int, offset: Int): List<DatabaseLocation>
 
 	/**
-	 * Get all location data more recent that [from].
+	 * Get all location data more recent than [from].
+	 *
+	 * @param from Start time (epoch millis, inclusive)
+	 * @param limit Maximum number of rows to return (safety cap to prevent OOM)
 	 */
 	@RewriteQueriesToDropUnusedColumns
-	@Query("SELECT * from location_data where time >= :from")
-	fun getAllSince(from: Long): List<DatabaseLocation>
+	@Query("SELECT * from location_data where time >= :from ORDER BY time LIMIT :limit")
+	fun getAllSince(from: Long, limit: Int = 50_000): List<DatabaseLocation>
 
 	/**
 	 * Get all location data with area constraints.
