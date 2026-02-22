@@ -133,6 +133,7 @@
     <string name="settings_module_enable_title">Modules</string>
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>
     <string name="settings_module_group_title">Module settings</string>
+    <string name="settings_core_group_title">Core</string>
     <string name="settings_other_title">Other</string>
     <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
     <string name="settings_remove_all_collected_data_summary">Deletes your tracking data (custom activities and settings will be kept)</string>

@@ -36,7 +36,6 @@ fun StatsRoute(
     // Collect statistics state from ViewModel
     val summaryStatsState by vm.summaryStatsState.collectAsState()
     val weeklyStatsState by vm.weeklyStatsState.collectAsState()
-    val weeklyBars by vm.weeklyBars.collectAsState()
 
     val refreshState = when (val s = pagingItems.loadState.refresh) {
         is LoadState.Loading -> RefreshUiState.Loading
@@ -52,7 +51,7 @@ fun StatsRoute(
     StatsScreen(
         refreshState = refreshState,
         appendState = appendState,
-        trips = pagingItems,
+        sessions = pagingItems,
         onRetry = { pagingItems.retry() },
         onShowSummary = {
             vm.loadSummaryStats()
@@ -70,9 +69,6 @@ fun StatsRoute(
             ).show()
         },
         onTripClick = onTripClick,
-        onNavigateToHistory = onNavigateToHistory,
-        onNavigateToTracker = onNavigateToTracker,
-        weeklyBars = weeklyBars
     )
 
     // Show dialogs when state is true

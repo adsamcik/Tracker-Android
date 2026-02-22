@@ -50,10 +50,7 @@ object AppColors {
 }
 
 // --- SHAPES ---
-object AppShapes {
-    val GlassCard = RoundedCornerShape(24.dp)
-    val Button = RoundedCornerShape(16.dp)
-}
+// Moved to Shape.kt
 
 // --- COMPONENTS ---
 
@@ -63,7 +60,7 @@ object AppShapes {
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = AppShapes.GlassCard,
+    shape: Shape = TerrainCardShape,
     showBorder: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
@@ -138,7 +135,7 @@ fun PrimaryActionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier,
-        shape = AppShapes.Button,
+        shape = MomentumPillShape,
         color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
         contentColor = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     ) {

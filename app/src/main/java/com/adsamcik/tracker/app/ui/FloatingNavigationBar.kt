@@ -42,7 +42,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.utils.style.compose.AppShapes
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 @Composable

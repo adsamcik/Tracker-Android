@@ -127,7 +127,7 @@ private fun PrecisionModeCard(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, com.adsamcik.tracker.shared.utils.style.compose.AppShapes.GlassCard) 
+                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape) 
                 else Modifier
             )
             .clickable { onClick() },

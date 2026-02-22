@@ -456,10 +456,6 @@ private fun RouteMapCard(points: List<DatabaseLocation>) {
 				)
 			)
 
-			val routeSource = rememberGeoJsonSource(
-				data = GeoJsonData.JsonString(geoJson)
-			)
-
 			Box(
 				modifier = Modifier
 					.fillMaxWidth()
@@ -478,6 +474,10 @@ private fun RouteMapCard(points: List<DatabaseLocation>) {
 						)
 					)
 				) {
+					val routeSource = rememberGeoJsonSource(
+						data = GeoJsonData.JsonString(geoJson)
+					)
+
 					LineLayer(
 						id = "route-line",
 						source = routeSource,
