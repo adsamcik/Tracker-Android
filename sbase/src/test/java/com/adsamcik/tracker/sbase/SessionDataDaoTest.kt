@@ -308,4 +308,30 @@ class SessionDataDaoTest {
 	fun `getLast returns null for empty database`() {
 		dao.getLast(1).shouldBeNull()
 	}
+
+	@Test
+	fun `continueTrackerSession creates new session when database is empty`() { runTest {
+		val session = dao.continueTrackerSession(60_000L)
+		session.id shouldBe 1L
+		dao.count() shouldBe 1L
+	} }
+
+	@Test
+	fun `continueTrackerSession returns existing session when within max age`() { runTest {
+		val now = System.currentTimeMillis()
+		dao.insert(createSession(start = now - 5000L, end = now - 1000L))
+
+		val session = dao.continueTrackerSession(60_000L)
+		session.start shouldBe now - 5000L
+		dao.count() shouldBe 1L
+	} }
+
+	@Test
+	fun `continueTrackerSession creates new session when last is too old`() { runTest {
+		dao.insert(createSession(start = 1000L, end = 2000L))
+
+		val session = dao.continueTrackerSession(1L)
+		session.id shouldBe 2L
+		dao.count() shouldBe 2L
+	} }
 }
