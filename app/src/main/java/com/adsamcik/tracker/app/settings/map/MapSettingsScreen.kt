@@ -21,26 +21,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.adsamcik.tracker.app.settings.MapSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.ExpandableSection
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SliderSettingsItemWithHelp
-import com.adsamcik.tracker.map.basemap.BasemapManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @Composable
-fun MapSettingsScreen() {
+fun MapSettingsScreen(
+    viewModel: MapSettingsViewModel = hiltViewModel()
+) {
     val context = LocalContext.current
-    val prefs = remember { com.adsamcik.tracker.shared.preferences.Preferences.getPref(context) }
+    val basemapPath by viewModel.basemapPath.collectAsState()
+    val skiInfraLoaded by viewModel.skiInfraLoaded.collectAsState()
+    val quality by viewModel.quality.collectAsState()
+    val maxHeat by viewModel.maxHeat.collectAsState()
+    val visitThreshold by viewModel.visitThreshold.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -76,22 +76,11 @@ fun MapSettingsScreen() {
 
         // Basemap import/reset
         item {
-            val scope = rememberCoroutineScope()
-            val basemapManager = remember { BasemapManager(context) }
-            val basemapPathKey = remember {
-                context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
-            }
-            var basemapPath by remember { mutableStateOf(basemapManager.customBasemapPath()) }
-
             val importLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 if (uri != null) {
-                    scope.launch(Dispatchers.IO) {
-                        val path = basemapManager.importBasemap(uri)
-                        prefs.edit { setString(basemapPathKey, path) }
-                        basemapPath = path
-                    }
+                    viewModel.importBasemap(uri)
                 }
             }
 
@@ -105,9 +94,7 @@ fun MapSettingsScreen() {
                 icon = Icons.Default.Map,
                 onClick = {
                     if (basemapPath != null) {
-                        basemapManager.clearCustomBasemap()
-                        prefs.edit { setString(basemapPathKey, "") }
-                        basemapPath = null
+                        viewModel.clearBasemap()
                     } else {
                         importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
                     }
@@ -117,26 +104,16 @@ fun MapSettingsScreen() {
 
         // Ski infrastructure import/reset
         item {
-            val scope = rememberCoroutineScope()
-            val infraManager = remember { SkiInfrastructureManager(context) }
-            var isLoaded by remember { mutableStateOf(infraManager.isAvailable()) }
-
             val importLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 if (uri != null) {
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            infraManager.importDatabase(uri)
-                            isLoaded = true
-                        } catch (_: Exception) {
-                            // Import failed — already cleaned up by manager
-                        }
-                    }
+                    viewModel.importSkiInfrastructure(uri)
                 }
             }
 
-            val subtitle = if (isLoaded) {
+            val subtitle = if (skiInfraLoaded) {
+                val infraManager = viewModel.skiInfrastructureManager
                 val liftCount = infraManager.getMetadata("lift_count")
                 val generatedAt = infraManager.getMetadata("generated_at")?.take(10)
                 if (liftCount != null && generatedAt != null) {
@@ -157,16 +134,15 @@ fun MapSettingsScreen() {
                 subtitle = subtitle,
                 icon = Icons.Default.Terrain,
                 onClick = {
-                    if (isLoaded) {
-                        infraManager.clearDatabase()
-                        isLoaded = false
+                    if (skiInfraLoaded) {
+                        viewModel.clearSkiInfrastructure()
                     } else {
                         importLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*"))
                     }
                 }
             )
 
-            if (isLoaded) {
+            if (skiInfraLoaded) {
                 Text(
                     text = stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_attribution),
                     style = MaterialTheme.typography.bodySmall,
@@ -182,11 +158,7 @@ fun MapSettingsScreen() {
                 title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_advanced_section_title),
                 initiallyExpanded = false
             ) {
-                // Map quality slider
                 val qualityValues = context.resources.getStringArray(com.adsamcik.tracker.map.R.array.settings_map_quality_values).map { it.toFloat() }
-                val qualityKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_key)
-                val qualityDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_quality_default).toFloat()
-                val quality by prefs.observeFloat(qualityKey, qualityDefault).collectAsState(initial = qualityDefault)
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_quality_title),
@@ -194,17 +166,11 @@ fun MapSettingsScreen() {
                     valueRange = qualityValues.first()..qualityValues.last(),
                     steps = qualityValues.size - 2,
                     valueLabel = { "%.1fx".format(it) },
-                    onValueChange = {
-                        prefs.edit { setFloat(qualityKey, it) }
-                    },
+                    onValueChange = { viewModel.setQuality(it) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_map_quality
                 )
 
-                // Max heat points slider
                 val heatValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_max_heat_values)
-                val heatKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_key)
-                val heatDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_max_heat_default).toInt()
-                val maxHeat by prefs.observeInt(heatKey, heatDefault).collectAsState(initial = heatDefault)
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_max_heat_title),
@@ -212,17 +178,11 @@ fun MapSettingsScreen() {
                     valueRange = heatValues.first().toFloat()..heatValues.last().toFloat(),
                     steps = heatValues.size - 2,
                     valueLabel = { "%d".format(it.toInt()) },
-                    onValueChange = {
-                        prefs.edit { setInt(heatKey, it.toInt()) }
-                    },
+                    onValueChange = { viewModel.setMaxHeat(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_max_heat_points
                 )
 
-                // Visit threshold slider (duration in minutes)
                 val visitValues = context.resources.getIntArray(com.adsamcik.tracker.map.R.array.settings_map_visit_threshold_values)
-                val visitKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_key)
-                val visitDefault = context.getString(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_default).toInt()
-                val visitThreshold by prefs.observeInt(visitKey, visitDefault).collectAsState(initial = visitDefault)
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_visit_threshold_title),
@@ -233,9 +193,7 @@ fun MapSettingsScreen() {
                         val minutes = it.toInt() / 60
                         if (minutes < 60) "$minutes min" else "${minutes / 60}h ${minutes % 60}min"
                     },
-                    onValueChange = {
-                        prefs.edit { setInt(visitKey, it.toInt()) }
-                    },
+                    onValueChange = { viewModel.setVisitThreshold(it.toInt()) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_visit_threshold
                 )
             }
