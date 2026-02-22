@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.preferences.map.DefaultMapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.statistics.repository.DefaultSessionRepository
 import com.adsamcik.tracker.statistics.repository.SessionRepository
 import dagger.Binds
@@ -84,6 +86,16 @@ abstract class RepositoryModule {
             @ApplicationContext context: Context,
             dispatchers: DispatchersProvider
         ): GoalsSettingsRepository = DefaultGoalsSettingsRepository(
+            context = context,
+            io = dispatchers.io
+        )
+
+        @Provides
+        @Singleton
+        fun provideTrackingParamsRepository(
+            @ApplicationContext context: Context,
+            dispatchers: DispatchersProvider
+        ): TrackingParamsRepository = DefaultTrackingParamsRepository(
             context = context,
             io = dispatchers.io
         )

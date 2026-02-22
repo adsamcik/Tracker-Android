@@ -36,22 +36,8 @@ fun TrackingSettingsScreen() {
     val context = LocalContext.current
     val trackingVm: TrackingSettingsViewModel = hiltViewModel()
 
-    // State from ViewModel
-    val currentPreset by trackingVm.currentPreset.collectAsState()
-    val currentBatteryImpact by trackingVm.currentBatteryImpact.collectAsState()
-    val locationEnabled by trackingVm.locationEnabled.collectAsState()
-    val activityEnabled by trackingVm.activityEnabled.collectAsState()
-    val stepsEnabled by trackingVm.stepsEnabled.collectAsState()
-    val wifiEnabled by trackingVm.wifiEnabled.collectAsState()
-    val cellEnabled by trackingVm.cellEnabled.collectAsState()
-    val wifiNetworkEnabled by trackingVm.wifiNetworkEnabled.collectAsState()
-    val wifiLocationCountEnabled by trackingVm.wifiLocationCountEnabled.collectAsState()
-    val transitionDetection by trackingVm.transitionDetectionEnabled.collectAsState()
-    val notificationStyled by trackingVm.notificationStyled.collectAsState()
-    val minDistance by trackingVm.minDistance.collectAsState()
-    val minTime by trackingVm.minTime.collectAsState()
-    val requiredAccuracy by trackingVm.requiredAccuracy.collectAsState()
-    val hasValidSources by trackingVm.hasValidSources.collectAsState()
+    // Single consolidated state
+    val uiState by trackingVm.uiState.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -86,7 +72,7 @@ fun TrackingSettingsScreen() {
         }
 
         // Validation warning
-        if (!hasValidSources) {
+        if (!uiState.hasValidSources) {
             item {
                 Card(
                     modifier = Modifier
@@ -118,14 +104,14 @@ fun TrackingSettingsScreen() {
         // Preset selector with progressive disclosure
         item {
             com.adsamcik.tracker.app.settings.ui.TrackingPolicySelector(
-                selectedPreset = currentPreset,
+                selectedPreset = uiState.currentPreset,
                 onPresetSelected = { trackingVm.applyPreset(it) },
                 showDetails = false
             )
         }
 
         // Battery warning for high impact
-        if (currentBatteryImpact == com.adsamcik.tracker.app.common.ui.BatteryImpact.HIGH) {
+        if (uiState.currentBatteryImpact == com.adsamcik.tracker.app.common.ui.BatteryImpact.HIGH) {
             item {
                 com.adsamcik.tracker.app.common.ui.BatteryImpactWarning()
             }
@@ -136,7 +122,7 @@ fun TrackingSettingsScreen() {
             SwitchSettingsItemWithHelp(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_title),
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_auto_tracking_transition_summary),
-                checked = transitionDetection,
+                checked = uiState.transitionDetectionEnabled,
                 onCheckedChange = { trackingVm.setTransitionDetectionEnabled(it) },
                 helpTextRes = com.adsamcik.tracker.tracker.R.string.help_transition_detection
             )
@@ -147,7 +133,7 @@ fun TrackingSettingsScreen() {
             SwitchSettingsItem(
                 title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_title),
                 subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_notification_styled_summary),
-                checked = notificationStyled,
+                checked = uiState.notificationStyled,
                 onCheckedChange = { trackingVm.setNotificationStyled(it) }
             )
         }
@@ -175,7 +161,7 @@ fun TrackingSettingsScreen() {
                 // Tracking parameters with contextual help
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_distance_title),
-                    value = minDistance.toFloat(),
+                    value = uiState.minDistance.toFloat(),
                     valueRange = 0f..200f,
                     steps = 19,
                     valueLabel = { "${it.toInt()} m" },
@@ -185,7 +171,7 @@ fun TrackingSettingsScreen() {
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_min_time_title),
-                    value = minTime.toFloat(),
+                    value = uiState.minTime.toFloat(),
                     valueRange = 0f..60f,
                     steps = 11,
                     valueLabel = { "${it.toInt()} s" },
@@ -195,7 +181,7 @@ fun TrackingSettingsScreen() {
 
                 SliderSettingsItemWithHelp(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_required_accuracy_title),
-                    value = requiredAccuracy.toFloat(),
+                    value = uiState.requiredAccuracy.toFloat(),
                     valueRange = 10f..200f,
                     steps = 18,
                     valueLabel = { "${it.toInt()} m" },
@@ -206,39 +192,39 @@ fun TrackingSettingsScreen() {
                 // Enable/disable sources
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
-                    checked = locationEnabled,
+                    checked = uiState.locationEnabled,
                     onCheckedChange = { trackingVm.setLocationEnabled(it) }
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
-                    checked = activityEnabled,
+                    checked = uiState.activityEnabled,
                     onCheckedChange = { trackingVm.setActivityEnabled(it) }
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
-                    checked = stepsEnabled,
+                    checked = uiState.stepsEnabled,
                     onCheckedChange = { trackingVm.setStepsEnabled(it) }
                 )
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
-                    checked = wifiEnabled,
+                    checked = uiState.wifiEnabled,
                     onCheckedChange = { trackingVm.setWifiEnabled(it) }
                 )
 
                 // WiFi sub-options
-                if (wifiEnabled) {
+                if (uiState.wifiEnabled) {
                     SwitchSettingsItem(
                         title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_network_enabled_title),
-                        checked = wifiNetworkEnabled,
+                        checked = uiState.wifiNetworkEnabled,
                         onCheckedChange = { trackingVm.setWifiNetworkEnabled(it) }
                     )
 
                     SwitchSettingsItemWithHelp(
                         title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_location_count_enabled_title),
-                        checked = wifiLocationCountEnabled,
+                        checked = uiState.wifiLocationCountEnabled,
                         onCheckedChange = { trackingVm.setWifiLocationCountEnabled(it) },
                         helpTextRes = com.adsamcik.tracker.tracker.R.string.help_wifi_location_count
                     )
@@ -246,7 +232,7 @@ fun TrackingSettingsScreen() {
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
-                    checked = cellEnabled,
+                    checked = uiState.cellEnabled,
                     onCheckedChange = { trackingVm.setCellEnabled(it) }
                 )
             }

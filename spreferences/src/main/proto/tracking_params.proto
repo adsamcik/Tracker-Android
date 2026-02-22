@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package com.adsamcik.tracker.shared.preferences.tracking;
+
+option java_package = "com.adsamcik.tracker.shared.preferences.tracking";
+option java_multiple_files = true;
+
+// Proto for tracking parameter settings.
+// Controls which data sources are active and how aggressively tracking operates.
+// Extend with new optional fields; never reuse field numbers.
+message TrackingParamsProto {
+  // Data source toggles
+  bool location_enabled = 1;
+  bool activity_enabled = 2;
+  bool steps_enabled = 3;
+  bool wifi_enabled = 4;
+  bool cell_enabled = 5;
+  bool wifi_network_enabled = 6;
+  bool wifi_location_count_enabled = 7;
+
+  // Auto-tracking
+  int32 auto_tracking_mode = 8;  // 0 = off, 1+ = enabled modes
+  bool transition_detection_enabled = 9;
+
+  // Notification
+  bool notification_styled = 10;
+
+  // Tracking parameters
+  int32 min_distance_meters = 11;
+  int32 min_time_seconds = 12;
+  int32 required_accuracy_meters = 13;
+
+  // Current preset name (empty or "CUSTOM" for custom settings)
+  string preset_name = 14;
+
+  // Internal migration marker so legacy Preferences import runs only once.
+  bool legacy_migrated = 1000;
+}
