@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.core.database.getStringOrNull
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.exception.NotFoundException
@@ -33,7 +34,7 @@ internal class DatabaseImport : FileImport {
 			context: Context,
 			database: AppDatabase,
 			stream: FileImportStream
-	) {
+	): ImportResult {
 		val databaseTmpFile = File.createTempFile(stream.fileName, null)
 		var fromDatabase: SQLiteDatabase? = null
 		try {
@@ -45,9 +46,11 @@ internal class DatabaseImport : FileImport {
 					null,
 					SQLiteDatabase.OPEN_READONLY
 			)
+			var result = ImportResult.EMPTY
 			database.runInTransaction {
-				importDatabase(fromDatabase, database.openHelper.writableDatabase)
+				result = importDatabase(fromDatabase, database.openHelper.writableDatabase)
 			}
+			return result
 		} finally {
 			fromDatabase?.close()
 			databaseTmpFile.delete()
@@ -155,12 +158,14 @@ internal class DatabaseImport : FileImport {
 		return fromTables.toList().filter { !isSystemTable(it) && toTables.contains(it) }
 	}
 
+	private enum class RowImportStatus { SUCCESS, SKIPPED, FAILED }
+
 	private fun importRow(
 			to: SupportSQLiteDatabase,
 			row: Cursor,
 			columnsJoined: String,
 			tableName: String
-	) {
+	): RowImportStatus {
 		val values = mutableListOf<String?>()
 
 		for (i in 0 until row.columnCount) {
@@ -168,16 +173,15 @@ internal class DatabaseImport : FileImport {
 		}
 
 		val valuesString = values.joinToString(separator = ", ", transform = { "?" })
-		try {
+		return try {
 			to.execSQL(
 					"INSERT INTO $tableName ($columnsJoined) VALUES ($valuesString)",
 					values.toTypedArray()
 			)
+			RowImportStatus.SUCCESS
 		} catch (e: SQLiteConstraintException) {
-			// Constraint violation handling: activity table duplicates are silently skipped
-			// Other tables rethrow to fail fast and alert user
 			if (tableName == "activity") {
-				return
+				RowImportStatus.SKIPPED
 			} else {
 				Reporter.report(
 						Exception(
@@ -185,6 +189,7 @@ internal class DatabaseImport : FileImport {
 								e
 						)
 				)
+				RowImportStatus.FAILED
 			}
 		}
 	}
@@ -193,8 +198,12 @@ internal class DatabaseImport : FileImport {
 			from: SupportSQLiteDatabase,
 			to: SupportSQLiteDatabase,
 			tableName: String
-	) {
+	): ImportResult {
 		val matchingColumns = getMatchingColumns(from, to, tableName)
+		var success = 0
+		var skipped = 0
+		var failed = 0
+		val errors = mutableListOf<String>()
 
 		from.query(
 				"SELECT ${
@@ -204,10 +213,23 @@ internal class DatabaseImport : FileImport {
 		).use {
 			val columnsJoined = it.columnNames.joinToString(separator = ",")
 			while (it.moveToNext()) {
-				importRow(to, it, columnsJoined, tableName)
+				when (importRow(to, it, columnsJoined, tableName)) {
+					RowImportStatus.SUCCESS -> success++
+					RowImportStatus.SKIPPED -> skipped++
+					RowImportStatus.FAILED -> {
+						failed++
+						errors.add("Constraint violation in table $tableName")
+					}
+				}
 			}
 		}
 
+		return ImportResult(
+				successCount = success,
+				skippedCount = skipped,
+				failedCount = failed,
+				errors = errors
+		)
 	}
 
 	private fun List<Pair<ImportTable, ImportTable>>.sortByTopology(): List<Pair<ImportTable, ImportTable>> {
@@ -232,7 +254,7 @@ internal class DatabaseImport : FileImport {
 		return sortByVertexes(topSorted)
 	}
 
-	private fun importDatabase(from: SupportSQLiteDatabase, to: SupportSQLiteDatabase) {
+	private fun importDatabase(from: SupportSQLiteDatabase, to: SupportSQLiteDatabase): ImportResult {
 		val sortedTables = getMatchingTables(from, to)
 				.map { tableName ->
 					val fromColumns = from.getColumns(tableName)
@@ -246,6 +268,7 @@ internal class DatabaseImport : FileImport {
 				}
 				.sortByTopology()
 
+		var result = ImportResult.EMPTY
 		sortedTables.forEach { pair ->
 			val hasRequiredColumns =
 					pair.first.columns.all {
@@ -257,9 +280,10 @@ internal class DatabaseImport : FileImport {
 					}
 
 			if (hasRequiredColumns) {
-				importTable(from, to, pair.first.tableName)
+				result += importTable(from, to, pair.first.tableName)
 			}
 		}
+		return result
 	}
 }
 

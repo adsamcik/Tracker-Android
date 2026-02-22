@@ -15,6 +15,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -47,19 +48,39 @@ class ImportWorker(
 
         database = AppDatabase.database(context)
         database.withTransaction {
-            val count = handleFile(file)
+            val importResult = handleFile(file)
 
-            showNotification(
-                context.resources.getQuantityString(
-                    R.plurals.import_notification_finished,
-                    count,
-                    count
-                ),
-                false
-            )
+            val notificationText = buildNotificationText(importResult)
+            showNotification(notificationText, false)
+
+            if (importResult.failedCount > 0) {
+                showErrorNotification(
+                    context.getString(
+                        R.string.import_notification_error_records_failed,
+                        importResult.failedCount
+                    )
+                )
+            }
         }
 
         return Result.success()
+    }
+
+    private fun buildNotificationText(result: ImportResult): String {
+        val successCount = result.successCount
+        return if (result.skippedCount > 0) {
+            context.getString(
+                R.string.import_notification_finished_with_skipped,
+                successCount,
+                result.skippedCount
+            )
+        } else {
+            context.resources.getQuantityString(
+                R.plurals.import_notification_finished,
+                successCount,
+                successCount
+            )
+        }
     }
 
     private fun createNotification(text: String, inProgress: Boolean): Notification =
@@ -90,28 +111,28 @@ class ImportWorker(
     }
 
     @WorkerThread
-    private suspend fun extract(file: DocumentFile, extractor: ArchiveExtractor): Int {
+    private suspend fun extract(file: DocumentFile, extractor: ArchiveExtractor): ImportResult {
         showNotification(
             context.getString(R.string.import_notification_extracting, file.name),
             true
         )
 
-        val extractionStream = extractor.extract(context, file) ?: return 0
+        val extractionStream = extractor.extract(context, file) ?: return ImportResult.EMPTY
 
         return importAll(extractionStream)
     }
 
     @WorkerThread
-    private suspend fun importAll(stream: Sequence<FileImportStream>): Int {
-        var count = 0
+    private suspend fun importAll(stream: Sequence<FileImportStream>): ImportResult {
+        var result = ImportResult.EMPTY
         for (it in stream) {
-            count += tryImport(it)
+            result += tryImport(it)
         }
-        return count
+        return result
     }
 
     @WorkerThread
-    private suspend fun tryImport(stream: FileImportStream): Int {
+    private suspend fun tryImport(stream: FileImportStream): ImportResult {
         val extension = stream.extension.lowercase(Locale.ROOT)
         val importer = import.activeImporterList
             .find { it.supportedExtensions.contains(extension) }
@@ -127,23 +148,22 @@ class ImportWorker(
             )
         }
 
-        return 0
+        return ImportResult.EMPTY
     }
 
     @WorkerThread
     private suspend fun import(
         stream: FileImportStream,
         import: FileImport
-    ): Int {
+    ): ImportResult {
         showNotification(
             context.getString(R.string.import_notification_importing, stream.fileName),
             true
         )
 
-        return tryWithResultAndReport({ 0 }) {
+        return tryWithResultAndReport({ ImportResult.EMPTY }) {
             try {
                 import.import(context, database, stream)
-                1
             } catch (e: SQLiteCantOpenDatabaseException) {
                 showErrorNotification(
                     context.getString(
@@ -151,12 +171,12 @@ class ImportWorker(
                         stream.fileName
                     )
                 )
-                0
+                ImportResult.EMPTY
             }
         }
     }
 
-    private suspend fun handleFile(file: DocumentFile): Int {
+    private suspend fun handleFile(file: DocumentFile): ImportResult {
         val extension = file.extension?.lowercase(Locale.ROOT)
         val extractor = import.activeArchiveExtractorList
             .find { it.supportedExtensions.contains(extension) }
@@ -164,10 +184,10 @@ class ImportWorker(
         return if (extractor != null) {
             extract(file, extractor)
         } else {
-            val fileName = file.name ?: return 0
+            val fileName = file.name ?: return ImportResult.EMPTY
             file.openInputStream(context)?.use { inputStream ->
                 tryImport(FileImportStream(inputStream, fileName))
-            } ?: 0
+            } ?: ImportResult.EMPTY
         }
     }
     companion object {
