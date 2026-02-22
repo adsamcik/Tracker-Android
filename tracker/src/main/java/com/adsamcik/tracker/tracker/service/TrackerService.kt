@@ -346,6 +346,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 		}.forEach { it.onEnable(this) }
 
+		// Clear previous collector's scope before replacing
+		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
+
 		// Create persistence error collector for database components
 		val errorCollector = DefaultPersistenceErrorCollector()
 		persistenceErrorCollector = errorCollector
@@ -599,6 +602,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updatePersistenceErrorFlow(null)
 		controller.updatePolicyState(null)
 		controller.updatePolicyTier(com.adsamcik.tracker.stats.api.PolicyTier.OFF)
+		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
 		persistenceErrorCollector = null
 	}
 
