@@ -34,6 +34,7 @@ import com.adsamcik.tracker.app.onboarding.permission.PermissionResult
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.app.activity.MainActivityCompose
@@ -281,9 +282,13 @@ class OnboardingActivity : ComponentActivity() {
             prefs.trackingMinTimeSeconds?.let { setInt(PrefR.string.settings_tracking_min_time_key, it) }
 
             // Tracking profiles removed; rely on explicit distance/time and internal defaults
+        }
 
-            // Persist auto-cleanup setting (default off unless user explicitly enabled)
-            setBoolean(com.adsamcik.tracker.R.string.settings_auto_cleanup_old_data_key, prefs.autoCleanupOldData)
+        // Persist auto-cleanup setting to Proto DataStore
+        lifecycleScope.launch(Dispatchers.IO) {
+            RetentionConfigStore(this@OnboardingActivity, Dispatchers.IO).update {
+                copy(autoCleanupEnabled = prefs.autoCleanupOldData)
+            }
         }
 
         // Auto/background tracking mode: use selected index when available; fall back to default/disabled

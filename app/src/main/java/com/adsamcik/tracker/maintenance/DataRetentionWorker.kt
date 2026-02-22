@@ -9,38 +9,32 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import java.time.Duration
 
 /**
- * Periodic worker that deletes data older than 1 year to honor auto-cleanup setting.
+ * Periodic worker that deletes data older than N years to honor auto-cleanup setting.
  */
 class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        val prefs = Preferences.getPref(applicationContext)
-        val enabled = prefs.fetchBooleanRes(
-            R.string.settings_auto_cleanup_old_data_key,
-            R.string.settings_auto_cleanup_old_data_default
-        )
-        if (!enabled) {
-            // Safety: don't run when user disabled it
+        val store = RetentionConfigStore(applicationContext, Dispatchers.IO)
+        val config = store.config.first()
+        if (!config.autoCleanupEnabled) {
             return Result.success()
         }
 
-        val yearsString = prefs.fetchStringRes(R.string.settings_data_retention_years_key)
-            ?: applicationContext.getString(R.string.settings_data_retention_years_default)
-        val years = yearsString.toIntOrNull() ?: 1
+        val years = config.dataRetentionYears
         val cutoff = System.currentTimeMillis() - yearsToMillis(years)
         tryWithReport {
             pruneOlderThan(applicationContext, cutoff)
@@ -56,19 +50,17 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Co
         private var preferenceJob: Job? = null
 
         /**
-         * Initialize observation of the auto-cleanup preference and sync schedule once.
+         * Initialize observation of the auto-cleanup setting and sync schedule.
          */
         fun initialize(context: Context) {
             val appContext = context.applicationContext
-            // Use PreferenceFlows to get initial value and observe changes
+            val store = RetentionConfigStore(appContext, Dispatchers.Default)
             preferenceJob?.cancel()
-            preferenceJob = PreferenceFlows.boolean(
-                appContext,
-                R.string.settings_auto_cleanup_old_data_key,
-                R.string.settings_auto_cleanup_old_data_default
-            ).onEach { enabled ->
-                syncScheduling(appContext, enabled)
-            }.launchIn(preferenceScope)
+            preferenceJob = store.config
+                .map { it.autoCleanupEnabled }
+                .onEach { enabled ->
+                    syncScheduling(appContext, enabled)
+                }.launchIn(preferenceScope)
         }
 
         /** Schedule weekly cleanup with unique work policy. */
