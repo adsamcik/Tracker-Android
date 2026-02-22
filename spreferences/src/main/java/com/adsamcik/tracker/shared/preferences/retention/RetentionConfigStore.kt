@@ -5,10 +5,12 @@ import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.protobuf.InvalidProtocolBufferException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -35,12 +37,14 @@ private val Context.retentionConfigDataStore: DataStore<RetentionConfigProto> by
 )
 
 class RetentionConfigStore(
-    context: Context,
+    private val context: Context,
     private val ioDispatcher: CoroutineDispatcher,
 ) {
     private val dataStore = context.retentionConfigDataStore
 
-    val config: Flow<RetentionConfigState> = dataStore.data.map { it.toDomain() }
+    val config: Flow<RetentionConfigState> = dataStore.data
+        .onStart { ensureDataSettingsMigrated() }
+        .map { it.toDomain() }
 
     suspend fun update(block: RetentionConfigState.() -> RetentionConfigState) {
         withContext(ioDispatcher) {
@@ -48,6 +52,30 @@ class RetentionConfigStore(
                 val currentState = current.toDomain()
                 val newState = currentState.block()
                 newState.toProto()
+            }
+        }
+    }
+
+    /**
+     * One-time migration of auto_cleanup_enabled and data_retention_years
+     * from the legacy SharedPreferences to Proto DataStore.
+     */
+    private suspend fun ensureDataSettingsMigrated() {
+        withContext(ioDispatcher) {
+            dataStore.updateData { current ->
+                if (current.dataSettingsLegacyMigrated) return@updateData current
+
+                val prefs = Preferences.getPref(context)
+                val autoCleanup = prefs.getBooleanSync("autoCleanupOldData", false)
+                val retentionYearsStr = prefs.getStringSync("dataRetentionYears")
+                val retentionYears = retentionYearsStr?.toIntOrNull()
+                    ?: RetentionConfigState.DEFAULT_RETENTION_YEARS
+
+                current.toBuilder()
+                    .setAutoCleanupEnabled(autoCleanup)
+                    .setDataRetentionYears(retentionYears)
+                    .setDataSettingsLegacyMigrated(true)
+                    .build()
             }
         }
     }
@@ -71,6 +99,8 @@ private fun RetentionConfigProto.toDomain(): RetentionConfigState {
         autoPurgeEnabled = autoPurgeEnabled,
         exportBeforePurge = exportBeforePurge,
         legacySessionRetentionDays = legacySessionRetentionDays.withDefault(RetentionConfigState.DEFAULT_RAW_DAYS),
+        autoCleanupEnabled = autoCleanupEnabled,
+        dataRetentionYears = dataRetentionYears.withDefault(RetentionConfigState.DEFAULT_RETENTION_YEARS),
     )
 }
 
@@ -84,6 +114,8 @@ private fun RetentionConfigState.toProto(): RetentionConfigProto =
         .setAutoPurgeEnabled(autoPurgeEnabled)
         .setExportBeforePurge(exportBeforePurge)
         .setLegacySessionRetentionDays(legacySessionRetentionDays)
+        .setAutoCleanupEnabled(autoCleanupEnabled)
+        .setDataRetentionYears(dataRetentionYears)
         .setInitialized(true)
         .build()
 

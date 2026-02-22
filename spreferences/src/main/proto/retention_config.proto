@@ -14,5 +14,11 @@ message RetentionConfigProto {
   bool auto_purge_enabled = 6;
   bool export_before_purge = 7;
   int32 legacy_session_retention_days = 8;
+  // High-level auto-cleanup toggle (Data settings)
+  bool auto_cleanup_enabled = 9;
+  // Data retention period in years (Data settings)
+  int32 data_retention_years = 10;
   bool initialized = 100;
+  // One-time migration flag for auto_cleanup / retention_years
+  bool data_settings_legacy_migrated = 1000;
 }
