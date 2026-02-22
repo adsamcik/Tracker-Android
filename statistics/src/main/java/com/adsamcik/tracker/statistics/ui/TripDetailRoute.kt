@@ -66,17 +66,6 @@ import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.TripDetailState
 import com.adsamcik.tracker.statistics.viewmodel.TripDetailViewModel
 import com.adsamcik.tracker.statistics.viewmodel.TripMetrics
-import org.maplibre.compose.camera.CameraPosition
-import org.maplibre.compose.camera.rememberCameraState
-import org.maplibre.compose.expressions.dsl.const
-import org.maplibre.compose.layers.LineLayer
-import org.maplibre.compose.map.GestureOptions
-import org.maplibre.compose.map.MapOptions
-import org.maplibre.compose.map.MaplibreMap
-import org.maplibre.compose.sources.GeoJsonData
-import org.maplibre.compose.sources.rememberGeoJsonSource
-import org.maplibre.compose.style.BaseStyle
-import org.maplibre.spatialk.geojson.Position
 import java.io.File
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -87,27 +76,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-private const val ROUTE_MAP_STYLE_JSON = """
-{
-  "version": 8,
-  "name": "Route Preview",
-  "sources": {
-    "osm": {
-      "type": "raster",
-      "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      "tileSize": 256,
-      "attribution": "&copy; OpenStreetMap contributors"
-    }
-  },
-  "layers": [
-    {"id": "osm", "type": "raster", "source": "osm"}
-  ]
-}
-"""
 private const val MS_TO_KMH = 3.6
-private const val LINE_WIDTH = 3f
-private const val LINE_OPACITY = 0.85f
-private const val BOUNDS_PADDING = 0.001
 
 /**
  * Entry composable for trip detail screen.
@@ -283,11 +252,6 @@ private fun TripOverview(
 			.padding(16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp)
 	) {
-		// Route map card (first, before metrics)
-		if (locationPoints.size >= 2) {
-			RouteMapCard(locationPoints)
-		}
-
 		// Header card with time and icon
 		GlassCard(modifier = Modifier.fillMaxWidth()) {
 			Row(
@@ -430,96 +394,6 @@ private fun DeveloperMetrics(trip: Trip) {
 			)
 		}
 	}
-}
-
-@Composable
-private fun RouteMapCard(points: List<DatabaseLocation>) {
-	val geoJson = remember(points) { buildRouteGeoJson(points) }
-	val bounds = remember(points) { computeBounds(points) }
-
-	GlassCard(modifier = Modifier.fillMaxWidth()) {
-		Column(modifier = Modifier.fillMaxWidth()) {
-			Text(
-				text = stringResource(R.string.trip_detail_route_map),
-				style = MaterialTheme.typography.labelMedium,
-				color = MaterialTheme.colorScheme.onSurfaceVariant
-			)
-			Spacer(Modifier.height(8.dp))
-
-			val cameraState = rememberCameraState(
-				firstPosition = CameraPosition(
-					target = Position(
-						longitude = (bounds.minLon + bounds.maxLon) / 2.0,
-						latitude = (bounds.minLat + bounds.maxLat) / 2.0
-					),
-					zoom = 12.0
-				)
-			)
-
-			Box(
-				modifier = Modifier
-					.fillMaxWidth()
-					.height(250.dp)
-					.clip(MaterialTheme.shapes.medium)
-			) {
-				val routeColor = MaterialTheme.colorScheme.primary
-				MaplibreMap(
-					modifier = Modifier.fillMaxSize(),
-					baseStyle = BaseStyle.Json(ROUTE_MAP_STYLE_JSON),
-					cameraState = cameraState,
-					options = MapOptions(
-						gestureOptions = GestureOptions(
-							isRotateEnabled = false,
-							isTiltEnabled = false
-						)
-					)
-				) {
-					val routeSource = rememberGeoJsonSource(
-						data = GeoJsonData.JsonString(geoJson)
-					)
-
-					LineLayer(
-						id = "route-line",
-						source = routeSource,
-						color = const(routeColor),
-						width = const(LINE_WIDTH.dp),
-						opacity = const(LINE_OPACITY),
-					)
-				}
-			}
-		}
-	}
-}
-
-private data class LatLonBounds(
-	val minLat: Double,
-	val maxLat: Double,
-	val minLon: Double,
-	val maxLon: Double
-)
-
-private fun computeBounds(points: List<DatabaseLocation>): LatLonBounds {
-	var minLat = Double.MAX_VALUE
-	var maxLat = -Double.MAX_VALUE
-	var minLon = Double.MAX_VALUE
-	var maxLon = -Double.MAX_VALUE
-	for (p in points) {
-		if (p.latitude < minLat) minLat = p.latitude
-		if (p.latitude > maxLat) maxLat = p.latitude
-		if (p.longitude < minLon) minLon = p.longitude
-		if (p.longitude > maxLon) maxLon = p.longitude
-	}
-	return LatLonBounds(
-		minLat = minLat - BOUNDS_PADDING,
-		maxLat = maxLat + BOUNDS_PADDING,
-		minLon = minLon - BOUNDS_PADDING,
-		maxLon = maxLon + BOUNDS_PADDING
-	)
-}
-
-private fun buildRouteGeoJson(points: List<DatabaseLocation>): String {
-	val coords = points.joinToString(",") { "[${it.longitude},${it.latitude}]" }
-	return """{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[$coords]},"properties":{}}]}"""
 }
 
 @Composable

@@ -110,7 +110,7 @@ fun DataSettingsScreen() {
 
         // Auto-cleanup section
         item {
-            SectionHeader("Data Management")
+            SectionHeader(stringResource(R.string.settings_data_management_section))
         }
 
         item {
@@ -138,7 +138,7 @@ fun DataSettingsScreen() {
 
         // Danger zone
         item {
-            SectionHeader("Danger Zone")
+            SectionHeader(stringResource(R.string.settings_data_danger_zone_section))
         }
 
         item {

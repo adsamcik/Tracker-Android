@@ -39,13 +39,13 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
             item {
                 SettingsItem(
                     title = stringResource(R.string.settings_developer_mode_disable),
-                    subtitle = "Hide developer options from settings",
+                    subtitle = stringResource(R.string.settings_debug_disable_developer_subtitle),
                     icon = Icons.Default.Close,
                     onClick = {
                         com.adsamcik.tracker.shared.preferences.DeveloperPreferences.setDeveloperMode(context, false)
                         android.widget.Toast.makeText(
                             context,
-                            "Developer mode disabled",
+                            context.getString(R.string.settings_debug_developer_mode_disabled_toast),
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -55,13 +55,13 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
 
         // Debug tools
         item {
-            SectionHeader("Debug Tools")
+            SectionHeader(stringResource(R.string.settings_debug_tools_section))
         }
 
         item {
             SettingsItem(
-                title = "Crash Manager",
-                subtitle = "View and manage crash reports",
+                title = stringResource(R.string.settings_debug_crash_manager_title),
+                subtitle = stringResource(R.string.settings_debug_crash_manager_subtitle),
                 icon = Icons.Default.BugReport,
                 onClick = {
                     context.startActivity(Intent(context, com.adsamcik.tracker.app.activity.debug.CrashManagerActivity::class.java))
@@ -71,8 +71,8 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
 
         item {
             SettingsItem(
-                title = "Log Viewer",
-                subtitle = "View application logs",
+                title = stringResource(R.string.settings_debug_log_viewer_title),
+                subtitle = stringResource(R.string.settings_debug_log_viewer_subtitle),
                 icon = Icons.Default.Description,
                 onClick = {
                     onNavigateToDebug()
@@ -83,13 +83,13 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
         // Developer tools (only show in debug builds)
         if (com.adsamcik.tracker.BuildConfig.DEBUG) {
             item {
-                SectionHeader("Developer Tools")
+                SectionHeader(stringResource(R.string.settings_debug_developer_tools_section))
             }
 
             item {
                 SettingsItem(
-                    title = "Generate Dummy Data",
-                    subtitle = "Create test tracking data (DEBUG only)",
+                    title = stringResource(R.string.settings_debug_generate_dummy_title),
+                    subtitle = stringResource(R.string.settings_debug_generate_dummy_subtitle),
                     icon = Icons.Default.Science,
                     onClick = {
                         debugVm.showDummyDataDialog()

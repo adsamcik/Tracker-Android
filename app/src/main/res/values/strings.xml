@@ -57,6 +57,20 @@
     <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
     <string name="settings_debug_key" translatable="false">debugSection</string>
     <string name="settings_debug_title">Developer options</string>
+    <string name="settings_debug_tools_section">Debug Tools</string>
+    <string name="settings_debug_crash_manager_title">Crash Manager</string>
+    <string name="settings_debug_crash_manager_subtitle">View and manage crash reports</string>
+    <string name="settings_debug_log_viewer_title">Log Viewer</string>
+    <string name="settings_debug_log_viewer_subtitle">View application logs</string>
+    <string name="settings_debug_developer_tools_section">Developer Tools</string>
+    <string name="settings_debug_generate_dummy_title">Generate Dummy Data</string>
+    <string name="settings_debug_generate_dummy_subtitle">Create test tracking data (DEBUG only)</string>
+    <string name="settings_debug_disable_developer_subtitle">Hide developer options from settings</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Developer mode disabled</string>
+    <string name="settings_data_management_section">Data Management</string>
+    <string name="settings_data_danger_zone_section">Danger Zone</string>
+    <string name="settings_game_goals_managed_hint">Goal settings like daily/weekly steps are managed through the Goals feature</string>
+    <string name="settings_map_info_hint">These settings control map visualization quality and performance. Most users can use default values.</string>
     <string name="settings_developer_enabled">Developer options enabled</string>
     <string name="settings_developer_mode_enabled_toast">Developer mode enabled</string>
     <string name="settings_developer_mode_disable">Disable developer mode</string>

@@ -52,7 +52,7 @@ fun GameSettingsScreen() {
 
         item {
             Text(
-                text = "Goal settings like daily/weekly steps are managed through the Goals feature",
+                text = stringResource(com.adsamcik.tracker.R.string.settings_game_goals_managed_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )

@@ -66,7 +66,7 @@ fun MapSettingsScreen() {
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        "These settings control map visualization quality and performance. Most users can use default values.",
+                        stringResource(com.adsamcik.tracker.R.string.settings_map_info_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
