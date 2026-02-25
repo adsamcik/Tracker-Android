@@ -39,7 +39,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -47,8 +46,9 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.viewmodel.TripDetailState
-import com.adsamcik.tracker.statistics.viewmodel.TripDetailViewModel
+import com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModel
+import com.adsamcik.tracker.statistics.presenter.TripDetailState
+import com.adsamcik.tracker.stats.api.repository.TripSummary
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -63,7 +63,7 @@ import java.time.format.FormatStyle
 fun TripDetailRoute(
 	tripId: Long,
 	onBack: () -> Unit,
-	viewModel: TripDetailViewModel = hiltViewModel()
+	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
 	val state by viewModel.state.collectAsState()
 
@@ -114,6 +114,20 @@ fun TripDetailRoute(
 						)
 					}
 				}
+				is TripDetailState.Error -> {
+					Box(
+						Modifier
+							.fillMaxSize()
+							.padding(32.dp),
+						contentAlignment = Alignment.Center
+					) {
+						EmptyStateCard(
+							icon = Icons.Filled.ErrorOutline,
+							title = s.message,
+							subtitle = stringResource(R.string.trip_detail_not_found_subtitle)
+						)
+					}
+				}
 			}
 		}
 	}
@@ -124,23 +138,23 @@ private val dateTimeFormatter: DateTimeFormatter by lazy {
 }
 
 @Composable
-private fun TripOverview(trip: Trip) {
+private fun TripOverview(trip: TripSummary) {
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = remember { TrackerSettingsQuick.snapshot(context) }
 
 	val startText = remember(trip.startTimeMs) {
 		dateTimeFormatter.format(
-			Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault())
+			Instant.ofEpochMilli(trip.startTimeMs.raw).atZone(ZoneId.systemDefault())
 		)
 	}
-	val durationText = remember(trip.durationMs) {
-		trip.durationMs.formatAsDuration(context)
+	val durationText = remember(trip.duration) {
+		trip.duration.raw.formatAsDuration(context)
 	}
-	val distanceText = remember(trip.distanceM, settings) {
+	val distanceText = remember(trip.distance, settings) {
 		resources.formatDistance(
-			trip.distanceM,
-			digits = if (trip.distanceM >= 1000f) 1 else 2,
+			trip.distance.raw,
+			digits = if (trip.distance.raw >= 1000f) 1 else 2,
 			unit = settings.lengthSystem
 		)
 	}
@@ -200,7 +214,7 @@ private fun TripOverview(trip: Trip) {
 			)
 			MetricCard(
 				label = stringResource(R.string.trip_detail_steps),
-				value = trip.steps?.formatReadable() ?: "-",
+				value = trip.steps.raw.formatReadable(),
 				modifier = Modifier.weight(1f)
 			)
 		}
@@ -216,7 +230,7 @@ private fun TripOverview(trip: Trip) {
 			)
 			MetricCard(
 				label = stringResource(R.string.trip_detail_source),
-				value = trip.source.name.replace('_', ' ').lowercase()
+				value = trip.primaryMode.name.replace('_', ' ').lowercase()
 					.replaceFirstChar { it.uppercase() },
 				modifier = Modifier.weight(1f)
 			)

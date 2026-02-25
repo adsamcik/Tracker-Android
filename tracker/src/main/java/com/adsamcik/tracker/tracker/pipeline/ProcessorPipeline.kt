@@ -62,6 +62,7 @@ class ProcessorPipeline(
 		tier: PolicyTier,
 		startTimestamp: EpochMs,
 		isResuming: Boolean = false,
+		sessionId: Long = 0L,
 	) = mutex.withLock {
 		check(!isRunning) { "Pipeline already running — call stop() first" }
 		supervisorJob = SupervisorJob()
@@ -73,6 +74,7 @@ class ProcessorPipeline(
 		val context = ProcessorContext(
 			startTimestamp = startTimestamp,
 			isResuming = isResuming,
+			sessionId = sessionId,
 		)
 
 		for (processor in cachedActiveProcessors) {

@@ -65,6 +65,6 @@ class ExplorationProcessor(
 		return onFlush()
 	}
 
-	override fun checkpoint(): ByteArray? = null
-	override fun restore(state: ByteArray) {}
+	override fun checkpoint(): ByteArray = engine.serialize()
+	override fun restore(state: ByteArray) { engine.deserialize(state) }
 }

@@ -64,6 +64,9 @@ import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.database.data.PersonalRecordEntity
 import com.adsamcik.tracker.shared.base.database.data.RouteCacheEntity
 import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
+import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
+import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
 
 
 /**
@@ -107,6 +110,9 @@ import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
 			RouteCacheEntity::class,
 			ExportLogEntity::class,
 			StorageSizeSnapshotEntity::class,
+			// Domain events (stats pipeline)
+			DomainEventEntity::class,
+			DomainEventCursorEntity::class,
 		]
 )
 @TypeConverters(
@@ -269,6 +275,13 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to daily storage size snapshots.
 	 */
 	abstract fun storageSizeSnapshotDao(): StorageSizeSnapshotDao
+
+	// Domain event DAO (stats pipeline)
+
+	/**
+	 * Provides access to domain events emitted by the stats processor pipeline.
+	 */
+	abstract fun domainEventDao(): DomainEventDao
 
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"

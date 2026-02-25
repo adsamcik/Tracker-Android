@@ -65,6 +65,12 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
+import com.adsamcik.tracker.tracker.pipeline.SignalAdapter
+import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.processor.SignalProcessor
+import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -92,6 +98,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	// Injected listener manager for sending tracker updates
 	@Inject
 	lateinit var trackerListenerManager: TrackerListenerManager
+
+	// Injected stats pipeline dependencies
+	@Inject
+	lateinit var signalProcessors: Set<@JvmSuppressWildcards SignalProcessor>
+
+	@Inject
+	lateinit var domainEventRepository: DomainEventRepository
+
+	private var processorPipeline: ProcessorPipeline? = null
 
 	private val componentMutex = Mutex()
 	
@@ -171,6 +186,24 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 						it.onNewData(this, session, collectionData, tempData)
 					}
 				}
+
+		// Feed data to the new ProcessorPipeline (dual-run alongside PostTrackerComponents)
+		processorPipeline?.let { pipeline ->
+			tryWithReport {
+				val signal = SignalAdapter.buildSignal(
+					timestampMs = tempData.timeMillis,
+					latitude = collectionData.location?.latitude,
+					longitude = collectionData.location?.longitude,
+					accuracy = collectionData.location?.horizontalAccuracy,
+					speed = collectionData.location?.speed,
+					altitude = collectionData.location?.altitude?.toFloat(),
+					activityTypeCode = collectionData.activity?.activityType,
+					activityConfidence = collectionData.activity?.confidence,
+					stepDelta = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG),
+				)
+				pipeline.onSignal(signal)
+			}
+		}
 
 		// Update tracking policy based on collected data (adaptive tracking)
 		trackingPolicyManager?.let { policyMgr ->
@@ -371,6 +404,19 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				add(ExplorationWriter())
 			}
 		}.forEach { it.onEnable(this) }
+
+		// Initialize the stats ProcessorPipeline (dual-run alongside PostTrackerComponents)
+		val pipeline = ProcessorPipeline(
+			processors = signalProcessors,
+			scope = this@TrackerService,
+			onDomainEvents = { events -> domainEventRepository.persist(events) },
+		)
+		processorPipeline = pipeline
+		pipeline.start(
+			tier = initialTier,
+			startTimestamp = EpochMs(Time.nowMillis),
+			sessionId = session.id,
+		)
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -534,6 +580,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				newPostComponents.forEach { it.onEnable(this@TrackerService) }
 				postComponentList.addAll(newPostComponents)
 
+				// Escalate the stats ProcessorPipeline to new tier
+				processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
+
 				// Enable the GPS timer after components are ready
 				if (hasSelfPermissions(gpsTimer.requiredPermissions).all { it }) {
 					gpsTimer.onEnable(this@TrackerService, this@TrackerService)
@@ -575,6 +624,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@MainThread
 	private suspend fun onDestroyComponents(context: Context) {
+		// Stop the stats ProcessorPipeline first (final flush + event delivery)
+		tryWithReport {
+			processorPipeline?.stop()
+			processorPipeline = null
+		}
+
 		dataProducerManager?.onDisable()
 		trackingPolicyManager?.stop()
 		trackingPolicyManager = null

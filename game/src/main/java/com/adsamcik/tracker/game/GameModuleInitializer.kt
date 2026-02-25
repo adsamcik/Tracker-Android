@@ -1,37 +1,36 @@
 package com.adsamcik.tracker.game
 
 import android.content.Context
-import android.content.IntentFilter
-import androidx.annotation.WorkerThread
-import androidx.core.content.ContextCompat
-import com.adsamcik.tracker.game.challenge.receiver.ChallengeSessionReceiver
+import com.adsamcik.tracker.game.event.GameDomainEventConsumer
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.game.goals.NewDayGoalWorker
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface GameConsumerEntryPoint {
+	fun gameDomainEventConsumer(): GameDomainEventConsumer
+}
 
 /**
- * Game module initializer
+ * Game module initializer.
+ * Challenge events are now handled by [GameDomainEventConsumer] via domain events.
  */
 @Suppress("unused")
 class GameModuleInitializer : ModuleInitializer {
-	@WorkerThread
-	private fun initializeTrackerSessionReceivers(applicationContext: Context) {
-		val trackerSessionBroadcastFilter = IntentFilter().apply {
-			addAction(TrackerSession.ACTION_SESSION_FINAL)
-		}
-
-		ContextCompat.registerReceiver(
-			applicationContext,
-			ChallengeSessionReceiver(),
-			trackerSessionBroadcastFilter,
-			ContextCompat.RECEIVER_NOT_EXPORTED
-		)
-	}
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 	override fun initialize(context: Context) {
-		initializeTrackerSessionReceivers(context)
 		initializeGoals(context)
+		initializeDomainEventConsumer(context)
 	}
 
 	private fun initializeGoals(context: Context) {
@@ -39,4 +38,12 @@ class GameModuleInitializer : ModuleInitializer {
 		NewDayGoalWorker.ensureScheduled(context)
 	}
 
+	private fun initializeDomainEventConsumer(context: Context) {
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context,
+			GameConsumerEntryPoint::class.java,
+		)
+		val consumer = entryPoint.gameDomainEventConsumer()
+		scope.launch { consumer.processUnconsumed() }
+	}
 }

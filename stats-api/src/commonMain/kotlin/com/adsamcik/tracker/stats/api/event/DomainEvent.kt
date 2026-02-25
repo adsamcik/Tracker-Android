@@ -27,6 +27,7 @@ sealed interface DomainEvent {
 	data class SessionEnded(
 		override val timestampMs: EpochMs,
 		override val processorId: String,
+		val sessionId: Long,
 		val totalDistance: DistanceM,
 		val totalSteps: StepCount,
 		val duration: DurationMs,

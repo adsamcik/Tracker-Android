@@ -1,0 +1,88 @@
+package com.adsamcik.tracker.points.event
+
+import android.content.Context
+import androidx.work.Constraints
+import androidx.work.Data
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.points.POINTS_LOG_SOURCE
+import com.adsamcik.tracker.points.work.PointsWorker
+import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.value.EpochMs
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Consumes domain events to award points on session completion.
+ * Replaces broadcast-based PointsSessionReceiver (deleted, was ACTION_SESSION_FINAL).
+ */
+@Singleton
+class PointsDomainEventConsumer @Inject constructor(
+	private val domainEventRepository: DomainEventRepository,
+	@ApplicationContext private val context: Context,
+) {
+	/** Process any unconsumed events for the points module. */
+	suspend fun processUnconsumed() {
+		val events = domainEventRepository.getUnconsumed(CONSUMER_ID)
+		if (events.isEmpty()) return
+
+		var latestTimestamp = EpochMs(0L)
+		for (event in events) {
+			handleEvent(event)
+			if (event.timestampMs.raw > latestTimestamp.raw) {
+				latestTimestamp = event.timestampMs
+			}
+		}
+		domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
+	}
+
+	private fun handleEvent(event: DomainEvent) {
+		when (event) {
+			is DomainEvent.SessionEnded -> onSessionEnded(event)
+			else -> Unit
+		}
+	}
+
+	/**
+	 * Replaces PointsSessionReceiver.onSessionFinal().
+	 * Enqueues PointsWorker with the session ID for points calculation.
+	 */
+	private fun onSessionEnded(event: DomainEvent.SessionEnded) {
+		val sessionId = event.sessionId
+		if (sessionId <= 0L) return
+
+		val workManager = WorkManager.getInstance(context)
+		val data = Data.Builder()
+			.putLong(ARG_SESSION_ID, sessionId)
+			.build()
+
+		val workRequest = OneTimeWorkRequestBuilder<PointsWorker>()
+			.addTag(POINTS_WORK_TAG)
+			.setInputData(data)
+			.setConstraints(
+				Constraints.Builder()
+					.setRequiresBatteryNotLow(true)
+					.build(),
+			)
+			.build()
+
+		workManager.enqueue(workRequest)
+
+		Logger.log(
+			LogData(
+				message = "SessionEnded event → scheduled points work for session $sessionId",
+				source = POINTS_LOG_SOURCE,
+			),
+		)
+	}
+
+	companion object {
+		const val CONSUMER_ID = "points-module"
+		private const val ARG_SESSION_ID = "id"
+		private const val POINTS_WORK_TAG = "SessionPoints"
+	}
+}

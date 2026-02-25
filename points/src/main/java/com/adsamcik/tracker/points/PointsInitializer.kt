@@ -1,25 +1,40 @@
 package com.adsamcik.tracker.points
 
 import android.content.Context
-import android.content.IntentFilter
-import androidx.core.content.ContextCompat
-import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface PointsConsumerEntryPoint {
+	fun pointsDomainEventConsumer(): PointsDomainEventConsumer
+}
 
 /**
- * Initializes broadcast receiver for points
+ * Initializes domain event consumer for points.
+ * Points are now awarded via [PointsDomainEventConsumer] on SessionEnded events.
  */
 class PointsInitializer : ModuleInitializer {
-	override fun initialize(context: Context) {
-		val trackerSessionBroadcastFilter = IntentFilter().apply {
-			addAction(TrackerSession.ACTION_SESSION_FINAL)
-		}
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-		ContextCompat.registerReceiver(
+	override fun initialize(context: Context) {
+		initializeDomainEventConsumer(context)
+	}
+
+	private fun initializeDomainEventConsumer(context: Context) {
+		val entryPoint = EntryPointAccessors.fromApplication(
 			context,
-			PointsSessionReceiver(),
-			trackerSessionBroadcastFilter,
-			ContextCompat.RECEIVER_NOT_EXPORTED
+			PointsConsumerEntryPoint::class.java,
 		)
+		val consumer = entryPoint.pointsDomainEventConsumer()
+		scope.launch { consumer.processUnconsumed() }
 	}
 }

@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
+import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
@@ -233,4 +234,11 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideTripLegDao(database: AppDatabase): TripLegDao = database.tripLegDao()
+
+    /**
+     * Provides DomainEventDao for stats pipeline event persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideDomainEventDao(database: AppDatabase): DomainEventDao = database.domainEventDao()
 }

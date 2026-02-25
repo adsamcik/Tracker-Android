@@ -28,7 +28,10 @@ class AggregatorProcessor(
 		priority = 10,
 	)
 
+	private var sessionId: Long = 0L
+
 	override suspend fun onStart(context: ProcessorContext) {
+		sessionId = context.sessionId
 		if (context.checkpoint != null) {
 			restore(context.checkpoint!!)
 		}
@@ -70,6 +73,7 @@ class AggregatorProcessor(
 			DomainEvent.SessionEnded(
 				timestampMs = EpochMs(snap.lastUpdateMs),
 				processorId = descriptor.id,
+				sessionId = sessionId,
 				totalDistance = DistanceM.coerced(snap.sessionDistanceM),
 				totalSteps = StepCount.coerced(snap.sessionSteps),
 				duration = DurationMs(snap.sessionDurationMs.coerceAtLeast(0L)),
@@ -85,9 +89,9 @@ class AggregatorProcessor(
 		aggregator.seedDayTotals(distanceM, steps, durationMs, trips)
 	}
 
-	override fun checkpoint(): ByteArray? = null // TODO: implement serialization
+	override fun checkpoint(): ByteArray = aggregator.serialize()
 
 	override fun restore(state: ByteArray) {
-		// TODO: implement deserialization
+		aggregator.deserialize(state)
 	}
 }

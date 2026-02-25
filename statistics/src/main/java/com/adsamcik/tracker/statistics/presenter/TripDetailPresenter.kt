@@ -3,6 +3,7 @@ package com.adsamcik.tracker.statistics.presenter
 import com.adsamcik.tracker.stats.api.presenter.Presenter
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TripSummary
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -32,6 +33,7 @@ class TripDetailPresenter @Inject constructor(
 ) : Presenter<TripDetailEvent, TripDetailState> {
 
 	override fun present(events: Flow<TripDetailEvent>): Flow<TripDetailState> {
+		@OptIn(ExperimentalCoroutinesApi::class)
 		return events.flatMapLatest { event ->
 			when (event) {
 				is TripDetailEvent.LoadTrip -> flow {

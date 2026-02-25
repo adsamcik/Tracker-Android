@@ -49,6 +49,7 @@ class ProcessorPipelineTest {
 		DomainEvent.SessionEnded(
 			timestampMs = EpochMs(timestampMs),
 			processorId = "test",
+			sessionId = 42L,
 			totalDistance = DistanceM(0f),
 			totalSteps = StepCount(0),
 			duration = DurationMs(0L),
@@ -477,6 +478,116 @@ class ProcessorPipelineTest {
 
 		p.signals shouldHaveSize 100
 		p.signals.map { it.timestampMs.raw } shouldContainExactly (1L..100L).map { it * 1000L }
+	}
+
+	// endregion
+
+	// region tier filtering
+
+	@Test
+	fun `tier filtering - processors below current tier are not signaled`() = runTest {
+		val ambient = ambientProcessor()
+		val precision = precisionProcessor()
+		val pipeline = createPipeline(setOf(ambient, precision), this)
+
+		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
+		pipeline.onSignal(testSignal())
+
+		ambient.signals shouldHaveSize 1
+		precision.signals shouldHaveSize 0
+	}
+
+	@Test
+	fun `escalate changes active processor set`() = runTest {
+		val ambient = ambientProcessor()
+		val precision = precisionProcessor()
+		val pipeline = createPipeline(setOf(ambient, precision), this)
+
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
+		pipeline.onSignal(testSignal(1500L))
+		precision.signals shouldHaveSize 0
+
+		pipeline.escalate(PolicyTier.PRECISION, EpochMs(2000L))
+		pipeline.onSignal(testSignal(2500L))
+
+		precision.signals shouldHaveSize 1
+		ambient.signals shouldHaveSize 2
+	}
+
+	// endregion
+
+	// region additional failure isolation
+
+	@Test
+	fun `error in one processor does not affect others`() = runTest {
+		val failing = activeProcessor(id = "failing", priority = 0).apply {
+			onSignalAction = { throw IllegalStateException("processor error") }
+		}
+		val healthy = activeProcessor(id = "healthy", priority = 10)
+		val pipeline = createPipeline(setOf(failing, healthy), this)
+
+		pipeline.start(PolicyTier.ACTIVE, EpochMs(1000L))
+		pipeline.onSignal(testSignal())
+
+		healthy.signals shouldHaveSize 1
+	}
+
+	// endregion
+
+	// region combined events
+
+	@Test
+	fun `flush returns events from all processors`() = runTest {
+		val collectedEvents = mutableListOf<DomainEvent>()
+		val eventA = testEvent(100L)
+		val eventB = testEvent(200L)
+		val a = RecordingProcessor(
+			ProcessorDescriptor(
+				id = "emitter-a",
+				requiredTier = PolicyTier.AMBIENT,
+				flushIntervalMs = 100L,
+				priority = 0,
+			),
+		).apply { flushEvents = { listOf(eventA) } }
+		val b = RecordingProcessor(
+			ProcessorDescriptor(
+				id = "emitter-b",
+				requiredTier = PolicyTier.AMBIENT,
+				flushIntervalMs = 100L,
+				priority = 10,
+			),
+		).apply { flushEvents = { listOf(eventB) } }
+		val dispatcher = UnconfinedTestDispatcher(testScheduler)
+		val pipeline = createPipeline(
+			setOf(a, b),
+			CoroutineScope(dispatcher + SupervisorJob()),
+		) { events -> collectedEvents.addAll(events) }
+
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+		pipeline.onSignal(testSignal(200L)) // triggers flush
+
+		collectedEvents shouldHaveSize 2
+	}
+
+	@Test
+	fun `stop returns combined events from all processors`() = runTest {
+		val collectedEvents = mutableListOf<DomainEvent>()
+		val stopA = testStopEvent(5000L)
+		val stopB = testStopEvent(6000L)
+		val a = ambientProcessor(id = "stop-a").apply {
+			stopEvents = { listOf(stopA) }
+		}
+		val b = ambientProcessor(id = "stop-b").apply {
+			stopEvents = { listOf(stopB) }
+		}
+		val pipeline = createPipeline(setOf(a, b), this) { events ->
+			collectedEvents.addAll(events)
+		}
+
+		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
+		pipeline.stop()
+
+		collectedEvents shouldHaveSize 2
 	}
 
 	// endregion

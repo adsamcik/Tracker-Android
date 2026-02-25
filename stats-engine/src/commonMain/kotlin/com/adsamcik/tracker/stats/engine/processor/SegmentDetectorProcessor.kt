@@ -95,6 +95,6 @@ class SegmentDetectorProcessor(
 		return onFlush()
 	}
 
-	override fun checkpoint(): ByteArray? = null
-	override fun restore(state: ByteArray) {}
+	override fun checkpoint(): ByteArray = detector.serialize()
+	override fun restore(state: ByteArray) { detector.deserialize(state) }
 }

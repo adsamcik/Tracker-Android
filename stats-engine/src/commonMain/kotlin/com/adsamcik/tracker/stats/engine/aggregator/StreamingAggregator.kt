@@ -188,4 +188,60 @@ class StreamingAggregator(
 		maxSpeedMps = 0f
 		activityVotes.clear()
 	}
+
+	/** Serialize all mutable state for crash-recovery checkpointing. */
+	fun serialize(): ByteArray {
+		val baos = java.io.ByteArrayOutputStream()
+		val dos = java.io.DataOutputStream(baos)
+		dos.writeBoolean(active)
+		dos.writeLong(sessionStartMs)
+		dos.writeLong(lastSignalMs)
+		dos.writeFloat(sessionDistanceM)
+		dos.writeInt(sessionSteps)
+		dos.writeLong(sessionDurationMs)
+		dos.writeInt(sampleCount)
+		dos.writeFloat(currentSpeedMps ?: Float.NaN)
+		dos.writeFloat(speedSum)
+		dos.writeInt(speedCount)
+		dos.writeFloat(maxSpeedMps)
+		dos.writeFloat(priorDayDistanceM)
+		dos.writeInt(priorDaySteps)
+		dos.writeLong(priorDayDurationMs)
+		dos.writeInt(tripCount)
+		dos.writeInt(activityVotes.size)
+		for ((type, count) in activityVotes) {
+			dos.writeInt(type.ordinal)
+			dos.writeInt(count)
+		}
+		dos.flush()
+		return baos.toByteArray()
+	}
+
+	/** Restore mutable state from a checkpoint produced by [serialize]. */
+	fun deserialize(data: ByteArray) {
+		val dis = java.io.DataInputStream(java.io.ByteArrayInputStream(data))
+		active = dis.readBoolean()
+		sessionStartMs = dis.readLong()
+		lastSignalMs = dis.readLong()
+		sessionDistanceM = dis.readFloat()
+		sessionSteps = dis.readInt()
+		sessionDurationMs = dis.readLong()
+		sampleCount = dis.readInt()
+		val speed = dis.readFloat()
+		currentSpeedMps = if (speed.isNaN()) null else speed
+		speedSum = dis.readFloat()
+		speedCount = dis.readInt()
+		maxSpeedMps = dis.readFloat()
+		priorDayDistanceM = dis.readFloat()
+		priorDaySteps = dis.readInt()
+		priorDayDurationMs = dis.readLong()
+		tripCount = dis.readInt()
+		activityVotes.clear()
+		val mapSize = dis.readInt()
+		repeat(mapSize) {
+			val ordinal = dis.readInt()
+			val count = dis.readInt()
+			activityVotes[DetectedActivityType.entries[ordinal]] = count
+		}
+	}
 }
