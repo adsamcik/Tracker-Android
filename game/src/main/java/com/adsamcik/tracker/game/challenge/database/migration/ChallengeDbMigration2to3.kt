@@ -25,10 +25,23 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 			""".trimIndent()
 		)
 
-		migrateExplorerChallenges(db)
-		migrateWalkDistanceChallenges(db)
-		migrateStepChallenges(db)
-		migrateActiveTimeChallenges(db)
+		// Guard legacy data migration — tables may not exist if DB was created
+		// at an intermediate version during development or from a backup restore.
+		if (tableExists(db, "challenge_entry")) {
+			if (tableExists(db, "challenge_explorer")) migrateExplorerChallenges(db)
+			if (tableExists(db, "challenge_walk_distance")) migrateWalkDistanceChallenges(db)
+			if (tableExists(db, "challenge_step")) migrateStepChallenges(db)
+			if (tableExists(db, "challenge_active_time")) migrateActiveTimeChallenges(db)
+		}
+	}
+
+	private fun tableExists(db: SupportSQLiteDatabase, tableName: String): Boolean {
+		return db.query(
+			"SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?",
+			arrayOf(tableName)
+		).use { cursor ->
+			cursor.moveToFirst() && cursor.getInt(0) > 0
+		}
 	}
 
 	private fun migrateExplorerChallenges(db: SupportSQLiteDatabase) {

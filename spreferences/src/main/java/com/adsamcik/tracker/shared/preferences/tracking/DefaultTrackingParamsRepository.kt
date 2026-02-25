@@ -78,45 +78,56 @@ class DefaultTrackingParamsRepository(
     }
 
     @Suppress("DEPRECATION")
-    private suspend fun ensureMigrated() {
-        val current = context.trackingParamsDataStore.data.first()
-        if (current.legacyMigrated) return
+    private suspend fun ensureMigrated() = withContext(io) {
+        try {
+            val current = context.trackingParamsDataStore.data.first()
+            if (current.legacyMigrated) return@withContext
 
-        val prefs = Preferences.getPref(context)
+            val prefs = Preferences.getPref(context)
 
-        val locationEnabled = prefs.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
-        val activityEnabled = prefs.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)
-        val stepsEnabled = prefs.getBooleanRes(PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default)
-        val wifiEnabled = prefs.getBoolean(context.getString(PrefR.string.settings_wifi_enabled_key), true)
-        val cellEnabled = prefs.getBooleanRes(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
-        val wifiNetworkEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
-        val wifiLocationCountEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default)
-        val autoTrackingMode = prefs.getStringAsIntResString(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default)
-        val transitionEnabled = prefs.getBooleanRes(PrefR.string.settings_auto_tracking_transition_key, PrefR.string.settings_auto_tracking_transition_default)
-        val notificationStyled = prefs.getBooleanRes(PrefR.string.settings_notification_styled_key, PrefR.string.settings_notification_styled_default)
-        val minDistance = prefs.getInt(context.getString(PrefR.string.settings_tracking_min_distance_key), TrackingParamsState.DEFAULT_MIN_DISTANCE)
-        val minTime = prefs.getInt(context.getString(PrefR.string.settings_tracking_min_time_key), TrackingParamsState.DEFAULT_MIN_TIME)
-        val requiredAccuracy = prefs.getInt(context.getString(PrefR.string.settings_tracking_required_accuracy_key), TrackingParamsState.DEFAULT_REQUIRED_ACCURACY)
-        val preset = prefs.getString("tracking_preset", TrackingParamsState.DEFAULT_PRESET)
+            val locationEnabled = prefs.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
+            val activityEnabled = prefs.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)
+            val stepsEnabled = prefs.getBooleanRes(PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default)
+            val wifiEnabled = prefs.getBoolean(context.getString(PrefR.string.settings_wifi_enabled_key), true)
+            val cellEnabled = prefs.getBooleanRes(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
+            val wifiNetworkEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
+            val wifiLocationCountEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default)
+            val autoTrackingMode = prefs.getStringAsIntResString(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default)
+            val transitionEnabled = prefs.getBooleanRes(PrefR.string.settings_auto_tracking_transition_key, PrefR.string.settings_auto_tracking_transition_default)
+            val notificationStyled = prefs.getBooleanRes(PrefR.string.settings_notification_styled_key, PrefR.string.settings_notification_styled_default)
+            val minDistance = prefs.getInt(context.getString(PrefR.string.settings_tracking_min_distance_key), TrackingParamsState.DEFAULT_MIN_DISTANCE)
+            val minTime = prefs.getInt(context.getString(PrefR.string.settings_tracking_min_time_key), TrackingParamsState.DEFAULT_MIN_TIME)
+            val requiredAccuracy = prefs.getInt(context.getString(PrefR.string.settings_tracking_required_accuracy_key), TrackingParamsState.DEFAULT_REQUIRED_ACCURACY)
+            val preset = prefs.getString("tracking_preset", TrackingParamsState.DEFAULT_PRESET)
 
-        context.trackingParamsDataStore.updateData {
-            TrackingParamsProto.newBuilder()
-                .setLocationEnabled(locationEnabled)
-                .setActivityEnabled(activityEnabled)
-                .setStepsEnabled(stepsEnabled)
-                .setWifiEnabled(wifiEnabled)
-                .setCellEnabled(cellEnabled)
-                .setWifiNetworkEnabled(wifiNetworkEnabled)
-                .setWifiLocationCountEnabled(wifiLocationCountEnabled)
-                .setAutoTrackingMode(autoTrackingMode)
-                .setTransitionDetectionEnabled(transitionEnabled)
-                .setNotificationStyled(notificationStyled)
-                .setMinDistanceMeters(minDistance)
-                .setMinTimeSeconds(minTime)
-                .setRequiredAccuracyMeters(requiredAccuracy)
-                .setPresetName(preset)
-                .setLegacyMigrated(true)
-                .build()
+            context.trackingParamsDataStore.updateData {
+                TrackingParamsProto.newBuilder()
+                    .setLocationEnabled(locationEnabled)
+                    .setActivityEnabled(activityEnabled)
+                    .setStepsEnabled(stepsEnabled)
+                    .setWifiEnabled(wifiEnabled)
+                    .setCellEnabled(cellEnabled)
+                    .setWifiNetworkEnabled(wifiNetworkEnabled)
+                    .setWifiLocationCountEnabled(wifiLocationCountEnabled)
+                    .setAutoTrackingMode(autoTrackingMode)
+                    .setTransitionDetectionEnabled(transitionEnabled)
+                    .setNotificationStyled(notificationStyled)
+                    .setMinDistanceMeters(minDistance)
+                    .setMinTimeSeconds(minTime)
+                    .setRequiredAccuracyMeters(requiredAccuracy)
+                    .setPresetName(preset)
+                    .setLegacyMigrated(true)
+                    .build()
+            }
+        } catch (e: Exception) {
+            Log.w("TrackingParams", "Legacy migration failed – using defaults", e)
+            try {
+                context.trackingParamsDataStore.updateData { current ->
+                    current.toBuilder().setLegacyMigrated(true).build()
+                }
+            } catch (e2: Exception) {
+                Log.e("TrackingParams", "Failed to mark migration complete", e2)
+            }
         }
     }
 }
