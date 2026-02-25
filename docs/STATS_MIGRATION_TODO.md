@@ -154,12 +154,12 @@ live tracking stats (updated every tracking cycle).
 - ✅ `GameDomainEventConsumer` — event routing, offset tracking
 
 ### 9.2 Integration tests
-- ☐ Full pipeline: mock sensors → ProcessorPipeline → Room → Repository → Presenter
-- ☐ Domain event round-trip: processor emits → Room → consumer receives
-- ☐ Crash recovery: checkpoint/restore for each processor
+- ✅ Full pipeline: mock sensors → ProcessorPipeline → Room → Repository → Presenter
+- ✅ Domain event round-trip: processor emits → Room → consumer receives
+- ✅ Crash recovery: checkpoint/restore for each processor
 
 ### 9.3 Migration tests
-- ☐ Room migration test for domain_event table
+- ✅ Room migration test for domain_event table
 - ✅ ~~Dual-run comparison tests~~ — N/A, old components removed
 
 ---
