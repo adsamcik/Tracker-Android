@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -99,16 +102,24 @@ fun StatsScreen(
     // Optional paging trips supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<Trip>? = null,
 ) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        when (refreshState) {
-            RefreshUiState.Loading -> LoadingState()
-            RefreshUiState.Empty -> EmptyState()
-            RefreshUiState.Error -> ErrorState(onRetry)
-            RefreshUiState.Content -> ContentState(appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi, onTripClick, sessions)
+        Text(
+            text = stringResource(R.string.module_statistics_title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp),
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            when (refreshState) {
+                RefreshUiState.Loading -> LoadingState()
+                RefreshUiState.Empty -> EmptyState()
+                RefreshUiState.Error -> ErrorState(onRetry)
+                RefreshUiState.Content -> ContentState(appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi, onTripClick, sessions)
+            }
         }
     }
 }

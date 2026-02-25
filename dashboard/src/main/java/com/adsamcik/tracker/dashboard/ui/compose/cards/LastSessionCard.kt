@@ -44,6 +44,7 @@ internal fun LastSessionCard(
 	session: TrackerSession,
 	pathPoints: List<Location>?,
 	onMapClick: () -> Unit,
+	onSessionDetailClick: ((Long) -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
@@ -72,6 +73,7 @@ internal fun LastSessionCard(
 	)
 
 	Card(
+		onClick = { onSessionDetailClick?.invoke(session.id) },
 		modifier = modifier
 			.fillMaxWidth()
 			.semantics {

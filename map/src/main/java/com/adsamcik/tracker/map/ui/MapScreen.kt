@@ -70,7 +70,18 @@ import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.BoundingBox
 import org.maplibre.spatialk.geojson.Position
+import kotlin.math.floor
+import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.time.Duration.Companion.milliseconds
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import org.maplibre.compose.map.OrnamentOptions
+import com.adsamcik.tracker.shared.base.constant.LengthConstants
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 
 
 /**
@@ -159,7 +170,10 @@ fun MapScreen(
                 modifier = Modifier.fillMaxSize(),
                 baseStyle = baseStyle,
                 cameraState = cameraState,
-                options = MapOptions(gestureOptions = gestureOptions),
+                options = MapOptions(
+                    gestureOptions = gestureOptions,
+                    ornamentOptions = OrnamentOptions(isScaleBarEnabled = false),
+                ),
             ) {
                 // Declarative data layers -- reactive via Compose recomposition
                 MapDataLayers(layerConfig = state.layerConfig)
@@ -184,6 +198,14 @@ fun MapScreen(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+
+        // Custom scale bar respecting user's length system setting
+        ScaleBar(
+            metersPerDp = cameraState.metersPerDpAtTarget,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 16.dp, bottom = bottomPaddingDp + 16.dp),
+        )
 
         // Permission denied banner
         if (!isLocationPermissionGranted) {
@@ -471,3 +493,112 @@ private suspend fun geocodeLocationName(
         }
     }
 }
+
+/**
+ * Custom Compose scale bar that respects the user's [LengthSystem] preference.
+ * Replaces the built-in MapLibre scale bar which ignores in-app settings.
+ */
+@Composable
+private fun ScaleBar(
+    metersPerDp: Double,
+    modifier: Modifier = Modifier,
+) {
+    if (metersPerDp <= 0.0) return
+    val context = LocalContext.current
+    val lengthSystem = remember { TrackerSettingsQuick.lengthSystem(context) }
+    val spec = remember(metersPerDp, lengthSystem) {
+        computeScaleBarSpec(metersPerDp, lengthSystem)
+    } ?: return
+    if (spec.widthDp < 20f || spec.widthDp > 250f) return
+
+    val contentColor = MaterialTheme.colorScheme.onSurface
+    Column(
+        modifier = modifier
+            .background(
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                RoundedCornerShape(4.dp),
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = spec.label,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+        )
+        Box(
+            Modifier
+                .padding(top = 2.dp)
+                .width(spec.widthDp.dp)
+                .height(2.dp)
+                .background(contentColor),
+        )
+    }
+}
+
+private data class ScaleBarSpec(val widthDp: Float, val label: String)
+
+private fun computeScaleBarSpec(
+    metersPerDp: Double,
+    lengthSystem: LengthSystem,
+    targetWidthDp: Float = 100f,
+): ScaleBarSpec? {
+    val targetMeters = metersPerDp * targetWidthDp
+    if (targetMeters <= 0.0) return null
+
+    return when (lengthSystem) {
+        LengthSystem.Metric, LengthSystem.AncientRoman -> {
+            val niceMeters = findNiceNumber(targetMeters)
+            val widthDp = (niceMeters / metersPerDp).toFloat()
+            val label = if (niceMeters >= 1000.0) {
+                "${formatNice(niceMeters / 1000.0)} km"
+            } else {
+                "${niceMeters.toInt()} m"
+            }
+            ScaleBarSpec(widthDp, label)
+        }
+        LengthSystem.Imperial, LengthSystem.Flying -> {
+            val targetFeet = targetMeters * LengthConstants.FEET_IN_METERS
+            if (targetFeet >= LengthConstants.FEET_IN_MILE * 0.5) {
+                val niceMiles = findNiceNumber(targetFeet / LengthConstants.FEET_IN_MILE)
+                val niceMeters = niceMiles * LengthConstants.METERS_IN_MILE
+                val widthDp = (niceMeters / metersPerDp).toFloat()
+                ScaleBarSpec(widthDp, "${formatNice(niceMiles)} mi")
+            } else {
+                val niceFeet = findNiceNumber(targetFeet)
+                val niceMeters = niceFeet / LengthConstants.FEET_IN_METERS
+                val widthDp = (niceMeters / metersPerDp).toFloat()
+                ScaleBarSpec(widthDp, "${niceFeet.toInt()} ft")
+            }
+        }
+        LengthSystem.Sailing -> {
+            val targetNm = targetMeters / LengthConstants.METERS_IN_NAUTICAL_MILE
+            if (targetNm >= 0.1) {
+                val niceNm = findNiceNumber(targetNm)
+                val niceMeters = niceNm * LengthConstants.METERS_IN_NAUTICAL_MILE
+                val widthDp = (niceMeters / metersPerDp).toFloat()
+                ScaleBarSpec(widthDp, "${formatNice(niceNm)} nmi")
+            } else {
+                val niceMeters = findNiceNumber(targetMeters)
+                val widthDp = (niceMeters / metersPerDp).toFloat()
+                ScaleBarSpec(widthDp, "${niceMeters.toInt()} m")
+            }
+        }
+    }
+}
+
+private fun findNiceNumber(value: Double): Double {
+    if (value <= 0.0) return 1.0
+    val exponent = floor(log10(value))
+    val magnitude = 10.0.pow(exponent)
+    val fraction = value / magnitude
+    val step = when {
+        fraction < 1.5 -> 1.0
+        fraction < 3.5 -> 2.0
+        fraction < 7.5 -> 5.0
+        else -> 10.0
+    }
+    return step * magnitude
+}
+
+private fun formatNice(value: Double): String =
+    if (value == floor(value)) value.toInt().toString() else "%.1f".format(value)

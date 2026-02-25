@@ -4,6 +4,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
+/** Standard dialog shape — Material 3 default (28dp). Avoids clipping from asymmetric AppShapes. */
+val DialogShape = RoundedCornerShape(28.dp)
+
 // Custom Shapes
 val WaypointShape = RoundedCornerShape(
     topStartPercent = 50,
@@ -31,5 +34,5 @@ val AppShapes = Shapes(
     small = RoundedCornerShape(8.dp),
     medium = TerrainCardShape,
     large = MomentumPillShape,
-    extraLarge = WaypointShape
+    extraLarge = DialogShape
 )

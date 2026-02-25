@@ -17,7 +17,7 @@
     <string name="activity_raw_tilting">Tilting</string>
     <string name="activity_still">Still</string>
     <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
+    <string name="activity_vehicle">Vehicle</string>
     
     <!-- Extended activity catalog (historical translations now have defaults) -->
     <string name="activity_airballoon">air balloon</string>
