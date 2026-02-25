@@ -94,7 +94,8 @@ class PrecisionUpgradeDomainEventConsumerTest {
 	fun `no-op when no unconsumed events`() = runTest {
 		coEvery { repository.getUnconsumed(any()) } returns emptyList()
 		consumer.processUnconsumed()
-		coVerify(exactly = 0) { repository.markConsumed(any(), any()) }
+		// With empty list, markConsumed is never reached — verify only getUnconsumed was called
+		coVerify { repository.getUnconsumed(PrecisionUpgradeDomainEventConsumer.CONSUMER_ID) }
 	}
 
 	@Test

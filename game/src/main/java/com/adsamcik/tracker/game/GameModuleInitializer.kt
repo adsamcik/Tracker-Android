@@ -14,10 +14,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
+
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface GameConsumerEntryPoint {
 	fun gameDomainEventConsumer(): GameDomainEventConsumer
+	fun trackerSessionChannel(): TrackerSessionChannel
 }
 
 /**
@@ -34,7 +37,11 @@ class GameModuleInitializer : ModuleInitializer {
 	}
 
 	private fun initializeGoals(context: Context) {
-		GoalTracker.initialize(context)
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context,
+			GameConsumerEntryPoint::class.java,
+		)
+		GoalTracker.initialize(context, entryPoint.trackerSessionChannel())
 		NewDayGoalWorker.ensureScheduled(context)
 	}
 

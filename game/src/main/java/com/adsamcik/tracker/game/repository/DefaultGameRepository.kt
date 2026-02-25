@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,14 +28,15 @@ import javax.inject.Singleton
 @Singleton
 class DefaultGameRepository @Inject constructor(
     private val application: Application,
-    @ApplicationScope private val scope: CoroutineScope
+    @ApplicationScope private val scope: CoroutineScope,
+    private val sessionChannel: TrackerSessionChannel,
 ) : GameRepository {
     
     private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
     
     init {
         // Initialize game managers (idempotent)
-        GoalTracker.initialize(application)
+        GoalTracker.initialize(application, sessionChannel)
         ChallengeManager.initialize(application)
     }
     

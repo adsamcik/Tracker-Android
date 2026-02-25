@@ -5,6 +5,7 @@ import android.content.Context
 import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -33,5 +34,11 @@ return application.appGraph.trackerServiceController
 @Singleton
 fun provideLockManager(application: Application): LockManager {
 return application.appGraph.lockManager
+}
+
+@Provides
+@Singleton
+fun provideTrackerSessionChannel(application: Application): TrackerSessionChannel {
+return application.appGraph.trackerSessionChannel
 }
 }

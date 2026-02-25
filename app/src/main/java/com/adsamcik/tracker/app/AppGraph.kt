@@ -18,6 +18,7 @@ import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.di.DefaultDailySummaryProvider
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
+import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -62,9 +63,12 @@ class AppGraph(
         AppDatabase.database(application)
     }
     
+    // Shared session channel (used by both TrackerListenerManager and GoalTracker)
+    val trackerSessionChannel: TrackerSessionChannel by lazy { TrackerSessionChannel() }
+
     // Private repository for dashboard providers (these still use AppGraph)
     private val gameRepository by lazy { 
-        DefaultGameRepository(application, appScope) 
+        DefaultGameRepository(application, appScope, trackerSessionChannel) 
     }
 
     private val exportPlanStore by lazy {

@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DefaultDispatcher
 import com.adsamcik.tracker.shared.base.extension.remove
+import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +24,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class TrackerListenerManager @Inject constructor(
-	@DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher
+	@DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+	private val sessionChannel: TrackerSessionChannel,
 ) {
 	private val job = SupervisorJob()
 	private val scope = CoroutineScope(defaultDispatcher + job)
@@ -82,5 +84,6 @@ class TrackerListenerManager @Inject constructor(
 				it.onNewData(context, session, data)
 			}
 		}
+		sessionChannel.emit(session)
 	}
 }

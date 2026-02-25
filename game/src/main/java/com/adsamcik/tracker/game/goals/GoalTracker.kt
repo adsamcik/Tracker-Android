@@ -1,16 +1,13 @@
 package com.adsamcik.tracker.game.goals
 
 import android.content.Context
-import android.content.Intent
 import androidx.annotation.AnyThread
-import androidx.annotation.MainThread
 import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.goals.data.GoalListenable
 import com.adsamcik.tracker.game.goals.data.PreferencesGoalPersistence
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
 import com.adsamcik.tracker.game.goals.data.implementation.DailyStepGoal
 import com.adsamcik.tracker.game.goals.data.implementation.WeeklyStepGoal
-import com.adsamcik.tracker.game.goals.receiver.GoalsSessionUpdateReceiver
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.points.data.AwardSource
@@ -21,11 +18,13 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.notification.Notifications
-import com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver
+import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
@@ -55,9 +54,10 @@ internal object GoalTracker : CoroutineScope {
 
 	/**
 	 * Initializes goal tracker.
+	 * @param sessionChannel shared channel for per-cycle session updates (replaces broadcast registration)
 	 */
 	@AnyThread
-	fun initialize(context: Context) {
+	fun initialize(context: Context, sessionChannel: TrackerSessionChannel) {
 		mAppContext = context.applicationContext
 
 		val persistence = PreferencesGoalPersistence(context)
@@ -74,27 +74,19 @@ internal object GoalTracker : CoroutineScope {
 			goalList.forEach {
 				it.onEnable(context)
 			}
-			launch(Dispatchers.Main) {
-				registerSessionListener(context)
-			}
-		}
-	}
 
-	@MainThread
-	private fun registerSessionListener(context: Context) {
-		context.sendBroadcast(
-				Intent(TrackerUpdateReceiver.ACTION_REGISTER_COMPONENT).putExtra(
-						TrackerUpdateReceiver.RECEIVER_LISTENER_REGISTRATION_CLASSNAME,
-						GoalsSessionUpdateReceiver::class.java.name
-				),
-				TrackerSession.getBroadcastPermission(context)
-		)
-		Logger.log(
+			// Observe per-cycle session updates via shared channel
+			sessionChannel.sessions
+				.onEach { session -> update(session) }
+				.launchIn(this)
+
+			Logger.log(
 				LogData(
-						message = "Attempted goal session listener registration",
-						source = GOALS_LOG_SOURCE
-				)
-		)
+					message = "Goal session listener registered via TrackerSessionChannel",
+					source = GOALS_LOG_SOURCE,
+				),
+			)
+		}
 	}
 
 	private fun onGoalReached(goal: Goal) {
