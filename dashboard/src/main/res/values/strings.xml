@@ -111,4 +111,23 @@
     <string name="dashboard_empty_feature_privacy">Privacy</string>
     <string name="dashboard_empty_feature_privacy_desc">All data stays on your device</string>
     <string name="dashboard_empty_icon_desc">Location tracking illustration</string>
+
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">No altitude data</string>
+    <string name="dashboard_cd_no_altitude_data">No altitude data available</string>
+    <string name="dashboard_cd_speed_sparkline">Speed sparkline with %1$d data points</string>
+    <string name="dashboard_cd_session_path">Session route preview with %1$d points</string>
+
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Speed</string>
+    <string name="dashboard_metric_distance">Distance</string>
+    <string name="dashboard_metric_duration">Duration</string>
+    <string name="dashboard_metric_steps">Steps</string>
+    <string name="dashboard_metric_altitude">Altitude</string>
+    <string name="dashboard_metric_activity">Activity</string>
+    <string name="dashboard_metric_accuracy">Accuracy</string>
+    <string name="dashboard_metric_avg_speed">Avg Speed</string>
+    <string name="dashboard_metric_wifi">WiFi</string>
+    <string name="dashboard_metric_cell">Cell</string>
+    <string name="dashboard_metric_coordinates">Coordinates</string>
 </resources>

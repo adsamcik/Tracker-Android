@@ -11,13 +11,13 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +32,11 @@ import java.util.Calendar
  * CompositionLocal-provided dependencies (tracker controller, lock manager, providers)
  * remain in the composable layer.
  */
-class DashboardViewModel(application: Application) : AndroidViewModel(application) {
+class DashboardViewModel(
+	application: Application,
+	private val dispatchers: DispatchersProvider,
+	private val databaseProvider: (Context) -> AppDatabase = { AppDatabase.database(it) },
+) : AndroidViewModel(application) {
 
 	private val _todaySummary = MutableStateFlow<DailySummary?>(null)
 	val todaySummary: StateFlow<DailySummary?> = _todaySummary.asStateFlow()
@@ -81,8 +85,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 		if (isTracking) return
 
 		viewModelScope.launch {
-			withContext(Dispatchers.IO) {
-				val db = AppDatabase.database(getApplication())
+			withContext(dispatchers.io) {
+				val db = databaseProvider(getApplication())
 				try {
 					if (lastSessionData == null) {
 						_dbLastSession.value = db.sessionDao().getLast(1)

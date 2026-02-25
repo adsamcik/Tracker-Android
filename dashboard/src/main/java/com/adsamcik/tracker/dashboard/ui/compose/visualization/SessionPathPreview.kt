@@ -15,9 +15,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import com.adsamcik.tracker.shared.base.data.Location
 
@@ -35,7 +37,7 @@ internal fun SessionPathPreview(
 	val primaryColor = MaterialTheme.colorScheme.primary
 	val startColor = MaterialTheme.colorScheme.tertiary
 	val endColor = MaterialTheme.colorScheme.error
-	val pathDescription = "Session route preview with ${points.size} points"
+	val pathDescription = stringResource(R.string.dashboard_cd_session_path, points.size)
 
 	val pathProgress = remember { Animatable(0f) }
 

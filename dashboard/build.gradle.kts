@@ -83,6 +83,8 @@ dependencies {
 	testImplementation(libs.junit5.jupiter)
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.kotlinx.coroutines.test)
+	testImplementation(libs.mockk)
+	testImplementation(libs.kotest.assertions.core)
 }
 
 tasks.withType<Test>().configureEach {

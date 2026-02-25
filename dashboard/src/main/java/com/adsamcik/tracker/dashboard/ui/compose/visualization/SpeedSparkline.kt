@@ -31,12 +31,14 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 
 private const val SCROLL_THRESHOLD = 30
@@ -95,7 +97,7 @@ internal fun SpeedSparkline(
 	val needsScroll = speedHistory.size > SCROLL_THRESHOLD
 	val scrollState = rememberScrollState()
 
-	val contentDescription = "Speed sparkline with ${speedHistory.size} data points"
+	val contentDescription = stringResource(R.string.dashboard_cd_speed_sparkline, speedHistory.size)
 
 	val scrollModifier = if (needsScroll) {
 		Modifier.horizontalScroll(scrollState)

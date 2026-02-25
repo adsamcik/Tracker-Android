@@ -1,9 +1,11 @@
 package com.adsamcik.tracker.dashboard.data
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.adsamcik.tracker.dashboard.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -11,18 +13,18 @@ import kotlinx.coroutines.flow.map
  * Available metrics that can be pinned as favorites on the map overlay.
  * Each metric corresponds to a data point from the tracking pipeline.
  */
-enum class DashboardMetric(val key: String, val defaultLabel: String) {
-	SPEED("speed", "Speed"),
-	DISTANCE("distance", "Distance"),
-	DURATION("duration", "Duration"),
-	STEPS("steps", "Steps"),
-	ALTITUDE("altitude", "Altitude"),
-	ACTIVITY("activity", "Activity"),
-	ACCURACY("accuracy", "Accuracy"),
-	AVG_SPEED("avg_speed", "Avg Speed"),
-	WIFI_COUNT("wifi_count", "WiFi"),
-	CELL_COUNT("cell_count", "Cell"),
-	COORDINATES("coordinates", "Coordinates")
+enum class DashboardMetric(val key: String, @StringRes val labelRes: Int) {
+	SPEED("speed", R.string.dashboard_metric_speed),
+	DISTANCE("distance", R.string.dashboard_metric_distance),
+	DURATION("duration", R.string.dashboard_metric_duration),
+	STEPS("steps", R.string.dashboard_metric_steps),
+	ALTITUDE("altitude", R.string.dashboard_metric_altitude),
+	ACTIVITY("activity", R.string.dashboard_metric_activity),
+	ACCURACY("accuracy", R.string.dashboard_metric_accuracy),
+	AVG_SPEED("avg_speed", R.string.dashboard_metric_avg_speed),
+	WIFI_COUNT("wifi_count", R.string.dashboard_metric_wifi),
+	CELL_COUNT("cell_count", R.string.dashboard_metric_cell),
+	COORDINATES("coordinates", R.string.dashboard_metric_coordinates)
 }
 
 private val Context.dashboardPrefsDataStore by preferencesDataStore(

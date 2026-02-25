@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
@@ -54,6 +55,8 @@ internal fun AltitudeSparkline(
 	val textMeasurer = rememberTextMeasurer()
 
 	if (altitudeHistory.isEmpty()) {
+		val noDataDesc = stringResource(R.string.dashboard_cd_no_altitude_data)
+		val noDataText = stringResource(R.string.dashboard_no_altitude_data)
 		Box(
 			modifier = modifier
 				.fillMaxWidth()
@@ -66,7 +69,7 @@ internal fun AltitudeSparkline(
 					.fillMaxWidth()
 					.defaultMinSize(minHeight = 120.dp)
 					.semantics {
-						contentDescription = "No altitude data available"
+						contentDescription = noDataDesc
 					},
 			) {
 				val y = size.height / 2f
@@ -78,7 +81,7 @@ internal fun AltitudeSparkline(
 				)
 			}
 			Text(
-				text = "No altitude data",
+				text = noDataText,
 				style = MaterialTheme.typography.bodySmall,
 				color = onSurfaceVariant.copy(alpha = 0.5f),
 			)
@@ -102,7 +105,7 @@ internal fun AltitudeSparkline(
 	val maxAlt = altitudeHistory.max()
 	val altRange = (maxAlt - minAlt).coerceAtLeast(1f)
 
-	val semanticDesc = "Altitude profile, %.0f–%.0f m".format(minAlt, maxAlt)
+	val semanticDesc = stringResource(R.string.dashboard_format_altitude_range, minAlt, maxAlt)
 
 	Canvas(
 		modifier = modifier

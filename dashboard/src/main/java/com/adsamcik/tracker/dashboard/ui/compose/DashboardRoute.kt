@@ -17,6 +17,7 @@ import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
@@ -46,7 +47,7 @@ fun DashboardRoute(
 ) {
 	val context = LocalContext.current
 	val viewModel: DashboardViewModel = viewModel {
-		DashboardViewModel(context.applicationContext as Application)
+		DashboardViewModel(context.applicationContext as Application, DefaultDispatchersProvider)
 	}
 
 	// Dependencies via CompositionLocal
