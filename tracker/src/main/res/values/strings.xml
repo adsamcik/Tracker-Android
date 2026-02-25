@@ -101,6 +101,7 @@
     <string name="settings_notification_customize_title">Customize notification</string>
     <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
     <string name="settings_notification_styled_title">Colored notifications</string>
+    <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Step count</string>
     <string name="settings_tracker_timer_ambient">Ambient timer</string>
     <string name="settings_tracker_timer_clock">Interval-based</string>
@@ -271,21 +272,20 @@
     <string name="tracker_settings_icon_desc">Component settings</string>
     <string name="tracker_points_icon_desc">Points progress</string>
 
-    <!-- Goal Progress Ring -->
-    <string name="tracker_goal_steps_label">steps</string>
-    <string name="tracker_goal_steps_progress">%1$s / %2$s</string>
-
-    <!-- Empty State Improvements -->
-    <string name="tracker_empty_state_title">Ready to explore?</string>
-    <string name="tracker_empty_state_subtitle">Tap the button below to begin your first session. Your routes, steps, and activity are tracked privately on this device.</string>
-
-    <!-- Duration formatting -->
-    <string name="tracker_duration_just_started">Just started</string>
-
-    <!-- Nav bar labels -->
-    <string name="nav_label_tracker">Home</string>
-    <string name="nav_label_stats">Stats</string>
-    <string name="nav_label_map">Map</string>
-    <string name="nav_label_game">Game</string>
+    <!-- Hardcoded string extractions (HI-03) -->
+    <string name="tracker_start_button">START</string>
+    <string name="tracker_duration_label">Duration</string>
+    <string name="tracker_distance_label">Distance</string>
+    <string name="tracker_wifi_label">WiFi</string>
+    <string name="tracker_cell_label">Cell</string>
+    <string name="tracker_collapse">Collapse</string>
+    <string name="tracker_expand">Expand</string>
+    <string name="tracker_tap_below_to_start">Tap below to start</string>
+    <string name="tracker_go_to_map">Go to map</string>
+    <string name="tracker_session_summary_copied">Session summary copied</string>
+    <string name="tracker_share_session_summary">Share session summary</string>
+    <string name="tracker_long_press_to_copy">Long-press to copy</string>
+    <string name="tracker_copy_session_summary">Copy session summary</string>
+    <string name="action_navigate_back">Navigate back</string>
 
 </resources>

@@ -268,4 +268,130 @@ class KmlExporterTest {
             secondIndex shouldBeLessThan thirdIndex
         }
     }
+
+    @Nested
+    @DisplayName("NaN and Infinity handling")
+    inner class InvalidValues {
+
+        @Test
+        fun `NaN altitude produces valid KML with 0 altitude`() {
+            val context = mockk<android.content.Context>(relaxed = true)
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.NaN)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(context, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "NaN"
+            output shouldContain "<coordinates>14.0,50.0,0.0</coordinates>"
+        }
+
+        @Test
+        fun `Infinity altitude produces valid KML with 0 altitude`() {
+            val context = mockk<android.content.Context>(relaxed = true)
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.POSITIVE_INFINITY)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(context, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "Infinity"
+            output shouldContain "<coordinates>14.0,50.0,0.0</coordinates>"
+        }
+
+        @Test
+        fun `negative Infinity altitude produces valid KML with 0 altitude`() {
+            val context = mockk<android.content.Context>(relaxed = true)
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.NEGATIVE_INFINITY)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(context, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "Infinity"
+            output shouldContain "<coordinates>14.0,50.0,0.0</coordinates>"
+        }
+
+        @Test
+        fun `NaN latitude skips the location entirely`() {
+            val context = mockk<android.content.Context>(relaxed = true)
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = Double.NaN, longitude = 14.0, altitude = 200.0)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(context, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "NaN"
+            output shouldNotContain "<Placemark>"
+        }
+
+        @Test
+        fun `NaN longitude skips the location entirely`() {
+            val context = mockk<android.content.Context>(relaxed = true)
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = Double.NaN, altitude = 200.0)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(context, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "NaN"
+            output shouldNotContain "<Placemark>"
+        }
+
+        @Test
+        fun `Infinity longitude skips the location entirely`() {
+            val context = mockk<android.content.Context>(relaxed = true)
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = Double.POSITIVE_INFINITY, altitude = 200.0)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(context, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "Infinity"
+            output shouldNotContain "<Placemark>"
+        }
+
+        @Test
+        fun `mixed valid and invalid locations only exports valid ones`() {
+            val context = mockk<android.content.Context>(relaxed = true)
+            val locations = listOf(
+                createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),
+                createTestLocation(time = 1700001000000L, latitude = Double.NaN, longitude = 15.0, altitude = 100.0),
+                createTestLocation(time = 1700002000000L, latitude = 51.0, longitude = 15.0, altitude = Double.NaN)
+            )
+
+            val outputStream = ByteArrayOutputStream()
+            val result = exporter.export(context, locations.asSequence(), outputStream)
+
+            result.isSuccess.shouldBeTrue()
+            val output = outputStream.toString("UTF-8")
+
+            output shouldNotContain "NaN"
+            "<Placemark>".toRegex().findAll(output).count() shouldBe 2
+        }
+    }
 }

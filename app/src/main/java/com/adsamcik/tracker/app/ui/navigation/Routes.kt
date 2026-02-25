@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 sealed interface AppRoute
 
 @Serializable
-data object Tracker : AppRoute
+data object Dashboard : AppRoute
 
 @Serializable
 data object Stats : AppRoute
@@ -16,6 +16,9 @@ data object Map : AppRoute
 
 @Serializable
 data object Game : AppRoute
+
+@Serializable
+data object TrophyCase : AppRoute
 
 @Serializable
 data class TripDetail(val tripId: Long) : AppRoute
@@ -28,3 +31,6 @@ data object Debug : AppRoute
 
 @Serializable
 data object Settings : AppRoute
+
+@Serializable
+data object ActivitySettings : AppRoute

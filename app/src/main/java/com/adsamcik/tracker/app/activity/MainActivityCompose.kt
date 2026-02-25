@@ -17,7 +17,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
 import com.adsamcik.tracker.app.ui.MainRoot
-import com.adsamcik.tracker.app.ui.navigation.Tracker
+import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.base.di.LocalLockManager
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.LocalActiveChallengesProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,7 @@ val LocalAppGraph = staticCompositionLocalOf<com.adsamcik.tracker.app.AppGraph> 
 @AndroidEntryPoint
 class MainActivityCompose : ComponentActivity() {
 
-    private val selectedTab = mutableStateOf<Any>(Tracker)
+    private val selectedTab = mutableStateOf<Any>(Dashboard)
     
     // Async state for splash screen
     private var isReady by mutableStateOf(false)
@@ -146,7 +147,8 @@ class MainActivityCompose : ComponentActivity() {
                 LocalLockManager provides appGraph.lockManager,
                 LocalDailySummaryProvider provides appGraph.dailySummaryProvider,
                 LocalDailyPointsProvider provides appGraph.dailyPointsProvider,
-                LocalGoalProgressProvider provides appGraph.goalProgressProvider
+                LocalGoalProgressProvider provides appGraph.goalProgressProvider,
+                LocalActiveChallengesProvider provides appGraph.activeChallengesProvider
             ) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     Box(Modifier.fillMaxSize()) {

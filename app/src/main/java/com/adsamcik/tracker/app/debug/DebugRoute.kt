@@ -70,7 +70,6 @@ fun DebugRoute() {
     val clearDialog = remember { mutableStateOf(false) }
     var statusExpanded by remember { mutableStateOf(false) }
     var logsExpanded by remember { mutableStateOf(false) }
-
     Scaffold { padding ->
         LazyColumn(
             modifier = Modifier
@@ -97,6 +96,10 @@ fun DebugRoute() {
                 ) {
                     Text(ctx.getString(R.string.settings_clear_preferences_title))
                 }
+            }
+
+            item {
+                SeedDataSection()
             }
 
             item {
@@ -343,7 +346,7 @@ private fun LogItem(log: LogData) {
                 .padding(12.dp)
         ) {
             Text(
-                text = "${log.timeStamp.formatAsDateTime()} ${log.source} - ${log.message}",
+                text = "${log.timeStamp.formatAsDateTime()} ${log.source} - ${redactCoordinates(log.message)}",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -359,7 +362,7 @@ private fun LogItem(log: LogData) {
                         .padding(8.dp)
                 ) {
                     Text(
-                        text = log.data,
+                        text = redactCoordinates(log.data),
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -368,6 +371,12 @@ private fun LogItem(log: LogData) {
             }
         }
     }
+}
+
+private val coordinatePattern = Regex("""-?\d{1,3}\.\d{4,}""")
+
+private fun redactCoordinates(text: String): String {
+    return text.replace(coordinatePattern, "[REDACTED]")
 }
 
 private fun clearPreferences(context: Context) {

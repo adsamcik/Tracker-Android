@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.JsonReader
 import android.util.JsonToken
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
@@ -29,7 +30,8 @@ internal class JsonImport : FileImport {
 		context: Context,
 		database: AppDatabase,
 		stream: FileImportStream,
-	) = withContext(Dispatchers.IO) {
+	): ImportResult = withContext(Dispatchers.IO) {
+		var successCount = 0
 		JsonReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
 			reader.isLenient = true
 
@@ -45,25 +47,28 @@ internal class JsonImport : FileImport {
 					"exportedAt" -> reader.nextLong()
 					"dateRangeStart" -> reader.nextLong()
 					"dateRangeEnd" -> reader.nextLong()
-					"locations" -> importLocations(reader, database)
-					"sessions" -> importSessions(reader, database)
+					"locations" -> successCount += importLocations(reader, database)
+					"sessions" -> successCount += importSessions(reader, database)
 					"segments" -> skipArray(reader) // segments can be regenerated
 					else -> reader.skipValue()
 				}
 			}
 			reader.endObject()
 		}
+		ImportResult(successCount = successCount)
 	}
 
-	private fun importLocations(reader: JsonReader, database: AppDatabase) {
+	private fun importLocations(reader: JsonReader, database: AppDatabase): Int {
 		val locationDao = database.locationDao()
 		val batch = mutableListOf<DatabaseLocation>()
+		var count = 0
 
 		reader.beginArray()
 		while (reader.hasNext()) {
 			val loc = readLocation(reader)
 			if (loc != null) {
 				batch.add(loc)
+				count++
 				if (batch.size >= BATCH_SIZE) {
 					locationDao.insert(batch)
 					batch.clear()
@@ -75,6 +80,7 @@ internal class JsonImport : FileImport {
 		if (batch.isNotEmpty()) {
 			locationDao.insert(batch)
 		}
+		return count
 	}
 
 	private fun readLocation(reader: JsonReader): DatabaseLocation? {
@@ -122,17 +128,20 @@ internal class JsonImport : FileImport {
 		}
 	}
 
-	private fun importSessions(reader: JsonReader, database: AppDatabase) {
+	private fun importSessions(reader: JsonReader, database: AppDatabase): Int {
 		val sessionDao = database.sessionDao()
+		var count = 0
 
 		reader.beginArray()
 		while (reader.hasNext()) {
 			val session = readSession(reader)
 			if (session != null) {
 				sessionDao.insert(session)
+				count++
 			}
 		}
 		reader.endArray()
+		return count
 	}
 
 	private fun readSession(reader: JsonReader): MutableTrackerSession? {

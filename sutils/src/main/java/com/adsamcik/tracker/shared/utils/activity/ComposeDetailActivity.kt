@@ -83,7 +83,7 @@ abstract class ComposeDetailActivity : ComponentActivity() {
                                         IconButton(onClick = { finish() }) {
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                                contentDescription = "Back"
+                                                contentDescription = stringResource(com.adsamcik.tracker.shared.utils.R.string.action_navigate_back)
                                             )
                                         }
                                     }

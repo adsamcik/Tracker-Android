@@ -4,5 +4,7 @@ enum class ChallengeType {
 	Explorer,
 	WalkDistance,
 	Step,
-	ActiveTime
+	ActiveTime,
+	Speed,
+	Consistency
 }

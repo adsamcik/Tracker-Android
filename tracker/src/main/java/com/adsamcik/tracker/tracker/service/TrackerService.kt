@@ -42,6 +42,8 @@ import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
+import com.adsamcik.tracker.tracker.component.consumer.post.PressureSampleWriter
+import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -372,6 +374,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 		}.forEach { it.onEnable(this) }
 
+		// Clear previous collector's scope before replacing
+		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
+
 		// Create persistence error collector for database components
 		val errorCollector = DefaultPersistenceErrorCollector()
 		persistenceErrorCollector = errorCollector
@@ -382,6 +387,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// ACTIVE+: adds GPS-dependent DB writers for raw data recording.
 		postComponentList.apply {
 			add(notificationComponent)
+			add(PressureSampleWriter())
+			add(SkiTrackingComponent().also { skiComponent ->
+				skiComponent.setEscalationEngine(escalationEngine)
+				launch {
+					skiComponent.skiState.collect { skiState ->
+						controller.updateSkiState(skiState)
+					}
+				}
+			})
 			if (initialTier.isGpsEnabled) {
 				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
@@ -616,6 +630,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updatePersistenceErrorFlow(null)
 		controller.updatePolicyState(null)
 		controller.updatePolicyTier(com.adsamcik.tracker.stats.api.PolicyTier.OFF)
+		(persistenceErrorCollector as? DefaultPersistenceErrorCollector)?.clear()
 		persistenceErrorCollector = null
 	}
 

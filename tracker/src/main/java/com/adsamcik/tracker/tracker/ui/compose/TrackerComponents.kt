@@ -29,11 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.MetricText
+import com.adsamcik.tracker.tracker.R
 
 @Composable
 fun FocusStartButton(
@@ -88,7 +90,7 @@ fun FocusStartButton(
                     modifier = Modifier.size(48.dp)
                 )
                 Text(
-                    text = "START",
+                    text = stringResource(R.string.tracker_start_button),
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -112,14 +114,14 @@ fun FocusMetricsDisplay(
     ) {
         MetricText(
             value = durationText,
-            label = "Duration",
+            label = stringResource(R.string.tracker_duration_label),
             valueSize = 80.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
         
         MetricText(
             value = distanceText,
-            label = "Distance",
+            label = stringResource(R.string.tracker_distance_label),
             valueSize = 56.sp,
             valueColor = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -141,12 +143,12 @@ fun FocusSignalDisplay(
         SignalMetric(
             icon = Icons.Filled.Wifi,
             value = wifiCount.toString(),
-            label = "WiFi"
+            label = stringResource(R.string.tracker_wifi_label)
         )
         SignalMetric(
             icon = Icons.Filled.SignalCellularAlt,
             value = cellCount.toString(),
-            label = "Cell"
+            label = stringResource(R.string.tracker_cell_label)
         )
     }
 }

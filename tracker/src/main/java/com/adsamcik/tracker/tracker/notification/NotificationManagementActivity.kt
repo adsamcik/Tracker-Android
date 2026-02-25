@@ -149,7 +149,7 @@ private fun NotificationManagementRoute(
 			TopAppBar(
 				title = { Text(stringResource(id = R.string.settings_notification_customize_title)) },
 				navigationIcon = {
-					IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+					IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_navigate_back)) }
 				}
 			)
 		}

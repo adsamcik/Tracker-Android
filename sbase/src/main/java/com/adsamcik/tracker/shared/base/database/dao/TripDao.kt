@@ -41,6 +41,7 @@ interface TripDao {
 		FROM session_segment
 		WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs
 		ORDER BY start_time_ms DESC
+		LIMIT 500
 		"""
 	)
 	suspend fun getBetween(fromMs: Long, toMs: Long): List<Trip>
@@ -74,6 +75,12 @@ interface TripDao {
 		"""
 	)
 	suspend fun getTodaySummary(startOfDayMs: Long, nowMs: Long): TripDaySummary?
+
+	/**
+	 * Delete a single trip (session segment) by ID.
+	 */
+	@Query("DELETE FROM session_segment WHERE id = :id")
+	suspend fun deleteById(id: Long)
 
 	/**
 	 * Most recent trips, limited to [limit] results. For dashboard quick view.

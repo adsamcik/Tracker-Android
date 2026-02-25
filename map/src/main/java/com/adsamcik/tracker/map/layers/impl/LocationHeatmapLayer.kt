@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.first
  * Heatmap layer showing location density.
  * Queries weighted location data and produces GeoJSON for MapLibre's native heatmap.
  */
-class LocationHeatmapLayer(
+open class LocationHeatmapLayer(
     private val repo: GeoRepository,
     private val perf: PerformanceManager = PerformanceManager()
 ) : HeatmapLayer<List<WeightedGeoFeature>, String>() {

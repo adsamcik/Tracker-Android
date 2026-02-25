@@ -62,6 +62,14 @@ fun Project.configureProtobuf() {
         tasks.forEach { task ->
             if (task.name.startsWith("ksp") && task.name.endsWith("Kotlin")) {
                 when {
+                    task.name.contains("DebugUnitTest") -> {
+                        tasks.findByName("generateDebugUnitTestProto")?.let { task.dependsOn(it) }
+                        task.dependsOn("generateDebugProto")
+                    }
+                    task.name.contains("ReleaseUnitTest") -> {
+                        tasks.findByName("generateReleaseUnitTestProto")?.let { task.dependsOn(it) }
+                        task.dependsOn("generateReleaseProto")
+                    }
                     task.name.contains("Debug") -> task.dependsOn("generateDebugProto")
                     task.name.contains("Release") -> task.dependsOn("generateReleaseProto")
                 }

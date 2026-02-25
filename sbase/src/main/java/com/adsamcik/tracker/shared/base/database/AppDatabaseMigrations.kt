@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 18         │ 385         │ 🚧 UNRELEASED - Ski detection tables     │
+ * │            │             │    (pressure_sample, ski_run_segment)     │
  * │ 17         │ 385         │ 🚧 UNRELEASED - Route compression & storage │
  * │            │             │    (route_cache, export_log,             │
  * │            │             │    storage_size_snapshot)                │
@@ -769,6 +771,48 @@ val MIGRATION_16_17: Migration = object : Migration(16, 17) {
 			""".trimIndent())
 
 			android.util.Log.i("AppDatabase", "Migration 16->17: Created route_cache, export_log, storage_size_snapshot, domain_event, and domain_event_cursor tables")
+		}
+	}
+}
+
+val MIGRATION_17_18: Migration = object : Migration(17, 18) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			// 1. Create pressure_sample table for barometer data
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS pressure_sample (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					time_ms INTEGER NOT NULL,
+					elapsed_realtime_nanos INTEGER NOT NULL,
+					pressure_hpa REAL NOT NULL,
+					altitude_m REAL NOT NULL,
+					bucket_id INTEGER,
+					created_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_pressure_sample_time ON pressure_sample(time_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_pressure_sample_bucket ON pressure_sample(bucket_id)")
+
+			// 2. Create ski_run_segment table for ski activity detection results
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS ski_run_segment (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					session_id INTEGER NOT NULL,
+					run_index INTEGER NOT NULL,
+					segment_type TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					vertical_m REAL NOT NULL,
+					distance_m REAL NOT NULL,
+					max_speed_mps REAL NOT NULL,
+					avg_speed_mps REAL NOT NULL,
+					created_at INTEGER NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS idx_ski_run_segment_session ON ski_run_segment(session_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_ski_run_segment_start_time ON ski_run_segment(start_time_ms)")
+
+			android.util.Log.i("AppDatabase", "Migration 17->18: Created pressure_sample and ski_run_segment tables")
 		}
 	}
 }

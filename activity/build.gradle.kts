@@ -5,6 +5,7 @@ plugins {
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.hilt)
+	alias(libs.plugins.robolectric.junit5)
 }
 
 android {
@@ -52,6 +53,11 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+
+	testOptions {
+		unitTests.isReturnDefaultValues = true
+	}
+
 	namespace = "com.adsamcik.tracker.activity"
 }
 
@@ -60,6 +66,7 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
+	implementation(project(":stats-engine"))
 
 	// Stats architecture
 	implementation(project(":stats-api"))
@@ -111,6 +118,7 @@ dependencies {
 	testImplementation(libs.arch.core.testing)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.mockk)
 	testImplementation(libs.turbine)
 	testImplementation(libs.androidx.work.testing)

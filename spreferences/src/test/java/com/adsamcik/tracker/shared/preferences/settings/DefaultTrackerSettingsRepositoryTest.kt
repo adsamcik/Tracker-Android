@@ -5,6 +5,8 @@ import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -85,5 +87,35 @@ class DefaultTrackerSettingsRepositoryTest {
         assertEquals(true, afterSet.autoUnitSwitch)
         assertEquals(com.adsamcik.tracker.shared.preferences.type.LengthSystem.Sailing, afterSet.lengthSystem)
         assertEquals(com.adsamcik.tracker.shared.preferences.type.SpeedFormat.Second, afterSet.speedFormat)
+    }
+
+    @Test
+    fun concurrent_migration_does_not_corrupt_state() = runTest {
+        // Arrange: seed legacy SharedPreferences with non-default values
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putBoolean(FakeKeys().autoUnitSwitchKey, true)
+            .putString(FakeKeys().lengthSystemKey, "Imperial")
+            .putString(FakeKeys().speedFormatKey, "Minute")
+            .commit()
+
+        val repo = DefaultTrackerSettingsRepository(context, Dispatchers.IO, FakeKeys())
+
+        // Act: launch many concurrent reads that all trigger ensureMigrated via onStart
+        val results = (1..20).map {
+            async(Dispatchers.IO) { repo.data.first() }
+        }.awaitAll()
+
+        // Assert: every result must reflect the migrated legacy values – no corruption
+        results.forEach { value ->
+            assertEquals(true, value.autoUnitSwitch)
+            assertEquals(
+                com.adsamcik.tracker.shared.preferences.type.LengthSystem.Imperial,
+                value.lengthSystem
+            )
+            assertEquals(
+                com.adsamcik.tracker.shared.preferences.type.SpeedFormat.Minute,
+                value.speedFormat
+            )
+        }
     }
 }

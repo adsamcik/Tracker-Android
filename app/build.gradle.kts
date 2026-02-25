@@ -16,7 +16,7 @@ android {
 		minSdk = Android.MIN_VERSION
 		targetSdk = Android.TARGET_VERSION
 		versionCode = 385
-		versionName = "2024.3.0 α2"
+		versionName = "2025.1.0"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		
 		androidResources {
@@ -80,7 +80,7 @@ android {
 		getByName("release") {
 			// Keep minification disabled for now; Compose-only main is enforced across variants
 			isMinifyEnabled = false
-			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 	}
@@ -134,6 +134,7 @@ dependencies {
 	implementation(project(":statistics"))
 	implementation(project(":map"))
 	implementation(project(":game"))
+	implementation(project(":dashboard"))
 
 	// debugImplementation("com.squareup.leakcanary:leakcanary-android:2.6")
 
@@ -228,6 +229,7 @@ dependencies {
 	testImplementation(libs.kotest.assertions.core)
 	testImplementation(project(":stats-api"))
 	implementation(project(":stats-api"))
+	testImplementation(project(":stats-engine"))
 
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)

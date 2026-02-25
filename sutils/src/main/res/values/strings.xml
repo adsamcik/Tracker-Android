@@ -8,4 +8,5 @@
     <string name="permission_rationale_phone_state">Phone permission is needed for multi-SIM support to provide accurate cell network information.</string>
     <string name="permission_rationale_background_location">Automatic tracking requires background location access to detect when you start moving and begin tracking your activities even when the app is closed. This helps provide seamless fitness and travel tracking.</string>
     <string name="percentage_format">%s%%</string>
+    <string name="action_navigate_back">Navigate back</string>
 </resources>

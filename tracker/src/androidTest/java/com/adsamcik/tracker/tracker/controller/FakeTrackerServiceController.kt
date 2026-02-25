@@ -3,8 +3,13 @@ package com.adsamcik.tracker.tracker.controller
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.stats.api.PolicyState
+import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
+import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -53,7 +58,19 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _lastPathPointsFlow
-    
+
+    private val _policyTierFlow = MutableStateFlow(PolicyTier.OFF)
+    override val policyTierFlow: StateFlow<PolicyTier> get() = _policyTierFlow
+
+    private val _policyStateFlow = MutableStateFlow<PolicyState?>(null)
+    override val policyStateFlow: StateFlow<PolicyState?> get() = _policyStateFlow
+
+    private val _skiStateFlow = MutableStateFlow<RealTimeSkiState?>(null)
+    override val skiStateFlow: StateFlow<RealTimeSkiState?> get() = _skiStateFlow
+
+    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
+    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
+
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
     }
@@ -68,5 +85,21 @@ class FakeTrackerServiceController : TrackerServiceController {
     
     override fun updateCollectionData(data: CollectionData?) {
         _collectionDataFlow.value = data
+    }
+
+    override fun updatePersistenceErrorFlow(errorFlow: SharedFlow<PersistenceError>?) {
+        _persistenceErrorFlow = errorFlow
+    }
+
+    override fun updatePolicyTier(tier: PolicyTier) {
+        _policyTierFlow.value = tier
+    }
+
+    override fun updatePolicyState(state: PolicyState?) {
+        _policyStateFlow.value = state
+    }
+
+    override fun updateSkiState(state: RealTimeSkiState?) {
+        _skiStateFlow.value = state
     }
 }

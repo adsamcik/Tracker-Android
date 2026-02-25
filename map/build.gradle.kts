@@ -51,6 +51,7 @@ android {
 	}
 	testOptions {
 		unitTests.isIncludeAndroidResources = true
+		unitTests.isReturnDefaultValues = true
 	}
     namespace = "com.adsamcik.tracker.map"
 }
@@ -114,21 +115,13 @@ dependencies {
 	testImplementation(libs.junit5.jupiter)
 	testImplementation(libs.junit5.jupiter.params)
 	testRuntimeOnly(libs.junit5.jupiter.engine)
-	// Vintage engine for running JUnit 4 tests during migration period
-	testRuntimeOnly(libs.junit5.vintage.engine)
-	testImplementation(libs.junit4)
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.turbine)
-	testImplementation(libs.arch.core.testing) // for InstantTaskExecutorRule
-	testImplementation(libs.androidx.test.core) // for ApplicationProvider
 	testImplementation(libs.kotest.assertions.core)
-	// Keep Mockito during migration period for existing tests
-	testImplementation(libs.mockito.core)
-	testImplementation(libs.mockito.inline)
-	testImplementation(libs.mockito.kotlin)
+	testImplementation(kotlin("reflect"))
 
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_tracking_title">Tracking</string>
+    <string name="dashboard_recording">Recording</string>
+
+
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Activity type</string>
+    <string name="dashboard_cd_challenge_icon">Challenge</string>
+    <string name="dashboard_cd_explore_icon">Exploration</string>
+    <string name="dashboard_cd_fire_icon">Streak</string>
+    <string name="dashboard_cd_forward_arrow">View details</string>
+    <string name="dashboard_cd_last_session">Last session: %1$s duration, %2$s distance</string>
+    <string name="dashboard_cd_locked_badge">Tracking locked</string>
+    <string name="dashboard_cd_start_tracking">Start tracking</string>
+    <string name="dashboard_cd_start_tracking_permission">Start tracking, permission required</string>
+    <string name="dashboard_cd_stop_tracking">Stop tracking</string>
+
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Altitude profile, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_altitude_value">%1$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">Awaiting GPS signal…</string>
+    <string name="dashboard_milestone_distance">km reached!</string>
+    <string name="dashboard_milestone_steps">steps reached!</string>
+    <string name="dashboard_milestone_time">min tracked!</string>
+    <string name="dashboard_milestone_points">+10 pts</string>
+
+    <!-- Idle state -->
+    <string name="dashboard_greeting_morning">Good morning</string>
+    <string name="dashboard_greeting_afternoon">Good afternoon</string>
+    <string name="dashboard_greeting_evening">Good evening</string>
+    <string name="dashboard_greeting_night">Good night</string>
+    <string name="dashboard_today_title">Today</string>
+    <string name="dashboard_today_no_activity">No activity yet today</string>
+    <string name="dashboard_today_duration">Duration</string>
+    <string name="dashboard_today_steps">Steps</string>
+    <string name="dashboard_today_trips">Trips</string>
+    <string name="dashboard_daily_goal">Daily</string>
+    <string name="dashboard_weekly_goal">Weekly</string>
+    <string name="dashboard_goal_on_track">On track</string>
+    <string name="dashboard_goal_ahead">Ahead</string>
+    <string name="dashboard_goal_behind">Behind</string>
+    <string name="dashboard_streak_day_streak">day streak</string>
+    <string name="dashboard_streak_start">Start a streak!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%%</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%%</string>
+    <string name="dashboard_challenges_title">Challenges</string>
+    <string name="dashboard_challenges_empty">Start a challenge →</string>
+    <string name="dashboard_challenge_easy">Easy</string>
+    <string name="dashboard_challenge_medium">Medium</string>
+    <string name="dashboard_challenge_hard">Hard</string>
+    <string name="dashboard_challenge_time_remaining">%1$s left</string>
+    <string name="dashboard_last_session_title">Last Session</string>
+    <string name="dashboard_last_session_duration">Duration</string>
+    <string name="dashboard_last_session_distance">Distance</string>
+    <string name="dashboard_last_session_steps">Steps</string>
+    <string name="dashboard_last_session_view_map">View Map</string>
+    <string name="dashboard_recent_trips_title">Recent Trips</string>
+    <string name="dashboard_exploration_title">Exploration</string>
+    <string name="dashboard_exploration_new_today">New today</string>
+    <string name="dashboard_exploration_total_cells">Total cells</string>
+    <string name="dashboard_exploration_seasons">Seasons</string>
+
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_title">Live Charts</string>
+    <string name="dashboard_live_charts_speed">Speed</string>
+    <string name="dashboard_live_charts_altitude">Altitude</string>
+
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Sensor Details</string>
+    <string name="dashboard_sensor_expand">Expand sensor details</string>
+    <string name="dashboard_sensor_collapse">Collapse sensor details</string>
+    <string name="dashboard_sensor_location_accuracy">Location accuracy</string>
+    <string name="dashboard_sensor_activity">Activity</string>
+    <string name="dashboard_sensor_wifi">WiFi networks</string>
+    <string name="dashboard_sensor_cell">Cell towers</string>
+    <string name="dashboard_sensor_altitude">Altitude</string>
+    <string name="dashboard_sensor_speed">Speed</string>
+    <string name="dashboard_sensor_cell_types">Cell types</string>
+    <string name="dashboard_sensor_raw_coords">Coordinates (debug)</string>
+
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Trending up</string>
+    <string name="dashboard_trend_down">Trending down</string>
+
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Just getting started…</string>
+    <string name="dashboard_motivational_keep_going">Keep going! 💪</string>
+    <string name="dashboard_motivational_impressive">Impressive session!</string>
+    <string name="dashboard_motivational_marathon">Marathon explorer! 🏆</string>
+    <string name="dashboard_motivational_morning">Good morning! Ready to explore?</string>
+    <string name="dashboard_motivational_afternoon">Good afternoon</string>
+    <string name="dashboard_motivational_evening">Good evening</string>
+    <string name="dashboard_motivational_night">Night owl mode 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$d-day streak!</string>
+
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Your Journey Starts Here</string>
+    <string name="dashboard_empty_subtitle">Tap the button below to begin tracking your first adventure</string>
+    <string name="dashboard_empty_feature_explore">Explore</string>
+    <string name="dashboard_empty_feature_explore_desc">Discover new places and routes</string>
+    <string name="dashboard_empty_feature_achieve">Achieve</string>
+    <string name="dashboard_empty_feature_achieve_desc">Set goals and earn points</string>
+    <string name="dashboard_empty_feature_track">Track</string>
+    <string name="dashboard_empty_feature_track_desc">Record walks, runs, and rides</string>
+    <string name="dashboard_empty_feature_privacy">Privacy</string>
+    <string name="dashboard_empty_feature_privacy_desc">All data stays on your device</string>
+    <string name="dashboard_empty_icon_desc">Location tracking illustration</string>
+
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">No altitude data</string>
+    <string name="dashboard_cd_no_altitude_data">No altitude data available</string>
+    <string name="dashboard_cd_speed_sparkline">Speed sparkline with %1$d data points</string>
+    <string name="dashboard_cd_session_path">Session route preview with %1$d points</string>
+
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Speed</string>
+    <string name="dashboard_metric_distance">Distance</string>
+    <string name="dashboard_metric_duration">Duration</string>
+    <string name="dashboard_metric_steps">Steps</string>
+    <string name="dashboard_metric_altitude">Altitude</string>
+    <string name="dashboard_metric_activity">Activity</string>
+    <string name="dashboard_metric_accuracy">Accuracy</string>
+    <string name="dashboard_metric_avg_speed">Avg Speed</string>
+    <string name="dashboard_metric_wifi">WiFi</string>
+    <string name="dashboard_metric_cell">Cell</string>
+    <string name="dashboard_metric_coordinates">Coordinates</string>
+</resources>

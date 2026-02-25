@@ -112,9 +112,9 @@ fun ExplorationCard(
 					style = MaterialTheme.typography.labelMedium,
 					color = MaterialTheme.colorScheme.onSurfaceVariant
 				)
-				SeasonIndicator(seasonsCovered = state.seasonsCovered)
+				SeasonIndicator(seasonsBitmask = state.seasonsBitmask)
 				Text(
-					text = "${state.seasonsCovered} ${stringResource(R.string.exploration_of_four)}",
+					text = "${Integer.bitCount(state.seasonsBitmask)} ${stringResource(R.string.exploration_of_four)}",
 					style = MaterialTheme.typography.labelMedium,
 					fontWeight = FontWeight.Bold,
 					color = MaterialTheme.colorScheme.onSurface
@@ -152,19 +152,20 @@ private fun StreakStat(
 
 /**
  * Displays four small dots representing seasons (spring, summer, autumn, winter).
- * Filled dots indicate explored seasons based on the bitmask count.
+ * Filled dots indicate explored seasons based on which bits are set in the bitmask.
+ * Bit 0 = Spring, bit 1 = Summer, bit 2 = Autumn, bit 3 = Winter.
  */
 @Composable
-private fun SeasonIndicator(seasonsCovered: Int) {
+private fun SeasonIndicator(seasonsBitmask: Int) {
 	val seasonColors = listOf(
-		MaterialTheme.colorScheme.primary,     // Spring
-		MaterialTheme.colorScheme.tertiary,    // Summer
-		MaterialTheme.colorScheme.secondary,   // Autumn
-		MaterialTheme.colorScheme.outline,     // Winter
+		MaterialTheme.colorScheme.primary,     // Spring (bit 0)
+		MaterialTheme.colorScheme.tertiary,    // Summer (bit 1)
+		MaterialTheme.colorScheme.secondary,   // Autumn (bit 2)
+		MaterialTheme.colorScheme.outline,     // Winter (bit 3)
 	)
 	Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
 		for (i in 0 until SEASON_COUNT) {
-			val isCovered = i < seasonsCovered
+			val isCovered = (seasonsBitmask and (1 shl i)) != 0
 			Box(
 				modifier = Modifier
 					.size(8.dp)

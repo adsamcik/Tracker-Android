@@ -113,6 +113,7 @@ fun TrackerRoute(
             message = message
         )
         LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(5000)
             permissionDenied = false
         }
     }

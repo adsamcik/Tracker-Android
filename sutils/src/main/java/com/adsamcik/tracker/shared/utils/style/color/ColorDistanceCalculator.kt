@@ -181,15 +181,34 @@ class ColorDistanceCalculator {
 		val y = powR * 0.212656 + powG * 0.715158 + powB * 0.0721856
 		val z = powR * 0.0193324 + powG * 0.119193 + powB * 0.950444
 		// Convert XYZ into xyY Chromacity Coordinates (xy) and Luminance (Y)
-		val chromaX = x / (x + y + z)
-		val chromaY = y / (x + y + z)
+		val xyzSum = x + y + z
+		if (xyzSum == 0.0) {
+			simulateCache[key] = lab.copyOf()
+			return lab.copyOf()
+		}
+		val chromaX = x / xyzSum
+		val chromaY = y / xyzSum
 		// Generate the "Confusion Line" between the source color and the Confusion Point
-		val m = (chromaY - confuseY) / (chromaX - confuseX) // slope of Confusion Line
+		val chromaDiffX = chromaX - confuseX
+		if (chromaDiffX == 0.0) {
+			simulateCache[key] = lab.copyOf()
+			return lab.copyOf()
+		}
+		val m = (chromaY - confuseY) / chromaDiffX // slope of Confusion Line
 		val yint = chromaY - chromaX * m // y-intercept of confusion line (x-intercept = 0.0)
 		// How far the xy coords deviate from the simulation
-		val deviateX = (confuseYint - yint) / (m - confuseM)
+		val slopeDiff = m - confuseM
+		if (slopeDiff == 0.0) {
+			simulateCache[key] = lab.copyOf()
+			return lab.copyOf()
+		}
+		val deviateX = (confuseYint - yint) / slopeDiff
 		val deviateY = (m * deviateX) + yint
 		// Compute the simulated color"s XYZ coords
+		if (deviateY == 0.0) {
+			simulateCache[key] = lab.copyOf()
+			return lab.copyOf()
+		}
 		val dX = deviateX * y / deviateY
 		val dZ = (1.0 - (deviateX + deviateY)) * y / deviateY
 		// Neutral grey calculated from luminance (in D65)
@@ -212,9 +231,9 @@ class ColorDistanceCalculator {
 				if (value in range) value else 0.0
 
 		// Compensate simulated color towards a neutral fit in RGB space
-		val fitR = (isPositive(dr) - dr) / diffR
-		val fitG = (isPositive(dg) - dg) / diffG
-		val fitB = (isPositive(db) - db) / diffB
+		val fitR = if (diffR == 0.0) 0.0 else (isPositive(dr) - dr) / diffR
+		val fitG = if (diffG == 0.0) 0.0 else (isPositive(dg) - dg) / diffG
+		val fitB = if (diffB == 0.0) 0.0 else (isPositive(db) - db) / diffB
 		val range = 0.0..1.0
 		val adjust = maxOf( // highest value
 				keepOnlyIfInside(range, fitR),

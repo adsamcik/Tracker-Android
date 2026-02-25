@@ -2,7 +2,7 @@ package com.adsamcik.tracker.app.ui
 
 import androidx.lifecycle.ViewModel
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
-import com.adsamcik.tracker.app.ui.navigation.Tracker
+import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +17,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor() : ViewModel() {
     
     // Store route as AppRoute for type safety
-    private val _currentRoute = MutableStateFlow<AppRoute>(Tracker)
+    private val _currentRoute = MutableStateFlow<AppRoute>(Dashboard)
     val currentRoute: StateFlow<AppRoute> = _currentRoute.asStateFlow()
     
     /**

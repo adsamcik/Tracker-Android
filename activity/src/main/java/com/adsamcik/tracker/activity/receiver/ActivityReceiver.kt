@@ -59,8 +59,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
         val detectedActivity = ActivityInfo(result.mostProbableActivity)
         val elapsedTimeMillis = Time.elapsedRealtimeMillis
 
-        lastActivity = detectedActivity
-        lastActivityElapsedTimeMillis = elapsedTimeMillis
+        synchronized(activityStateLock) {
+            lastActivity = detectedActivity
+            lastActivityElapsedTimeMillis = elapsedTimeMillis
+        }
 
         logActivity(
             LogData(
@@ -79,8 +81,10 @@ internal class ActivityReceiver : BroadcastReceiver() {
      */
     private fun setActivityResultFromTransition(transition: ActivityTransitionEvent) {
         val detectedActivity = ActivityInfo(transition.activityType, TRANSITION_ACTIVITY_CONFIDENCE)
-        lastActivity = detectedActivity
-        lastActivityElapsedTimeMillis = transition.elapsedRealTimeNanos
+        synchronized(activityStateLock) {
+            lastActivity = detectedActivity
+            lastActivityElapsedTimeMillis = transition.elapsedRealTimeNanos
+        }
 
         logActivity(
             LogData(
@@ -114,7 +118,12 @@ internal class ActivityReceiver : BroadcastReceiver() {
         private const val ACTIVITY_INTENT = "com.adsamcik.tracker.ACTIVITY_RESULT"
         private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
 
+        private val activityStateLock = Any()
+
+        @Volatile
         private var recognitionClientTask: Task<*>? = null
+
+        @Volatile
         private var transitionClientTask: Task<*>? = null
 
 
@@ -122,12 +131,15 @@ internal class ActivityReceiver : BroadcastReceiver() {
          * Contains instance of last known activity
          * Initialization value is Unknown activity with 0 confidence
          */
+        @Volatile
         var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
             private set
 
+        @Volatile
         var lastActivityElapsedTimeMillis: Long = 0L
             private set
 
+        @Volatile
         private var isSubscribed = false
 
 
@@ -239,6 +251,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
         /**
          * Stop activity recognition
          */
+        @Synchronized
         fun stopActivityRecognition(context: Context) {
             if (!isSubscribed) return
             isSubscribed = false

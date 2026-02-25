@@ -9,8 +9,9 @@ import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
-import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -23,10 +24,12 @@ import org.robolectric.annotation.Config
 @Config(sdk = [28])
 class DataRetentionWorkerTest {
     private lateinit var context: Context
+    private lateinit var retentionStore: RetentionConfigStore
 
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
+        retentionStore = RetentionConfigStore(context, Dispatchers.IO)
         val config = Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.DEBUG)
             .setExecutor(SynchronousExecutor())
@@ -37,9 +40,8 @@ class DataRetentionWorkerTest {
 
     @Test
     fun `doWork returns success and does nothing when disabled`() {
-        // Ensure the preference is OFF by default
-        Preferences.getPref(context).edit {
-            setBoolean(R.string.settings_auto_cleanup_old_data_key, false)
+        runBlocking {
+            retentionStore.update { copy(autoCleanupEnabled = false) }
         }
 
         val worker = TestListenableWorkerBuilder<DataRetentionWorker>(context).build()
@@ -49,43 +51,37 @@ class DataRetentionWorkerTest {
 
     @Test
     fun `initialize schedules when enabled and cancels when disabled`() {
-    // Ensure WorkManager is initialized (done in setUp), then retrieve instance
     val wm = WorkManager.getInstance(context)
 
         // Disable first: expect no work enqueued after initialize
-        Preferences.getPref(context).edit {
-            setBoolean(R.string.settings_auto_cleanup_old_data_key, false)
+        runBlocking {
+            retentionStore.update { copy(autoCleanupEnabled = false) }
         }
     DataRetentionWorker.initialize(context)
     var works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
-        // It may momentarily exist as CANCELLED from a previous run; ensure nothing is ENQUEUED
         assertTrue(works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
 
         // Enable: expect work enqueued
-        Preferences.getPref(context).edit {
-            setBoolean(R.string.settings_auto_cleanup_old_data_key, true)
+        runBlocking {
+            retentionStore.update { copy(autoCleanupEnabled = true) }
         }
     DataRetentionWorker.initialize(context)
-        // Wait up to 2s for enqueue to be visible
         val start = System.currentTimeMillis()
         do {
             works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
             if (works.isNotEmpty()) break
             Thread.sleep(50)
         } while (System.currentTimeMillis() - start < 2000)
-        // Some environments may report different intermediate states; presence is enough to confirm scheduling
         assertTrue(works.isNotEmpty())
 
         // Disable again: expect cancellation
-        Preferences.getPref(context).edit {
-            setBoolean(R.string.settings_auto_cleanup_old_data_key, false)
+        runBlocking {
+            retentionStore.update { copy(autoCleanupEnabled = false) }
         }
         DataRetentionWorker.initialize(context)
-        // Wait for cancellation
         val startCancel = System.currentTimeMillis()
         do {
             works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
-            // Consider cancelled when there are no active entries
             if (works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }) break
             Thread.sleep(50)
         } while (System.currentTimeMillis() - startCancel < 5000)

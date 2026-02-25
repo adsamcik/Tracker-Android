@@ -2,10 +2,12 @@ package com.adsamcik.tracker.map.v2.data
 
 import com.adsamcik.tracker.map.data.SafeQueryBuilder
 import androidx.sqlite.db.SimpleSQLiteQuery
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
-import org.junit.Test
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldEndWith
+import io.kotest.matchers.string.shouldStartWith
+import org.junit.jupiter.api.Test
 
 class SafeQueryBuilderTest {
 
@@ -17,56 +19,52 @@ class SafeQueryBuilderTest {
             .limit(100)
             .build()
     val sql = (q as SimpleSQLiteQuery).sql
-        assertTrue(sql.contains("FROM location_data"))
-        assertTrue(sql.contains("time >= ?"))
-        assertTrue(sql.contains("time <= ?"))
-        assertTrue(sql.contains("lat <= ?"))
-        assertTrue(sql.contains("lon >= ?"))
-        assertTrue(sql.endsWith("LIMIT 100"))
+        sql shouldContain "FROM location_data"
+        sql shouldContain "time >= ?"
+        sql shouldContain "time <= ?"
+        sql shouldContain "lat <= ?"
+        sql shouldContain "lon >= ?"
+        sql shouldEndWith "LIMIT 100"
     val argCount = sql.count { it == '?' }
-    assertEquals(6, argCount) // timeFrom, timeTo, north, south, east, west
+    argCount shouldBe 6 // timeFrom, timeTo, north, south, east, west
     }
 
     @Test
     fun `location weighted query`() {
         val q = SafeQueryBuilder.location().weight("speed").build()
     val sql = (q as SimpleSQLiteQuery).sql
-        assertTrue(sql.contains("speed AS weight"))
+        sql shouldContain "speed AS weight"
     }
 
     @Test
     fun `reject disallowed weight`() {
-        try {
+        shouldThrow<IllegalArgumentException> {
             SafeQueryBuilder.location().weight("not_col")
-            fail("Expected exception for disallowed weight column")
-        } catch (e: IllegalArgumentException) { }
+        }
     }
 
     @Test
     fun `wifi query aliases columns`() {
         val q = SafeQueryBuilder.wifi().timeRange(0, 10).build()
     val sql = (q as SimpleSQLiteQuery).sql
-        assertTrue(sql.contains("SELECT latitude AS lat, longitude AS lon, last_seen AS time"))
-        assertTrue(sql.contains("FROM wifi_data"))
-        assertTrue(sql.contains("last_seen >= ?"))
+        sql shouldContain "SELECT latitude AS lat, longitude AS lon, last_seen AS time"
+        sql shouldContain "FROM wifi_data"
+        sql shouldContain "last_seen >= ?"
     }
 
     @Test
     fun `cell query basic`() {
         val q = SafeQueryBuilder.cell().limit(50).build()
     val sql = (q as SimpleSQLiteQuery).sql
-        assertTrue(sql.startsWith("SELECT lat, lon, time"))
-        assertTrue(sql.contains("FROM cell_location"))
-        assertTrue(sql.endsWith("LIMIT 50"))
+        sql shouldStartWith "SELECT lat, lon, time"
+        sql shouldContain "FROM cell_location"
+        sql shouldEndWith "LIMIT 50"
     }
 
     @Test
     fun `reject disallowed column`() {
-        try {
+        shouldThrow<IllegalArgumentException> {
             SafeQueryBuilder.location().columns("not_a_column")
-            fail("Expected exception for disallowed column")
-        } catch (e: IllegalArgumentException) {
-            // expected
         }
     }
 
@@ -74,16 +72,13 @@ class SafeQueryBuilderTest {
     fun `accept allowed column`() {
         val q = SafeQueryBuilder.location().columns("speed", "hor_acc").build()
         val sql = q.sql
-        assertTrue(sql.startsWith("SELECT lat, lon, time, speed, hor_acc"))
+        sql shouldStartWith "SELECT lat, lon, time, speed, hor_acc"
     }
 
     @Test
     fun `enforce time ordering`() {
-        try {
+        shouldThrow<IllegalArgumentException> {
             SafeQueryBuilder.location().timeRange(200L, 100L)
-            fail("Expected exception for reversed time range")
-        } catch (e: IllegalArgumentException) {
-            // expected
         }
     }
 }

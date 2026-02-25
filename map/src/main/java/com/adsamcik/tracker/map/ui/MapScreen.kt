@@ -3,14 +3,16 @@ package com.adsamcik.tracker.map.ui
 import android.location.Address
 import android.location.Geocoder
 import android.os.Build
-import android.util.Log
+import com.adsamcik.tracker.logger.Reporter
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -70,7 +72,6 @@ import org.maplibre.spatialk.geojson.BoundingBox
 import org.maplibre.spatialk.geojson.Position
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val TAG = "MapScreen"
 
 /**
  * MapLibre-based MapScreen. Renders heatmaps, polylines, user location via
@@ -79,6 +80,7 @@ private const val TAG = "MapScreen"
 @Composable
 fun MapScreen(
     store: MapStore,
+    snackbarHostState: SnackbarHostState,
     overlayMode: Boolean = false,
     bottomPaddingPx: Int = 0,
     isLocationPermissionGranted: Boolean = false,
@@ -130,10 +132,8 @@ fun MapScreen(
     val density = LocalDensity.current
     val bottomPaddingDp = with(density) { bottomPaddingPx.toDp() }
 
-    val snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
-
     val cameraState = rememberCameraState(
-        firstPosition = CameraPosition(target = Position(0.0, 0.0), zoom = 2.0)
+        firstPosition = CameraPosition(target = Position(0.0, 0.0), zoom = 1.0)
     )
 
     val gestureOptions = remember(overlayMode) {
@@ -172,12 +172,46 @@ fun MapScreen(
             )
         }
 
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = bottomPaddingDp + 16.dp)
-        )
+        // Layer loading indicator
+        val isLayerLoading = state.layerLoadingProgress in 1..99
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isLayerLoading,
+            modifier = Modifier.align(Alignment.TopCenter),
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            androidx.compose.material3.LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Permission denied banner
+        if (!isLocationPermissionGranted) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(16.dp),
+            ) {
+                androidx.compose.material3.Card(
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(com.adsamcik.tracker.map.R.string.map_location_permission_denied),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+        }
+
     }
 
     // Observe gesture-initiated camera moves to cancel follow
@@ -228,7 +262,7 @@ fun MapScreen(
                             duration = 500.milliseconds,
                         )
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to center camera: ${e.message}", e)
+                        Reporter.report(e)
                     }
                 }
                 is MapEffect.SetCameraBearing -> {
@@ -240,14 +274,14 @@ fun MapScreen(
                             duration = 500.milliseconds,
                         )
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to set camera bearing: ${e.message}", e)
+                        Reporter.report(e)
                     }
                 }
                 is MapEffect.ShowFollowCanceled -> {
                     try {
                         snackbarHostState.showSnackbar(followCanceledText)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to show snackbar: ${e.message}", e)
+                        Reporter.report(e)
                     }
                 }
                 is MapEffect.PerformGeocode -> {
@@ -284,7 +318,7 @@ fun MapScreen(
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Geocoding failed for '${effect.query}': ${e.message}", e)
+                        Reporter.report(e)
                         snackbarHostState.showSnackbar(
                             context.getString(
                                 com.adsamcik.tracker.map.R.string.map_search_no_results,
@@ -370,10 +404,11 @@ private fun MapUserOverlays(overlays: List<MapOverlayState>) {
                         GeoJsonConverter.pointToFeature(overlay.latLng.lat, overlay.latLng.lng)
                     )
                 )
+                val radiusDp = overlay.radiusM.toFloat().coerceIn(10f, 200f).dp
                 CircleLayer(
                     id = "accuracy-$index",
                     source = src,
-                    radius = const(20.dp),
+                    radius = const(radiusDp),
                     color = const(accuracyColor),
                     opacity = const(0.3f),
                 )

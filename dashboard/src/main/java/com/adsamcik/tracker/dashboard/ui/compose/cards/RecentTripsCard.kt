@@ -1,0 +1,175 @@
+package com.adsamcik.tracker.dashboard.ui.compose.cards
+
+import android.text.format.DateUtils
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Sailing
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
+
+/**
+ * Card displaying the most recent trips with activity icons,
+ * distance, duration, and relative time.
+ */
+@Composable
+internal fun RecentTripsCard(
+	trips: List<Trip>,
+	onTripClick: ((Long) -> Unit)?,
+	modifier: Modifier = Modifier,
+) {
+	if (trips.isEmpty()) return
+
+	val context = LocalContext.current
+	val settings = TrackerSettingsQuick.snapshot(context)
+
+	Card(
+		modifier = modifier.fillMaxWidth(),
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+		),
+		shape = MaterialTheme.shapes.large,
+	) {
+		Column(
+			modifier = Modifier
+				.fillMaxWidth()
+				.padding(16.dp),
+			verticalArrangement = Arrangement.spacedBy(8.dp),
+		) {
+			Text(
+				text = stringResource(R.string.dashboard_recent_trips_title),
+				style = MaterialTheme.typography.titleMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+
+			trips.forEach { trip ->
+				key(trip.id) {
+					RecentTripRow(
+						trip = trip,
+						distanceText = context.resources.formatDistance(
+							trip.distanceM,
+							1,
+							settings.lengthSystem,
+						),
+						durationText = trip.durationMs.formatAsDuration(context),
+						timeText = DateUtils.getRelativeTimeSpanString(
+							trip.startTimeMs,
+							System.currentTimeMillis(),
+							DateUtils.MINUTE_IN_MILLIS,
+							DateUtils.FORMAT_ABBREV_RELATIVE,
+						).toString(),
+						onClick = if (onTripClick != null) {
+							{ onTripClick(trip.id) }
+						} else {
+							null
+						},
+					)
+				}
+			}
+		}
+	}
+}
+
+@Composable
+private fun RecentTripRow(
+	trip: Trip,
+	distanceText: String,
+	durationText: String,
+	timeText: String,
+	onClick: (() -> Unit)?,
+	modifier: Modifier = Modifier,
+) {
+	val icon = getTripIcon(trip.primaryActivity)
+
+	val rowModifier = if (onClick != null) {
+		modifier
+			.fillMaxWidth()
+			.clip(MaterialTheme.shapes.medium)
+			.clickable(onClick = onClick)
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+	} else {
+		modifier
+			.fillMaxWidth()
+			.padding(vertical = 8.dp, horizontal = 4.dp)
+	}
+
+	Row(
+		modifier = rowModifier,
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+	) {
+		Icon(
+			imageVector = icon,
+			contentDescription = stringResource(R.string.dashboard_cd_activity_icon),
+			tint = MaterialTheme.colorScheme.onSurfaceVariant,
+			modifier = Modifier.size(24.dp),
+		)
+		Column(modifier = Modifier.weight(1f)) {
+			Text(
+				text = distanceText,
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = durationText,
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+		}
+		Text(
+			text = timeText,
+			style = MaterialTheme.typography.labelSmall,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+		)
+		if (onClick != null) {
+			Icon(
+				imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+				contentDescription = stringResource(R.string.dashboard_cd_forward_arrow),
+				tint = MaterialTheme.colorScheme.onSurfaceVariant,
+				modifier = Modifier.size(16.dp),
+			)
+		}
+	}
+}
+
+private fun getTripIcon(primaryActivity: Int?): ImageVector {
+	return when (primaryActivity) {
+		-2 -> Icons.AutoMirrored.Filled.DirectionsWalk
+		-3 -> Icons.AutoMirrored.Filled.DirectionsRun
+		-4 -> Icons.AutoMirrored.Filled.DirectionsBike
+		-5, -34 -> Icons.Filled.DirectionsCar
+		-26 -> Icons.Filled.Sailing
+		-31 -> Icons.Filled.Flight
+		else -> Icons.Filled.Route
+	}
+}

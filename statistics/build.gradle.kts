@@ -144,6 +144,9 @@ dependencies {
 	implementation(libs.mpandroidchart)
 	implementation(libs.simplify)
 
+	// MapLibre Compose for trip route visualization
+	implementation(libs.maplibre.compose)
+
 	// Hilt (Dependency Injection)
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)

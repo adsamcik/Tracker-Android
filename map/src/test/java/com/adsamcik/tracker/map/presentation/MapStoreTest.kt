@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.map.presentation
 
-import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapState
@@ -19,45 +18,38 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.async
 import app.cash.turbine.test
-import org.junit.After
-import org.junit.Assert.*
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
-import org.mockito.Mock
-import org.mockito.Mockito.verify
-import org.mockito.MockitoAnnotations
-import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.whenever
- 
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.collections.shouldHaveSize
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapStoreTest {
 
-    @get:Rule
-    val instantExecutorRule = InstantTaskExecutorRule()
-
-    @Mock
-    private lateinit var mockLayerEngine: LayerEngine
+    private val mockLayerEngine: LayerEngine = mockk(relaxed = true)
 
     private lateinit var mapStore: MapStore
     private val testDispatcher = StandardTestDispatcher()
 
-    @Before
+    @BeforeEach
     fun setup() {
-        MockitoAnnotations.openMocks(this)
         Dispatchers.setMain(testDispatcher)
-    // Default stubs to avoid nulls during applyLayer state updates
-    whenever(mockLayerEngine.activeLegend()).thenReturn(null)
-    whenever(mockLayerEngine.activeLayerConfig()).thenReturn(null)
-    whenever(mockLayerEngine.overlays()).thenReturn(persistentListOf())
+        every { mockLayerEngine.activeLegend() } returns null
+        every { mockLayerEngine.activeLayerConfig() } returns null
+        every { mockLayerEngine.overlays() } returns persistentListOf()
         mapStore = MapStore()
         mapStore.setLayerEngine(mockLayerEngine)
     }
 
-    @After
+    @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
     }
@@ -66,15 +58,15 @@ class MapStoreTest {
     fun `initial state is correct`() = runTest {
         val initialState = mapStore.state.first()
         
-        assertEquals(persistentSetOf<String>(), initialState.activeLayerIds)
-        assertFalse(initialState.isFollowing)
-    assertEquals(SheetVisibility.Peek, initialState.sheet.visibility)
-        assertEquals(persistentListOf<com.adsamcik.tracker.map.presentation.udf.MapOverlayState>(), initialState.overlays)
-        assertEquals(persistentListOf<MapLayerData>(), initialState.legend)
-        assertEquals(1f, initialState.quality)
-        assertEquals(0L..Long.MAX_VALUE, initialState.dateRange)
-        assertEquals(0, initialState.layerLoadingProgress)
-        assertNull(initialState.layerConfig)
+        initialState.activeLayerIds shouldBe persistentSetOf<String>()
+        initialState.isFollowing shouldBe false
+        initialState.sheet.visibility shouldBe SheetVisibility.Peek
+        initialState.overlays shouldBe persistentListOf<com.adsamcik.tracker.map.presentation.udf.MapOverlayState>()
+        initialState.legend shouldBe persistentListOf<MapLayerData>()
+        initialState.quality shouldBe 1f
+        initialState.dateRange shouldBe 0L..Long.MAX_VALUE
+        initialState.layerLoadingProgress shouldBe 0
+        initialState.layerConfig.shouldBeNull()
     }
 
     @Test
@@ -84,32 +76,32 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         val hiddenState = mapStore.state.first()
-    assertEquals(SheetVisibility.Hidden, hiddenState.sheet.visibility)
+        hiddenState.sheet.visibility shouldBe SheetVisibility.Hidden
 
         // Show sheet
         mapStore.dispatch(MapEvent.ShowSheet)
         testDispatcher.scheduler.advanceUntilIdle()
         
         val visibleState = mapStore.state.first()
-    assertEquals(SheetVisibility.Expanded, visibleState.sheet.visibility)
+        visibleState.sheet.visibility shouldBe SheetVisibility.Expanded
     }
 
     @Test
     fun `toggle follow changes state correctly`() = runTest {
         // Initially not following
-        assertFalse(mapStore.state.first().isFollowing)
+        mapStore.state.first().isFollowing shouldBe false
 
         // Toggle on
         mapStore.dispatch(MapEvent.ToggleFollow)
         testDispatcher.scheduler.advanceUntilIdle()
         
-        assertTrue(mapStore.state.first().isFollowing)
+        mapStore.state.first().isFollowing shouldBe true
 
         // Toggle off
         mapStore.dispatch(MapEvent.ToggleFollow)
         testDispatcher.scheduler.advanceUntilIdle()
         
-        assertFalse(mapStore.state.first().isFollowing)
+        mapStore.state.first().isFollowing shouldBe false
     }
 
     @Test
@@ -117,13 +109,13 @@ class MapStoreTest {
         // First set following to true
         mapStore.dispatch(MapEvent.ToggleFollow)
         testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue(mapStore.state.first().isFollowing)
+        mapStore.state.first().isFollowing shouldBe true
 
         // Cancel follow
         mapStore.dispatch(MapEvent.FollowCanceled)
         testDispatcher.scheduler.advanceUntilIdle()
         
-        assertFalse(mapStore.state.first().isFollowing)
+        mapStore.state.first().isFollowing shouldBe false
     }
 
     @Test
@@ -134,8 +126,8 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = mapStore.state.first()
-        assertTrue(state.activeLayerIds.contains(layerId))
-    verify(mockLayerEngine).selectSingleLayer(eq(layerId), eq(1f), any())
+        state.activeLayerIds.contains(layerId) shouldBe true
+        coVerify { mockLayerEngine.selectSingleLayer(eq(layerId), eq(1f), any()) }
     }
 
     @Test
@@ -147,9 +139,9 @@ class MapStoreTest {
         // Wait a bit for withContext(Dispatchers.Default) work to complete (race condition workaround)
         kotlinx.coroutines.delay(50)
         
-    val state = mapStore.state.first()
-    assertEquals(newQuality, state.quality)
-    verify(mockLayerEngine).selectSingleLayer(eq(null), eq(newQuality), any())
+        val state = mapStore.state.first()
+        state.quality shouldBe newQuality
+        coVerify { mockLayerEngine.selectSingleLayer(isNull(), eq(newQuality), any()) }
     }
 
     @Test
@@ -159,11 +151,11 @@ class MapStoreTest {
         mapStore.dispatch(MapEvent.SetDateRange(newRange))
         testDispatcher.scheduler.advanceUntilIdle()
         
-    val state = mapStore.state.first()
-    assertEquals(newRange, state.dateRange)
-    val rangeCaptor = argumentCaptor<LongRange>()
-    verify(mockLayerEngine).selectSingleLayer(eq(null), eq(1f), rangeCaptor.capture())
-    assertEquals(newRange, rangeCaptor.firstValue)
+        val state = mapStore.state.first()
+        state.dateRange shouldBe newRange
+        val rangeSlot = slot<LongRange>()
+        coVerify { mockLayerEngine.selectSingleLayer(isNull(), eq(1f), capture(rangeSlot)) }
+        rangeSlot.captured shouldBe newRange
     }
 
     @Test
@@ -175,13 +167,13 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = mapStore.state.first()
-        assertEquals(2, state.overlays.size) // UserMarker + AccuracyCircle
+        state.overlays shouldHaveSize 2 // UserMarker + AccuracyCircle
         
         val userMarker = state.overlays.find { it is com.adsamcik.tracker.map.presentation.udf.MapOverlayState.UserMarker }
         val accuracyCircle = state.overlays.find { it is com.adsamcik.tracker.map.presentation.udf.MapOverlayState.AccuracyCircle }
         
-        assertNotNull(userMarker)
-        assertNotNull(accuracyCircle)
+        userMarker.shouldNotBeNull()
+        accuracyCircle.shouldNotBeNull()
     }
 
     @Test
@@ -202,7 +194,7 @@ class MapStoreTest {
             it is com.adsamcik.tracker.map.presentation.udf.MapOverlayState.UserMarker 
         } as? com.adsamcik.tracker.map.presentation.udf.MapOverlayState.UserMarker
         
-        assertNull(userMarker?.bearing) // Should be null when not following
+        userMarker?.bearing.shouldBeNull() // Should be null when not following
         
         // Enable following
         mapStore.dispatch(MapEvent.ToggleFollow)
@@ -217,7 +209,7 @@ class MapStoreTest {
             it is com.adsamcik.tracker.map.presentation.udf.MapOverlayState.UserMarker 
         } as? com.adsamcik.tracker.map.presentation.udf.MapOverlayState.UserMarker
         
-        assertEquals(bearing, followingUserMarker?.bearing) // Should match when following
+        followingUserMarker?.bearing shouldBe bearing // Should match when following
     }
 
     @Test
@@ -234,7 +226,7 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = mapStore.state.first()
-        assertEquals(cameraModel, state.camera)
+        state.camera shouldBe cameraModel
     }
 
     @Test
@@ -245,7 +237,7 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = mapStore.state.first()
-        assertEquals(quality, state.quality)
+        state.quality shouldBe quality
     }
 
     @Test
@@ -256,7 +248,7 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         val state = mapStore.state.first()
-        assertEquals(range, state.dateRange)
+        state.dateRange shouldBe range
     }
 
     @Test
@@ -265,7 +257,7 @@ class MapStoreTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = mapStore.state.first()
-        assertEquals("Berlin", state.search.query)
+        state.search.query shouldBe "Berlin"
     }
 
     @Test
@@ -276,9 +268,9 @@ class MapStoreTest {
         mapStore.effects.test {
             mapStore.dispatch(MapEvent.SubmitSearch)
             val effect = awaitItem()
-            assertTrue(effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode)
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode) shouldBe true
             val pg = effect as com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode
-            assertEquals("Prague", pg.query)
+            pg.query shouldBe "Prague"
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -295,9 +287,9 @@ class MapStoreTest {
         mapStore.effects.test {
             mapStore.dispatch(MapEvent.GeocodeResult(bounds))
             val effect = awaitItem()
-            assertTrue(effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera)
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera) shouldBe true
             val cc = effect as com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera
-            assertEquals(bounds, cc.bounds)
+            cc.bounds shouldBe bounds
             cancelAndIgnoreRemainingEvents()
         }
     }

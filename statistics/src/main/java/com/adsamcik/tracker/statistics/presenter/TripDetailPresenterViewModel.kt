@@ -3,12 +3,14 @@ package com.adsamcik.tracker.statistics.presenter
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -21,6 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TripDetailPresenterViewModel @Inject constructor(
 	presenter: TripDetailPresenter,
+	private val tripDao: TripDao,
 	savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -33,5 +36,22 @@ class TripDetailPresenterViewModel @Inject constructor(
 
 	init {
 		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
+	}
+
+	/**
+	 * Retry loading the trip detail after an error.
+	 */
+	fun retry() {
+		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
+	}
+
+	/**
+	 * Delete the current trip and invoke [onDeleted] on completion.
+	 */
+	fun deleteTrip(onDeleted: () -> Unit) {
+		viewModelScope.launch {
+			tripDao.deleteById(tripId)
+			onDeleted()
+		}
 	}
 }

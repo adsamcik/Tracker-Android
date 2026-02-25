@@ -3,9 +3,16 @@ package com.adsamcik.tracker.app.di
 import android.content.Context
 import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.game.repository.GameRepository
+import com.adsamcik.tracker.game.goals.settings.DefaultGoalsSettingsRepository
+import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.preferences.map.DefaultMapSettingsRepository
+import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.statistics.repository.DefaultSessionRepository
 import com.adsamcik.tracker.statistics.repository.SessionRepository
 import dagger.Binds
@@ -62,6 +69,46 @@ abstract class RepositoryModule {
         ): TrackerSettingsRepository = DefaultTrackerSettingsRepository(
             context = context,
             io = dispatchers.io
+        )
+
+        @Provides
+        @Singleton
+        fun provideMapSettingsRepository(
+            @ApplicationContext context: Context,
+            dispatchers: DispatchersProvider
+        ): MapSettingsRepository = DefaultMapSettingsRepository(
+            context = context,
+            io = dispatchers.io
+        )
+
+        @Provides
+        @Singleton
+        fun provideGoalsSettingsRepository(
+            @ApplicationContext context: Context,
+            dispatchers: DispatchersProvider
+        ): GoalsSettingsRepository = DefaultGoalsSettingsRepository(
+            context = context,
+            io = dispatchers.io
+        )
+
+        @Provides
+        @Singleton
+        fun provideTrackingParamsRepository(
+            @ApplicationContext context: Context,
+            dispatchers: DispatchersProvider
+        ): TrackingParamsRepository = DefaultTrackingParamsRepository(
+            context = context,
+            io = dispatchers.io
+        )
+
+        @Provides
+        @Singleton
+        fun provideRetentionConfigStore(
+            @ApplicationContext context: Context,
+            dispatchers: DispatchersProvider
+        ): RetentionConfigStore = RetentionConfigStore(
+            context = context,
+            ioDispatcher = dispatchers.io
         )
     }
 }

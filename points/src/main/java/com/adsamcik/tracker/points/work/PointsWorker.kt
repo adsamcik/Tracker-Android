@@ -11,6 +11,7 @@ import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
+import androidx.annotation.VisibleForTesting
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.LengthUnit
@@ -81,46 +82,8 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		)
 	}
 
-	private fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> {
-		val firstLocation = locationData.first()
-		var lastAltitude = requireNotNull(firstLocation.altitude)
-		val slopeList = mutableListOf(
-			SlopeData(
-				firstLocation.location,
-				firstLocation.activityInfo,
-				0.0,
-				0.0,
-				0.0,
-				0.0
-			)
-		)
-		var prevLocation = firstLocation.location
-		locationData.forEachIndexed { index, dbLocation ->
-			val location = dbLocation.location
-			val altitude = requireNotNull(location.altitude)
-			val diff = abs(lastAltitude - altitude)
-			if (index + 1 == locationData.size || diff > ALTITUDE_THRESHOLD) {
-				val distance = prevLocation.distanceFlat(location, LengthUnit.Meter)
-				val speed = distance / (location.time - prevLocation.time)
-				val slope = kotlin.math.atan(diff / distance)
-				slopeList.add(
-					SlopeData(
-						location,
-						dbLocation.activityInfo,
-						diff,
-						slope,
-						distance,
-						speed
-					)
-				)
-
-				prevLocation = location
-				lastAltitude = altitude
-			}
-		}
-
-		return slopeList
-	}
+	private fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> =
+		Companion.calculateSlope(locationData)
 
 	data class SlopeData(
 		val location: Location,
@@ -137,5 +100,49 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		private const val SLOPE_MULTIPLIER = 12
 		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
 		private const val ALTITUDE_THRESHOLD = 10.0
+
+		@VisibleForTesting
+		internal fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> {
+			val firstLocation = locationData.first()
+			var lastAltitude = requireNotNull(firstLocation.altitude)
+			val slopeList = mutableListOf(
+				SlopeData(
+					firstLocation.location,
+					firstLocation.activityInfo,
+					0.0,
+					0.0,
+					0.0,
+					0.0
+				)
+			)
+			var prevLocation = firstLocation.location
+			locationData.forEachIndexed { index, dbLocation ->
+				val location = dbLocation.location
+				val altitude = requireNotNull(location.altitude)
+				val diff = abs(lastAltitude - altitude)
+				if (index + 1 == locationData.size || diff > ALTITUDE_THRESHOLD) {
+					val distance = prevLocation.distanceFlat(location, LengthUnit.Meter)
+					val timeDelta = location.time - prevLocation.time
+					if (timeDelta <= 0 || distance <= 0.0) return@forEachIndexed
+					val speed = distance / timeDelta
+					val slope = kotlin.math.atan(diff / distance)
+					slopeList.add(
+						SlopeData(
+							location,
+							dbLocation.activityInfo,
+							diff,
+							slope,
+							distance,
+							speed
+						)
+					)
+
+					prevLocation = location
+					lastAltitude = altitude
+				}
+			}
+
+			return slopeList
+		}
 	}
 }

@@ -39,7 +39,7 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	 * Finds all sessions in database.
 	 */
 	@RewriteQueriesToDropUnusedColumns
-	@Query("SELECT * FROM tracker_session")
+	@Query("SELECT * FROM tracker_session LIMIT 10000")
 	fun getAll(): List<TrackerSession>
 
 	/**
@@ -143,7 +143,7 @@ interface SessionDataDao : BaseDao<TrackerSession> {
 	 * If no session is found, new one is created and saved inside a database.
 	 */
 	@Transaction
-	fun continueTrackerSession(maxAgeMillis: Long): TrackerSession {
+	suspend fun continueTrackerSession(maxAgeMillis: Long): TrackerSession {
 		val lastSession = getLast(1)
 		return if (lastSession != null && Time.nowMillis - lastSession.end <= maxAgeMillis) {
 			lastSession

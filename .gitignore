@@ -17,6 +17,7 @@ gen/
 # Gradle
 ############################################################
 .gradle/
+.gradle-*/
 build/
 */build/
 
@@ -110,8 +111,30 @@ keys.xml
 # Test output files (used by Copilot for debugging)
 ############################################################
 test-output*
+test_output*
+test_result*
+test_verbose*
+test_errors*
+test_full_*
+test-v?-*
 build-output*
 build_log*
+compile_output*
+full_gradle_output*
+gradle_output*
+complete_test_output*
+diff-check*
+diff-final*
+activity-compile-*
 benchmark_*
 unit_test_*
 test_run_*
+*.bak
+
+############################################################
+# Agent / session artifacts
+############################################################
+.agent/
+fix-build.ps1
+run-phase2-tests.ps1
+run_test.bat

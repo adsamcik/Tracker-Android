@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.SharedFlow
@@ -85,6 +86,13 @@ interface TrackerServiceController {
     val policyStateFlow: StateFlow<PolicyState?>
 
     /**
+     * Real-time ski detection state.
+     * Null when ski detection is not active or no barometric data available.
+     * Emits on every collection cycle that produces a ski state update.
+     */
+    val skiStateFlow: StateFlow<RealTimeSkiState?>
+
+    /**
      * Flow of database persistence errors.
      * Observers can display to user, log, or take corrective action.
      * Null when no error collector is active (tracking not running).
@@ -132,4 +140,10 @@ interface TrackerServiceController {
      * Called by TrackerService when the escalation engine emits a new state.
      */
     fun updatePolicyState(state: PolicyState?)
+
+    /**
+     * Internal: Update ski detection state.
+     * Called by TrackerService from SkiTrackingComponent's state flow.
+     */
+    fun updateSkiState(state: RealTimeSkiState?)
 }

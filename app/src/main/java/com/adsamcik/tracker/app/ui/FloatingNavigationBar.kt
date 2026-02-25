@@ -1,13 +1,13 @@
 package com.adsamcik.tracker.app.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.ripple
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,12 +32,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.utils.style.compose.AppShapes
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 @Composable
@@ -67,7 +64,7 @@ fun FloatingNavigationBar(
                             .hazeEffect(
                                 state = hazeState,
                                 style = HazeStyle(
-                                    backgroundColor = if (backgroundColor != Color.Unspecified) backgroundColor else Color.Black,
+                                    backgroundColor = if (backgroundColor != Color.Unspecified) backgroundColor else MaterialTheme.colorScheme.surface,
                                     tint = null
                                 )
                             )
@@ -93,23 +90,25 @@ fun FloatingNavigationBar(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun FloatingNavItem(
     item: NavigationItem,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.15f else 1.0f,
-        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-        label = "scale"
+    val iconTint by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "iconTint"
     )
-    
-    val color by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-        label = "color"
+
+    val indicatorColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+        label = "indicatorColor"
+    )
+
+    val labelColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "labelColor"
     )
 
     Column(
@@ -124,39 +123,36 @@ private fun FloatingNavItem(
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+                indication = ripple(bounded = false, radius = 28.dp),
                 onClick = onClick
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = item.icon,
-            contentDescription = item.contentDescription,
-            tint = color,
-            modifier = Modifier.size(24.dp).scale(scale)
-        )
+        // M3 pill-shaped indicator behind the icon
+        Box(
+            modifier = Modifier
+                .size(width = 56.dp, height = 32.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(indicatorColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = item.contentDescription,
+                tint = iconTint,
+                modifier = Modifier.size(24.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // Show label for selected item, dot for unselected
-        if (item.label != null && isSelected) {
-            Text(
-                text = item.label,
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-                maxLines = 1
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(4.dp)
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        androidx.compose.foundation.shape.CircleShape
-                    )
-            )
-        }
+        Text(
+            text = item.contentDescription,
+            style = MaterialTheme.typography.labelSmall,
+            color = labelColor,
+            maxLines = 1
+        )
     }
 }
 
@@ -165,6 +161,5 @@ data class NavigationItem(
     val icon: ImageVector,
     val contentDescription: String,
     val testTag: String,
-    val label: String? = null,
     val stateDescription: String? = null
 )

@@ -3,12 +3,12 @@ package com.adsamcik.tracker.map.layers.base
 import android.content.Context
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
-import org.junit.Assert.assertTrue
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
-import org.junit.Ignore
-import org.mockito.kotlin.mock
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.mockk.mockk
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Test
 
 private class TestLayer : BaseMapLayer<List<Int>, List<Int>>(PerformanceManager()) {
     @Volatile var before = false
@@ -46,37 +46,37 @@ private class TestLayer : BaseMapLayer<List<Int>, List<Int>>(PerformanceManager(
     }
 }
 
-@Ignore("Moved to androidTest; depends on Android Context")
+@Disabled("Moved to androidTest; depends on Android Context")
 class BaseMapLayerTest {
     @Test
     fun lifecycle_runs_pipeline_and_disable_calls_onDisable() {
-        val context: Context = mock()
+        val context: Context = mockk(relaxed = true)
         val layer = TestLayer()
 
         layer.enable(context, quality = 1f)
         // Allow background work to complete
         Thread.sleep(50)
-        assertTrue(layer.before)
-        assertTrue(layer.loaded)
-        assertTrue(layer.processed)
-        assertTrue(layer.configProduced)
-        assertNotNull(layer.lastConfig)
+        layer.before shouldBe true
+        layer.loaded shouldBe true
+        layer.processed shouldBe true
+        layer.configProduced shouldBe true
+        layer.lastConfig.shouldNotBeNull()
 
         layer.disable()
         Thread.sleep(10)
-        assertTrue(layer.disabled)
-        assertNull(layer.lastConfig)
+        layer.disabled shouldBe true
+        layer.lastConfig.shouldBeNull()
     }
 
     @Test
     fun enable_twice_restarts_pipeline_without_crash() {
-        val context: Context = mock()
+        val context: Context = mockk(relaxed = true)
         val layer = TestLayer()
         layer.enable(context, quality = 1f)
         Thread.sleep(20)
         layer.enable(context, quality = 0.5f)
         Thread.sleep(50)
-        assertTrue(layer.configProduced)
+        layer.configProduced shouldBe true
         layer.disable()
     }
 }

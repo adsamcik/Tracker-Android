@@ -33,10 +33,10 @@
     <string name="module_statistics_title">Statistics</string>
     <string name="module_success">Installation completed successfully</string>
 
-    <string name="main_nav_stats">Statistics</string>
-    <string name="main_nav_game">Game</string>
     <string name="main_nav_tracker">Home</string>
+    <string name="main_nav_stats">Statistics</string>
     <string name="main_nav_map">Map</string>
+    <string name="main_nav_game">Game</string>
     <string name="main_nav_map_expand">Open map</string>
     <string name="main_nav_map_collapse">Close map</string>
     <string name="main_nav_map_state_expanded">Map expanded</string>
@@ -57,6 +57,20 @@
     <string name="settings_debug_enabled_key" translatable="false">showDevSettings</string>
     <string name="settings_debug_key" translatable="false">debugSection</string>
     <string name="settings_debug_title">Developer options</string>
+    <string name="settings_debug_tools_section">Debug Tools</string>
+    <string name="settings_debug_crash_manager_title">Crash Manager</string>
+    <string name="settings_debug_crash_manager_subtitle">View and manage crash reports</string>
+    <string name="settings_debug_log_viewer_title">Log Viewer</string>
+    <string name="settings_debug_log_viewer_subtitle">View application logs</string>
+    <string name="settings_debug_developer_tools_section">Developer Tools</string>
+    <string name="settings_debug_generate_dummy_title">Generate Dummy Data</string>
+    <string name="settings_debug_generate_dummy_subtitle">Create test tracking data (DEBUG only)</string>
+    <string name="settings_debug_disable_developer_subtitle">Hide developer options from settings</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Developer mode disabled</string>
+    <string name="settings_data_management_section">Data Management</string>
+    <string name="settings_data_danger_zone_section">Danger Zone</string>
+    <string name="settings_game_goals_managed_hint">Goal settings like daily/weekly steps are managed through the Goals feature</string>
+    <string name="settings_map_info_hint">These settings control map visualization quality and performance. Most users can use default values.</string>
     <string name="settings_developer_enabled">Developer options enabled</string>
     <string name="settings_developer_mode_enabled_toast">Developer mode enabled</string>
     <string name="settings_developer_mode_disable">Disable developer mode</string>
@@ -101,6 +115,12 @@
     </string-array>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
     <string name="settings_licenses_title">Open source licenses</string>
+    <string name="settings_privacy_policy_title">Privacy Policy</string>
+    <string name="settings_about_header">About</string>
+    <string name="settings_about_app_title">Tracker by adsamcik</string>
+    <string name="settings_about_app_subtitle">Privacy-first location &amp; activity tracker</string>
+    <string name="settings_send_feedback_title">Send feedback</string>
+    <string name="settings_send_feedback_subtitle">Report issues on GitHub</string>
     <string name="settings_log_activity_title">Log activity changes</string>
     <string name="settings_log_enabled_title">Enable logging</string>
     <string name="settings_log_performance_enabled_title">Enable performance logging</string>
@@ -127,6 +147,7 @@
     <string name="settings_module_enable_title">Modules</string>
     <string name="settings_module_group_key" translatable="false">moduleSettings</string>
     <string name="settings_module_group_title">Module settings</string>
+    <string name="settings_core_group_title">Core</string>
     <string name="settings_other_title">Other</string>
     <string name="settings_remove_all_collected_data_key" translatable="false">removeAllCollectedData</string>
     <string name="settings_remove_all_collected_data_summary">Deletes your tracking data (custom activities and settings will be kept)</string>

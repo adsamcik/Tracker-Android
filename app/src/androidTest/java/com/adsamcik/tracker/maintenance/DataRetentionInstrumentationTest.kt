@@ -4,25 +4,23 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.Configuration
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
-import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.time.Duration
 
 @RunWith(AndroidJUnit4::class)
 class DataRetentionInstrumentationTest {
@@ -32,10 +30,11 @@ class DataRetentionInstrumentationTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
 
-        // Enable auto-clean and set 1-year retention
-        Preferences.getPref(context).edit {
-            setBoolean(R.string.settings_auto_cleanup_old_data_key, true)
-            setString(R.string.settings_data_retention_years_key, "1")
+        // Enable auto-clean and set 1-year retention via Proto DataStore
+        runBlocking {
+            RetentionConfigStore(context, Dispatchers.IO).update {
+                copy(autoCleanupEnabled = true, dataRetentionYears = 1)
+            }
         }
 
         // Seed two location rows: one older than 2 years, one now

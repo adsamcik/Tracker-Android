@@ -23,6 +23,8 @@ kotlin {
 			implementation(libs.kotlin.test)
 			implementation(libs.kotlinx.coroutines.test)
 			implementation(libs.kotest.assertions.core)
+			implementation(libs.junit5.jupiter.api)
+			runtimeOnly(libs.junit5.jupiter.engine)
 		}
 		androidMain.dependencies {
 			// Android-specific implementations
@@ -53,4 +55,8 @@ android {
 	}
 
 	namespace = "com.adsamcik.tracker.stats.api"
+}
+
+tasks.withType<Test>().configureEach {
+	useJUnitPlatform()
 }

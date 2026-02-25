@@ -76,11 +76,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.CircularWavyProgressIndicator
-import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -123,8 +119,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -135,6 +133,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.material.icons.outlined.Star
+import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.CollectionData
@@ -391,7 +390,6 @@ private fun TrackerTopBar(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun TrackingContent(
     sessionData: TrackerSession?,
@@ -452,14 +450,17 @@ private fun TrackingContent(
                 AnimatedVisibility(
                     visible = isTracking,
                     enter = expandVertically(
-                        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
-                    ) + fadeIn(MaterialTheme.motionScheme.fastEffectsSpec()) + scaleIn(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    ) + fadeIn(animationSpec = tween(300)) + scaleIn(
                         initialScale = 0.95f,
-                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()
+                        animationSpec = tween(300)
                     ),
                     exit = shrinkVertically(
-                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()
-                    ) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
+                        animationSpec = tween(200)
+                    ) + fadeOut(animationSpec = tween(150))
                 ) {
                     StatusAndQuickStatsCard(
                         isTracking = isTracking,
@@ -477,7 +478,7 @@ private fun TrackingContent(
                     enter = expandVertically(
                         animationSpec = tween(300, delayMillis = 100)
                     ) + fadeIn(animationSpec = tween(300, delayMillis = 100)),
-                    exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
+                    exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                 ) {
                     TodayProgressCard(
                         isTracking = isTracking,
@@ -493,7 +494,7 @@ private fun TrackingContent(
                     enter = expandVertically(
                         animationSpec = tween(300, delayMillis = 200)
                     ) + fadeIn(animationSpec = tween(300, delayMillis = 200)),
-                    exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
+                    exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                 ) {
                     RecentTripsCard(
                         settings = trackerSettings,
@@ -510,7 +511,7 @@ private fun TrackingContent(
                         enter = expandVertically(
                             animationSpec = tween(300, delayMillis = 150)
                         ) + fadeIn(animationSpec = tween(300, delayMillis = 150)),
-                        exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
+                        exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
                     ) {
                         SessionOverviewCard(
                             session = sessionData,
@@ -610,7 +611,7 @@ private fun TrackingContent(
                                         Icons.Default.KeyboardArrowUp 
                                     else 
                                         Icons.Default.KeyboardArrowDown,
-                                    contentDescription = if (showDetails) "Collapse" else "Expand",
+                                    contentDescription = if (showDetails) stringResource(R.string.tracker_collapse) else stringResource(R.string.tracker_expand),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -636,13 +637,7 @@ private fun TrackingContent(
                 }
             }
 
-            if (!isTracking && sessionData == null && collectionData == null) {
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }, key = "empty") {
-                    EmptyStateCard()
-                }
-            }
-
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) { Spacer(Modifier.height(80.dp)) }
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columns) }) { Spacer(Modifier.height(140.dp)) }
         }
     }
 }
@@ -727,7 +722,7 @@ private fun SessionOverviewCard(
                     copyToClipboard(context, haptics, "Session", sessionSummary)
                     scope.launch {
                         snackbarHostState.showSnackbar(
-                            message = "Session summary copied",
+                            message = context.getString(R.string.tracker_session_summary_copied),
                             duration = androidx.compose.material3.SnackbarDuration.Short
                         )
                     }
@@ -735,7 +730,7 @@ private fun SessionOverviewCard(
             )
             .semantics {
                 contentDescription = "Session overview: $durationText duration, $distanceText distance"
-                onClick(label = "Copy session summary") {
+                onClick(label = context.getString(R.string.tracker_copy_session_summary)) {
                     true
                 }
             },
@@ -764,11 +759,10 @@ private fun SessionOverviewCard(
                         val shareIntent = Intent.createChooser(sendIntent, null)
                         context.startActivity(shareIntent)
                     },
-                    modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
-                        contentDescription = "Share session summary",
+                        contentDescription = stringResource(R.string.tracker_share_session_summary),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(16.dp)
                     )
@@ -778,7 +772,7 @@ private fun SessionOverviewCard(
 
                 Icon(
                     imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Long-press to copy",
+                    contentDescription = stringResource(R.string.tracker_long_press_to_copy),
                     modifier = Modifier
                         .size(14.dp)
                         .alpha(0.5f),
@@ -961,7 +955,7 @@ private fun StatusAndQuickStatsCard(
                 
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "Go to map",
+                    contentDescription = stringResource(R.string.tracker_go_to_map),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )
@@ -1169,7 +1163,6 @@ private fun ActiveStatItem(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CompactStatItem(
     label: String,
@@ -1184,13 +1177,12 @@ private fun CompactStatItem(
             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
         )
         if (animated) {
-            val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
             AnimatedContent(
                 targetState = value,
                 label = "compact_stat",
                 transitionSpec = {
-                    (fadeIn(animationSpec = fastEffects) + scaleIn(initialScale = 0.95f))
-                        .togetherWith(fadeOut(animationSpec = fastEffects))
+                    (fadeIn(animationSpec = tween(200)) + scaleIn(initialScale = 0.95f))
+                        .togetherWith(fadeOut(animationSpec = tween(100)))
                 }
             ) { targetValue ->
                 Text(
@@ -1246,7 +1238,6 @@ private fun TechnicalStatItem(
  * AnimatedStatValue - Displays a value with smooth counting animation when it changes.
  * Uses AnimatedContent with vertical slide for a slot-machine effect.
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AnimatedStatValue(
     value: String,
@@ -1255,15 +1246,13 @@ private fun AnimatedStatValue(
     fontWeight: FontWeight = FontWeight.Bold,
     color: Color = MaterialTheme.colorScheme.onPrimaryContainer
 ) {
-    val defaultEffects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
-    val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
     AnimatedContent(
         targetState = value,
         label = "stat_value",
         transitionSpec = {
             // Slide up with fade for counting effect
-            (slideInVertically { height -> height / 4 } + fadeIn(animationSpec = defaultEffects))
-                .togetherWith(slideOutVertically { height -> -height / 4 } + fadeOut(animationSpec = fastEffects))
+            (slideInVertically { height -> height / 4 } + fadeIn(animationSpec = tween(300)))
+                .togetherWith(slideOutVertically { height -> -height / 4 } + fadeOut(animationSpec = tween(150)))
         },
         modifier = modifier
     ) { targetValue ->
@@ -1279,7 +1268,6 @@ private fun AnimatedStatValue(
 /**
  * PulseOnChange - Wraps content and adds a subtle scale pulse when value changes.
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PulseOnChange(
     key: Any,
@@ -1287,17 +1275,19 @@ private fun PulseOnChange(
     content: @Composable () -> Unit
 ) {
     val scale = remember { Animatable(1f) }
-    val pulseSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     
     LaunchedEffect(key) {
         // Quick pulse: scale up then back
         scale.animateTo(
             targetValue = 1.08f,
-            animationSpec = pulseSpec
+            animationSpec = tween(100, easing = FastOutSlowInEasing)
         )
         scale.animateTo(
             targetValue = 1f,
-            animationSpec = pulseSpec
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
         )
     }
     
@@ -1311,7 +1301,6 @@ private fun PulseOnChange(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SessionPathPreview(
     points: List<com.adsamcik.tracker.shared.base.data.Location>,
@@ -1324,13 +1313,15 @@ private fun SessionPathPreview(
     
     // Animate path drawing progress from 0 to 1
     val pathProgress = remember { Animatable(0f) }
-    val pathSpec = MaterialTheme.motionScheme.slowSpatialSpec<Float>()
     
     LaunchedEffect(points) {
         pathProgress.snapTo(0f)
         pathProgress.animateTo(
             targetValue = 1f,
-            animationSpec = pathSpec
+            animationSpec = tween(
+                durationMillis = 800,
+                easing = FastOutSlowInEasing
+            )
         )
     }
     
@@ -1486,7 +1477,7 @@ private fun EmptyStateCard() {
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(260.dp)
+            .height(180.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Animated Background Pattern
@@ -1530,9 +1521,9 @@ private fun EmptyStateCard() {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(24.dp),
+                    .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 56.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Top
             ) {
                 // Floating icon with pulse
                 Box(
@@ -1566,7 +1557,7 @@ private fun EmptyStateCard() {
                 Spacer(Modifier.height(20.dp))
                 
                 Text(
-                    text = stringResource(R.string.tracker_empty_state_title),
+                    text = stringResource(R.string.settings_tracking_title),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -1575,23 +1566,13 @@ private fun EmptyStateCard() {
                 Spacer(Modifier.height(8.dp))
                 
                 Text(
-                    text = stringResource(R.string.tracker_empty_state_subtitle),
+                    text = stringResource(R.string.shortcut_start_tracking_long),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
                 
-                Spacer(Modifier.height(16.dp))
-                
-                // Hint arrow pointing to FAB
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowDown,
-                    contentDescription = stringResource(R.string.shortcut_start_tracking),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .size(28.dp)
-                        .graphicsLayer { translationY = floatOffset * 0.5f }
-                )
+                Spacer(Modifier.height(4.dp))
             }
         }
     }
@@ -2001,7 +1982,7 @@ private fun formatRelativeUpdate(context: Context, timestamp: Long?): String? {
  * - Smooth icon transitions with scale animations
  * - Clear state distinction through color and shape
  */
-@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun TrackingFAB(
     isTracking: Boolean,
@@ -2013,8 +1994,8 @@ private fun TrackingFAB(
     
     // Morphing corner radius: More rounded when tracking
     val cornerRadius by animateFloatAsState(
-        targetValue = if (isTracking) 48f else 28f,
-        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        targetValue = if (isTracking) 50f else 28f,
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "corner_radius"
     )
     
@@ -2043,14 +2024,14 @@ private fun TrackingFAB(
     // Alpha for glow effect
     val glowAlpha by animateFloatAsState(
         targetValue = if (isTracking) 0.6f else 0f,
-        animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
+        animationSpec = tween(durationMillis = 500),
         label = "glow_alpha"
     )
     
     // Icon scale for press feedback
     val iconScale by animateFloatAsState(
         targetValue = if (isTracking) 0.9f else 1f,
-        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        animationSpec = tween(durationMillis = 300),
         label = "icon_scale"
     )
     
@@ -2139,17 +2120,15 @@ private fun TrackingFAB(
                     else -> stringResource(R.string.description_tracking_start)
                 }
                 
-                val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
-                val fastSpatial = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
                 AnimatedContent(
                     targetState = icon,
                     label = "fab_icon",
                     transitionSpec = {
-                        (fadeIn(animationSpec = fastEffects) + 
-                            androidx.compose.animation.scaleIn(initialScale = 0.8f, animationSpec = fastSpatial))
+                        (fadeIn(animationSpec = tween(300)) + 
+                            androidx.compose.animation.scaleIn(initialScale = 0.8f, animationSpec = tween(300)))
                             .togetherWith(
-                                fadeOut(animationSpec = fastEffects) +
-                                    androidx.compose.animation.scaleOut(targetScale = 0.8f, animationSpec = fastSpatial)
+                                fadeOut(animationSpec = tween(200)) +
+                                    androidx.compose.animation.scaleOut(targetScale = 0.8f, animationSpec = tween(200))
                             )
                     }
                 ) { targetIcon ->
@@ -2228,7 +2207,12 @@ private fun TodayProgressCard(
     // Fetch on-demand when composition enters or when tracking state changes
     LaunchedEffect(isTracking) {
         isLoading = true
-        todaySummary = dailySummaryProvider.fetchTodaySummary()
+        try {
+            todaySummary = dailySummaryProvider.fetchTodaySummary()
+        } catch (e: Exception) {
+            Log.e("TodayProgressCard", "Failed to fetch today summary", e)
+            todaySummary = null
+        }
         isLoading = false
     }
     
@@ -2290,20 +2274,15 @@ private fun TodayProgressCard(
                     
                     // Secondary Metrics Grid
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        // Duration — show "Just started" for very short durations
+                        // Duration
                         Column {
                             Text(
                                 text = stringResource(R.string.dashboard_today_duration),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
                             )
-                            val durationDisplay = if (summary.totalDurationMs < 60_000L) {
-                                stringResource(R.string.tracker_duration_just_started)
-                            } else {
-                                summary.totalDurationMs.formatAsDuration(context)
-                            }
                             Text(
-                                text = durationDisplay,
+                                text = summary.totalDurationMs.formatAsDuration(context),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -2349,7 +2328,6 @@ private fun TodayProgressCard(
  * A circular progress indicator showing daily step goal progress.
  * Replaces the linear bar for a more modern look.
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun GoalProgressRing(
     modifier: Modifier = Modifier
@@ -2361,54 +2339,48 @@ private fun GoalProgressRing(
     
     val animatedProgress by animateFloatAsState(
         targetValue = goalProgress.progress.coerceIn(0f, 1f),
-        animationSpec = MaterialTheme.motionScheme.slowSpatialSpec(),
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
         label = "goal_progress"
     )
     
     val primaryColor = MaterialTheme.colorScheme.primary
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-    ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
-            CircularWavyProgressIndicator(
-                progress = { animatedProgress },
-                modifier = Modifier.fillMaxSize(),
-                color = primaryColor,
-                trackColor = trackColor,
-                stroke = WavyProgressIndicatorDefaults.circularIndicatorStroke,
-                trackStroke = WavyProgressIndicatorDefaults.circularTrackStroke,
-                amplitude = { animatedProgress },
+    Box(contentAlignment = Alignment.Center, modifier = modifier.size(72.dp)) {
+        // Track
+        CircularProgressIndicator(
+            progress = { 1f },
+            modifier = Modifier.fillMaxSize(),
+            color = trackColor,
+            strokeWidth = 6.dp,
+            trackColor = Color.Transparent,
+        )
+        
+        // Progress
+        CircularProgressIndicator(
+            progress = { animatedProgress },
+            modifier = Modifier.fillMaxSize(),
+            color = primaryColor,
+            strokeWidth = 6.dp,
+            trackColor = Color.Transparent,
+            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+        
+        // Icon or Percentage inside
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Outlined.Star,
+                contentDescription = stringResource(R.string.tracker_points_icon_desc),
+                tint = primaryColor,
+                modifier = Modifier.size(20.dp)
             )
-            
-            // Percentage inside
             Text(
                 text = "${(goalProgress.progress * 100).toInt()}%",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-        
-        Spacer(Modifier.height(4.dp))
-        
-        // Steps count with unit
-        Text(
-            text = stringResource(
-                R.string.tracker_goal_steps_progress,
-                goalProgress.stepsToday.formatReadable(),
-                goalProgress.goalSteps.formatReadable()
-            ),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = stringResource(R.string.tracker_goal_steps_label),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-        )
     }
 }
 
@@ -2462,11 +2434,17 @@ private fun RecentTripsCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val db = remember { AppDatabase.database(context) }
     var trips by remember { mutableStateOf<List<Trip>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        trips = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            AppDatabase.database(context).tripDao().getRecentTrips(3)
+        try {
+            trips = withContext(Dispatchers.IO) {
+                db.tripDao().getRecentTrips(3)
+            }
+        } catch (e: Exception) {
+            Log.e("RecentTripsCard", "Failed to fetch recent trips", e)
+            trips = emptyList()
         }
     }
 

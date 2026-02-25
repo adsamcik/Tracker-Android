@@ -1,6 +1,11 @@
 package com.adsamcik.tracker.statistics.ui
 
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,20 +22,29 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +52,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -49,10 +65,17 @@ import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModel
 import com.adsamcik.tracker.statistics.presenter.TripDetailState
 import com.adsamcik.tracker.stats.api.repository.TripSummary
+import java.io.File
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+private const val MS_TO_KMH = 3.6
 
 /**
  * Entry composable for trip detail screen.
@@ -66,6 +89,19 @@ fun TripDetailRoute(
 	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
 	val state by viewModel.state.collectAsState()
+	var showDeleteDialog by remember { mutableStateOf(false) }
+	var showMenu by remember { mutableStateOf(false) }
+	val context = LocalContext.current
+
+	if (showDeleteDialog) {
+		DeleteConfirmationDialog(
+			onConfirm = {
+				showDeleteDialog = false
+				viewModel.deleteTrip(onDeleted = onBack)
+			},
+			onDismiss = { showDeleteDialog = false }
+		)
+	}
 
 	Scaffold(
 		topBar = {
@@ -77,6 +113,37 @@ fun TripDetailRoute(
 							Icons.AutoMirrored.Filled.ArrowBack,
 							contentDescription = stringResource(R.string.action_navigate_back)
 						)
+					}
+				},
+				actions = {
+					if (state is TripDetailState.Loaded) {
+						Box {
+							IconButton(onClick = { showMenu = true }) {
+								Icon(
+									Icons.Filled.MoreVert,
+									contentDescription = stringResource(R.string.trip_detail_more_options)
+								)
+							}
+							DropdownMenu(
+								expanded = showMenu,
+								onDismissRequest = { showMenu = false }
+							) {
+								DropdownMenuItem(
+									text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
+									onClick = {
+										showMenu = false
+										// TODO: GPX export needs location points from TripDetailPresenter
+									}
+								)
+								DropdownMenuItem(
+									text = { Text(stringResource(R.string.trip_detail_delete)) },
+									onClick = {
+										showMenu = false
+										showDeleteDialog = true
+									}
+								)
+							}
+						}
 					}
 				},
 				colors = TopAppBarDefaults.topAppBarColors(
@@ -97,9 +164,11 @@ fun TripDetailRoute(
 						CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
 					}
 				}
+
 				is TripDetailState.Loaded -> {
 					TripOverview(trip = s.trip)
 				}
+
 				is TripDetailState.NotFound -> {
 					Box(
 						Modifier
@@ -114,6 +183,7 @@ fun TripDetailRoute(
 						)
 					}
 				}
+
 				is TripDetailState.Error -> {
 					Box(
 						Modifier
@@ -121,11 +191,17 @@ fun TripDetailRoute(
 							.padding(32.dp),
 						contentAlignment = Alignment.Center
 					) {
-						EmptyStateCard(
-							icon = Icons.Filled.ErrorOutline,
-							title = s.message,
-							subtitle = stringResource(R.string.trip_detail_not_found_subtitle)
-						)
+						Column(horizontalAlignment = Alignment.CenterHorizontally) {
+							EmptyStateCard(
+								icon = Icons.Filled.ErrorOutline,
+								title = stringResource(R.string.trip_detail_error_title),
+								subtitle = s.message
+							)
+							Spacer(Modifier.height(16.dp))
+							androidx.compose.material3.Button(onClick = { viewModel.retry() }) {
+								Text(stringResource(R.string.trip_detail_retry))
+							}
+						}
 					}
 				}
 			}
@@ -202,7 +278,7 @@ private fun TripOverview(trip: TripSummary) {
 			}
 		}
 
-		// Metrics grid
+		// Primary metrics grid
 		Row(
 			modifier = Modifier.fillMaxWidth(),
 			horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -219,6 +295,44 @@ private fun TripOverview(trip: TripSummary) {
 			)
 		}
 
+		// Developer metrics behind expandable toggle
+		DeveloperMetrics(trip)
+	}
+}
+
+@Composable
+private fun DeveloperMetrics(trip: TripSummary) {
+	var expanded by remember { mutableStateOf(false) }
+
+	Row(
+		modifier = Modifier
+			.fillMaxWidth()
+			.clickable { expanded = !expanded }
+			.padding(vertical = 4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.Center
+	) {
+		Text(
+			text = stringResource(
+				if (expanded) R.string.trip_detail_hide_details
+				else R.string.trip_detail_show_details
+			),
+			style = MaterialTheme.typography.labelMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant
+		)
+		Icon(
+			imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+			contentDescription = null,
+			modifier = Modifier.size(20.dp),
+			tint = MaterialTheme.colorScheme.onSurfaceVariant
+		)
+	}
+
+	AnimatedVisibility(
+		visible = expanded,
+		enter = expandVertically(),
+		exit = shrinkVertically()
+	) {
 		Row(
 			modifier = Modifier.fillMaxWidth(),
 			horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -235,9 +349,67 @@ private fun TripOverview(trip: TripSummary) {
 				modifier = Modifier.weight(1f)
 			)
 		}
-
-		Spacer(Modifier.height(80.dp))
 	}
+}
+
+@Composable
+private fun DeleteConfirmationDialog(
+	onConfirm: () -> Unit,
+	onDismiss: () -> Unit
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.trip_detail_delete_confirm_title)) },
+		text = { Text(stringResource(R.string.trip_detail_delete_confirm_message)) },
+		confirmButton = {
+			TextButton(onClick = onConfirm) {
+				Text(stringResource(R.string.trip_detail_delete_confirm))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(R.string.trip_detail_cancel))
+			}
+		}
+	)
+}
+
+private fun exportGpx(
+	context: android.content.Context,
+	trip: TripSummary,
+	points: List<DatabaseLocation>
+) {
+	val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+		timeZone = TimeZone.getTimeZone("UTC")
+	}
+
+	val sb = StringBuilder()
+	sb.append("""<?xml version="1.0" encoding="UTF-8"?>""")
+	sb.append("""<gpx version="1.1" creator="Tracker">""")
+	sb.append("<trk><trkseg>")
+	for (pt in points) {
+		sb.append("""<trkpt lat="${pt.latitude}" lon="${pt.longitude}">""")
+		pt.altitude?.let { sb.append("<ele>$it</ele>") }
+		sb.append("<time>${sdf.format(Date(pt.time))}</time>")
+		sb.append("</trkpt>")
+	}
+	sb.append("</trkseg></trk></gpx>")
+
+	val file = File(context.cacheDir, "trip_${trip.id}.gpx")
+	file.writeText(sb.toString())
+
+	val uri = FileProvider.getUriForFile(
+		context,
+		"${context.packageName}.fileprovider",
+		file
+	)
+
+	val shareIntent = Intent(Intent.ACTION_SEND).apply {
+		type = "application/gpx+xml"
+		putExtra(Intent.EXTRA_STREAM, uri)
+		addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+	}
+	context.startActivity(Intent.createChooser(shareIntent, null))
 }
 
 @Composable

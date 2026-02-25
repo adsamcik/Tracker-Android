@@ -1,60 +1,45 @@
 package com.adsamcik.tracker.app.settings
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.adsamcik.tracker.R
-import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-// Contract: ViewModel for data & export settings screen
-// Inputs: Context for Preferences access
-// Outputs: StateFlows for auto-cleanup and data retention settings
-// Errors: None (preferences default to safe values)
-class DataSettingsViewModel(private val context: Context) : ViewModel() {
-    
-    private val prefs = Preferences.getPref(context)
-    
-    // Auto-cleanup old data
-    private val _autoCleanupEnabled = MutableStateFlow(false)
-    val autoCleanupEnabled: StateFlow<Boolean> = _autoCleanupEnabled.asStateFlow()
-    
-    // Data retention years (stored as string in preferences)
-    private val _dataRetentionYears = MutableStateFlow("1")
-    val dataRetentionYears: StateFlow<String> = _dataRetentionYears.asStateFlow()
-    
-    init {
-        viewModelScope.launch {
-            PreferenceFlows.boolean(
-                context,
-                R.string.settings_auto_cleanup_old_data_key,
-                R.string.settings_auto_cleanup_old_data_default
-            ).collect { _autoCleanupEnabled.value = it }
+data class DataSettingsUiState(
+    val autoCleanupEnabled: Boolean = false,
+    val dataRetentionYears: Int = RetentionConfigState.DEFAULT_RETENTION_YEARS,
+)
+
+@HiltViewModel
+class DataSettingsViewModel @Inject constructor(
+    private val retentionConfigStore: RetentionConfigStore,
+) : ViewModel() {
+
+    val uiState: StateFlow<DataSettingsUiState> = retentionConfigStore.config
+        .map { config ->
+            DataSettingsUiState(
+                autoCleanupEnabled = config.autoCleanupEnabled,
+                dataRetentionYears = config.dataRetentionYears,
+            )
         }
-        viewModelScope.launch {
-            PreferenceFlows.string(
-                context,
-                R.string.settings_data_retention_years_key,
-                R.string.settings_data_retention_years_default
-            ).collect { _dataRetentionYears.value = it }
-        }
-    }
-    
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DataSettingsUiState())
+
     fun setAutoCleanupEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            prefs.edit { setBoolean(R.string.settings_auto_cleanup_old_data_key, enabled) }
-            _autoCleanupEnabled.value = enabled
+            retentionConfigStore.update { copy(autoCleanupEnabled = enabled) }
         }
     }
-    
-    fun setDataRetentionYears(years: String) {
+
+    fun setDataRetentionYears(years: Int) {
         viewModelScope.launch {
-            prefs.edit { setString(R.string.settings_data_retention_years_key, years) }
-            _dataRetentionYears.value = years
+            retentionConfigStore.update { copy(dataRetentionYears = years) }
         }
     }
 }

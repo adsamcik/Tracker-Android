@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -33,34 +34,40 @@ import com.adsamcik.tracker.R
 enum class BatteryImpact(
     val icon: ImageVector,
     val label: Int,
-    val colorLight: Color,
-    val colorDark: Color
 ) {
     LOW(
         icon = Icons.Default.BatteryFull,
         label = R.string.battery_impact_low,
-        colorLight = Color(0xFF4CAF50), // Material Green 500
-        colorDark = Color(0xFF81C784)   // Material Green 300
     ),
     MODERATE(
         icon = Icons.Default.Battery6Bar,
         label = R.string.battery_impact_moderate,
-        colorLight = Color(0xFFFFA726), // Material Orange 400
-        colorDark = Color(0xFFFFB74D)   // Material Orange 300
     ),
     HIGH(
         icon = Icons.Default.Battery2Bar,
         label = R.string.battery_impact_high,
-        colorLight = Color(0xFFEF5350), // Material Red 400
-        colorDark = Color(0xFFE57373)   // Material Red 300
     );
 
-    /**
-     * Get appropriate color based on current theme
-     */
-    @Composable
-    fun getColor(isDark: Boolean = false): Color {
-        return if (isDark) colorDark else colorLight
+    companion object {
+        // Semantic colors for impacts without a direct Material theme equivalent
+        val LowLight = Color(0xFF4CAF50)
+        val LowDark = Color(0xFF81C784)
+        val ModerateLight = Color(0xFFFFA726)
+        val ModerateDark = Color(0xFFFFB74D)
+    }
+}
+
+/**
+ * Theme-aware color for battery impact level.
+ * HIGH uses [MaterialTheme.colorScheme.error]; others use semantic constants.
+ */
+@Composable
+fun BatteryImpact.color(): Color {
+    val isDark = isSystemInDarkTheme()
+    return when (this) {
+        BatteryImpact.LOW -> if (isDark) BatteryImpact.LowDark else BatteryImpact.LowLight
+        BatteryImpact.MODERATE -> if (isDark) BatteryImpact.ModerateDark else BatteryImpact.ModerateLight
+        BatteryImpact.HIGH -> MaterialTheme.colorScheme.error
     }
 }
 
@@ -80,8 +87,7 @@ fun BatteryImpactIndicator(
     showLabel: Boolean = true,
     compact: Boolean = false
 ) {
-    val isDark = !MaterialTheme.colorScheme.surface.value.equals(Color.White.value)
-    val impactColor = impact.getColor(isDark)
+    val impactColor = impact.color()
     val iconSize = if (compact) 20.dp else 24.dp
 
     Row(

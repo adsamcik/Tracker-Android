@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
+import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LengthUnit
@@ -31,7 +32,8 @@ internal class GpxImport : FileImport {
 			context: Context,
 			database: AppDatabase,
 			stream: FileImportStream
-	) = withContext(Dispatchers.IO) {
+	): ImportResult = withContext(Dispatchers.IO) {
+		var successCount = 0
 		val gpx = GPX.Reader.DEFAULT.read(stream)
 		gpx.tracks().forEach { track ->
 			val type: String? = if (track.type.isPresent) track.type.get() else null
@@ -43,10 +45,11 @@ internal class GpxImport : FileImport {
 
 			track.segments().forEach { segment ->
 				prepareSession(segment, activity)?.let { session ->
-					handleSegment(database, segment, session)
+					successCount += handleSegment(database, segment, session)
 				}
 			}
 		}
+		ImportResult(successCount = successCount)
 	}
 
 	private fun prepareActivity(database: AppDatabase, type: String): SessionActivity {
@@ -90,7 +93,7 @@ internal class GpxImport : FileImport {
 			database: AppDatabase,
 			segment: TrackSegment,
 			session: MutableTrackerSession
-	) {
+	): Int {
 		var lastLocation: Location? = null
 
 		val locationList = ArrayList<DatabaseLocation>(segment.points.size)
@@ -117,6 +120,7 @@ internal class GpxImport : FileImport {
 		}
 
 		saveSession(database, session)
+		return locationList.size
 	}
 
 	private fun saveSession(

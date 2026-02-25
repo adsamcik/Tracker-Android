@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.game.ui.compose
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -77,27 +75,7 @@ fun AchievementCard(
 					)
 				}
 
-				// View all action
-				Row(
-					modifier = Modifier
-						.clip(MaterialTheme.shapes.small)
-						.clickable(onClick = onViewAll)
-						.padding(horizontal = 8.dp, vertical = 4.dp),
-					verticalAlignment = Alignment.CenterVertically
-				) {
-					Text(
-						text = stringResource(R.string.achievements_view_all),
-						style = MaterialTheme.typography.labelMedium,
-						fontWeight = FontWeight.Medium,
-						color = MaterialTheme.colorScheme.primary
-					)
-					Icon(
-						Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-						contentDescription = null,
-						modifier = Modifier.size(16.dp),
-						tint = MaterialTheme.colorScheme.primary
-					)
-				}
+				// View all action — hidden until a detail screen exists
 			}
 
 			Spacer(modifier = Modifier.height(16.dp))
@@ -209,9 +187,17 @@ private fun TierBadge(
 	}
 }
 
-// Tier badge colors
-private val BronzeColor = Color(0xFFCD7F32)
-private val SilverColor = Color(0xFFC0C0C0)
-private val GoldColor = Color(0xFFFFD700)
-private val DiamondColor = Color(0xFFB9F2FF)
+// Theme-aware tier badge colors
+private val BronzeColor: Color
+	@Composable get() = MaterialTheme.colorScheme.tertiary
+
+private val SilverColor: Color
+	@Composable get() = MaterialTheme.colorScheme.outlineVariant
+
+private val GoldColor: Color
+	@Composable get() = MaterialTheme.colorScheme.primary
+
+private val DiamondColor: Color
+	@Composable get() = MaterialTheme.colorScheme.inversePrimary
+
 private const val PERCENTAGE_MULTIPLIER = 100

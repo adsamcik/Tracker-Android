@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +29,6 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -101,7 +102,7 @@ fun StreamlinedOnboardingScreen(
 /**
  * Welcome screen content
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WelcomeScreen(
     onGetStarted: () -> Unit,
@@ -124,11 +125,13 @@ private fun WelcomeScreen(
             
             // Animated app icon
             val scale = remember { Animatable(0f) }
-            val scaleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
             LaunchedEffect(Unit) {
                 scale.animateTo(
                     targetValue = 1f,
-                    animationSpec = scaleSpec
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
                 )
             }
             
@@ -197,18 +200,6 @@ private fun WelcomeScreen(
                     .testTag("onboarding_cta_primary")
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Optional "Learn more" link (reserved for future feature overview)
-            TextButton(
-                onClick = { /* Future: navigate to feature overview */ }
-            ) {
-                Text(
-                    text = stringResource(R.string.onboarding_learn_more),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -239,7 +230,7 @@ private fun LocationPrecisionSelectorScreen(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, 
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.action_navigate_back),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }

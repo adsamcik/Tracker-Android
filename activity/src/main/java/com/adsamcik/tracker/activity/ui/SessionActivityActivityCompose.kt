@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -84,7 +85,7 @@ class SessionActivityActivityCompose : ComponentActivity() {
 }
 
 @Composable
-private fun SessionActivityRoute() {
+fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val items = remember { mutableStateListOf<SessionActivity>() }
@@ -106,6 +107,7 @@ private fun SessionActivityRoute() {
     SessionActivityScreen(
         items = items,
         snackbarHostState = snackbarHostState,
+        onNavigateBack = onNavigateBack,
         onAddActivity = { showAddDialog = true },
         onEditActivity = { editingActivity = it },
         onDeleteActivity = { activity ->
@@ -181,6 +183,7 @@ private fun SessionActivityRoute() {
 private fun SessionActivityScreen(
     items: List<SessionActivity>,
     snackbarHostState: SnackbarHostState,
+    onNavigateBack: (() -> Unit)? = null,
     onAddActivity: () -> Unit,
     onEditActivity: (SessionActivity) -> Unit,
     onDeleteActivity: (SessionActivity) -> Unit
@@ -188,6 +191,21 @@ private fun SessionActivityScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            if (onNavigateBack != null) {
+                androidx.compose.material3.TopAppBar(
+                    title = { Text(stringResource(R.string.settings_activity_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(com.adsamcik.tracker.shared.base.R.string.generic_back)
+                            )
+                        }
+                    }
+                )
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddActivity,

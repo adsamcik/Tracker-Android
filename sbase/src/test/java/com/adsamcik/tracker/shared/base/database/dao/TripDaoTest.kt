@@ -143,6 +143,22 @@ class TripDaoTest {
 	}
 
 	@Test
+	fun getBetweenRespectsLimit() = runBlocking {
+		// Insert more than 500 segments within the same time range
+		val count = 510
+		repeat(count) { i ->
+			segmentDao.insert(createSegment(
+				startTimeMs = (i * 10 + 1000).toLong(),
+				endTimeMs = (i * 10 + 1005).toLong()
+			))
+		}
+
+		val trips = tripDao.getBetween(0L, Long.MAX_VALUE)
+		// Safety LIMIT caps results at 500
+		assertEquals(500, trips.size)
+	}
+
+	@Test
 	fun tripIsUserInitiatedMatchesSource() = runBlocking {
 		val userId = segmentDao.insert(createSegment(1000L, 2000L, source = SegmentSource.USER_CREATED))
 		val inferredId = segmentDao.insert(createSegment(3000L, 4000L, source = SegmentSource.INFERRED_HIGH_CONFIDENCE))

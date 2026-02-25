@@ -4,15 +4,11 @@ import android.content.Context
 import androidx.annotation.AnyThread
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
-import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
-import com.adsamcik.tracker.game.challenge.data.ChallengeInstance
-import com.adsamcik.tracker.game.challenge.data.definition.ActiveTimeChallengeDefinition
-import com.adsamcik.tracker.game.challenge.data.definition.ExplorerChallengeDefinition
-import com.adsamcik.tracker.game.challenge.data.definition.StepChallengeDefinition
-import com.adsamcik.tracker.game.challenge.data.definition.WalkDistanceChallengeDefinition
-import com.adsamcik.tracker.game.challenge.data.instance.ActiveTimeChallengeInstance
+import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
-import com.adsamcik.tracker.game.challenge.database.ChallengeLoader
+import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
+import com.adsamcik.tracker.game.challenge.processor.ChallengeTypeRegistry
+import com.adsamcik.tracker.game.challenge.progression.ProgressionRepository
 import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.logger.LogData
@@ -28,49 +24,42 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.concurrent.withLock
 import kotlin.random.Random
 
 /**
- * Singleton class that manages saving and loading of challenges from cache storage or network.
- * Exposes reactive Flow-based state for active challenges.
+ * Manages challenge lifecycle: loading, session processing, creation, and expiry.
+ * Injected via Hilt. Uses [ChallengeTypeRegistry] for type-agnostic challenge operations.
  */
-object ChallengeManager {
-	// Replace GlobalScope with a supervised singleton scope (still global but cancellable in tests)
+@Singleton
+class ChallengeManager @Inject constructor(
+	private val registry: ChallengeTypeRegistry,
+	private val progressionRepository: ProgressionRepository,
+) {
 	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-	private val enabledChallengeList: Array<ChallengeDefinition<*>> = arrayOf(
-		ExplorerChallengeDefinition(),
-		WalkDistanceChallengeDefinition(),
-		StepChallengeDefinition(),
-		ActiveTimeChallengeDefinition()
-	)
 
-	private val mutableActiveChallengeList_: MutableList<ChallengeInstance<*, *>> = mutableListOf()
+	private val activeChallengeList = mutableListOf<ChallengeInstanceNew>()
 
-	private const val MAX_CHALLENGE_COUNT = 3
-
-	private val _activeChallenges: MutableStateFlow<List<ChallengeInstance<*, *>>> = 
+	private val _activeChallenges: MutableStateFlow<List<ChallengeInstanceNew>> =
 		MutableStateFlow(emptyList())
 
-	private val activeChallengeLock = ReentrantLock()
+	private val lock = ReentrantLock()
 
 	/**
-	 * Returns immutable StateFlow of active challenges
+	 * Observable list of currently active challenges.
 	 */
-	val activeChallenges: StateFlow<List<ChallengeInstance<*, *>>> get() = _activeChallenges.asStateFlow()
+	val activeChallenges: StateFlow<List<ChallengeInstanceNew>> get() = _activeChallenges.asStateFlow()
 
 	@WorkerThread
-	private fun initFromDb(context: Context): List<ChallengeInstance<*, *>> {
-		val database = ChallengeDatabase.database(context)
-		val active = database.entryDao().getActiveEntry(Time.nowMillis)
-
-		return active.mapNotNull {
+	private fun loadFromDb(context: Context): List<ChallengeInstanceNew> {
+		val dao = ChallengeDatabase.database(context).challengeDao()
+		val now = Time.nowMillis
+		return dao.getActive(now).mapNotNull { entity ->
 			tryWithResultAndReport({ null }) {
-				ChallengeLoader.loadChallenge(context, it)
-			}.also { instance ->
-				if (instance == null) {
-					database.entryDao().delete(it)
-				}
+				val processor = registry.get(entity.type)
+				ChallengeInstanceNew(entity, processor)
 			}
 		}
 	}
@@ -78,109 +67,191 @@ object ChallengeManager {
 	@AnyThread
 	fun initialize(context: Context, onInitialized: (() -> Unit)? = null) {
 		scope.launch {
-			val active = initFromDb(context)
+			val active = loadFromDb(context)
 
-			activeChallengeLock.withLock {
-				mutableActiveChallengeList_.clear()
-				mutableActiveChallengeList_.addAll(active)
+			lock.withLock {
+				activeChallengeList.clear()
+				activeChallengeList.addAll(active)
 				fillEmptyChallengeSlots(context)
-				_activeChallenges.value = mutableActiveChallengeList_.toList()
+				_activeChallenges.value = activeChallengeList.toList()
 			}
 			onInitialized?.invoke()
 		}
 	}
 
 	fun processSession(
-			context: Context,
-			session: TrackerSession,
-			onChallengeCompletedListener: (ChallengeInstance<*, *>) -> Unit
+		context: Context,
+		session: TrackerSession,
+		onChallengeCompletedListener: (ChallengeInstanceNew) -> Unit
 	) {
-		if (mutableActiveChallengeList_.isEmpty()) {
+		if (activeChallengeList.isEmpty()) {
 			initialize(context) {
-				if (mutableActiveChallengeList_.isEmpty()) return@initialize
-
+				if (activeChallengeList.isEmpty()) return@initialize
 				processSession(context, session, onChallengeCompletedListener)
 			}
-		} else {
-			activeChallengeLock.withLock {
-				mutableActiveChallengeList_.forEach {
-					it.process(
-							context,
-							session,
-							onChallengeCompletedListener
-					)
-				}
-				_activeChallenges.value = mutableActiveChallengeList_.toList()
-			}
+			return
 		}
+
+		val dao = ChallengeDatabase.database(context).challengeDao()
+
+		lock.withLock {
+			activeChallengeList.forEachIndexed { index, instance ->
+				if (instance.isCompleted) return@forEachIndexed
+
+				val delta = instance.processor.extractProgress(context, session)
+				if (delta > 0.0) {
+					val updatedEntity = instance.entity.copy(
+						currentValue = instance.entity.currentValue + delta,
+						isCompleted = (instance.entity.currentValue + delta) >= instance.entity.requiredValue
+					)
+					dao.update(updatedEntity)
+					val updatedInstance = instance.copy(entity = updatedEntity)
+					activeChallengeList[index] = updatedInstance
+
+					logGame(
+						LogData(
+							message = "Processed ${updatedInstance.getTitle(context)}: +$delta (${updatedEntity.currentValue}/${updatedEntity.requiredValue})",
+							source = CHALLENGE_LOG_SOURCE
+						)
+					)
+
+					if (updatedInstance.isCompleted) {
+						val result = progressionRepository.onChallengeCompleted(context, updatedInstance)
+						logGame(
+							LogData(
+								message = "Challenge completed! Medal=${result.medal}, XP=${result.xpAwarded}, Streak=${result.streakCount}",
+								source = CHALLENGE_LOG_SOURCE
+							)
+						)
+						onChallengeCompletedListener(updatedInstance)
+					}
+				}
+			}
+			_activeChallenges.value = activeChallengeList.toList()
+		}
+
+		// Award passive session XP
+		progressionRepository.onTrackingSession(context, session)
 	}
 
 	private fun fillEmptyChallengeSlots(context: Context) {
-		if (mutableActiveChallengeList_.size >= MAX_CHALLENGE_COUNT) return
+		if (activeChallengeList.size >= MAX_CHALLENGE_COUNT) return
 
-		activeChallengeLock.withLock {
-			while (mutableActiveChallengeList_.size < MAX_CHALLENGE_COUNT) {
+		lock.withLock {
+			while (activeChallengeList.size < MAX_CHALLENGE_COUNT) {
 				val newChallenge = activateRandomChallenge(context)
 				if (newChallenge != null) {
-					mutableActiveChallengeList_.add(newChallenge)
+					activeChallengeList.add(newChallenge)
 				} else {
 					break
 				}
 			}
-			scheduleNextChallengeExpiredWork(context)
+			if (activeChallengeList.isNotEmpty()) {
+				scheduleNextExpiry(context)
+			}
 		}
 	}
 
-	private fun scheduleNextChallengeExpiredWork(context: Context) {
-		val nextExpiry = mutableActiveChallengeList_.minOf { it.endTime }
+	private fun scheduleNextExpiry(context: Context) {
+		val nextExpiry = activeChallengeList
+			.filter { !it.isCompleted }
+			.minOfOrNull { it.entity.endTime } ?: return
 		ChallengeExpiredWorker.schedule(context, nextExpiry)
 		logGame(
-				LogData(
-						message = "Scheduled next expiry worker to run at ${nextExpiry.formatAsDateTime()}",
-						source = CHALLENGE_LOG_SOURCE
-				)
+			LogData(
+				message = "Scheduled next expiry at ${nextExpiry.formatAsDateTime()}",
+				source = CHALLENGE_LOG_SOURCE
+			)
 		)
 	}
 
 	internal fun checkExpiredChallenges(context: Context) {
 		val now = Time.nowMillis
-		val expired = mutableActiveChallengeList_.filter { it.endTime <= now }
-		if (expired.isNotEmpty()) {
-			activeChallengeLock.withLock {
-				mutableActiveChallengeList_.removeAll(expired.toSet())
+		lock.withLock {
+			val expired = activeChallengeList.filter { it.entity.endTime <= now && !it.isCompleted }
+			if (expired.isNotEmpty()) {
+				val result = progressionRepository.onChallengesExpired(context, expired)
+				logGame(
+					LogData(
+						message = "Expired ${result.expiredCount} challenges. Streak broken=${result.streakBroken}, freeze used=${result.freezeUsed}",
+						source = CHALLENGE_LOG_SOURCE
+					)
+				)
+				activeChallengeList.removeAll(expired.toSet())
 				fillEmptyChallengeSlots(context)
-				_activeChallenges.value = mutableActiveChallengeList_.toList()
+				_activeChallenges.value = activeChallengeList.toList()
 			}
 		}
 	}
 
-	private fun logNewChallenge(context: Context, instance: ChallengeInstance<*, *>) {
-		val title = context.getString(instance.definition.titleRes)
-		logGame(
-				LogData(
-						message = "Created new random challenge $title with expiration on ${instance.endTime.formatAsDateTime()}",
-						source = CHALLENGE_LOG_SOURCE
-				)
+	private fun activateRandomChallenge(context: Context): ChallengeInstanceNew? {
+		val activeTypes = activeChallengeList.map { it.entity.type }.toSet()
+		val availableProcessors = registry.all.filter { it.type !in activeTypes }
+		if (availableProcessors.isEmpty()) return null
+
+		val processor = availableProcessors.random(Random)
+		val now = Time.nowMillis
+		val durationRange = processor.minDurationMultiplier..processor.maxDurationMultiplier
+		val durationMult = Random.nextDouble(durationRange.start, durationRange.endInclusive)
+		val duration = (processor.defaultDurationMs * durationMult).toLong()
+
+		val difficulty = calculateDifficulty(context)
+
+		val entity = ChallengeEntity(
+			type = processor.type,
+			startTime = now,
+			endTime = now + duration,
+			difficulty = difficulty,
+			requiredValue = processor.defaultRequiredValue * durationMult,
 		)
+
+		val dao = ChallengeDatabase.database(context).challengeDao()
+		val id = dao.insert(entity)
+		val savedEntity = entity.copy(id = id)
+
+		logGame(
+			LogData(
+				message = "Created ${processor.type.name} challenge, expires ${savedEntity.endTime.formatAsDateTime()}",
+				source = CHALLENGE_LOG_SOURCE
+			)
+		)
+
+		return ChallengeInstanceNew(savedEntity, processor)
 	}
 
+	/**
+	 * Calculates difficulty based on the player's recent challenge completion rate.
+	 * High success rate → harder challenges; low success rate → easier ones.
+	 * Falls back to MEDIUM when no history is available.
+	 */
+	private fun calculateDifficulty(context: Context): ChallengeDifficulty {
+		val history = ChallengeDatabase.database(context).challengeHistoryDao().getAll()
+		return difficultyFromCompletionRate(history.map { it.outcome })
+	}
 
-	private fun activateRandomChallenge(context: Context): ChallengeInstance<*, *>? {
-		val possibleChallenges =
-				enabledChallengeList.filterNot { definition ->
-					mutableActiveChallengeList_.any { definition.type == it.data.type }
-				}
+	companion object {
+		internal const val MAX_CHALLENGE_COUNT = 3
+		internal const val DIFFICULTY_HISTORY_WINDOW = 10
 
-		if (possibleChallenges.isEmpty()) return null
+		/**
+		 * Pure function: determines difficulty from a list of outcome strings.
+		 * Takes the last [DIFFICULTY_HISTORY_WINDOW] outcomes and calculates completion rate.
+		 */
+		internal fun difficultyFromCompletionRate(outcomes: List<String>): ChallengeDifficulty {
+			if (outcomes.isEmpty()) return ChallengeDifficulty.MEDIUM
 
-		val selectedChallengeIndex = Random.nextInt(possibleChallenges.size)
-		val selectedChallengeDefinition = possibleChallenges[selectedChallengeIndex]
+			val recent = outcomes.takeLast(DIFFICULTY_HISTORY_WINDOW)
+			val completedCount = recent.count { it == "COMPLETED" }
+			val completionRate = completedCount.toDouble() / recent.size
 
-		val newInstance = selectedChallengeDefinition.newInstance(context, Time.nowMillis)
-
-		logNewChallenge(context, newInstance)
-
-		return newInstance
+			return when {
+				completionRate >= 0.8 -> ChallengeDifficulty.VERY_HARD
+				completionRate >= 0.6 -> ChallengeDifficulty.HARD
+				completionRate >= 0.4 -> ChallengeDifficulty.MEDIUM
+				completionRate >= 0.2 -> ChallengeDifficulty.EASY
+				else -> ChallengeDifficulty.VERY_EASY
+			}
+		}
 	}
 }
 

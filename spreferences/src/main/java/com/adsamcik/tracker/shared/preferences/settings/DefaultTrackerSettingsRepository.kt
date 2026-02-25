@@ -102,16 +102,11 @@ class DefaultTrackerSettingsRepository(
         }
 
     private suspend fun ensureMigrated() {
-        val current = context.trackerSettingsDataStore.data.first()
-        if (current.legacyMigrated) return
-        val migrated = migrateFromLegacy(current)
-        if (migrated != current) {
-            context.trackerSettingsDataStore.updateData { migrated }
+        context.trackerSettingsDataStore.updateData { current ->
+            if (current.legacyMigrated) return@updateData current
+            val migrated = migrateFromLegacy(current)
             log("SET-MIGRATION: imported legacy SharedPreferences → DataStore (auto=${migrated.autoUnitSwitch} length=${migrated.lengthSystem.name} speed=${migrated.speedFormat.name})")
-        } else if (!current.legacyMigrated) {
-            // No legacy values present; mark migration as done for future fast path
-            context.trackerSettingsDataStore.updateData { current.toBuilder().setLegacyMigrated(true).build() }
-            log("SET-MIGRATION: no legacy values found – marked migrated")
+            migrated
         }
     }
 

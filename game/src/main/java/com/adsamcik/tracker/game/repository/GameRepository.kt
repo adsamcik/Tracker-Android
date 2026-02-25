@@ -25,6 +25,24 @@ interface GameRepository {
      * @return StateFlow with list of active challenges
      */
     fun getActiveChallenges(): StateFlow<List<ChallengeData>>
+
+    /** Observe player profile (level, XP, etc.) */
+    fun getPlayerProfile(): Flow<PlayerProfileUi?>
+
+    /** Observe challenge streak data */
+    fun getStreak(): Flow<StreakUi?>
+
+    /** Observe trophy summary (completed count + medal counts) */
+    fun getTrophySummary(): Flow<TrophySummaryUi>
+
+    /** Observe full challenge history for trophy case */
+    fun getChallengeHistory(): Flow<List<TrophyItemUi>>
+
+    /** Observe personal records */
+    fun getPersonalRecords(): Flow<List<PersonalRecordUi>>
+
+    /** Get lifetime stats */
+    fun getLifetimeStats(): Flow<LifetimeStatsUi>
 }
 
 /**
@@ -45,4 +63,70 @@ data class ChallengeData(
     val title: String,
     val description: String,
     val progress: Float
+)
+
+/**
+ * UI data class for player profile information.
+ */
+data class PlayerProfileUi(
+    val level: Int,
+    val totalXp: Long,
+    val xpIntoCurrentLevel: Long,
+    val xpForNextLevel: Long,
+)
+
+/**
+ * UI data class for streak information.
+ */
+data class StreakUi(
+    val currentCount: Int,
+    val bestCount: Int,
+    val freezeCount: Int,
+)
+
+/**
+ * UI data class for trophy summary.
+ */
+data class TrophySummaryUi(
+    val totalCompleted: Int,
+    val goldCount: Int,
+    val silverCount: Int,
+    val bronzeCount: Int,
+)
+
+/**
+ * UI data class for a single trophy (completed challenge).
+ */
+data class TrophyItemUi(
+    val id: Long,
+    val challengeType: String,
+    val difficulty: String,
+    val medal: String?,
+    val completedAt: Long?,
+    val xpAwarded: Int,
+    val progressValue: Double,
+    val targetValue: Double,
+)
+
+/**
+ * UI data class for a personal record.
+ */
+data class PersonalRecordUi(
+    val challengeType: String,
+    val metric: String,
+    val value: Double,
+    val achievedAt: Long,
+)
+
+/**
+ * UI data class for lifetime statistics.
+ */
+data class LifetimeStatsUi(
+    val totalChallenges: Int,
+    val completedCount: Int,
+    val completionRate: Float,
+    val goldCount: Int,
+    val silverCount: Int,
+    val bronzeCount: Int,
+    val totalXpEarned: Long,
 )

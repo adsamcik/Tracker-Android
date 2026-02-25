@@ -5,29 +5,29 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
-@RunWith(RobolectricTestRunner::class)
+@ExtendWith(RobolectricExtension::class)
 class PointsAwardedDaoTest {
 
 	private lateinit var database: PointsDatabase
 	private lateinit var dao: PointsAwardedDao
 
-	@Before
+	@BeforeEach
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = PointsDatabase.testDatabase(context)
 		dao = database.pointsAwardedDao()
 	}
 
-    @After
+    @AfterEach
     fun tearDown() {
         database.close()
     }
@@ -36,16 +36,16 @@ class PointsAwardedDaoTest {
     fun countBetweenReturnsZeroWhenNoRows() {
         val now = 1_000L
         val result = dao.countBetween(0L, now)
-        assertEquals(0, result)
+        result shouldBe 0
     }
 
     @Test
-    fun countBetweenFlowEmitsZeroAndUpdatesAfterInsert() = runBlocking {
+    fun countBetweenFlowEmitsZeroAndUpdatesAfterInsert(): Unit = runBlocking {
         val now = 10_000L
         val flow = dao.countBetweenFlow(0L, now)
 
         val initial = flow.first()
-        assertEquals(0, initial)
+        initial shouldBe 0
 
         dao.insert(
             PointsAwarded(
@@ -56,6 +56,6 @@ class PointsAwardedDaoTest {
         )
 
         val updated = flow.first()
-        assertEquals(42, updated)
+        updated shouldBe 42
     }
 }

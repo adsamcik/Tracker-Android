@@ -4,6 +4,7 @@ plugins {
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.kotlin.compose)
+	alias(libs.plugins.robolectric.junit5)
 }
 
 android {
@@ -51,6 +52,10 @@ android {
 	// Enable Jetpack Compose
 	buildFeatures {
 		compose = true
+	}
+
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
 	}
 
 	namespace = "com.adsamcik.tracker.shared.utils"
@@ -114,13 +119,12 @@ dependencies {
 	testImplementation(libs.junit5.jupiter)
 	testImplementation(libs.junit5.jupiter.params)
 	testRuntimeOnly(libs.junit5.jupiter.engine)
-	testRuntimeOnly(libs.junit5.vintage.engine)
-	testImplementation(libs.junit4)
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.turbine)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.arch.core.testing)
 	testImplementation(libs.kotest.assertions.core)

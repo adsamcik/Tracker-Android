@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Layers
@@ -75,6 +77,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.R
@@ -89,6 +92,7 @@ import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
 fun MapSheet(
     registry: LayerRegistry,
     store: MapStore,
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     bottomInsetPx: Int = 0,
     onBottomPaddingChanged: (Int) -> Unit = {}
@@ -107,7 +111,6 @@ fun MapSheet(
     val context = LocalContext.current
     val layers = remember(registry) { registry.getAllLayers() }
     var showErrorMessage by remember { mutableStateOf<String?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
     var showDateRangeDialog by remember { mutableStateOf(false) }
     var expandedByKeyboard by remember { mutableStateOf(false) }
     // Track keyboard visibility via ime bottom inset
@@ -222,6 +225,8 @@ fun MapSheet(
                                     },
                                 singleLine = true,
                                 placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { store.dispatch(MapEvent.SubmitSearch) }),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
