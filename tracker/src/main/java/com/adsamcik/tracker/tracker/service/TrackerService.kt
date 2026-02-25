@@ -20,7 +20,6 @@ import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.broadcast.SessionBroadcaster
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -473,7 +472,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			componentInitialization.await()
 
 			if (hasSelfPermissions(timerComponent.requiredPermissions).all { it }) {
-				sendSessionStartBroadcast()
 				timerComponent.onEnable(this@TrackerService, this@TrackerService)
 			} else {
 				stopSelf()
@@ -484,16 +482,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// User-initiated sessions should restart after process death to preserve tracking.
 		// Auto-tracking sessions can be re-triggered by ActivityWatcherService.
 		return if (isUserInitiated) START_STICKY else START_NOT_STICKY
-	}
-
-	private fun sendSessionStartBroadcast() {
-		val sessionComponent = requireNotNull(sessionComponent)
-
-		SessionBroadcaster.broadcastSessionStart(
-				this,
-				sessionComponent.session,
-				sessionComponent.isNewSession
-		)
 	}
 
 	/**
@@ -636,12 +624,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		preComponentList.forEach { tryWithReport { it.onDisable(context) } }
 		dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
 		postComponentList.forEach { tryWithReport { it.onDisable(context) } }
-
-		// Can be null if TrackerServices is immediately stopped after start
-		val sessionComponent = sessionComponent
-		if (sessionComponent != null) {
-			SessionBroadcaster.broadcastSessionEnd(context, sessionComponent.session)
-		}
+		// Session finalization is handled by ProcessorPipeline.stop() which
+		// emits SessionEnded domain events consumed by event consumers.
 	}
 
 	private fun onDestroyServiceMetaData() {

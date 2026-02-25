@@ -227,6 +227,7 @@ dependencies {
 	testImplementation(libs.turbine)
 	testImplementation(libs.kotest.assertions.core)
 	testImplementation(project(":stats-api"))
+	implementation(project(":stats-api"))
 
 	androidTestImplementation(libs.junit4)
 	androidTestImplementation(libs.androidx.test.runner)
