@@ -4,32 +4,150 @@
 Privacy-first, fully local location & activity tracker for Android. Reliable, secure, modern, and slightly adventurous.
 
 ## 2. Color Palette
+
+**Seed:** `#006874` (Secure Teal). Generated via Material 3 HCT color space.
 Balances trust and security (deep, reliable cool tones) with adventure and activity (vibrant, energetic warm tones).
 
-### Primary: Secure Teal
-*   **Light Mode:** Primary: `#006874`, On-Primary: `#FFFFFF`, Primary Container: `#97F0FF`, On-Primary Container: `#001F24`
-*   **Dark Mode:** Primary: `#4FD8EB`, On-Primary: `#00363D`, Primary Container: `#004F58`, On-Primary Container: `#97F0FF`
+### 2.1 Core Palette — Complete Token Reference
 
-### Secondary: Trail Slate
-*   **Light Mode:** Secondary: `#4A6367`, On-Secondary: `#FFFFFF`, Secondary Container: `#CDE7EC`, On-Secondary Container: `#051F23`
-*   **Dark Mode:** Secondary: `#B1CBD0`, On-Secondary: `#1C3438`, Secondary Container: `#334B4F`, On-Secondary Container: `#CDE7EC`
+#### Primary: Secure Teal
 
-### Tertiary: Sunset Rust (Expressive Accent)
-*   **Light Mode:** Tertiary: `#98483A`, On-Tertiary: `#FFFFFF`, Tertiary Container: `#FFDAD4`, On-Tertiary Container: `#3C0903`
-*   **Dark Mode:** Tertiary: `#FFB4A8`, On-Tertiary: `#5C190D`, Tertiary Container: `#7A3024`, On-Tertiary Container: `#FFDAD4`
+| Token | Light | Dark |
+|-------|-------|------|
+| `primary` | `#006874` | `#4FD8EB` |
+| `onPrimary` | `#FFFFFF` | `#00363D` |
+| `primaryContainer` | `#97F0FF` | `#004F58` |
+| `onPrimaryContainer` | `#001F24` | `#97F0FF` |
 
-### Neutral / Surface (Tinted with Primary)
-*   **Light Mode:** Surface: `#F8FDFF`, Surface Container: `#EBF4F6`, On-Surface: `#171D1E`, Outline: `#6F797A`
-*   **Dark Mode:** Surface: `#0E1415`, Surface Container: `#1A2022`, On-Surface: `#DFE4E5`, Outline: `#899294`
+#### Secondary: Trail Slate
 
-### Semantic Colors
-*   **Error:** Light: `#BA1A1A` / `#FFDAD6` | Dark: `#FFB4AB` / `#93000A`
-*   **Success:** Light: `#146C2E` / `#A3F4A5` | Dark: `#88D78A` / `#00531E`
-*   **Warning:** Light: `#8D5000` / `#FFDCC1` | Dark: `#FFB776` / `#6B3D00`
+| Token | Light | Dark |
+|-------|-------|------|
+| `secondary` | `#4A6367` | `#B1CBD0` |
+| `onSecondary` | `#FFFFFF` | `#1C3438` |
+| `secondaryContainer` | `#CDE7EC` | `#334B4F` |
+| `onSecondaryContainer` | `#051F23` | `#CDE7EC` |
 
-### Contextual Colors
-*   **Track Active:** `#FF3B30`
-*   **Track History:** `#00829B`
+#### Tertiary: Sunset Rust
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `tertiary` | `#98483A` | `#FFB4A8` |
+| `onTertiary` | `#FFFFFF` | `#5C190D` |
+| `tertiaryContainer` | `#FFDAD4` | `#7A3024` |
+| `onTertiaryContainer` | `#3C0903` | `#FFDAD4` |
+
+#### Error
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `error` | `#BA1A1A` | `#FFB4AB` |
+| `onError` | `#FFFFFF` | `#690005` |
+| `errorContainer` | `#FFDAD6` | `#93000A` |
+| `onErrorContainer` | `#410002` | `#FFDAD6` |
+
+### 2.2 Neutral & Surface
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `surface` | `#F8FDFF` | `#0E1415` |
+| `onSurface` | `#171D1E` | `#DFE4E5` |
+| `surfaceVariant` | `#DBE4E6` | `#3F484A` |
+| `onSurfaceVariant` | `#3F484A` | `#BFC8CA` |
+| `surfaceBright` | `#F8FDFF` | `#353B3D` |
+| `surfaceDim` | `#D5DBDC` | `#0E1415` |
+| `surfaceTint` | `#006874` | `#4FD8EB` |
+| `surfaceContainerLowest` | `#FFFFFF` | `#060B0C` |
+| `surfaceContainerLow` | `#EFF3F8` | `#151B1D` |
+| `surfaceContainer` | `#EBF4F6` | `#1A2022` |
+| `surfaceContainerHigh` | `#DFE8EA` | `#252B2D` |
+| `surfaceContainerHighest` | `#D3DDE0` | `#303638` |
+| `background` | `#FBFCFF` | `#0E1415` |
+| `onBackground` | `#171D1E` | `#DFE4E5` |
+
+### 2.3 Utility
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `outline` | `#6F797A` | `#899294` |
+| `outlineVariant` | `#C4C7CF` | `#3F484A` |
+| `inverseSurface` | `#2B3133` | `#DFE4E5` |
+| `inverseOnSurface` | `#ECF2F3` | `#2B3133` |
+| `inversePrimary` | `#4FD8EB` | `#006874` |
+| `scrim` | `#000000` | `#000000` |
+
+### 2.4 Semantic Colors (Extended)
+
+Not standard M3 tokens. Provided via `CompositionLocal` or direct reference.
+
+#### Success
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `success` | `#146C2E` | `#88D78A` |
+| `onSuccess` | `#FFFFFF` | `#003912` |
+| `successContainer` | `#A3F4A5` | `#00531E` |
+| `onSuccessContainer` | `#002107` | `#A3F4A5` |
+
+#### Warning
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `warning` | `#8D5000` | `#FFB776` |
+| `onWarning` | `#FFFFFF` | `#4A2800` |
+| `warningContainer` | `#FFDCC1` | `#6B3D00` |
+| `onWarningContainer` | `#2D1600` | `#FFDCC1` |
+
+### 2.5 Contextual Colors
+
+Mode-independent unless noted.
+
+| Token | Value | On-Color | Usage |
+|-------|-------|----------|-------|
+| `trackActive` | `#FF3B30` | `#FFFFFF` | Live recording pulse, active indicator |
+| `trackHistory` | `#00829B` | `#FFFFFF` | Past track lines on map |
+| `activityWalk` | `#00E5FF` | `#001F26` | Walking activity chip/badge |
+| `activityRun` | `#FF9100` | `#2A1700` | Running activity chip/badge |
+| `activityRide` | `#2979FF` | `#FFFFFF` | Cycling activity chip/badge |
+
+### 2.6 Glass & Translucency Tokens
+
+| Token | Light | Dark | Notes |
+|-------|-------|------|-------|
+| `glassTintAlpha` | 0.78 | 0.82 | Surface color overlay on blur |
+| `glassBorderAlpha` | 0.30 | 0.20 | `outlineVariant` border opacity |
+| `glassBorderWidth` | 1dp | 1dp | |
+| `glassBlurRadius` | 20dp | 20dp | Haze blur amount |
+| `glassNoise` | **none** | **none** | No noise texture. Final. |
+| `topoContourAlpha` (card) | 0.05 | 0.07 | `onSurface` contour lines on cards |
+| `topoContourAlpha` (empty bg) | 0.07 | 0.09 | Background empty state contours |
+| `topoContourAlpha` (tinted) | 0.03 | 0.04 | Tinted decorative contours |
+
+### 2.7 Dark Mode Specifics
+
+Beyond color token swaps, dark mode applies these adjustments:
+
+**Tonal elevation.** M3's `surfaceColorAtElevation()` auto-applies `surfaceTint` (`#4FD8EB`) as an overlay at higher elevations. No custom code needed — built into M3.
+
+**Glass adjustments.** Backdrop blur is more dramatic in dark mode (bright content shows through). Compensate:
+*   Tint alpha 0.78 → 0.82 (more opaque to prevent content bleed)
+*   Border alpha 0.30 → 0.20 (dark surfaces self-define edges; heavy borders look harsh)
+
+**Topographic contour lines.** Dark surfaces absorb detail — increase contour alpha:
+*   Cards: 0.05 → 0.07
+*   Empty backgrounds: 0.07 → 0.09
+*   Tinted: 0.03 → 0.04
+
+**Shadows.** Drop shadows are invisible on dark surfaces. Do NOT add artificial borders to compensate. Rely on:
+1.  Tonal elevation (lighter surface = higher elevation)
+2.  Existing glass border treatment
+3.  Content contrast (text/icons on elevated surface are sufficient)
+
+**Track active indicator.** Same `#FF3B30` in both modes — high-urgency, always pops. WCAG AA contrast met against both light surface (`#F8FDFF`, ratio 4.53:1) and dark surface (`#0E1415`, ratio 5.12:1).
+
+**Map overlay UI.** When map uses dark basemap, metric cards use standard dark scheme. No special transparency — glass blur composites with the map layer.
+
+**Reduced transparency fallback.** If user has "Reduce Transparency" accessibility setting, replace all glass tints with opaque `surfaceContainer` and remove blur. Borders remain.
 
 ## 3. Typography Scale
 *   **Primary Typeface (Display, Headline, Title):** Outfit (Google Fonts)
@@ -233,3 +351,16 @@ fun InlineEmptyState(
 *   **Statistics Screen:** Terrain Cards for trips. Momentum Pill for activity chips. Tinted surfaces. Section headers with accent bar.
 *   **Trip Detail Screen:** Terrain Cards for data segments. Sunset Rust for peak metrics. Roboto Mono for distance/duration.
 *   **Settings/Privacy Screen:** Momentum Pill for toggles. SecureSnap motion. Section headers for groups, item dividers within.
+
+### Floating Navigation Bar (Final)
+*   **Height:** 80dp. M3 standard. Provides breathing room for icon pill + label.
+*   **Corner radius:** 32dp (full `RoundedCornerShape`). Soft capsule, "floating island" feel.
+*   **Background:** Haze blur (20dp) + surface color tint. Fallback: `GlassCard`.
+*   **Tint alpha:** 0.78 light / 0.82 dark. No noise. No parallax.
+*   **Border:** 1dp `outlineVariant` at 0.30α light / 0.20α dark.
+*   **Active indicator pill:** 56×32dp, 16dp radius, `secondaryContainer`.
+*   **Icons:** 24dp. Outlined inactive (`onSurfaceVariant`), filled active (`onSecondaryContainer`).
+*   **Labels:** Selected-only, `labelSmall`. 150ms fade + 4dp translate-up on selection. Inactive: icon only.
+*   **Press:** 0.96 scale spring (SecureSnap). Long-press: tooltip + haptic.
+*   **Horizontal padding:** 24dp from screen edge. Vertical: 24dp from bottom.
+*   **Clearance:** `AppDimensions.FloatingNavBarClearance = 120.dp` for content scroll padding.

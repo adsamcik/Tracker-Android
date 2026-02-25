@@ -72,20 +72,42 @@ val InverseOnSurfaceDark = Color(0xFF2B3133)
 val InversePrimaryDark = Color(0xFF006874)
 val ScrimDark = Color(0xFF000000)
 
+// Surface Variant
+val SurfaceVariantLight = Color(0xFFDBE4E6)
+val SurfaceVariantDark = Color(0xFF3F484A)
+
+// Surface Brightness Range
+val SurfaceBrightLight = Color(0xFFF8FDFF)
+val SurfaceBrightDark = Color(0xFF353B3D)
+val SurfaceDimLight = Color(0xFFD5DBDC)
+val SurfaceDimDark = Color(0xFF0E1415)
+
 // Semantic Colors
 val ErrorLight = Color(0xFFBA1A1A)
+val OnErrorLight = Color(0xFFFFFFFF)
 val ErrorContainerLight = Color(0xFFFFDAD6)
+val OnErrorContainerLight = Color(0xFF410002)
 val SuccessLight = Color(0xFF146C2E)
+val OnSuccessLight = Color(0xFFFFFFFF)
 val SuccessContainerLight = Color(0xFFA3F4A5)
+val OnSuccessContainerLight = Color(0xFF002107)
 val WarningLight = Color(0xFF8D5000)
+val OnWarningLight = Color(0xFFFFFFFF)
 val WarningContainerLight = Color(0xFFFFDCC1)
+val OnWarningContainerLight = Color(0xFF2D1600)
 
 val ErrorDark = Color(0xFFFFB4AB)
+val OnErrorDark = Color(0xFF690005)
 val ErrorContainerDark = Color(0xFF93000A)
+val OnErrorContainerDark = Color(0xFFFFDAD6)
 val SuccessDark = Color(0xFF88D78A)
+val OnSuccessDark = Color(0xFF003912)
 val SuccessContainerDark = Color(0xFF00531E)
+val OnSuccessContainerDark = Color(0xFFA3F4A5)
 val WarningDark = Color(0xFFFFB776)
+val OnWarningDark = Color(0xFF4A2800)
 val WarningContainerDark = Color(0xFF6B3D00)
+val OnWarningContainerDark = Color(0xFFFFDCC1)
 
 // Contextual Colors
 val TrackActiveColor = Color(0xFFFF3B30)
@@ -122,7 +144,12 @@ val LightColorScheme = lightColorScheme(
     inversePrimary = InversePrimaryLight,
     scrim = ScrimLight,
     error = ErrorLight,
-    errorContainer = ErrorContainerLight
+    onError = OnErrorLight,
+    errorContainer = ErrorContainerLight,
+    onErrorContainer = OnErrorContainerLight,
+    surfaceVariant = SurfaceVariantLight,
+    surfaceBright = SurfaceBrightLight,
+    surfaceDim = SurfaceDimLight
 )
 
 val DarkColorScheme = darkColorScheme(
@@ -156,5 +183,10 @@ val DarkColorScheme = darkColorScheme(
     inversePrimary = InversePrimaryDark,
     scrim = ScrimDark,
     error = ErrorDark,
-    errorContainer = ErrorContainerDark
+    onError = OnErrorDark,
+    errorContainer = ErrorContainerDark,
+    onErrorContainer = OnErrorContainerDark,
+    surfaceVariant = SurfaceVariantDark,
+    surfaceBright = SurfaceBrightDark,
+    surfaceDim = SurfaceDimDark
 )
