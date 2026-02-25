@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.game.di
 
-import android.app.Application
-import com.adsamcik.tracker.game.challenge.ChallengeManager
-import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
 import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
 import kotlinx.coroutines.CoroutineScope
@@ -14,25 +12,25 @@ import kotlinx.coroutines.flow.stateIn
 /**
  * Default implementation of ActiveChallengesProvider.
  *
- * Wraps ChallengeManager.activeChallenges and maps ChallengeInstance
+ * Delegates to GameRepository.getActiveChallenges() and maps ChallengeData
  * to simplified ActiveChallengeInfo for cross-module consumption.
  */
 class DefaultActiveChallengesProvider(
-	private val application: Application,
+	private val gameRepository: GameRepository,
 	scope: CoroutineScope,
 ) : ActiveChallengesProvider {
 
 	override val activeChallengesFlow: StateFlow<List<ActiveChallengeInfo>> =
-		ChallengeManager.activeChallenges
+		gameRepository.getActiveChallenges()
 			.map { list ->
-				list.map { inst ->
+				list.map { data ->
 					ActiveChallengeInfo(
-						id = inst.data.id,
-						title = inst.getTitle(application),
-						description = inst.getDescription(application),
-						progress = inst.progress.toFloat().coerceIn(0f, 1f),
-						difficulty = inst.data.difficulty.name,
-						timeRemainingMs = (inst.data.endTime - Time.nowMillis).coerceAtLeast(0),
+						id = data.id,
+						title = data.title,
+						description = data.description,
+						progress = data.progress,
+						difficulty = "",
+						timeRemainingMs = 0,
 					)
 				}
 			}

@@ -51,17 +51,21 @@ object SkiRunExtractor {
      *
      * @param segments state machine output (ordered by time)
      * @param locations GPS location points (ordered by time)
+     * @param config detection config for coalescing thresholds
      * @return session summary with individual runs
      */
     fun extract(
         segments: List<SkiStateSegment>,
-        locations: List<SkiLocationPoint>
+        locations: List<SkiLocationPoint>,
+        config: SkiDetectionConfig = SkiDetectionConfig()
     ): SkiSessionSummary {
-        val runs = segments.mapIndexed { index, segment ->
-            val segmentLocations = locations.filter {
-                it.timeMs in segment.startMs..segment.endMs
+        val coalescedGroups = coalesceRuns(segments, config)
+
+        val runs = coalescedGroups.mapIndexed { index, group ->
+            val segmentLocations = locations.filter { loc ->
+                loc.timeMs in group.first().startMs..group.last().endMs
             }
-            computeRunMetrics(index, segment, segmentLocations)
+            computeRunMetrics(index, group, segmentLocations)
         }
 
         val downhillRuns = runs.filter { it.segmentType == SkiState.DOWNHILL_RUN }
@@ -77,11 +81,61 @@ object SkiRunExtractor {
         )
     }
 
+    /**
+     * Group consecutive DOWNHILL segments separated only by non-LIFT gaps
+     * into single logical run groups. You can't start a new downhill run
+     * without going up first — only a LIFT between them splits runs.
+     */
+    internal fun coalesceRuns(
+        segments: List<SkiStateSegment>,
+        config: SkiDetectionConfig
+    ): List<List<SkiStateSegment>> {
+        if (segments.isEmpty()) return emptyList()
+
+        val groups = mutableListOf<MutableList<SkiStateSegment>>()
+        var lastDownhillGroupIdx = -1
+        var hasLiftSinceLastDownhill = false
+
+        for (segment in segments) {
+            if (segment.state == SkiState.LIFT_UP) {
+                hasLiftSinceLastDownhill = true
+            }
+
+            val shouldCoalesce = segment.state == SkiState.DOWNHILL_RUN &&
+                    lastDownhillGroupIdx >= 0 &&
+                    !hasLiftSinceLastDownhill
+
+            if (shouldCoalesce) {
+                // Absorb all intermediate groups (IDLE gaps) into the last DOWNHILL group
+                val targetGroup = groups[lastDownhillGroupIdx]
+                while (groups.size > lastDownhillGroupIdx + 1) {
+                    targetGroup.addAll(groups.removeAt(lastDownhillGroupIdx + 1))
+                }
+                targetGroup.add(segment)
+                hasLiftSinceLastDownhill = false
+            } else {
+                groups.add(mutableListOf(segment))
+                if (segment.state == SkiState.DOWNHILL_RUN) {
+                    lastDownhillGroupIdx = groups.lastIndex
+                    hasLiftSinceLastDownhill = false
+                }
+            }
+        }
+        return groups
+    }
+
     internal fun computeRunMetrics(
         index: Int,
-        segment: SkiStateSegment,
+        group: List<SkiStateSegment>,
         locations: List<SkiLocationPoint>
     ): SkiRun {
+        // For coalesced groups (DOWNHILL+IDLE+DOWNHILL), pick state from the actual runs
+        val downhillSegments = group.filter { it.state == SkiState.DOWNHILL_RUN }
+        val primarySegment = downhillSegments.maxByOrNull { it.durationMs }
+            ?: group.maxByOrNull { it.durationMs }
+            ?: group.first()
+        val startMs = group.first().startMs
+        val endMs = group.last().endMs
         val altitudes = locations.mapNotNull { it.altitudeM }
         val speeds = locations.mapNotNull { it.speedMps }
 
@@ -97,9 +151,9 @@ object SkiRunExtractor {
 
         return SkiRun(
             runIndex = index,
-            segmentType = segment.state,
-            startTimeMs = segment.startMs,
-            endTimeMs = segment.endMs,
+            segmentType = primarySegment.state,
+            startTimeMs = startMs,
+            endTimeMs = endMs,
             verticalM = verticalDrop,
             distanceM = totalDistance,
             maxSpeedMps = maxSpeed,

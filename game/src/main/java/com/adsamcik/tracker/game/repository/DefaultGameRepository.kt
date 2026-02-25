@@ -30,7 +30,7 @@ import javax.inject.Singleton
 class DefaultGameRepository @Inject constructor(
     private val application: Application,
     @ApplicationScope private val scope: CoroutineScope,
-    private val challengeManager: ChallengeManager
+    private val challengeManager: ChallengeManager? = null
 ) : GameRepository {
     
     private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
@@ -39,7 +39,7 @@ class DefaultGameRepository @Inject constructor(
     init {
         // Initialize game managers (idempotent)
         runCatching { GoalTracker.initialize(application) }
-        runCatching { challengeManager.initialize(application) }
+        challengeManager?.let { runCatching { it.initialize(application) } }
     }
     
     private fun startOfDay(now: Long): Long {
@@ -70,7 +70,9 @@ class DefaultGameRepository @Inject constructor(
     }
     
     override fun getActiveChallenges(): StateFlow<List<ChallengeData>> {
-        return challengeManager.activeChallenges
+        val source = challengeManager?.activeChallenges
+            ?: return kotlinx.coroutines.flow.MutableStateFlow(emptyList<ChallengeData>())
+        return source
             .map { list ->
                 list.map { inst ->
                     ChallengeData(

@@ -105,7 +105,7 @@ class AppGraph(
     }
 
     val activeChallengesProvider: ActiveChallengesProvider by lazy {
-        DefaultActiveChallengesProvider(application, appScope)
+        DefaultActiveChallengesProvider(gameRepository, appScope)
     }
     
     companion object {

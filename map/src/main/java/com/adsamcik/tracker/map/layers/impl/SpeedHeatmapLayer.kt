@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.first
  * Heatmap layer showing speed distribution.
  * Queries speed-weighted location data and produces GeoJSON for MapLibre's native heatmap.
  */
-class SpeedHeatmapLayer(
+open class SpeedHeatmapLayer(
     private val repo: GeoRepository,
     private val perf: PerformanceManager = PerformanceManager()
 ) : HeatmapLayer<List<WeightedGeoFeature>, String>() {

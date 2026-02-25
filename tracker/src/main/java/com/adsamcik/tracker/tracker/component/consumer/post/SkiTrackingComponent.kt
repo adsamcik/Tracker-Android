@@ -15,6 +15,7 @@ import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
 import com.adsamcik.tracker.tracker.component.producer.PressureReading
+import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,9 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 
 	private val _skiState = MutableStateFlow<RealTimeSkiState?>(null)
 
+	/** Previous collection timestamp for step rate calculation. */
+	private var lastCollectionTimeMs: Long = 0L
+
 	/**
 	 * Observable ski state. Null when no ski data has been processed yet.
 	 * Emits on every collection cycle that has barometric data.
@@ -59,6 +63,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	override suspend fun onEnable(context: Context) {
 		detector.reset()
 		detector.setListener(this)
+		lastCollectionTimeMs = 0L
 	}
 
 	override suspend fun onDisable(context: Context) {
@@ -66,6 +71,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		// Release any GPS tier lock
 		escalationEngine?.clearMinimumTier()
 		_skiState.value = null
+		lastCollectionTimeMs = 0L
 	}
 
 	override fun onNewData(
@@ -80,12 +86,22 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		val speedMps = collectionData.location?.speed ?: 0f
 		val timeMs = tempData.timeMillis
 
+		// Compute step rate from step delta and elapsed time
+		val newSteps = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG) ?: 0
+		val stepRatePerMin = if (lastCollectionTimeMs > 0L && newSteps > 0) {
+			val deltaMs = timeMs - lastCollectionTimeMs
+			if (deltaMs > 0) (newSteps.toFloat() / deltaMs) * 60_000f else 0f
+		} else {
+			0f
+		}
+		lastCollectionTimeMs = timeMs
+
 		try {
 			val state = detector.onSample(
 				timeMs = timeMs,
 				altitudeM = reading.altitudeM,
 				speedMps = speedMps,
-				stepRatePerMin = 0f
+				stepRatePerMin = stepRatePerMin
 			)
 			if (state != null) {
 				_skiState.value = state

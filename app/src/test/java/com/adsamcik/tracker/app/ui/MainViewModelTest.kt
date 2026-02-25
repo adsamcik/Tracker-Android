@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.app.ui
 
 import com.adsamcik.tracker.app.ui.navigation.AppRoute
-import com.adsamcik.tracker.app.ui.navigation.Tracker
+import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import kotlinx.coroutines.flow.first
@@ -15,9 +15,9 @@ import org.junit.runners.JUnit4
 class MainViewModelTest {
 
     @Test
-    fun `initial route is Tracker`() = runTest {
+    fun `initial route is Dashboard`() = runTest {
         val viewModel = MainViewModel()
-        assertEquals(Tracker, viewModel.currentRoute.first())
+        assertEquals(Dashboard, viewModel.currentRoute.first())
     }
 
     @Test
