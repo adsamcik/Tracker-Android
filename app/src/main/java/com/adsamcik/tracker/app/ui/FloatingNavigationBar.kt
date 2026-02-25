@@ -56,7 +56,7 @@ fun FloatingNavigationBar(
         GlassCard(
             shape = RoundedCornerShape(32.dp),
             modifier = Modifier
-                .height(72.dp)
+                .height(80.dp)
                 .then(
                     if (hazeState != null) {
                         val backgroundColor = MaterialTheme.colorScheme.surface
