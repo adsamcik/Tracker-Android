@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
+import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
+import com.adsamcik.tracker.tracker.component.producer.PressureReading
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import kotlin.math.abs
 
@@ -55,11 +57,15 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 
 		val location = locationResult.lastLocation
 
-		// Apply altitude processing pipeline (geoid correction + accuracy gating + EMA smoothing)
+		// Apply altitude processing pipeline (geoid correction + accuracy gating + fusion + EMA)
 		val ctx = context
 		val processor = altitudeProcessor
 		if (ctx != null && processor != null) {
-			val processedAltitude = processor.process(ctx, location)
+			// Get barometer pressure from tempData if available
+			val pressureReading = tempData.tryGet<PressureReading>(BarometerDataProducer.PRESSURE_KEY)
+			val processedAltitude = processor.processWithBarometer(
+				ctx, location, pressureReading?.pressureHpa
+			)
 			if (processedAltitude != null) {
 				location.altitude = processedAltitude
 			} else if (location.hasAltitude()) {

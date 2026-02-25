@@ -6,22 +6,31 @@ import androidx.annotation.WorkerThread
 import androidx.core.location.altitude.AltitudeConverterCompat
 
 /**
- * Processes raw GPS altitude through a correction and smoothing pipeline:
+ * Processes raw GPS altitude through a correction, fusion, and smoothing pipeline:
  * 1. Geoid correction (WGS-84 ellipsoid → Mean Sea Level)
  * 2. Vertical accuracy gating (reject unreliable altitude readings)
- * 3. EMA smoothing (reduce high-frequency noise)
+ * 3. Sensor fusion with barometer (complementary filter)
+ * 4. EMA smoothing (reduce high-frequency noise on fused output)
  *
  * Thread-safety: This class is NOT thread-safe. Use from a single coroutine context.
  */
 internal class AltitudeProcessor(
 	private val verticalAccuracyThresholdM: Float = DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M,
-	emaAlpha: Float = DEFAULT_EMA_ALPHA
+	emaAlpha: Float = DEFAULT_EMA_ALPHA,
+	fusionAlpha: Double = AltitudeFusionEngine.DEFAULT_ALPHA
 ) {
 	private val emaFilter = EmaFilter(emaAlpha)
+	private val fusionEngine = AltitudeFusionEngine(alpha = fusionAlpha)
 
 	/**
-	 * Processes a location's altitude through the full pipeline.
-	 * Modifies the [location] in place with the corrected MSL altitude.
+	 * Whether the fusion engine has been calibrated with a GPS+barometer pair.
+	 */
+	val isFusionCalibrated: Boolean
+		get() = fusionEngine.isCalibrated
+
+	/**
+	 * Processes a location's altitude through the full pipeline (GPS-only path).
+	 * Used when no barometer data is available.
 	 *
 	 * Must be called on a worker thread (geoid model lookup is I/O).
 	 *
@@ -32,19 +41,46 @@ internal class AltitudeProcessor(
 	 */
 	@WorkerThread
 	fun process(context: Context, location: Location): Double? {
-		if (!location.hasAltitude()) return null
+		return processWithBarometer(context, location, baroPressureHpa = null)
+	}
 
+	/**
+	 * Processes altitude through the full pipeline with barometer fusion.
+	 *
+	 * @param context Application context for geoid model access.
+	 * @param location The raw GPS location. Modified in place with geoid correction.
+	 * @param baroPressureHpa Current barometer pressure in hPa, or null if unavailable.
+	 * @return The fused and smoothed altitude in meters above MSL, or null.
+	 */
+	@WorkerThread
+	fun processWithBarometer(
+		context: Context,
+		location: Location,
+		baroPressureHpa: Float?
+	): Double? {
 		// Step 1: Geoid correction (ellipsoid → MSL)
-		val mslAltitude = applyGeoidCorrection(context, location)
-			?: return null
-
-		// Step 2: Vertical accuracy gating
-		if (!passesVerticalAccuracyGate(location)) {
-			return null
+		val mslAltitude = if (location.hasAltitude()) {
+			applyGeoidCorrection(context, location)
+		} else {
+			null
 		}
 
-		// Step 3: EMA smoothing
-		return emaFilter.update(mslAltitude)
+		// Step 2: Vertical accuracy gating
+		val gatedAltitude = if (mslAltitude != null && passesVerticalAccuracyGate(location)) {
+			mslAltitude
+		} else {
+			null
+		}
+
+		// Step 3: Sensor fusion (complementary filter with barometer)
+		val fusedAltitude = fusionEngine.update(
+			gpsAltitudeMsl = gatedAltitude,
+			baroPressureHpa = baroPressureHpa,
+			timeMs = location.time
+		)
+
+		// Step 4: EMA smoothing on fused output
+		return fusedAltitude?.let { emaFilter.update(it) }
 	}
 
 	/**
@@ -80,10 +116,11 @@ internal class AltitudeProcessor(
 	}
 
 	/**
-	 * Resets the EMA filter state. Call when starting a new tracking session.
+	 * Resets all state (EMA filter + fusion engine). Call when starting a new tracking session.
 	 */
 	fun reset() {
 		emaFilter.reset()
+		fusionEngine.reset()
 	}
 
 	companion object {
@@ -96,9 +133,9 @@ internal class AltitudeProcessor(
 
 		/**
 		 * Default EMA smoothing factor.
-		 * 0.2 provides moderate smoothing: responsive to real changes,
-		 * dampens single-sample spikes. ~5-sample effective window.
+		 * 0.3 provides moderate smoothing on already-fused output.
+		 * Higher than GPS-only (0.2) because fusion output is already smoother.
 		 */
-		const val DEFAULT_EMA_ALPHA = 0.2f
+		const val DEFAULT_EMA_ALPHA = 0.3f
 	}
 }
