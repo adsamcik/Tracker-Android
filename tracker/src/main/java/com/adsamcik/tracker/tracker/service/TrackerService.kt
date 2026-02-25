@@ -6,6 +6,8 @@ import android.os.Build
 import android.os.PowerManager
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
@@ -107,6 +109,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	private var processorPipeline: ProcessorPipeline? = null
 
+	// Dual-run cycle counter for comparison logging
+	private var dualRunCycleCount: Int = 0
+
 	private val componentMutex = Mutex()
 	
 	// Job for observing lock state (cancelled on service destroy)
@@ -177,14 +182,19 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updateSession(session)
 		controller.updateCollectionData(collectionData)
 
-		postComponentList
-				.asSequence()
+		val postComponentsRun = postComponentList
 				.filter { it.requirementsMet(tempData) }
-				.forEach {
+		postComponentsRun.forEach {
 					tryWithReport {
 						it.onNewData(this, session, collectionData, tempData)
 					}
 				}
+
+		dualRunCycleCount++
+		Logger.log(LogData(
+			message = "Cycle #$dualRunCycleCount: PostComponents=${postComponentsRun.size}/${postComponentList.size} processed",
+			source = DUAL_RUN_LOG_SOURCE
+		))
 
 		// Feed data to the new ProcessorPipeline (dual-run alongside PostTrackerComponents)
 		processorPipeline?.let { pipeline ->
@@ -201,6 +211,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					stepDelta = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG),
 				)
 				pipeline.onSignal(signal)
+				Logger.log(LogData(
+					message = "Cycle #$dualRunCycleCount: Pipeline signal delivered (ts=${tempData.timeMillis})",
+					source = DUAL_RUN_LOG_SOURCE
+				))
 			}
 		}
 
@@ -615,7 +629,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// Stop the stats ProcessorPipeline first (final flush + event delivery)
 		tryWithReport {
 			processorPipeline?.stop()
+			Logger.log(LogData(
+				message = "Session ended: PostComponents ran $dualRunCycleCount cycles, Pipeline processed $dualRunCycleCount signals",
+				source = DUAL_RUN_LOG_SOURCE
+			))
 			processorPipeline = null
+			dualRunCycleCount = 0
 		}
 
 		dataProducerManager?.onDisable()
@@ -692,6 +711,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		const val ARG_IS_USER_INITIATED = "userInitiated"
 		const val ARG_IS_AMBIENT = "isAmbient"
 		private const val DEFAULT_IS_USER_INITIATED = false
+		private const val DUAL_RUN_LOG_SOURCE = "DualRun"
 	}
 }
 
