@@ -26,3 +26,11 @@ object AppMotion {
     const val DurationMedium = 400
     const val DurationLong = 600
 }
+
+object LoadingMotion {
+    val EnterDuration = AppMotion.DurationShort   // 250ms
+    val ExitDuration = AppMotion.DurationMicro    // 150ms
+    val PulseDuration = 1200                       // ms, full cycle
+    const val PulseAlphaMin = 0.08f
+    const val PulseAlphaMax = 0.16f
+}

@@ -42,6 +42,9 @@ object AppColors {
     val ActivityWalk = Color(0xFF00E5FF)
     val ActivityRun = Color(0xFFFF9100)
     val ActivityRide = Color(0xFF2979FF)
+    val ActivityVehicle = Color(0xFFAB47BC)
+    val ActivityStill = Color(0xFF78909C)
+    val ActivityUnknown = Color(0xFF9E9E9E)
     
     // Gradients
     val MainGradient = Brush.verticalGradient(
