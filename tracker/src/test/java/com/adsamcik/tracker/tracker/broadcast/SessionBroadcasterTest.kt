@@ -12,16 +12,19 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkObject
-import io.mockk.unmockkStatic
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 
+@ExtendWith(RobolectricExtension::class)
+@Config(sdk = [28])
 class SessionBroadcasterTest {
 
 	private lateinit var context: Context
@@ -31,14 +34,12 @@ class SessionBroadcasterTest {
 	fun setup() {
 		context = mockk(relaxed = true)
 		every { context.packageName } returns "com.adsamcik.tracker.test"
+		every { context.applicationContext } returns context
 
 		workManager = mockk(relaxed = true)
 
-		mockkStatic(WorkManager::class)
+		mockkObject(WorkManager.Companion)
 		every { WorkManager.getInstance(any()) } returns workManager
-
-		mockkStatic("com.adsamcik.tracker.logger.LoggerKt")
-		every { com.adsamcik.tracker.logger.Logger.log(any()) } returns Unit
 
 		mockkObject(com.adsamcik.tracker.logger.Logger)
 		every { com.adsamcik.tracker.logger.Logger.log(any()) } just Runs
@@ -46,8 +47,7 @@ class SessionBroadcasterTest {
 
 	@AfterEach
 	fun teardown() {
-		unmockkStatic(WorkManager::class)
-		unmockkStatic("com.adsamcik.tracker.logger.LoggerKt")
+		unmockkObject(WorkManager.Companion)
 		unmockkObject(com.adsamcik.tracker.logger.Logger)
 	}
 
@@ -129,13 +129,13 @@ class SessionBroadcasterTest {
 		@Test
 		fun `sends broadcast with correct action`() {
 			val session = createSession(id = 1L, isUserInitiated = true)
-			val intentSlot = slot<Intent>()
+			val intents = mutableListOf<Intent>()
 
-			every { context.sendBroadcast(capture(intentSlot), any<String>()) } just Runs
+			every { context.sendBroadcast(capture(intents), any<String>()) } just Runs
 
 			SessionBroadcaster.broadcastSessionEnd(context, session)
 
-			intentSlot.captured.action shouldBe TrackerSession.ACTION_SESSION_ENDED
+			intents[0].action shouldBe TrackerSession.ACTION_SESSION_ENDED
 		}
 
 		@Test

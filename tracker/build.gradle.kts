@@ -6,6 +6,7 @@ plugins {
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.hilt)
 	alias(libs.plugins.protobuf)
+	alias(libs.plugins.robolectric.junit5)
 }
 
 android {
@@ -62,6 +63,9 @@ android {
 			excludes += "META-INF/LICENSE.md"
 			excludes += "META-INF/LICENSE-notice.md"
 		}
+	}
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
 	}
     namespace = "com.adsamcik.tracker.tracker"
 }
@@ -143,6 +147,7 @@ dependencies {
 	testImplementation(libs.kotlin.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.robolectric)
+	testImplementation(libs.junit5.robolectric)
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.turbine)

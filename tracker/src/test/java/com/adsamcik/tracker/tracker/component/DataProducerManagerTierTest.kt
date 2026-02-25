@@ -7,10 +7,10 @@ import com.adsamcik.tracker.tracker.component.producer.ActivityDataProducer
 import com.adsamcik.tracker.tracker.component.producer.CellDataProducer
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.producer.WifiDataProducer
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -18,13 +18,13 @@ import kotlin.test.assertTrue
 /**
  * Tests that [DataProducerManager] filters producers based on [PolicyTier].
  */
-@RunWith(RobolectricTestRunner::class)
+@ExtendWith(RobolectricExtension::class)
 @Config(sdk = [28])
 class DataProducerManagerTierTest {
 
 	private lateinit var context: Context
 
-	@Before
+	@BeforeEach
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext()
 	}
