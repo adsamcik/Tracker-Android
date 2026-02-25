@@ -38,7 +38,7 @@ class SessionActivityActivityComposeTest {
     }
 
     @Test
-    fun addEditDeleteActivity_flow() = runBlocking {
+    fun addEditDeleteActivity_flow(): Unit = runBlocking {
         val dao = db.activityDao()
 
         // Add
@@ -64,7 +64,7 @@ class SessionActivityActivityComposeTest {
     }
 
     @Test
-    fun undoDelete_scenario() = runBlocking {
+    fun undoDelete_scenario(): Unit = runBlocking {
         val dao = db.activityDao()
         val id = dao.insert(SessionActivity(0, "Swim", null))
         val original = dao.getAll().first()

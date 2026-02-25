@@ -30,6 +30,6 @@
     <string name="settings_ski_infrastructure_title">Ski lift data</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Loaded (tap to remove)</string>
     <string name="settings_ski_infrastructure_subtitle_none">Not loaded (tap to import)</string>
-    <string name="settings_ski_infrastructure_subtitle_info">%d lifts · Generated %s</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d lifts · Generated %2$s</string>
     <string name="settings_ski_infrastructure_attribution">Ski lift data © OpenStreetMap contributors (ODbL)</string>
 </resources>
