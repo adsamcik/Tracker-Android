@@ -3,8 +3,11 @@ package com.adsamcik.tracker.app.ui
 import androidx.compose.animation.animateColorAsState
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.ripple
@@ -38,6 +41,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
+private val NavBarShape = RoundedCornerShape(32.dp)
+
 @Composable
 fun FloatingNavigationBar(
     items: List<NavigationItem>,
@@ -52,27 +57,7 @@ fun FloatingNavigationBar(
             .fillMaxWidth(),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Glass effect container
-        GlassCard(
-            shape = RoundedCornerShape(32.dp),
-            modifier = Modifier
-                .height(80.dp)
-                .then(
-                    if (hazeState != null) {
-                        val backgroundColor = MaterialTheme.colorScheme.surface
-                        Modifier
-                            .hazeEffect(
-                                state = hazeState,
-                                style = HazeStyle(
-                                    backgroundColor = if (backgroundColor != Color.Unspecified) backgroundColor else MaterialTheme.colorScheme.surface,
-                                    tint = null
-                                )
-                            )
-                    } else {
-                        Modifier
-                    }
-                )
-        ) {
+        val navContent: @Composable () -> Unit = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -86,6 +71,42 @@ fun FloatingNavigationBar(
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+        }
+
+        if (hazeState != null) {
+            val surfaceColor = MaterialTheme.colorScheme.surface
+            Box(
+                modifier = Modifier
+                    .height(80.dp)
+                    .fillMaxWidth()
+                    .clip(NavBarShape)
+                    .hazeEffect(
+                        state = hazeState,
+                        style = HazeStyle(
+                            backgroundColor = surfaceColor,
+                            tints = listOf(
+                                HazeTint(surfaceColor.copy(alpha = 0.78f)),
+                            ),
+                        ),
+                    )
+                    .border(
+                        BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        ),
+                        NavBarShape
+                    )
+                    .padding(16.dp),
+            ) {
+                navContent()
+            }
+        } else {
+            GlassCard(
+                shape = NavBarShape,
+                modifier = Modifier.height(80.dp)
+            ) {
+                navContent()
             }
         }
     }
