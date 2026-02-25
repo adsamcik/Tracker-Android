@@ -82,7 +82,8 @@ fun FloatingNavigationBar(
                     FloatingNavItem(
                         item = item,
                         isSelected = item == selectedItem,
-                        onClick = { onItemClick(item) }
+                        onClick = { onItemClick(item) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -94,7 +95,8 @@ fun FloatingNavigationBar(
 private fun FloatingNavItem(
     item: NavigationItem,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val iconTint by animateColorAsState(
         targetValue = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -112,7 +114,7 @@ private fun FloatingNavItem(
     )
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .testTag(item.testTag)
             .semantics { 
                 this.selected = isSelected 
