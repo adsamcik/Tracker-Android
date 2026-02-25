@@ -2,6 +2,7 @@ plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.ksp)
+	alias(libs.plugins.protobuf)
 }
 
 android {
@@ -80,6 +81,10 @@ dependencies {
 	implementation(libs.sqlite.android)
 	androidTestImplementation(libs.androidx.room.testing)
 
+	// DataStore proto (live stats)
+	implementation(libs.androidx.datastore.core)
+	implementation(libs.protobuf.java)
+
 	// Hilt
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)
@@ -114,3 +119,5 @@ dependencies {
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
 }
+
+configureProtobuf()

@@ -188,7 +188,7 @@ Key controllers provided via CompositionLocal:
 │         │                                                            │
 │    ┌────┴────────────────┬─────────────────────┐                    │
 │    ▼                     ▼                     ▼                    │
-│ Pre-Components     Data Producers      Post-Components              │
+│ Pre-Components     Data Producers      Data-Recording               │
 │ ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐        │
 │ │Location      │  │StepData      │  │DatabaseLocation      │        │
 │ │PreTracker    │  │Producer      │  │Component             │        │
@@ -202,6 +202,16 @@ Key controllers provided via CompositionLocal:
 │                   │WifiData      │  │RawLocationWriter     │        │
 │                   │Producer      │  └──────────────────────┘        │
 │                   └──────────────┘                                  │
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────┐        │
+│  │              ProcessorPipeline (Stats)                    │        │
+│  │  SignalAdapter → TrackingSignal → Processors:             │        │
+│  │    • AggregatorProcessor                                  │        │
+│  │    • SegmentDetectorProcessor                             │        │
+│  │    • ExplorationProcessor                                 │        │
+│  │    • AchievementProcessor                                 │        │
+│  │  Processors emit DomainEvents → Room → Consumers          │        │
+│  └─────────────────────────────────────────────────────────┘        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -210,12 +220,57 @@ Key controllers provided via CompositionLocal:
 1. **Start Trigger**: Manual button, shortcut, or auto-detect via `ActivityWatcherService`
 2. **Service Startup**: Foreground service with persistent notification
 3. **Data Collection**: Timer-based updates through component pipeline
-4. **Storage**: Data written to Room database via post-components
-5. **Session End**: Session finalized with aggregated statistics
+4. **Storage**: Data written to Room database via data-recording components
+5. **Stats Processing**: `ProcessorPipeline` converts tracking data to `TrackingSignal`s, processed by 4 signal processors that emit `DomainEvent`s
+6. **Event Consumers**: Domain events are consumed by module-specific consumers (game, points, activity) via cursor-based delivery
+7. **Session End**: Session finalized; `TrackerSessionChannel` notifies cross-module listeners
 
 ---
 
-## 6. Data Layer
+## 6. Stats Pipeline Architecture
+
+The stats subsystem uses a **Processor Pipeline** pattern, replacing legacy `PostTrackerComponent` stats writers and broadcast-based session receivers.
+
+### Pipeline Overview
+
+```
+TrackingSignal (via SignalAdapter)
+        │
+        ▼
+  ProcessorPipeline
+        │
+        ├── AggregatorProcessor      (rolling distance, duration, speed stats)
+        ├── SegmentDetectorProcessor  (session segment inference)
+        ├── ExplorationProcessor      (new-area discovery scoring)
+        └── AchievementProcessor      (milestone detection)
+        │
+        ▼
+  DomainEvents (persisted to Room, cursor-based delivery)
+        │
+        ├── GameDomainEventConsumer   (challenges, goals)
+        ├── PointsDomainEventConsumer (points scoring)
+        └── ActivityDomainEventConsumer (activity records)
+```
+
+### Key Components
+
+| Component | Module | Purpose |
+|-----------|--------|---------|
+| `ProcessorPipeline` | `stats-engine` | Orchestrates signal delivery to processors, manages lifecycle |
+| `SignalAdapter` | `stats-engine` | Converts `TrackerData` to typed `TrackingSignal`s |
+| `DomainEventRepository` | `stats-api` / `stats-data` | Cursor-based multi-consumer event persistence and delivery |
+| `TrackerSessionChannel` | `stats-api` | Cross-module Flow-based session update notifications |
+| `TripDetailPresenter` | `statistics` | Presenter for trip detail screen (replaces old ViewModel) |
+| `StatsPresenter` | `statistics` | Presenter for stats summary screen |
+| `HistoryPresenter` | `statistics` | Presenter for session history screen |
+
+### Presenter Pattern
+
+Statistics screens use **Presenters** instead of traditional ViewModels. Presenters are injected via `@HiltViewModel` wrappers and expose `StateFlow`-based UI state. `StatsViewModel` and `HistoryViewModel` are retained as thin type-host wrappers.
+
+---
+
+## 7. Data Layer
 
 ### Database Overview
 
@@ -258,7 +313,7 @@ Key controllers provided via CompositionLocal:
 
 ---
 
-## 7. Background Processing
+## 8. Background Processing
 
 ### Services
 
@@ -282,11 +337,10 @@ Key controllers provided via CompositionLocal:
 |----------|---------|---------|
 | `BootReceiver` | BOOT_COMPLETED | Restart after reboot |
 | `OnAppUpdateReceiver` | MY_PACKAGE_REPLACED | Re-init after update |
-| `PrecisionUpgradeReceiver` | Session end | Prompt for precise location |
 
 ---
 
-## 8. Permissions
+## 9. Permissions
 
 | Permission | Purpose | Required |
 |------------|---------|----------|
@@ -305,7 +359,7 @@ Key controllers provided via CompositionLocal:
 
 ---
 
-## 9. Architecture Standards
+## 10. Architecture Standards
 
 ### Enforced Patterns
 
@@ -336,7 +390,7 @@ class BadViewModel(app: Application) : AndroidViewModel(app) {
 
 ---
 
-## 10. Build System
+## 11. Build System
 
 ### Key Files
 
@@ -358,7 +412,7 @@ class BadViewModel(app: Application) : AndroidViewModel(app) {
 
 ---
 
-## 11. Related Documentation
+## 12. Related Documentation
 
 | Document | Purpose |
 |----------|---------|
@@ -398,7 +452,8 @@ The following documents are preserved in `docs/archive/` for historical referenc
 
 ### Data Flow
 ```
-Sensors → Producers → TempData → Post-Components → Room Database
+Sensors → Producers → TempData → Data-Recording Components → Room Database
+                                → SignalAdapter → ProcessorPipeline → DomainEvents → Consumers
 ```
 
 ### Key Entry Points

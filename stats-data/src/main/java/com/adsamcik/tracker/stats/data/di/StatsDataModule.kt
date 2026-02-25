@@ -10,8 +10,8 @@ import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDomainEventRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultExplorationRepository
-import com.adsamcik.tracker.stats.data.repository.DefaultLiveStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
+import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -36,7 +36,7 @@ abstract class StatsDataModule {
 
 	@Binds
 	@Singleton
-	abstract fun bindLiveStatsRepository(impl: DefaultLiveStatsRepository): LiveStatsRepository
+	abstract fun bindLiveStatsRepository(impl: ProtoLiveStatsRepository): LiveStatsRepository
 
 	@Binds
 	@Singleton
