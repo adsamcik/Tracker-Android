@@ -272,7 +272,7 @@ class DefaultLayerRegistry : LayerRegistry {
                         legend = MapLayerData(
                             info = MapLayerInfo("LocationPathLayer", R.string.map_layer_location_polyline_title),
                             colorList = emptyList(),
-                            legend = MapLegend(R.string.map_layer_location_heatmap_description)
+                            legend = MapLegend(R.string.map_layer_location_polyline_description)
                         )
                     )
                 })
