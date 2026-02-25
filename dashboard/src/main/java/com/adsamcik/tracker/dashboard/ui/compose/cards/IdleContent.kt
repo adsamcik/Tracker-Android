@@ -65,6 +65,7 @@ internal fun IdleContent(
 					session = session,
 					pathPoints = state.pathPoints,
 					onMapClick = onMapClick,
+					onSessionDetailClick = onSessionDetailClick,
 				)
 			}
 		}
