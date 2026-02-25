@@ -18,7 +18,7 @@ class AltitudeFusionEngineTest {
 
 	@BeforeEach
 	fun setup() {
-		engine = AltitudeFusionEngine(alpha = 0.98)
+		engine = AltitudeFusionEngine()
 	}
 
 	@Nested
@@ -89,12 +89,13 @@ class AltitudeFusionEngineTest {
 		}
 
 		@Test
-		fun `subsequent GPS updates blend with previous`() {
+		fun `subsequent GPS updates produce reasonable results`() {
 			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = null, timeMs = 1000L)
 			val result = engine.update(gpsAltitudeMsl = 510.0, baroPressureHpa = null, timeMs = 2000L)
 			result.shouldNotBeNull()
-			// With alpha=0.98: 0.98*500 + 0.02*510 = 500.2
-			abs(result - 500.2) shouldBeLessThan 0.01
+			// Kalman filter blends first and second reading; result should be between them
+			result shouldBeGreaterThan 500.0
+			result shouldBeLessThan 510.0
 		}
 	}
 
@@ -132,7 +133,7 @@ class AltitudeFusionEngineTest {
 		}
 
 		@Test
-		fun `complementary filter dampens GPS noise`() {
+		fun `Kalman filter dampens GPS noise when barometer is stable`() {
 			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = 955f, timeMs = 1000L)
 			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = 955f, timeMs = 2000L)
 
@@ -140,7 +141,7 @@ class AltitudeFusionEngineTest {
 			val result = engine.update(gpsAltitudeMsl = 520.0, baroPressureHpa = 955f, timeMs = 3000L)
 			result.shouldNotBeNull()
 
-			// Should be much closer to 500 than to 520 (alpha=0.98 trusts baro)
+			// Kalman should trust barometer more (low noise) and dampen GPS spike
 			abs(result - 500.0) shouldBeLessThan abs(result - 520.0)
 		}
 	}

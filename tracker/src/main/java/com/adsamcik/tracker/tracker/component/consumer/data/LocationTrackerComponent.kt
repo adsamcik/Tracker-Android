@@ -57,7 +57,7 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 
 		val location = locationResult.lastLocation
 
-		// Apply altitude processing pipeline (geoid correction + accuracy gating + fusion + EMA)
+		// Apply altitude processing pipeline (geoid correction + accuracy gating + Kalman fusion)
 		val ctx = context
 		val processor = altitudeProcessor
 		if (ctx != null && processor != null) {

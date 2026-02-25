@@ -50,8 +50,7 @@ class AltitudeProcessorTest {
 	@BeforeEach
 	fun setup() {
 		processor = AltitudeProcessor(
-			verticalAccuracyThresholdM = 20f,
-			emaAlpha = 0.2f
+			verticalAccuracyThresholdM = 20f
 		)
 	}
 
@@ -99,8 +98,8 @@ class AltitudeProcessorTest {
 	}
 
 	@Nested
-	@DisplayName("EMA smoothing")
-	inner class EmaSmoothingIntegration {
+	@DisplayName("Kalman fusion integration")
+	inner class KalmanFusionIntegration {
 		@Test
 		fun `first value passes through with minimal change`() {
 			val context = RuntimeEnvironment.getApplication()
@@ -111,7 +110,7 @@ class AltitudeProcessorTest {
 		}
 
 		@Test
-		fun `smooths consecutive readings`() {
+		fun `smooths consecutive readings via Kalman`() {
 			val context = RuntimeEnvironment.getApplication()
 
 			// First reading establishes baseline
@@ -119,15 +118,14 @@ class AltitudeProcessorTest {
 			val result1 = processor.process(context, loc1)
 			result1.shouldNotBeNull()
 
-			// Big jump — should be dampened
+			// Big jump — should be dampened by Kalman filter
 			val loc2 = createLocation(altitude = 600.0, verticalAccuracy = 5f)
 			val result2 = processor.process(context, loc2)
 			result2.shouldNotBeNull()
 
-			// Result should be between the two values (smoothed), not at 600
-			// The geoid correction may shift values, but the difference should be dampened
+			// The Kalman filter should dampen the 100m jump
 			val diff = abs(result2 - result1)
-			diff shouldBeLessThan 100.0 // If unsmoothed, diff would be ~100
+			diff shouldBeLessThan 100.0
 		}
 	}
 

@@ -6,21 +6,20 @@ import androidx.annotation.WorkerThread
 import androidx.core.location.altitude.AltitudeConverterCompat
 
 /**
- * Processes raw GPS altitude through a correction, fusion, and smoothing pipeline:
+ * Processes raw GPS altitude through a correction and fusion pipeline:
  * 1. Geoid correction (WGS-84 ellipsoid → Mean Sea Level)
  * 2. Vertical accuracy gating (reject unreliable altitude readings)
- * 3. Sensor fusion with barometer (complementary filter)
- * 4. EMA smoothing (reduce high-frequency noise on fused output)
+ * 3. Kalman sensor fusion with barometer (optimal noise weighting)
+ *
+ * The Kalman filter provides both smoothing and fusion, dynamically weighting
+ * GPS (using verticalAccuracy²) and barometer (calibrated, ~1m² noise) sources.
  *
  * Thread-safety: This class is NOT thread-safe. Use from a single coroutine context.
  */
 internal class AltitudeProcessor(
-	private val verticalAccuracyThresholdM: Float = DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M,
-	emaAlpha: Float = DEFAULT_EMA_ALPHA,
-	fusionAlpha: Double = AltitudeFusionEngine.DEFAULT_ALPHA
+	private val verticalAccuracyThresholdM: Float = DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M
 ) {
-	private val emaFilter = EmaFilter(emaAlpha)
-	private val fusionEngine = AltitudeFusionEngine(alpha = fusionAlpha)
+	private val fusionEngine = AltitudeFusionEngine()
 
 	/**
 	 * Whether the fusion engine has been calibrated with a GPS+barometer pair.
@@ -50,7 +49,7 @@ internal class AltitudeProcessor(
 	 * @param context Application context for geoid model access.
 	 * @param location The raw GPS location. Modified in place with geoid correction.
 	 * @param baroPressureHpa Current barometer pressure in hPa, or null if unavailable.
-	 * @return The fused and smoothed altitude in meters above MSL, or null.
+	 * @return The fused altitude in meters above MSL, or null.
 	 */
 	@WorkerThread
 	fun processWithBarometer(
@@ -72,15 +71,20 @@ internal class AltitudeProcessor(
 			null
 		}
 
-		// Step 3: Sensor fusion (complementary filter with barometer)
-		val fusedAltitude = fusionEngine.update(
+		// Step 3: Get vertical accuracy for Kalman weighting
+		val verticalAccuracyM = if (location.hasVerticalAccuracy()) {
+			location.verticalAccuracyMeters
+		} else {
+			null
+		}
+
+		// Step 4: Kalman fusion (GPS + barometer)
+		return fusionEngine.update(
 			gpsAltitudeMsl = gatedAltitude,
+			gpsVerticalAccuracyM = verticalAccuracyM,
 			baroPressureHpa = baroPressureHpa,
 			timeMs = location.time
 		)
-
-		// Step 4: EMA smoothing on fused output
-		return fusedAltitude?.let { emaFilter.update(it) }
 	}
 
 	/**
@@ -116,10 +120,9 @@ internal class AltitudeProcessor(
 	}
 
 	/**
-	 * Resets all state (EMA filter + fusion engine). Call when starting a new tracking session.
+	 * Resets all state (Kalman filter + calibration). Call when starting a new tracking session.
 	 */
 	fun reset() {
-		emaFilter.reset()
 		fusionEngine.reset()
 	}
 
@@ -130,12 +133,5 @@ internal class AltitudeProcessor(
 		 * 20m is a reasonable threshold — most outdoor GPS fixes are <15m.
 		 */
 		const val DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M = 20f
-
-		/**
-		 * Default EMA smoothing factor.
-		 * 0.3 provides moderate smoothing on already-fused output.
-		 * Higher than GPS-only (0.2) because fusion output is already smoother.
-		 */
-		const val DEFAULT_EMA_ALPHA = 0.3f
 	}
 }

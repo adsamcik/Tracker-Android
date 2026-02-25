@@ -3,38 +3,34 @@ package com.adsamcik.tracker.tracker.altitude
 import kotlin.math.pow
 
 /**
- * Fuses GPS altitude with barometric pressure changes using a complementary filter.
+ * Fuses GPS altitude with barometric pressure using a 1D Kalman filter.
  *
  * GPS provides absolute altitude (noisy, ~10-30m error, no drift).
  * Barometer provides relative altitude changes (smooth, ~0.5m noise, but drifts with weather).
  *
- * The complementary filter combines these:
- *   fusedAlt = α * (prevFused + baroChange) + (1 - α) * gpsAlt
- *
- * Where α close to 1.0 trusts barometer for short-term and GPS for long-term.
+ * The Kalman filter optimally weights each source based on measurement noise:
+ * - GPS: high noise (uses verticalAccuracy² or default 225 m²)
+ * - Barometer: low noise (~1 m²), calibrated against GPS baseline
  *
  * Includes GPS-calibrated barometer baseline: uses the first good GPS fix to
  * determine local sea-level pressure, eliminating weather-dependent absolute error.
+ * Recalibrates periodically to compensate for barometer drift.
  *
  * Thread-safety: NOT thread-safe. Use from a single coroutine context.
  */
 internal class AltitudeFusionEngine(
-	private val alpha: Double = DEFAULT_ALPHA,
-	private val recalibrationIntervalMs: Long = DEFAULT_RECALIBRATION_INTERVAL_MS
+	private val recalibrationIntervalMs: Long = DEFAULT_RECALIBRATION_INTERVAL_MS,
+	private val defaultGpsMeasurementNoiseM2: Double = DEFAULT_GPS_MEASUREMENT_NOISE_M2,
+	private val baroMeasurementNoiseM2: Double = DEFAULT_BARO_MEASUREMENT_NOISE_M2
 ) {
-	init {
-		require(alpha in 0.0..1.0) { "Alpha must be in [0, 1], was $alpha" }
-	}
+	private val kalmanFilter = AltitudeKalmanFilter()
 
 	// Calibrated sea-level pressure (derived from GPS + barometer at calibration time)
 	private var calibratedSeaLevelPressureHpa: Double? = null
 	private var lastCalibrationTimeMs: Long = 0L
 
-	// Previous barometer altitude (for computing relative change)
+	// Previous barometer altitude for change tracking
 	private var previousBaroAltitudeM: Double? = null
-
-	// Current fused altitude estimate
-	private var fusedAltitudeM: Double? = null
 
 	/**
 	 * Whether the fusion engine has been calibrated with at least one GPS fix.
@@ -46,7 +42,13 @@ internal class AltitudeFusionEngine(
 	 * The current fused altitude estimate, or null if not yet initialized.
 	 */
 	val currentAltitude: Double?
-		get() = fusedAltitudeM
+		get() = if (kalmanFilter.isInitialized) kalmanFilter.altitude else null
+
+	/**
+	 * Current vertical velocity estimate in m/s, or null if not initialized.
+	 */
+	val verticalVelocity: Double?
+		get() = if (kalmanFilter.isInitialized) kalmanFilter.verticalVelocity else null
 
 	/**
 	 * Calibrate the barometer baseline using a known GPS altitude.
@@ -85,11 +87,12 @@ internal class AltitudeFusionEngine(
 	/**
 	 * Update the fused altitude with new GPS and/or barometer data.
 	 *
-	 * Call this on each tracking cycle with whatever data is available.
-	 * Both parameters are nullable — the engine handles partial updates.
+	 * Both parameters are nullable — the engine handles partial updates gracefully.
 	 *
 	 * @param gpsAltitudeMsl GPS altitude in meters above MSL (already geoid-corrected).
 	 *                       Null if GPS altitude unavailable or failed quality gate.
+	 * @param gpsVerticalAccuracyM GPS vertical accuracy in meters (68% confidence).
+	 *                             Null to use default noise.
 	 * @param baroPressureHpa Current barometer pressure in hPa.
 	 *                        Null if barometer unavailable.
 	 * @param timeMs Current time in milliseconds.
@@ -97,7 +100,8 @@ internal class AltitudeFusionEngine(
 	 */
 	fun update(
 		gpsAltitudeMsl: Double?,
-		baroPressureHpa: Float?,
+		gpsVerticalAccuracyM: Float? = null,
+		baroPressureHpa: Float? = null,
 		timeMs: Long
 	): Double? {
 		// Try to calibrate/recalibrate if we have both GPS and barometer
@@ -107,50 +111,48 @@ internal class AltitudeFusionEngine(
 			}
 		}
 
-		// Compute current barometer altitude
-		val currentBaroAltitude = baroPressureHpa?.let { pressureToAltitude(it) }
-
-		// Compute barometer altitude change (relative delta)
-		val baroChange = if (currentBaroAltitude != null && previousBaroAltitudeM != null) {
-			currentBaroAltitude - previousBaroAltitudeM!!
-		} else {
-			null
+		// Run prediction step if filter is already initialized
+		if (kalmanFilter.isInitialized) {
+			kalmanFilter.predict(timeMs)
 		}
 
-		// Update previous barometer altitude
-		if (currentBaroAltitude != null) {
-			previousBaroAltitudeM = currentBaroAltitude
+		// GPS measurement update
+		if (gpsAltitudeMsl != null) {
+			val gpsNoise = if (gpsVerticalAccuracyM != null) {
+				(gpsVerticalAccuracyM * gpsVerticalAccuracyM).toDouble()
+			} else {
+				defaultGpsMeasurementNoiseM2
+			}
+			kalmanFilter.update(gpsAltitudeMsl, gpsNoise, timeMs)
 		}
 
-		// Apply complementary filter
-		val currentFused = fusedAltitudeM
-		val newFused = when {
-			// Case 1: Have both GPS and barometer change → full complementary filter
-			gpsAltitudeMsl != null && baroChange != null && currentFused != null -> {
-				alpha * (currentFused + baroChange) + (1.0 - alpha) * gpsAltitudeMsl
-			}
-			// Case 2: Have GPS but no barometer change → use GPS directly (bootstrap)
-			gpsAltitudeMsl != null && currentFused == null -> {
-				gpsAltitudeMsl
-			}
-			// Case 3: Have GPS and existing estimate but no baro → blend toward GPS
-			gpsAltitudeMsl != null -> {
-				alpha * currentFused!! + (1.0 - alpha) * gpsAltitudeMsl
-			}
-			// Case 4: Have barometer change but no GPS → extrapolate from baro
-			baroChange != null && currentFused != null -> {
-				currentFused + baroChange
-			}
-			// Case 5: Nothing useful → keep previous
-			else -> currentFused
+		// Barometer measurement update
+		val baroAltitude = baroPressureHpa?.let { pressureToAltitude(it) }
+		if (baroAltitude != null) {
+			kalmanFilter.update(baroAltitude, baroMeasurementNoiseM2, timeMs)
 		}
 
-		if (newFused != null) {
-			fusedAltitudeM = newFused
+		// Track barometer altitude for external consumers
+		if (baroAltitude != null) {
+			previousBaroAltitudeM = baroAltitude
 		}
 
-		return newFused
+		return currentAltitude
 	}
+
+	/**
+	 * Backward-compatible update overload (no vertical accuracy parameter).
+	 */
+	fun update(
+		gpsAltitudeMsl: Double?,
+		baroPressureHpa: Float?,
+		timeMs: Long
+	): Double? = update(
+		gpsAltitudeMsl = gpsAltitudeMsl,
+		gpsVerticalAccuracyM = null,
+		baroPressureHpa = baroPressureHpa,
+		timeMs = timeMs
+	)
 
 	/**
 	 * Resets all state. Call when starting a new tracking session.
@@ -159,16 +161,21 @@ internal class AltitudeFusionEngine(
 		calibratedSeaLevelPressureHpa = null
 		lastCalibrationTimeMs = 0L
 		previousBaroAltitudeM = null
-		fusedAltitudeM = null
+		kalmanFilter.reset()
 	}
 
 	companion object {
 		/**
-		 * Default complementary filter weight.
-		 * 0.98 heavily trusts the barometer for short-term changes
-		 * while GPS corrects drift over time.
+		 * Default GPS measurement noise variance (σ² in m²).
+		 * 225 = 15m σ, which is typical for consumer GPS vertical accuracy.
 		 */
-		const val DEFAULT_ALPHA = 0.98
+		const val DEFAULT_GPS_MEASUREMENT_NOISE_M2 = 225.0
+
+		/**
+		 * Default barometer measurement noise variance (σ² in m²).
+		 * 1.0 = 1m σ, reflecting calibrated barometer accuracy.
+		 */
+		const val DEFAULT_BARO_MEASUREMENT_NOISE_M2 = 1.0
 
 		/**
 		 * Default recalibration interval: 5 minutes.
@@ -185,5 +192,12 @@ internal class AltitudeFusionEngine(
 
 		/** Inverse exponent for altitude → pressure back-calculation. */
 		private const val BAROMETRIC_EXPONENT = 1.0 / BAROMETRIC_INV_EXPONENT
+
+		/**
+		 * Default complementary filter weight (kept for reference/configuration).
+		 * With Kalman filter this is no longer used, but the constant is retained
+		 * for backward compatibility with consumers that reference it.
+		 */
+		const val DEFAULT_ALPHA = 0.98
 	}
 }
