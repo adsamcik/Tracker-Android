@@ -53,7 +53,6 @@ import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.LogDatabase
 import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
-import com.adsamcik.tracker.shared.base.debug.DummyDataSeeder
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
 import com.adsamcik.tracker.app.Application
@@ -71,10 +70,6 @@ fun DebugRoute() {
     val clearDialog = remember { mutableStateOf(false) }
     var statusExpanded by remember { mutableStateOf(false) }
     var logsExpanded by remember { mutableStateOf(false) }
-    var seedStatus by remember { mutableStateOf<String?>(null) }
-    var isSeeding by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
     Scaffold { padding ->
         LazyColumn(
             modifier = Modifier
@@ -103,40 +98,8 @@ fun DebugRoute() {
                 }
             }
 
-            if (com.adsamcik.tracker.BuildConfig.DEBUG) {
-                item {
-                    Button(
-                        onClick = {
-                            isSeeding = true
-                            seedStatus = null
-                            scope.launch {
-                                val result = DummyDataSeeder.seed(ctx)
-                                seedStatus = if (result.inserted) "✅ Seeded 3 sessions" else "❌ ${result.reason}"
-                                isSeeding = false
-                            }
-                        },
-                        enabled = !isSeeding,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("debug_seed_data_button")
-                    ) {
-                        if (isSeeding) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.width(16.dp).height(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text("Seed Dummy Data (3 NYC sessions)")
-                    }
-                    if (seedStatus != null) {
-                        Text(
-                            text = seedStatus!!,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                        )
-                    }
-                }
+            item {
+                SeedDataSection()
             }
 
             item {
