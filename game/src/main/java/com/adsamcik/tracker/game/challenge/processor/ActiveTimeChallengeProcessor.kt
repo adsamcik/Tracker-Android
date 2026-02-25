@@ -14,7 +14,7 @@ class ActiveTimeChallengeProcessor @Inject constructor() : ChallengeProcessor {
 
 	override fun formatDescription(context: Context, entity: ChallengeEntity): String {
 		return context.getString(
-			R.string.challenge_active_time_title,
+			R.string.challenge_active_time_description,
 			entity.requiredValue.toInt().toString()
 		)
 	}
