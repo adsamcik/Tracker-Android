@@ -12,6 +12,7 @@ import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
 import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -148,7 +149,8 @@ class ProgressionRepository @Inject constructor(
 		if (xpAward.amount <= 0) return
 
 		// Check daily cap
-		val todayStart = (Time.nowMillis / 86_400_000L) * 86_400_000L
+		val millisPerDay = TimeUnit.DAYS.toMillis(1)
+		val todayStart = (Time.nowMillis / millisPerDay) * millisPerDay
 		val todayXp = database.xpLedgerDao().getXpSince(todayStart)
 		val cappedAmount = (xpAward.amount).coerceAtMost(
 			(XpCalculator.DAILY_CAP - todayXp.toInt()).coerceAtLeast(0),

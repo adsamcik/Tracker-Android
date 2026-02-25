@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.game.challenge.progression
 
+import androidx.annotation.StringRes
+import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
 import kotlinx.coroutines.flow.Flow
@@ -82,7 +84,7 @@ class StreakManager @Inject constructor() {
 				currentCount = e.currentCount,
 				bestCount = e.bestCount,
 				freezeCount = e.freezeCount,
-				milestoneText = getMilestoneText(e.currentCount),
+				milestoneResId = getMilestoneResId(e.currentCount),
 			)
 		}
 	}
@@ -91,11 +93,12 @@ class StreakManager @Inject constructor() {
 		const val COMPLETIONS_PER_FREEZE = 7
 		const val MAX_FREEZES = 3
 
-		fun getMilestoneText(count: Int): String? = when {
-			count >= 30 -> "Legend 👑"
-			count >= 14 -> "Unstoppable 💪"
-			count >= 7 -> "On fire! 🔥"
-			count >= 3 -> "Getting warmed up 🔥"
+		@StringRes
+		fun getMilestoneResId(count: Int): Int? = when {
+			count >= 30 -> R.string.game_streak_milestone_30
+			count >= 14 -> R.string.game_streak_milestone_14
+			count >= 7 -> R.string.game_streak_milestone_7
+			count >= 3 -> R.string.game_streak_milestone_3
 			else -> null
 		}
 	}
@@ -108,5 +111,5 @@ data class StreakState(
 	val currentCount: Int,
 	val bestCount: Int,
 	val freezeCount: Int,
-	val milestoneText: String?,
+	@StringRes val milestoneResId: Int?,
 )

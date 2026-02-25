@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,11 +38,14 @@ class DefaultGameRepository @Inject constructor(
     
     init {
         // Initialize game managers (idempotent)
-        GoalTracker.initialize(application)
-        challengeManager.initialize(application)
+        runCatching { GoalTracker.initialize(application) }
+        runCatching { challengeManager.initialize(application) }
     }
     
-    private fun startOfDay(now: Long): Long = (now / 86_400_000L) * 86_400_000L
+    private fun startOfDay(now: Long): Long {
+        val millisPerDay = TimeUnit.DAYS.toMillis(1)
+        return (now / millisPerDay) * millisPerDay
+    }
     
     override fun getPointsToday(): Flow<Int> {
         return flow {

@@ -6,8 +6,8 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.DisplayName
@@ -59,42 +59,45 @@ class MedalAndStreakTest {
 	}
 
 	@Nested
-	@DisplayName("StreakManager.getMilestoneText")
+	@DisplayName("StreakManager.getMilestoneResId")
 	inner class StreakMilestoneTests {
 
 		@Test
 		fun `count 0 returns null`() {
-			StreakManager.getMilestoneText(0).shouldBeNull()
+			StreakManager.getMilestoneResId(0).shouldBeNull()
 		}
 
 		@Test
 		fun `count 2 returns null`() {
-			StreakManager.getMilestoneText(2).shouldBeNull()
+			StreakManager.getMilestoneResId(2).shouldBeNull()
 		}
 
 		@Test
-		fun `count 3 contains warmed up`() {
-			StreakManager.getMilestoneText(3)!! shouldContain "warmed up"
+		fun `count 3 returns non-null resource`() {
+			StreakManager.getMilestoneResId(3).shouldNotBeNull()
 		}
 
 		@Test
-		fun `count 7 contains fire`() {
-			StreakManager.getMilestoneText(7)!! shouldContain "fire"
+		fun `count 7 returns different resource than count 3`() {
+			val res3 = StreakManager.getMilestoneResId(3)
+			val res7 = StreakManager.getMilestoneResId(7)
+			res7.shouldNotBeNull()
+			(res7 != res3) shouldBe true
 		}
 
 		@Test
-		fun `count 14 contains Unstoppable`() {
-			StreakManager.getMilestoneText(14)!! shouldContain "Unstoppable"
+		fun `count 14 returns non-null resource`() {
+			StreakManager.getMilestoneResId(14).shouldNotBeNull()
 		}
 
 		@Test
-		fun `count 30 contains Legend`() {
-			StreakManager.getMilestoneText(30)!! shouldContain "Legend"
+		fun `count 30 returns non-null resource`() {
+			StreakManager.getMilestoneResId(30).shouldNotBeNull()
 		}
 
 		@Test
-		fun `count 100 stays at Legend`() {
-			StreakManager.getMilestoneText(100)!! shouldContain "Legend"
+		fun `count 100 returns same as count 30`() {
+			StreakManager.getMilestoneResId(100) shouldBe StreakManager.getMilestoneResId(30)
 		}
 	}
 

@@ -195,11 +195,13 @@ class ChallengeManager @Inject constructor(
 		val durationMult = Random.nextDouble(durationRange.start, durationRange.endInclusive)
 		val duration = (processor.defaultDurationMs * durationMult).toLong()
 
+		val difficulty = calculateDifficulty(context)
+
 		val entity = ChallengeEntity(
 			type = processor.type,
 			startTime = now,
 			endTime = now + duration,
-			difficulty = ChallengeDifficulty.MEDIUM, // TODO: Calculate from user history
+			difficulty = difficulty,
 			requiredValue = processor.defaultRequiredValue * durationMult,
 		)
 
@@ -217,8 +219,39 @@ class ChallengeManager @Inject constructor(
 		return ChallengeInstanceNew(savedEntity, processor)
 	}
 
+	/**
+	 * Calculates difficulty based on the player's recent challenge completion rate.
+	 * High success rate → harder challenges; low success rate → easier ones.
+	 * Falls back to MEDIUM when no history is available.
+	 */
+	private fun calculateDifficulty(context: Context): ChallengeDifficulty {
+		val history = ChallengeDatabase.database(context).challengeHistoryDao().getAll()
+		return difficultyFromCompletionRate(history.map { it.outcome })
+	}
+
 	companion object {
 		internal const val MAX_CHALLENGE_COUNT = 3
+		internal const val DIFFICULTY_HISTORY_WINDOW = 10
+
+		/**
+		 * Pure function: determines difficulty from a list of outcome strings.
+		 * Takes the last [DIFFICULTY_HISTORY_WINDOW] outcomes and calculates completion rate.
+		 */
+		internal fun difficultyFromCompletionRate(outcomes: List<String>): ChallengeDifficulty {
+			if (outcomes.isEmpty()) return ChallengeDifficulty.MEDIUM
+
+			val recent = outcomes.takeLast(DIFFICULTY_HISTORY_WINDOW)
+			val completedCount = recent.count { it == "COMPLETED" }
+			val completionRate = completedCount.toDouble() / recent.size
+
+			return when {
+				completionRate >= 0.8 -> ChallengeDifficulty.VERY_HARD
+				completionRate >= 0.6 -> ChallengeDifficulty.HARD
+				completionRate >= 0.4 -> ChallengeDifficulty.MEDIUM
+				completionRate >= 0.2 -> ChallengeDifficulty.EASY
+				else -> ChallengeDifficulty.VERY_EASY
+			}
+		}
 	}
 }
 
