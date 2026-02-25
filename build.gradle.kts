@@ -5,7 +5,7 @@ buildscript {
 		resolutionStrategy.eachDependency {
 			if (requested.group == "com.squareup" && requested.name == "javapoet") {
 				useVersion("1.13.0")
-				because("Hilt 2.54 running on Kotlin 2.2.20-RC needs the canonicalName API from JavaPoet 1.13.0 on the buildscript classpath")
+				because("Hilt 2.59.2 running on Kotlin 2.2.20 needs the canonicalName API from JavaPoet 1.13.0 on the buildscript classpath")
 			}
 		}
 	}
@@ -72,11 +72,11 @@ tasks.named(
 ).configure {
 	resolutionStrategy {
 		componentSelection {
-			all {
+			all(Action<com.github.benmanes.gradle.versions.updates.resolutionstrategy.ComponentSelectionWithCurrent> {
 				if (!isStable(candidate.version) && isStable(currentVersion)) {
 					reject("Release candidate")
 				}
-			}
+			})
 		}
 	}
 }

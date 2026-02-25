@@ -80,7 +80,7 @@ android {
 		getByName("release") {
 			// Keep minification disabled for now; Compose-only main is enforced across variants
 			isMinifyEnabled = false
-			proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
 	}
