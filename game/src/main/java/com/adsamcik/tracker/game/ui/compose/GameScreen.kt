@@ -100,6 +100,13 @@ fun GameScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                Text(
+                    text = stringResource(R.string.module_game_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+            item {
                 HeroLevelCard(
                     level = playerProfile?.level ?: 0,
                     xpIntoCurrentLevel = playerProfile?.xpIntoCurrentLevel ?: 0L,
