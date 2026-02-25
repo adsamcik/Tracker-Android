@@ -37,17 +37,12 @@ import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.ActivitySnapshotWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.ExplorationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.SessionSegmentWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.StreamingAggregatorWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -397,28 +392,20 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updatePersistenceErrorFlow(errorCollector.errors)
 
 		// Post-processing components, filtered by tier.
-		// AMBIENT: notification + sessionless step/activity writers + aggregator.
-		// ACTIVE+: full set including GPS-dependent DB writers and trip detection.
+		// AMBIENT: notification only. Stats processing handled by ProcessorPipeline.
+		// ACTIVE+: adds GPS-dependent DB writers for raw data recording.
 		postComponentList.apply {
 			add(notificationComponent)
-			add(StepIntervalWriter())
-			add(ActivitySnapshotWriter())
-			add(StreamingAggregatorWriter())
 			if (initialTier.isGpsEnabled) {
 				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseWifiLocationCountComponent())
 				add(RawLocationWriter())
-				add(SessionSegmentWriter().also {
-					it.setEscalationEngine(escalationEngine)
-					it.setUserInitiated(isSessionUserInitiated)
-				})
-				add(ExplorationWriter())
 			}
 		}.forEach { it.onEnable(this) }
 
-		// Initialize the stats ProcessorPipeline (dual-run alongside PostTrackerComponents)
+		// Initialize the stats ProcessorPipeline
 		val pipeline = ProcessorPipeline(
 			processors = signalProcessors,
 			scope = this@TrackerService,
@@ -572,13 +559,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				}
 				newPostComponents.add(DatabaseWifiLocationCountComponent())
 				newPostComponents.add(RawLocationWriter())
-				val isUserInitiated = sessionInfo?.isInitiatedByUser ?: false
-				val escalationEngine = trackingPolicyManager?.escalationEngine
-				newPostComponents.add(SessionSegmentWriter().also {
-					if (escalationEngine != null) it.setEscalationEngine(escalationEngine)
-					it.setUserInitiated(isUserInitiated)
-				})
-				newPostComponents.add(ExplorationWriter())
 				newPostComponents.forEach { it.onEnable(this@TrackerService) }
 				postComponentList.addAll(newPostComponents)
 

@@ -73,8 +73,7 @@ TrackerService (Foreground Service + WakeLock)
   |
   Post-Components (persistence & notification)
   |- DatabaseLocationComponent, DatabaseWifiComponent, DatabaseCellComponent
-  |- SessionSegmentWriter, StreamingAggregatorWriter, ExplorationWriter
-  |- ActivitySnapshotWriter, StepIntervalWriter, RawLocationWriter
+  |- RawLocationWriter
   |- NotificationComponent
   |
   TrackingPolicyManager -> Tier escalation (AMBIENT -> ACTIVE -> PRECISION)

@@ -33,14 +33,14 @@ existing PostTrackerComponent list.
 - ☐ Validate with real tracking sessions (walk, drive, bike, transit)
 
 ### 1.3 Remove PostTrackerComponents (after validation)
-- ☐ `StreamingAggregatorWriter` → replaced by `AggregatorProcessor`
-- ☐ `SessionSegmentWriter` → replaced by `SegmentDetectorProcessor`
-- ☐ `ExplorationWriter` → replaced by `ExplorationProcessor`
-- ☐ `StepIntervalWriter` → subsumed by pipeline signal handling
-- ☐ `ActivitySnapshotWriter` → subsumed by pipeline signal handling
-- ☐ Remove hardcoded component lists from `TrackerService.initializeComponents()`
-- ☐ Remove hardcoded component lists from `TrackerService.onTierEscalation()`
-- ☐ Remove `TrackerComponentManager` component registration (if fully replaced)
+- ☑ `StreamingAggregatorWriter` → replaced by `AggregatorProcessor`
+- ☑ `SessionSegmentWriter` → replaced by `SegmentDetectorProcessor`
+- ☑ `ExplorationWriter` → replaced by `ExplorationProcessor`
+- ☑ `StepIntervalWriter` → subsumed by pipeline signal handling
+- ☑ `ActivitySnapshotWriter` → subsumed by pipeline signal handling
+- ☑ Remove hardcoded component lists from `TrackerService.initializeComponents()`
+- ☑ Remove hardcoded component lists from `TrackerService.onTierEscalation()`
+- ☑ Remove `TrackerComponentManager` component registration (if fully replaced)
 
 ### 1.4 Database persistence writers
 The following PostTrackerComponents write raw sensor data to Room and are NOT replaced by
