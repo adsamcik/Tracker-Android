@@ -19,6 +19,7 @@ desugarJdkLibs = "2.1.5"
 
 # AndroidX / Google
 coreKtx = "1.16.0"
+coreLocationAltitude = "1.0.0-alpha02"
 appcompat = "1.7.1"
 material = "1.13.0-rc01"
 constraintLayout = "2.2.1"
@@ -140,6 +141,7 @@ haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 
 # AndroidX core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-core-location-altitude = { group = "androidx.core", name = "core-location-altitude", version.ref = "coreLocationAltitude" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintLayout" }
 androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerView" }
