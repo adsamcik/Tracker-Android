@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.maintenance
 
 import android.content.Context
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
 import androidx.work.WorkInfo
@@ -18,6 +19,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -58,6 +60,7 @@ class DataRetentionWorkerTest {
             retentionStore.update { copy(autoCleanupEnabled = false) }
         }
     DataRetentionWorker.initialize(context)
+    shadowOf(Looper.getMainLooper()).idle()
     var works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
         assertTrue(works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
 
@@ -66,12 +69,8 @@ class DataRetentionWorkerTest {
             retentionStore.update { copy(autoCleanupEnabled = true) }
         }
     DataRetentionWorker.initialize(context)
-        val start = System.currentTimeMillis()
-        do {
-            works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
-            if (works.isNotEmpty()) break
-            Thread.sleep(50)
-        } while (System.currentTimeMillis() - start < 2000)
+        shadowOf(Looper.getMainLooper()).idle()
+        works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
         assertTrue(works.isNotEmpty())
 
         // Disable again: expect cancellation
@@ -79,12 +78,8 @@ class DataRetentionWorkerTest {
             retentionStore.update { copy(autoCleanupEnabled = false) }
         }
         DataRetentionWorker.initialize(context)
-        val startCancel = System.currentTimeMillis()
-        do {
-            works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
-            if (works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }) break
-            Thread.sleep(50)
-        } while (System.currentTimeMillis() - startCancel < 5000)
+        shadowOf(Looper.getMainLooper()).idle()
+        works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
         assertTrue(works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
     }
 }
