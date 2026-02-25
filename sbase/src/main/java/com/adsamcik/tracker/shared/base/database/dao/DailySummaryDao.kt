@@ -30,6 +30,12 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	suspend fun getBetween(fromDay: Long, toDay: Long): List<DailySummaryEntity>
 
 	/**
+	 * Get all summaries in a date range as a reactive Flow.
+	 */
+	@Query("SELECT * FROM daily_summary WHERE date_epoch_day >= :fromDay AND date_epoch_day <= :toDay ORDER BY date_epoch_day")
+	fun getBetweenFlow(fromDay: Long, toDay: Long): Flow<List<DailySummaryEntity>>
+
+	/**
 	 * Upsert a daily summary row.
 	 * Uses REPLACE to handle insert-or-update since dateEpochDay is the primary key.
 	 */

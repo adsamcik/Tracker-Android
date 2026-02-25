@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.PowerManager
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
+import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
@@ -20,7 +21,6 @@ import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.broadcast.SessionBroadcaster
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -36,19 +36,14 @@ import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.ActivitySnapshotWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.ExplorationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.SessionSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.PressureSampleWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.StreamingAggregatorWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -67,6 +62,12 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
+import com.adsamcik.tracker.tracker.pipeline.SignalAdapter
+import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.processor.SignalProcessor
+import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -94,6 +95,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	// Injected listener manager for sending tracker updates
 	@Inject
 	lateinit var trackerListenerManager: TrackerListenerManager
+
+	// Injected stats pipeline dependencies
+	@Inject
+	lateinit var signalProcessors: Set<@JvmSuppressWildcards SignalProcessor>
+
+	@Inject
+	lateinit var domainEventRepository: DomainEventRepository
+
+	private var processorPipeline: ProcessorPipeline? = null
 
 	private val componentMutex = Mutex()
 	
@@ -165,14 +175,31 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updateSession(session)
 		controller.updateCollectionData(collectionData)
 
-		postComponentList
-				.asSequence()
+		val postComponentsRun = postComponentList
 				.filter { it.requirementsMet(tempData) }
-				.forEach {
+		postComponentsRun.forEach {
 					tryWithReport {
 						it.onNewData(this, session, collectionData, tempData)
 					}
 				}
+
+		// Feed data to the ProcessorPipeline
+		processorPipeline?.let { pipeline ->
+			tryWithReport {
+				val signal = SignalAdapter.buildSignal(
+					timestampMs = tempData.timeMillis,
+					latitude = collectionData.location?.latitude,
+					longitude = collectionData.location?.longitude,
+					accuracy = collectionData.location?.horizontalAccuracy,
+					speed = collectionData.location?.speed,
+					altitude = collectionData.location?.altitude?.toFloat(),
+					activityTypeCode = collectionData.activity?.activityType,
+					activityConfidence = collectionData.activity?.confidence,
+					stepDelta = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG),
+				)
+				pipeline.onSignal(signal)
+			}
+		}
 
 		// Update tracking policy based on collected data (adaptive tracking)
 		trackingPolicyManager?.let { policyMgr ->
@@ -356,12 +383,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updatePersistenceErrorFlow(errorCollector.errors)
 
 		// Post-processing components, filtered by tier.
-		// AMBIENT: notification + sessionless step/activity writers + aggregator.
-		// ACTIVE+: full set including GPS-dependent DB writers and trip detection.
+		// AMBIENT: notification only. Stats processing handled by ProcessorPipeline.
+		// ACTIVE+: adds GPS-dependent DB writers for raw data recording.
 		postComponentList.apply {
 			add(notificationComponent)
-			add(StepIntervalWriter())
-			add(ActivitySnapshotWriter())
 			add(PressureSampleWriter())
 			add(SkiTrackingComponent().also { skiComponent ->
 				skiComponent.setEscalationEngine(escalationEngine)
@@ -371,20 +396,27 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					}
 				}
 			})
-			add(StreamingAggregatorWriter())
 			if (initialTier.isGpsEnabled) {
 				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseWifiLocationCountComponent())
 				add(RawLocationWriter())
-				add(SessionSegmentWriter().also {
-					it.setEscalationEngine(escalationEngine)
-					it.setUserInitiated(isSessionUserInitiated)
-				})
-				add(ExplorationWriter())
 			}
 		}.forEach { it.onEnable(this) }
+
+		// Initialize the stats ProcessorPipeline
+		val pipeline = ProcessorPipeline(
+			processors = signalProcessors,
+			scope = this@TrackerService,
+			onDomainEvents = { events -> domainEventRepository.persist(events) },
+		)
+		processorPipeline = pipeline
+		pipeline.start(
+			tier = initialTier,
+			startTimestamp = EpochMs(Time.nowMillis),
+			sessionId = session.id,
+		)
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -441,7 +473,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			componentInitialization.await()
 
 			if (hasSelfPermissions(timerComponent.requiredPermissions).all { it }) {
-				sendSessionStartBroadcast()
 				timerComponent.onEnable(this@TrackerService, this@TrackerService)
 			} else {
 				stopSelf()
@@ -452,16 +483,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// User-initiated sessions should restart after process death to preserve tracking.
 		// Auto-tracking sessions can be re-triggered by ActivityWatcherService.
 		return if (isUserInitiated) START_STICKY else START_NOT_STICKY
-	}
-
-	private fun sendSessionStartBroadcast() {
-		val sessionComponent = requireNotNull(sessionComponent)
-
-		SessionBroadcaster.broadcastSessionStart(
-				this,
-				sessionComponent.session,
-				sessionComponent.isNewSession
-		)
 	}
 
 	/**
@@ -538,15 +559,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				}
 				newPostComponents.add(DatabaseWifiLocationCountComponent())
 				newPostComponents.add(RawLocationWriter())
-				val isUserInitiated = sessionInfo?.isInitiatedByUser ?: false
-				val escalationEngine = trackingPolicyManager?.escalationEngine
-				newPostComponents.add(SessionSegmentWriter().also {
-					if (escalationEngine != null) it.setEscalationEngine(escalationEngine)
-					it.setUserInitiated(isUserInitiated)
-				})
-				newPostComponents.add(ExplorationWriter())
 				newPostComponents.forEach { it.onEnable(this@TrackerService) }
 				postComponentList.addAll(newPostComponents)
+
+				// Escalate the stats ProcessorPipeline to new tier
+				processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))
 
 				// Enable the GPS timer after components are ready
 				if (hasSelfPermissions(gpsTimer.requiredPermissions).all { it }) {
@@ -589,18 +606,20 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@MainThread
 	private suspend fun onDestroyComponents(context: Context) {
+		// Stop the stats ProcessorPipeline first (final flush + event delivery)
+		tryWithReport {
+			processorPipeline?.stop()
+			processorPipeline = null
+		}
+
 		dataProducerManager?.onDisable()
 		trackingPolicyManager?.stop()
 		trackingPolicyManager = null
 		preComponentList.forEach { tryWithReport { it.onDisable(context) } }
 		dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
 		postComponentList.forEach { tryWithReport { it.onDisable(context) } }
-
-		// Can be null if TrackerServices is immediately stopped after start
-		val sessionComponent = sessionComponent
-		if (sessionComponent != null) {
-			SessionBroadcaster.broadcastSessionEnd(context, sessionComponent.session)
-		}
+		// Session finalization is handled by ProcessorPipeline.stop() which
+		// emits SessionEnded domain events consumed by event consumers.
 	}
 
 	private fun onDestroyServiceMetaData() {

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 17,
-    "identityHash": "638ce9c794b5b48f18664e2b11c96fca",
+    "identityHash": "dc9db73ae28c5b9cdf4685b06e1a5f9d",
     "entities": [
       {
         "tableName": "location_data",
@@ -2133,11 +2133,88 @@
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_storage_size_snapshot_epoch_day` ON `${TABLE_NAME}` (`epoch_day`)"
           }
         ]
+      },
+      {
+        "tableName": "domain_event",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_type` TEXT NOT NULL, `processor_id` TEXT NOT NULL, `timestamp_ms` INTEGER NOT NULL, `payload` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventType",
+            "columnName": "event_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "processorId",
+            "columnName": "processor_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMs",
+            "columnName": "timestamp_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_domain_event_timestamp_ms",
+            "unique": false,
+            "columnNames": [
+              "timestamp_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_domain_event_timestamp_ms` ON `${TABLE_NAME}` (`timestamp_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "domain_event_cursor",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`consumer_id` TEXT NOT NULL, `last_processed_ms` INTEGER NOT NULL, PRIMARY KEY(`consumer_id`))",
+        "fields": [
+          {
+            "fieldPath": "consumerId",
+            "columnName": "consumer_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastProcessedMs",
+            "columnName": "last_processed_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "consumer_id"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '638ce9c794b5b48f18664e2b11c96fca')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dc9db73ae28c5b9cdf4685b06e1a5f9d')"
     ]
   }
 }

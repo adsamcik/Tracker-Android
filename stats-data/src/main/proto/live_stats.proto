@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option java_package = "com.adsamcik.tracker.stats.data.store";
+option java_multiple_files = true;
+
+// Proto for live tracking stats. Extend with new optional fields; never reuse field numbers.
+message LiveStatsProto {
+  // Session distance in meters (float)
+  float session_distance_m = 1;
+  // Session step count
+  int32 session_steps = 2;
+  // Session duration in milliseconds
+  int64 session_duration_ms = 3;
+  // Current speed in meters per second
+  float current_speed_mps = 4;
+  // Average speed in meters per second
+  float avg_speed_mps = 5;
+  // Maximum speed in meters per second
+  float max_speed_mps = 6;
+  // Day total distance in meters (float)
+  float day_total_distance_m = 7;
+  // Day total step count
+  int32 day_total_steps = 8;
+  // Dominant detected activity (empty string = null / unknown)
+  string dominant_activity = 9;
+  // Trip count for the current session
+  int32 trip_count = 10;
+}

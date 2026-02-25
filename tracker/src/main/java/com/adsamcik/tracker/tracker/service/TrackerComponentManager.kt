@@ -16,17 +16,12 @@ import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.ActivitySnapshotWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.ExplorationWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.SessionSegmentWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.StreamingAggregatorWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.PolicyAwareLocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
@@ -137,11 +132,6 @@ internal class TrackerComponentManager @Inject constructor() {
         // Post Components - inject error collector into database components
         postComponentList.apply {
             add(notificationComponent)
-            add(StepIntervalWriter())
-            add(ActivitySnapshotWriter())
-            add(SessionSegmentWriter())
-            add(StreamingAggregatorWriter())
-            add(ExplorationWriter())
             if (initialTier.isGpsEnabled) {
                 add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
                 add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })

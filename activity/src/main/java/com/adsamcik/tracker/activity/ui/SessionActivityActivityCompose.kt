@@ -30,6 +30,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -76,7 +77,7 @@ class SessionActivityActivityCompose : ComponentActivity() {
         enableEdgeToEdge()
         title = getString(R.string.settings_activity_title)
         setContent { 
-            androidx.compose.material3.MaterialTheme { 
+            AppTheme { 
                 SessionActivityRoute() 
             } 
         }

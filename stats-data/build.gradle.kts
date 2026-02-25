@@ -2,6 +2,7 @@ plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.ksp)
+	alias(libs.plugins.protobuf)
 }
 
 android {
@@ -62,6 +63,7 @@ android {
 
 dependencies {
 	api(project(":stats-api"))
+	implementation(project(":stats-engine"))
 	implementation(project(":sbase"))
 
 	// Core
@@ -69,12 +71,26 @@ dependencies {
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.androidx.core.ktx)
 
+	// Arrow
+	implementation(libs.arrow.core)
+
 	// Room
 	implementation(libs.androidx.room.runtime)
 	ksp(libs.androidx.room.compiler)
 	implementation(libs.androidx.room.ktx)
 	implementation(libs.sqlite.android)
 	androidTestImplementation(libs.androidx.room.testing)
+
+	// DataStore proto (live stats)
+	implementation(libs.androidx.datastore.core)
+	implementation(libs.protobuf.java)
+
+	// Hilt
+	implementation(libs.hilt.android)
+	ksp(libs.hilt.compiler)
+
+	// DI annotations
+	implementation(libs.javax.inject)
 
 	// Unit Tests
 	testImplementation(platform(libs.junit5.bom))
@@ -103,3 +119,5 @@ dependencies {
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
 }
+
+configureProtobuf()

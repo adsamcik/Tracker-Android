@@ -1,19 +1,33 @@
 package com.adsamcik.tracker.activity
 
 import android.content.Context
-import android.content.IntentFilter
-import androidx.core.content.ContextCompat
-import com.adsamcik.tracker.activity.receiver.ActivitySessionReceiver
+import com.adsamcik.tracker.activity.event.ActivityDomainEventConsumer
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ActivityConsumerEntryPoint {
+	fun activityDomainEventConsumer(): ActivityDomainEventConsumer
+}
 
 /**
- * Activity module initializer
+ * Activity module initializer.
+ * Activity recognition is now triggered by [ActivityDomainEventConsumer] via domain events.
  */
 @Suppress("unused")
 class ActivityModuleInitializer : ModuleInitializer {
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
 	private fun initializeDatabase(context: Context) {
 		val activityDao = AppDatabase.database(context).activityDao()
 
@@ -24,24 +38,20 @@ class ActivityModuleInitializer : ModuleInitializer {
 		activityDao.insert(sessionActivity)
 	}
 
-	private fun initializeTrackerSessionReceivers(context: Context) {
-		val trackerSessionBroadcastFilter = IntentFilter().apply {
-			addAction(TrackerSession.ACTION_SESSION_ENDED)
-		}
-
-		ContextCompat.registerReceiver(
-			context,
-			ActivitySessionReceiver(),
-			trackerSessionBroadcastFilter,
-			ContextCompat.RECEIVER_NOT_EXPORTED
-		)
-	}
-
 	/**
 	 * Initializes activity module.
 	 */
 	override fun initialize(context: Context) {
-		initializeTrackerSessionReceivers(context)
 		initializeDatabase(context)
+		initializeDomainEventConsumer(context)
+	}
+
+	private fun initializeDomainEventConsumer(context: Context) {
+		val entryPoint = EntryPointAccessors.fromApplication(
+			context,
+			ActivityConsumerEntryPoint::class.java,
+		)
+		val consumer = entryPoint.activityDomainEventConsumer()
+		scope.launch { consumer.processUnconsumed() }
 	}
 }

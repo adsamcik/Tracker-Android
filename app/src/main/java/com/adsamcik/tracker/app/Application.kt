@@ -147,26 +147,29 @@ class Application : AndroidApplication(), Configuration.Provider {
 		// Activities
 		ActivityWatcherService.poke(this)
 		
-		// Precision upgrade prompts (Phase 2)
-		registerPrecisionUpgradeReceiver()
+		// Precision upgrade — consume domain events for upgrade prompt logic
+		initializePrecisionUpgradeConsumer()
 	}
 	
 	/**
-	 * Registers receiver to monitor session completions for precision upgrade prompts.
-	 * Part of Phase 2 Apple-style progressive disclosure: suggest precise location after
-	 * 2-3 successful approximate-mode sessions.
+	 * Initializes the precision-upgrade domain event consumer.
+	 * Processes any unconsumed SessionEnded events on startup (crash recovery).
 	 */
 	@WorkerThread
-	private fun registerPrecisionUpgradeReceiver() {
-		val filter = android.content.IntentFilter().apply {
-			addAction(com.adsamcik.tracker.shared.base.data.TrackerSession.ACTION_SESSION_FINAL)
-		}
-		androidx.core.content.ContextCompat.registerReceiver(
+	private fun initializePrecisionUpgradeConsumer() {
+		val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
 			this,
-			com.adsamcik.tracker.app.tracker.receiver.PrecisionUpgradeReceiver(),
-			filter,
-			androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+			PrecisionUpgradeEntryPoint::class.java,
 		)
+		kotlinx.coroutines.runBlocking {
+			entryPoint.precisionUpgradeConsumer().processUnconsumed()
+		}
+	}
+
+	@dagger.hilt.EntryPoint
+	@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+	interface PrecisionUpgradeEntryPoint {
+		fun precisionUpgradeConsumer(): com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 	}
 
 	private fun enableStrictMode() {

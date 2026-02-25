@@ -18,8 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.adsamcik.tracker.statistics.R
+import com.adsamcik.tracker.statistics.presenter.HistoryPresenterViewModel
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
-import com.adsamcik.tracker.statistics.viewmodel.HistoryViewModel
 
 /**
  * Entry composable for the History screen. Hosts a segmented button row
@@ -29,7 +29,7 @@ import com.adsamcik.tracker.statistics.viewmodel.HistoryViewModel
 fun HistoryRoute(
 	onNavigateToTripDetail: (Long) -> Unit,
 	modifier: Modifier = Modifier,
-	viewModel: HistoryViewModel = hiltViewModel(),
+	viewModel: HistoryPresenterViewModel = hiltViewModel(),
 ) {
 	val selectedTab by viewModel.selectedTab.collectAsState()
 	val timelineState by viewModel.timelineState.collectAsState()

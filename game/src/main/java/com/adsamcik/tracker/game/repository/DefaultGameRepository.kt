@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,6 +31,7 @@ import javax.inject.Singleton
 class DefaultGameRepository @Inject constructor(
     private val application: Application,
     @ApplicationScope private val scope: CoroutineScope,
+    private val sessionChannel: TrackerSessionChannel,
     private val challengeManager: ChallengeManager? = null
 ) : GameRepository {
     
@@ -38,7 +40,7 @@ class DefaultGameRepository @Inject constructor(
     
     init {
         // Initialize game managers (idempotent)
-        runCatching { GoalTracker.initialize(application) }
+        GoalTracker.initialize(application, sessionChannel)
         challengeManager?.let { runCatching { it.initialize(application) } }
     }
     

@@ -1,6 +1,38 @@
 plugins {
+	alias(libs.plugins.kotlin.multiplatform)
 	alias(libs.plugins.android.library)
-	alias(libs.plugins.kotlin.android)
+}
+
+kotlin {
+	androidTarget {
+		compilerOptions {
+			jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(Android.javaTarget.toString()))
+		}
+	}
+	jvm()
+
+	jvmToolchain(Android.JAVA_VERSION)
+
+	sourceSets {
+		commonMain.dependencies {
+			api(libs.kotlinx.coroutines.core)
+			api(libs.arrow.core)
+			api(libs.javax.inject)
+		}
+		commonTest.dependencies {
+			implementation(libs.kotlin.test)
+			implementation(libs.kotlinx.coroutines.test)
+			implementation(libs.kotest.assertions.core)
+			implementation(libs.junit5.jupiter.api)
+			runtimeOnly(libs.junit5.jupiter.engine)
+		}
+		androidMain.dependencies {
+			// Android-specific implementations
+		}
+		jvmMain.dependencies {
+			// JVM-specific implementations
+		}
+	}
 }
 
 android {
@@ -17,48 +49,12 @@ android {
 		targetCompatibility = Android.javaTarget
 	}
 
-	kotlin {
-		jvmToolchain(Android.JAVA_VERSION)
-	}
-
-	buildTypes {
-		getByName("debug") {
-			enableUnitTestCoverage = true
-		}
-		create("release_nominify") {
-			isMinifyEnabled = false
-		}
-		getByName("release") {
-			isMinifyEnabled = true
-			proguardFiles(
-				getDefaultProguardFile("proguard-android-optimize.txt"),
-				"proguard-rules.pro"
-			)
-		}
-	}
-
 	lint {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
 
 	namespace = "com.adsamcik.tracker.stats.api"
-}
-
-dependencies {
-	// Coroutines for Flow types in interfaces
-	implementation(libs.kotlinx.coroutines.android)
-
-	// DI annotations
-	api(libs.javax.inject)
-
-	// Unit Tests
-	testImplementation(platform(libs.junit5.bom))
-	testImplementation(libs.junit5.jupiter)
-	testImplementation(libs.junit5.jupiter.params)
-	testRuntimeOnly(libs.junit5.jupiter.engine)
-	testImplementation(libs.kotlin.test)
-	testImplementation(libs.kotest.assertions.core)
 }
 
 tasks.withType<Test>().configureEach {

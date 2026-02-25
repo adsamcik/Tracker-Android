@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -63,9 +62,9 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.viewmodel.TripDetailState
-import com.adsamcik.tracker.statistics.viewmodel.TripDetailViewModel
-import com.adsamcik.tracker.statistics.viewmodel.TripMetrics
+import com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModel
+import com.adsamcik.tracker.statistics.presenter.TripDetailState
+import com.adsamcik.tracker.stats.api.repository.TripSummary
 import java.io.File
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -87,7 +86,7 @@ private const val MS_TO_KMH = 3.6
 fun TripDetailRoute(
 	tripId: Long,
 	onBack: () -> Unit,
-	viewModel: TripDetailViewModel = hiltViewModel()
+	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
 	val state by viewModel.state.collectAsState()
 	var showDeleteDialog by remember { mutableStateOf(false) }
@@ -133,8 +132,7 @@ fun TripDetailRoute(
 									text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
 									onClick = {
 										showMenu = false
-										val loaded = state as TripDetailState.Loaded
-										exportGpx(context, loaded.trip, loaded.locationPoints)
+										// TODO: GPX export needs location points from TripDetailPresenter
 									}
 								)
 								DropdownMenuItem(
@@ -168,11 +166,7 @@ fun TripDetailRoute(
 				}
 
 				is TripDetailState.Loaded -> {
-					TripOverview(
-						trip = s.trip,
-						locationPoints = s.locationPoints,
-						metrics = s.metrics
-					)
+					TripOverview(trip = s.trip)
 				}
 
 				is TripDetailState.NotFound -> {
@@ -220,27 +214,23 @@ private val dateTimeFormatter: DateTimeFormatter by lazy {
 }
 
 @Composable
-private fun TripOverview(
-	trip: Trip,
-	locationPoints: List<DatabaseLocation>,
-	metrics: TripMetrics?
-) {
+private fun TripOverview(trip: TripSummary) {
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = remember { TrackerSettingsQuick.snapshot(context) }
 
 	val startText = remember(trip.startTimeMs) {
 		dateTimeFormatter.format(
-			Instant.ofEpochMilli(trip.startTimeMs).atZone(ZoneId.systemDefault())
+			Instant.ofEpochMilli(trip.startTimeMs.raw).atZone(ZoneId.systemDefault())
 		)
 	}
-	val durationText = remember(trip.durationMs) {
-		trip.durationMs.formatAsDuration(context)
+	val durationText = remember(trip.duration) {
+		trip.duration.raw.formatAsDuration(context)
 	}
-	val distanceText = remember(trip.distanceM, settings) {
+	val distanceText = remember(trip.distance, settings) {
 		resources.formatDistance(
-			trip.distanceM,
-			digits = if (trip.distanceM >= 1000f) 1 else 2,
+			trip.distance.raw,
+			digits = if (trip.distance.raw >= 1000f) 1 else 2,
 			unit = settings.lengthSystem
 		)
 	}
@@ -300,43 +290,9 @@ private fun TripOverview(
 			)
 			MetricCard(
 				label = stringResource(R.string.trip_detail_steps),
-				value = trip.steps?.formatReadable() ?: "-",
+				value = trip.steps.raw.formatReadable(),
 				modifier = Modifier.weight(1f)
 			)
-		}
-
-		// Speed and elevation metrics
-		if (metrics != null) {
-			Row(
-				modifier = Modifier.fillMaxWidth(),
-				horizontalArrangement = Arrangement.spacedBy(12.dp)
-			) {
-				MetricCard(
-					label = stringResource(R.string.trip_detail_avg_speed),
-					value = "%.1f km/h".format(metrics.avgSpeedKmh),
-					modifier = Modifier.weight(1f)
-				)
-				MetricCard(
-					label = stringResource(R.string.trip_detail_max_speed),
-					value = "%.1f km/h".format(metrics.maxSpeedKmh),
-					modifier = Modifier.weight(1f)
-				)
-			}
-			Row(
-				modifier = Modifier.fillMaxWidth(),
-				horizontalArrangement = Arrangement.spacedBy(12.dp)
-			) {
-				MetricCard(
-					label = stringResource(R.string.trip_detail_elevation_gain),
-					value = "%.0f m".format(metrics.elevationGainM),
-					modifier = Modifier.weight(1f)
-				)
-				MetricCard(
-					label = stringResource(R.string.trip_detail_max_altitude),
-					value = metrics.maxAltitudeM?.let { "%.0f m".format(it) } ?: "-",
-					modifier = Modifier.weight(1f)
-				)
-			}
 		}
 
 		// Developer metrics behind expandable toggle
@@ -345,7 +301,7 @@ private fun TripOverview(
 }
 
 @Composable
-private fun DeveloperMetrics(trip: Trip) {
+private fun DeveloperMetrics(trip: TripSummary) {
 	var expanded by remember { mutableStateOf(false) }
 
 	Row(
@@ -388,7 +344,7 @@ private fun DeveloperMetrics(trip: Trip) {
 			)
 			MetricCard(
 				label = stringResource(R.string.trip_detail_source),
-				value = trip.source.name.replace('_', ' ').lowercase()
+				value = trip.primaryMode.name.replace('_', ' ').lowercase()
 					.replaceFirstChar { it.uppercase() },
 				modifier = Modifier.weight(1f)
 			)
@@ -420,7 +376,7 @@ private fun DeleteConfirmationDialog(
 
 private fun exportGpx(
 	context: android.content.Context,
-	trip: Trip,
+	trip: TripSummary,
 	points: List<DatabaseLocation>
 ) {
 	val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {

@@ -1,0 +1,122 @@
+package com.adsamcik.tracker.app.event
+
+import android.content.Context
+import com.adsamcik.tracker.logger.LogData
+import com.adsamcik.tracker.logger.Logger
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.value.EpochMs
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
+import com.adsamcik.tracker.shared.preferences.R as PrefR
+
+/**
+ * Consumes [DomainEvent.SessionEnded] to trigger contextual precision upgrade prompts.
+ * Replaces the broadcast-based [com.adsamcik.tracker.app.tracker.receiver.PrecisionUpgradeReceiver].
+ *
+ * Flow:
+ * 1. User completes 2+ sessions with APPROXIMATE location mode
+ * 2. After threshold, sets flag for UI to show upgrade prompt
+ * 3. User can upgrade or dismiss (flag prevents re-prompts)
+ */
+@Singleton
+class PrecisionUpgradeDomainEventConsumer @Inject constructor(
+	private val domainEventRepository: DomainEventRepository,
+	@ApplicationContext private val context: Context,
+) {
+	/** Process any unconsumed events for the precision-upgrade module. */
+	suspend fun processUnconsumed() {
+		val events = domainEventRepository.getUnconsumed(CONSUMER_ID)
+		if (events.isEmpty()) return
+
+		var latestTimestamp = EpochMs(0L)
+		for (event in events) {
+			handleEvent(event)
+			if (event.timestampMs.raw > latestTimestamp.raw) {
+				latestTimestamp = event.timestampMs
+			}
+		}
+		domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
+	}
+
+	private suspend fun handleEvent(event: DomainEvent) {
+		when (event) {
+			is DomainEvent.SessionEnded -> onSessionEnded()
+			else -> Unit
+		}
+	}
+
+	private suspend fun onSessionEnded() {
+		Logger.log(
+			LogData(
+				message = "Session finalized, checking precision upgrade eligibility",
+				source = LOG_SOURCE,
+			),
+		)
+
+		val prefs = Preferences.getPref(context)
+
+		// Check if user already dismissed the prompt
+		val dismissedKey = context.getString(PrefR.string.settings_precision_upgrade_dismissed_key)
+		val wasDismissed = prefs.fetchBoolean(dismissedKey, false)
+		if (wasDismissed) {
+			Logger.log(
+				LogData(
+					message = "Precision upgrade prompt previously dismissed",
+					source = LOG_SOURCE,
+				),
+			)
+			return
+		}
+
+		// Check current location precision mode
+		val precisionMode = prefs.fetchStringRes(PrefR.string.settings_location_precision_key)
+			?: context.getString(PrefR.string.settings_location_precision_default)
+
+		if (precisionMode != "APPROXIMATE") {
+			Logger.log(
+				LogData(
+					message = "User already in PRECISE mode, skipping upgrade prompt",
+					source = LOG_SOURCE,
+				),
+			)
+			return
+		}
+
+		// Increment session counter for approximate mode
+		val key = context.getString(PrefR.string.settings_approximate_session_count_key)
+		val currentCount = prefs.fetchInt(key, 0)
+		val newCount = currentCount + 1
+
+		prefs.edit {
+			setInt(PrefR.string.settings_approximate_session_count_key, newCount)
+		}
+
+		Logger.log(
+			LogData(
+				message = "Incremented approximate session count to $newCount",
+				source = LOG_SOURCE,
+			),
+		)
+
+		if (newCount >= UPGRADE_PROMPT_THRESHOLD) {
+			Logger.log(
+				LogData(
+					message = "Reached threshold ($UPGRADE_PROMPT_THRESHOLD sessions), setting upgrade prompt flag",
+					source = LOG_SOURCE,
+				),
+			)
+			prefs.edit {
+				setBoolean(PrefR.string.settings_should_show_precision_upgrade_key, true)
+			}
+		}
+	}
+
+	companion object {
+		const val CONSUMER_ID = "precision-upgrade"
+		private const val LOG_SOURCE = "PrecisionUpgrade"
+		private const val UPGRADE_PROMPT_THRESHOLD = 2
+	}
+}

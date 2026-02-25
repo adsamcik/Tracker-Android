@@ -62,6 +62,9 @@ dependencies {
 	implementation(project(":logger"))
 	implementation(project(":points"))
 
+	// Stats architecture
+	implementation(project(":stats-api"))
+
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)

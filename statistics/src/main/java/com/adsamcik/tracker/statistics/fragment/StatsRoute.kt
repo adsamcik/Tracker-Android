@@ -12,7 +12,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.LoadState
 import com.adsamcik.tracker.statistics.R
-import com.adsamcik.tracker.statistics.viewmodel.StatsViewModel
+import com.adsamcik.tracker.statistics.presenter.StatsPresenterViewModel
 import com.adsamcik.tracker.statistics.ui.compose.SummaryDialog
 import com.adsamcik.tracker.statistics.ui.compose.WeekDialog
 
@@ -26,7 +26,7 @@ fun StatsRoute(
     onNavigateToTracker: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val vm: StatsViewModel = hiltViewModel()
+    val vm: StatsPresenterViewModel = hiltViewModel()
     val pagingItems = vm.tripsFlow.collectAsLazyPagingItems()
 
     // Dialog state management

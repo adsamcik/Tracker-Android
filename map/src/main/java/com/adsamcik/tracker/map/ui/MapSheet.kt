@@ -513,7 +513,7 @@ fun MapLayerCard(
             .fillMaxWidth()
             .clickable(onClick = onSelect)
             .semantics { selected = isSelected },
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.secondaryContainer
@@ -547,7 +547,7 @@ fun MapLayerCard(
                 // Title
                 Text(
                     text = try { context.getString(layer.titleRes) } catch (e: Exception) { layer.id },
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 
@@ -562,7 +562,7 @@ fun MapLayerCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
-                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.extraSmall)
                         ) {
                              legend.valueList.forEach { value ->
                                  Box(

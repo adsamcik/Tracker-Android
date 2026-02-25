@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.database.data.TripDaySummary
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Read-only DAO projecting [com.adsamcik.tracker.shared.base.database.data.SessionSegment]
@@ -96,4 +97,21 @@ interface TripDao {
 		"""
 	)
 	suspend fun getRecentTrips(limit: Int): List<Trip>
+
+	/**
+	 * Most recent trips as a reactive Flow. Room invalidation tracker
+	 * re-emits when session_segment table changes.
+	 */
+	@Query(
+		"""
+		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
+		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
+		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
+		       source, created_at AS createdAt
+		FROM session_segment
+		ORDER BY start_time_ms DESC
+		LIMIT :limit
+		"""
+	)
+	fun getRecentTripsFlow(limit: Int): Flow<List<Trip>>
 }

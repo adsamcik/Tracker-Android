@@ -750,7 +750,27 @@ val MIGRATION_16_17: Migration = object : Migration(16, 17) {
 			""".trimIndent())
 			execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_storage_size_snapshot_epoch_day ON storage_size_snapshot(epoch_day)")
 
-			android.util.Log.i("AppDatabase", "Migration 16->17: Created route_cache, export_log, and storage_size_snapshot tables")
+			// 4. Create domain_event table (stats pipeline)
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS domain_event (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					event_type TEXT NOT NULL,
+					processor_id TEXT NOT NULL,
+					timestamp_ms INTEGER NOT NULL,
+					payload TEXT NOT NULL
+				)
+			""".trimIndent())
+			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_timestamp_ms ON domain_event(timestamp_ms)")
+
+			// 5. Create domain_event_cursor table (per-consumer offset tracking)
+			execSQL("""
+				CREATE TABLE IF NOT EXISTS domain_event_cursor (
+					consumer_id TEXT NOT NULL PRIMARY KEY,
+					last_processed_ms INTEGER NOT NULL
+				)
+			""".trimIndent())
+
+			android.util.Log.i("AppDatabase", "Migration 16->17: Created route_cache, export_log, storage_size_snapshot, domain_event, and domain_event_cursor tables")
 		}
 	}
 }

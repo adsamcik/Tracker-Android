@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.MIGRATION_10_11
 import com.adsamcik.tracker.shared.base.database.MIGRATION_11_12
 import com.adsamcik.tracker.shared.base.database.MIGRATION_12_13
+import com.adsamcik.tracker.shared.base.database.MIGRATION_16_17
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
@@ -465,6 +466,59 @@ class MigrationTest {
 				assertEquals(2, getInt(0))
 			}
 			locationCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate16To17_domainEventTable() {
+		val db = helper.createDatabase(TEST_DB, 16)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 17, true, MIGRATION_16_17).apply {
+			execSQL(
+				"""
+					INSERT INTO domain_event (id, event_type, processor_id, timestamp_ms, payload)
+					VALUES (1, 'SESSION_COMPLETED', 'stats-engine', 1700000000000, '{"sessionId":42}')
+				""".trimIndent()
+			)
+
+			val cursor = query("SELECT id, event_type, processor_id, timestamp_ms, payload FROM domain_event WHERE id = 1")
+			with(cursor) {
+				assertTrue(moveToFirst())
+				assertEquals(1, getInt(0))
+				assertEquals("SESSION_COMPLETED", getString(1))
+				assertEquals("stats-engine", getString(2))
+				assertEquals(1700000000000L, getLong(3))
+				assertEquals("{\"sessionId\":42}", getString(4))
+				assertFalse(moveToNext())
+			}
+			cursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate16To17_domainEventCursorTable() {
+		val db = helper.createDatabase(TEST_DB, 16)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 17, true, MIGRATION_16_17).apply {
+			execSQL(
+				"""
+					INSERT INTO domain_event_cursor (consumer_id, last_processed_ms)
+					VALUES ('achievement-processor', 1700000000000)
+				""".trimIndent()
+			)
+
+			val cursor = query("SELECT consumer_id, last_processed_ms FROM domain_event_cursor WHERE consumer_id = 'achievement-processor'")
+			with(cursor) {
+				assertTrue(moveToFirst())
+				assertEquals("achievement-processor", getString(0))
+				assertEquals(1700000000000L, getLong(1))
+				assertFalse(moveToNext())
+			}
+			cursor.close()
 		}
 	}
 

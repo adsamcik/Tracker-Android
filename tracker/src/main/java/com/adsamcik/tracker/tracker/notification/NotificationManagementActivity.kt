@@ -19,6 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,7 +52,7 @@ class NotificationManagementActivity : ComponentActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		setContent {
-			MaterialTheme { // Uses app theme (inherits from parent activity theme)
+			AppTheme {
 				NotificationManagementRoute(
 					viewModel = viewModel,
 					onBack = { finish() }

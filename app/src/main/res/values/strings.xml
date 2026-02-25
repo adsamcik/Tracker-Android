@@ -33,7 +33,7 @@
     <string name="module_statistics_title">Statistics</string>
     <string name="module_success">Installation completed successfully</string>
 
-    <string name="main_nav_tracker">Tracker</string>
+    <string name="main_nav_tracker">Home</string>
     <string name="main_nav_stats">Statistics</string>
     <string name="main_nav_map">Map</string>
     <string name="main_nav_game">Game</string>

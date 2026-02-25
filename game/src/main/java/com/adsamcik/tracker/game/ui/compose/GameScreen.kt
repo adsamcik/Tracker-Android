@@ -215,7 +215,7 @@ private fun PointsCard(points: Int) {
             }
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(MaterialTheme.shapes.medium)
                     .clickable {
                         Toast.makeText(context, comingSoonText, Toast.LENGTH_SHORT).show()
                     }

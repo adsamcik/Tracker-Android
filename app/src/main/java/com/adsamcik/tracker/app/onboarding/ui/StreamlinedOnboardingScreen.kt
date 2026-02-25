@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -99,6 +102,7 @@ fun StreamlinedOnboardingScreen(
 /**
  * Welcome screen content
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WelcomeScreen(
     onGetStarted: () -> Unit,
@@ -124,7 +128,10 @@ private fun WelcomeScreen(
             LaunchedEffect(Unit) {
                 scale.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = 600)
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
                 )
             }
             
@@ -323,7 +330,7 @@ private fun BenefitItem(
 @Preview(showBackground = true)
 @Composable
 fun StreamlinedOnboardingScreenPreview() {
-    MaterialTheme {
+    AppTheme {
         StreamlinedOnboardingScreen(
             onComplete = {}
         )
