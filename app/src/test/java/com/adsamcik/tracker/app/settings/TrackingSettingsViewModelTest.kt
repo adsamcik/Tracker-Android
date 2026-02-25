@@ -4,21 +4,19 @@ import android.content.Context
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
-import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
 import io.mockk.mockkStatic
-import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -28,100 +26,83 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.lang.reflect.Field
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackingSettingsViewModelTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
     private val context: Context = mockk(relaxed = true)
-    private val mockPrefs: Preferences = mockk(relaxed = true)
 
-    // Controllable preference flows
-    private val locationEnabledFlow = MutableStateFlow(true)
-    private val activityEnabledFlow = MutableStateFlow(true)
-    private val stepsEnabledFlow = MutableStateFlow(true)
-    private val wifiEnabledFlow = MutableStateFlow(true)
-    private val cellEnabledFlow = MutableStateFlow(true)
-    private val wifiNetworkEnabledFlow = MutableStateFlow(true)
-    private val wifiLocationCountFlow = MutableStateFlow(true)
-    private val autoTrackingFlow = MutableStateFlow(0) // intFromString -> map { it > 0 }
-    private val transitionDetectionFlow = MutableStateFlow(true)
-    private val notificationStyledFlow = MutableStateFlow(true)
-
-    // Preset and tracking parameter flows
-    private val presetFlow = MutableStateFlow(TrackingPolicyPreset.DEFAULT.name)
-    private val minDistanceFlow = MutableStateFlow(10)
-    private val minTimeFlow = MutableStateFlow(2)
-    private val requiredAccuracyFlow = MutableStateFlow(50)
-
-    // Track PreferenceFlows.boolean call count to assign correct flows
-    private var booleanCallIndex = 0
+    // Backing state for the fake repository
+    private val paramsFlow = MutableStateFlow(TrackingParamsState())
+    private val trackingParamsRepository: TrackingParamsRepository = mockk()
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        booleanCallIndex = 0
-
-        // Inject mock Preferences singleton
-        val field: Field = Preferences::class.java.getDeclaredField("preferences")
-        field.isAccessible = true
-        field.set(null, mockPrefs)
-
-        // Mock context.getString to return a distinct key per resource ID
-        every { context.getString(any()) } answers { "key_${firstArg<Int>()}" }
 
         // Mock hasSelfPermission (called by inline hasPreciseLocationPermission)
         mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
         every { context.hasSelfPermission(any()) } returns true
 
-        // Mock prefs.observeString for preset tracking
-        every { mockPrefs.observeString(any(), any()) } returns presetFlow
-        // Discriminate observeInt calls by default value (each parameter has a unique default)
-        every { mockPrefs.observeInt(any(), eq(10)) } returns minDistanceFlow
-        every { mockPrefs.observeInt(any(), eq(2)) } returns minTimeFlow
-        every { mockPrefs.observeInt(any(), eq(50)) } returns requiredAccuracyFlow
+        every { trackingParamsRepository.data } returns paramsFlow
 
-        // Mock PreferenceFlows
-        mockkObject(PreferenceFlows)
-
-        // Boolean flows are called in init order matching the ViewModel's init block:
-        // location, activity, steps, wifi, cell, wifiNetwork, wifiLocationCount,
-        // transitionDetection, notificationStyled
-        val booleanFlows = listOf(
-            locationEnabledFlow,
-            activityEnabledFlow,
-            stepsEnabledFlow,
-            wifiEnabledFlow,
-            cellEnabledFlow,
-            wifiNetworkEnabledFlow,
-            wifiLocationCountFlow,
-            transitionDetectionFlow,
-            notificationStyledFlow,
-        )
-
-        every { PreferenceFlows.boolean(any(), any<Int>(), any<Int>()) } answers {
-            val index = booleanCallIndex++
-            if (index < booleanFlows.size) booleanFlows[index] else MutableStateFlow(false)
+        coEvery { trackingParamsRepository.update(any()) } answers {
+            @Suppress("UNCHECKED_CAST")
+            val block = invocation.args[0] as (TrackingParamsState.() -> TrackingParamsState)
+            paramsFlow.value = block(paramsFlow.value)
         }
 
-        // intFromString flow for auto-tracking
-        every { PreferenceFlows.intFromString(any(), any<Int>(), any<Int>()) } returns autoTrackingFlow
+        coEvery { trackingParamsRepository.setLocationEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(locationEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setActivityEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(activityEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setStepsEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(stepsEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setWifiEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(wifiEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setCellEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(cellEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setWifiNetworkEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(wifiNetworkEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setWifiLocationCountEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(wifiLocationCountEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setTransitionDetectionEnabled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(transitionDetectionEnabled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setNotificationStyled(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(notificationStyled = firstArg())
+        }
+        coEvery { trackingParamsRepository.setMinDistanceMeters(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(minDistanceMeters = firstArg())
+        }
+        coEvery { trackingParamsRepository.setMinTimeSeconds(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(minTimeSeconds = firstArg())
+        }
+        coEvery { trackingParamsRepository.setRequiredAccuracyMeters(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(requiredAccuracyMeters = firstArg())
+        }
+        coEvery { trackingParamsRepository.setPresetName(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(presetName = firstArg())
+        }
     }
 
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
-        unmockkObject(PreferenceFlows)
         unmockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
-        val field: Field = Preferences::class.java.getDeclaredField("preferences")
-        field.isAccessible = true
-        field.set(null, null)
     }
 
     private fun createViewModel(): TrackingSettingsViewModel {
-        booleanCallIndex = 0
-        return TrackingSettingsViewModel(context)
+        paramsFlow.value = TrackingParamsState()
+        return TrackingSettingsViewModel(context, trackingParamsRepository)
     }
 
     // =========================================================================
@@ -133,45 +114,45 @@ class TrackingSettingsViewModelTest {
     inner class InitialState {
 
         @Test
-        fun `currentPreset defaults to DEFAULT`() = runTest {
+        fun `currentPreset defaults to DEFAULT`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.DEFAULT
+            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.DEFAULT
         }
 
         @Test
-        fun `locationEnabled defaults to true`() = runTest {
+        fun `locationEnabled defaults to true`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.uiState.first().locationEnabled shouldBe true
+            vm.uiState.value.locationEnabled shouldBe true
         }
 
         @Test
-        fun `hasValidSources is true when sources enabled`() = runTest {
+        fun `hasValidSources is true when sources enabled`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.uiState.first().hasValidSources shouldBe true
+            vm.uiState.value.hasValidSources shouldBe true
         }
 
         @Test
-        fun `minDistance defaults to 10`() = runTest {
+        fun `minDistance defaults to 10`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.uiState.first().minDistance shouldBe 10
+            vm.uiState.value.minDistance shouldBe 10
         }
 
         @Test
-        fun `minTime defaults to 2`() = runTest {
+        fun `minTime defaults to 2`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.uiState.first().minTime shouldBe 2
+            vm.uiState.value.minTime shouldBe 2
         }
 
         @Test
-        fun `requiredAccuracy defaults to 50`() = runTest {
+        fun `requiredAccuracy defaults to 50`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.uiState.first().requiredAccuracy shouldBe 50
+            vm.uiState.value.requiredAccuracy shouldBe 50
         }
     }
 
@@ -184,53 +165,53 @@ class TrackingSettingsViewModelTest {
     inner class SourceToggles {
 
         @Test
-        fun `setLocationEnabled updates state`() = runTest {
+        fun `setLocationEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setLocationEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().locationEnabled shouldBe false
+            vm.uiState.value.locationEnabled shouldBe false
         }
 
         @Test
-        fun `setActivityEnabled updates state`() = runTest {
+        fun `setActivityEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setActivityEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().activityEnabled shouldBe false
+            vm.uiState.value.activityEnabled shouldBe false
         }
 
         @Test
-        fun `setStepsEnabled updates state`() = runTest {
+        fun `setStepsEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setStepsEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().stepsEnabled shouldBe false
+            vm.uiState.value.stepsEnabled shouldBe false
         }
 
         @Test
-        fun `setWifiEnabled updates state`() = runTest {
+        fun `setWifiEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setWifiEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().wifiEnabled shouldBe false
+            vm.uiState.value.wifiEnabled shouldBe false
         }
 
         @Test
-        fun `setCellEnabled updates state`() = runTest {
+        fun `setCellEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setCellEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().cellEnabled shouldBe false
+            vm.uiState.value.cellEnabled shouldBe false
         }
     }
 
@@ -243,23 +224,23 @@ class TrackingSettingsViewModelTest {
     inner class WifiSubOptions {
 
         @Test
-        fun `setWifiNetworkEnabled updates state`() = runTest {
+        fun `setWifiNetworkEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setWifiNetworkEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().wifiNetworkEnabled shouldBe false
+            vm.uiState.value.wifiNetworkEnabled shouldBe false
         }
 
         @Test
-        fun `setWifiLocationCountEnabled updates state`() = runTest {
+        fun `setWifiLocationCountEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setWifiLocationCountEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().wifiLocationCountEnabled shouldBe false
+            vm.uiState.value.wifiLocationCountEnabled shouldBe false
         }
     }
 
@@ -272,33 +253,33 @@ class TrackingSettingsViewModelTest {
     inner class TrackingParameters {
 
         @Test
-        fun `setMinDistance updates state`() = runTest {
+        fun `setMinDistance updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setMinDistance(25)
             advanceUntilIdle()
-            vm.uiState.first().minDistance shouldBe 25
+            vm.uiState.value.minDistance shouldBe 25
         }
 
         @Test
-        fun `setMinTime updates state`() = runTest {
+        fun `setMinTime updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setMinTime(15)
             advanceUntilIdle()
-            vm.uiState.first().minTime shouldBe 15
+            vm.uiState.value.minTime shouldBe 15
         }
 
         @Test
-        fun `setRequiredAccuracy updates state`() = runTest {
+        fun `setRequiredAccuracy updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setRequiredAccuracy(100)
             advanceUntilIdle()
-            vm.uiState.first().requiredAccuracy shouldBe 100
+            vm.uiState.value.requiredAccuracy shouldBe 100
         }
     }
 
@@ -311,35 +292,35 @@ class TrackingSettingsViewModelTest {
     inner class NotificationAndAutoTracking {
 
         @Test
-        fun `setNotificationStyled updates state`() = runTest {
+        fun `setNotificationStyled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setNotificationStyled(false)
             advanceUntilIdle()
-            vm.uiState.first().notificationStyled shouldBe false
+            vm.uiState.value.notificationStyled shouldBe false
         }
 
         @Test
-        fun `setTransitionDetectionEnabled updates state`() = runTest {
+        fun `setTransitionDetectionEnabled updates state`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.setTransitionDetectionEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().transitionDetectionEnabled shouldBe false
+            vm.uiState.value.transitionDetectionEnabled shouldBe false
         }
 
         @Test
-        fun `autoTrackingEnabled reflects intFromString flow`() = runTest {
+        fun `autoTrackingEnabled reflects repository flow`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            // Default is 0 -> false
-            vm.uiState.first().autoTrackingEnabled shouldBe false
+            // Default autoTrackingMode is 1 -> true
+            vm.uiState.value.autoTrackingEnabled shouldBe true
 
-            autoTrackingFlow.value = 1
+            paramsFlow.value = paramsFlow.value.copy(autoTrackingMode = 0)
             advanceUntilIdle()
-            vm.uiState.first().autoTrackingEnabled shouldBe true
+            vm.uiState.value.autoTrackingEnabled shouldBe false
         }
     }
 
@@ -352,7 +333,7 @@ class TrackingSettingsViewModelTest {
     inner class SourceValidation {
 
         @Test
-        fun `disabling all sources sets hasValidSources to false`() = runTest {
+        fun `disabling all sources sets hasValidSources to false`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
@@ -363,11 +344,11 @@ class TrackingSettingsViewModelTest {
             vm.setCellEnabled(false)
             advanceUntilIdle()
 
-            vm.uiState.first().hasValidSources shouldBe false
+            vm.uiState.value.hasValidSources shouldBe false
         }
 
         @Test
-        fun `re-enabling one source restores hasValidSources`() = runTest {
+        fun `re-enabling one source restores hasValidSources`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
@@ -377,26 +358,27 @@ class TrackingSettingsViewModelTest {
             vm.setWifiEnabled(false)
             vm.setCellEnabled(false)
             advanceUntilIdle()
-            vm.uiState.first().hasValidSources shouldBe false
+            vm.uiState.value.hasValidSources shouldBe false
 
             vm.setLocationEnabled(true)
             advanceUntilIdle()
-            vm.uiState.first().hasValidSources shouldBe true
+            vm.uiState.value.hasValidSources shouldBe true
         }
 
         @Test
-        fun `single source enabled keeps hasValidSources true`() = runTest {
+        fun `single source enabled keeps hasValidSources true`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
+            // Enable cell first, then disable all others
+            vm.setCellEnabled(true)
             vm.setLocationEnabled(false)
             vm.setActivityEnabled(false)
             vm.setStepsEnabled(false)
             vm.setWifiEnabled(false)
-            // cellEnabled still true
             advanceUntilIdle()
 
-            vm.uiState.first().hasValidSources shouldBe true
+            vm.uiState.value.hasValidSources shouldBe true
         }
     }
 
@@ -409,7 +391,7 @@ class TrackingSettingsViewModelTest {
     inner class PresetManagement {
 
         @Test
-        fun `applyPreset BATTERY_SAVER updates all settings`() = runTest {
+        fun `applyPreset BATTERY_SAVER updates all settings`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
@@ -417,20 +399,20 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
 
             val config = TrackingPolicyPreset.BATTERY_SAVER.settings
-            vm.uiState.first().locationEnabled shouldBe config.locationEnabled
-            vm.uiState.first().activityEnabled shouldBe config.activityEnabled
-            vm.uiState.first().stepsEnabled shouldBe config.stepsEnabled
-            vm.uiState.first().wifiEnabled shouldBe config.wifiEnabled
-            vm.uiState.first().cellEnabled shouldBe config.cellEnabled
-            vm.uiState.first().minDistance shouldBe config.minDistanceMeters
-            vm.uiState.first().minTime shouldBe config.minTimeSeconds
-            vm.uiState.first().requiredAccuracy shouldBe config.requiredAccuracyMeters
-            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.BATTERY_SAVER
-            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.LOW
+            vm.uiState.value.locationEnabled shouldBe config.locationEnabled
+            vm.uiState.value.activityEnabled shouldBe config.activityEnabled
+            vm.uiState.value.stepsEnabled shouldBe config.stepsEnabled
+            vm.uiState.value.wifiEnabled shouldBe config.wifiEnabled
+            vm.uiState.value.cellEnabled shouldBe config.cellEnabled
+            vm.uiState.value.minDistance shouldBe config.minDistanceMeters
+            vm.uiState.value.minTime shouldBe config.minTimeSeconds
+            vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters
+            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.BATTERY_SAVER
+            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.LOW
         }
 
         @Test
-        fun `applyPreset HIGH_PRECISION updates all settings`() = runTest {
+        fun `applyPreset HIGH_PRECISION updates all settings`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
@@ -438,58 +420,58 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
 
             val config = TrackingPolicyPreset.HIGH_PRECISION.settings
-            vm.uiState.first().locationEnabled shouldBe config.locationEnabled
-            vm.uiState.first().wifiEnabled shouldBe config.wifiEnabled
-            vm.uiState.first().wifiLocationCountEnabled shouldBe config.wifiLocationCountEnabled
-            vm.uiState.first().cellEnabled shouldBe config.cellEnabled
-            vm.uiState.first().transitionDetectionEnabled shouldBe config.useTransitionDetection
-            vm.uiState.first().minDistance shouldBe config.minDistanceMeters
-            vm.uiState.first().minTime shouldBe config.minTimeSeconds
-            vm.uiState.first().requiredAccuracy shouldBe config.requiredAccuracyMeters
-            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.HIGH_PRECISION
-            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.HIGH
+            vm.uiState.value.locationEnabled shouldBe config.locationEnabled
+            vm.uiState.value.wifiEnabled shouldBe config.wifiEnabled
+            vm.uiState.value.wifiLocationCountEnabled shouldBe config.wifiLocationCountEnabled
+            vm.uiState.value.cellEnabled shouldBe config.cellEnabled
+            vm.uiState.value.transitionDetectionEnabled shouldBe config.useTransitionDetection
+            vm.uiState.value.minDistance shouldBe config.minDistanceMeters
+            vm.uiState.value.minTime shouldBe config.minTimeSeconds
+            vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters
+            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.HIGH_PRECISION
+            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.HIGH
         }
 
         @Test
-        fun `changing a setting after preset marks custom`() = runTest {
+        fun `changing a setting after preset marks custom`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.applyPreset(TrackingPolicyPreset.BALANCED)
             advanceUntilIdle()
-            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.BALANCED
+            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.BALANCED
 
             vm.setMinDistance(999)
             advanceUntilIdle()
             // null indicates custom preset
-            vm.uiState.first().currentPreset.shouldBeNull()
+            vm.uiState.value.currentPreset.shouldBeNull()
         }
 
         @Test
-        fun `applying preset after custom restores named preset`() = runTest {
+        fun `applying preset after custom restores named preset`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             // Go custom
             vm.setMinDistance(999)
             advanceUntilIdle()
-            vm.uiState.first().currentPreset.shouldBeNull()
+            vm.uiState.value.currentPreset.shouldBeNull()
 
             // Apply named preset
             vm.applyPreset(TrackingPolicyPreset.BALANCED)
             advanceUntilIdle()
-            vm.uiState.first().currentPreset shouldBe TrackingPolicyPreset.BALANCED
+            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.BALANCED
         }
 
         @Test
-        fun `applyPreset validates sources`() = runTest {
+        fun `applyPreset validates sources`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             // All presets have at least location enabled
             vm.applyPreset(TrackingPolicyPreset.BATTERY_SAVER)
             advanceUntilIdle()
-            vm.uiState.first().hasValidSources shouldBe true
+            vm.uiState.value.hasValidSources shouldBe true
         }
     }
 
@@ -502,17 +484,17 @@ class TrackingSettingsViewModelTest {
     inner class BatteryImpactTests {
 
         @Test
-        fun `applyPreset updates battery impact`() = runTest {
+        fun `applyPreset updates battery impact`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.applyPreset(TrackingPolicyPreset.BATTERY_SAVER)
             advanceUntilIdle()
-            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.LOW
+            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.LOW
 
             vm.applyPreset(TrackingPolicyPreset.HIGH_PRECISION)
             advanceUntilIdle()
-            vm.uiState.first().currentBatteryImpact shouldBe BatteryImpact.HIGH
+            vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.HIGH
         }
     }
 }

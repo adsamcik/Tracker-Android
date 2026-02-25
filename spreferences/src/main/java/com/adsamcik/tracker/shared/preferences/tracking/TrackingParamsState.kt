@@ -21,6 +21,6 @@ data class TrackingParamsState(
         const val DEFAULT_MIN_DISTANCE = 10
         const val DEFAULT_MIN_TIME = 2
         const val DEFAULT_REQUIRED_ACCURACY = 50
-        const val DEFAULT_PRESET = "DEFAULT"
+        const val DEFAULT_PRESET = "BALANCED"
     }
 }
