@@ -21,9 +21,8 @@ package com.adsamcik.tracker.testing
  *   - `DefaultOnboardingRepositoryTest` - DataStore integration
  *
  * ### 3. Android Component Tests
- * - BroadcastReceivers, Services, ContentProviders
+ * - Services, ContentProviders
  * - Examples:
- *   - `PrecisionUpgradeReceiverTest` - BroadcastReceiver
  *   - `TrackerServiceTimerUpdateIntegrationTest` - Service integration
  *
  * ### 4. WorkManager Tests
@@ -91,8 +90,6 @@ package com.adsamcik.tracker.testing
  * | HandlerCollectionTriggerTest | tracker | Handler/Looper | No - Android threading |
  * | PolicyAwareLocationPreTrackerComponentTest | tracker | Context | Maybe |
  * | TrackerServiceTimerUpdateIntegrationTest | tracker | Service integration | No |
- * | PrecisionUpgradeReceiverTest | app | BroadcastReceiver | No |
- * | PrecisionUpgradeFlowTest | app | Context for flow | Maybe |
  * | DataRetentionWorkerTest | app | WorkManager Worker | No |
  *
  * ## Best Practices
