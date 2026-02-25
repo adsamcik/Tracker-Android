@@ -47,7 +47,9 @@ data class LocationSample(
 	val lonE7: Int?,
 
 	/**
-	 * Altitude in meters above WGS84 ellipsoid. Null if unavailable.
+	 * Altitude in meters above Mean Sea Level (MSL).
+	 * Corrected via geoid model when available, otherwise raw ellipsoid altitude.
+	 * Null if unavailable or failed vertical accuracy gating.
 	 */
 	@ColumnInfo(name = "alt_m")
 	val altitudeM: Float?,

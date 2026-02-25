@@ -87,6 +87,7 @@ dependencies {
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
+	implementation(libs.androidx.core.location.altitude)
 	implementation(libs.androidx.constraintlayout)
 	implementation(libs.androidx.recyclerview)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
