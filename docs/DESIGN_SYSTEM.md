@@ -346,11 +346,126 @@ fun InlineEmptyState(
 | Screen's primary list/content is empty | Tier 2 | Statistics with zero trips |
 | Entire app has zero data (first launch) | Tier 3 | Dashboard, never tracked |
 
-## 11. Component Specifications
-*   **Map Screen:** Waypoint FAB (Secure Teal, TactileActive). Terrain Card for metrics overlay (Roboto Mono metric values).
-*   **Statistics Screen:** Terrain Cards for trips. Momentum Pill for activity chips. Tinted surfaces. Section headers with accent bar.
-*   **Trip Detail Screen:** Terrain Cards for data segments. Sunset Rust for peak metrics. Roboto Mono for distance/duration.
-*   **Settings/Privacy Screen:** Momentum Pill for toggles. SecureSnap motion. Section headers for groups, item dividers within.
+## 11. Dynamic Color (Monet) Policy
+
+*   **Android 12+ (S):** Dynamic color **ON by default** via `useDynamicColor = true`.
+*   **Scope:** Monet overrides **surface/neutral tokens only** — surface, surfaceDim, surfaceBright, all surfaceContainer levels, surfaceVariant, surfaceTint, background, onBackground, onSurface, onSurfaceVariant, outline, outlineVariant, inverseSurface, inverseOnSurface, scrim.
+*   **Brand-locked (never Monet'd):** All primary, secondary, tertiary, error, and extended semantic color tokens (success, warning, activity colors). These remain Ridgeline palette regardless of wallpaper.
+*   **User toggle:** "Use wallpaper colors" in appearance settings, defaults to ON on Android 12+.
+*   **Pre-Android 12:** Static Ridgeline palette only. Toggle not shown.
+
+## 12. Accessibility Degradation Tiers
+
+| User Setting | Topo Contours | Glass Treatment | Transitions |
+|---|---|---|---|
+| **Default** | Animated (8s drift loop) | Blur + tint + border | Spring-animated |
+| **Reduce animations** | Hidden entirely | Blur + tint + border (static) | Instant snap (0ms) |
+| **Reduce transparency** | Hidden | Solid `surfaceContainer` + border | Instant snap |
+| **Both** | Hidden | Solid + border | Instant snap |
+
+*   Glass blur is a static material property, NOT an animation. It remains under reduce-animations.
+*   Android's separate "Reduce Transparency" setting triggers the solid fallback.
+*   Both settings are checked independently via `LocalReducedMotion` and `LocalReduceTransparency`.
+
+## 13. Card Layout Specifications
+
+Four canonical card types. All use the Ridgeline asymmetric shape scale.
+
+### 13.1 Trip Card
+*   **Role:** Session history list item. Tappable.
+*   **Shape:** L2 (small: TL/BR 10dp, TR/BL 3dp).
+*   **Container:** `surfaceContainerLow`.
+*   **Padding:** 16dp all sides.
+*   **Layout:** `Row` → 40dp circle icon container (`primaryContainer`) → 12dp gap → `Column(title + subtitle)` weight(1f) → `Column(distance + duration)` end-aligned.
+*   **Title:** `titleSmall` / `onSurface`.
+*   **Subtitle:** `bodySmall` / `onSurfaceVariant`.
+*   **Distance:** `labelMedium` SemiBold / `primary`, `tnum`.
+*   **Duration:** `labelSmall` / `onSurfaceVariant`, `tnum`.
+*   **Icon:** 24dp inside 40dp circle, `onPrimaryContainer` tint.
+*   **List spacing:** `spacedBy(8.dp)`.
+
+### 13.2 Stats Summary Card (Today Progress)
+*   **Role:** Hero card for aggregated daily stats. Non-tappable.
+*   **Shape:** L4 (large: TL/BR 20dp, TR/BL 6dp).
+*   **Container:** `surfaceContainer`.
+*   **Padding:** 20dp all sides.
+*   **Layout:** `Row` → `Column(label + primary metric + secondary metrics row)` weight(1f) → optional goal rings 16dp start padding.
+*   **Section label:** `titleMedium` / `onSurfaceVariant`.
+*   **Primary metric:** `displaySmall` Bold / `onSurface`, `tnum`.
+*   **Secondary labels:** `labelMedium` / `onSurfaceVariant` 0.9α.
+*   **Secondary values:** `bodyMedium` SemiBold / `onSurface`, `tnum`.
+*   **Metric column spacing:** 16dp horizontal.
+
+### 13.3 Challenge Card
+*   **Role:** Compact card in horizontal carousel. Tappable.
+*   **Fixed size:** 160dp × 120dp.
+*   **Shape:** L3 (medium: TL/BR 14dp, TR/BL 4dp).
+*   **Container:** `surfaceContainer`.
+*   **Padding:** 12dp all sides.
+*   **Layout:** `Column` → difficulty badge → 4dp gap → title (max 2 lines) → flex spacer → progress arc row.
+*   **Difficulty:** `labelSmall` Bold, color by tier (easy=`tertiary`, medium=`secondary`, hard=`error`).
+*   **Title:** `bodyMedium` Medium / `onSurface`, maxLines=2.
+*   **Progress arc:** 32dp canvas, 180° sweep, 3dp stroke, track=`surfaceVariant` 0.5α, fill=`primary`.
+*   **Time remaining:** `labelSmall` / `onSurfaceVariant`, `tnum`.
+*   **Carousel:** `LazyRow`, `spacedBy(12.dp)`, `contentPadding(horizontal = 16.dp)`.
+
+### 13.4 Dashboard Quick-Stat Card (Glass Metric)
+*   **Role:** Compact metric display with glass treatment.
+*   **Shape:** L2 (small: TL/BR 10dp, TR/BL 3dp).
+*   **Surface:** `surfaceColorAtElevation(2.dp)` at 0.85α.
+*   **Border:** 1dp `onSurface` at 0.08α.
+*   **Padding:** 16dp horizontal, 12dp vertical.
+*   **Layout:** `Row` → 24dp icon (`primary`) → 12dp gap → `Column(label + value+unit)` weight(1f) → optional 20dp trend icon.
+*   **Label:** `labelSmall` / `onSurfaceVariant`.
+*   **Value:** `titleMedium` SemiBold / `onSurface`, `tnum`.
+*   **Unit:** `labelSmall` / `onSurfaceVariant`, 4dp left of value.
+*   **Trend:** `tertiary` (positive) / `error` (negative).
+*   **Min height:** 48dp. **List spacing:** `spacedBy(8.dp)`.
+
+### Card Type Selection Guide
+| Scenario | Card Type | Shape Level |
+|---|---|---|
+| Session/trip in a list | Trip Card | L2 (small) |
+| Hero aggregate stat (today, weekly) | Stats Summary | L4 (large) |
+| Active challenge in carousel | Challenge Card | L3 (medium) |
+| Single metric readout | Quick-Stat Card | L2 (small) |
+| Feature card / hero promo | Custom | L5 (extraLarge) |
+| Settings group | SettingsGroupCard | L3 (medium) |
+
+## 14. Button Hierarchy
+
+### 14.1 Five Variants (Priority Order)
+| Priority | Variant | Shape | Container | Content | Use Case |
+|---|---|---|---|---|---|
+| 1 (Highest) | `PrimaryActionButton` | `MomentumPillShape` | `primary` | `onPrimary` | Primary CTA. One per screen max. |
+| 2 | `FilledTonalButton` | `MomentumPillShape` | `secondaryContainer` | `onSecondaryContainer` | Important secondary. "View details" |
+| 3 | `OutlinedButton` | `MomentumPillShape` | transparent | `primary`, 1dp `outline` | Alternative. "Share", "Export" |
+| 4 | `TextButton` | default M3 | transparent | `primary` | Dialog dismiss, "Cancel", inline |
+| 5 | `IconButton` | Circle | transparent | `onSurfaceVariant` | Toolbar, overflow. 48dp target |
+
+*   Maximum **one** `PrimaryActionButton` per screen (excluding FAB).
+*   All buttons: minimum 48dp touch target height.
+*   `PrimaryActionButton` padding: 24dp horizontal, 12dp vertical.
+
+### 14.2 FAB Treatment
+| Variant | Size | Shape | Use Case |
+|---|---|---|---|
+| Standard FAB | 56dp | `WaypointShape` | Primary floating action (map waypoint, new trip) |
+| Large FAB | 96dp | `WaypointShape` | Hero action (tracking start/stop) |
+| Extended FAB | 56dp height, wrap | `MomentumPillShape` | FAB with label ("Start recording") |
+
+*   **No mini FAB.** 40dp fails 48dp touch target minimum.
+*   FAB placement: 24dp from trailing edge, 24dp above floating nav bar top.
+*   Extended FAB collapses to icon-only on scroll via `expanded = !scrolled`.
+*   FAB not shown on settings, import/export, or detail screens.
+
+## 15. Per-Screen Component Specifications
+*   **Map Screen:** Standard FAB (`WaypointShape`, Secure Teal, TactileActive). Quick-Stat Cards for metrics overlay.
+*   **Dashboard:** Large FAB (96dp) for tracking. Stats Summary Card at top. Challenge Cards in carousel. Quick-Stat Cards for secondary metrics.
+*   **Statistics Screen:** Trip Cards in list. Section headers with accent bar. Stats Summary Card for period totals.
+*   **Trip Detail Screen:** Stats Summary Card for trip aggregate. Quick-Stat Cards for individual metrics. Sunset Rust for peak values.
+*   **Game Screen:** Challenge Cards in carousel. Stats Summary Cards for lifetime stats. Section headers per category.
+*   **Settings/Privacy Screen:** `PrimaryActionButton` for saves. `OutlinedButton` for exports. Section headers for groups, item dividers within.
 
 ### Floating Navigation Bar (Final)
 *   **Height:** 80dp. M3 standard. Provides breathing room for icon pill + label.
