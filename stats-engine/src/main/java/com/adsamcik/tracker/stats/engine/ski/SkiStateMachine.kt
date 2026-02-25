@@ -114,8 +114,8 @@ class SkiStateMachine(private val config: SkiDetectionConfig = SkiDetectionConfi
     ): SkiState {
         val shouldStay = when (currentState) {
             SkiState.DOWNHILL_RUN ->
-                signal.verticalRateMps <= config.downhillExitVerticalRate &&
-                        signal.speedMps >= config.downhillExitSpeed
+                signal.verticalRateMps <= config.downhillExitVerticalRate ||
+                        (signal.speedMps >= config.downhillExitSpeed && signal.verticalRateMps <= 0f)
 
             SkiState.LIFT_UP ->
                 signal.verticalRateMps >= config.liftExitVerticalRate &&

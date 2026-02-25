@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
@@ -55,7 +56,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `policy manager progression triggers correct interval updates`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Initial policy should be PASSIVE_LOW
@@ -85,7 +86,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `activity transition triggers timer interval update`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
@@ -102,7 +103,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `location change triggers timer interval update`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
@@ -117,7 +118,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `user initiated session maintains high frequency intervals`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// User-initiated should start at USER_INITIATED policy
@@ -180,7 +181,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `multiple rapid policy changes produce stable final interval`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -204,7 +205,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `policy remains stable when near threshold boundaries`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -224,7 +225,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `consecutive activity transitions refine policy selection`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -244,7 +245,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `mixed signal sources converge to consistent policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -264,7 +265,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `conflicting signals prioritize step count`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -287,7 +288,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `user-initiated policy maintains maximum collection frequency`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
@@ -305,7 +306,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `policy downgrade after extended inactivity reduces intervals`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -328,7 +329,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `location accuracy degradation alone does not drastically change policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -348,7 +349,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `rapid start-stop cycles maintain consistent interval behavior`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 
 		// Rapid start-stop-start
 		manager.start()
@@ -367,7 +368,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `extreme step rates are clamped to ACTIVE_ELEVATED`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -385,7 +386,7 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `zero speed from location does not force downgrade if steps are active`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()

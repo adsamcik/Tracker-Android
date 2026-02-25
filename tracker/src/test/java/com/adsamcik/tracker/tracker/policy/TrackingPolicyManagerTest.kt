@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
+import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.just
@@ -63,7 +64,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `initial policy is PASSIVE_LOW for non-user sessions`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
@@ -71,7 +72,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `initial policy is USER_INITIATED for user sessions`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
@@ -79,7 +80,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `shouldRequestLocation returns false for PASSIVE_LOW`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertFalse(manager.shouldRequestLocation())
@@ -87,7 +88,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `shouldRequestLocation returns false for MOVEMENT_SUSPECTED`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 		
 		// Escalate to MOVEMENT_SUSPECTED by simulating 25 steps/min rate (> 10 threshold)
@@ -101,7 +102,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `shouldRequestLocation returns true for ACTIVE_MODERATE`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Escalate step-by-step to ACTIVE_MODERATE
@@ -116,7 +117,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `step rate below 10 per min keeps PASSIVE_LOW`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Simulate 5 steps/min rate (below threshold)
@@ -129,7 +130,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `step rate 10-40 per min escalates to MOVEMENT_SUSPECTED`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Simulate 25 steps/min rate (> 10 threshold, < 40 threshold)
@@ -142,7 +143,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `step rate 40-80 per min escalates to ACTIVE_MODERATE`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Step rate escalation happens one level at a time
@@ -159,7 +160,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `step rate above 80 per min escalates to ACTIVE_ELEVATED`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Step rate escalation happens one level at a time
@@ -182,7 +183,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `activity transition from STILL to MOVING escalates policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -199,7 +200,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `location displacement above 50m escalates policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		manager.onLocationChange(displacementMeters = 100f, timeMs = System.currentTimeMillis())
@@ -210,7 +211,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `user-initiated sessions do not adapt based on step rate`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Try to escalate via steps
@@ -222,7 +223,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `tracker run created on start`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		coVerify { trackerRunDao.insert(any<TrackerRun>()) }
@@ -232,7 +233,7 @@ class TrackingPolicyManagerTest {
 	fun `tracker run ended on stop`() = runTest {
 		coEvery { trackerRunDao.insert(any<TrackerRun>()) } returns 42L
 
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 		manager.stop()
 
@@ -241,7 +242,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `progressive escalation through all policy levels`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
@@ -266,7 +267,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `step accumulation from zero works correctly`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -290,7 +291,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `concurrent step updates are serialized correctly`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -316,7 +317,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `concurrent activity and location updates do not cause race conditions`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -343,7 +344,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `rapid policy transitions are handled correctly`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -362,7 +363,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `start and stop are thread-safe`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		
 		// Launch multiple start/stop operations concurrently
 		val operations = listOf(
@@ -382,7 +383,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `exact threshold boundaries produce correct policy transitions`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -403,7 +404,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `just below thresholds maintains current policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -416,7 +417,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `step count decreasing (device reboot) resets baseline gracefully`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		
 		// Use a far-future base time to avoid any cooldown issues with system time
 		val baseTime = System.currentTimeMillis() + 1_000_000_000L
@@ -442,7 +443,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `time going backwards is handled gracefully`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -459,7 +460,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `very long time interval prevents overflow in step rate calculation`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -475,7 +476,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `zero time delta between updates is handled safely`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -490,7 +491,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `policy downgrades after period of inactivity`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -513,7 +514,7 @@ class TrackingPolicyManagerTest {
 	@Ignore("Activity transitions only escalate, never de-escalate - see TRACKING_POLICY_IMPLEMENTATION_ANALYSIS.md")
 	@Test
 	fun `activity transition to STILL downgrades policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Escalate via steps
@@ -537,7 +538,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `interleaved step and activity events produce consistent policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -559,7 +560,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `location updates combined with step data refine policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -580,7 +581,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `poor location accuracy during high step rate maintains elevated policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -603,7 +604,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `start creates TrackerRun in database`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		coVerify(exactly = 1) { trackerRunDao.insert(any<TrackerRun>()) }
@@ -611,7 +612,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `stop ends current TrackerRun in database`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		
 		coEvery { trackerRunDao.endRun(any(), any()) } just Runs
 		
@@ -623,7 +624,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `multiple start-stop cycles create separate TrackerRuns`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		
 		coEvery { trackerRunDao.endRun(any(), any()) } just Runs
 
@@ -644,7 +645,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `user-initiated session ignores step updates`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
@@ -660,7 +661,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `user-initiated session ignores activity transitions`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// STILL activity should not downgrade
@@ -671,7 +672,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `user-initiated session ignores location changes`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		// Minimal displacement should not affect policy
@@ -684,7 +685,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `large step count values do not cause overflow`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
@@ -704,7 +705,7 @@ class TrackingPolicyManagerTest {
 
 	@Test
 	fun `rapid policy oscillation stabilizes eventually`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database)
+		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
 		manager.start()
 
 		val baseTime = System.currentTimeMillis()
