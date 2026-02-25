@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -39,6 +40,10 @@ import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
 fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit = {}, onNavigateToActivities: () -> Unit = {}) {
     val vm: SettingsViewModel = hiltViewModel()
     var currentScreen by remember { mutableStateOf<SettingsScreen>(SettingsScreen.Root) }
+
+    BackHandler(enabled = currentScreen != SettingsScreen.Root) {
+        currentScreen = SettingsScreen.Root
+    }
 
     Scaffold(
         topBar = {
