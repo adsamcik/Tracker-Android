@@ -14,22 +14,11 @@ class DebugSettingsViewModel @Inject constructor() : ViewModel() {
     private val _showDeleteDataDialog = MutableStateFlow(false)
     val showDeleteDataDialog: StateFlow<Boolean> = _showDeleteDataDialog.asStateFlow()
     
-    private val _showDummyDataDialog = MutableStateFlow(false)
-    val showDummyDataDialog: StateFlow<Boolean> = _showDummyDataDialog.asStateFlow()
-    
     fun showDeleteDataDialog() {
         _showDeleteDataDialog.value = true
     }
     
     fun hideDeleteDataDialog() {
         _showDeleteDataDialog.value = false
-    }
-    
-    fun showDummyDataDialog() {
-        _showDummyDataDialog.value = true
-    }
-    
-    fun hideDummyDataDialog() {
-        _showDummyDataDialog.value = false
     }
 }

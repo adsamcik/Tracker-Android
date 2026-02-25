@@ -42,7 +42,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.toRoute
-import com.adsamcik.tracker.app.ui.navigation.Tracker
+import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Game
@@ -72,7 +72,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.AppColors
  * Phase 2: Precision upgrade prompt managed here (app-level overlay)
  */
 @Composable
-fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}) {
+fun MainRoot(startDestination: Any = Dashboard, onRouteChanged: (Any) -> Unit = {}) {
     val viewModel: MainViewModel = hiltViewModel()
 
     val hazeState = remember { HazeState() }
@@ -111,15 +111,15 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
         if (destination != null) {
             // Priority order for route resolution
             val route = when {
-                destination.hasRoute<Tracker>() -> Tracker
+                destination.hasRoute<Dashboard>() -> Dashboard
                 destination.hasRoute<Stats>() -> Stats
                 destination.hasRoute<Map>() -> Map
                 destination.hasRoute<Game>() -> Game
                 destination.hasRoute<Debug>() -> Debug
                 destination.hasRoute<Settings>() -> Settings
                 else -> {
-                    Log.w("MainRoot", "Unrecognized destination: ${destination.route}, falling back to Tracker")
-                    Tracker
+                    Log.w("MainRoot", "Unrecognized destination: ${destination.route}, falling back to Dashboard")
+                    Dashboard
                 }
             }
             
@@ -180,9 +180,9 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
     // Note: This back logic needs careful review with type-safe nav.
     // For now, let's remove legacy manual back handling if it relies on string comparisons easily.
     // Or check if not tracker.
-    val isTracker = currentDestination?.hierarchy?.any { it.hasRoute<Tracker>() } == true
-    BackHandler(enabled = !isTracker) {
-        navController.navigate(Tracker) {
+    val isDashboard = currentDestination?.hierarchy?.any { it.hasRoute<Dashboard>() } == true
+    BackHandler(enabled = !isDashboard) {
+        navController.navigate(Dashboard) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
             restoreState = true
@@ -191,7 +191,7 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
 
     // Navigation Items
     val navItems = listOf(
-        NavigationItem(Tracker, Icons.Filled.Home, stringResource(R.string.main_nav_tracker), "nav_tracker"),
+        NavigationItem(Dashboard, Icons.Filled.Home, stringResource(R.string.main_nav_tracker), "nav_dashboard"),
         NavigationItem(Stats, Icons.Filled.BarChart, stringResource(R.string.main_nav_stats), "nav_stats"),
         NavigationItem(Map, Icons.Filled.Map, stringResource(R.string.main_nav_map), "nav_map"),
         NavigationItem(Game, Icons.Filled.VideogameAsset, stringResource(R.string.main_nav_game), "nav_game")
@@ -199,7 +199,7 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
 
     // Determine if we need bottom padding (overlap map, pad others)
     val isMap = currentDestination?.hasRoute<Map>() == true
-    val bottomPadding = if (isMap || isTracker) 0.dp else 96.dp // 72 bar + 24 padding
+    val bottomPadding = if (isMap || isDashboard) 0.dp else 96.dp // 72 bar + 24 padding
 
     Box(
         modifier = Modifier
@@ -214,9 +214,9 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                 .hazeSource(state = hazeState)
                 .padding(bottom = bottomPadding)
         ) {
-            composable<Tracker> {
+            composable<Dashboard> {
                 val navBarPad = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                com.adsamcik.tracker.tracker.ui.compose.TrackerRoute(
+                com.adsamcik.tracker.dashboard.ui.compose.DashboardRoute(
                     onOpenSettings = {
                         navController.navigate(Settings) {
                             launchSingleTop = true
@@ -224,6 +224,12 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                     },
                     onOpenMap = {
                         navController.navigate(Map) {
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onOpenGame = {
+                        navController.navigate(Game) {
                             launchSingleTop = true
                             restoreState = true
                         }
@@ -255,7 +261,7 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
                         }
                     },
                     onNavigateToTracker = {
-                        navController.navigate(Tracker) {
+                        navController.navigate(Dashboard) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -284,6 +290,7 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
             composable<Settings> {
                 com.adsamcik.tracker.app.settings.SettingsRoute(
                     onNavigateBack = { navController.popBackStack() },
+                    onNavigateToDebug = { navController.navigate(Debug) },
                     onNavigateToActivities = {
                         navController.navigate(ActivitySettings) { launchSingleTop = true }
                     }
@@ -300,7 +307,7 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
         val currentRouteObj = navItems.find { item ->
             currentDestination?.hierarchy?.any { 
                 when(item.id) {
-                    Tracker -> it.hasRoute<Tracker>()
+                    Dashboard -> it.hasRoute<Dashboard>()
                     Stats -> it.hasRoute<Stats>()
                     Map -> it.hasRoute<Map>()
                     Game -> it.hasRoute<Game>()
@@ -309,8 +316,8 @@ fun MainRoot(startDestination: Any = Tracker, onRouteChanged: (Any) -> Unit = {}
             } == true
         }
 
-        // Settings icon overlay (visible on Stats, Map, Game — Tracker has its own)
-        if (currentRouteObj != null && !isTracker) {
+        // Settings icon overlay (visible on Stats, Map, Game — Dashboard has its own)
+        if (currentRouteObj != null && !isDashboard) {
             IconButton(
                 onClick = {
                     navController.navigate(Settings) {

@@ -127,3 +127,28 @@ interface GoalProgressProvider {
 val LocalGoalProgressProvider = compositionLocalOf<GoalProgressProvider> {
     error("GoalProgressProvider not provided. Ensure CompositionLocalProvider wraps root composition.")
 }
+
+/**
+ * Simplified challenge data for cross-module UI consumption.
+ * Maps from game module's ChallengeInstance without leaking game internals.
+ */
+data class ActiveChallengeInfo(
+    val id: Long,
+    val title: String,
+    val description: String,
+    val progress: Float,
+    val difficulty: String,
+    val timeRemainingMs: Long,
+)
+
+/**
+ * Provider interface for active challenge data.
+ * Implementation bridges from game module's ChallengeManager.
+ */
+interface ActiveChallengesProvider {
+    val activeChallengesFlow: StateFlow<List<ActiveChallengeInfo>>
+}
+
+val LocalActiveChallengesProvider = compositionLocalOf<ActiveChallengesProvider> {
+    error("ActiveChallengesProvider not provided. Ensure CompositionLocalProvider wraps root composition.")
+}

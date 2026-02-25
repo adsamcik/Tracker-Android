@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 sealed interface AppRoute
 
 @Serializable
-data object Tracker : AppRoute
+data object Dashboard : AppRoute
 
 @Serializable
 data object Stats : AppRoute

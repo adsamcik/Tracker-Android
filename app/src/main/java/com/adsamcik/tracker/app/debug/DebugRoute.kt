@@ -70,7 +70,6 @@ fun DebugRoute() {
     val clearDialog = remember { mutableStateOf(false) }
     var statusExpanded by remember { mutableStateOf(false) }
     var logsExpanded by remember { mutableStateOf(false) }
-
     Scaffold { padding ->
         LazyColumn(
             modifier = Modifier
@@ -97,6 +96,10 @@ fun DebugRoute() {
                 ) {
                     Text(ctx.getString(R.string.settings_clear_preferences_title))
                 }
+            }
+
+            item {
+                SeedDataSection()
             }
 
             item {

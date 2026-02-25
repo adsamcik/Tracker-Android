@@ -46,6 +46,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SessionSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.PressureSampleWriter
+import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.StepIntervalWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.StreamingAggregatorWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
@@ -362,6 +363,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(StepIntervalWriter())
 			add(ActivitySnapshotWriter())
 			add(PressureSampleWriter())
+			add(SkiTrackingComponent().also { it.setEscalationEngine(escalationEngine) })
 			add(StreamingAggregatorWriter())
 			if (initialTier.isGpsEnabled) {
 				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })

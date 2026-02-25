@@ -87,14 +87,7 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
             }
 
             item {
-                SettingsItem(
-                    title = stringResource(R.string.settings_debug_generate_dummy_title),
-                    subtitle = stringResource(R.string.settings_debug_generate_dummy_subtitle),
-                    icon = Icons.Default.Science,
-                    onClick = {
-                        debugVm.showDummyDataDialog()
-                    }
-                )
+                com.adsamcik.tracker.app.debug.SeedDataSection()
             }
         }
     }
