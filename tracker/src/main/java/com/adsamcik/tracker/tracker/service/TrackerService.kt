@@ -363,7 +363,14 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			add(StepIntervalWriter())
 			add(ActivitySnapshotWriter())
 			add(PressureSampleWriter())
-			add(SkiTrackingComponent().also { it.setEscalationEngine(escalationEngine) })
+			add(SkiTrackingComponent().also { skiComponent ->
+				skiComponent.setEscalationEngine(escalationEngine)
+				launch {
+					skiComponent.skiState.collect { skiState ->
+						controller.updateSkiState(skiState)
+					}
+				}
+			})
 			add(StreamingAggregatorWriter())
 			if (initialTier.isGpsEnabled) {
 				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })

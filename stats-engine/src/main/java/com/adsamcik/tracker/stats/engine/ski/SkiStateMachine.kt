@@ -55,14 +55,23 @@ class SkiStateMachine(private val config: SkiDetectionConfig = SkiDetectionConfi
     fun process(signals: List<SkiSignal>): List<SkiStateSegment> {
         if (signals.isEmpty()) return emptyList()
 
-        // Phase 1: Classify each signal independently
-        val rawStates = signals.map { signal -> classifySignal(signal) to signal.timeMs }
+        // Phase 1: Classify with hysteresis (sticky states using exit thresholds)
+        val rawStates = mutableListOf<Pair<SkiState, Long>>()
+        var currentState = classifySignal(signals[0])
+        rawStates.add(currentState to signals[0].timeMs)
+        for (i in 1 until signals.size) {
+            currentState = classifyWithHysteresis(signals[i], currentState)
+            rawStates.add(currentState to signals[i].timeMs)
+        }
 
         // Phase 2: Merge into contiguous segments
         val rawSegments = mergeIntoSegments(rawStates)
 
         // Phase 3: Apply minimum duration constraint (absorb short segments into neighbors)
-        return enforceMinDuration(rawSegments)
+        val durationEnforced = enforceMinDuration(rawSegments)
+
+        // Phase 4: Re-merge consecutive same-state segments created by phase 3
+        return mergeSameState(durationEnforced)
     }
 
     /**
@@ -93,6 +102,31 @@ class SkiStateMachine(private val config: SkiDetectionConfig = SkiDetectionConfi
 
         // Default: IDLE
         return SkiState.IDLE
+    }
+
+    /**
+     * Classify a signal considering the current state. Uses relaxed exit
+     * thresholds so a state "sticks" until conditions clearly change.
+     */
+    internal fun classifyWithHysteresis(
+        signal: SkiSignal,
+        currentState: SkiState
+    ): SkiState {
+        val shouldStay = when (currentState) {
+            SkiState.DOWNHILL_RUN ->
+                signal.verticalRateMps <= config.downhillExitVerticalRate ||
+                        signal.speedMps >= config.downhillExitSpeed
+
+            SkiState.LIFT_UP ->
+                signal.verticalRateMps >= config.liftExitVerticalRate &&
+                        signal.speedMps <= config.liftMaxSpeed
+
+            SkiState.WALK ->
+                signal.stepRatePerMin >= config.walkStepRateThreshold
+
+            SkiState.IDLE -> false
+        }
+        return if (shouldStay) currentState else classifySignal(signal)
     }
 
     internal fun mergeIntoSegments(
@@ -140,6 +174,30 @@ class SkiStateMachine(private val config: SkiDetectionConfig = SkiDetectionConfi
                 result.add(prev.copy(endMs = segment.endMs))
             } else {
                 result.add(segment)
+            }
+        }
+        return result
+    }
+
+    /**
+     * Merge consecutive segments that share the same state.
+     * This cleans up artefacts from [enforceMinDuration] which can absorb a
+     * short gap into the preceding segment, leaving two adjacent same-state
+     * segments that should be one.
+     */
+    internal fun mergeSameState(
+        segments: List<SkiStateSegment>
+    ): List<SkiStateSegment> {
+        if (segments.size <= 1) return segments
+
+        val result = mutableListOf(segments[0])
+        for (i in 1 until segments.size) {
+            val current = segments[i]
+            val prev = result.last()
+            if (current.state == prev.state) {
+                result[result.lastIndex] = prev.copy(endMs = current.endMs)
+            } else {
+                result.add(current)
             }
         }
         return result

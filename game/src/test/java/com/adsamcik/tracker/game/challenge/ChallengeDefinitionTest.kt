@@ -1,12 +1,12 @@
 package com.adsamcik.tracker.game.challenge
 
-import com.adsamcik.tracker.game.challenge.data.ChallengeDefinition
 import com.adsamcik.tracker.game.challenge.data.ChallengeType
-import com.adsamcik.tracker.game.challenge.data.definition.ActiveTimeChallengeDefinition
-import com.adsamcik.tracker.game.challenge.data.definition.StepChallengeDefinition
+import com.adsamcik.tracker.game.challenge.processor.ActiveTimeChallengeProcessor
+import com.adsamcik.tracker.game.challenge.processor.ExplorerChallengeProcessor
+import com.adsamcik.tracker.game.challenge.processor.StepChallengeProcessor
+import com.adsamcik.tracker.game.challenge.processor.WalkDistanceChallengeProcessor
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
@@ -14,77 +14,101 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Tests for challenge definition constants and configuration.
+ * Tests for [com.adsamcik.tracker.game.challenge.processor.ChallengeProcessor] implementations.
  */
-@DisplayName("ChallengeDefinition")
+@DisplayName("ChallengeProcessor implementations")
 class ChallengeDefinitionTest {
 
 	@Nested
-	@DisplayName("StepChallengeDefinition")
-	inner class StepDefinition {
+	@DisplayName("StepChallengeProcessor")
+	inner class StepProcessor {
 
-		private val definition = StepChallengeDefinition()
+		private val processor = StepChallengeProcessor()
 
 		@Test
 		fun `type is Step`() {
-			definition.type shouldBe ChallengeType.Step
+			processor.type shouldBe ChallengeType.Step
 		}
 
 		@Test
-		fun `default required step count is positive`() {
-			definition.defaultRequiredStepCount shouldBeGreaterThan 0
+		fun `defaultRequiredValue is positive`() {
+			processor.defaultRequiredValue shouldBeGreaterThan 0.0
 		}
 
 		@Test
-		fun `default duration is positive`() {
-			definition.defaultDuration shouldBeGreaterThan 0L
+		fun `defaultDurationMs is positive`() {
+			processor.defaultDurationMs shouldBeGreaterThan 0L
 		}
 
 		@Test
 		fun `min duration multiplier is less than max`() {
-			definition.minDurationMultiplier shouldBeLessThan definition.maxDurationMultiplier
-		}
-
-		@Test
-		fun `min duration multiplier is positive`() {
-			definition.minDurationMultiplier shouldBeGreaterThan 0.0
+			processor.minDurationMultiplier shouldBeLessThan processor.maxDurationMultiplier
 		}
 	}
 
 	@Nested
-	@DisplayName("ActiveTimeChallengeDefinition")
-	inner class ActiveTimeDefinition {
+	@DisplayName("ActiveTimeChallengeProcessor")
+	inner class ActiveTimeProcessor {
 
-		private val definition = ActiveTimeChallengeDefinition()
+		private val processor = ActiveTimeChallengeProcessor()
 
 		@Test
 		fun `type is ActiveTime`() {
-			definition.type shouldBe ChallengeType.ActiveTime
+			processor.type shouldBe ChallengeType.ActiveTime
 		}
 
 		@Test
-		fun `default active time is positive`() {
-			definition.defaultActiveTimeInMinutes shouldBeGreaterThan 0
+		fun `defaultRequiredValue is positive`() {
+			processor.defaultRequiredValue shouldBeGreaterThan 0.0
 		}
 
 		@Test
-		fun `default duration is positive`() {
-			definition.defaultDuration shouldBeGreaterThan 0L
+		fun `defaultDurationMs is positive`() {
+			processor.defaultDurationMs shouldBeGreaterThan 0L
 		}
 	}
 
 	@Nested
-	@DisplayName("ChallengeDefinition companion constants")
-	inner class CompanionConstants {
+	@DisplayName("ExplorerChallengeProcessor")
+	inner class ExplorerProcessor {
+
+		private val processor = ExplorerChallengeProcessor()
 
 		@Test
-		fun `MAX_DURATION_MULTIPLIER is greater than MIN`() {
-			ChallengeDefinition.MAX_DURATION_MULTIPLIER shouldBeGreaterThan ChallengeDefinition.MIN_DURATION_MULTIPLIER
+		fun `type is Explorer`() {
+			processor.type shouldBe ChallengeType.Explorer
 		}
 
 		@Test
-		fun `MIN_DURATION_MULTIPLIER is positive`() {
-			ChallengeDefinition.MIN_DURATION_MULTIPLIER shouldBeGreaterThan 0.0
+		fun `defaultRequiredValue is positive`() {
+			processor.defaultRequiredValue shouldBeGreaterThan 0.0
+		}
+
+		@Test
+		fun `defaultDurationMs is positive`() {
+			processor.defaultDurationMs shouldBeGreaterThan 0L
+		}
+	}
+
+	@Nested
+	@DisplayName("WalkDistanceChallengeProcessor")
+	inner class WalkDistanceProcessor {
+
+		private val processor = WalkDistanceChallengeProcessor()
+
+		@Test
+		fun `type is WalkDistance`() {
+			processor.type shouldBe ChallengeType.WalkDistance
+		}
+
+		@Test
+		fun `defaultRequiredValue is positive`() {
+			processor.defaultRequiredValue shouldBeGreaterThan 0.0
+		}
+
+		@Test
+		fun `defaultDurationMs is positive`() {
+			processor.defaultDurationMs shouldBeGreaterThan 0L
 		}
 	}
 }

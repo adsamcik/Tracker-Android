@@ -8,14 +8,29 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.shared.base.Time
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
 
 internal class ChallengeExpiredWorker(context: Context, workerParams: WorkerParameters) : Worker(
 		context,
 		workerParams
 ) {
+
+	@EntryPoint
+	@InstallIn(SingletonComponent::class)
+	interface ChallengeManagerEntryPoint {
+		fun challengeManager(): ChallengeManager
+	}
+
 	override fun doWork(): Result {
-		ChallengeManager.checkExpiredChallenges(applicationContext)
+		val challengeManager = EntryPointAccessors.fromApplication(
+			applicationContext,
+			ChallengeManagerEntryPoint::class.java
+		).challengeManager()
+		challengeManager.checkExpiredChallenges(applicationContext)
 		return Result.success()
 	}
 

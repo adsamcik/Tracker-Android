@@ -40,7 +40,7 @@ class PointsAwardedDaoTest {
     }
 
     @Test
-    fun countBetweenFlowEmitsZeroAndUpdatesAfterInsert() { runBlocking {
+    fun countBetweenFlowEmitsZeroAndUpdatesAfterInsert(): Unit = runBlocking {
         val now = 10_000L
         val flow = dao.countBetweenFlow(0L, now)
 
@@ -57,5 +57,5 @@ class PointsAwardedDaoTest {
 
         val updated = flow.first()
         updated shouldBe 42
-    } }
+    }
 }

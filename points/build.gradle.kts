@@ -53,6 +53,11 @@ android {
 		checkReleaseBuilds = true
 		abortOnError = false
 	}
+
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
+
 	namespace = "com.adsamcik.tracker.points"
 }
 

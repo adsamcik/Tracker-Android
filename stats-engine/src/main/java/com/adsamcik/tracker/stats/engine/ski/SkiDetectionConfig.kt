@@ -37,6 +37,10 @@ data class SkiDetectionConfig(
     /** Minimum number of DOWNHILL_RUN + LIFT_UP cycle pairs to classify as skiing. */
     val minCyclesForClassification: Int = 2,
 
+    // Run coalescing
+    /** Max IDLE gap (ms) between DOWNHILL segments (no LIFT between) to merge as one run. */
+    val maxRunCoalesceGapMs: Long = 180_000L,
+
     // Smoothing parameters
     /** Median filter window size for barometric altitude (samples at ~1Hz). */
     val baroMedianWindow: Int = 5,

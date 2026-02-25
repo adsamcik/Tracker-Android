@@ -167,7 +167,7 @@ class SkiStateMachineTest {
 	inner class DurationEnforcement {
 
 		@Test
-		fun `shortSegmentsAbsorbed - 10s idle between downhills is absorbed into preceding`() {
+		fun `shortSegmentsAbsorbed - 10s idle between downhills is absorbed and merged`() {
 			var t = 0L
 			val signals = mutableListOf<SkiSignal>()
 
@@ -184,13 +184,9 @@ class SkiStateMachineTest {
 
 			val segments = machine.process(signals)
 
-			// The 10s idle is absorbed into preceding DOWNHILL (extending its endMs),
-			// producing two consecutive DOWNHILL segments (no same-state merge pass)
-			segments shouldHaveSize 2
+			// The 10s idle is absorbed, then same-state merge combines the result
+			segments shouldHaveSize 1
 			segments[0].state shouldBe SkiState.DOWNHILL_RUN
-			segments[1].state shouldBe SkiState.DOWNHILL_RUN
-			// Verify the idle gap was absorbed: no IDLE segments present
-			segments.none { it.state == SkiState.IDLE } shouldBe true
 		}
 
 		@Test

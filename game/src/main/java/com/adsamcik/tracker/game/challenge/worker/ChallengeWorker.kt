@@ -14,11 +14,21 @@ import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 
 internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
 		context,
 		workerParams
 ) {
+
+	@EntryPoint
+	@InstallIn(SingletonComponent::class)
+	interface ChallengeManagerEntryPoint {
+		fun challengeManager(): ChallengeManager
+	}
 
 	private fun getSession(database: ChallengeDatabase, id: Long): ChallengeSessionData {
 		val databaseSession = database.sessionDao().get(id)
@@ -52,7 +62,12 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		val notificationManager = applicationContext.notificationManager
 		val resources = applicationContext.resources
 
-		ChallengeManager.processSession(applicationContext, trackerSession) {
+		val challengeManager = EntryPointAccessors.fromApplication(
+			applicationContext,
+			ChallengeManagerEntryPoint::class.java
+		).challengeManager()
+
+		challengeManager.processSession(applicationContext, trackerSession) {
 			val title = "Completed challenge ${it.getTitle(applicationContext)}"
 			logGame(LogData(message = title, source = CHALLENGE_LOG_SOURCE))
 			notificationManager.notify(

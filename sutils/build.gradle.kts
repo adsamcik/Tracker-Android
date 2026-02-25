@@ -54,6 +54,10 @@ android {
 		compose = true
 	}
 
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
+
 	namespace = "com.adsamcik.tracker.shared.utils"
 }
 

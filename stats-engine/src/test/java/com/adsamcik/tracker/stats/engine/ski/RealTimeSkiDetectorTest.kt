@@ -1,0 +1,177 @@
+package com.adsamcik.tracker.stats.engine.ski
+
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.floats.shouldBeGreaterThan
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+
+class RealTimeSkiDetectorTest {
+
+	private lateinit var detector: RealTimeSkiDetector
+	private val config = SkiDetectionConfig()
+
+	@BeforeEach
+	fun setup() {
+		detector = RealTimeSkiDetector(config)
+	}
+
+	/**
+	 * Simulate a ski day scenario: warm up → lift → descent → repeat.
+	 */
+	private fun feedStableAltitude(
+		startTimeMs: Long,
+		durationSeconds: Int,
+		altitude: Float,
+		speed: Float = 0f
+	): Long {
+		var t = startTimeMs
+		for (i in 0 until durationSeconds) {
+			detector.onSample(t, altitude, speed)
+			t += 1000L
+		}
+		return t
+	}
+
+	private fun feedLinearAltitudeChange(
+		startTimeMs: Long,
+		durationSeconds: Int,
+		startAltitude: Float,
+		endAltitude: Float,
+		speed: Float
+	): Long {
+		var t = startTimeMs
+		val altPerStep = (endAltitude - startAltitude) / durationSeconds
+		for (i in 0 until durationSeconds) {
+			val alt = startAltitude + altPerStep * i
+			detector.onSample(t, alt, speed)
+			t += 1000L
+		}
+		return t
+	}
+
+	@Nested
+	inner class InitialState {
+		@Test
+		fun `returns null before warm-up`() {
+			val result = detector.onSample(0L, 1500f, 0f)
+			result.shouldBeNull()
+		}
+
+		@Test
+		fun `initial state is IDLE`() {
+			val state = detector.getCurrentState()
+			state.state shouldBe SkiState.IDLE
+			state.completedRunCount shouldBe 0
+			state.isConfirmedSkiSession.shouldBeFalse()
+		}
+	}
+
+	@Nested
+	inner class DescentDetection {
+		@Test
+		fun `detects descent after sustained altitude drop with speed`() {
+			// Warm up with stable altitude
+			var t = feedStableAltitude(0L, 10, 2000f)
+
+			// Descend: ~5 m/s vertical drop at 15 m/s speed for 40s (> minStateDuration)
+			t = feedLinearAltitudeChange(t, 40, 2000f, 1800f, 15f)
+
+			val state = detector.getCurrentState()
+			state.state shouldBe SkiState.DOWNHILL_RUN
+		}
+	}
+
+	@Nested
+	inner class LiftDetection {
+		@Test
+		fun `detects lift ascent after sustained altitude gain`() {
+			// Warm up
+			var t = feedStableAltitude(0L, 10, 1500f)
+
+			// Ascend: ~2 m/s vertical gain at 3 m/s speed for 40s
+			t = feedLinearAltitudeChange(t, 40, 1500f, 1580f, 3f)
+
+			val state = detector.getCurrentState()
+			state.state shouldBe SkiState.LIFT_UP
+		}
+	}
+
+	@Nested
+	inner class CycleCounting {
+		@Test
+		fun `counts complete lift-descent cycles`() {
+			var t = feedStableAltitude(0L, 10, 1500f) // warm up
+
+			// Cycle 1: lift up (60s gives 25s margin after 5s detection + 30s hysteresis)
+			t = feedLinearAltitudeChange(t, 60, 1500f, 1650f, 3f)
+			// Cycle 1: descend
+			t = feedLinearAltitudeChange(t, 60, 1650f, 1350f, 15f)
+
+			// Cycle 2: lift up
+			t = feedLinearAltitudeChange(t, 60, 1350f, 1500f, 3f)
+			// Cycle 2: descend
+			t = feedLinearAltitudeChange(t, 60, 1500f, 1200f, 15f)
+
+			val state = detector.getCurrentState()
+			state.completedRunCount shouldBeGreaterThanOrEqual 1
+			state.totalRunCount shouldBeGreaterThanOrEqual 1
+			state.totalVerticalM shouldBeGreaterThan 0f
+		}
+
+		@Test
+		fun `confirmed ski session after minimum cycles`() {
+			var t = feedStableAltitude(0L, 10, 1500f)
+
+			// Run 3 cycles with generous durations
+			for (cycle in 0 until 3) {
+				val baseAlt = 1500f - cycle * 300f
+				t = feedLinearAltitudeChange(t, 60, baseAlt, baseAlt + 200f, 3f)
+				t = feedLinearAltitudeChange(t, 60, baseAlt + 200f, baseAlt - 100f, 15f)
+			}
+
+			val state = detector.getCurrentState()
+			state.completedRunCount shouldBeGreaterThanOrEqual config.minCyclesForClassification
+			state.isConfirmedSkiSession.shouldBeTrue()
+		}
+	}
+
+	@Nested
+	inner class StateListener {
+		@Test
+		fun `listener receives state transitions`() {
+			val transitions = mutableListOf<Pair<SkiState, SkiState>>()
+			detector.setListener(SkiStateListener { prev, newState ->
+				transitions.add(prev to newState.state)
+			})
+
+			// Warm up + descent
+			var t = feedStableAltitude(0L, 10, 2000f)
+			t = feedLinearAltitudeChange(t, 40, 2000f, 1800f, 15f)
+
+			// Should have at least one transition
+			transitions.size shouldBeGreaterThanOrEqual 1
+		}
+	}
+
+	@Nested
+	inner class Reset {
+		@Test
+		fun `reset clears all state`() {
+			var t = feedStableAltitude(0L, 10, 2000f)
+			feedLinearAltitudeChange(t, 40, 2000f, 1800f, 15f)
+
+			detector.reset()
+
+			val state = detector.getCurrentState()
+			state.state shouldBe SkiState.IDLE
+			state.completedRunCount shouldBe 0
+			state.totalVerticalM shouldBe 0f
+		}
+	}
+}

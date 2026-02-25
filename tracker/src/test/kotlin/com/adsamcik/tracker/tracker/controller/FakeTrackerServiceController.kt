@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -65,6 +66,9 @@ class FakeTrackerServiceController : TrackerServiceController {
     private val _policyStateFlow = MutableStateFlow<PolicyState?>(null)
     override val policyStateFlow: StateFlow<PolicyState?> get() = _policyStateFlow
 
+    private val _skiStateFlow = MutableStateFlow<RealTimeSkiState?>(null)
+    override val skiStateFlow: StateFlow<RealTimeSkiState?> get() = _skiStateFlow
+
     private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
     override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
     
@@ -100,6 +104,10 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     override fun updatePolicyState(state: PolicyState?) {
         _policyStateFlow.value = state
+    }
+
+    override fun updateSkiState(state: RealTimeSkiState?) {
+        _skiStateFlow.value = state
     }
     
     /**
