@@ -64,7 +64,6 @@ import com.adsamcik.tracker.app.tracker.ui.UpgradeReason
 import androidx.compose.ui.res.stringResource
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.preferences.R as PrefR
-import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 
 /**
  * Main composition root hosting NavHost and the animated bottom bar.

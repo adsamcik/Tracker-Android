@@ -1,30 +1,31 @@
 package com.adsamcik.tracker.shared.utils.style.compose
 
+import android.os.Build
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.isSystemInDarkTheme
 
 // --- DIMENSIONS ---
+
 object AppDimensions {
     /** Bottom padding to clear the floating navigation bar. */
     val FloatingNavBarClearance = 120.dp
@@ -44,99 +45,179 @@ object RidgelineSpacing {
     val Xxxxl  = 48.dp
 }
 
-// --- COLORS ---
-object AppColors {
-    val NeonLime = Color(0xFFCCFF00)
-    val DeepVoid = Color(0xFF0A0A0A)
-    // Preserving these for now as constants if needed, but components will use Scheme
-    val GlassShale = Color(0x331A1A1A)
-    val WhiteHighEmphasis = Color(0xFFFFFFFF)
-    val WhiteMediumEmphasis = Color(0xB3FFFFFF)
-    val WhiteLowEmphasis = Color(0x66FFFFFF)
-    
-    // Activity colors — light mode (Okabe-Ito hues, FINAL Round 13)
-    val ActivityWalkLight = Color(0xFF007051)
-    val ActivityRunLight = Color(0xFFA34800)
-    val ActivityRideLight = Color(0xFF00659E)
-    val ActivityVehicleLight = Color(0xFF97396D)
-    val ActivityStillLight = Color(0xFF546E7A)
-    val ActivityUnknownLight = Color(0xFF616161)
+/** Responsive page gutters by window width. */
+object RidgelineGutters {
+    val horizontal: Dp
+        @Composable get() {
+            val config = LocalConfiguration.current
+            return when {
+                config.screenWidthDp < 600 -> RidgelineSpacing.Lg
+                config.screenWidthDp < 840 -> RidgelineSpacing.Xxl
+                else -> RidgelineSpacing.Xxxl
+            }
+        }
+}
 
-    // Activity colors — dark mode (Okabe-Ito hues, FINAL Round 13)
-    val ActivityWalkDark = Color(0xFF52C5A6)
-    val ActivityRunDark = Color(0xFFEF8C3D)
-    val ActivityRideDark = Color(0xFF5AADDC)
-    val ActivityVehicleDark = Color(0xFFD490B6)
-    val ActivityStillDark = Color(0xFF90A4AE)
-    val ActivityUnknownDark = Color(0xFF9E9E9E)
+// --- ELEVATION ---
 
-    // On-colors for activity chip/badge fills
-    val OnActivityLight = Color(0xFFFFFFFF)
-    val OnActivityWalkDark = Color(0xFF002418)
-    val OnActivityRunDark = Color(0xFF2E1500)
-    val OnActivityRideDark = Color(0xFF001D2E)
-    val OnActivityVehicleDark = Color(0xFF2A0A1E)
-    val OnActivityStillDark = Color(0xFF0C1F28)
-    val OnActivityUnknownDark = Color(0xFF1A1A1A)
-    
-    // Gradients
-    val MainGradient = Brush.verticalGradient(
-        colors = listOf(DeepVoid, Color(0xFF121212))
+data class ElevationPair(val tonal: Dp, val shadow: Dp)
+
+object RidgelineElevation {
+    val Flat = ElevationPair(tonal = 0.dp, shadow = 0.dp)
+    val Raised = ElevationPair(tonal = 1.dp, shadow = 1.dp)
+    val Floating = ElevationPair(tonal = 2.dp, shadow = 2.dp)
+    val Overlay = ElevationPair(tonal = 6.dp, shadow = 6.dp)
+}
+
+// --- GLASS SYSTEM ---
+
+/**
+ * Glass-morphism tiers. Higher tiers = more blur + more transparency.
+ * Pre-API 31: blur unavailable, falls back to opaque surface + border.
+ *
+ * Blur is applied by modules that depend on Haze (e.g., app module).
+ * This enum provides the token values; actual blur rendering is done
+ * at the call site via Haze's hazeEffect modifier.
+ */
+enum class GlassTier(
+    val blur: Dp,
+    val lightTintAlpha: Float,
+    val darkTintAlpha: Float,
+    val lightBorderAlpha: Float,
+    val darkBorderAlpha: Float,
+) {
+    G0(blur = 0.dp,  lightTintAlpha = 1.00f, darkTintAlpha = 1.00f, lightBorderAlpha = 0.00f, darkBorderAlpha = 0.00f),
+    G1(blur = 10.dp, lightTintAlpha = 0.85f, darkTintAlpha = 0.88f, lightBorderAlpha = 0.18f, darkBorderAlpha = 0.14f),
+    G2(blur = 18.dp, lightTintAlpha = 0.78f, darkTintAlpha = 0.82f, lightBorderAlpha = 0.24f, darkBorderAlpha = 0.18f),
+    G3(blur = 26.dp, lightTintAlpha = 0.72f, darkTintAlpha = 0.76f, lightBorderAlpha = 0.30f, darkBorderAlpha = 0.20f),
+}
+
+/** Resolves the border color for a glass tier based on current theme. */
+@Composable
+fun GlassTier.borderColor(): Color {
+    val alpha = if (isSystemInDarkTheme()) darkBorderAlpha else lightBorderAlpha
+    return MaterialTheme.colorScheme.outlineVariant.copy(alpha = alpha)
+}
+
+/** Resolves the tint color for a glass tier based on current theme. */
+@Composable
+fun GlassTier.tintColor(): Color {
+    val alpha = if (isSystemInDarkTheme()) darkTintAlpha else lightTintAlpha
+    return MaterialTheme.colorScheme.surfaceContainer.copy(alpha = alpha)
+}
+
+// --- SEMANTIC COLOR LOCALS ---
+
+data class RidgelineSemanticColors(
+    val success: Color,
+    val onSuccess: Color,
+    val successContainer: Color,
+    val onSuccessContainer: Color,
+    val warning: Color,
+    val onWarning: Color,
+    val warningContainer: Color,
+    val onWarningContainer: Color,
+)
+
+val LocalSemanticColors = staticCompositionLocalOf {
+    RidgelineSemanticColors(
+        success = SuccessLight,
+        onSuccess = OnSuccessLight,
+        successContainer = SuccessContainerLight,
+        onSuccessContainer = OnSuccessContainerLight,
+        warning = WarningLight,
+        onWarning = OnWarningLight,
+        warningContainer = WarningContainerLight,
+        onWarningContainer = OnWarningContainerLight,
     )
+}
 
-    /** Resolves mode-adaptive activity colors. Call from @Composable context. */
+// --- ACTIVITY COLORS (Okabe-Ito, independent of brand seed) ---
+
+object ActivityColors {
+    val WalkLight = Color(0xFF007051)
+    val RunLight = Color(0xFFA34800)
+    val RideLight = Color(0xFF00659E)
+    val VehicleLight = Color(0xFF97396D)
+    val StillLight = Color(0xFF546E7A)
+    val UnknownLight = Color(0xFF616161)
+
+    val WalkDark = Color(0xFF52C5A6)
+    val RunDark = Color(0xFFEF8C3D)
+    val RideDark = Color(0xFF5AADDC)
+    val VehicleDark = Color(0xFFD490B6)
+    val StillDark = Color(0xFF90A4AE)
+    val UnknownDark = Color(0xFF9E9E9E)
+
+    val OnLight = Color(0xFFFFFFFF)
+    val OnWalkDark = Color(0xFF002418)
+    val OnRunDark = Color(0xFF2E1500)
+    val OnRideDark = Color(0xFF001D2E)
+    val OnVehicleDark = Color(0xFF2A0A1E)
+    val OnStillDark = Color(0xFF0C1F28)
+    val OnUnknownDark = Color(0xFF1A1A1A)
+
     object Adaptive {
-        val ActivityWalk: Color @Composable get() = if (isSystemInDarkTheme()) ActivityWalkDark else ActivityWalkLight
-        val ActivityRun: Color @Composable get() = if (isSystemInDarkTheme()) ActivityRunDark else ActivityRunLight
-        val ActivityRide: Color @Composable get() = if (isSystemInDarkTheme()) ActivityRideDark else ActivityRideLight
-        val ActivityVehicle: Color @Composable get() = if (isSystemInDarkTheme()) ActivityVehicleDark else ActivityVehicleLight
-        val ActivityStill: Color @Composable get() = if (isSystemInDarkTheme()) ActivityStillDark else ActivityStillLight
-        val ActivityUnknown: Color @Composable get() = if (isSystemInDarkTheme()) ActivityUnknownDark else ActivityUnknownLight
+        val Walk: Color @Composable get() = if (isSystemInDarkTheme()) WalkDark else WalkLight
+        val Run: Color @Composable get() = if (isSystemInDarkTheme()) RunDark else RunLight
+        val Ride: Color @Composable get() = if (isSystemInDarkTheme()) RideDark else RideLight
+        val Vehicle: Color @Composable get() = if (isSystemInDarkTheme()) VehicleDark else VehicleLight
+        val Still: Color @Composable get() = if (isSystemInDarkTheme()) StillDark else StillLight
+        val Unknown: Color @Composable get() = if (isSystemInDarkTheme()) UnknownDark else UnknownLight
     }
 }
 
-// --- SHAPES ---
-// Moved to Shape.kt
+// --- BACKWARD COMPAT: AppColors delegates to ActivityColors ---
+
+@Deprecated("Use ActivityColors directly", ReplaceWith("ActivityColors"))
+object AppColors {
+    object Adaptive {
+        val ActivityWalk: Color @Composable get() = ActivityColors.Adaptive.Walk
+        val ActivityRun: Color @Composable get() = ActivityColors.Adaptive.Run
+        val ActivityRide: Color @Composable get() = ActivityColors.Adaptive.Ride
+        val ActivityVehicle: Color @Composable get() = ActivityColors.Adaptive.Vehicle
+        val ActivityStill: Color @Composable get() = ActivityColors.Adaptive.Still
+        val ActivityUnknown: Color @Composable get() = ActivityColors.Adaptive.Unknown
+    }
+}
 
 // --- COMPONENTS ---
 
 /**
- * A glass-morphism card with a subtle border and blurred background feel (simulated).
+ * A glass-morphism card: opaque Surface + border (without Haze).
+ * For true blur, use Haze's hazeEffect modifier at the call site with GlassTier tokens.
  */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = TerrainCardShape,
-    showBorder: Boolean = true,
-    content: @Composable BoxScope.() -> Unit
+    shape: Shape = MaterialTheme.shapes.medium,
+    tier: GlassTier = GlassTier.G1,
+    content: @Composable BoxScope.() -> Unit,
 ) {
+    val borderColor = tier.borderColor()
+
     Surface(
-        modifier = modifier
-            .then(
-                if (showBorder) {
-                    Modifier.border(
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                        shape
-                    )
-                } else {
-                    Modifier
-                }
-            ),
+        modifier = modifier.then(
+            if (tier.lightBorderAlpha > 0f || tier.darkBorderAlpha > 0f) {
+                Modifier.border(BorderStroke(1.dp, borderColor), shape)
+            } else Modifier
+        ),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = shape,
-        tonalElevation = 1.dp,
-        shadowElevation = 1.dp
+        tonalElevation = RidgelineElevation.Raised.tonal,
+        shadowElevation = RidgelineElevation.Raised.shadow,
     ) {
         Box(
-            modifier = Modifier.padding(16.dp),
-            content = content
+            modifier = Modifier.padding(RidgelineSpacing.Lg),
+            content = content,
         )
     }
 }
 
 /**
  * Large metric text for visibility while moving.
+ * Uses monospace (Roboto Mono) for tabular digit stability.
  */
 @Composable
 fun MetricText(
@@ -145,31 +226,32 @@ fun MetricText(
     modifier: Modifier = Modifier,
     valueColor: Color = MaterialTheme.colorScheme.primary,
     labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    valueSize: TextUnit = 48.sp
+    valueSize: TextUnit = 48.sp,
 ) {
-    androidx.compose.foundation.layout.Column(modifier = modifier) {
+    Column(modifier = modifier) {
         Text(
             text = value,
             style = MaterialTheme.typography.displayMedium.copy(
+                fontFamily = FontFamily.Monospace,
                 fontSize = valueSize,
                 fontWeight = FontWeight.Bold,
-                fontFeatureSettings = "tnum" // Tabular numbers
+                fontFeatureSettings = "tnum",
             ),
-            color = valueColor
+            color = valueColor,
         )
         Text(
             text = label.uppercase(),
             style = MaterialTheme.typography.labelMedium.copy(
                 fontWeight = FontWeight.Medium,
-                letterSpacing = 1.5.sp
+                letterSpacing = 1.5.sp,
             ),
-            color = labelColor
+            color = labelColor,
         )
     }
 }
 
 /**
- * Primary action button styled for the outdoor theme.
+ * Primary action button styled with MomentumPillShape.
  */
 @Composable
 fun PrimaryActionButton(
@@ -177,7 +259,7 @@ fun PrimaryActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    icon: (@Composable () -> Unit)? = null
+    icon: (@Composable () -> Unit)? = null,
 ) {
     Surface(
         onClick = onClick,
@@ -185,23 +267,23 @@ fun PrimaryActionButton(
         modifier = modifier,
         shape = MomentumPillShape,
         color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        contentColor = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
-        Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
+        Box(modifier = Modifier.padding(horizontal = RidgelineSpacing.Xxl, vertical = RidgelineSpacing.Lg)) {
             androidx.compose.foundation.layout.Row(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
             ) {
                 if (icon != null) {
                     icon()
-                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(end = 8.dp))
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(end = RidgelineSpacing.Sm))
                 }
                 Text(
                     text = text.uppercase(),
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
+                        letterSpacing = 1.sp,
+                    ),
                 )
             }
         }

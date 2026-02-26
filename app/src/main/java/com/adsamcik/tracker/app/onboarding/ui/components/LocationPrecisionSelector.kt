@@ -127,11 +127,10 @@ private fun PrecisionModeCard(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape) 
+                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium) 
                 else Modifier
             )
             .clickable { onClick() },
-        showBorder = true
     ) {
         Row(
             modifier = Modifier

@@ -4,128 +4,149 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// Brand Identity Colors
-val SecureTealPrimaryLight = Color(0xFF006874)
-val SecureTealOnPrimaryLight = Color(0xFFFFFFFF)
-val SecureTealPrimaryContainerLight = Color(0xFF97F0FF)
-val SecureTealOnPrimaryContainerLight = Color(0xFF001F24)
+/**
+ * Ridgeline Design System — Color Tokens
+ *
+ * Seed: #1B6B3A (Canopy Green, HCT H≈145° C≈48 T≈38)
+ * Generated via Material Theme Builder, hand-audited for WCAG AA.
+ *
+ * Do NOT change the seed without regenerating the entire palette
+ * and re-auditing all contrast pairs.
+ */
+val RidgelineSeed = Color(0xFF1B6B3A)
 
-val SecureTealPrimaryDark = Color(0xFF4FD8EB)
-val SecureTealOnPrimaryDark = Color(0xFF00363D)
-val SecureTealPrimaryContainerDark = Color(0xFF004F58)
-val SecureTealOnPrimaryContainerDark = Color(0xFF97F0FF)
+// --- Primary: Canopy Green ---
+val CanopyGreenPrimaryLight = Color(0xFF1B6B3A)
+val CanopyGreenOnPrimaryLight = Color(0xFFFFFFFF)
+val CanopyGreenPrimaryContainerLight = Color(0xFF98F7B2)
+val CanopyGreenOnPrimaryContainerLight = Color(0xFF00210D)
 
-val TrailSlateSecondaryLight = Color(0xFF4A6367)
-val TrailSlateOnSecondaryLight = Color(0xFFFFFFFF)
-val TrailSlateSecondaryContainerLight = Color(0xFFCDE7EC)
-val TrailSlateOnSecondaryContainerLight = Color(0xFF051F23)
+val CanopyGreenPrimaryDark = Color(0xFF7BDA97)
+val CanopyGreenOnPrimaryDark = Color(0xFF003919)
+val CanopyGreenPrimaryContainerDark = Color(0xFF005227)
+val CanopyGreenOnPrimaryContainerDark = Color(0xFF98F7B2)
 
-val TrailSlateSecondaryDark = Color(0xFFB1CBD0)
-val TrailSlateOnSecondaryDark = Color(0xFF1C3438)
-val TrailSlateSecondaryContainerDark = Color(0xFF334B4F)
-val TrailSlateOnSecondaryContainerDark = Color(0xFFCDE7EC)
+// --- Secondary: Trail Sage ---
+val TrailSageSecondaryLight = Color(0xFF506352)
+val TrailSageOnSecondaryLight = Color(0xFFFFFFFF)
+val TrailSageSecondaryContainerLight = Color(0xFFD2E8D3)
+val TrailSageOnSecondaryContainerLight = Color(0xFF0E1F13)
 
-val SunsetRustTertiaryLight = Color(0xFF98483A)
-val SunsetRustOnTertiaryLight = Color(0xFFFFFFFF)
-val SunsetRustTertiaryContainerLight = Color(0xFFFFDAD4)
-val SunsetRustOnTertiaryContainerLight = Color(0xFF3C0903)
+val TrailSageSecondaryDark = Color(0xFFB5CCB6)
+val TrailSageOnSecondaryDark = Color(0xFF213526)
+val TrailSageSecondaryContainerDark = Color(0xFF374B3B)
+val TrailSageOnSecondaryContainerDark = Color(0xFFD2E8D3)
 
-val SunsetRustTertiaryDark = Color(0xFFFFB4A8)
-val SunsetRustOnTertiaryDark = Color(0xFF5C190D)
-val SunsetRustTertiaryContainerDark = Color(0xFF7A3024)
-val SunsetRustOnTertiaryContainerDark = Color(0xFFFFDAD4)
+// --- Tertiary: Trail Gold ---
+val TrailGoldTertiaryLight = Color(0xFF857010)
+val TrailGoldOnTertiaryLight = Color(0xFFFFFFFF)
+val TrailGoldTertiaryContainerLight = Color(0xFFFFDFA0)
+val TrailGoldOnTertiaryContainerLight = Color(0xFF2A2000)
 
-// Neutral / Surface
-val SurfaceLight = Color(0xFFF8FDFF)
-val OnSurfaceLight = Color(0xFF171D1E)
-val OnSurfaceVariantLight = Color(0xFF3F484A)
+val TrailGoldTertiaryDark = Color(0xFFD0B24A)
+val TrailGoldOnTertiaryDark = Color(0xFF473A00)
+val TrailGoldTertiaryContainerDark = Color(0xFF635200)
+val TrailGoldOnTertiaryContainerDark = Color(0xFFFFDFA0)
+
+// --- Neutral / Surface (green-tinted) ---
+val SurfaceLight = Color(0xFFF7FBF2)
+val OnSurfaceLight = Color(0xFF181D18)
+val OnSurfaceVariantLight = Color(0xFF404942)
 val SurfaceContainerLowestLight = Color(0xFFFFFFFF)
-val SurfaceContainerLowLight = Color(0xFFEFF3F8)
-val SurfaceContainerLight = Color(0xFFEBF4F6)
-val SurfaceContainerHighLight = Color(0xFFDFE8EA)
-val SurfaceContainerHighestLight = Color(0xFFD3DDE0)
-val SurfaceTintLight = Color(0xFF006874)
-val BackgroundLight = Color(0xFFFBFCFF)
-val OnBackgroundLight = Color(0xFF171D1E)
-val OutlineLight = Color(0xFF6F797A)
-val OutlineVariantLight = Color(0xFFC4C7CF)
-val InverseSurfaceLight = Color(0xFF2B3133)
-val InverseOnSurfaceLight = Color(0xFFECF2F3)
-val InversePrimaryLight = Color(0xFF4FD8EB)
+val SurfaceContainerLowLight = Color(0xFFF1F5EC)
+val SurfaceContainerLight = Color(0xFFEBF0E6)
+val SurfaceContainerHighLight = Color(0xFFE5EAE0)
+val SurfaceContainerHighestLight = Color(0xFFE0E4DB)
+val SurfaceTintLight = Color(0xFF1B6B3A)
+val BackgroundLight = Color(0xFFF7FBF2)
+val OnBackgroundLight = Color(0xFF181D18)
+val OutlineLight = Color(0xFF717971)
+val OutlineVariantLight = Color(0xFFC0C9BC)
+val InverseSurfaceLight = Color(0xFF2D322C)
+val InverseOnSurfaceLight = Color(0xFFEEF2E9)
+val InversePrimaryLight = Color(0xFF7BDA97)
 val ScrimLight = Color(0xFF000000)
 
-val SurfaceDark = Color(0xFF0E1415)
-val OnSurfaceDark = Color(0xFFDFE4E5)
-val OnSurfaceVariantDark = Color(0xFFBFC8CA)
-val SurfaceContainerLowestDark = Color(0xFF060B0C)
-val SurfaceContainerLowDark = Color(0xFF151B1D)
-val SurfaceContainerDark = Color(0xFF1A2022)
-val SurfaceContainerHighDark = Color(0xFF252B2D)
-val SurfaceContainerHighestDark = Color(0xFF303638)
-val SurfaceTintDark = Color(0xFF4FD8EB)
-val BackgroundDark = Color(0xFF0E1415)
-val OnBackgroundDark = Color(0xFFDFE4E5)
-val OutlineDark = Color(0xFF899294)
-val OutlineVariantDark = Color(0xFF3F484A)
-val InverseSurfaceDark = Color(0xFFDFE4E5)
-val InverseOnSurfaceDark = Color(0xFF2B3133)
-val InversePrimaryDark = Color(0xFF006874)
+val SurfaceDark = Color(0xFF101410)
+val OnSurfaceDark = Color(0xFFE0E4DB)
+val OnSurfaceVariantDark = Color(0xFFC0C9BC)
+val SurfaceContainerLowestDark = Color(0xFF0B0F0B)
+val SurfaceContainerLowDark = Color(0xFF1C201B)
+val SurfaceContainerDark = Color(0xFF202520)
+val SurfaceContainerHighDark = Color(0xFF2B2F2A)
+val SurfaceContainerHighestDark = Color(0xFF353935)
+val SurfaceTintDark = Color(0xFF7BDA97)
+val BackgroundDark = Color(0xFF101410)
+val OnBackgroundDark = Color(0xFFE0E4DB)
+val OutlineDark = Color(0xFF8B938A)
+val OutlineVariantDark = Color(0xFF414941)
+val InverseSurfaceDark = Color(0xFFE0E4DB)
+val InverseOnSurfaceDark = Color(0xFF2D322C)
+val InversePrimaryDark = Color(0xFF1B6B3A)
 val ScrimDark = Color(0xFF000000)
 
 // Surface Variant
-val SurfaceVariantLight = Color(0xFFDBE4E6)
-val SurfaceVariantDark = Color(0xFF3F484A)
+val SurfaceVariantLight = Color(0xFFDCE5D5)
+val SurfaceVariantDark = Color(0xFF414941)
 
 // Surface Brightness Range
-val SurfaceBrightLight = Color(0xFFF8FDFF)
-val SurfaceBrightDark = Color(0xFF353B3D)
-val SurfaceDimLight = Color(0xFFD5DBDC)
-val SurfaceDimDark = Color(0xFF0E1415)
+val SurfaceBrightLight = Color(0xFFF7FBF2)
+val SurfaceBrightDark = Color(0xFF363A34)
+val SurfaceDimLight = Color(0xFFD7DBD2)
+val SurfaceDimDark = Color(0xFF101410)
 
-// Semantic Colors
+// --- Error ---
 val ErrorLight = Color(0xFFBA1A1A)
 val OnErrorLight = Color(0xFFFFFFFF)
 val ErrorContainerLight = Color(0xFFFFDAD6)
 val OnErrorContainerLight = Color(0xFF410002)
-val SuccessLight = Color(0xFF146C2E)
-val OnSuccessLight = Color(0xFFFFFFFF)
-val SuccessContainerLight = Color(0xFFA3F4A5)
-val OnSuccessContainerLight = Color(0xFF002107)
-val WarningLight = Color(0xFF8D5000)
-val OnWarningLight = Color(0xFFFFFFFF)
-val WarningContainerLight = Color(0xFFFFDCC1)
-val OnWarningContainerLight = Color(0xFF2D1600)
 
 val ErrorDark = Color(0xFFFFB4AB)
 val OnErrorDark = Color(0xFF690005)
 val ErrorContainerDark = Color(0xFF93000A)
 val OnErrorContainerDark = Color(0xFFFFDAD6)
+
+// --- Extended Semantic: Success ---
+val SuccessLight = Color(0xFF146C2E)
+val OnSuccessLight = Color(0xFFFFFFFF)
+val SuccessContainerLight = Color(0xFFA3F4A5)
+val OnSuccessContainerLight = Color(0xFF002107)
+
 val SuccessDark = Color(0xFF88D78A)
 val OnSuccessDark = Color(0xFF003912)
 val SuccessContainerDark = Color(0xFF00531E)
 val OnSuccessContainerDark = Color(0xFFA3F4A5)
+
+// --- Extended Semantic: Warning ---
+val WarningLight = Color(0xFF8D5000)
+val OnWarningLight = Color(0xFFFFFFFF)
+val WarningContainerLight = Color(0xFFFFDCC1)
+val OnWarningContainerLight = Color(0xFF2D1600)
+
 val WarningDark = Color(0xFFFFB776)
 val OnWarningDark = Color(0xFF4A2800)
 val WarningContainerDark = Color(0xFF6B3D00)
 val OnWarningContainerDark = Color(0xFFFFDCC1)
 
-// Contextual Colors
+// --- Contextual: Track State ---
 val TrackActiveColor = Color(0xFFFF3B30)
 val TrackHistoryColor = Color(0xFF00829B)
 
+// --- Color Schemes ---
+
 val LightColorScheme = lightColorScheme(
-    primary = SecureTealPrimaryLight,
-    onPrimary = SecureTealOnPrimaryLight,
-    primaryContainer = SecureTealPrimaryContainerLight,
-    onPrimaryContainer = SecureTealOnPrimaryContainerLight,
-    secondary = TrailSlateSecondaryLight,
-    onSecondary = TrailSlateOnSecondaryLight,
-    secondaryContainer = TrailSlateSecondaryContainerLight,
-    onSecondaryContainer = TrailSlateOnSecondaryContainerLight,
-    tertiary = SunsetRustTertiaryLight,
-    onTertiary = SunsetRustOnTertiaryLight,
-    tertiaryContainer = SunsetRustTertiaryContainerLight,
-    onTertiaryContainer = SunsetRustOnTertiaryContainerLight,
+    primary = CanopyGreenPrimaryLight,
+    onPrimary = CanopyGreenOnPrimaryLight,
+    primaryContainer = CanopyGreenPrimaryContainerLight,
+    onPrimaryContainer = CanopyGreenOnPrimaryContainerLight,
+    secondary = TrailSageSecondaryLight,
+    onSecondary = TrailSageOnSecondaryLight,
+    secondaryContainer = TrailSageSecondaryContainerLight,
+    onSecondaryContainer = TrailSageOnSecondaryContainerLight,
+    tertiary = TrailGoldTertiaryLight,
+    onTertiary = TrailGoldOnTertiaryLight,
+    tertiaryContainer = TrailGoldTertiaryContainerLight,
+    onTertiaryContainer = TrailGoldOnTertiaryContainerLight,
     surface = SurfaceLight,
     onSurface = OnSurfaceLight,
     onSurfaceVariant = OnSurfaceVariantLight,
@@ -149,22 +170,22 @@ val LightColorScheme = lightColorScheme(
     onErrorContainer = OnErrorContainerLight,
     surfaceVariant = SurfaceVariantLight,
     surfaceBright = SurfaceBrightLight,
-    surfaceDim = SurfaceDimLight
+    surfaceDim = SurfaceDimLight,
 )
 
 val DarkColorScheme = darkColorScheme(
-    primary = SecureTealPrimaryDark,
-    onPrimary = SecureTealOnPrimaryDark,
-    primaryContainer = SecureTealPrimaryContainerDark,
-    onPrimaryContainer = SecureTealOnPrimaryContainerDark,
-    secondary = TrailSlateSecondaryDark,
-    onSecondary = TrailSlateOnSecondaryDark,
-    secondaryContainer = TrailSlateSecondaryContainerDark,
-    onSecondaryContainer = TrailSlateOnSecondaryContainerDark,
-    tertiary = SunsetRustTertiaryDark,
-    onTertiary = SunsetRustOnTertiaryDark,
-    tertiaryContainer = SunsetRustTertiaryContainerDark,
-    onTertiaryContainer = SunsetRustOnTertiaryContainerDark,
+    primary = CanopyGreenPrimaryDark,
+    onPrimary = CanopyGreenOnPrimaryDark,
+    primaryContainer = CanopyGreenPrimaryContainerDark,
+    onPrimaryContainer = CanopyGreenOnPrimaryContainerDark,
+    secondary = TrailSageSecondaryDark,
+    onSecondary = TrailSageOnSecondaryDark,
+    secondaryContainer = TrailSageSecondaryContainerDark,
+    onSecondaryContainer = TrailSageOnSecondaryContainerDark,
+    tertiary = TrailGoldTertiaryDark,
+    onTertiary = TrailGoldOnTertiaryDark,
+    tertiaryContainer = TrailGoldTertiaryContainerDark,
+    onTertiaryContainer = TrailGoldOnTertiaryContainerDark,
     surface = SurfaceDark,
     onSurface = OnSurfaceDark,
     onSurfaceVariant = OnSurfaceVariantDark,
@@ -188,5 +209,5 @@ val DarkColorScheme = darkColorScheme(
     onErrorContainer = OnErrorContainerDark,
     surfaceVariant = SurfaceVariantDark,
     surfaceBright = SurfaceBrightDark,
-    surfaceDim = SurfaceDimDark
+    surfaceDim = SurfaceDimDark,
 )
