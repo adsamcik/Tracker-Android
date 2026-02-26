@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -204,11 +207,13 @@ private fun CalendarCell(
 
 	Box(
 		modifier = modifier
+			.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
 			.aspectRatio(1f)
 			.padding(2.dp)
 			.clip(CircleShape)
 			.background(bgColor)
-			.clickable(onClick = onClick),
+			.clickable(onClick = onClick)
+			.semantics { contentDescription = "Day $dayNum" },
 		contentAlignment = Alignment.Center,
 	) {
 		Text(

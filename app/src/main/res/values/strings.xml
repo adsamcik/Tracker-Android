@@ -511,6 +511,8 @@
     <string name="debug_log_viewer_title">Log Viewer</string>
     <string name="debug_no_logs">No logs available</string>
     <string name="debug_showing_logs_count">Showing last %d logs:</string>
+    <string name="debug_collapse">Collapse</string>
+    <string name="debug_expand">Expand</string>
 
     <!-- Debug: Crash Viewer -->
     <string name="debug_loading_crashes">Loading crashes…</string>

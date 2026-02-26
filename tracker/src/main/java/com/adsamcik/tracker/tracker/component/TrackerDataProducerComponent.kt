@@ -47,7 +47,7 @@ internal abstract class TrackerDataProducerComponent(
 	fun onDetach(context: Context) {
 		preferenceJob?.cancel()
 		preferenceJob = null
-		preferenceScope.cancel()
+		// Only cancel the job, not the scope — scope is reused across attach/detach cycles
 	}
 
 	@CallSuper

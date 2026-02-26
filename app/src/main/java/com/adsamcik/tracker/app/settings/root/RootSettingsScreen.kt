@@ -34,7 +34,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -71,12 +71,12 @@ fun RootSettingsScreen(
     onNavigateToAbout: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val state by viewModel.settings.collectAsState()
+    val state by viewModel.settings.collectAsStateWithLifecycle()
 
     // Debug menu visibility
     val developerModeEnabled by com.adsamcik.tracker.shared.preferences.DeveloperPreferences
         .observeDeveloperMode(context)
-        .collectAsState(initial = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
+        .collectAsStateWithLifecycle(initialValue = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
     val showDebug = com.adsamcik.tracker.BuildConfig.DEBUG || developerModeEnabled
 
     RootSettingsContent(

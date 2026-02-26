@@ -10,7 +10,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,7 +28,7 @@ fun DebugSettingsScreen(onNavigateToDebug: () -> Unit = {}) {
     val debugVm: DebugSettingsViewModel = hiltViewModel()
     val developerModeEnabled by com.adsamcik.tracker.shared.preferences.DeveloperPreferences
         .observeDeveloperMode(context)
-        .collectAsState(initial = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
+        .collectAsStateWithLifecycle(initialValue = com.adsamcik.tracker.shared.preferences.DeveloperPreferences.isDeveloperModeEnabled(context))
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

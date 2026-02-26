@@ -19,7 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,8 +56,8 @@ fun DataSettingsScreen() {
     val dataVm: DataSettingsViewModel = hiltViewModel()
     val debugVm: DebugSettingsViewModel = hiltViewModel()
 
-    val uiState by dataVm.uiState.collectAsState()
-    val showDeleteDataDialog by debugVm.showDeleteDataDialog.collectAsState()
+    val uiState by dataVm.uiState.collectAsStateWithLifecycle()
+    val showDeleteDataDialog by debugVm.showDeleteDataDialog.collectAsStateWithLifecycle()
 
     val coroutineScope = rememberCoroutineScope()
     var showExportFormatDialog by remember { mutableStateOf(false) }

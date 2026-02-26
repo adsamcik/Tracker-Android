@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -21,7 +21,7 @@ import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 fun GameSettingsScreen(
     viewModel: GameSettingsViewModel = hiltViewModel()
 ) {
-    val challengeEnabled by viewModel.challengeEnabled.collectAsState()
+    val challengeEnabled by viewModel.challengeEnabled.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

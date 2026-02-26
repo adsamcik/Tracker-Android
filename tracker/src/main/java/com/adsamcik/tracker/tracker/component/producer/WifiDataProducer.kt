@@ -46,7 +46,7 @@ internal class WifiDataProducer(
     private lateinit var wifiManager: WifiManager
     private var receiver: WifiReceiver = WifiReceiver()
     private lateinit var appContext: Context
-    private val scope = CoroutineScope(
+    private var scope = CoroutineScope(
         SupervisorJob() + dispatchers.io + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
     )
 
@@ -110,6 +110,10 @@ internal class WifiDataProducer(
 
     override fun onEnable(context: Context) {
         super.onEnable(context)
+        // Recreate scope on each enable (previous scope cancelled in onDisable)
+        scope = CoroutineScope(
+            SupervisorJob() + dispatchers.io + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
+        )
         appContext = context.applicationContext
         wifiManager = context.wifiManager
 
