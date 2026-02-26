@@ -34,9 +34,9 @@ fun EmptyStateCard(
 		Column(
 			modifier = Modifier
 				.fillMaxWidth()
-				.padding(24.dp),
+				.padding(RidgelineSpacing.Xxl),
 			horizontalAlignment = Alignment.CenterHorizontally,
-			verticalArrangement = Arrangement.spacedBy(16.dp)
+			verticalArrangement = Arrangement.spacedBy(RidgelineSpacing.Lg)
 		) {
 			Icon(
 				imageVector = icon,
