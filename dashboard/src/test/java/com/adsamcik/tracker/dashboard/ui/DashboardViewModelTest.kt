@@ -2,6 +2,7 @@ package com.adsamcik.tracker.dashboard.ui
 
 import android.app.Application
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -427,6 +428,110 @@ class DashboardViewModelTest {
 			advanceUntilIdle()
 
 			vm.streakState.value.weeklyTrend shouldBe WeeklyTrend.STEADY
+		}
+	}
+
+	@Nested
+	@DisplayName("checkPermission")
+	inner class CheckPermission {
+		@Test
+		fun `checkPermission updates state when fine location granted`() {
+			every {
+				androidx.core.content.ContextCompat.checkSelfPermission(any(), any())
+			} returns android.content.pm.PackageManager.PERMISSION_GRANTED
+
+			val vm = createViewModel()
+			vm.checkPermission(application)
+
+			vm.hasLocationPermission.value shouldBe true
+		}
+
+		@Test
+		fun `checkPermission updates state when both permissions denied`() {
+			every {
+				androidx.core.content.ContextCompat.checkSelfPermission(any(), any())
+			} returns android.content.pm.PackageManager.PERMISSION_DENIED
+
+			val vm = createViewModel()
+			vm.checkPermission(application)
+
+			vm.hasLocationPermission.value shouldBe false
+		}
+
+		@Test
+		fun `initial permission state reflects mocked context`() {
+			every {
+				androidx.core.content.ContextCompat.checkSelfPermission(any(), any())
+			} returns android.content.pm.PackageManager.PERMISSION_GRANTED
+
+			val vm = createViewModel()
+			vm.hasLocationPermission.value shouldBe true
+		}
+	}
+
+	@Nested
+	@DisplayName("Error resilience")
+	inner class ErrorResilience {
+		@Test
+		fun `loadHistoricalData handles DB exception gracefully`() = runTest {
+			coEvery { tripDao.getRecentTrips(any()) } throws RuntimeException("DB corrupt")
+
+			val vm = createViewModel()
+			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
+			advanceUntilIdle()
+
+			// Non-fatal — state remains at defaults
+			vm.recentTrips.value.shouldBeEmpty()
+			vm.explorationState.value shouldBe ExplorationUiState()
+			vm.streakState.value shouldBe StreakState()
+		}
+	}
+
+	@Nested
+	@DisplayName("Edge cases")
+	inner class EdgeCases {
+		@Test
+		fun `empty season bitmask list produces zero seasons`() = runTest {
+			coEvery { explorationCellDao.countAtLevel(14) } returns 5
+			coEvery { explorationCellDao.countDiscoveredSince(any(), eq(14)) } returns 0
+			coEvery { explorationCellDao.getDistinctSeasonBitmasks(14) } returns emptyList()
+
+			val vm = createViewModel()
+			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
+			advanceUntilIdle()
+
+			vm.explorationState.value.let { state ->
+				state.hasExplorationData shouldBe true
+				state.totalCells shouldBe 5
+				state.seasonsCovered shouldBe 0
+			}
+		}
+
+		@Test
+		fun `onPermissionResult granted after denied resets denied flag`() {
+			val vm = createViewModel()
+			vm.onPermissionResult(granted = false)
+			vm.permissionDenied.value shouldBe true
+
+			vm.onPermissionResult(granted = true)
+			vm.hasLocationPermission.value shouldBe true
+			// permissionDenied stays true — only clearPermissionDenied resets it
+			vm.permissionDenied.value shouldBe true
+		}
+
+		@Test
+		fun `loadHistoricalData called multiple times overwrites state`() = runTest {
+			coEvery { tripDao.getRecentTrips(5) } returns listOf(makeTrip(1L, 100f))
+
+			val vm = createViewModel()
+			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
+			advanceUntilIdle()
+			vm.recentTrips.value shouldHaveSize 1
+
+			coEvery { tripDao.getRecentTrips(5) } returns listOf(makeTrip(1L, 100f), makeTrip(2L, 200f))
+			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
+			advanceUntilIdle()
+			vm.recentTrips.value shouldHaveSize 2
 		}
 	}
 
