@@ -35,6 +35,7 @@ data class TrackingSettingsUiState(
     val minTime: Int = 2,
     val requiredAccuracy: Int = 50,
     val hasValidSources: Boolean = true,
+    val skiDetectionEnabled: Boolean = false,
 )
 
 @HiltViewModel
@@ -70,6 +71,7 @@ class TrackingSettingsViewModel @Inject constructor(
                     requiredAccuracy = params.requiredAccuracyMeters,
                     hasValidSources = params.locationEnabled || params.activityEnabled ||
                             params.stepsEnabled || params.wifiEnabled || params.cellEnabled,
+                    skiDetectionEnabled = params.skiDetectionEnabled,
                 )
                 recalculateBatteryImpact()
             }
@@ -134,6 +136,12 @@ class TrackingSettingsViewModel @Inject constructor(
     fun setNotificationStyled(enabled: Boolean) {
         viewModelScope.launch {
             trackingParamsRepository.setNotificationStyled(enabled)
+        }
+    }
+
+    fun setSkiDetectionEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            trackingParamsRepository.setSkiDetectionEnabled(enabled)
         }
     }
 

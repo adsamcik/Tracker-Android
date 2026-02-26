@@ -138,6 +138,16 @@ fun TrackingSettingsScreen() {
             )
         }
 
+        // Ski detection toggle
+        item {
+            SwitchSettingsItem(
+                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_ski_detection_title),
+                subtitle = stringResource(com.adsamcik.tracker.tracker.R.string.settings_ski_detection_summary),
+                checked = uiState.skiDetectionEnabled,
+                onCheckedChange = { trackingVm.setSkiDetectionEnabled(it) }
+            )
+        }
+
         // Notification customization
         item {
             SettingsItem(

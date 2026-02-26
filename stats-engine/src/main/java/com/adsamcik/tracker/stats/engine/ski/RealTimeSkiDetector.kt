@@ -12,7 +12,10 @@ data class RealTimeSkiState(
 	val currentRunVerticalM: Float,
 	val currentRunMaxSpeedMps: Float,
 	val totalVerticalM: Float,
-	val totalRunCount: Int
+	val totalRunCount: Int,
+	val isNearResort: Boolean = false,
+	/** OSM lift type during LIFT_UP (e.g. "chairlift", "gondola", "cable_car"), null otherwise. */
+	val currentLiftType: String? = null
 )
 
 /**
@@ -77,11 +80,33 @@ class RealTimeSkiDetector(
 	// Listener
 	private var listener: SkiStateListener? = null
 
+	// Resort proximity flag — lowers confirmation threshold
+	private var nearResort: Boolean = false
+
+	// Current lift type from OSM matching (set during LIFT_UP)
+	private var currentLiftType: String? = null
+
 	/**
 	 * Set a listener for state transitions.
 	 */
 	fun setListener(listener: SkiStateListener?) {
 		this.listener = listener
+	}
+
+	/**
+	 * Mark that the device is near a known ski resort.
+	 * When true, lowers the cycle threshold for session confirmation to 1.
+	 */
+	fun setNearResort(near: Boolean) = synchronized(lock) {
+		nearResort = near
+	}
+
+	/**
+	 * Set the current lift type from OSM data matching.
+	 * Called when entering LIFT_UP near a known lift.
+	 */
+	fun setCurrentLiftType(type: String?) = synchronized(lock) {
+		currentLiftType = type
 	}
 
 	/**
@@ -93,16 +118,19 @@ class RealTimeSkiDetector(
 		} else {
 			0L
 		}
+		val effectiveMinCycles = if (nearResort) 1 else config.minCyclesForClassification
 		RealTimeSkiState(
 			state = confirmedState,
 			stateEntryTimeMs = confirmedStateEntryMs,
 			stateDurationMs = if (confirmedStateEntryMs > 0L) now - confirmedStateEntryMs else 0L,
 			completedRunCount = completedCycles,
-			isConfirmedSkiSession = completedCycles >= config.minCyclesForClassification,
+			isConfirmedSkiSession = completedCycles >= effectiveMinCycles,
 			currentRunVerticalM = computeCurrentRunVertical(),
 			currentRunMaxSpeedMps = currentRunMaxSpeed,
 			totalVerticalM = totalVerticalDescent,
-			totalRunCount = totalDownhillRuns
+			totalRunCount = totalDownhillRuns,
+			isNearResort = nearResort,
+			currentLiftType = if (confirmedState == SkiState.LIFT_UP) currentLiftType else null
 		)
 	}
 
@@ -165,6 +193,8 @@ class RealTimeSkiDetector(
 		totalDownhillRuns = 0
 		lastAltitudeM = 0f
 		lastSpeedMps = 0f
+		nearResort = false
+		currentLiftType = null
 	}
 
 	private fun updateStateWithHysteresis(rawState: SkiState, timeMs: Long) {
@@ -190,6 +220,7 @@ class RealTimeSkiDetector(
 			SkiState.LIFT_UP -> {
 				// Completed a lift ride — mark for cycle counting
 				sawLiftInCurrentCycle = true
+				currentLiftType = null
 			}
 			else -> { /* no special handling */ }
 		}

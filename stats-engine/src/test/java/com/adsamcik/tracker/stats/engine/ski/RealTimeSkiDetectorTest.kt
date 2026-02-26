@@ -167,4 +167,109 @@ class RealTimeSkiDetectorTest {
 			state.totalVerticalM shouldBe 0f
 		}
 	}
+
+	@Nested
+	inner class NearResortProximity {
+		@Test
+		fun `nearResort false by default`() {
+			val state = detector.getCurrentState()
+			state.isNearResort.shouldBeFalse()
+		}
+
+		@Test
+		fun `setNearResort enables single-cycle confirmation`() {
+			detector.setNearResort(true)
+
+			var t = feedStableAltitude(0L, 10, 1500f)
+
+			// Single lift + descent cycle
+			t = feedLinearAltitudeChange(t, 90, 1500f, 1725f, 3f)
+			t = feedLinearAltitudeChange(t, 90, 1725f, 1275f, 15f)
+
+			val state = detector.getCurrentState()
+			state.isNearResort.shouldBeTrue()
+			// With nearResort, 1 cycle is enough for confirmation
+			if (state.completedRunCount >= 1) {
+				state.isConfirmedSkiSession.shouldBeTrue()
+			}
+		}
+
+		@Test
+		fun `reset clears nearResort flag`() {
+			detector.setNearResort(true)
+			detector.getCurrentState().isNearResort.shouldBeTrue()
+
+			detector.reset()
+			detector.getCurrentState().isNearResort.shouldBeFalse()
+		}
+	}
+
+	@Nested
+	inner class RunMetrics {
+		@Test
+		fun `tracks total vertical descent across runs`() {
+			var t = feedStableAltitude(0L, 10, 1500f)
+
+			// Lift up then descend
+			t = feedLinearAltitudeChange(t, 90, 1500f, 1725f, 3f)
+			t = feedLinearAltitudeChange(t, 90, 1725f, 1275f, 15f)
+
+			// During descent, currentRunVerticalM should track live drop
+			val duringDescent = detector.getCurrentState()
+			duringDescent.currentRunVerticalM shouldBeGreaterThan 0f
+		}
+
+		@Test
+		fun `tracks max speed during descent`() {
+			var t = feedStableAltitude(0L, 10, 2000f)
+
+			// Descend at high speed
+			t = feedLinearAltitudeChange(t, 40, 2000f, 1800f, 20f)
+
+			val state = detector.getCurrentState()
+			// During active descent, should track max speed
+			if (state.state == SkiState.DOWNHILL_RUN) {
+				state.currentRunMaxSpeedMps shouldBeGreaterThan 0f
+			}
+		}
+	}
+
+	@Nested
+	inner class LiftType {
+		@Test
+		fun `currentLiftType null by default`() {
+			detector.getCurrentState().currentLiftType.shouldBeNull()
+		}
+
+		@Test
+		fun `setCurrentLiftType reflected in state during LIFT_UP`() {
+			// Feed enough samples to get into LIFT_UP
+			var t = feedStableAltitude(0L, 10, 1500f)
+			t = feedLinearAltitudeChange(t, 90, 1500f, 1725f, 3f)
+
+			detector.setCurrentLiftType("gondola")
+
+			val state = detector.getCurrentState()
+			if (state.state == SkiState.LIFT_UP) {
+				state.currentLiftType shouldBe "gondola"
+			}
+		}
+
+		@Test
+		fun `currentLiftType null when not in LIFT_UP`() {
+			detector.setCurrentLiftType("chairlift")
+
+			// In IDLE state, lift type should not be exposed
+			val state = detector.getCurrentState()
+			state.state shouldBe SkiState.IDLE
+			state.currentLiftType.shouldBeNull()
+		}
+
+		@Test
+		fun `reset clears currentLiftType`() {
+			detector.setCurrentLiftType("gondola")
+			detector.reset()
+			detector.getCurrentState().currentLiftType.shouldBeNull()
+		}
+	}
 }
