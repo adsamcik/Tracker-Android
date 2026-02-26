@@ -10,7 +10,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.notificationManager
-import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
@@ -20,13 +19,12 @@ import com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver
  */
 class TrackerNotificationManager(
     private val context: Context,
-    private val isUserInitiatedSession: Boolean
+    private val isUserInitiatedSession: Boolean,
+    notificationStyled: Boolean = true,
 ) {
 	private var notificationManager: NotificationManager = context.notificationManager
 
-	private var useStyle = getNotificationStylePreference(
-		context
-	)
+	private var useStyle = notificationStyled
 
 	fun createBuilder(): NotificationCompat.Builder {
 		return createBuilder(
@@ -99,16 +97,17 @@ class TrackerNotificationManager(
 	companion object {
 		const val NOTIFICATION_ID: Int = -7643
 
-		// TODO: Preference Migration - Uses deprecated sync preference access.
-		//  Called from non-suspend context. Options:
-		//  1) Cache value on TrackerNotificationManager instance
-		//  2) Pass preference value from caller that has coroutine context
-		@Suppress("DEPRECATION")
-		private fun getNotificationStylePreference(context: Context): Boolean =
-			Preferences.getPref(context).getBooleanRes(
-				com.adsamcik.tracker.shared.preferences.R.string.settings_notification_styled_key,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_notification_styled_default
+		fun getForegroundNotification(
+			context: Context,
+			notificationStyled: Boolean = true,
+		): Notification {
+			return createBuilder(
+				context,
+				notificationStyled
 			)
+				.setContentTitle(context.getString(R.string.notification_starting))
+				.build()
+		}
 
 		private fun createBuilder(context: Context, useStyle: Boolean): NotificationCompat.Builder {
 			val resources = context.resources
@@ -143,17 +142,6 @@ class TrackerNotificationManager(
 							.setColorized(true)
 					}
 				}
-		}
-
-		fun getForegroundNotification(context: Context): Notification {
-			return createBuilder(
-				context,
-				getNotificationStylePreference(
-					context
-				)
-			)
-				.setContentTitle(context.getString(R.string.notification_starting))
-				.build()
 		}
 	}
 }

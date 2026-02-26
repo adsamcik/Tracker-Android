@@ -17,9 +17,11 @@ import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 
 /**
  * Hilt EntryPoint for accessing TrackerServiceController from NotificationComponent
@@ -28,6 +30,7 @@ import kotlinx.coroutines.coroutineScope
 @InstallIn(SingletonComponent::class)
 interface NotificationComponentEntryPoint {
 	fun trackerServiceController(): TrackerServiceController
+	fun trackingParamsRepository(): TrackingParamsRepository
 }
 
 internal class NotificationComponent :
@@ -72,9 +75,11 @@ internal class NotificationComponent :
 		val sessionInfo = requireNotNull(sessionInfoFlow.value) {
 			"TrackerService sessionInfo must be initialized before NotificationComponent.onEnable"
 		}
+		val params = entryPoint.trackingParamsRepository().data.first()
 		trackerNotificationManager = TrackerNotificationManager(
 				context,
-				sessionInfo.isInitiatedByUser
+				sessionInfo.isInitiatedByUser,
+				notificationStyled = params.notificationStyled
 		)
 
 		preferenceUpdate.await()
