@@ -106,6 +106,17 @@
     <string name="trip_detail_hide_details">Hide details</string>
     <string name="trip_detail_more_options">More options</string>
 
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Ski Session</string>
+    <string name="ski_detail_runs">Runs</string>
+    <string name="ski_detail_vertical">Vertical</string>
+    <string name="ski_detail_max_speed">Max speed</string>
+    <string name="ski_detail_time_skiing">Skiing</string>
+    <string name="ski_detail_time_lifts">On lifts</string>
+    <string name="ski_detail_run_label">Run #%1$d</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+
     <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
     <string name="wifilist_filter_bssid">BSSID (identifier)</string>
     <string name="wifilist_filter_capabilities">Capabilities</string>

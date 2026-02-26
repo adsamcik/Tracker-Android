@@ -89,6 +89,7 @@ fun TripDetailRoute(
 	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
 	val state by viewModel.state.collectAsState()
+	val skiSegments by viewModel.skiSegments.collectAsState()
 	var showDeleteDialog by remember { mutableStateOf(false) }
 	var showMenu by remember { mutableStateOf(false) }
 	val context = LocalContext.current
@@ -166,7 +167,7 @@ fun TripDetailRoute(
 				}
 
 				is TripDetailState.Loaded -> {
-					TripOverview(trip = s.trip)
+					TripOverview(trip = s.trip, skiSegments = skiSegments)
 				}
 
 				is TripDetailState.NotFound -> {
@@ -214,7 +215,10 @@ private val dateTimeFormatter: DateTimeFormatter by lazy {
 }
 
 @Composable
-private fun TripOverview(trip: TripSummary) {
+private fun TripOverview(
+	trip: TripSummary,
+	skiSegments: List<com.adsamcik.tracker.shared.base.database.data.SkiRunSegment> = emptyList()
+) {
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = remember { TrackerSettingsQuick.snapshot(context) }
@@ -297,6 +301,14 @@ private fun TripOverview(trip: TripSummary) {
 
 		// Developer metrics behind expandable toggle
 		DeveloperMetrics(trip)
+
+		// Ski session detail (only shown when ski segments exist)
+		if (skiSegments.isNotEmpty()) {
+			com.adsamcik.tracker.statistics.ui.ski.SkiSessionDetailSection(
+				segments = skiSegments,
+				modifier = Modifier.fillMaxWidth()
+			)
+		}
 	}
 }
 

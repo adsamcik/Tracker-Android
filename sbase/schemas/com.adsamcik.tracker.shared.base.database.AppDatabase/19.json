@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 19,
-    "identityHash": "a30393edb95586bb57b177a92c859b39",
+    "identityHash": "b4d0f58da81edef5d85293f8a0f509ec",
     "entities": [
       {
         "tableName": "location_data",
@@ -2291,7 +2291,7 @@
       },
       {
         "tableName": "ski_run_segment",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `session_id` INTEGER NOT NULL, `run_index` INTEGER NOT NULL, `segment_type` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `vertical_m` REAL NOT NULL, `distance_m` REAL NOT NULL, `max_speed_mps` REAL NOT NULL, `avg_speed_mps` REAL NOT NULL, `created_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `session_id` INTEGER NOT NULL, `run_index` INTEGER NOT NULL, `segment_type` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `vertical_m` REAL NOT NULL, `distance_m` REAL NOT NULL, `max_speed_mps` REAL NOT NULL, `avg_speed_mps` REAL NOT NULL, `lift_type` TEXT, `created_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -2354,6 +2354,11 @@
             "notNull": true
           },
           {
+            "fieldPath": "liftType",
+            "columnName": "lift_type",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "createdAt",
             "columnName": "created_at",
             "affinity": "INTEGER",
@@ -2390,7 +2395,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a30393edb95586bb57b177a92c859b39')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b4d0f58da81edef5d85293f8a0f509ec')"
     ]
   }
 }

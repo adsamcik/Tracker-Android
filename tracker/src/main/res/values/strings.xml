@@ -105,6 +105,7 @@
     <string name="settings_ski_detection_summary">Auto-detect skiing from barometer patterns and adapt GPS tracking per ski phase.</string>
     <string name="ski_notification_title">Ski stats</string>
     <string name="ski_notification_text">🎿 Run #%1$d | ↓%2$s | ⚡%3$s</string>
+    <string name="ski_notification_lift">%1$s ride</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Step count</string>
     <string name="settings_tracker_timer_ambient">Ambient timer</string>

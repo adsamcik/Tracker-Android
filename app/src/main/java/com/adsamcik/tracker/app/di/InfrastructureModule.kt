@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
+import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
@@ -157,6 +158,13 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideDailySummaryDao(database: AppDatabase): DailySummaryDao = database.dailySummaryDao()
+
+    /**
+     * Provides SkiRunSegmentDao for ski session detail views.
+     */
+    @Provides
+    @Singleton
+    fun provideSkiRunSegmentDao(database: AppDatabase): SkiRunSegmentDao = database.skiRunSegmentDao()
 
     /**
      * Provides ExplorationCellDao for exploration cell data persistence.

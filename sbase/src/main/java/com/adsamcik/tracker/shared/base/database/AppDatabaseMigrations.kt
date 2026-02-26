@@ -806,6 +806,7 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
 					distance_m REAL NOT NULL,
 					max_speed_mps REAL NOT NULL,
 					avg_speed_mps REAL NOT NULL,
+					lift_type TEXT,
 					created_at INTEGER NOT NULL
 				)
 			""".trimIndent())

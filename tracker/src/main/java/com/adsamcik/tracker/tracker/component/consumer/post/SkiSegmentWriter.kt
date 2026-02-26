@@ -38,6 +38,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	private var runIndex: Int = 0
 	private var segmentStartTimeMs: Long = 0L
 	private var segmentState: SkiState = SkiState.IDLE
+	private var segmentLiftType: String? = null
 	private var segmentStartAltitudeM: Float = 0f
 	private var segmentMaxSpeedMps: Float = 0f
 	private var segmentSpeedSum: Float = 0f
@@ -107,6 +108,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		segmentState = newState.state
 		segmentStartTimeMs = now
 		segmentStartAltitudeM = lastAltitudeM
+		segmentLiftType = newState.currentLiftType
 		segmentMaxSpeedMps = 0f
 		segmentSpeedSum = 0f
 		segmentSpeedSamples = 0
@@ -131,6 +133,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 			distanceM = segmentDistanceM,
 			maxSpeedMps = segmentMaxSpeedMps,
 			avgSpeedMps = avgSpeed,
+			liftType = if (segmentState == SkiState.LIFT_UP) segmentLiftType else null,
 			createdAt = Time.nowMillis
 		)
 

@@ -70,6 +70,10 @@ data class SkiRunSegment(
     @ColumnInfo(name = "avg_speed_mps")
     val avgSpeedMps: Float,
 
+    /** OSM lift type for LIFT_UP segments (e.g. "chairlift", "gondola", "cable_car"). */
+    @ColumnInfo(name = "lift_type")
+    val liftType: String? = null,
+
     /** Row creation timestamp. */
     @ColumnInfo(name = "created_at")
     val createdAt: Long

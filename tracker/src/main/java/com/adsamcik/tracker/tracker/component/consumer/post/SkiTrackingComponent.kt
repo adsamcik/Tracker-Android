@@ -105,6 +105,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		lastCollectionTimeMs = 0L
 		infrastructureManager = null
 		proximityChecked = false
+		nearbyLifts = emptyList()
 	}
 
 	override fun onNewData(
@@ -165,6 +166,11 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 			checkResortProximity()
 		}
 
+		// Match nearest lift type on each LIFT_UP entry
+		if (newState.state == SkiState.LIFT_UP && previousState != SkiState.LIFT_UP) {
+			matchNearestLiftType()
+		}
+
 		when (newState.state) {
 			SkiState.DOWNHILL_RUN -> {
 				engine.setMinimumTier(PolicyTier.PRECISION, "ski descent detected")
@@ -180,9 +186,13 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		}
 	}
 
+	/** Cached nearby lifts from proximity check. */
+	private var nearbyLifts: List<com.adsamcik.tracker.stats.engine.ski.SkiLift> = emptyList()
+
 	/**
 	 * One-shot proximity check against OSM ski infrastructure.
 	 * If near a known lift, tells the detector to confirm after 1 cycle.
+	 * Caches results for lift type matching on subsequent LIFT_UP entries.
 	 */
 	private fun checkResortProximity() {
 		proximityChecked = true
@@ -191,13 +201,36 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 
 		try {
 			val radiusDeg = PROXIMITY_RADIUS_M / METERS_PER_DEGREE
-			val nearbyLifts = mgr.findLiftsNearby(lastLat, lastLon, radiusDeg)
+			nearbyLifts = mgr.findLiftsNearby(lastLat, lastLon, radiusDeg)
 			if (nearbyLifts.isNotEmpty()) {
 				detector.setNearResort(true)
 			}
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 			ReporterFacade.report(e)
 		}
+	}
+
+	/**
+	 * Match current position to the nearest known lift and set its type on the detector.
+	 */
+	private fun matchNearestLiftType() {
+		if (nearbyLifts.isEmpty() || (lastLat == 0.0 && lastLon == 0.0)) {
+			detector.setCurrentLiftType(null)
+			return
+		}
+
+		// Find closest lift by start/end station distance
+		val nearest = nearbyLifts.minByOrNull { lift ->
+			val dStartLat = lift.startLat - lastLat
+			val dStartLon = lift.startLon - lastLon
+			val dEndLat = lift.endLat - lastLat
+			val dEndLon = lift.endLon - lastLon
+			val distStart = dStartLat * dStartLat + dStartLon * dStartLon
+			val distEnd = dEndLat * dEndLat + dEndLon * dEndLon
+			minOf(distStart, distEnd)
+		}
+
+		detector.setCurrentLiftType(nearest?.liftType)
 	}
 
 	companion object {

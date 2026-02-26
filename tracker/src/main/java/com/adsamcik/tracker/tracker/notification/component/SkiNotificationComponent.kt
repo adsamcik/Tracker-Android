@@ -44,6 +44,12 @@ internal class SkiNotificationComponent : TrackerNotificationComponent() {
 
 		if (!skiState.isConfirmedSkiSession) return null
 
+		// During LIFT_UP, show lift type instead of run stats
+		if (skiState.state == com.adsamcik.tracker.stats.engine.ski.SkiState.LIFT_UP) {
+			val liftEmoji = liftTypeEmoji(skiState.currentLiftType)
+			return context.getString(R.string.ski_notification_lift, liftEmoji)
+		}
+
 		val lengthSystem = TrackerSettingsQuick.lengthSystem(context)
 		val runNumber = skiState.totalRunCount.coerceAtLeast(1)
 		val verticalText = context.resources.formatDistance(
@@ -63,5 +69,17 @@ internal class SkiNotificationComponent : TrackerNotificationComponent() {
 			verticalText,
 			maxSpeedText
 		)
+	}
+
+	companion object {
+		private fun liftTypeEmoji(type: String?): String = when (type) {
+			"gondola" -> "🚡 Gondola"
+			"cable_car" -> "🚠 Cable car"
+			"drag_lift" -> "🎿 Drag lift"
+			"magic_carpet" -> "🎿 Magic carpet"
+			"funicular" -> "🚃 Funicular"
+			"chairlift" -> "🪑 Chairlift"
+			else -> "⬆️ Lift"
+		}
 	}
 }

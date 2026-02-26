@@ -233,4 +233,43 @@ class RealTimeSkiDetectorTest {
 			}
 		}
 	}
+
+	@Nested
+	inner class LiftType {
+		@Test
+		fun `currentLiftType null by default`() {
+			detector.getCurrentState().currentLiftType.shouldBeNull()
+		}
+
+		@Test
+		fun `setCurrentLiftType reflected in state during LIFT_UP`() {
+			// Feed enough samples to get into LIFT_UP
+			var t = feedStableAltitude(0L, 10, 1500f)
+			t = feedLinearAltitudeChange(t, 90, 1500f, 1725f, 3f)
+
+			detector.setCurrentLiftType("gondola")
+
+			val state = detector.getCurrentState()
+			if (state.state == SkiState.LIFT_UP) {
+				state.currentLiftType shouldBe "gondola"
+			}
+		}
+
+		@Test
+		fun `currentLiftType null when not in LIFT_UP`() {
+			detector.setCurrentLiftType("chairlift")
+
+			// In IDLE state, lift type should not be exposed
+			val state = detector.getCurrentState()
+			state.state shouldBe SkiState.IDLE
+			state.currentLiftType.shouldBeNull()
+		}
+
+		@Test
+		fun `reset clears currentLiftType`() {
+			detector.setCurrentLiftType("gondola")
+			detector.reset()
+			detector.getCurrentState().currentLiftType.shouldBeNull()
+		}
+	}
 }
