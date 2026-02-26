@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.component.trigger
 import android.Manifest
 import android.content.Context
 import android.os.Looper
-import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.tracker.R
@@ -36,6 +35,8 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 
 	private val locationCallback: LocationCallback = object : LocationCallback() {
 		override fun onLocationResult(result: LocationResult) {
+			// receiver can be null during the race between onDisable and a pending
+			// location delivery — this is expected and not an error.
 			if (receiver == null) {
 				return
 			}
