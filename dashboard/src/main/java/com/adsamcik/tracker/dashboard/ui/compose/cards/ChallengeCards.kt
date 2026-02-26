@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import java.util.concurrent.TimeUnit
 
 /**
@@ -127,7 +128,12 @@ private fun ChallengeCard(
 			containerColor = MaterialTheme.colorScheme.secondaryContainer,
 			contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = RidgelineCardDefaults.shape,
+	) {
+		Column(
+			modifier = Modifier
+				.padding(12.dp)
+				.fillMaxSize(),
 	) {
 		Column(
 			modifier = Modifier
@@ -235,7 +241,7 @@ private fun EmptyChallengeCard(
 			containerColor = MaterialTheme.colorScheme.secondaryContainer,
 			contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = RidgelineCardDefaults.shape,
 	) {
 		Column(
 			modifier = Modifier

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 
 /**
@@ -80,9 +81,9 @@ internal fun StreakBanner(
 				},
 			),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = RidgelineCardDefaults.containerColor,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = RidgelineCardDefaults.shape,
 	) {
 		Row(
 			modifier = Modifier
@@ -193,9 +194,9 @@ private fun EncouragementBanner(
 				},
 			),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = RidgelineCardDefaults.containerColor,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = RidgelineCardDefaults.shape,
 	) {
 		Row(
 			modifier = Modifier

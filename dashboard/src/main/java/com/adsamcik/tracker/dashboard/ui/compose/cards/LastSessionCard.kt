@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SessionPathPreview
 import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
@@ -113,9 +114,9 @@ internal fun LastSessionCard(
 	Card(
 		modifier = cardModifier,
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+			containerColor = RidgelineCardDefaults.containerColor,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = RidgelineCardDefaults.shape,
 	) {
 		Column(modifier = Modifier.padding(20.dp)) {
 			Row(verticalAlignment = Alignment.CenterVertically) {

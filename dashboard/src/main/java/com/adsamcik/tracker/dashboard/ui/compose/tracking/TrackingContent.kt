@@ -51,6 +51,7 @@ import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
@@ -382,8 +383,9 @@ private fun LiveChartCard(
 	Card(
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = RidgelineCardDefaults.containerColor,
 		),
+		shape = RidgelineCardDefaults.shape,
 	) {
 		Column(modifier = Modifier.padding(16.dp)) {
 			Text(

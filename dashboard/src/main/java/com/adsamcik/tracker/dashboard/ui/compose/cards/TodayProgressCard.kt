@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 
 /**
  * Today's progress card with contextual greeting, daily summary metrics,

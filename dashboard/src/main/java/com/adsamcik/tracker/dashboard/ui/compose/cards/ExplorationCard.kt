@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 
 /**
@@ -46,7 +47,7 @@ internal fun ExplorationCard(
 			containerColor = MaterialTheme.colorScheme.tertiaryContainer,
 			contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = RidgelineCardDefaults.shape,
 	) {
 		Column(
 			modifier = Modifier

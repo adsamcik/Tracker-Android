@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
@@ -58,9 +59,9 @@ internal fun RecentTripsCard(
 	Card(
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceContainer,
+			containerColor = RidgelineCardDefaults.containerColor,
 		),
-		shape = MaterialTheme.shapes.large,
+		shape = RidgelineCardDefaults.shape,
 	) {
 		Column(
 			modifier = Modifier

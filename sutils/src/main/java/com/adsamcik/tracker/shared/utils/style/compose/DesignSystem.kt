@@ -156,11 +156,26 @@ object ActivityColors {
 // --- COMPONENTS ---
 
 /**
+ * Ridgeline card defaults for use with Material3 [Card] composables.
+ * Use this when you need a [Card] (e.g., for Column content) instead of [GlassCard] (Box content).
+ */
+object RidgelineCardDefaults {
+    /** Standard card container color — `surfaceContainerHigh` for visible card identity. */
+    val containerColor @Composable get() = MaterialTheme.colorScheme.surfaceContainerHigh
+
+    /** Standard card content color. */
+    val contentColor @Composable get() = MaterialTheme.colorScheme.onSurface
+
+    /** Standard card shape — L4 diagonal asymmetry (20/6dp). */
+    val shape @Composable get() = MaterialTheme.shapes.large
+}
+
+/**
  * Ridgeline glass-morphism card.
  *
  * Default shape is [MaterialTheme.shapes.large] (L4: 20/6dp diagonal asymmetry)
  * which gives the pronounced "ridgeline" visual signature.
- * Uses `surfaceContainer` for slightly more contrast against the background.
+ * Uses `surfaceContainerHigh` for visible card contrast against the background.
  */
 @Composable
 fun GlassCard(
