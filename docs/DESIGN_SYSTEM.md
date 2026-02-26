@@ -1,4 +1,552 @@
-# Tracker Android - Material 3 Expressive Design System
+# Tracker Android — Ridgeline Design System
+
+> **Status:** Rounds 1–28 of 30 complete. All decisions locked. Rounds 29–30 = final prose synthesis.
+
+---
+
+## Round 26–28: Final Resolutions
+
+### Color Seed: `#1B6B3A` (Canopy Green) — CONFIRMED
+
+The user's stated vision is **"forest green / emerald, adventurous / outdoorsy."** The prior `#006874` (Secure Teal) is a blue-green that reads as clinical, not forest. It was a placeholder from early M3 theming, not an intentional brand decision.
+
+**Decision:** `#1B6B3A` (Canopy Green) is the canonical Ridgeline seed. All primary, secondary, tertiary, and surface tokens must be re-derived from this seed via the Material 3 HCT color space. The teal palette in `Color.kt` and in the token tables below is **superseded** and will be replaced during implementation.
+
+- **Seed:** `#1B6B3A` — hue ≈ 145° (true green), chroma ≈ 48, tone ≈ 38
+- **Brand personality alignment:** Forest canopy, trail markers, topographic maps — matches "adventurous/outdoorsy"
+- **Tertiary direction:** Warm amber/rust (complementary to green) — preserves the existing Sunset Rust intent
+- **Activity colors:** Unchanged (Okabe-Ito accessible palette, independent of brand seed)
+- **Implementation:** Run `#1B6B3A` through [Material Theme Builder](https://m3.material.io/theme-builder) to generate full light/dark schemes, then hand-audit WCAG AA on every token pair
+
+### Theme Root: `MaterialExpressiveTheme` — CONFIRMED
+
+**Decision:** `AppTheme` uses `MaterialExpressiveTheme` (from `androidx.compose.material3:material3` 1.3+) as its composition root. Feature code consumes tokens via the standard `MaterialTheme` accessor object.
+
+**Why not plain `MaterialTheme`?**
+- `MaterialExpressiveTheme` provides `MotionScheme` parameter → enables `MaterialTheme.motionScheme.defaultSpatialSpec()` etc.
+- Expanded shape system with `MaterialShapes` for morphing
+- Zero API change for consumers — `MaterialTheme.colorScheme`, `.typography`, `.shapes` work identically
+- Custom `AppMotion` springs continue to supplement `motionScheme` for app-specific animations
+
+**Migration delta in `AppTheme.kt`:**
+```kotlin
+// BEFORE
+MaterialTheme(colorScheme = colorScheme, typography = AppTypography, shapes = AppShapes, content = content)
+
+// AFTER
+MaterialExpressiveTheme(
+    colorScheme = colorScheme,
+    typography = AppTypography,
+    shapes = AppShapes,
+    motionScheme = MotionScheme.expressive(),
+    content = content
+)
+```
+
+### Migration Strategy: Direct Replacement, No Shim — CONFIRMED
+
+**Decision:** No compatibility shim layer. The codebase is already 100% Compose with all 24+ screens consuming `MaterialTheme.colorScheme.*` tokens. A shim would create dual-system drift risk with zero benefit.
+
+**Approach:**
+1. Update `Color.kt` token values (teal → green) — affects all screens instantly
+2. Update `AppTheme.kt` (`MaterialTheme` → `MaterialExpressiveTheme`) — one-line change
+3. Verify screen-by-screen in priority order (Dashboard → Map → Statistics → Game → Settings → Import/Export)
+4. One PR per screen for review, but the token swap itself is a single atomic PR
+
+**Why no shim:**
+- All screens already use `MaterialTheme.colorScheme.*` — no legacy `View`/XML/`AppCompat` theme references
+- Token values are centralized in `Color.kt` — single source of truth
+- Shim layers (e.g., `Bridge` themes, `CompositionLocal` overrides) add indirection, confuse contributors, and eventually need removal
+
+### Accessibility v1 Minimum Bar — CONFIRMED
+
+| Requirement | Criteria | Verification |
+|-------------|----------|--------------|
+| **Contrast** | WCAG AA: 4.5:1 normal text, 3:1 large text (≥18sp bold / ≥24sp) & UI components | Accessibility Scanner, manual spot-check |
+| **Touch targets** | ≥ 48dp on all interactive elements | Compose `Modifier.minimumInteractiveComponentSize()`, preview inspection |
+| **Font scaling** | Full functionality at 200% system font scale; all content scrollable | Preview at `fontScale = 2.0f`, manual QA |
+| **Screen reader** | `contentDescription` on all interactive & informative images/icons; meaningful traversal order | TalkBack walkthrough per screen |
+| **State announcements** | `stateDescription` on toggles/switches ("On"/"Off"); `Role.Switch`/`Role.Checkbox` | Code review + TalkBack |
+| **Reduced motion** | `LocalReducedMotion` respected: springs → instant, animation loops → static | Toggle "Remove animations" in Developer Options |
+| **Reduced transparency** | Glass blur → opaque `surfaceContainer`; contour lines hidden | Toggle accessibility setting |
+| **Focus indicators** | Default Compose focus rings; no custom suppression | Keyboard/D-pad navigation test |
+
+**Not in v1 (deferred):**
+- WCAG AAA (7:1) contrast
+- Switch Access / external switch device testing
+- Custom `AccessibilityNodeInfo` for complex widgets (map, charts)
+- Automated accessibility CI gate (lint rule deferred to post-v1)
+
+---
+
+## Master Document Outline
+
+> Implementation-first: tokens (values) → components (composables) → patterns (usage) → migration → testing → governance.
+> Every section number is final. Sub-section numbers are stable anchors for cross-references.
+
+---
+
+### PART 0 — QUICK REFERENCE
+
+#### 0.1 At-a-Glance Card
+One-page cheat sheet: seed color, font stack, shape DNA, motion springs, spacing scale, key composable names. Print-friendly. No prose.
+
+#### 0.2 Design System Inventory
+Canonical artifact count: 18 composable primitives + 17 token objects. Table listing every artifact, its file path, and its category. (Currently §40)
+
+#### 0.3 Decision Log Index
+Table mapping each round (R1–R28) to its primary decisions and the sections they landed in.
+
+---
+
+### PART I — TOKENS (Values)
+
+#### 1. Color System
+Canonical brand seed (`#1B6B3A`), HCT derivation rules, and complete light/dark token tables.
+
+##### 1.1 Brand Seed & Generation Rules
+Seed value, HCT coordinates, Material Theme Builder pipeline, hand-audit checklist. (Supersedes §2 header)
+
+##### 1.2 Primary: Canopy Green
+Full 4-token set (primary, onPrimary, primaryContainer, onPrimaryContainer) × light/dark. (Replaces §2.1 Primary)
+
+##### 1.3 Secondary: Trail Sage
+Derived secondary palette. Name TBD post-generation — likely shifts from "Trail Slate" to a green-complementary earth tone. (Replaces §2.1 Secondary)
+
+##### 1.4 Tertiary: Sunset Rust
+Warm amber/rust complement. Retained intent, values re-derived from green seed. (Replaces §2.1 Tertiary)
+
+##### 1.5 Error Palette
+Standard M3 error tokens, unchanged. (§2.1 Error)
+
+##### 1.6 Neutral & Surface Tokens
+Surface stack (Lowest → Highest), background, onSurface, outline variants. Re-derived from green seed. (Replaces §2.2)
+
+##### 1.7 Utility Tokens
+Inverse, scrim, surfaceTint. (Replaces §2.3)
+
+##### 1.8 Extended Semantic Colors: Success, Warning
+Non-M3 custom tokens. CompositionLocal delivery. (§2.4)
+
+##### 1.9 Contextual Activity Colors (Okabe-Ito)
+Walk, run, ride, vehicle, still, unknown — accessibility-first palette. Independent of brand seed. (§2.5)
+
+##### 1.10 Glass & Translucency Tokens
+Tint alpha, border alpha/width, blur radius, contour alphas. Light/dark variants. (§2.6)
+
+##### 1.11 Dark Mode Color Adjustments
+Tonal elevation behavior, glass tuning, contour alpha bumps, shadow policy, trackActive handling. (§2.7)
+
+##### 1.12 Dynamic Color (Monet) Policy
+Android 12+ scope rules: surfaces are Monet'd, brand colors are locked. User toggle behavior. (§11)
+
+##### 1.13 Color Token Validation Checklist
+WCAG AA contrast audit matrix for every foreground/background pair. Must pass before any token ships.
+
+---
+
+#### 2. Typography System
+Typeface selection, full 12-style scale, numeric rendering rules, and metrics font policy.
+
+##### 2.1 Typeface Roles
+Display/Headline/Title: Outfit (Google Fonts). Body/Label: System font (Roboto/Noto Sans). Rationale: zero APK cost for body, brand identity for headlines. (§3 header)
+
+##### 2.2 Full Type Scale (12 Styles)
+Display L/M/S, Headline L/M/S, Title L/M/S, Body L/M/S, Label L/M/S. Weight, size, line height, letter spacing for each. (§3 Scale)
+
+##### 2.3 Metrics Font: Monospace
+`FontFamily.Monospace` for primary data readouts only. Scope rules (what qualifies vs. what doesn't). (§6)
+
+##### 2.4 Tabular Figures (`tnum`)
+All numeric data in non-monospace text uses tabular figures to prevent layout shift. Font feature setting.
+
+##### 2.5 Czech Diacritic & i18n Audit Criteria
+Line height validation for tall diacritics (ř, ž, ů). Ascender/descender clipping test requirements. (R9–R10)
+
+##### 2.6 Text Scaling (200%) Behavior
+No `maxFontSize`. Metric hero stepping rules (Display → Headline floor). Overflow detection via `onTextLayout`. (§19)
+
+---
+
+#### 3. Spacing System
+4dp-base scale, responsive gutters, semantic pairing rules.
+
+##### 3.1 Scale (10 Tokens: None → Xxxxl)
+Full table: None(0), Xxs(2), Xs(4), Sm(8), Md(12), Lg(16), Xl(20), Xxl(24), Xxxl(32), Xxxxl(48). `RidgelineSpacing` object. (§7.1, §7.2)
+
+##### 3.2 Responsive Page Gutters
+`RidgelineGutters.horizontal`: 16dp compact / 24dp medium / 32dp expanded. Full-bleed exceptions. (§7.3)
+
+##### 3.3 Semantic Pairing Rules
+Which token for which relationship (siblings, components, sections, regions). (§7.4)
+
+##### 3.4 Bottom Clearance
+`AppDimensions.FloatingNavBarClearance = 120.dp`. Scaffold `contentWindowInsets` pattern. (§7.3)
+
+---
+
+#### 4. Shape System
+Asymmetric diagonal DNA, 5-level scale, identity shapes.
+
+##### 4.1 Diagonal Shape Scale (L1–L5)
+3:1 major:minor ratio. ExtraSmall(6/2) → ExtraLarge(24/8). `AppShapes` mapping. (§8)
+
+##### 4.2 Identity Shapes: Waypoint & Momentum Pill
+WaypointShape (FAB, percentage-based). MomentumPillShape (buttons, asymmetric stadium). Not part of scale. (§5, §8)
+
+##### 4.3 Bottom Sheet Shape
+Asymmetric top corners: topStart 20dp, topEnd 6dp. Terrain DNA at container level. (§21)
+
+##### 4.4 Dialog Shape
+28dp uniform radius. M3 standard. (§8)
+
+---
+
+#### 5. Elevation System
+Tonal-first 4-level strategy with shadow supplement.
+
+##### 5.1 Elevation Levels (E0–E3)
+Ground(0/0), Resting(1/1), Lifted(2/2), Floating(6/6). Component mapping. (§16)
+
+##### 5.2 State-Driven Elevation
+Pressed → E0, Dragged → E3, Active tracking → E2, Disabled → E0. (§16)
+
+##### 5.3 Glass Border as Dark-Mode Edge
+1dp `outlineVariant` border replaces invisible shadows in dark mode. (§16)
+
+---
+
+#### 6. Motion System
+Named springs, duration tokens, choreography framework, MotionScheme integration.
+
+##### 6.1 Named Springs
+SecureSnap (NoBouncy, Medium stiffness), TactileActive (0.65 damping, MediumLow), SpatialGlide (0.8 damping, Low). `AppMotion` object. (§4)
+
+##### 6.2 Duration Tokens
+Micro(150ms), Short(250ms), Medium(400ms), Long(600ms). (§4)
+
+##### 6.3 Loading Motion
+Enter/Exit/Pulse durations, pulse alpha range. `LoadingMotion` object. (§4)
+
+##### 6.4 MotionScheme Integration
+`MaterialExpressiveTheme` provides `MotionScheme.expressive()`. `MaterialTheme.motionScheme.defaultSpatialSpec()` etc. for standard transitions. `AppMotion` supplements for app-specific animations. (R26–28 resolution)
+
+##### 6.5 Staggered Card Entrance
+60ms stagger, 6-card max depth, fade+translate per card. (§38.1)
+
+##### 6.6 FAB Choreography
+Enter/exit/tracking-morph specs. Scale + fade + color animation. (§38.2)
+
+##### 6.7 Bottom Sheet Springs
+Expand (0.85 damping, 600 stiffness), dismiss (critically damped), scrim sync. (§38.3)
+
+##### 6.8 Goal Ring Animation
+Incremental sweep, 3-phase completion (color → pulse → check), over-achievement arc. (§38.4)
+
+##### 6.9 Screen Transitions
+Forward (fade+slide), back (predictive), map (fade-only), trip detail (vertical slide). (§38.5)
+
+##### 6.10 Reduced Motion Behavior
+All springs → instant snap. Animation loops → static. Glass blur retained (not an animation). (§12)
+
+---
+
+### PART II — COMPONENTS (Composables)
+
+#### 7. Theming Entry Point: `AppTheme`
+`MaterialExpressiveTheme` wrapper with dynamic color, dark mode, and runtime accessibility hooks.
+
+##### 7.1 `AppTheme` Composable API
+Parameters: `useDynamicColor`, `darkTheme`, `content`. Composition-root-only. (§11, AppTheme.kt)
+
+##### 7.2 Dynamic Color Runtime
+Android 12+ detection, `dynamicLightColorScheme`/`dynamicDarkColorScheme`, brand-lock scope. (§11)
+
+##### 7.3 Accessibility Composition Locals
+`LocalReducedMotion`, `LocalReduceTransparency`. How they're provided and consumed. (§12)
+
+---
+
+#### 8. Core Primitives
+App-wide composables that enforce design system tokens.
+
+##### 8.1 `RidgelineSectionHeader`
+Accent bar + optional icon + title. Spacing rules (24dp above, 12dp below). Code snippet. (§9)
+
+##### 8.2 Trail-Line Dividers
+Section divider (52dp indent, 0.38α) vs. item divider (full-width, 0.24α). Code snippet. (§9)
+
+##### 8.3 `GlassCard`
+Blur + tint + border material. Transparency fallback. Topo contour decoration. (§2.6, §13.4)
+
+##### 8.4 `MetricText`
+Monospace rendering for primary data values. Tabular figure enforcement. (§6)
+
+##### 8.5 `PrimaryActionButton`
+MomentumPillShape, `primary` container, one-per-screen rule. 24dp H / 12dp V padding. (§14.1)
+
+---
+
+#### 9. Navigation & App Chrome
+Top bars, floating nav, FABs, edge-to-edge, system bar behavior.
+
+##### 9.1 Top App Bar Variants
+Small (most screens), Large (Statistics), CenterAligned (onboarding). Scroll behaviors per screen. (§20)
+
+##### 9.2 Floating Navigation Bar
+80dp height, 32dp corner radius, haze blur, active pill, label visibility rules, press spring. (§15 nav bar)
+
+##### 9.3 Navigation Label Policy
+Compact: active-only. Medium+: active ± 1. First-use hint (3s all-visible). DataStore flag. (§8b)
+
+##### 9.4 FAB Variants & Placement
+Standard (56dp, Waypoint), Large (96dp, Waypoint), Extended (MomentumPill, collapse on scroll). No mini. (§14.2)
+
+##### 9.5 Edge-to-Edge & System Bars
+`enableEdgeToEdge()`, transparent bars, `WindowInsets.safeDrawing`, map exception. (§17)
+
+---
+
+#### 10. Data Display Components
+Cards, list items, metrics, progress indicators.
+
+##### 10.1 Card Family (4 Types)
+Trip Card (L2), Stats Summary Card (L4), Challenge Card (L3), Quick-Stat Card (L2). Layouts, tokens, spacing. (§13)
+
+##### 10.2 Card Type Selection Guide
+Decision table: scenario → card type → shape level. (§13)
+
+##### 10.3 List Item Specs
+M3 `ListItem`, transparent default, selected state, typography, divider rules. (§22)
+
+##### 10.4 Progress Indicators
+Linear (4/8/12dp heights), Circular (48dp loading, 64dp goals). Determinate vs. indeterminate rules. Color tokens. (§23)
+
+##### 10.5 Goal Progress Rings
+64dp, 6dp stroke, primary track, success at 100%, tertiary for over-achievement. (§38.4)
+
+---
+
+#### 11. Input Components
+Text fields, toggles, menus, buttons.
+
+##### 11.1 Button Hierarchy (5 Variants)
+Priority table: PrimaryAction → FilledTonal → Outlined → Text → Icon. Shape, color, use case. (§14.1)
+
+##### 11.2 Text Field Specs
+`OutlinedTextField` only. Shape L2 (small), pill for search. Label required. Error/helper/counter rules. (§25)
+
+##### 11.3 Switch & Toggle Specs
+M3 Switch with check icon. Checkbox for batch operations. Color tokens. Accessibility roles. (§24)
+
+##### 11.4 Menu Specs
+Dropdown (overflow, max 7 items), ExposedDropdown (selection). Item height 48dp. Ordering rules. (§26)
+
+---
+
+#### 12. Feedback & Status Components
+Snackbars, chips, banners, recording indicators.
+
+##### 12.1 `RecordingDot`
+Pulsing indicator for active tracking. Color: `trackActive`. Reduced motion: static dot. (§32)
+
+##### 12.2 `PolicyTierChip` / GPS Status Chip
+`AssistChip` for degraded states. Warning color. Hidden when nominal. (§32.3, §37)
+
+##### 12.3 `PermissionRationaleBanner`
+Inline, non-blocking, `secondaryContainer`. Primary + Skip actions. Placement rules. (§28.2)
+
+##### 12.4 `EncouragementBanner` / `UnlockAnnouncementBanner`
+Slide-in celebration, auto-dismiss 4s. Restrained. (§29)
+
+##### 12.5 Snackbar Patterns
+Celebration snackbars (first session, milestones, export). Max 2 lines, ≤80 chars. Action button. (§29)
+
+---
+
+### PART III — PATTERNS (Usage Guidelines)
+
+#### 13. Empty States (3-Tier System)
+Tiered approach based on screen data density.
+
+##### 13.1 Tier Definitions
+Tier 1 (Inline, 80dp), Tier 2 (Section, GlassCard), Tier 3 (Full-screen, animated hero). Selection rule. (§10)
+
+##### 13.2 Per-Screen Empty Content
+Table: screen × tier × icon × title × CTA. All 8 screen states. (§27)
+
+##### 13.3 Copy Rules
+Trail vocabulary, privacy reassurance (Tier 3 only), verb-first CTAs, no blame. (§27.3)
+
+---
+
+#### 14. Permission States
+Graceful degradation without blocking user flow.
+
+##### 14.1 3-Step Permission Flow
+System dialog → rationale banner → settings deep-link. (§28.1)
+
+##### 14.2 Per-Permission Content
+Location, Background Location, Activity Recognition, Notifications. Rationale copy. (§28.3)
+
+##### 14.3 Degraded State Behavior
+What works without each permission. Visual indicators. (§28.4)
+
+---
+
+#### 15. Tracking State Visualizations
+FAB, top bar, recording dot, progress bar, GPS chip across 6 states.
+
+##### 15.1 State Matrix
+Idle, Active, GPS Searching, GPS Weak, Passive, Battery Saver. Full component-state table. (§32.1)
+
+##### 15.2 `GpsState` Enum
+OFF, SEARCHING, WEAK_SIGNAL, GOOD. Thresholds. (§32.2)
+
+##### 15.3 Battery & Sensor Degradation
+Battery Saver chip, metric staleness tinting, map track segmentation. (§37)
+
+##### 15.4 Connectivity States
+GPS cold start, airplane mode, no-network (N/A — local-only). (§33)
+
+---
+
+#### 16. Celebrations & Milestones
+Restrained, useful, never modal.
+
+##### 16.1 Celebration Inventory
+First session, level up, achievement unlock, session milestones (10/50/100), first export. (§29)
+
+##### 16.2 Celebration Rules
+No modals, no confetti. Snackbar or slide-in banner. Auto-dismiss. (§29)
+
+---
+
+#### 17. Export Flow
+Privacy-safe data export with manual and automated paths.
+
+##### 17.1 Manual Quick Export
+ModalBottomSheet, format/scope/share fields, progress indicator, completion snackbar. (§30.1)
+
+##### 17.2 Automated Export Plans
+CRUD list, cadence/scope/destination, SAF folder picker. (§30.2)
+
+##### 17.3 Danger Zone: Delete All Data
+3-step confirmation: warning → type "DELETE" → execute. Full data wipe + onboarding reset. (§31)
+
+---
+
+#### 18. Internationalization & Adaptation
+RTL, truncation, locale formatting, screen sizes.
+
+##### 18.1 RTL Layout
+Logical directions (`start`/`end`), auto-mirroring shapes, `Icons.AutoMirrored`, map/chart exemptions. (§35)
+
+##### 18.2 Long Text Truncation Rules
+Per-element max lines + overflow strategy table. 100-char input limits. (§36)
+
+##### 18.3 Large Screen Policy
+Phone-first, no adaptive layouts, no multi-pane. Content stretches naturally. (§18)
+
+##### 18.4 Split-Screen & PiP
+Split-screen via standard Compose. PiP deferred. (§34)
+
+---
+
+### PART IV — IMPLEMENTATION
+
+#### 19. Migration Guide
+Ordered rollout plan for applying Ridgeline tokens to existing screens.
+
+##### 19.1 Atomic Token Swap (PR #1)
+Single PR: `Color.kt` (teal → green), `AppTheme.kt` (`MaterialTheme` → `MaterialExpressiveTheme`). All screens affected simultaneously.
+
+##### 19.2 Screen Verification Order
+Dashboard → Map → Statistics → Game → Settings → Import/Export. One PR per screen.
+
+##### 19.3 Per-Screen Checklist (7 Steps)
+1. Wrap in `AppTheme`
+2. Replace hardcoded colors → `colorScheme.*` / `AppColors.Adaptive.*`
+3. Replace hardcoded shapes → `MaterialTheme.shapes.*` or named shapes
+4. Replace raw `dp` → `RidgelineSpacing.*`
+5. Replace raw springs/tweens → `AppMotion.*` / `MotionTokens.*`
+6. Add `RidgelineSectionHeader` and empty states per §13
+7. Verify at 100% / 150% / 200% font scale × light / dark
+
+##### 19.4 PR Slicing Strategy
+Max 400 LOC per PR. Token-only changes separate from component additions. Review gates.
+
+---
+
+#### 20. Testing & Verification Matrix
+Required checks per component and per screen.
+
+##### 20.1 Preview Requirements
+One `@Preview` per DS primitive. `@RidgelinePreviews` multi-preview annotation (Light, Dark, 200%). `@PreviewParameter` for `ActivityType`, `TrackingState`. (§39.3)
+
+##### 20.2 Accessibility Checks (Per Screen)
+WCAG AA contrast spot-check, TalkBack walkthrough, 200% font scale, reduced motion toggle. (R26–28 resolution)
+
+##### 20.3 Visual Regression (Deferred)
+Paparazzi/Roborazzi screenshot testing. Deferred until component count stabilizes. (§39.2)
+
+##### 20.4 Unit Test Requirements
+Token validation tests: contrast ratios, spacing scale ordering, shape ratio consistency. Compose UI tests for interactive components.
+
+##### 20.5 RTL & i18n Test Mandate
+Preview every screen with `LayoutDirection.Rtl`. Czech diacritic line-height validation. (§35)
+
+---
+
+#### 21. Governance & Drift Prevention
+How the design system stays consistent over time.
+
+##### 21.1 CI Drift Guards (Immediate)
+Detekt `ForbiddenImport` (android.widget.*, fragment, View). Grep: `Color(0x` outside Color.kt, `RoundedCornerShape(` outside Shape.kt. PR checklist. (§39.2)
+
+##### 21.2 Custom Lint Rules (Deferred)
+`HardcodedColorDetector`, `HardcodedShapeDetector` in `lint-rules/` module. Post-v1. (§39.2)
+
+##### 21.3 Documentation Split
+Token values → DESIGN_SYSTEM.md. Component API/usage → KDoc. Round history → DESIGN_ROUND_*.md. (§39.1)
+
+##### 21.4 Versioning Policy
+No semver (single consumer). Add freely, modify in one PR, remove with grep-replace. 5+-file tokens get dedicated PRs. (§39.5)
+
+##### 21.5 Brand Personality Anchor
+Privacy-first, local-only, adventurous, reliable. Every design decision must trace back to this. (§1)
+
+---
+
+### APPENDICES
+
+#### A. Per-Screen Component Map
+Table: screen × which components appear × which tokens dominate. Quick reference for implementers. (§15)
+
+#### B. Accessibility Degradation Tiers
+Matrix: user setting × topo contours × glass treatment × transitions. (§12)
+
+#### C. Full Color Token Tables (Post-Generation)
+Placeholder for the complete `#1B6B3A`-derived token tables. Will replace current teal tables after Material Theme Builder generation.
+
+#### D. Compose Code Snippets Index
+Cross-reference of every inline code snippet in this document with its section number and component name.
+
+---
+
+### Round Coverage Verification (R1–R28)
+
+| Rounds | Theme | Sections |
+|--------|-------|----------|
+| R1–R3 | Foundations, privacy, Compose-only constraints | §0.1, §21.5, §19 |
+| R4–R7 | Color seed, shapes, spacing, motion | §1, §3, §4, §6 |
+| R8–R11 | Typography, metrics font, accessibility text | §2, §20.1 |
+| R12–R13 | Color convergence, activity palette, card system | §1.9, §10 |
+| R14–R17 | Layout, navigation, FAB, edge-to-edge, app chrome | §3, §9, §18 |
+| R18–R19 | Token pipeline, component inventory, DX | §0.2, §21 |
+| R20–R22 | Polish: glass, elevation, dark mode, choreography | §1.10, §5, §6.5–6.9 |
+| R23–R25 | Empty states, permissions, export, celebrations, testing | §13–§17, §20 |
+| R26–R28 | Color resolution, theme root, migration, accessibility bar | Resolutions above, §19, §20.2 |
 
 ## 1. Brand Personality
 Privacy-first, fully local location & activity tracker for Android. Reliable, secure, modern, and slightly adventurous.
@@ -836,9 +1384,9 @@ enum class GpsState { OFF, SEARCHING, WEAK_SIGNAL, GOOD }
 
 ### 38.1 Staggered Card Entrance
 
-*   **Stagger interval:** `MotionTokens.STAGGER_MS` (80ms) per card.
+*   **Stagger interval:** `MotionTokens.STAGGER_MS` (60ms) per card.
 *   **Per-card animation:** Fade 0→1 (200ms tween) + translate 24dp→0dp (`MotionTokens.Standard` spring).
-*   **Max stagger depth:** 5 cards. Cards beyond the 5th appear with the 5th.
+*   **Max stagger depth:** 6 cards. Cards beyond the 6th appear with the 6th.
 *   **Trigger:** `LaunchedEffect(Unit)` on first composition only.
 *   **Reduced motion:** All cards appear instantly.
 
