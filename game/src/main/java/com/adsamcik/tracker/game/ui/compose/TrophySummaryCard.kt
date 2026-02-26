@@ -50,7 +50,6 @@ fun TrophySummaryCard(
 		modifier = modifier
 			.padding(horizontal = 16.dp)
 			.fillMaxWidth()
-			.clip(RoundedCornerShape(24.dp))
 			.clickable(onClick = onViewTrophyCase)
 			.semantics { contentDescription = summaryDescription }
 	) {
@@ -75,7 +74,7 @@ fun TrophySummaryCard(
 				Spacer(modifier = Modifier.weight(1f))
 				Row(
 					modifier = Modifier
-						.clip(RoundedCornerShape(8.dp))
+						.clip(MaterialTheme.shapes.small)
 						.clickable(onClick = onViewTrophyCase)
 						.padding(horizontal = 8.dp, vertical = 4.dp),
 					verticalAlignment = Alignment.CenterVertically,

@@ -51,7 +51,7 @@ internal fun GlassMetricCard(
 		modifier = modifier
 			.fillMaxWidth()
 			.defaultMinSize(minHeight = 48.dp),
-		shape = GlassMetricShape,
+		shape = MaterialTheme.shapes.medium,
 		color = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
 			.copy(alpha = 0.85f),
 		border = BorderStroke(
@@ -127,4 +127,4 @@ internal fun GlassMetricCard(
 	}
 }
 
-private val GlassMetricShape = RoundedCornerShape(16.dp)
+// Shape is now provided by MaterialTheme.shapes.medium (Ridgeline L3 diagonal asymmetry)
