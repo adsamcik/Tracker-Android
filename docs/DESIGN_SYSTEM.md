@@ -154,7 +154,7 @@ Beyond color token swaps, dark mode applies these adjustments:
 
 ## 3. Typography Scale
 *   **Primary Typeface (Display, Headline, Title):** Outfit (Google Fonts)
-*   **Secondary Typeface (Body, Label):** Inter (Google Fonts)
+*   **Secondary Typeface (Body, Label):** System font (Roboto / Noto Sans — zero APK cost)
 *   **Feature:** Tabular Figures (`tnum`) for all numeric data.
 
 ### Scale
@@ -274,7 +274,7 @@ Asymmetric 3:1 ratio (major corner : minor corner) at all levels. Matches Terrai
 *   **Named shapes kept:** WaypointShape (FAB, percentage-based), MomentumPillShape (buttons, percentage-based) — these are identity shapes, not part of the scale.
 *   **Compose mapping:** `AppShapes(extraSmall=L1, small=L2, medium=L3, large=L4, extraLarge=L5)` each as `RoundedCornerShape(topStart=major, topEnd=minor, bottomEnd=major, bottomStart=minor)`.
 
-## 8. Navigation Labels
+## 8b. Navigation Labels
 *   **Compact width (< 600dp):** Active destination label only. Inactive destinations show icon only.
 *   **Medium/Expanded width (≥ 600dp):** Active label + adjacent (±1) destination labels visible.
 *   **First-use hint:** On first app launch, all labels visible for 3 seconds, then animate to active-only. Stored in DataStore `nav_labels_hint_shown` boolean.
@@ -599,8 +599,8 @@ Four functional levels. Tonal-first — shadow supplements but never leads.
 
 ## 20. Top App Bar Specs
 
-*   **Variant:** `TopAppBar` (small) for all screens. `CenterAlignedTopAppBar` for onboarding only. No `MediumTopAppBar` or `LargeTopAppBar`.
-*   **Scroll behaviors:** Pinned (Dashboard, Settings, Import/Export, Onboarding), `enterAlwaysScrollBehavior` (Statistics, Game), `exitUntilCollapsedScrollBehavior` (Trip Detail).
+*   **Variant:** `TopAppBar` (small) for most screens. `LargeTopAppBar` for Statistics list only. `CenterAlignedTopAppBar` for onboarding only. No `MediumTopAppBar`.
+*   **Scroll behaviors:** Pinned (Dashboard, Settings, Import/Export, Onboarding), `exitUntilCollapsedScrollBehavior` (Statistics — LargeTopAppBar, Trip Detail), `enterAlwaysScrollBehavior` (Game).
 *   **Colors:** `surface` resting, `surfaceContainerLow` scrolled. Title: `onSurface`. Actions: `onSurfaceVariant`.
 *   **Title style:** `titleLarge`. Single line with ellipsis.
 *   **Back navigation:** `Icons.AutoMirrored.Filled.ArrowBack` on all sub-screens. No hamburger menu.
