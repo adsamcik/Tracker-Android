@@ -228,10 +228,24 @@ object RidgelineSpacing {
 
 ### 7.3 Page Gutters
 
-*   **Horizontal gutter:** 16dp (`Lg`) — all orientations, all compact-width devices.
+*   **Responsive horizontal gutter:** 16dp compact (<600dp), 24dp medium (600–839dp), 32dp expanded (≥840dp). Resolved via `RidgelineGutters.horizontal`.
 *   **Full-bleed exceptions:** Map, bottom sheet container, TopAppBar background, floating nav bar.
 *   **Bottom clearance:** `AppDimensions.FloatingNavBarClearance = 120.dp` for floating nav bar.
 *   **Scaffold pattern:** `contentWindowInsets = WindowInsets.safeDrawing` handles system bar insets.
+
+```kotlin
+object RidgelineGutters {
+    val horizontal: Dp
+        @Composable get() {
+            val config = LocalConfiguration.current
+            return when {
+                config.screenWidthDp < 600 -> RidgelineSpacing.Lg    // 16dp
+                config.screenWidthDp < 840 -> RidgelineSpacing.Xxl   // 24dp
+                else -> RidgelineSpacing.Xxxl                         // 32dp
+            }
+        }
+}
+```
 
 ### 7.4 Semantic Pairing Rules
 
@@ -582,3 +596,197 @@ Four functional levels. Tonal-first — shadow supplements but never leads.
 *   **Nav bar labels:** Hide at large font scales, icon-only with tooltip fallback.
 *   **Touch targets:** ≥ 48dp regardless of font scale.
 *   **Test at:** 100%, 150%, 200%.
+
+## 20. Top App Bar Specs
+
+*   **Variant:** `TopAppBar` (small) for all screens. `CenterAlignedTopAppBar` for onboarding only. No `MediumTopAppBar` or `LargeTopAppBar`.
+*   **Scroll behaviors:** Pinned (Dashboard, Settings, Import/Export, Onboarding), `enterAlwaysScrollBehavior` (Statistics, Game), `exitUntilCollapsedScrollBehavior` (Trip Detail).
+*   **Colors:** `surface` resting, `surfaceContainerLow` scrolled. Title: `onSurface`. Actions: `onSurfaceVariant`.
+*   **Title style:** `titleLarge`. Single line with ellipsis.
+*   **Back navigation:** `Icons.AutoMirrored.Filled.ArrowBack` on all sub-screens. No hamburger menu.
+
+## 21. Bottom Sheet Specs
+
+*   **`BottomSheetScaffold`:** Map screen only (persistent, peek/half/full states).
+*   **`ModalBottomSheet`:** All other on-demand sheets (trip actions, filters, export options).
+*   **Shape:** Asymmetric top corners — `topStart = 20.dp, topEnd = 6.dp` (terrain DNA, 3:1 ratio).
+*   **Peek height:** 72dp (drag handle + first content row).
+*   **Container:** `surfaceContainerLow`, tonal elevation E2 (2dp).
+*   **Scrim:** `scrim` at 0.32 alpha (lighter than M3 default to keep map context).
+*   **Content patterns:** Action list (ListItem rows), Form content, Info display.
+*   **Rules:** Max 90% screen height, no nested sheets, keyboard avoidance via `contentWindowInsets`.
+
+## 22. List Item Specs
+
+*   **Use `ListItem`** for all vertically-stacked tappable rows. Custom `Row` for card content.
+*   **Container:** `Color.Transparent` default, `secondaryContainer` when selected.
+*   **Typography:** `bodyLarge` headline, `bodyMedium` supporting, `onSurfaceVariant` for secondary elements.
+*   **Spacing:** `spacedBy(0.dp)` with dividers, or `spacedBy(2.dp)` without dividers.
+*   **Dividers:** Full-width 0.24α within sections, 52dp indent 0.38α between sections.
+
+## 23. Progress Indicator Specs
+
+*   **Linear:** File progress, tracking bar below TopAppBar. Round `StrokeCap`. Heights: 4dp (subtle), 8dp (standard), 12dp (hero).
+*   **Circular:** Loading states (48dp, 4dp stroke), goal rings (64dp, 6dp stroke).
+*   **Trail progress bar:** Standard `LinearProgressIndicator`, 8dp default, round caps. No custom Canvas.
+*   **Determinate** when total known (export, goals). **Indeterminate** when unknown (GPS acquisition, data load).
+*   **Color tokens:** `primary` default, `success` at 100%+, activity colors per type, `error` for blocked.
+
+## 24. Switch & Toggle Specs
+
+*   **Switch:** Immediate-effect binary toggles (settings). M3 Switch with `Icons.Filled.Check` (16dp) when on, no icon when off.
+*   **Checkbox:** Batch selection requiring confirm (multi-select export, filter).
+*   **Colors:** M3 defaults (`primary`/`outline`/`surfaceContainerHighest`). No custom track colors except reserved `error` for destructive toggles.
+*   **In ListItem:** Entire row clickable. `Role.Switch` semantics. `stateDescription` "On"/"Off".
+
+## 25. Text Field Specs
+
+*   **`OutlinedTextField` exclusively.** No filled variant.
+*   **Shape:** `MaterialTheme.shapes.small` (L2, 8dp). Search fields use `shapes.extraLarge` (pill).
+*   **Always provide a label.** Placeholder alone is insufficient.
+*   **Helper text:** Below field, 4dp gap. Error text replaces helper (never both).
+*   **Character counter:** `"23/50"` format, end-aligned, shown only when `maxLength` set.
+*   **Error state:** `error` border (2dp), `error` label, error icon trailing.
+*   **Search variant:** Leading search icon, trailing clear button, full-round shape.
+
+## 26. Menu Specs
+
+*   **DropdownMenu:** Overflow actions. Shape L2, `surfaceContainer`, E2 elevation. Max 7 items; beyond that use ModalBottomSheet.
+*   **ExposedDropdownMenu:** Selection fields (activity type, unit system). Read-only `OutlinedTextField` anchor.
+*   **Item height:** 48dp minimum. Text: `bodyLarge`. Icons: 24dp, `onSurfaceVariant`.
+*   **Ordering:** Primary → secondary → divider → destructive (last).
+*   **Rules:** No nested menus, dismiss on action, if one item has icon then all do.
+
+## 27. Empty States — Per-Screen Content
+
+### 27.1 Tier Selection (Recap from §10)
+
+| Condition | Tier | Component |
+|-----------|------|-----------|
+| Section within populated screen is empty | **Tier 1: Inline** | `InlineEmptyState` (icon + text, max 80dp) |
+| Screen's primary content is empty | **Tier 2: Section** | `EmptyStateCard` (GlassCard, icon + title + subtitle + optional action) |
+| Entire app has zero data (first launch) | **Tier 3: Full-Screen** | Dashboard `EmptyStateCard` (animated, hero CTA) |
+
+### 27.2 Per-Screen Content
+
+| Screen | Tier | Icon | Title / Message | CTA |
+|--------|------|------|----------------|-----|
+| Dashboard (first launch) | 3 | `Explore` | "Your trail begins here" / "Track your walks, runs, and rides. All data stays on your device." | "Start exploring" (PrimaryActionButton) |
+| Statistics (no trips) | 2 | `Timeline` | "No trails recorded yet" / "Your sessions will appear here once you start tracking." | "Record a trail" (TextButton) |
+| Statistics (search empty) | 1 | `SearchOff` | "No sessions match your search." | None |
+| Game (no challenges) | 2 | `EmojiEvents` | "No challenges yet" / "Complete your first few sessions to unlock challenges." | "Start tracking" (TextButton) |
+| Game (no achievements) | 1 | `MilitaryTech` | "No achievements yet." | None |
+| Import/Export (no exports) | 2 | `FolderOpen` | "No exports yet" / "Export your data as GPX, KML, JSON, or a full database backup." | "Create export plan" (TextButton) |
+| Map (no data) | 1 | `Map` | "No track data to display." | None |
+| Trip detail (no location) | 1 | `Route` | "No location data for this session." | None |
+
+### 27.3 Copy Rules
+
+*   Trail vocabulary: "trails" not "sessions." "Recorded" not "captured."
+*   Privacy reassurance only on first-launch Tier 3.
+*   Verb-first CTAs: "Record a trail" not "Go to recording."
+*   No blame: "No trails recorded yet" not "You haven't recorded any trails."
+
+## 28. Permission Denied States
+
+### 28.1 Flow
+
+3-step graceful degradation: system dialog → rationale banner → settings deep-link banner.
+
+### 28.2 Rationale Banner
+
+*   **Component:** `PermissionRationaleBanner` — inline, non-blocking, `secondaryContainer` background, M3 L3 shape.
+*   **Placement:** Top of relevant screen, below TopAppBar, inside content scroll area.
+*   **Actions:** Primary filled button ("Allow") + secondary text button ("Skip").
+
+### 28.3 Per-Permission Content
+
+| Permission | Rationale Title | Rationale Description | Settings Title |
+|-----------|----------------|----------------------|---------------|
+| Location | "Location access needed" | "To record your trails and show them on the map, Tracker needs access to your location. No data leaves your device." | "Location access disabled" |
+| Background Location | "Background location access" | "To track automatically when you're on the move, allow location access all the time." | "Background location disabled" |
+| Activity Recognition | "Activity detection" | "Tracker can detect whether you're walking, running, or cycling to automatically categorize your sessions." | "Activity detection disabled" |
+| Notifications | "Stay informed" | "Notifications let you see tracking status and know when exports complete." | "Notifications disabled" |
+
+### 28.4 Degraded States
+
+| Missing Permission | Behavior | Visual |
+|-------------------|----------|--------|
+| Location | Steps + activity only. Map empty. | `InlineEmptyState` on map. |
+| Background Location | Manual start/stop only. | Settings toggle label: "Requires background location." |
+| Activity Recognition | All sessions tagged "Unknown." | `activityUnknown` color on chips. |
+| Notifications | Silent tracking/export. | Settings info row note. |
+
+## 29. First-Session & Milestone Celebrations
+
+*   **First session:** Celebratory Snackbar ("First trail recorded! 🎉") with "View" action.
+*   **Level up:** `UnlockAnnouncementBanner` (existing component, slide-in, auto-dismiss 4s).
+*   **Achievement unlock:** `AchievementCard` updates in Game screen.
+*   **Session milestones (10/50/100):** Snackbar ("50 trails and counting!").
+*   **First export:** Snackbar ("Export complete — your data, your way.").
+*   **No modal celebrations, no confetti.** The app celebrates by being useful.
+
+## 30. Data Export Flow
+
+### 30.1 Manual Quick Export
+
+*   **Trigger:** Trip detail overflow → "Export" / Statistics → "Export all" / Import/Export → "Export now."
+*   **Component:** `ModalBottomSheet` (Pattern B: Form Content).
+*   **Fields:** Format (`ExposedDropdownMenu`: GPX/KML/JSON/Full backup), Scope (This session/Last 7 days/Last 30 days/All data), Share checkbox.
+*   **CTA:** "Export" (`PrimaryActionButton`).
+*   **Progress:** Inline `LinearProgressIndicator` below TopAppBar after sheet dismisses. Determinate for GPX/KML/JSON, indeterminate for DATABASE.
+*   **Completion:** Snackbar "Export complete" with "Share" action. If share checkbox was checked, Android share intent fires immediately.
+
+### 30.2 Automated Export Plans
+
+*   **Location:** Import/Export screen, full-screen CRUD.
+*   **List:** `ListItem` rows — plan name headline, cadence+scope supporting text, `RidgelineSwitch` trailing.
+*   **Create/Edit:** Full-screen form. Format, cadence, scope, destination (SAF folder picker), filename prefix.
+
+## 31. Settings Danger Zone — Delete All Data
+
+### 31.1 Location
+
+"Data management" section, below all other settings. Extra `Xxxl` (32dp) spacing above.
+
+### 31.2 Confirmation Flow (3-Step)
+
+1.  **Warning dialog:** Lists what will be deleted. "Cancel" / "Continue" (error-colored TextButton).
+2.  **Type-to-confirm dialog:** `OutlinedTextField` with error border. Must type "DELETE" (case-sensitive). "Cancel" / "Delete all" (disabled until match, error-colored).
+3.  **Execution:** Full-screen loading overlay → database clear → DataStore reset → navigate to onboarding. Snackbar: "All data deleted."
+
+*   **Why type-to-confirm over timer delay:** Requires active cognitive engagement. Timer punishes fast readers and annoys everyone.
+
+## 32. Tracking State Visualizations
+
+### 32.1 States
+
+| State | FAB | TopBar Title | Recording Dot | Progress Bar | GPS Chip |
+|-------|-----|-------------|---------------|-------------|----------|
+| Idle | `primary`, play icon | "Dashboard" | Hidden | Hidden | — |
+| Tracking Active | `trackActive`, stop icon, pulse | "Tracking" | `trackActive`, 1.5s pulse | Indeterminate, `primary` | Hidden |
+| GPS Searching | `trackActive`, stop icon | "Tracking" | `trackActive` | Indeterminate | "Acquiring GPS…" (`warning`) |
+| GPS Weak | `trackActive`, stop icon | "Tracking" | `trackActive` | Indeterminate | "Weak GPS signal" (`warning`) |
+| Passive Mode | `secondaryContainer`, stop icon | "Tracking" | `secondary` | Indeterminate | Hidden; "Passive mode" policy chip |
+| Battery Saver | Same as active | "Tracking" | Same as active | Same as active | Dismissible banner (once per session) |
+
+### 32.2 GpsState Enum
+
+```kotlin
+enum class GpsState { OFF, SEARCHING, WEAK_SIGNAL, GOOD }
+```
+
+*   `SEARCHING` → GPS requested, no fix yet (cold start 15–45s).
+*   `WEAK_SIGNAL` → Fix obtained, accuracy > 50m.
+*   `GOOD` → Accuracy ≤ 50m. Normal operation.
+
+### 32.3 GPS Status Chip
+
+`AssistChip` with `warning` color. Hidden when `GOOD` or `OFF`. Placed inline below hero metrics on dashboard.
+
+## 33. Connectivity & Sensor States
+
+*   **GPS cold start:** Handled by `GpsState.SEARCHING`. Tracking begins immediately (steps/activity count); GPS data fills in when available.
+*   **Airplane mode:** No special UI. GPS is passive receiver, works in airplane mode. A-GPS disabled → longer TTFF.
+*   **Bluetooth sensors:** Not in v1. Future: Settings "Connected sensors" section.
+*   **No-network states:** No UI needed. App is local-only.
