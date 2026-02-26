@@ -138,3 +138,4 @@ test_run_*
 fix-build.ps1
 run-phase2-tests.ps1
 run_test.bat
+/.worktrees
