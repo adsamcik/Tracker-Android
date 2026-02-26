@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -52,7 +53,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
-		scope = CoroutineScope(Job() + dispatchers.default)
+		scope = CoroutineScope(SupervisorJob() + dispatchers.default)
 		runIndex = 0
 		segmentStartTimeMs = 0L
 		segmentState = SkiState.IDLE

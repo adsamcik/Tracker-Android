@@ -3,8 +3,9 @@ package com.adsamcik.tracker.tracker.data
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -43,6 +44,6 @@ class DefaultPersistenceErrorCollector : PersistenceErrorCollector {
      * Should be called when this collector is no longer needed.
      */
     fun clear() {
-        scope.cancel()
+        scope.coroutineContext[Job]?.cancelChildren()
     }
 }

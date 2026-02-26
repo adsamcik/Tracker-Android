@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -60,28 +61,30 @@ class TrackingSettingsViewModel @Inject constructor(
                 val effectiveWifiEnabled = params.wifiEnabled && wifiPermissionGranted
                 val effectiveCellEnabled = params.cellEnabled && cellPermissionGranted
 
-                _uiState.value = _uiState.value.copy(
-                    isLoaded = true,
-                    currentPreset = preset,
-                    locationEnabled = params.locationEnabled,
-                    activityEnabled = params.activityEnabled,
-                    stepsEnabled = params.stepsEnabled,
-                    wifiEnabled = effectiveWifiEnabled,
-                    cellEnabled = effectiveCellEnabled,
-                    wifiNetworkEnabled = params.wifiNetworkEnabled && wifiPermissionGranted,
-                    wifiLocationCountEnabled = params.wifiLocationCountEnabled && wifiPermissionGranted,
-                    wifiPermissionGranted = wifiPermissionGranted,
-                    cellPermissionGranted = cellPermissionGranted,
-                    autoTrackingEnabled = params.autoTrackingMode > 0,
-                    transitionDetectionEnabled = params.transitionDetectionEnabled,
-                    notificationStyled = params.notificationStyled,
-                    minDistance = params.minDistanceMeters,
-                    minTime = params.minTimeSeconds,
-                    requiredAccuracy = params.requiredAccuracyMeters,
-                    hasValidSources = params.locationEnabled || params.activityEnabled ||
-                            params.stepsEnabled || effectiveWifiEnabled || effectiveCellEnabled,
-                    skiDetectionEnabled = params.skiDetectionEnabled,
-                )
+                _uiState.update {
+                    it.copy(
+                        isLoaded = true,
+                        currentPreset = preset,
+                        locationEnabled = params.locationEnabled,
+                        activityEnabled = params.activityEnabled,
+                        stepsEnabled = params.stepsEnabled,
+                        wifiEnabled = effectiveWifiEnabled,
+                        cellEnabled = effectiveCellEnabled,
+                        wifiNetworkEnabled = params.wifiNetworkEnabled && wifiPermissionGranted,
+                        wifiLocationCountEnabled = params.wifiLocationCountEnabled && wifiPermissionGranted,
+                        wifiPermissionGranted = wifiPermissionGranted,
+                        cellPermissionGranted = cellPermissionGranted,
+                        autoTrackingEnabled = params.autoTrackingMode > 0,
+                        transitionDetectionEnabled = params.transitionDetectionEnabled,
+                        notificationStyled = params.notificationStyled,
+                        minDistance = params.minDistanceMeters,
+                        minTime = params.minTimeSeconds,
+                        requiredAccuracy = params.requiredAccuracyMeters,
+                        hasValidSources = params.locationEnabled || params.activityEnabled ||
+                                params.stepsEnabled || effectiveWifiEnabled || effectiveCellEnabled,
+                        skiDetectionEnabled = params.skiDetectionEnabled,
+                    )
+                }
                 recalculateBatteryImpact()
             }
         }
@@ -220,20 +223,21 @@ class TrackingSettingsViewModel @Inject constructor(
     }
 
     private fun recalculateBatteryImpact() {
-        val state = _uiState.value
-        val currentSettings = TrackingPresetSettings(
-            locationEnabled = state.locationEnabled,
-            requirePreciseLocation = context.hasPreciseLocationPermission,
-            minDistanceMeters = state.minDistance,
-            minTimeSeconds = state.minTime,
-            requiredAccuracyMeters = state.requiredAccuracy,
-            activityEnabled = state.activityEnabled,
-            stepsEnabled = state.stepsEnabled,
-            wifiEnabled = state.wifiEnabled,
-            wifiLocationCountEnabled = state.wifiLocationCountEnabled,
-            cellEnabled = state.cellEnabled,
-            useTransitionDetection = state.transitionDetectionEnabled
-        )
-        _uiState.value = state.copy(currentBatteryImpact = currentSettings.calculateBatteryImpact())
+        _uiState.update { state ->
+            val currentSettings = TrackingPresetSettings(
+                locationEnabled = state.locationEnabled,
+                requirePreciseLocation = context.hasPreciseLocationPermission,
+                minDistanceMeters = state.minDistance,
+                minTimeSeconds = state.minTime,
+                requiredAccuracyMeters = state.requiredAccuracy,
+                activityEnabled = state.activityEnabled,
+                stepsEnabled = state.stepsEnabled,
+                wifiEnabled = state.wifiEnabled,
+                wifiLocationCountEnabled = state.wifiLocationCountEnabled,
+                cellEnabled = state.cellEnabled,
+                useTransitionDetection = state.transitionDetectionEnabled
+            )
+            state.copy(currentBatteryImpact = currentSettings.calculateBatteryImpact())
+        }
     }
 }

@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -27,7 +28,7 @@ class TrophyCaseViewModel @Inject constructor(
 ) : ViewModel() {
 
 	private val _filter = MutableStateFlow(TrophyFilter.ALL)
-	val filter: StateFlow<TrophyFilter> = _filter
+	val filter: StateFlow<TrophyFilter> = _filter.asStateFlow()
 
 	val trophies: StateFlow<List<TrophyItemUi>?> = combine(
 		gameRepository.getChallengeHistory(),

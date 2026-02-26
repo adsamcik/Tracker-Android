@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -67,7 +68,7 @@ class HistoryPresenterViewModel @Inject constructor(
 	val explorationStats: StateFlow<ExplorationStats> = explorationRepository
 		.observeCellCount(EXPLORATION_ZOOM_LEVEL)
 		.map { count -> ExplorationStats(totalCells = count) }
-		.stateIn(viewModelScope, SharingStarted.Eagerly, ExplorationStats())
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExplorationStats())
 
 	val pagedTrips: Flow<PagingData<Trip>> = Pager(
 		config = PagingConfig(pageSize = PAGE_SIZE),
@@ -105,15 +106,17 @@ class HistoryPresenterViewModel @Inject constructor(
 			val summary = dailySummaryRepository.observeBetween(epochDay, epochDay)
 				.first()
 				.firstOrNull()
-			_calendarState.value = _calendarState.value.copy(
-				selectedDay = date,
-				selectedDayDetail = CalendarState.DayDetail(
-					totalDistanceM = summary?.totalDistance?.raw ?: 0f,
-					totalSteps = summary?.totalSteps?.raw ?: 0,
-					tripCount = trips.size,
-					trips = trips,
-				),
-			)
+			_calendarState.update {
+				it.copy(
+					selectedDay = date,
+					selectedDayDetail = CalendarState.DayDetail(
+						totalDistanceM = summary?.totalDistance?.raw ?: 0f,
+						totalSteps = summary?.totalSteps?.raw ?: 0,
+						tripCount = trips.size,
+						trips = trips,
+					),
+				)
+			}
 		}
 	}
 
@@ -197,12 +200,14 @@ class HistoryPresenterViewModel @Inject constructor(
 				)
 			}
 
-			_calendarState.value = _calendarState.value.copy(
-				currentMonth = yearMonth,
-				dayData = dayData,
-				selectedDay = null,
-				selectedDayDetail = null,
-			)
+			_calendarState.update {
+				it.copy(
+					currentMonth = yearMonth,
+					dayData = dayData,
+					selectedDay = null,
+					selectedDayDetail = null,
+				)
+			}
 		}
 	}
 
