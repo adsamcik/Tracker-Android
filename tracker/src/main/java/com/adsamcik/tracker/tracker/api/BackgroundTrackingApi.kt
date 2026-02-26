@@ -58,6 +58,7 @@ object BackgroundTrackingApi {
 	private var trackingParamsJob: Job? = null
 	private var disabledRechargeJob: Job? = null
 	private var activityFreqJob: Job? = null
+	private var activityWatcherJob: Job? = null
 
 	// Minimum confidence threshold for activity recognition
 	// Future: Make configurable via settings (requires UI + preference storage)
@@ -77,7 +78,13 @@ object BackgroundTrackingApi {
 
 	/** Cached activity recognition polling interval in seconds. */
 	@Volatile
-	private var activityFreqSeconds = DEFAULT_ACTIVITY_FREQ_SECONDS
+	internal var activityFreqSeconds = DEFAULT_ACTIVITY_FREQ_SECONDS
+		private set
+
+	/** Cached activity watcher enabled preference. */
+	@Volatile
+	internal var activityWatcherEnabled = false
+		private set
 
 	/** Whether the first TrackingParams emission has been processed. */
 	private var paramsInitialized = false
@@ -286,6 +293,13 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
 		).onEach { activityFreqSeconds = it }
 			.launchIn(scope)
+
+		activityWatcherJob = PreferenceFlows.boolean(
+			ctx,
+			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_key,
+			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
+		).onEach { activityWatcherEnabled = it }
+			.launchIn(scope)
 	}
 
 	private fun handleTrackingActivityPreferenceChange(value: Int) {
@@ -322,12 +336,15 @@ object BackgroundTrackingApi {
 		disabledRechargeJob = null
 		activityFreqJob?.cancel()
 		activityFreqJob = null
+		activityWatcherJob?.cancel()
+		activityWatcherJob = null
 		preferenceScope?.cancel()
 		preferenceScope = null
 		appContext = null
 		cachedParams = TrackingParamsState()
 		disabledUntilRecharge = false
 		activityFreqSeconds = DEFAULT_ACTIVITY_FREQ_SECONDS
+		activityWatcherEnabled = false
 		paramsInitialized = false
 	}
 }

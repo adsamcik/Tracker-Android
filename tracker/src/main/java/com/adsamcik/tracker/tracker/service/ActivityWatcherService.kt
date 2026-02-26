@@ -14,7 +14,6 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.adsamcik.tracker.shared.base.service.CoreService
-import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -50,17 +49,12 @@ class ActivityWatcherService : CoreService() {
 
 	private lateinit var notificationManager: NotificationManager
 
-	@Suppress("DEPRECATION") // TODO: Preference Migration - Service onCreate is non-suspend. Consider coroutine-based initialization.
 	override fun onCreate() {
 		super.onCreate()
 
 		instance = this
 
-		val updatePreferenceInSeconds = Preferences.getPref(this)
-			.getIntResString(
-				R.string.settings_activity_freq_key,
-				R.string.settings_activity_freq_default
-			)
+		val updatePreferenceInSeconds = BackgroundTrackingApi.activityFreqSeconds
 
 		startForeground(NOTIFICATION_ID, updateNotification())
 
@@ -130,36 +124,6 @@ class ActivityWatcherService : CoreService() {
 
 		private var instance: ActivityWatcherService? = null
 
-		// TODO: Preference Migration - Uses deprecated sync preference access.
-		//  Since these are used by poke() call chain, consider:
-		//  1) Pass preference values as parameters from callers that have coroutine context
-		//  2) Cache values in a preference-observing singleton
-		@Suppress("DEPRECATION")
-		private fun getWatcherPreference(context: Context): Boolean = Preferences.getPref(
-			context
-		).getBooleanRes(
-			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_key,
-			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
-		)
-
-		// TODO: Preference Migration - Uses deprecated sync preference access.
-		@Suppress("DEPRECATION")
-		private fun getAutoTrackingPreference(context: Context): Int = Preferences.getPref(
-			context
-		).getIntResString(
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
-		)
-
-		// TODO: Preference Migration - Uses deprecated sync preference access.
-		@Suppress("DEPRECATION")
-		private fun getActivityIntervalPreference(context: Context): Int = Preferences.getPref(
-			context
-		).getIntResString(
-			com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
-			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
-		)
-
 		/**
 		 * Called when watcher preference is changed.
 		 */
@@ -193,9 +157,9 @@ class ActivityWatcherService : CoreService() {
 		@Suppress("LongParameterList")
 		fun poke(
 			context: Context,
-			watcherPreference: Boolean = getWatcherPreference(context),
-			updateInterval: Int = getActivityIntervalPreference(context),
-			autoTracking: Int = getAutoTrackingPreference(context),
+			watcherPreference: Boolean = BackgroundTrackingApi.activityWatcherEnabled,
+			updateInterval: Int = BackgroundTrackingApi.activityFreqSeconds,
+			autoTracking: Int = BackgroundTrackingApi.cachedParams.autoTrackingMode,
 			trackerLocked: Boolean = dagger.hilt.android.EntryPointAccessors
 				.fromApplication(context.applicationContext, ActivityWatcherEntryPoint::class.java)
 				.lockManager().isLocked,
