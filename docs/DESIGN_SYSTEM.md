@@ -790,3 +790,156 @@ enum class GpsState { OFF, SEARCHING, WEAK_SIGNAL, GOOD }
 *   **Airplane mode:** No special UI. GPS is passive receiver, works in airplane mode. A-GPS disabled → longer TTFF.
 *   **Bluetooth sensors:** Not in v1. Future: Settings "Connected sensors" section.
 *   **No-network states:** No UI needed. App is local-only.
+
+## 34. Split-Screen & PiP Policy
+
+*   **Split-screen:** Supported via standard Compose responsiveness. `RidgelineGutters.horizontal` adapts to reduced width. No special detection code.
+*   **PiP:** Not supported in v1. No `supportsPictureInPicture` manifest entry. Future candidate: map + recording dot + elapsed time.
+
+## 35. RTL Layout
+
+*   Full RTL support via Compose logical directions (`start`/`end`, not `left`/`right`).
+*   Asymmetric shapes auto-mirror — `topStart`/`topEnd`/`bottomStart`/`bottomEnd` are logical.
+*   `Icons.AutoMirrored.*` for directional icons. Non-directional icons do NOT mirror.
+*   Map and charts/sparklines do NOT mirror — geographic and time-series content is universal.
+*   Number formatting: `Locale`-aware. Arabic-Indic numerals when locale requires.
+*   **Test mandate:** Preview every screen with `LayoutDirection.Rtl` before release.
+
+## 36. Long Text Truncation Rules
+
+| Element | Max Lines | Overflow | Notes |
+|---------|-----------|----------|-------|
+| Trip name (list) | 1 | Ellipsis | — |
+| Trip name (detail) | 2 | Ellipsis | — |
+| Challenge name (card) | 2 | Ellipsis | — |
+| Challenge name (detail) | 3 | Ellipsis | — |
+| Section header | 1 | Ellipsis | Keep headers concise |
+| Metric value | 1 | Scale down | Step-down per §19 |
+| Metric label | 1 | Ellipsis | — |
+| Export filename | 1 | Middle-ellipsis | "tracker_20…240601.gpx" |
+| Snackbar message | 2 | Ellipsis | ≤ 80 chars by convention |
+
+*   User-generated text (trip names, plan names): 100-char input limit at `OutlinedTextField`.
+
+## 37. Battery Optimization Visual Treatments
+
+| Trigger | Visual | Duration |
+|---------|--------|----------|
+| Battery Saver (system) | Dismissible `AssistChip`: "Battery saver — less frequent updates", `warning` color | Once per session |
+| Doze mode | No UI. Session resumes on wake | Automatic |
+| Low-power mode (future) | `PolicyTierChip` variant, `secondaryContainer` | While active |
+
+*   **Metric staleness:** When GPS fix >30s old, metric values tint `onSurfaceVariant` + trailing "(12s ago)" `labelSmall`. Instant swap, no animation.
+*   **Map track lines:** Low-frequency points show segmented lines. No interpolation. Tooltip on sparse segments.
+
+## 38. Animation Choreography
+
+### 38.1 Staggered Card Entrance
+
+*   **Stagger interval:** `MotionTokens.STAGGER_MS` (80ms) per card.
+*   **Per-card animation:** Fade 0→1 (200ms tween) + translate 24dp→0dp (`MotionTokens.Standard` spring).
+*   **Max stagger depth:** 5 cards. Cards beyond the 5th appear with the 5th.
+*   **Trigger:** `LaunchedEffect(Unit)` on first composition only.
+*   **Reduced motion:** All cards appear instantly.
+
+### 38.2 FAB Appearance / Disappearance
+
+*   **Enter:** 200ms delay after screen paint, then scale 0→1 + fade 0→1, `MotionTokens.Dramatic` spring (damping 0.6, stiffness 200). ~500ms settle.
+*   **Exit:** Scale 1→0.8 + fade 1→0, `tween(150ms)`. Fast exit.
+*   **Tracking morph:** Icon crossfade 200ms. Color via `animateColorAsState(Responsive)`. Size via `animateDpAsState(Dramatic)`.
+*   **Reduced motion:** Instant show/hide/morph.
+
+### 38.3 Bottom Sheet Springs
+
+*   **Expand/collapse:** Damping 0.85, stiffness 600f. Velocity-aware. Slightly underdamped.
+*   **Dismiss:** Damping 1.0, stiffness 800f. Critically damped, no bounce.
+*   **Scrim:** `tween(300ms)` synced to sheet position. Max alpha 0.32.
+*   **Reduced motion:** Snap to target.
+
+### 38.4 Goal Completion Ring
+
+*   **Incremental:** `animateFloatAsState(MotionTokens.Responsive)` on sweep angle.
+*   **Completion (100%):** Phase 1 (0–200ms): color `primary`→`success`. Phase 2 (200–600ms): stroke 6dp→8dp→6dp pulse (`Bouncy`). Phase 3 (600–800ms): check icon fade-in.
+*   **Over-achievement (>100%):** Second arc in `tertiary` overlapping `success` base.
+*   **Reduced motion:** Instant color + static check.
+
+### 38.5 Screen Transitions
+
+*   **Forward:** `fadeIn(300ms) + slideInHorizontally(+30dp)` / `fadeOut(150ms)`. 100ms overlap. `MotionTokens.Standard` spring for slide.
+*   **Back (predictive):** System-driven scale 0.9 + 8dp shift + corner radius increase.
+*   **→ Map:** Fade only, no horizontal slide (map is spatial).
+*   **→ Trip Detail:** Vertical slide up from tapped card.
+*   **Reduced motion:** Instant transition.
+
+## 39. Developer Experience
+
+### 39.1 Documentation Split
+
+| Content | Location |
+|---------|----------|
+| Token values, scales, hex codes | DESIGN_SYSTEM.md |
+| Design rationale | DESIGN_SYSTEM.md |
+| Component API, params, defaults | KDoc on composable |
+| Usage guidance ("when to use X") | KDoc on composable |
+| Accessibility behavior | KDoc on composable |
+| Round decisions, history | DESIGN_ROUND_*.md |
+
+### 39.2 Drift Prevention
+
+**Immediate (no new deps):**
+*   Detekt `ForbiddenImport`: `android.widget.*`, `androidx.fragment.*`, `android.view.View`.
+*   CI grep checks: reject `Color(0x` outside `Color.kt`; reject `RoundedCornerShape(` outside `Shape.kt`.
+*   PR checklist: "DS tokens used? No hardcoded colors/shapes/spacing?"
+
+**Deferred (post-v1):**
+*   Custom Compose lint module (`lint-rules/`) with `HardcodedColorDetector`, `HardcodedShapeDetector`.
+*   Screenshot testing (Paparazzi/Roborazzi) when component count stabilizes.
+
+### 39.3 Preview Strategy
+
+*   One `@Preview` per DS primitive. Named `Preview[ComponentName]`.
+*   Multi-preview annotation for DRY:
+
+```kotlin
+@Preview(name = "Light", showBackground = true, group = "Ridgeline")
+@Preview(name = "Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, group = "Ridgeline")
+@Preview(name = "200%", fontScale = 2.0f, group = "Ridgeline")
+annotation class RidgelinePreviews
+```
+
+*   `@PreviewParameter` providers for: `ActivityType`, `TrackingState`.
+*   No `@sample` tags. Usage examples in `@Preview` functions.
+
+### 39.4 Migration Sequence
+
+One screen per PR. Priority: Dashboard → Map → Statistics → Game → Settings → Import/Export.
+
+Steps per screen:
+1. Wrap in `AppTheme`.
+2. Replace hardcoded colors with `colorScheme.*` / `AppColors.Adaptive.*`.
+3. Replace hardcoded shapes with `MaterialTheme.shapes.*` or named shapes.
+4. Replace raw `dp` with `RidgelineSpacing.*`.
+5. Replace raw springs/tweens with `AppMotion.*` / `MotionTokens.*`.
+6. Add `RidgelineSectionHeader` and empty states per §10.
+7. Verify at 100%, 150%, 200% font scale + light/dark.
+
+### 39.5 Design System Versioning
+
+No semver. Single-consumer internal system.
+
+*   **Add:** Freely. Document in DESIGN_ROUND_*.md.
+*   **Modify:** Update spec + code in one PR. Verify all usages.
+*   **Remove:** Grep usages, replace, remove in same PR.
+*   **Guard rail:** Token used in 5+ files → dedicated PR with before/after screenshots.
+*   **DESIGN_SYSTEM.md is always-current.** DESIGN_ROUND_*.md files are the changelog.
+
+## 40. Design System Inventory
+
+**Canonical count: 35 artifacts.**
+
+| Category | Count | Contents |
+|----------|-------|---------|
+| Composable primitives | 18 | `AppTheme`, `GlassCard`, `MetricText`, `PrimaryActionButton`, `GlassMetricCard`, `GoalProgressRings`, `RidgelineSectionHeader`, `InlineEmptyState`, `EmptyStateCard`, `TrackingFAB`, `RecordingDot`, `PolicyTierChip`, `TechBadge`, `EncouragementBanner`, `SeasonDots`, `ChallengeCard`, `EmptyChallengeCard`, `PermissionRationaleBanner` |
+| Token objects | 17 | `RidgelineSpacing`, `RidgelineGutters`, `AppDimensions`, `AppColors`, `AppColors.Adaptive`, `AppShapes`, `AppTypography`, `AppMotion`, `LoadingMotion`, `MotionTokens`, `LocalReducedMotion`, `LightColorScheme`, `DarkColorScheme`, `DialogShape`, `WaypointShape`, `MomentumPillShape`, `TerrainCardShape` |
+
+Screen compositions (24+) are **consumers**, not part of the DS contract.
