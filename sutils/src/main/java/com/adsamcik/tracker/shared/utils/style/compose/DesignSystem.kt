@@ -156,14 +156,17 @@ object ActivityColors {
 // --- COMPONENTS ---
 
 /**
- * A glass-morphism card: opaque Surface + border (without Haze).
- * For true blur, use Haze's hazeEffect modifier at the call site with GlassTier tokens.
+ * Ridgeline glass-morphism card.
+ *
+ * Default shape is [MaterialTheme.shapes.large] (L4: 20/6dp diagonal asymmetry)
+ * which gives the pronounced "ridgeline" visual signature.
+ * Uses `surfaceContainer` for slightly more contrast against the background.
  */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = MaterialTheme.shapes.medium,
-    tier: GlassTier = GlassTier.G1,
+    shape: Shape = MaterialTheme.shapes.large,
+    tier: GlassTier = GlassTier.G2,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val borderColor = tier.borderColor()
@@ -174,7 +177,7 @@ fun GlassCard(
                 Modifier.border(BorderStroke(1.dp, borderColor), shape)
             } else Modifier
         ),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = shape,
         tonalElevation = RidgelineElevation.Raised.tonal,
