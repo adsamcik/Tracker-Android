@@ -133,7 +133,7 @@ fun TripDetailRoute(
 									text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
 									onClick = {
 										showMenu = false
-										// TODO: GPX export needs location points from TripDetailPresenter
+										viewModel.exportTripGpx(context)
 									}
 								)
 								DropdownMenuItem(
@@ -386,7 +386,7 @@ private fun DeleteConfirmationDialog(
 	)
 }
 
-private fun exportGpx(
+internal fun exportGpx(
 	context: android.content.Context,
 	trip: TripSummary,
 	points: List<DatabaseLocation>

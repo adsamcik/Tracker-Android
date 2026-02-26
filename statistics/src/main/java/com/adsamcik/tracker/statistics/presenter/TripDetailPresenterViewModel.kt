@@ -3,11 +3,15 @@ package com.adsamcik.tracker.statistics.presenter
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
+import com.adsamcik.tracker.statistics.ui.exportGpx
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,6 +21,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -31,6 +36,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 	presenter: TripDetailPresenter,
 	private val tripDao: TripDao,
 	private val skiRunSegmentDao: SkiRunSegmentDao,
+	private val locationDataDao: LocationDataDao,
 	savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -74,6 +80,20 @@ class TripDetailPresenterViewModel @Inject constructor(
 	 */
 	fun retry() {
 		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
+	}
+
+	/**
+	 * Export the current trip as a GPX file and share via system share sheet.
+	 */
+	fun exportTripGpx(context: Context) {
+		viewModelScope.launch {
+			val loaded = state.value as? TripDetailState.Loaded ?: return@launch
+			val trip = loaded.trip
+			val points = withContext(Dispatchers.IO) {
+				locationDataDao.getAllBetweenOrdered(trip.startTimeMs.raw, trip.endTimeMs.raw)
+			}
+			exportGpx(context, trip, points)
+		}
 	}
 
 	/**
