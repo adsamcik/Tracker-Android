@@ -5,9 +5,8 @@ import android.os.Handler
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
-import com.adsamcik.tracker.shared.preferences.Preferences
-
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
@@ -45,13 +44,8 @@ internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
 			Time.elapsedRealtimeNanos
 	)
 
-	@Suppress("DEPRECATION") // TODO: Preference Migration - onEnable is non-suspend. Requires interface change or cached preference values.
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
-	val preferences = Preferences.getPref(context)
-	val minUpdateDelayInSeconds = preferences.getIntRes(
-		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
-	)
+		val minUpdateDelayInSeconds = BackgroundTrackingApi.cachedParams.minTimeSeconds
 
 		this.receiver = receiver
 		repeatEveryMs = minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS

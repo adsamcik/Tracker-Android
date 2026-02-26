@@ -9,9 +9,8 @@ import android.os.Bundle
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.locationManager
-import com.adsamcik.tracker.shared.preferences.Preferences
-
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
@@ -47,19 +46,11 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 
 	}
 
-	@Suppress("DEPRECATION") // TODO: Preference Migration - onEnable is non-suspend. Requires interface change or cached preference values.
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		super.onEnable(context, receiver)
 
-	val preferences = Preferences.getPref(context)
-	val minUpdateDelayInSeconds = preferences.getIntRes(
-		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
-	)
-	val minDistanceInMeters = preferences.getIntRes(
-		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
-		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default
-	)
+		val minUpdateDelayInSeconds = BackgroundTrackingApi.cachedParams.minTimeSeconds
+		val minDistanceInMeters = BackgroundTrackingApi.cachedParams.minDistanceMeters
 
 		val locationManager = context.locationManager
 		//It is checked by the component system

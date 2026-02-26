@@ -58,15 +58,12 @@ class HandlerCollectionTriggerTest {
 	}
 
 	@Test
-	fun `onEnable starts handler with default interval from preferences`() {
-		// Set tracking interval to 1 second for quick test execution
-		FakePreferencesHelper.data[com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key] = 1
-		
-		// Enable trigger (uses default preference values)
+	fun `onEnable starts handler with default interval from cached params`() {
+		// Enable trigger (uses BackgroundTrackingApi.cachedParams, default minTimeSeconds = 2)
 		trigger.onEnable(context, receiver)
 
-		// Advance time by 1 second to trigger first callback
-		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+		// Advance time by default interval (2 seconds) to trigger first callback
+		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
 
 		// Verify at least one update was triggered
 		verify(atLeast = 1) { receiver.onUpdate(any()) }

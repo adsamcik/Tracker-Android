@@ -7,9 +7,8 @@ import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.shared.preferences.Preferences
-
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
@@ -50,14 +49,9 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		}
 	}
 
-	@Suppress("DEPRECATION") // TODO: Preference Migration - onEnable is non-suspend. Requires interface change or cached preference values.
 	override fun onEnable(context: Context) {
 		super.onEnable(context)
-		val preferences = Preferences.getPref(context)
-	val minUpdateDelayInSeconds = preferences.getIntRes(
-		com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_time_key,
-		com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_time_default
-	)
+		val minUpdateDelayInSeconds = BackgroundTrackingApi.cachedParams.minTimeSeconds
 		ActivityRequestManager.requestActivity(
 				context,
 				ActivityRequestData(
