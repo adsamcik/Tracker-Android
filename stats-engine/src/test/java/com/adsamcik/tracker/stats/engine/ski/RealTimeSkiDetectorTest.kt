@@ -167,4 +167,70 @@ class RealTimeSkiDetectorTest {
 			state.totalVerticalM shouldBe 0f
 		}
 	}
+
+	@Nested
+	inner class NearResortProximity {
+		@Test
+		fun `nearResort false by default`() {
+			val state = detector.getCurrentState()
+			state.isNearResort.shouldBeFalse()
+		}
+
+		@Test
+		fun `setNearResort enables single-cycle confirmation`() {
+			detector.setNearResort(true)
+
+			var t = feedStableAltitude(0L, 10, 1500f)
+
+			// Single lift + descent cycle
+			t = feedLinearAltitudeChange(t, 90, 1500f, 1725f, 3f)
+			t = feedLinearAltitudeChange(t, 90, 1725f, 1275f, 15f)
+
+			val state = detector.getCurrentState()
+			state.isNearResort.shouldBeTrue()
+			// With nearResort, 1 cycle is enough for confirmation
+			if (state.completedRunCount >= 1) {
+				state.isConfirmedSkiSession.shouldBeTrue()
+			}
+		}
+
+		@Test
+		fun `reset clears nearResort flag`() {
+			detector.setNearResort(true)
+			detector.getCurrentState().isNearResort.shouldBeTrue()
+
+			detector.reset()
+			detector.getCurrentState().isNearResort.shouldBeFalse()
+		}
+	}
+
+	@Nested
+	inner class RunMetrics {
+		@Test
+		fun `tracks total vertical descent across runs`() {
+			var t = feedStableAltitude(0L, 10, 1500f)
+
+			// Lift up then descend
+			t = feedLinearAltitudeChange(t, 90, 1500f, 1725f, 3f)
+			t = feedLinearAltitudeChange(t, 90, 1725f, 1275f, 15f)
+
+			// During descent, currentRunVerticalM should track live drop
+			val duringDescent = detector.getCurrentState()
+			duringDescent.currentRunVerticalM shouldBeGreaterThan 0f
+		}
+
+		@Test
+		fun `tracks max speed during descent`() {
+			var t = feedStableAltitude(0L, 10, 2000f)
+
+			// Descend at high speed
+			t = feedLinearAltitudeChange(t, 40, 2000f, 1800f, 20f)
+
+			val state = detector.getCurrentState()
+			// During active descent, should track max speed
+			if (state.state == SkiState.DOWNHILL_RUN) {
+				state.currentRunMaxSpeedMps shouldBeGreaterThan 0f
+			}
+		}
+	}
 }

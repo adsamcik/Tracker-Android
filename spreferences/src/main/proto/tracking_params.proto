@@ -33,6 +33,9 @@ message TrackingParamsProto {
   // Current preset name (empty or "CUSTOM" for custom settings)
   string preset_name = 14;
 
+  // Ski detection
+  bool ski_detection_enabled = 15;
+
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;
 }

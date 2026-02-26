@@ -12,7 +12,8 @@ data class RealTimeSkiState(
 	val currentRunVerticalM: Float,
 	val currentRunMaxSpeedMps: Float,
 	val totalVerticalM: Float,
-	val totalRunCount: Int
+	val totalRunCount: Int,
+	val isNearResort: Boolean = false
 )
 
 /**
@@ -77,11 +78,22 @@ class RealTimeSkiDetector(
 	// Listener
 	private var listener: SkiStateListener? = null
 
+	// Resort proximity flag — lowers confirmation threshold
+	private var nearResort: Boolean = false
+
 	/**
 	 * Set a listener for state transitions.
 	 */
 	fun setListener(listener: SkiStateListener?) {
 		this.listener = listener
+	}
+
+	/**
+	 * Mark that the device is near a known ski resort.
+	 * When true, lowers the cycle threshold for session confirmation to 1.
+	 */
+	fun setNearResort(near: Boolean) = synchronized(lock) {
+		nearResort = near
 	}
 
 	/**
@@ -93,16 +105,18 @@ class RealTimeSkiDetector(
 		} else {
 			0L
 		}
+		val effectiveMinCycles = if (nearResort) 1 else config.minCyclesForClassification
 		RealTimeSkiState(
 			state = confirmedState,
 			stateEntryTimeMs = confirmedStateEntryMs,
 			stateDurationMs = if (confirmedStateEntryMs > 0L) now - confirmedStateEntryMs else 0L,
 			completedRunCount = completedCycles,
-			isConfirmedSkiSession = completedCycles >= config.minCyclesForClassification,
+			isConfirmedSkiSession = completedCycles >= effectiveMinCycles,
 			currentRunVerticalM = computeCurrentRunVertical(),
 			currentRunMaxSpeedMps = currentRunMaxSpeed,
 			totalVerticalM = totalVerticalDescent,
-			totalRunCount = totalDownhillRuns
+			totalRunCount = totalDownhillRuns,
+			isNearResort = nearResort
 		)
 	}
 
@@ -165,6 +179,7 @@ class RealTimeSkiDetector(
 		totalDownhillRuns = 0
 		lastAltitudeM = 0f
 		lastSpeedMps = 0f
+		nearResort = false
 	}
 
 	private fun updateStateWithHysteresis(rawState: SkiState, timeMs: Long) {

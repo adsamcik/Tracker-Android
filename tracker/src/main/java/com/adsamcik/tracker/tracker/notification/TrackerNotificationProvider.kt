@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.notification.component.HorizontalAccuracyNot
 import com.adsamcik.tracker.tracker.notification.component.LastUpdateNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.LatitudeNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.LongitudeNotificationComponent
+import com.adsamcik.tracker.tracker.notification.component.SkiNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.SpeedNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.StartTimeNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.WiFiCountNotificationComponent
@@ -35,6 +36,7 @@ object TrackerNotificationProvider {
 			LastUpdateNotificationComponent(),
 			LatitudeNotificationComponent(),
 			LongitudeNotificationComponent(),
+			SkiNotificationComponent(),
 			SpeedNotificationComponent(),
 			StartTimeNotificationComponent(),
 			WiFiCountNotificationComponent()

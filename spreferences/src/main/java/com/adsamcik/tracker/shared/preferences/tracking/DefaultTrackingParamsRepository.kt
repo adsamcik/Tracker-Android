@@ -68,6 +68,7 @@ class DefaultTrackingParamsRepository(
     override suspend fun setMinTimeSeconds(seconds: Int) = updateField { setMinTimeSeconds(seconds.coerceAtLeast(1)) }
     override suspend fun setRequiredAccuracyMeters(meters: Int) = updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
     override suspend fun setPresetName(name: String) = updateField { setPresetName(name) }
+    override suspend fun setSkiDetectionEnabled(enabled: Boolean) = updateField { setSkiDetectionEnabled(enabled) }
 
     private suspend fun updateField(block: TrackingParamsProto.Builder.() -> TrackingParamsProto.Builder) {
         withContext(io) {
@@ -149,6 +150,7 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         minTimeSeconds = minTimeSeconds.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_TIME,
         requiredAccuracyMeters = requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY,
         presetName = presetName.ifEmpty { TrackingParamsState.DEFAULT_PRESET },
+        skiDetectionEnabled = skiDetectionEnabled,
     )
 }
 
@@ -168,5 +170,6 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
         .setMinTimeSeconds(minTimeSeconds)
         .setRequiredAccuracyMeters(requiredAccuracyMeters)
         .setPresetName(presetName)
+        .setSkiDetectionEnabled(skiDetectionEnabled)
         .setLegacyMigrated(true)
         .build()
