@@ -133,4 +133,78 @@ class AltitudeKalmanFilterTest {
 			filter.isInitialized shouldBe false
 		}
 	}
+
+	@Nested
+	@DisplayName("edge cases")
+	inner class EdgeCases {
+		@Test
+		fun `predict before initialization is no-op`() {
+			filter.predict(5000L)
+			filter.isInitialized shouldBe false
+		}
+
+		@Test
+		fun `predict with zero time delta is no-op`() {
+			filter.update(500.0, 225.0, 1000L)
+			val altBefore = filter.altitude
+			val uncBefore = filter.altitudeUncertainty
+			filter.predict(1000L) // same time → dt=0
+			filter.altitude shouldBe altBefore
+			filter.altitudeUncertainty shouldBe uncBefore
+		}
+
+		@Test
+		fun `predict with negative time delta is no-op`() {
+			filter.update(500.0, 225.0, 2000L)
+			val altBefore = filter.altitude
+			filter.predict(1000L) // time went backwards → dt<0
+			filter.altitude shouldBe altBefore
+		}
+
+		@Test
+		fun `custom process noise parameters are respected`() {
+			// High process noise → faster adaptation
+			val highNoiseFilter = AltitudeKalmanFilter(
+				processNoiseAltitude = 50.0,
+				processNoiseVelocity = 10.0
+			)
+			// Low process noise → slower adaptation
+			val lowNoiseFilter = AltitudeKalmanFilter(
+				processNoiseAltitude = 0.01,
+				processNoiseVelocity = 0.001
+			)
+
+			// Initialize both at 500m
+			highNoiseFilter.update(500.0, 225.0, 1000L)
+			lowNoiseFilter.update(500.0, 225.0, 1000L)
+
+			// Big jump to 600m
+			highNoiseFilter.update(600.0, 225.0, 2000L)
+			lowNoiseFilter.update(600.0, 225.0, 2000L)
+
+			// High process noise trusts model less → follows measurement more
+			abs(highNoiseFilter.altitude - 600.0) shouldBeLessThan abs(lowNoiseFilter.altitude - 600.0)
+		}
+
+		@Test
+		fun `multiple rapid updates converge`() {
+			filter.update(500.0, 225.0, 0L)
+			// 100 updates at same altitude should converge tightly
+			repeat(100) { i ->
+				filter.update(500.0, 225.0, (i + 1) * 100L)
+			}
+			abs(filter.altitude - 500.0) shouldBeLessThan 0.1
+			filter.altitudeUncertainty shouldBeLessThan 5.0
+		}
+
+		@Test
+		fun `handles large time gaps gracefully`() {
+			filter.update(500.0, 225.0, 0L)
+			// 1 hour gap
+			filter.update(510.0, 225.0, 3_600_000L)
+			// Should not produce extreme values
+			filter.altitude shouldBeGreaterThan 400.0
+			filter.altitude shouldBeLessThan 600.0
+		}
+	}
 }

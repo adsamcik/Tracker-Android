@@ -130,6 +130,105 @@ class AltitudeProcessorTest {
 	}
 
 	@Nested
+	@DisplayName("fusion calibration")
+	inner class FusionCalibration {
+		@Test
+		fun `isFusionCalibrated is false initially`() {
+			processor.isFusionCalibrated shouldBe false
+		}
+
+		@Test
+		fun `isFusionCalibrated becomes true after GPS plus barometer`() {
+			val context = RuntimeEnvironment.getApplication()
+			val location = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+			processor.processWithBarometer(context, location, baroPressureHpa = 955f)
+			processor.isFusionCalibrated shouldBe true
+		}
+
+		@Test
+		fun `isFusionCalibrated stays false with GPS only`() {
+			val context = RuntimeEnvironment.getApplication()
+			val location = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+			processor.process(context, location)
+			processor.isFusionCalibrated shouldBe false
+		}
+
+		@Test
+		fun `reset clears fusion calibration`() {
+			val context = RuntimeEnvironment.getApplication()
+			val location = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+			processor.processWithBarometer(context, location, baroPressureHpa = 955f)
+			processor.isFusionCalibrated shouldBe true
+			processor.reset()
+			processor.isFusionCalibrated shouldBe false
+		}
+	}
+
+	@Nested
+	@DisplayName("barometer fusion path")
+	inner class BarometerFusion {
+		@Test
+		fun `processWithBarometer with null pressure behaves like process`() {
+			val context = RuntimeEnvironment.getApplication()
+			val loc1 = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+			val loc2 = createLocation(altitude = 500.0, verticalAccuracy = 5f)
+
+			val proc1 = AltitudeProcessor(verticalAccuracyThresholdM = 20f)
+			val proc2 = AltitudeProcessor(verticalAccuracyThresholdM = 20f)
+
+			val result1 = proc1.process(context, loc1)
+			val result2 = proc2.processWithBarometer(context, loc2, baroPressureHpa = null)
+
+			result1.shouldNotBeNull()
+			result2.shouldNotBeNull()
+			result1 shouldBe result2
+		}
+
+		@Test
+		fun `barometer fusion dampens GPS noise`() {
+			val context = RuntimeEnvironment.getApplication()
+
+			// Establish baseline with GPS + barometer
+			val loc1 = createLocation(altitude = 500.0, verticalAccuracy = 10f)
+			processor.processWithBarometer(context, loc1, baroPressureHpa = 955f)
+
+			val loc2 = createLocation(altitude = 500.0, verticalAccuracy = 10f)
+			processor.processWithBarometer(context, loc2, baroPressureHpa = 955f)
+
+			// GPS spikes to 530m while barometer stays same
+			val loc3 = createLocation(altitude = 530.0, verticalAccuracy = 10f)
+			val result = processor.processWithBarometer(context, loc3, baroPressureHpa = 955f)
+
+			result.shouldNotBeNull()
+			// Fused result should be closer to 500 than 530 (barometer is more trusted)
+			abs(result - 500.0) shouldBeLessThan abs(result - 530.0)
+		}
+	}
+
+	@Nested
+	@DisplayName("custom threshold")
+	inner class CustomThreshold {
+		@Test
+		fun `custom vertical accuracy threshold is respected`() {
+			val strictProcessor = AltitudeProcessor(verticalAccuracyThresholdM = 5f)
+			val context = RuntimeEnvironment.getApplication()
+
+			// 10m accuracy passes default (20m) but fails strict (5m)
+			val location = createLocation(altitude = 500.0, verticalAccuracy = 10f)
+			strictProcessor.process(context, location).shouldBeNull()
+		}
+
+		@Test
+		fun `lenient threshold accepts poor accuracy`() {
+			val lenientProcessor = AltitudeProcessor(verticalAccuracyThresholdM = 50f)
+			val context = RuntimeEnvironment.getApplication()
+
+			val location = createLocation(altitude = 500.0, verticalAccuracy = 40f)
+			lenientProcessor.process(context, location).shouldNotBeNull()
+		}
+	}
+
+	@Nested
 	@DisplayName("reset")
 	inner class Reset {
 		@Test

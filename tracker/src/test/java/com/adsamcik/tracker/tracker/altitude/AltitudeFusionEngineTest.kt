@@ -166,5 +166,79 @@ class AltitudeFusionEngineTest {
 			engine.isCalibrated shouldBe false
 			engine.currentAltitude.shouldBeNull()
 		}
+
+		@Test
+		fun `calibrate with extreme altitude above atmosphere is rejected`() {
+			// altitude >= 44330m makes ratio <= 0
+			engine.calibrate(50000.0, 955f, 1000L)
+			engine.isCalibrated shouldBe false
+		}
+
+		@Test
+		fun `verticalVelocity is null before initialization`() {
+			engine.verticalVelocity.shouldBeNull()
+		}
+
+		@Test
+		fun `verticalVelocity available after initialization`() {
+			engine.update(gpsAltitudeMsl = 500.0, baroPressureHpa = null, timeMs = 1000L)
+			engine.verticalVelocity.shouldNotBeNull()
+		}
+
+		@Test
+		fun `legacy 3-param overload produces same result as explicit null accuracy`() {
+			val engine1 = AltitudeFusionEngine()
+			val engine2 = AltitudeFusionEngine()
+
+			// Use the 3-param overload
+			val result1 = engine1.update(
+				gpsAltitudeMsl = 500.0,
+				baroPressureHpa = 955f,
+				timeMs = 1000L
+			)
+			// Use the 4-param version with explicit null accuracy
+			val result2 = engine2.update(
+				gpsAltitudeMsl = 500.0,
+				gpsVerticalAccuracyM = null,
+				baroPressureHpa = 955f,
+				timeMs = 1000L
+			)
+
+			result1.shouldNotBeNull()
+			result2.shouldNotBeNull()
+			result1 shouldBe result2
+		}
+	}
+
+	@Nested
+	@DisplayName("custom parameters")
+	inner class CustomParameters {
+		@Test
+		fun `custom recalibration interval respected`() {
+			val shortInterval = AltitudeFusionEngine(recalibrationIntervalMs = 1000L)
+			shortInterval.calibrate(500.0, 955f, 0L)
+			shortInterval.needsRecalibration(500L) shouldBe false
+			shortInterval.needsRecalibration(1000L) shouldBe true
+		}
+
+		@Test
+		fun `verticalAccuracy influences Kalman weighting`() {
+			// Low accuracy (high noise) → result closer to prior state
+			val engineHigh = AltitudeFusionEngine()
+			engineHigh.update(gpsAltitudeMsl = 500.0, gpsVerticalAccuracyM = 5f, timeMs = 1000L)
+			engineHigh.update(gpsAltitudeMsl = 500.0, gpsVerticalAccuracyM = 5f, timeMs = 2000L)
+			val resultHigh = engineHigh.update(gpsAltitudeMsl = 550.0, gpsVerticalAccuracyM = 50f, timeMs = 3000L)
+
+			// High accuracy (low noise) → result closer to new measurement
+			val engineLow = AltitudeFusionEngine()
+			engineLow.update(gpsAltitudeMsl = 500.0, gpsVerticalAccuracyM = 5f, timeMs = 1000L)
+			engineLow.update(gpsAltitudeMsl = 500.0, gpsVerticalAccuracyM = 5f, timeMs = 2000L)
+			val resultLow = engineLow.update(gpsAltitudeMsl = 550.0, gpsVerticalAccuracyM = 2f, timeMs = 3000L)
+
+			resultHigh.shouldNotBeNull()
+			resultLow.shouldNotBeNull()
+			// Low noise result should be closer to 550
+			abs(resultLow - 550.0) shouldBeLessThan abs(resultHigh - 550.0)
+		}
 	}
 }
