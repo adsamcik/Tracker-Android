@@ -817,3 +817,16 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
 	}
 }
 
+/**
+ * Migration 18 → 19: Add raw_gps_alt_m column to location_sample.
+ *
+ * Preserves the original GPS altitude (before geoid correction and Kalman fusion)
+ * alongside the processed altitude for diagnostics and potential re-processing.
+ */
+val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL("ALTER TABLE location_sample ADD COLUMN raw_gps_alt_m REAL")
+		android.util.Log.i("AppDatabase", "Migration 18->19: Added raw_gps_alt_m column to location_sample")
+	}
+}
+

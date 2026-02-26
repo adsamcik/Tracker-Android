@@ -192,12 +192,5 @@ internal class AltitudeFusionEngine(
 
 		/** Inverse exponent for altitude → pressure back-calculation. */
 		private const val BAROMETRIC_EXPONENT = 1.0 / BAROMETRIC_INV_EXPONENT
-
-		/**
-		 * Default complementary filter weight (kept for reference/configuration).
-		 * With Kalman filter this is no longer used, but the constant is retained
-		 * for backward compatibility with consumers that reference it.
-		 */
-		const val DEFAULT_ALPHA = 0.98
 	}
 }

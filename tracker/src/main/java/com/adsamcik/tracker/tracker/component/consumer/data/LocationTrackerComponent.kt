@@ -10,6 +10,7 @@ import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
 import com.adsamcik.tracker.tracker.component.producer.PressureReading
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import kotlin.math.abs
 
 internal class LocationTrackerComponent : DataTrackerComponent {
@@ -20,6 +21,13 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 	private var altitudeProcessor: AltitudeProcessor? = null
 	private var context: Context? = null
 
+	/**
+	 * Raw GPS altitude (before fusion) from the most recent location update.
+	 * Null if the location had no altitude or the component is not enabled.
+	 */
+	var lastRawGpsAltitudeM: Double? = null
+		private set
+
 	override suspend fun onEnable(context: Context) {
 		this.context = context.applicationContext
 		altitudeProcessor = AltitudeProcessor()
@@ -29,6 +37,7 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 		altitudeProcessor?.reset()
 		altitudeProcessor = null
 		this.context = null
+		lastRawGpsAltitudeM = null
 	}
 
 
@@ -57,6 +66,9 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 
 		val location = locationResult.lastLocation
 
+		// Capture raw GPS altitude before any processing
+		lastRawGpsAltitudeM = if (location.hasAltitude()) location.altitude else null
+
 		// Apply altitude processing pipeline (geoid correction + accuracy gating + Kalman fusion)
 		val ctx = context
 		val processor = altitudeProcessor
@@ -74,11 +86,25 @@ internal class LocationTrackerComponent : DataTrackerComponent {
 			}
 		}
 
+		// Store raw GPS altitude in tempData for downstream consumers (e.g., RawLocationWriter)
+		if (tempData is MutableCollectionTempData) {
+			val rawAlt = lastRawGpsAltitudeM
+			if (rawAlt != null) {
+				tempData.set(RAW_GPS_ALTITUDE_KEY, rawAlt)
+			}
+		}
+
 		collectionData.setLocation(location)
 	}
 
 	companion object {
 		private const val MAX_ALLOWED_DIFFERENCE_TO_COMPUTED = 0.2f
+
+		/**
+		 * Key for storing raw GPS altitude in CollectionTempData.
+		 * Used by RawLocationWriter to persist the unprocessed altitude.
+		 */
+		const val RAW_GPS_ALTITUDE_KEY = "raw_gps_altitude"
 	}
 }
 

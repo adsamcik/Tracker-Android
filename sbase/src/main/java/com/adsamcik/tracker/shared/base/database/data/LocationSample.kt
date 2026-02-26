@@ -48,11 +48,20 @@ data class LocationSample(
 
 	/**
 	 * Altitude in meters above Mean Sea Level (MSL).
-	 * Corrected via geoid model when available, otherwise raw ellipsoid altitude.
+	 * This is the best available altitude: fused (GPS+barometer via Kalman filter)
+	 * when barometer data is available, otherwise geoid-corrected GPS altitude.
 	 * Null if unavailable or failed vertical accuracy gating.
 	 */
 	@ColumnInfo(name = "alt_m")
 	val altitudeM: Float?,
+
+	/**
+	 * Raw GPS altitude in meters above the WGS-84 ellipsoid, before any fusion
+	 * or correction. Preserved for diagnostics and re-processing.
+	 * Null if GPS altitude was unavailable at capture time.
+	 */
+	@ColumnInfo(name = "raw_gps_alt_m")
+	val rawGpsAltitudeM: Float?,
 
 	/**
 	 * Horizontal accuracy radius in meters (68% confidence). Null if unavailable.

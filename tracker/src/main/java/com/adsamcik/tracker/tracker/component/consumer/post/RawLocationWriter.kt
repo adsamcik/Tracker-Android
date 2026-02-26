@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import kotlinx.coroutines.CoroutineScope
@@ -90,12 +91,16 @@ internal class RawLocationWriter : PostTrackerComponent {
 			else -> MotionState.UNKNOWN
 		}
 
+		// Raw GPS altitude (before fusion) from LocationTrackerComponent
+		val rawGpsAlt = tempData.tryGet<Double>(LocationTrackerComponent.RAW_GPS_ALTITUDE_KEY)
+
 		val sample = LocationSample(
 			timeMs = location.time,
 			elapsedRealtimeNanos = 0L, // Platform limitation: android.location.Location not accessible in current data flow
 			latE7 = latE7,
 			lonE7 = lonE7,
 			altitudeM = location.altitude?.toFloat(),
+			rawGpsAltitudeM = rawGpsAlt?.toFloat(),
 			hAccM = location.horizontalAccuracy,
 			vAccM = location.verticalAccuracy,
 			speedMps = location.speed,
