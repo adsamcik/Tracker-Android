@@ -22,14 +22,14 @@ val LocalReducedMotion = staticCompositionLocalOf { false }
 /**
  * Unified Ridgeline app theme.
  *
- * - Android 12+ (S): system dynamic colors (Monet) when [useDynamicColor] is true.
- * - Pre-Android 12: Ridgeline Canopy Green palette.
+ * - Default: Ridgeline Canopy Green palette (#1B6B3A seed).
+ * - Android 12+ (S): opt-in to system dynamic colors (Monet) via [useDynamicColor].
  *
  * Provides [LocalReducedMotion].
  */
 @Composable
 fun AppTheme(
-    useDynamicColor: Boolean = true,
+    useDynamicColor: Boolean = false,
     darkTheme: Boolean = isSystemInDarkTheme(),
     reducedMotion: Boolean = false,
     content: @Composable () -> Unit,
