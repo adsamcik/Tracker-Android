@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.api
 
-import android.app.Application
 import android.content.Context
 import androidx.annotation.MainThread
 import com.adsamcik.tracker.activity.ActivityChangeRequestCallback
@@ -23,9 +22,9 @@ import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.powerManager
-import com.adsamcik.tracker.shared.preferences.Preferences
-import com.adsamcik.tracker.shared.preferences.PreferencesAssist
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +43,7 @@ import kotlinx.coroutines.flow.onEach
 interface BackgroundTrackingApiEntryPoint {
 	fun lockManager(): LockManager
 	fun trackerServiceController(): TrackerServiceController
+	fun trackingParamsRepository(): TrackingParamsRepository
 }
 
 /**
@@ -55,13 +55,32 @@ object BackgroundTrackingApi {
 		private set
 
 	private var preferenceScope: CoroutineScope? = null
-	private var trackingActivityJob: Job? = null
-	private var transitionPreferenceJob: Job? = null
+	private var trackingParamsJob: Job? = null
+	private var disabledRechargeJob: Job? = null
+	private var activityFreqJob: Job? = null
 
 	// Minimum confidence threshold for activity recognition
 	// Future: Make configurable via settings (requires UI + preference storage)
 	private const val REQUIRED_CONFIDENCE = 75
+	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
 	private var appContext: Context? = null
+
+	/** Cached tracking parameters from DataStore. Updated via Flow observation. */
+	@Volatile
+	internal var cachedParams = TrackingParamsState()
+		private set
+
+	/** Cached disabled-until-recharge flag. Updated via Flow observation. */
+	@Volatile
+	internal var disabledUntilRecharge = false
+		private set
+
+	/** Cached activity recognition polling interval in seconds. */
+	@Volatile
+	private var activityFreqSeconds = DEFAULT_ACTIVITY_FREQ_SECONDS
+
+	/** Whether the first TrackingParams emission has been processed. */
+	private var paramsInitialized = false
 
 	// Activity change callback for automatic tracking control
 	// Future: Expose callback configuration in advanced settings
@@ -70,7 +89,7 @@ object BackgroundTrackingApi {
 			if (TrackerServiceApi.isActive(context)) {
 				val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
 				if (!requireNotNull(sessionInfo).isInitiatedByUser &&
-					!canContinueBackgroundTracking(context, activity.groupedActivity)
+					!canContinueBackgroundTracking(activity.groupedActivity)
 				) {
 					TrackerServiceApi.stopService(context)
 				}
@@ -88,7 +107,7 @@ object BackgroundTrackingApi {
 		if (TrackerServiceApi.isActive(context)) {
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
 			if (!requireNotNull(sessionInfo).isInitiatedByUser &&
-				!canContinueBackgroundTracking(context, activity.activity.groupedActivity)
+				!canContinueBackgroundTracking(activity.activity.groupedActivity)
 			) {
 				TrackerServiceApi.stopService(context)
 			}
@@ -101,7 +120,6 @@ object BackgroundTrackingApi {
 		}
 	}
 
-	@Suppress("DEPRECATION") // TODO: Preference Migration - hasAnythingToTrack uses sync access. Cache at init and observe via Flow.
 	private fun canTrackerServiceBeStarted(context: Context): Boolean {
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
@@ -109,7 +127,7 @@ object BackgroundTrackingApi {
 		)
 		return !entryPoint.lockManager().isLocked &&
 			!context.powerManager.isPowerSaveMode &&
-			PreferencesAssist.hasAnythingToTrack(context)
+			hasAnythingToTrack(cachedParams)
 	}
 
 	/**
@@ -118,38 +136,18 @@ object BackgroundTrackingApi {
 	 * @param groupedActivity evaluated activity
 	 * @return true if background tracking can be activated
 	 */
-	// TODO: Preference Migration - This function uses deprecated sync preference access.
-	//  Complex case: Called from activity callbacks which are not suspend.
-	//  Options:
-	//  1) Cache preference values and observe changes via Flow in initialize()
-	//  2) Use runBlocking (not recommended on main thread)
-	//  3) Refactor callback architecture to support suspend
-	@Suppress("DEPRECATION")
 	private fun canBackgroundTrack(context: Context, groupedActivity: GroupedActivity): Boolean {
-		val preferences = Preferences.getPref(context)
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
 			BackgroundTrackingApiEntryPoint::class.java
 		)
 		val isTrackerRunning = entryPoint.trackerServiceController().isServiceRunning
-		if (groupedActivity.isStillOrUnknown ||
-			isTrackerRunning ||
-			preferences.getBooleanRes(
-				R.string.settings_disabled_recharge_key,
-				R.string.settings_disabled_recharge_default
-			)
-		) {
-			return false
-		}
-
-		val preference = Preferences.getPref(context)
-			.getIntResString(
-				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
-			)
-		val prefActivity = GroupedActivity.values()[preference]
-		return prefActivity != GroupedActivity.STILL &&
-				(prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
+		return canBackgroundTrackWithParams(
+			groupedActivity = groupedActivity,
+			isTrackerRunning = isTrackerRunning,
+			disabledUntilRecharge = disabledUntilRecharge,
+			autoTrackingMode = cachedParams.autoTrackingMode,
+		)
 	}
 
 	/**
@@ -159,30 +157,12 @@ object BackgroundTrackingApi {
 	 * @return true if background tracking can continue running
 	 */
 	private fun canContinueBackgroundTracking(
-		context: Context,
-		groupedActivity: GroupedActivity
-	): Boolean {
-		if (groupedActivity == GroupedActivity.STILL) return false
+		groupedActivity: GroupedActivity,
+	): Boolean = canContinueWithParams(groupedActivity, cachedParams.autoTrackingMode)
 
-		val preference = getBackgroundTrackingActivityRequirement(context)
-		val prefActivity = GroupedActivity.values()[preference]
-		return prefActivity == GroupedActivity.IN_VEHICLE ||
-				(prefActivity == GroupedActivity.ON_FOOT &&
-						(groupedActivity == GroupedActivity.ON_FOOT || groupedActivity == GroupedActivity.UNKNOWN))
-	}
-
-	// TODO: Preference Migration - Uses deprecated sync preference access.
-	//  Should cache values and observe changes via Flow initialized in initialize().
-	@Suppress("DEPRECATION")
-	private fun getBackgroundTrackingActivityRequirement(context: Context) =
-		Preferences.getPref(context).getIntResString(
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
-		)
-
-	private fun buildTransitions(context: Context): List<ActivityTransitionData> {
+	private fun buildTransitions(): List<ActivityTransitionData> {
 		val transitions = mutableListOf<ActivityTransitionData>()
-		val requiredActivityId = getBackgroundTrackingActivityRequirement(context)
+		val requiredActivityId = cachedParams.autoTrackingMode
 
 		if (requiredActivityId >= GroupedActivity.IN_VEHICLE.ordinal) {
 			transitions.add(
@@ -220,50 +200,32 @@ object BackgroundTrackingApi {
 		return transitions
 	}
 
-	private fun getTransitions(context: Context): ActivityTransitionRequestData {
-		val transitions = buildTransitions(context)
+	private fun getTransitions(): ActivityTransitionRequestData {
+		val transitions = buildTransitions()
 		return ActivityTransitionRequestData(transitions, transitionCallback)
 	}
 
-	// TODO: Preference Migration - Uses deprecated sync preference access.
-	//  Should cache values and observe changes via Flow initialized in initialize().
-	@Suppress("DEPRECATION")
-	private fun getActivityRequest(context: Context): ActivityChangeRequestData {
-		val interval = Preferences.getPref(context)
-			.getIntResString(
-				com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
-				com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
-			)
-		return ActivityChangeRequestData(interval, callback)
+	private fun getActivityRequest(): ActivityChangeRequestData {
+		return ActivityChangeRequestData(activityFreqSeconds, callback)
 	}
 
 	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
 		assertTrue(isActive)
 
 		val requestData = if (useTransitionApi) {
-			ActivityRequestData(this::class, transitionData = getTransitions(context))
+			ActivityRequestData(this::class, transitionData = getTransitions())
 		} else {
-			ActivityRequestData(this::class, changeData = getActivityRequest(context))
+			ActivityRequestData(this::class, changeData = getActivityRequest())
 		}
 
 		ActivityRequestManager.requestActivity(context, requestData)
 		ActivityWatcherService.poke(context)
 	}
 
-	// TODO: Preference Migration - Uses deprecated sync preference access.
-	//  Since initialize() sets up Flow observation, consider caching the initial value
-	//  here and letting the Flow handle subsequent updates.
-	@Suppress("DEPRECATION")
 	private fun enable(context: Context) {
 		assertFalse(isActive)
 		isActive = true
-
-		val useTransitionApi = Preferences.getPref(context)
-			.getBooleanRes(
-				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default
-			)
-		reinitializeRequest(context, useTransitionApi)
+		reinitializeRequest(context, cachedParams.transitionDetectionEnabled)
 	}
 
 	private fun disable(context: Context) {
@@ -284,43 +246,45 @@ object BackgroundTrackingApi {
 
 		appContext = context.applicationContext
 		val ctx = requireNotNull(appContext)
-		val prefs = Preferences.getPref(ctx)
 
-		// Create a new scope for preference observation
+		val entryPoint = EntryPointAccessors.fromApplication(
+			ctx,
+			BackgroundTrackingApiEntryPoint::class.java
+		)
+
 		val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 		preferenceScope = scope
 
-		// TODO: Preference Migration - These initial sync reads are deprecated.
-		//  Since Flows emit immediately with current values, consider relying solely on
-		//  the Flow observers instead of these initial sync reads. The handlers would
-		//  need to handle the initial emission properly.
-		@Suppress("DEPRECATION")
-		handleTrackingActivityPreferenceChange(
-			prefs.getIntResString(
-				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
-			)
-		)
-		@Suppress("DEPRECATION")
-		handleTransitionPreferenceChange(
-			prefs.getBooleanRes(
-				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
-				com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default
-			)
-		)
-
-		trackingActivityJob = PreferenceFlows.intFromString(
-			ctx,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_activity_default
-		).onEach { handleTrackingActivityPreferenceChange(it) }
+		trackingParamsJob = entryPoint.trackingParamsRepository().data
+			.onEach { params ->
+				val previousParams = cachedParams
+				cachedParams = params
+				if (!paramsInitialized ||
+					params.autoTrackingMode != previousParams.autoTrackingMode
+				) {
+					handleTrackingActivityPreferenceChange(params.autoTrackingMode)
+				}
+				if (!paramsInitialized ||
+					params.transitionDetectionEnabled != previousParams.transitionDetectionEnabled
+				) {
+					handleTransitionPreferenceChange(params.transitionDetectionEnabled)
+				}
+				paramsInitialized = true
+			}
 			.launchIn(scope)
 
-		transitionPreferenceJob = PreferenceFlows.boolean(
+		disabledRechargeJob = PreferenceFlows.boolean(
 			ctx,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_auto_tracking_transition_default
-		).onEach { handleTransitionPreferenceChange(it) }
+			R.string.settings_disabled_recharge_key,
+			R.string.settings_disabled_recharge_default
+		).onEach { disabledUntilRecharge = it }
+			.launchIn(scope)
+
+		activityFreqJob = PreferenceFlows.intFromString(
+			ctx,
+			com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
+			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
+		).onEach { activityFreqSeconds = it }
 			.launchIn(scope)
 	}
 
@@ -352,13 +316,50 @@ object BackgroundTrackingApi {
 			disable(context)
 		}
 
-		trackingActivityJob?.cancel()
-		trackingActivityJob = null
-		transitionPreferenceJob?.cancel()
-		transitionPreferenceJob = null
+		trackingParamsJob?.cancel()
+		trackingParamsJob = null
+		disabledRechargeJob?.cancel()
+		disabledRechargeJob = null
+		activityFreqJob?.cancel()
+		activityFreqJob = null
 		preferenceScope?.cancel()
 		preferenceScope = null
 		appContext = null
+		cachedParams = TrackingParamsState()
+		disabledUntilRecharge = false
+		activityFreqSeconds = DEFAULT_ACTIVITY_FREQ_SECONDS
+		paramsInitialized = false
 	}
 }
 
+/** Pure logic: checks if at least one trackable data source is enabled. */
+internal fun hasAnythingToTrack(params: TrackingParamsState): Boolean =
+	params.locationEnabled || params.cellEnabled ||
+		params.wifiLocationCountEnabled || params.wifiNetworkEnabled
+
+/** Pure logic: checks if background tracking can be activated for the given activity and preferences. */
+internal fun canBackgroundTrackWithParams(
+	groupedActivity: GroupedActivity,
+	isTrackerRunning: Boolean,
+	disabledUntilRecharge: Boolean,
+	autoTrackingMode: Int,
+): Boolean {
+	if (groupedActivity.isStillOrUnknown || isTrackerRunning || disabledUntilRecharge) {
+		return false
+	}
+	val prefActivity = GroupedActivity.values()[autoTrackingMode]
+	return prefActivity != GroupedActivity.STILL &&
+		(prefActivity == groupedActivity || prefActivity.ordinal > groupedActivity.ordinal)
+}
+
+/** Pure logic: checks if background tracking should continue for the given activity. */
+internal fun canContinueWithParams(
+	groupedActivity: GroupedActivity,
+	autoTrackingMode: Int,
+): Boolean {
+	if (groupedActivity == GroupedActivity.STILL) return false
+	val prefActivity = GroupedActivity.values()[autoTrackingMode]
+	return prefActivity == GroupedActivity.IN_VEHICLE ||
+		(prefActivity == GroupedActivity.ON_FOOT &&
+			(groupedActivity == GroupedActivity.ON_FOOT || groupedActivity == GroupedActivity.UNKNOWN))
+}

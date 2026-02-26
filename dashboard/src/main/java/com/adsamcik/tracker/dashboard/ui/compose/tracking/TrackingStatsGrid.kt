@@ -130,8 +130,8 @@ internal fun TrackingStatsGrid(
 			if (currentActivity != null) {
 				val activityName = currentActivity.getGroupedActivityName(context)
 				val activityColor = when (currentActivity.groupedActivity) {
-					GroupedActivity.ON_FOOT -> AppColors.ActivityWalk
-					GroupedActivity.IN_VEHICLE -> AppColors.ActivityRide
+					GroupedActivity.ON_FOOT -> AppColors.Adaptive.ActivityWalk
+					GroupedActivity.IN_VEHICLE -> AppColors.Adaptive.ActivityRide
 					else -> MaterialTheme.colorScheme.onSurface
 				}
 				CompactAnimatedStatItem(
