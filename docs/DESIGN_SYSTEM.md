@@ -100,15 +100,18 @@ Not standard M3 tokens. Provided via `CompositionLocal` or direct reference.
 
 ### 2.5 Contextual Colors
 
-Mode-independent unless noted.
+Mode-adaptive. Light / Dark values listed.
 
-| Token | Value | On-Color | Usage |
-|-------|-------|----------|-------|
-| `trackActive` | `#FF3B30` | `#FFFFFF` | Live recording pulse, active indicator |
-| `trackHistory` | `#00829B` | `#FFFFFF` | Past track lines on map |
-| `activityWalk` | `#00E5FF` | `#001F26` | Walking activity chip/badge |
-| `activityRun` | `#FF9100` | `#2A1700` | Running activity chip/badge |
-| `activityRide` | `#2979FF` | `#FFFFFF` | Cycling activity chip/badge |
+| Token | Light | Dark | On-Light | On-Dark | Usage |
+|-------|-------|------|----------|---------|-------|
+| `trackActive` | `#FF3B30` | `#FF3B30` | `#FFFFFF` | `#FFFFFF` | Live recording pulse, active indicator |
+| `trackHistory` | `#00829B` | `#00829B` | `#FFFFFF` | `#FFFFFF` | Past track lines on map |
+| `activityWalk` | `#007051` | `#52C5A6` | `#FFFFFF` | `#002418` | Walking activity chip/badge (Okabe-Ito H=164°) |
+| `activityRun` | `#A34800` | `#EF8C3D` | `#FFFFFF` | `#2E1500` | Running activity chip/badge (Okabe-Ito H=26°) |
+| `activityRide` | `#00659E` | `#5AADDC` | `#FFFFFF` | `#001D2E` | Cycling activity chip/badge (Okabe-Ito H=202°) |
+| `activityVehicle` | `#97396D` | `#D490B6` | `#FFFFFF` | `#2A0A1E` | Vehicle activity chip/badge (Okabe-Ito H=327°) |
+| `activityStill` | `#546E7A` | `#90A4AE` | `#FFFFFF` | `#0C1F28` | Stationary activity indicator |
+| `activityUnknown` | `#616161` | `#9E9E9E` | `#FFFFFF` | `#1A1A1A` | Unknown activity fallback |
 
 ### 2.6 Glass & Translucency Tokens
 
