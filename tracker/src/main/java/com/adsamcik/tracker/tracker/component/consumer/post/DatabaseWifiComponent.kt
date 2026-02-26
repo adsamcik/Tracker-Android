@@ -5,7 +5,6 @@ import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.CoordinateProvenance
@@ -30,15 +29,16 @@ import com.adsamcik.tracker.tracker.component.consumer.post.wifi.WifiLocationEst
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
 
-internal class DatabaseWifiComponent : PostTrackerComponent {
+internal class DatabaseWifiComponent(
+	private val wifiDataDao: WifiDataDao,
+	private val wifiObservationDao: WifiObservationDao,
+) : PostTrackerComponent {
 	companion object {
 		private const val TAG = "DatabaseWifiComponent"
 	}
 
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
-	private var wifiDao: WifiDataDao? = null
-	private var wifiObservationDao: WifiObservationDao? = null // New: sessionless table
 	private var scope: CoroutineScope? = null
 	private var estimator: WifiLocationEstimator? = null
 	private var errorCollector: PersistenceErrorCollector? = null
@@ -63,7 +63,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 			if (updates.isNotEmpty()) {
 				scope?.launch(Dispatchers.IO) {
 					try {
-						requireNotNull(wifiDao).upsert(updates.map(::toEntity))
+						wifiDataDao.upsert(updates.map(::toEntity))
 					} catch (e: Throwable) {
 						Log.e(TAG, "Failed to upsert wifi data: ${e.message}", e)
 						errorCollector?.reportErrorAsync(
@@ -99,15 +99,10 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		scope?.cancel()
 		scope = null
 		estimator = null
-		wifiDao = null
-		wifiObservationDao = null
 		errorCollector = null
 		this.isEnabled = false
 	}
 
-	// TODO: DI Migration - This PostTrackerComponent is instantiated by TrackerService.
-	//  Future refactor: Accept WifiDao and WifiObservationDao via constructor to enable
-	//  proper testability without Android framework. See Section 16A for DI patterns.
 	override suspend fun onEnable(context: Context) {
 		val isEnabled = Preferences.getPref(context)
 				.fetchBooleanRes(
@@ -117,9 +112,6 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 
 		this.isEnabled = isEnabled
 		if (isEnabled) {
-			val database = AppDatabase.database(context)
-			wifiDao = database.wifiDao()
-			wifiObservationDao = database.wifiObservationDao()
 			scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 			if (enableDualWrite) {
 				estimator = DefaultWifiLocationEstimator()
@@ -132,7 +124,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		if (snapshot.isEmpty()) return
 		withContext(Dispatchers.IO) {
 			try {
-				requireNotNull(wifiDao).upsert(snapshot.map(::toEntity))
+				wifiDataDao.upsert(snapshot.map(::toEntity))
 			} catch (e: Throwable) {
 				Log.e(TAG, "Failed to flush wifi estimator: ${e.message}", e)
 				errorCollector?.reportError(
@@ -168,7 +160,6 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 		networks: List<com.adsamcik.tracker.shared.base.data.WifiInfo>,
 		location: com.adsamcik.tracker.shared.base.data.Location?
 	) {
-		val dao = wifiObservationDao ?: return
 		val now = Time.nowMillis
 		
 		// Convert location to E7 format if available
@@ -192,7 +183,7 @@ internal class DatabaseWifiComponent : PostTrackerComponent {
 						createdAt = now
 					)
 				}
-				dao.insert(observations)
+				wifiObservationDao.insert(observations)
 			} catch (e: Throwable) {
 				Log.e(TAG, "Failed to insert wifi observations: ${e.message}", e)
 				errorCollector?.reportErrorAsync(

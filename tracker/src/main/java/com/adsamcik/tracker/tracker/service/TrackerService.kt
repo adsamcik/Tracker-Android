@@ -46,6 +46,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.PressureSampleWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -108,6 +109,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@Inject
 	lateinit var trackingParamsRepository: TrackingParamsRepository
+
+	@Inject
+	lateinit var appDatabase: AppDatabase
 
 	private var processorPipeline: ProcessorPipeline? = null
 
@@ -317,7 +321,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		dataComponentList.clear()
 		postComponentList.clear()
 
-		sessionComponent = SessionTrackerComponent(isSessionUserInitiated).apply {
+		sessionComponent = SessionTrackerComponent(isSessionUserInitiated, appDatabase.sessionDao()).apply {
 			onEnable(this@TrackerService)
 		}
 
@@ -411,9 +415,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			if (initialTier.isGpsEnabled) {
 				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-				add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
-				add(DatabaseWifiLocationCountComponent())
-				add(RawLocationWriter())
+				add(DatabaseWifiComponent(appDatabase.wifiDao(), appDatabase.wifiObservationDao()).also { it.setErrorCollector(errorCollector) })
+				add(DatabaseWifiLocationCountComponent(appDatabase.wifiLocationCountDao()))
+				add(RawLocationWriter(appDatabase.locationSampleDao()))
 			}
 		}.forEach { it.onEnable(this) }
 
@@ -571,10 +575,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				if (errorCollector != null) {
 					newPostComponents.add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
 					newPostComponents.add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-					newPostComponents.add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
+					newPostComponents.add(DatabaseWifiComponent(appDatabase.wifiDao(), appDatabase.wifiObservationDao()).also { it.setErrorCollector(errorCollector) })
 				}
-				newPostComponents.add(DatabaseWifiLocationCountComponent())
-				newPostComponents.add(RawLocationWriter())
+				newPostComponents.add(DatabaseWifiLocationCountComponent(appDatabase.wifiLocationCountDao()))
+				newPostComponents.add(RawLocationWriter(appDatabase.locationSampleDao()))
 				newPostComponents.forEach { it.onEnable(this@TrackerService) }
 				postComponentList.addAll(newPostComponents)
 

@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -71,6 +72,7 @@ internal class TrackerComponentManager @Inject constructor() {
         isSessionUserInitiated: Boolean,
         initialTier: PolicyTier = PolicyTier.PRECISION,
         controller: TrackerServiceController,
+        appDatabase: AppDatabase,
         onPolicyChanged: suspend (com.adsamcik.tracker.tracker.policy.TrackingPolicy) -> Unit
     ) {
         // Clear existing components
@@ -79,7 +81,7 @@ internal class TrackerComponentManager @Inject constructor() {
         dataComponentList.clear()
         postComponentList.clear()
 
-        mobileSessionComponent = SessionTrackerComponent(isSessionUserInitiated).apply {
+        mobileSessionComponent = SessionTrackerComponent(isSessionUserInitiated, appDatabase.sessionDao()).apply {
             onEnable(context)
         }
 
@@ -135,9 +137,9 @@ internal class TrackerComponentManager @Inject constructor() {
             if (initialTier.isGpsEnabled) {
                 add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
                 add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-                add(DatabaseWifiComponent().also { it.setErrorCollector(errorCollector) })
-                add(DatabaseWifiLocationCountComponent())
-                add(RawLocationWriter())
+                add(DatabaseWifiComponent(appDatabase.wifiDao(), appDatabase.wifiObservationDao()).also { it.setErrorCollector(errorCollector) })
+                add(DatabaseWifiLocationCountComponent(appDatabase.wifiLocationCountDao()))
+                add(RawLocationWriter(appDatabase.locationSampleDao()))
             }
         }.forEach { it.onEnable(context) }
     }

@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.LocationWifiCountDao
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -19,14 +18,15 @@ import kotlinx.coroutines.launch
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
 
-internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
+internal class DatabaseWifiLocationCountComponent(
+	private val locationWifiCountDao: LocationWifiCountDao,
+) : PostTrackerComponent {
 	companion object {
 		private const val TAG = "DatabaseWifiLocationCountComponent"
 	}
 
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
-	private var wifiDao: LocationWifiCountDao? = null
 	private var scope: CoroutineScope? = null
 
 	private var isEnabled = false
@@ -50,19 +50,15 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 		)
 
 		scope?.launch(Dispatchers.IO) {
-			try { requireNotNull(wifiDao).insert(count) } catch (e: Throwable) { Log.e(TAG, "Failed to insert wifi location count: ${e.message}", e) }
+			try { locationWifiCountDao.insert(count) } catch (e: Throwable) { Log.e(TAG, "Failed to insert wifi location count: ${e.message}", e) }
 		}
 	}
 
 	override suspend fun onDisable(context: Context) {
 		scope?.cancel(); scope = null
-		wifiDao = null
 		this.isEnabled = false
 	}
 
-	// TODO: DI Migration - This PostTrackerComponent is instantiated by TrackerService.
-	//  Future refactor: Accept WifiLocationCountDao via constructor for testability.
-	//  See Section 16A of copilot-instructions.md for DI composition patterns.
 	override suspend fun onEnable(context: Context) {
 		val isEnabled = Preferences.getPref(context)
 				.fetchBooleanRes(
@@ -72,7 +68,6 @@ internal class DatabaseWifiLocationCountComponent : PostTrackerComponent {
 
 		this.isEnabled = isEnabled
 		if (isEnabled) {
-			wifiDao = AppDatabase.database(context).wifiLocationCountDao()
 			scope = CoroutineScope(Job() + Dispatchers.Default)
 		}
 	}

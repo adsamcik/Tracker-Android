@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.CollectionData
-import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
@@ -26,23 +26,19 @@ import kotlinx.coroutines.withContext
  * - Classifies quality based on horizontal accuracy
  * - Infers motion state from activity
  * - Batches writes (configurable threshold)
- *
- * TODO: DI Migration - This PostTrackerComponent is instantiated by TrackerService.
- *  Future refactor: Accept LocationSampleDao via constructor for testability.
- *  See Section 16A of copilot-instructions.md for DI composition patterns.
  */
-internal class RawLocationWriter : PostTrackerComponent {
+internal class RawLocationWriter(
+	private val locationSampleDao: LocationSampleDao,
+) : PostTrackerComponent {
 	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
 		TrackerComponentRequirement.LOCATION
 	)
 
-	private lateinit var database: AppDatabase
 	private val sampleBuffer = mutableListOf<LocationSample>()
 	private var currentPolicy: String? = null
 	private var scope: CoroutineScope? = null
 
 	override suspend fun onEnable(context: Context) {
-		database = AppDatabase.database(context)
 		sampleBuffer.clear()
 		scope = CoroutineScope(Job() + Dispatchers.Default)
 	}
@@ -127,7 +123,7 @@ internal class RawLocationWriter : PostTrackerComponent {
 		if (sampleBuffer.isEmpty()) return
 
 		withContext(Dispatchers.IO) {
-			database.locationSampleDao().insert(sampleBuffer.toList())
+			locationSampleDao.insert(sampleBuffer.toList())
 		}
 
 		sampleBuffer.clear()

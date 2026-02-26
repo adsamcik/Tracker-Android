@@ -8,7 +8,6 @@ import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
@@ -28,11 +27,10 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
-// TODO: DI Migration - This component is instantiated by TrackerService without DI framework.
-//  Future refactor: Accept SessionDataDao via constructor and have TrackerService provide it
-//  from a Hilt-injected provider or TrackerScope container. This will improve testability
-//  and align with the north star DI architecture. See Section 16A of copilot-instructions.md.
-internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : DataTrackerComponent,
+internal class SessionTrackerComponent(
+	private val isUserInitiated: Boolean,
+	private val sessionDao: SessionDataDao,
+) : DataTrackerComponent,
 	CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
 
@@ -54,8 +52,6 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1
 	private val preferenceJobs = mutableListOf<Job>()
-
-	private lateinit var sessionDao: SessionDataDao
 
 	override suspend fun onDataUpdated(
 		tempData: CollectionTempData,
@@ -155,8 +151,6 @@ internal class SessionTrackerComponent(private val isUserInitiated: Boolean) : D
 
 	@WorkerThread
 	private fun initializeSession(context: Context) {
-		sessionDao = AppDatabase.database(context).sessionDao()
-
 		val lastSession = sessionDao.getLast(1)
 		val now = Time.nowMillis
 
