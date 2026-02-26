@@ -177,7 +177,7 @@ fun GlassCard(
                 Modifier.border(BorderStroke(1.dp, borderColor), shape)
             } else Modifier
         ),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = shape,
         tonalElevation = RidgelineElevation.Raised.tonal,
