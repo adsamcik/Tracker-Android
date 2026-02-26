@@ -34,7 +34,7 @@ object TrackerTimerManager {
 	private fun getKey(timerComponent: CollectionTriggerComponent) =
 		timerComponent::class.java.simpleName
 
-	internal fun getSelected(context: Context): CollectionTriggerComponent {
+	internal suspend fun getSelected(context: Context): CollectionTriggerComponent {
 		val selectedKey = getSelectedKey(context)
 		return get(selectedKey)
 	}
@@ -52,7 +52,7 @@ object TrackerTimerManager {
 	/**
 	 * Returns true if selected timer needs a location to work.
 	 */
-	fun currentTimerRequiresLocation(context: Context): Boolean {
+	suspend fun currentTimerRequiresLocation(context: Context): Boolean {
 		return timerWithKeyRequiredLocation(getSelectedKey(context))
 	}
 
@@ -74,14 +74,10 @@ object TrackerTimerManager {
 	 * @param context Context
 	 * @return Selected timer key or default
 	 */
-	// TODO: Preference Migration - This sync access should be converted to suspend or Flow-based.
-	//  Options: 1) Make this a suspend function, 2) Cache the value and observe changes via Flow,
-	//  3) Pass the key as parameter from callers who already have it in a coroutine context.
-	@Suppress("DEPRECATION")
-	fun getSelectedKey(context: Context): String {
+	suspend fun getSelectedKey(context: Context): String {
 		return Preferences
 			.getPref(context)
-			.getStringResSync(com.adsamcik.tracker.shared.preferences.R.string.settings_tracker_timer_key)
+			.fetchStringRes(com.adsamcik.tracker.shared.preferences.R.string.settings_tracker_timer_key)
 			?: getKey(default)
 	}
 
@@ -91,7 +87,7 @@ object TrackerTimerManager {
 	 * @param context Context
 	 * @param callback Result callback
 	 */
-	fun checkTimerPermissions(
+	suspend fun checkTimerPermissions(
 		context: Context,
 		callback: PermissionResultCallback
 	) {

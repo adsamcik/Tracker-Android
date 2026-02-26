@@ -44,7 +44,9 @@ import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponen
 import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.PressureSampleWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
@@ -71,6 +73,7 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -102,6 +105,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@Inject
 	lateinit var domainEventRepository: DomainEventRepository
+
+	@Inject
+	lateinit var trackingParamsRepository: TrackingParamsRepository
 
 	private var processorPipeline: ProcessorPipeline? = null
 
@@ -388,14 +394,20 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		postComponentList.apply {
 			add(notificationComponent)
 			add(PressureSampleWriter())
-			add(SkiTrackingComponent().also { skiComponent ->
-				skiComponent.setEscalationEngine(escalationEngine)
-				launch {
-					skiComponent.skiState.collect { skiState ->
-						controller.updateSkiState(skiState)
+			val skiEnabled = trackingParamsRepository.data.first().skiDetectionEnabled
+			if (skiEnabled) {
+				val segmentWriter = SkiSegmentWriter()
+				add(segmentWriter)
+				add(SkiTrackingComponent().also { skiComponent ->
+					skiComponent.setEscalationEngine(escalationEngine)
+					skiComponent.setSecondaryListener(segmentWriter)
+					launch {
+						skiComponent.skiState.collect { skiState ->
+							controller.updateSkiState(skiState)
+						}
 					}
-				}
-			})
+				})
+			}
 			if (initialTier.isGpsEnabled) {
 				add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
 				add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
@@ -440,10 +452,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		controller.updatePolicyTier(initialTier)
 
 		// Select timer based on tier: AMBIENT uses lightweight handler, ACTIVE+ uses GPS-based timer
-		timerComponent = if (initialTier == PolicyTier.AMBIENT) {
-			AmbientCollectionTrigger()
-		} else {
-			TrackerTimerManager.getSelected(this)
+		// Timer selection for non-ambient tiers is deferred to the launch block below
+		// because getSelected is now a suspend function.
+		if (initialTier == PolicyTier.AMBIENT) {
+			timerComponent = AmbientCollectionTrigger()
 		}
 
 		controller.updateServiceRunning(true)
@@ -463,6 +475,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		ActivityWatcherService.poke(this, trackerRunning = true)
 
 		launch {
+			if (initialTier != PolicyTier.AMBIENT) {
+				timerComponent = TrackerTimerManager.getSelected(this@TrackerService)
+			}
+
 			val componentInitialization = async(Dispatchers.Main) {
 				initializeComponents(
 					isSessionUserInitiated = isUserInitiated,
