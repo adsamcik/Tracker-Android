@@ -86,6 +86,7 @@ dependencies {
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.junit5.robolectric)
 }

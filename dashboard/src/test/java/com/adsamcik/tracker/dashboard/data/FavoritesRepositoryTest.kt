@@ -11,7 +11,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import tech.apter.junit5.jupiter.robolectric.RobolectricExtension
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
 import org.junit.jupiter.api.extension.ExtendWith
 
 @ExtendWith(RobolectricExtension::class)
@@ -20,9 +20,11 @@ class FavoritesRepositoryTest {
 	private lateinit var repo: FavoritesRepository
 
 	@BeforeEach
-	fun setup() {
+	fun setup() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Application>()
 		repo = FavoritesRepository(context)
+		// Reset DataStore to known state for test isolation
+		repo.setFavorites(repo.defaultFavorites)
 	}
 
 	@Nested
