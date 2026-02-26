@@ -192,7 +192,61 @@ Beyond color token swaps, dark mode applies these adjustments:
 *   **Rationale:** Precision-instrument feel for the dashboard "cockpit." Fixed-width digits prevent layout shift during live tracking.
 *   **Compose:** `MetricText` uses `fontFamily = FontFamily.Monospace`. All other text uses `FontFamily.Default`.
 
-## 7. Shape Scale (5-Level Diagonal)
+## 7. Spacing System
+
+### 7.1 Scale (4dp Base)
+
+| Token | Value | Primary Use |
+|-------|-------|-------------|
+| `SpaceNone` | 0dp | Explicit zero-spacing |
+| `SpaceXxs` | 2dp | Divider margins, icon-to-badge offset |
+| `SpaceXs` | 4dp | Chip internals, badge padding, inline tags |
+| `SpaceSm` | 8dp | Icon-to-text in row, list `spacedBy`, within-card gaps |
+| `SpaceMd` | 12dp | Section header icon gaps, card internal column spacing |
+| `SpaceLg` | 16dp | **Page gutter**, card padding, between-item divider padding |
+| `SpaceXl` | 20dp | Hero card padding, section vertical grouping |
+| `SpaceXxl` | 24dp | Section break (above headers), button horizontal padding |
+| `SpaceXxxl` | 32dp | Major section gaps, dialog padding |
+| `SpaceXxxxl` | 48dp | Touch target minimum, between major screen regions |
+
+### 7.2 Compose Constants
+
+```kotlin
+object RidgelineSpacing {
+    val None   =  0.dp
+    val Xxs    =  2.dp
+    val Xs     =  4.dp
+    val Sm     =  8.dp
+    val Md     = 12.dp
+    val Lg     = 16.dp
+    val Xl     = 20.dp
+    val Xxl    = 24.dp
+    val Xxxl   = 32.dp
+    val Xxxxl  = 48.dp
+}
+```
+
+### 7.3 Page Gutters
+
+*   **Horizontal gutter:** 16dp (`Lg`) — all orientations, all compact-width devices.
+*   **Full-bleed exceptions:** Map, bottom sheet container, TopAppBar background, floating nav bar.
+*   **Bottom clearance:** `AppDimensions.FloatingNavBarClearance = 120.dp` for floating nav bar.
+*   **Scaffold pattern:** `contentWindowInsets = WindowInsets.safeDrawing` handles system bar insets.
+
+### 7.4 Semantic Pairing Rules
+
+| Relationship | Token |
+|-------------|-------|
+| Between siblings in tight group | `Xs` (4dp) |
+| Between elements in a component | `Sm` (8dp) |
+| Between sub-sections in component | `Md` (12dp) |
+| Component internal padding | `Lg` (16dp) |
+| Component internal padding (hero) | `Xl` (20dp) |
+| Between sections / above headers | `Xxl` (24dp) |
+| Between major screen regions | `Xxxl` (32dp) |
+| Minimum touch target | `Xxxxl` (48dp) |
+
+## 8. Shape Scale (5-Level Diagonal)
 Asymmetric 3:1 ratio (major corner : minor corner) at all levels. Matches TerrainCardShape DNA.
 
 | Level | Role | Major (TL/BR) | Minor (TR/BL) | Use |
@@ -482,3 +536,49 @@ Four canonical card types. All use the Ridgeline asymmetric shape scale.
 *   **Press:** 0.96 scale spring (SecureSnap). Long-press: tooltip + haptic.
 *   **Horizontal padding:** 24dp from screen edge. Vertical: 24dp from bottom.
 *   **Clearance:** `AppDimensions.FloatingNavBarClearance = 120.dp` for content scroll padding.
+
+## 16. Elevation Strategy
+
+Four functional levels. Tonal-first — shadow supplements but never leads.
+
+| Level | Tonal | Shadow | Name | Components |
+|-------|-------|--------|------|------------|
+| E0 | 0dp | 0dp | Ground | Screen background, full-bleed containers |
+| E1 | 1dp | 1dp | Resting | GlassCard, Trip Card, Quick-Stat Card, list items |
+| E2 | 2dp | 2dp | Lifted | Bottom sheet (peek), expanded panels, settings groups |
+| E3 | 6dp | 6dp | Floating | FAB, floating nav bar, snackbar, active drag item |
+
+*   **Tonal-first:** M3 `surfaceColorAtElevation()` applies `surfaceTint` overlay. Works in both modes.
+*   **Glass border:** 1dp `outlineVariant` border provides edge definition in dark mode where shadows vanish.
+*   **Shadow as supplement:** Match `shadowElevation` to `tonalElevation`. Dark mode users see tonal + border only.
+*   **Rule:** `tonalElevation >= shadowElevation` always. Never shadow-only.
+*   **State:** Pressed → E0 (sinks). Dragged → E3 (lifts). Active tracking → E2 (prominence). Disabled → E0.
+
+## 17. Edge-to-Edge & System Bars
+
+*   **All activities:** `enableEdgeToEdge()` in `onCreate`, before `setContent`.
+*   **Status bar:** Transparent. TopAppBar extends behind it.
+*   **Navigation bar (gesture):** Transparent. Content scrolls behind.
+*   **Navigation bar (3-button):** Transparent + system auto-contrast.
+*   **Scaffold:** `contentWindowInsets = WindowInsets.safeDrawing` handles all insets.
+*   **Map screen exception:** No Scaffold — metric overlays use `windowInsetsPadding(WindowInsets.safeDrawing)` directly.
+*   **Never** hardcode status bar height, use `fitSystemWindows`, or `WindowCompat.setDecorFitsSystemWindows`.
+
+## 18. Large Screen Policy
+
+**Phone-first. No adaptive layouts. No multi-pane. No WindowSizeClass.**
+
+*   Usage context is one-handed while moving. Tablet is secondary.
+*   Content fills width naturally — cards stretch, text reflows.
+*   Map benefits most from larger screens (full bleed).
+*   **Deferred:** If tablet usage grows, first candidate is statistics list-detail split.
+
+## 19. Accessibility Text Scaling (200%)
+
+*   **No `maxFontSize`.** Users who set 200% need 200%.
+*   **Everything scrolls.** All screens use `LazyColumn`/`verticalScroll`. Dialogs add `verticalScroll` if content exceeds ~300dp.
+*   **Metric hero stepping:** `displayLarge` (64sp) → `displaySmall` (44sp) → `headlineLarge` (36sp) floor. Uses `onTextLayout` overflow detection.
+*   **Buttons stretch:** `wrapContentWidth()` — buttons grow with text.
+*   **Nav bar labels:** Hide at large font scales, icon-only with tooltip fallback.
+*   **Touch targets:** ≥ 48dp regardless of font scale.
+*   **Test at:** 100%, 150%, 200%.

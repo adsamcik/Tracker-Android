@@ -22,11 +22,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.isSystemInDarkTheme
 
 // --- DIMENSIONS ---
 object AppDimensions {
     /** Bottom padding to clear the floating navigation bar. */
     val FloatingNavBarClearance = 120.dp
+}
+
+/** Ridgeline spacing scale. 4dp base, semantic token names. */
+object RidgelineSpacing {
+    val None   =  0.dp
+    val Xxs    =  2.dp
+    val Xs     =  4.dp
+    val Sm     =  8.dp
+    val Md     = 12.dp
+    val Lg     = 16.dp
+    val Xl     = 20.dp
+    val Xxl    = 24.dp
+    val Xxxl   = 32.dp
+    val Xxxxl  = 48.dp
 }
 
 // --- COLORS ---
@@ -39,17 +54,45 @@ object AppColors {
     val WhiteMediumEmphasis = Color(0xB3FFFFFF)
     val WhiteLowEmphasis = Color(0x66FFFFFF)
     
-    val ActivityWalk = Color(0xFF00E5FF)
-    val ActivityRun = Color(0xFFFF9100)
-    val ActivityRide = Color(0xFF2979FF)
-    val ActivityVehicle = Color(0xFFAB47BC)
-    val ActivityStill = Color(0xFF78909C)
-    val ActivityUnknown = Color(0xFF9E9E9E)
+    // Activity colors — light mode (Okabe-Ito hues, FINAL Round 13)
+    val ActivityWalkLight = Color(0xFF007051)
+    val ActivityRunLight = Color(0xFFA34800)
+    val ActivityRideLight = Color(0xFF00659E)
+    val ActivityVehicleLight = Color(0xFF97396D)
+    val ActivityStillLight = Color(0xFF546E7A)
+    val ActivityUnknownLight = Color(0xFF616161)
+
+    // Activity colors — dark mode (Okabe-Ito hues, FINAL Round 13)
+    val ActivityWalkDark = Color(0xFF52C5A6)
+    val ActivityRunDark = Color(0xFFEF8C3D)
+    val ActivityRideDark = Color(0xFF5AADDC)
+    val ActivityVehicleDark = Color(0xFFD490B6)
+    val ActivityStillDark = Color(0xFF90A4AE)
+    val ActivityUnknownDark = Color(0xFF9E9E9E)
+
+    // On-colors for activity chip/badge fills
+    val OnActivityLight = Color(0xFFFFFFFF)
+    val OnActivityWalkDark = Color(0xFF002418)
+    val OnActivityRunDark = Color(0xFF2E1500)
+    val OnActivityRideDark = Color(0xFF001D2E)
+    val OnActivityVehicleDark = Color(0xFF2A0A1E)
+    val OnActivityStillDark = Color(0xFF0C1F28)
+    val OnActivityUnknownDark = Color(0xFF1A1A1A)
     
     // Gradients
     val MainGradient = Brush.verticalGradient(
         colors = listOf(DeepVoid, Color(0xFF121212))
     )
+
+    /** Resolves mode-adaptive activity colors. Call from @Composable context. */
+    object Adaptive {
+        val ActivityWalk: Color @Composable get() = if (isSystemInDarkTheme()) ActivityWalkDark else ActivityWalkLight
+        val ActivityRun: Color @Composable get() = if (isSystemInDarkTheme()) ActivityRunDark else ActivityRunLight
+        val ActivityRide: Color @Composable get() = if (isSystemInDarkTheme()) ActivityRideDark else ActivityRideLight
+        val ActivityVehicle: Color @Composable get() = if (isSystemInDarkTheme()) ActivityVehicleDark else ActivityVehicleLight
+        val ActivityStill: Color @Composable get() = if (isSystemInDarkTheme()) ActivityStillDark else ActivityStillLight
+        val ActivityUnknown: Color @Composable get() = if (isSystemInDarkTheme()) ActivityUnknownDark else ActivityUnknownLight
+    }
 }
 
 // --- SHAPES ---
