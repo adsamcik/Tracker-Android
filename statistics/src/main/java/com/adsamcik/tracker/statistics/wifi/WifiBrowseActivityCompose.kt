@@ -44,8 +44,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -313,6 +315,7 @@ private fun WifiFilterDialog(
 		)
 	}
 
+<<<<<<< HEAD
 	AlertDialog(
 		onDismissRequest = onDismiss,
 		containerColor = MaterialTheme.colorScheme.surface,
@@ -369,6 +372,7 @@ private fun WifiFilterDialog(
 					value = count,
 					onValueChange = { count = it },
 					label = stringResource(R.string.wifilist_filter_count),
+					keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
 				)
 			}
 		},
@@ -376,7 +380,12 @@ private fun WifiFilterDialog(
 }
 
 @Composable
-private fun FilterField(value: String, onValueChange: (String) -> Unit, label: String) {
+private fun FilterField(
+	value: String,
+	onValueChange: (String) -> Unit,
+	label: String,
+	keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+) {
 	OutlinedTextField(
 		value = value,
 		onValueChange = onValueChange,
@@ -385,5 +394,7 @@ private fun FilterField(value: String, onValueChange: (String) -> Unit, label: S
 			.fillMaxWidth()
 			.padding(vertical = 4.dp),
 		singleLine = true,
+		keyboardOptions = keyboardOptions,
 	)
+}
 }

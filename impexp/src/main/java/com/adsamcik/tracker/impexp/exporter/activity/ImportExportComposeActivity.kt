@@ -415,6 +415,7 @@ fun ExportScreen(
                         pendingSensitiveAction.value = ExportSensitiveAction.Export
                     },
                     modifier = Modifier.weight(1f),
+                    enabled = fileNameErrorState.value == null,
                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary
@@ -428,6 +429,7 @@ fun ExportScreen(
                         pendingSensitiveAction.value = ExportSensitiveAction.Share
                     },
                     modifier = Modifier.weight(1f),
+                    enabled = fileNameErrorState.value == null,
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary
