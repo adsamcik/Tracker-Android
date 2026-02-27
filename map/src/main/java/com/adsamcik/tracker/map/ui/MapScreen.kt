@@ -523,7 +523,7 @@ fun MapScreen(
                 .padding(start = 16.dp, bottom = bottomPaddingDp + 40.dp),
         )
 
-        // Permission denied banner
+        // Permission denied banner with recovery action
         androidx.compose.animation.AnimatedVisibility(
             visible = !hasLocationPermission && !isPermissionBannerDismissed,
             modifier = Modifier
@@ -555,6 +555,20 @@ fun MapScreen(
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.weight(1f),
                     )
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            val intent = android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.fromParts("package", context.packageName, null)
+                            )
+                            context.startActivity(intent)
+                        }
+                    ) {
+                        Text(
+                            text = stringResource(com.adsamcik.tracker.map.R.string.map_open_settings),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
                     IconButton(onClick = { isPermissionBannerDismissed = true }) {
                         androidx.compose.material3.Icon(
                             imageVector = Icons.Filled.Close,
