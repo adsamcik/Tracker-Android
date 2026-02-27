@@ -595,7 +595,10 @@ private fun DeleteConfirmationDialog(
 		text = { Text(stringResource(R.string.trip_detail_delete_confirm_message)) },
 		confirmButton = {
 			TextButton(onClick = onConfirm) {
-				Text(stringResource(R.string.trip_detail_delete_confirm))
+				Text(
+					stringResource(R.string.trip_detail_delete_confirm),
+					color = MaterialTheme.colorScheme.error
+				)
 			}
 		},
 		dismissButton = {

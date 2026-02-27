@@ -20,7 +20,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -135,10 +134,10 @@ private fun SeasonDots(
 	modifier: Modifier = Modifier,
 ) {
 	val seasonColors = listOf(
-		Color(0xFF4CAF50), // Spring — green
-		Color(0xFFFFC107), // Summer — yellow
-		Color(0xFFFF9800), // Autumn — orange
-		Color(0xFF2196F3), // Winter — blue
+		MaterialTheme.colorScheme.primary,          // Spring
+		MaterialTheme.colorScheme.tertiary,          // Summer
+		MaterialTheme.colorScheme.secondary,         // Autumn
+		MaterialTheme.colorScheme.primaryContainer,  // Winter
 	)
 
 	Row(
