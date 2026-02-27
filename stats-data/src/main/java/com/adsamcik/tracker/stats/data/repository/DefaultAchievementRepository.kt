@@ -26,8 +26,16 @@ class DefaultAchievementRepository @Inject constructor(
 	}
 
 	override fun observeRecent(): Flow<List<AchievementProgressData>> {
-		return observeAll().map { all ->
-			all.filter { it.isUnlocked }.take(10)
+		return achievementProgressDao.getRecentUnlockedFlow().map { entities ->
+			entities.map { entity ->
+				AchievementProgressData(
+					achievementId = entity.achievementId,
+					currentValue = entity.currentValue,
+					targetValue = entity.targetValue,
+					tier = entity.tier.toString(),
+					isUnlocked = entity.unlockedAt != null,
+				)
+			}
 		}
 	}
 }

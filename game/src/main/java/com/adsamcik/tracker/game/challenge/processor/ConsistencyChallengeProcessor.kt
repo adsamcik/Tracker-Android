@@ -35,7 +35,11 @@ class ConsistencyChallengeProcessor @Inject constructor() : ChallengeProcessor {
 	 * Update entity with the new session's calendar day.
 	 * Returns the updated entity with new currentValue = distinct day count.
 	 */
-	fun updateEntity(entity: ChallengeEntity, session: TrackerSession): ChallengeEntity {
+	override fun processEntity(
+		context: Context,
+		entity: ChallengeEntity,
+		session: TrackerSession,
+	): ChallengeEntity {
 		if (session.collections < MIN_COLLECTIONS) return entity
 
 		val epochDay = session.start / MS_PER_DAY
@@ -43,8 +47,10 @@ class ConsistencyChallengeProcessor @Inject constructor() : ChallengeProcessor {
 
 		if (!days.add(epochDay)) return entity
 
+		val updatedValue = days.size.toDouble()
 		return entity.copy(
-			currentValue = days.size.toDouble(),
+			currentValue = updatedValue,
+			isCompleted = updatedValue >= entity.requiredValue,
 			extraJson = """{"$KEY_TRACKED_DAYS":[${days.joinToString(",")}]}""",
 		)
 	}

@@ -19,7 +19,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
-import java.util.concurrent.TimeUnit
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,8 +47,12 @@ class DefaultGameRepository @Inject constructor(
     }
     
     private fun startOfDay(now: Long): Long {
-        val millisPerDay = TimeUnit.DAYS.toMillis(1)
-        return (now / millisPerDay) * millisPerDay
+        return Instant.ofEpochMilli(now)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
     }
     
     override fun getPointsToday(): Flow<Int> {
@@ -169,14 +174,12 @@ class DefaultGameRepository @Inject constructor(
     }
 
     override fun getLifetimeStats(): Flow<LifetimeStatsUi> {
-        return combine(
-            challengeDb.challengeHistoryDao().observeAll(),
-            challengeDb.challengeHistoryDao().observeCompletedCount(),
-            challengeDb.challengeHistoryDao().observeMedalCount("GOLD"),
-            challengeDb.challengeHistoryDao().observeMedalCount("SILVER"),
-            challengeDb.challengeHistoryDao().observeMedalCount("BRONZE"),
-        ) { allHistory, completed, gold, silver, bronze ->
+        return challengeDb.challengeHistoryDao().observeAll().map { allHistory ->
             val total = allHistory.size
+            val completed = allHistory.count { it.outcome == "COMPLETED" }
+            val gold = allHistory.count { it.medal == "GOLD" }
+            val silver = allHistory.count { it.medal == "SILVER" }
+            val bronze = allHistory.count { it.medal == "BRONZE" }
             val totalXp = allHistory.sumOf { it.xpAwarded.toLong() }
             LifetimeStatsUi(
                 totalChallenges = total,

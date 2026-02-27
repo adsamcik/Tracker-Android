@@ -2,6 +2,7 @@ package com.adsamcik.tracker.game.challenge.database.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import com.adsamcik.tracker.game.challenge.ChallengeDifficulty
@@ -13,7 +14,10 @@ import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeTypeC
  * Unified entity replacing ChallengeEntry + 4 type-specific entities.
  * Uses entity-level string converters to override the database-level ordinal converters.
  */
-@Entity(tableName = "challenge")
+@Entity(
+	tableName = "challenge",
+	indices = [Index(value = ["is_completed", "end_time"])]
+)
 @TypeConverters(ChallengeTypeConverter::class, ChallengeDifficultyStringTypeConverter::class)
 data class ChallengeEntity(
 	@PrimaryKey(autoGenerate = true) val id: Long = 0,

@@ -21,6 +21,9 @@ interface AchievementProgressDao {
 	@Query("SELECT * FROM achievement_progress WHERE unlocked_at IS NOT NULL ORDER BY unlocked_at DESC")
 	suspend fun getUnlocked(): List<AchievementProgressEntity>
 
+	@Query("SELECT * FROM achievement_progress WHERE unlocked_at IS NOT NULL ORDER BY unlocked_at DESC LIMIT 10")
+	fun getRecentUnlockedFlow(): Flow<List<AchievementProgressEntity>>
+
 	/**
 	 * Insert a new progress row. If achievement_id already exists, the insert is ignored
 	 * (returns -1). This avoids the PK-churn bug from @Insert(REPLACE) + autoGenerate.

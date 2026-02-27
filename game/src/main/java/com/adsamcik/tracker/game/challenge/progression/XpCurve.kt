@@ -15,6 +15,51 @@ import kotlin.math.pow
  * | 20    | 2,683     | 22,815     |
  */
 object XpCurve {
+	private val cumulativeXpByLevel = mutableListOf(0L) // index 0 => level 1
+
+	@Synchronized
+	private fun cumulativeXpAtLevel(level: Int): Long {
+		while (cumulativeXpByLevel.size < level) {
+			val currentLevel = cumulativeXpByLevel.size
+			val next = cumulativeXpByLevel.last() + xpForLevel(currentLevel)
+			cumulativeXpByLevel.add(next)
+		}
+		return cumulativeXpByLevel[level - 1]
+	}
+
+	private fun profileForXp(totalXp: Long): ProfileSnapshot {
+		if (totalXp < 0L) {
+			return ProfileSnapshot(
+				level = 1,
+				xpIntoCurrentLevel = totalXp,
+				xpForNextLevel = xpForLevel(1),
+				totalXp = totalXp,
+			)
+		}
+
+		var low = 1
+		var high = 2
+		while (cumulativeXpAtLevel(high + 1) <= totalXp) {
+			high *= 2
+		}
+		while (low < high) {
+			val mid = low + (high - low + 1) / 2
+			if (cumulativeXpAtLevel(mid) <= totalXp) {
+				low = mid
+			} else {
+				high = mid - 1
+			}
+		}
+		val level = low
+		val xpIntoCurrentLevel = totalXp - cumulativeXpAtLevel(level)
+		return ProfileSnapshot(
+			level = level,
+			xpIntoCurrentLevel = xpIntoCurrentLevel,
+			xpForNextLevel = xpForLevel(level),
+			totalXp = totalXp,
+		)
+	}
+
 	/**
 	 * XP required to advance FROM level [level] TO level+1.
 	 * Level 1 requires [xpForLevel(1)] = 30 XP to reach level 2.
@@ -29,55 +74,28 @@ object XpCurve {
 	 */
 	fun cumulativeXpForLevel(targetLevel: Int): Long {
 		require(targetLevel >= 1) { "Level must be >= 1, was $targetLevel" }
-		var total = 0L
-		for (i in 1 until targetLevel) {
-			total += xpForLevel(i)
-		}
-		return total
+		return cumulativeXpAtLevel(targetLevel)
 	}
 
 	/**
 	 * Determine current level from total accumulated XP.
 	 */
 	fun levelForXp(totalXp: Long): Int {
-		var level = 1
-		var remaining = totalXp
-		while (remaining >= xpForLevel(level)) {
-			remaining -= xpForLevel(level)
-			level++
-		}
-		return level
+		return profileForXp(totalXp).level
 	}
 
 	/**
 	 * XP progress into the current level.
 	 */
 	fun xpIntoCurrentLevel(totalXp: Long): Long {
-		var remaining = totalXp
-		var level = 1
-		while (remaining >= xpForLevel(level)) {
-			remaining -= xpForLevel(level)
-			level++
-		}
-		return remaining
+		return profileForXp(totalXp).xpIntoCurrentLevel
 	}
 
 	/**
 	 * Build a snapshot of level info from total XP.
 	 */
 	fun computeProfile(totalXp: Long): ProfileSnapshot {
-		var remaining = totalXp
-		var level = 1
-		while (remaining >= xpForLevel(level)) {
-			remaining -= xpForLevel(level)
-			level++
-		}
-		return ProfileSnapshot(
-			level = level,
-			xpIntoCurrentLevel = remaining,
-			xpForNextLevel = xpForLevel(level),
-			totalXp = totalXp,
-		)
+		return profileForXp(totalXp)
 	}
 
 	data class ProfileSnapshot(

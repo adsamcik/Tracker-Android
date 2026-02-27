@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "d1fbd9dec3b41fda07b30c320323a686",
+    "identityHash": "71c1386f8582fb4cae6b30e2747a532c",
     "entities": [
       {
         "tableName": "challenge_session_data",
@@ -30,12 +30,12 @@
       },
       {
         "tableName": "entry",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`type` INTEGER NOT NULL, `start_time` INTEGER NOT NULL, `end_time` INTEGER NOT NULL, `difficulty` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`type` TEXT NOT NULL, `start_time` INTEGER NOT NULL, `end_time` INTEGER NOT NULL, `difficulty` TEXT NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
         "fields": [
           {
             "fieldPath": "type",
             "columnName": "type",
-            "affinity": "INTEGER",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -53,7 +53,7 @@
           {
             "fieldPath": "difficulty",
             "columnName": "difficulty",
-            "affinity": "INTEGER",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -133,7 +133,19 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_challenge_is_completed_end_time",
+            "unique": false,
+            "columnNames": [
+              "is_completed",
+              "end_time"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_challenge_is_completed_end_time` ON `${TABLE_NAME}` (`is_completed`, `end_time`)"
+          }
+        ]
       },
       {
         "tableName": "challenge_explorer",
@@ -382,7 +394,27 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_challenge_history_outcome",
+            "unique": false,
+            "columnNames": [
+              "outcome"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_challenge_history_outcome` ON `${TABLE_NAME}` (`outcome`)"
+          },
+          {
+            "name": "index_challenge_history_medal",
+            "unique": false,
+            "columnNames": [
+              "medal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_challenge_history_medal` ON `${TABLE_NAME}` (`medal`)"
+          }
+        ]
       },
       {
         "tableName": "xp_ledger",
@@ -613,7 +645,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd1fbd9dec3b41fda07b30c320323a686')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '71c1386f8582fb4cae6b30e2747a532c')"
     ]
   }
 }

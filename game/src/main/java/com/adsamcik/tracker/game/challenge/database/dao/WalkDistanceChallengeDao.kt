@@ -7,10 +7,10 @@ import com.adsamcik.tracker.shared.base.database.dao.BaseDao
 
 @Dao
 interface WalkDistanceChallengeDao : BaseDao<WalkDistanceChallengeEntity> {
-	@Query("SELECT * FROM challenge_walk_distance WHERE id == :id")
+	@Query("SELECT * FROM challenge_walk_distance WHERE id = :id")
 	suspend fun get(id: Long): WalkDistanceChallengeEntity
 
-	@Query("SELECT * FROM challenge_walk_distance WHERE entry_id == :entryId")
+	@Query("SELECT * FROM challenge_walk_distance WHERE entry_id = :entryId")
 	suspend fun getByEntry(entryId: Long): WalkDistanceChallengeEntity
 
 	@Query("DELETE FROM challenge_walk_distance")

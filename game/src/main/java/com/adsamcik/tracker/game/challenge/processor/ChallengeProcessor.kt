@@ -34,6 +34,24 @@ interface ChallengeProcessor {
 	 */
 	suspend fun extractProgress(context: Context, session: TrackerSession): Double
 
+	/**
+	 * Process a challenge entity using a completed tracking session.
+	 * Default behavior is additive based on [extractProgress].
+	 */
+	fun processEntity(
+		context: Context,
+		entity: ChallengeEntity,
+		session: TrackerSession,
+	): ChallengeEntity {
+		val delta = extractProgress(context, session)
+		if (delta <= 0.0) return entity
+		val updatedValue = entity.currentValue + delta
+		return entity.copy(
+			currentValue = updatedValue,
+			isCompleted = updatedValue >= entity.requiredValue,
+		)
+	}
+
 	/** Default required value for this challenge type at base difficulty. */
 	val defaultRequiredValue: Double
 

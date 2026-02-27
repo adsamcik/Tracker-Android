@@ -101,12 +101,9 @@ class ChallengeManager @Inject constructor(
 			activeChallengeList.forEachIndexed { index, instance ->
 				if (instance.isCompleted) return@forEachIndexed
 
-				val delta = instance.processor.extractProgress(context, session)
-				if (delta > 0.0) {
-					val updatedEntity = instance.entity.copy(
-						currentValue = instance.entity.currentValue + delta,
-						isCompleted = (instance.entity.currentValue + delta) >= instance.entity.requiredValue
-					)
+				val updatedEntity = instance.processor.processEntity(context, instance.entity, session)
+				val delta = updatedEntity.currentValue - instance.entity.currentValue
+				if (delta > 0.0 || updatedEntity != instance.entity) {
 					dao.update(updatedEntity)
 					val updatedInstance = instance.copy(entity = updatedEntity)
 					activeChallengeList[index] = updatedInstance
@@ -233,8 +230,10 @@ class ChallengeManager @Inject constructor(
 	 * Falls back to MEDIUM when no history is available.
 	 */
 	private suspend fun calculateDifficulty(context: Context): ChallengeDifficulty {
-		val history = ChallengeDatabase.database(context).challengeHistoryDao().getAll()
-		return difficultyFromCompletionRate(history.map { it.outcome })
+		val outcomes = ChallengeDatabase.database(context)
+			.challengeHistoryDao()
+			.getRecentOutcomes(DIFFICULTY_HISTORY_WINDOW)
+		return difficultyFromCompletionRate(outcomes)
 	}
 
 	companion object {

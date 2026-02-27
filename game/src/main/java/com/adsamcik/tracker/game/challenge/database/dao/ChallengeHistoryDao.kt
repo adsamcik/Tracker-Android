@@ -14,6 +14,9 @@ interface ChallengeHistoryDao : BaseDao<ChallengeHistoryEntity> {
 	@Query("SELECT * FROM challenge_history ORDER BY COALESCE(completed_at, end_time) DESC")
 	suspend fun getAll(): List<ChallengeHistoryEntity>
 
+	@Query("SELECT outcome FROM challenge_history ORDER BY id DESC LIMIT :limit")
+	fun getRecentOutcomes(limit: Int = 10): List<String>
+
 	@Query("SELECT * FROM challenge_history WHERE id = :id")
 	suspend fun get(id: Long): ChallengeHistoryEntity?
 

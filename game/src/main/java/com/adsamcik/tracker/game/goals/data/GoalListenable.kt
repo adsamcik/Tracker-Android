@@ -12,6 +12,7 @@ import java.time.ZonedDateTime
  * Listenable goal data with reactive Flow-based state.
  */
 data class GoalListenable(val goal: Goal) {
+	private val lock = Any()
 	private val valueMutable: MutableStateFlow<Int> = MutableStateFlow(0)
 	val value: StateFlow<Int> get() = valueMutable.asStateFlow()
 
@@ -47,21 +48,25 @@ data class GoalListenable(val goal: Goal) {
 	}
 
 	private inline fun notifyIfValueChanged(func: () -> Unit) {
-		val value = goal.value
-		func()
-		if (value != goal.value) {
-			valueMutable.value = goal.value
+		synchronized(lock) {
+			val value = goal.value
+			func()
+			if (value != goal.value) {
+				valueMutable.value = goal.value
+			}
 		}
 	}
 
 	@JvmName("notifyIfValueChangedTyped")
 	private inline fun <T> notifyIfValueChanged(func: () -> T): T {
-		val value = goal.value
-		val returnValue = func()
-		if (value != goal.value) {
-			valueMutable.value = goal.value
+		return synchronized(lock) {
+			val value = goal.value
+			val returnValue = func()
+			if (value != goal.value) {
+				valueMutable.value = goal.value
+			}
+			returnValue
 		}
-		return returnValue
 	}
 
 	/**

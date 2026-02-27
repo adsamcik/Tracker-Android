@@ -2,13 +2,20 @@ package com.adsamcik.tracker.game.challenge.database.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
  * Permanent record of a completed or expired challenge.
  * Used for trophy case, lifetime stats, and personal records.
  */
-@Entity(tableName = "challenge_history")
+@Entity(
+	tableName = "challenge_history",
+	indices = [
+		Index(value = ["outcome"]),
+		Index(value = ["medal"])
+	]
+)
 data class ChallengeHistoryEntity(
 	@PrimaryKey(autoGenerate = true) val id: Long = 0,
 	@ColumnInfo(name = "challenge_type") val challengeType: String,

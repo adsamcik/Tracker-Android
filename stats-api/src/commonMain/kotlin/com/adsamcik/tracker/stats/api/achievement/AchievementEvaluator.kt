@@ -19,6 +19,8 @@ import com.adsamcik.tracker.stats.api.TierUnlock
 class AchievementEvaluator(
 	private val catalog: List<AchievementDefinition> = AchievementCatalog.definitions,
 ) {
+	private val catalogByMetric: Map<String, List<AchievementDefinition>> =
+		catalog.groupBy { it.metric }
 
 	/**
 	 * Evaluate a single metric against all relevant achievements.
@@ -151,6 +153,6 @@ class AchievementEvaluator(
 	}
 
 	private fun relevantDefinitions(metric: String): List<AchievementDefinition> {
-		return catalog.filter { it.metric == metric }
+		return catalogByMetric[metric].orEmpty()
 	}
 }

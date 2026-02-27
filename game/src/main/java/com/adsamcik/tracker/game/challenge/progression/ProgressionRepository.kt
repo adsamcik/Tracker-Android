@@ -72,7 +72,8 @@ class ProgressionRepository @Inject constructor(
 			sourceId = entity.id,
 			earnedAt = now,
 		)
-		val awardedXp = awardXp(database, xpEntry)
+		val awardResult = awardXpAndUpdateProfile(database, xpEntry)
+		val awardedXp = awardResult?.awardedXp ?: 0
 
 		// 4. Record in history
 		val historyEntry = ChallengeHistoryEntity(
@@ -93,16 +94,19 @@ class ProgressionRepository @Inject constructor(
 		// 5. Check personal records
 		val newRecords = checkPersonalRecords(database, entity.type.name, entity, historyId, now)
 
-		// 6. Update player profile
-		val updatedProfile = updatePlayerProfile(database)
+		// 6. Resolve profile (post-award if awarded, else current)
+		val profileSnapshot = awardResult ?: run {
+			val current = database.playerProfileDao().get()
+			AwardResult(0, current, false)
+		}
 
 		return CompletionResult(
 			medal = medal,
 			xpAwarded = awardedXp,
 			streakCount = streak.currentCount,
 			newRecords = newRecords,
-			leveledUp = updatedProfile.second,
-			newLevel = updatedProfile.first.level,
+			leveledUp = profileSnapshot.leveledUp,
+			newLevel = profileSnapshot.profile.level,
 		)
 	}
 
@@ -174,9 +178,27 @@ class ProgressionRepository @Inject constructor(
 			sourceId = session.id,
 			earnedAt = Time.nowMillis,
 		)
-		if (awardXp(database, xpEntry) > 0) {
-			updatePlayerProfile(database)
+		awardXpAndUpdateProfile(database, xpEntry)
+	}
+
+	/**
+	 * Atomically awards XP and updates the player profile in a single transaction.
+	 * Uses insertOrIgnore for idempotency — duplicate awards (same source+source_id)
+	 * are silently skipped and return null.
+	 */
+	private fun awardXpAndUpdateProfile(
+		database: ChallengeDatabase,
+		xpEntry: XpLedgerEntity,
+	): AwardResult? {
+		var result: AwardResult? = null
+		database.runInTransaction {
+			val insertId = database.xpLedgerDao().insertOrIgnore(xpEntry)
+			if (insertId == -1L) return@runInTransaction
+			val (profile, leveledUp) = updatePlayerProfile(database)
+			result = AwardResult(xpEntry.amount, profile, leveledUp)
 		}
+		return result
+	}
 	}
 
 	private suspend fun checkPersonalRecords(
@@ -250,10 +272,11 @@ class ProgressionRepository @Inject constructor(
 		return updated to didLevelUp
 	}
 
-	private suspend fun awardXp(database: ChallengeDatabase, entry: XpLedgerEntity): Int {
-		val insertId = database.xpLedgerDao().insertOrIgnore(entry)
-		return if (insertId == -1L) 0 else entry.amount
-	}
+	private data class AwardResult(
+		val awardedXp: Int,
+		val profile: PlayerProfileEntity,
+		val leveledUp: Boolean,
+	)
 }
 
 /**
