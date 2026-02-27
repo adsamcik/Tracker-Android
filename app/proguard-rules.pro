@@ -59,3 +59,15 @@
 # New errors, they don't seem to cause any problems
 -dontwarn edu.umd.cs.findbugs.annotations.Nullable
 -dontwarn java.lang.invoke.StringConcatFactory
+
+# kotlinx.serialization - Navigation routes use @Serializable
+-keepattributes RuntimeVisibleAnnotations
+-keep class kotlinx.serialization.** { *; }
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keepclasseswithmembers class * {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep class com.adsamcik.tracker.app.ui.navigation.** { *; }

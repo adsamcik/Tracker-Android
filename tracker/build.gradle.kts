@@ -17,6 +17,8 @@ android {
 		minSdk = Android.MIN_VERSION
 
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+		consumerProguardFiles("consumer-rules.pro")
 	}
 
 	sourceSets {
@@ -47,10 +49,7 @@ android {
 			isMinifyEnabled = false
 		}
 		getByName("release") {
-			// Minification disabled due to R8 issues with shared module class retention
-			// Issue: R8 removes classes referenced reflectively across module boundaries
-			// Requires: Comprehensive proguard rules or migration to explicit DI
-			isMinifyEnabled = false
+			isMinifyEnabled = true
 			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 		}
 	}

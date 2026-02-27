@@ -1,45 +1,37 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Tracker module ProGuard rules
+# Applied during this module's own R8 pass (isMinifyEnabled = true)
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve line numbers for crash stack traces
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- Notification components ---
+# NotificationComponents use this::class.java.simpleName as preference keys stored in Room.
+# R8 renaming would change the key, breaking stored notification preference lookups.
+-keepnames class * extends com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- Collection trigger components ---
+# TrackerTimerManager uses ::class.java.simpleName as preference keys for timer selection.
+-keepnames class * extends com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 
--keep public class com.adsamcik.tracker.*
-
+# --- Cross-module class references ---
 # Keep classes from shared modules referenced by tracker (prevent R8 missing class errors)
 -keep class com.adsamcik.tracker.logger.** { *; }
 -keep class com.adsamcik.tracker.shared.base.** { *; }
 -keep class com.adsamcik.tracker.shared.preferences.** { *; }
 -keep class com.adsamcik.tracker.shared.utils.** { *; }
+-keep class com.adsamcik.tracker.stats.api.** { *; }
+-keep class com.adsamcik.tracker.stats.engine.** { *; }
 
-# Ensure specific classes referenced via reflection or in generic code are retained
--keep class com.adsamcik.tracker.logger.LogData { *; }
--keep class com.adsamcik.tracker.logger.Logger { *; }
--keep class com.adsamcik.tracker.logger.Reporter { *; }
--keep class com.adsamcik.tracker.shared.base.database.PreferenceDatabase$Companion { *; }
--keep class com.adsamcik.tracker.shared.base.database.dao.NotificationPreferenceDao { *; }
--keep class com.adsamcik.tracker.shared.base.database.data.NotificationPreference { *; }
+# --- Hilt entry points ---
+# Hilt generates these and accesses them reflectively via EntryPoints.get()
+-keep class com.adsamcik.tracker.tracker.api.BackgroundTrackingApi$BackgroundTrackingApiEntryPoint { *; }
+-keep class com.adsamcik.tracker.tracker.service.ActivityWatcherService$ActivityWatcherEntryPoint { *; }
+-keep class com.adsamcik.tracker.tracker.module.TrackerModuleInitializer$TrackerModuleInitializerEntryPoint { *; }
+-keep class com.adsamcik.tracker.tracker.receiver.TrackerListenerRegistrationReceiver$TrackerListenerEntryPoint { *; }
+-keep class com.adsamcik.tracker.tracker.api.TrackerServiceApi$TrackerServiceApiEntryPoint { *; }
+-keep class com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent$NotificationComponentEntryPoint { *; }
+-keep class com.adsamcik.tracker.tracker.notification.component.SkiNotificationComponent$NotificationComponentEntryPoint { *; }
 
-
--keep class com.adsamcik.tracker.shared.base.service.CoreService { *; }
--keep class com.adsamcik.tracker.shared.preferences.MutablePreferences { *; }
--keep class com.adsamcik.tracker.shared.preferences.Preferences { *; }
--keep class com.adsamcik.tracker.shared.preferences.Preferences$Companion { *; }
--keep class com.adsamcik.tracker.shared.utils.module.TrackerUpdateReceiver { *; }
--keep class com.adsamcik.tracker.shared.utils.style.marker.IViewChange { *; }
+# --- Suppress warnings for classes provided by dependencies ---
+-dontwarn java.lang.invoke.StringConcatFactory

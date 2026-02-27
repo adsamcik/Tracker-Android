@@ -131,6 +131,7 @@ android {
 
 		val release = getByName("release") {
 			isMinifyEnabled = true
+			isShrinkResources = true
 			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 			releaseSigningConfig?.let {
