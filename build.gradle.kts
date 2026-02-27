@@ -29,18 +29,13 @@ plugins {
 	alias(libs.plugins.ksp) apply false
 }
 
-allprojects {
-	repositories {
-		google()
-		maven("https://jitpack.io")
-		mavenCentral()
-	}
+subprojects {
 	gradle.projectsEvaluated {
 		tasks.withType(JavaCompile::class.java) {
 			options.compilerArgs.addAll(listOf("-Xlint:unchecked", "-Xlint:deprecation"))
 		}
 	}
-	
+
 	// Configure Kotlin compiler options for all projects
 	tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
 		compilerOptions {
