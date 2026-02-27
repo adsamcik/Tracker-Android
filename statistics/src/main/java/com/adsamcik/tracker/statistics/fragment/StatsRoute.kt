@@ -94,6 +94,7 @@ fun StatsRoute(
         activeDateFilterLabel = selectedDateRange?.let {
             stringResource(R.string.stats_filter_active_label, it)
         },
+        onStartTracking = onNavigateToTracker,
     )
 
     // Show dialogs when state is true

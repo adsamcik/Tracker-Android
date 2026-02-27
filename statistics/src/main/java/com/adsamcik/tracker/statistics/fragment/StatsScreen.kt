@@ -141,6 +141,7 @@ fun StatsScreen(
     onTripDelete: (Long) -> Unit = {},
     onExportGpx: (Trip) -> Unit = {},
     activeDateFilterLabel: String? = null,
+    onStartTracking: () -> Unit = {},
     // Optional paging trips supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<Trip>? = null,
 ){
@@ -157,7 +158,7 @@ fun StatsScreen(
         Box(modifier = Modifier.weight(1f)) {
             when (refreshState) {
                 RefreshUiState.Loading -> LoadingState()
-                RefreshUiState.Empty -> EmptyState()
+                RefreshUiState.Empty -> EmptyState(onStartTracking)
                 RefreshUiState.Error -> ErrorState(onRetry)
                 RefreshUiState.Content -> ContentState(
                     appendState = appendState,
@@ -198,11 +199,11 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(onStartTracking: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .padding(RidgelineSpacing.Xxxl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -212,13 +213,29 @@ private fun EmptyState() {
             modifier = Modifier.size(72.dp),
             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(RidgelineSpacing.Xxl))
         Text(
             text = stringResource(R.string.stats_no_tracker_sessions),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
         )
+        Spacer(Modifier.height(RidgelineSpacing.Sm))
+        Text(
+            text = stringResource(R.string.stats_empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(RidgelineSpacing.Xxl))
+        Button(
+            onClick = onStartTracking,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(stringResource(R.string.stats_start_tracking_cta))
+        }
     }
 }
 
@@ -327,16 +344,16 @@ private fun ContentState(
                             .toLocalDate()
                     } else null
                     
-                    val prevDate = if (index > 0) {
-                        val prevTrip = pagingItems.peek(index - 1)
-                        if (prevTrip != null && prevTrip.startTimeMs > 0) {
-                            Instant.ofEpochMilli(prevTrip.startTimeMs)
+                    // Compare with previous item to decide if header is needed
+                    val prevTrip = if (index > 0) pagingItems.peek(index - 1) else null
+                    val prevDate = prevTrip?.let {
+                        if (it.startTimeMs > 0) {
+                            Instant.ofEpochMilli(it.startTimeMs)
                                 .atZone(ZoneId.systemDefault())
                                 .toLocalDate()
                         } else null
-                    } else null
+                    }
                     
-                    // Show date header when date differs from previous item (or is first)
                     if (tripDate != null && tripDate != prevDate) {
                         DateHeader(trip.startTimeMs)
                     }
