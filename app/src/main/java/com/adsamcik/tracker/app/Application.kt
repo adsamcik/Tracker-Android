@@ -91,8 +91,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 			.setWorkerFactory(workerFactory)
 			.build()
 
-	companion object
-
 	@WorkerThread
 	private fun initializeModules() {
 		moduleInitializerCoordinator.initializeAll()
