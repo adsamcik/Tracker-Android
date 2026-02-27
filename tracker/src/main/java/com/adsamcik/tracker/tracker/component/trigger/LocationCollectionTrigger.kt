@@ -17,6 +17,7 @@ import kotlin.concurrent.withLock
  * Abstract collection trigger component to provide common operations and methods for location triggers.
  */
 internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
+	@Volatile
 	protected var receiver: TrackerTimerReceiver? = null
 		private set
 

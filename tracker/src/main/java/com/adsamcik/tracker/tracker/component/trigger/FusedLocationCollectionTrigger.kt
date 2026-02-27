@@ -50,7 +50,8 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 						TrackerTimerErrorSeverity.NOTIFY_USER,
 						R.string.notification_looking_for_gps
 				)
-				receiver?.onError(errorData)
+				val localReceiver = receiver ?: return
+				localReceiver.onError(errorData)
 			}
 		}
 	}
@@ -61,16 +62,9 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 		val minUpdateDelayInSeconds = BackgroundTrackingApi.cachedParams.minTimeSeconds
 		val minDistanceInMeters = BackgroundTrackingApi.cachedParams.minDistanceMeters
 
-		// Adapt priority based on granted permissions: high accuracy for precise, balanced for coarse
-		val priority = if (context.hasPreciseLocationPermission) {
-			Priority.PRIORITY_HIGH_ACCURACY
-		} else {
-			Priority.PRIORITY_BALANCED_POWER_ACCURACY
-		}
-
 		val client = LocationServices.getFusedLocationProviderClient(context)
 		val request = LocationRequest.Builder(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(priority)
+			.setPriority(selectPriority(context))
 			.setMinUpdateDistanceMeters(minDistanceInMeters.toFloat())
 			.setMinUpdateIntervalMillis(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
 			.build()
@@ -98,19 +92,10 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 	}
 
 	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
-		// Update location request interval dynamically by restarting with new parameters
+		// Re-requesting updates with the same callback updates delivery parameters without a forced stop/start gap.
 		val client = LocationServices.getFusedLocationProviderClient(context)
-		client.removeLocationUpdates(locationCallback)
-
-		// Adapt priority based on granted permissions: high accuracy for precise, balanced for coarse
-		val priority = if (context.hasPreciseLocationPermission) {
-			Priority.PRIORITY_HIGH_ACCURACY
-		} else {
-			Priority.PRIORITY_BALANCED_POWER_ACCURACY
-		}
-
 		val request = LocationRequest.Builder(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
-			.setPriority(priority)
+			.setPriority(selectPriority(context))
 			.setMinUpdateDistanceMeters(minDistanceMeters.toFloat())
 			.setMinUpdateIntervalMillis(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
 			.build()
@@ -128,6 +113,14 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 					"Location permission revoked during interval update: ${e.message}"
 				)
 			)
+		}
+	}
+
+	private fun selectPriority(context: Context): Int {
+		return if (context.hasPreciseLocationPermission) {
+			Priority.PRIORITY_HIGH_ACCURACY
+		} else {
+			Priority.PRIORITY_BALANCED_POWER_ACCURACY
 		}
 	}
 }

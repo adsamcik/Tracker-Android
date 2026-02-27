@@ -30,6 +30,7 @@ internal class AmbientCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	private val handler = Handler(requireNotNull(Looper.myLooper()))
 
+	@Volatile
 	private var receiver: TrackerTimerReceiver? = null
 
 	private val handlerCallback: Runnable = object : Runnable {

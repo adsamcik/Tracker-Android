@@ -31,6 +31,7 @@ internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	private val handler = Handler(requireNotNull(Looper.myLooper()))
 
+	@Volatile
 	private var receiver: TrackerTimerReceiver? = null
 
 	private val handlerCallback: Runnable = object : Runnable {
@@ -55,6 +56,7 @@ internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	override fun onDisable(context: Context) {
 		handler.removeCallbacks(handlerCallback)
+		receiver = null
 	}
 
 	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
@@ -65,4 +67,3 @@ internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
 	}
 
 }
-

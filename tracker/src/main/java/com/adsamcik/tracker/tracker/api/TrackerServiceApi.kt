@@ -26,13 +26,30 @@ interface TrackerServiceApiEntryPoint {
  * Public API for Tracker Service.
  */
 object TrackerServiceApi {
+	@Volatile
+	private var cachedEntryPoint: TrackerServiceApiEntryPoint? = null
+
+	private fun getEntryPoint(context: Context): TrackerServiceApiEntryPoint {
+		cachedEntryPoint?.let { return it }
+		return synchronized(this) {
+			cachedEntryPoint ?: EntryPointAccessors.fromApplication(
+				context.applicationContext,
+				TrackerServiceApiEntryPoint::class.java
+			).also { cachedEntryPoint = it }
+		}
+	}
 	
 	private fun getController(context: Context): TrackerServiceController {
-		val entryPoint = EntryPointAccessors.fromApplication(
-			context.applicationContext,
-			TrackerServiceApiEntryPoint::class.java
-		)
-		return entryPoint.trackerServiceController()
+		return getEntryPoint(context).trackerServiceController()
+	}
+
+	private fun startServiceInternal(context: Context, isUserInitiated: Boolean, isAmbient: Boolean) {
+		context.startForegroundService<TrackerService> {
+			putExtra(TrackerService.ARG_IS_USER_INITIATED, isUserInitiated)
+			if (isAmbient) {
+				putExtra(TrackerService.ARG_IS_AMBIENT, true)
+			}
+		}
 	}
 	
 	/**
@@ -81,9 +98,7 @@ object TrackerServiceApi {
 	 * Starts tracker service in foreground.
 	 */
 	fun startService(context: Context, isUserInitiated: Boolean) {
-		context.startForegroundService<TrackerService> {
-			putExtra(TrackerService.ARG_IS_USER_INITIATED, isUserInitiated)
-		}
+		startServiceInternal(context, isUserInitiated, isAmbient = false)
 	}
 
 	/**
@@ -91,10 +106,7 @@ object TrackerServiceApi {
 	 * Does not require location permission.
 	 */
 	fun startAmbientService(context: Context) {
-		context.startForegroundService<TrackerService> {
-			putExtra(TrackerService.ARG_IS_USER_INITIATED, false)
-			putExtra(TrackerService.ARG_IS_AMBIENT, true)
-		}
+		startServiceInternal(context, isUserInitiated = false, isAmbient = true)
 	}
 
 	/**

@@ -15,6 +15,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Central pipeline orchestrating all [SignalProcessor] instances.
@@ -40,6 +41,10 @@ class ProcessorPipeline(
 	private val scope: CoroutineScope,
 	private val onDomainEvents: suspend (List<DomainEvent>) -> Unit = {},
 ) {
+	private companion object {
+		const val TAG = "ProcessorPipeline"
+	}
+
 	private val mutex = Mutex()
 	private val sortedProcessors = processors.sortedBy { it.descriptor.priority }
 	private var currentTier: PolicyTier = PolicyTier.OFF
@@ -52,6 +57,7 @@ class ProcessorPipeline(
 
 	/** Cached active processors. Rebuilt on start/escalate — never recomputed in hot path. */
 	private var cachedActiveProcessors: List<SignalProcessor> = emptyList()
+	private val flushCandidates = mutableListOf<SignalProcessor>()
 
 	// --- Health tracking ---
 	private val failureCounts = mutableMapOf<String, Int>()
@@ -137,11 +143,12 @@ class ProcessorPipeline(
 	 * Slow path (outside mutex): execute flushes + dispatch events.
 	 */
 	suspend fun onSignal(signal: TrackingSignal) {
-		val flushCandidates: List<SignalProcessor>
+		val processorsToFlush: List<SignalProcessor>
 
 		// Fast path: deliver signal + identify flush candidates under lock
 		mutex.withLock {
 			if (!isRunning) return
+			flushCandidates.clear()
 
 			for (processor in cachedActiveProcessors) {
 				val id = processor.descriptor.id
@@ -156,20 +163,21 @@ class ProcessorPipeline(
 			}
 
 			val now = signal.timestampMs.raw
-			flushCandidates = cachedActiveProcessors.filter { processor ->
+			for (processor in cachedActiveProcessors) {
 				val lastFlush = lastFlushTime[processor.descriptor.id] ?: 0L
 				val shouldFlush = now - lastFlush >= processor.descriptor.flushIntervalMs
 				if (shouldFlush) {
 					lastFlushTime[processor.descriptor.id] = now
+					flushCandidates.add(processor)
 				}
-				shouldFlush
 			}
+			processorsToFlush = flushCandidates.toList()
 		}
 
 		// Slow path: flush outside mutex so signal delivery isn't blocked by I/O
-		if (flushCandidates.isEmpty()) return
+		if (processorsToFlush.isEmpty()) return
 		val events = mutableListOf<DomainEvent>()
-		for (processor in flushCandidates) {
+		for (processor in processorsToFlush) {
 			val id = processor.descriptor.id
 			try {
 				events.addAll(processor.onFlush())
@@ -183,7 +191,9 @@ class ProcessorPipeline(
 
 		if (events.isNotEmpty() && isRunning) {
 			val job = scope.launch(supervisorJob) {
-				onDomainEvents(events)
+				if (withTimeoutOrNull(5000) { onDomainEvents(events) } == null) {
+					Log.e(TAG, "Timed out dispatching domain events")
+				}
 			}
 			synchronized(inFlightDispatches) {
 				inFlightDispatches.add(job)
@@ -249,7 +259,9 @@ class ProcessorPipeline(
 
 		if (events.isNotEmpty() && isRunning) {
 			val job = scope.launch(supervisorJob) {
-				onDomainEvents(events)
+				if (withTimeoutOrNull(5000) { onDomainEvents(events) } == null) {
+					Log.e(TAG, "Timed out dispatching domain events")
+				}
 			}
 			synchronized(inFlightDispatches) {
 				inFlightDispatches.add(job)
@@ -287,7 +299,9 @@ class ProcessorPipeline(
 		// Deliver final events BEFORE cancelling the supervisor job
 		if (events.isNotEmpty()) {
 			try {
-				onDomainEvents(events)
+				if (withTimeoutOrNull(5000) { onDomainEvents(events) } == null) {
+					Log.e(TAG, "Timed out dispatching final domain events")
+				}
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {

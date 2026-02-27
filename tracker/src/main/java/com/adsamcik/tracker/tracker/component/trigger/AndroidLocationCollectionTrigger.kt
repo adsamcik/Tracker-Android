@@ -39,6 +39,7 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 
 	private val locationListener: LocationListener = object : LocationListener {
 		override fun onLocationChanged(location: Location) {
+			receiver ?: return
 			onNewData(listOf(location))
 		}
 
@@ -47,7 +48,8 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 					TrackerTimerErrorSeverity.NOTIFY_USER,
 					R.string.notification_looking_for_gps
 			)
-			receiver?.onError(errorData)
+			val localReceiver = receiver ?: return
+			localReceiver.onError(errorData)
 		}
 
 	}
@@ -77,7 +79,7 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 	}
 
 	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
-		// Update location request interval dynamically by restarting with new parameters
+		// LocationManager has no in-place interval mutation API; restart is required to apply new values.
 		val locationManager = context.locationManager
 		locationManager.removeUpdates(locationListener)
 
@@ -92,4 +94,3 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 		)
 	}
 }
-
