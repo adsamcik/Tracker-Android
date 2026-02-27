@@ -120,12 +120,18 @@ class TrackingPolicyManager(
 	 * Stop the policy manager and close the current tracker run.
 	 */
 	suspend fun stop() = stateMutex.withLock {
+		if (BuildConfig.DEBUG) {
+			android.util.Log.d("TrackerQA", "TrackingPolicyManager.stop(): currentRunId=$currentRunId")
+		}
 		engineObservationJob?.cancel()
 		engineObservationJob = null
 		escalationEngine?.stop()
 
 		val runId = currentRunId ?: return@withLock
 		trackerRunDao.endRun(runId, Time.nowMillis)
+		if (BuildConfig.DEBUG) {
+			android.util.Log.d("TrackerQA", "TrackingPolicyManager.stop(): endRun called for runId=$runId")
+		}
 		currentRunId = null
 	}
 
