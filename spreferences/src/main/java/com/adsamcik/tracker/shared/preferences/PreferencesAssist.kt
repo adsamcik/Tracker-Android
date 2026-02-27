@@ -1,40 +1,23 @@
 package com.adsamcik.tracker.shared.preferences
 
-import android.content.Context
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import kotlinx.coroutines.flow.first
 
 /**
  * Utility object that provides methods for common preference operations.
  */
 object PreferencesAssist {
 	/**
-	 * Checks if there is anything to track (async version).
+	 * Checks if there is anything to track.
 	 *
-	 * @param context context
+	 * @param trackingParamsRepository repository for tracking parameters
 	 * @return true if at least one of location, cell and wifi tracking is enabled
 	 */
-	suspend fun hasAnythingToTrackAsync(context: Context): Boolean =
-		hasAnythingToTrackAsync(Preferences(context))
-
-	/**
-	 * Overload for direct Preferences injection (test-friendly; avoids static factory).
-	 */
-	suspend fun hasAnythingToTrackAsync(preferences: Preferences): Boolean {
-		return preferences.fetchBoolean(
-				PreferenceKeys.LOCATION_ENABLED,
-				PreferenceKeys.LOCATION_ENABLED_DEFAULT
-		) ||
-				preferences.fetchBoolean(
-						PreferenceKeys.CELL_ENABLED,
-						PreferenceKeys.CELL_ENABLED_DEFAULT
-				) ||
-				preferences.fetchBoolean(
-						PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED,
-						PreferenceKeys.WIFI_LOCATION_COUNT_ENABLED_DEFAULT
-				) ||
-				preferences.fetchBoolean(
-						PreferenceKeys.WIFI_NETWORK_ENABLED,
-						PreferenceKeys.WIFI_NETWORK_ENABLED_DEFAULT
-				)
+	suspend fun hasAnythingToTrack(trackingParamsRepository: TrackingParamsRepository): Boolean {
+		val params = trackingParamsRepository.data.first()
+		return params.locationEnabled ||
+				params.cellEnabled ||
+				params.wifiLocationCountEnabled ||
+				params.wifiNetworkEnabled
 	}
-
 }

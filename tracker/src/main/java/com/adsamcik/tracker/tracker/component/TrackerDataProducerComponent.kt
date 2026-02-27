@@ -5,7 +5,6 @@ import androidx.annotation.CallSuper
 import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CoroutineScope
