@@ -97,8 +97,8 @@ internal fun SpeedSparkline(
 		animatedPulseRadius
 	}
 
-	val computedMax = maxSpeed ?: speedHistory.max()
-	val effectiveMax = computedMax.coerceAtLeast(0.1f)
+	val computedMax = speedHistory.max()
+	val effectiveMax = computedMax.coerceAtLeast(1f)
 	val midValue = effectiveMax / 2f
 
 	val needsScroll = speedHistory.size > SCROLL_THRESHOLD
@@ -251,11 +251,18 @@ private fun DrawScope.drawYAxisLabels(
 	chartHeight: Float,
 	leftPadding: Float,
 ) {
-	val labels = listOf(
-		"0" to chartHeight - LABEL_PADDING_PX,
-		"%.0f".format(midValue) to chartHeight / 2f,
-		"%.0f".format(maxValue) to LABEL_PADDING_PX + 10f,
+	val fmt = if (maxValue < 10f) "%.1f" else "%.0f"
+	val maxLabel = fmt.format(maxValue)
+	val midLabel = fmt.format(midValue)
+
+	val labels = mutableListOf(
+		"0" to (chartHeight - LABEL_PADDING_PX),
+		maxLabel to (LABEL_PADDING_PX + 10f),
 	)
+	// Only add mid label if it's distinct from both "0" and max
+	if (midLabel != "0" && midLabel != maxLabel) {
+		labels.add(1, midLabel to (chartHeight / 2f))
+	}
 
 	labels.forEach { (text, y) ->
 		val result = textMeasurer.measure(

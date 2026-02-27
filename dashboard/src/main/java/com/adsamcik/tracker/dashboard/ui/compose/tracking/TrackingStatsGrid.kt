@@ -114,7 +114,7 @@ internal fun TrackingStatsGrid(
 			if (altitude != null) {
 				CompactAnimatedStatItem(
 					label = stringResource(TrackerR.string.altitude_title),
-					value = resources.formatDistance(altitude.toFloat(), 0, settings.lengthSystem),
+					value = resources.formatDistance(altitude.toFloat(), 1, settings.lengthSystem),
 					modifier = Modifier.weight(1f),
 				)
 			} else {
@@ -127,42 +127,42 @@ internal fun TrackingStatsGrid(
 			modifier = Modifier.fillMaxWidth(),
 			horizontalArrangement = Arrangement.SpaceBetween,
 		) {
-			if (currentActivity != null) {
-				val activityName = currentActivity.getGroupedActivityName(context)
-				val activityColor = when (currentActivity.groupedActivity) {
+			val activityText = if (currentActivity != null) {
+				currentActivity.getGroupedActivityName(context)
+			} else {
+				"–"
+			}
+			val activityColor = if (currentActivity != null) {
+				when (currentActivity.groupedActivity) {
 					GroupedActivity.ON_FOOT -> ActivityColors.Adaptive.Walk
 					GroupedActivity.IN_VEHICLE -> ActivityColors.Adaptive.Ride
 					else -> MaterialTheme.colorScheme.onSurface
 				}
-				CompactAnimatedStatItem(
-					label = stringResource(TrackerR.string.tracker_activity_title),
-					value = activityName,
-					valueColor = activityColor,
-					modifier = Modifier.weight(1f),
-				)
 			} else {
-				Spacer(Modifier.weight(1f))
+				MaterialTheme.colorScheme.onSurfaceVariant
 			}
+			CompactAnimatedStatItem(
+				label = stringResource(TrackerR.string.tracker_activity_title),
+				value = activityText,
+				valueColor = activityColor,
+				modifier = Modifier.weight(1f),
+			)
 
-			if (sessionData.steps > 0) {
-				CompactAnimatedStatItem(
-					label = stringResource(TrackerR.string.tracker_steps_title),
-					value = sessionData.steps.formatReadable(),
-					modifier = Modifier.weight(1f),
-				)
-			} else {
-				Spacer(Modifier.weight(1f))
-			}
+			CompactAnimatedStatItem(
+				label = stringResource(TrackerR.string.tracker_steps_title),
+				value = if (sessionData.steps > 0) sessionData.steps.formatReadable() else "–",
+				modifier = Modifier.weight(1f),
+			)
 
-			if (accuracy != null) {
-				CompactAnimatedStatItem(
-					label = stringResource(TrackerR.string.tracker_accuracy_label),
-					value = "±${resources.formatDistance(accuracy, 0, settings.lengthSystem)}",
-					modifier = Modifier.weight(1f),
-				)
-			} else {
-				Spacer(Modifier.weight(1f))
-			}
+			CompactAnimatedStatItem(
+				label = stringResource(TrackerR.string.tracker_accuracy_label),
+				value = if (accuracy != null) {
+					"±${resources.formatDistance(accuracy, 0, settings.lengthSystem)}"
+				} else {
+					"–"
+				},
+				modifier = Modifier.weight(1f),
+			)
 		}
 
 		// Row 3: Technical badges
