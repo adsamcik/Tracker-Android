@@ -59,18 +59,6 @@ object TrackerServiceApi {
 		getController(context).sessionInfoFlow
 
 	/**
-	 * Information about current tracking session. Null if no session is currently active.
-	 * @deprecated Use sessionInfoFlow instead. Direct value access will be removed in a future release.
-	 */
-	@Deprecated(
-		message = "Use sessionInfoFlow(context) instead for reactive updates",
-		replaceWith = ReplaceWith("sessionInfoFlow(context).value"),
-		level = DeprecationLevel.WARNING
-	)
-	fun sessionInfo(context: Context): TrackerSessionInfo? = 
-		getController(context).sessionInfoFlow.value
-
-	/**
 	 * Indicates whether tracker service is active.
 	 */
 	fun isActive(context: Context): Boolean = 
