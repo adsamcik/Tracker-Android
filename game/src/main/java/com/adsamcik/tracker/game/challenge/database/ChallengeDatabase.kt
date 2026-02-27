@@ -35,6 +35,7 @@ import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_2_3
 import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_3_4
 import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_4_5
 import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_5_6
+import com.adsamcik.tracker.game.challenge.database.migration.MIGRATION_6_7
 import com.adsamcik.tracker.game.challenge.database.typeconverter.ChallengeDifficultyStringTypeConverter
 import com.adsamcik.tracker.game.minigame.database.MiniGameScoreDao
 import com.adsamcik.tracker.game.minigame.database.MiniGameScoreEntity
@@ -62,7 +63,7 @@ import com.adsamcik.tracker.shared.base.database.ObjectBaseDatabase
     autoMigrations = [
 		AutoMigration(from = 1, to = 2, spec = VersionOneToTwoMigration::class)
 	],
-    version = 6
+    version = 7
 )
 @TypeConverters(ChallengeDifficultyStringTypeConverter::class)
 abstract class ChallengeDatabase : RoomDatabase() {
@@ -95,7 +96,7 @@ abstract class ChallengeDatabase : RoomDatabase() {
 
     companion object : ObjectBaseDatabase<ChallengeDatabase>(ChallengeDatabase::class.java) {
         override fun setupDatabase(database: Builder<ChallengeDatabase>) {
-            database.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            database.addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
         }
 
         override val databaseName: String get() = DATABASE_NAME
