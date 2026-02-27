@@ -59,7 +59,10 @@ internal fun SpeedSparkline(
 	maxSpeed: Float?,
 	modifier: Modifier = Modifier,
 ) {
-	if (speedHistory.isEmpty()) return
+	if (speedHistory.size < 2) {
+		Box(modifier = modifier.defaultMinSize(minHeight = 120.dp))
+		return
+	}
 
 	val primaryColor = MaterialTheme.colorScheme.primary
 	val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
@@ -67,17 +70,8 @@ internal fun SpeedSparkline(
 	val textStyle = MaterialTheme.typography.labelSmall
 	val textMeasurer = rememberTextMeasurer()
 
-	val drawProgress = remember { Animatable(0f) }
-	LaunchedEffect(speedHistory.size) {
-		drawProgress.snapTo(0f)
-		drawProgress.animateTo(
-			targetValue = 1f,
-			animationSpec = tween(
-				durationMillis = MotionTokens.EXPRESSIVE_MS,
-				easing = FastOutSlowInEasing,
-			),
-		)
-	}
+	// Start at 1f to prevent blank chart on recomposition after navigation
+	val drawProgress = remember { Animatable(1f) }
 
 	// Pulsing dot for current speed
 	val reducedMotion = LocalReducedMotion.current
@@ -97,38 +91,24 @@ internal fun SpeedSparkline(
 		animatedPulseRadius
 	}
 
-	val computedMax = speedHistory.max()
-	val effectiveMax = computedMax.coerceAtLeast(1f)
-	val midValue = effectiveMax / 2f
-
-	val needsScroll = speedHistory.size > SCROLL_THRESHOLD
-	val scrollState = rememberScrollState()
+	// Auto-range Y from data min/max with padding for visible variation
+	val dataMin = speedHistory.min()
+	val dataMax = speedHistory.max()
+	val dataRange = (dataMax - dataMin).coerceAtLeast(0.5f)
+	val effectiveMin = (dataMin - dataRange * 0.1f).coerceAtLeast(0f)
+	val effectiveMax = dataMax + dataRange * 0.1f
+	val effectiveRange = (effectiveMax - effectiveMin).coerceAtLeast(0.01f)
+	val midValue = (effectiveMin + effectiveMax) / 2f
 
 	val contentDescription = stringResource(R.string.dashboard_cd_speed_sparkline, speedHistory.size)
-
-	val scrollModifier = if (needsScroll) {
-		Modifier.horizontalScroll(scrollState)
-	} else {
-		Modifier.fillMaxWidth()
-	}
 
 	Box(
 		modifier = modifier.defaultMinSize(minHeight = 120.dp),
 	) {
 		Canvas(
-			modifier = scrollModifier
-				.then(
-					if (needsScroll) {
-						Modifier.defaultMinSize(
-							minWidth = (speedHistory.size * POINT_SPACING_DP).dp,
-							minHeight = 120.dp,
-						)
-					} else {
-						Modifier
-							.fillMaxWidth()
-							.defaultMinSize(minHeight = 120.dp)
-					},
-				)
+			modifier = Modifier
+				.fillMaxWidth()
+				.defaultMinSize(minHeight = 120.dp)
 				.semantics { this.contentDescription = contentDescription },
 		) {
 			val leftPadding = 40.dp.toPx()
@@ -143,7 +123,8 @@ internal fun SpeedSparkline(
 
 			val points = speedHistory.take(pointsToDraw).mapIndexed { index, speed ->
 				val x = leftPadding + (index.toFloat() / (speedHistory.size - 1).coerceAtLeast(1)) * chartWidth
-				val y = chartHeight - (speed / effectiveMax).coerceIn(0f, 1f) * chartHeight
+				val normalized = ((speed - effectiveMin) / effectiveRange).coerceIn(0f, 1f)
+				val y = chartHeight - normalized * chartHeight
 				Offset(x, y)
 			}
 
@@ -255,27 +236,17 @@ private fun DrawScope.drawYAxisLabels(
 	val maxLabel = fmt.format(maxValue)
 	val midLabel = fmt.format(midValue)
 
-	val labels = mutableListOf(
-		"0" to (chartHeight - LABEL_PADDING_PX),
-		maxLabel to (LABEL_PADDING_PX + 10f),
-	)
-	// Only add mid label if it's distinct from both "0" and max
-	if (midLabel != "0" && midLabel != maxLabel) {
-		labels.add(1, midLabel to (chartHeight / 2f))
-	}
+	// Max anchored to top
+	val maxR = textMeasurer.measure(maxLabel, textStyle)
+	drawText(maxR, color.copy(alpha = 0.6f), Offset(leftPadding - maxR.size.width - LABEL_PADDING_PX, 4f))
 
-	labels.forEach { (text, y) ->
-		val result = textMeasurer.measure(
-			text = text,
-			style = textStyle,
-		)
-		drawText(
-			textLayoutResult = result,
-			color = color.copy(alpha = 0.6f),
-			topLeft = Offset(
-				x = leftPadding - result.size.width - LABEL_PADDING_PX,
-				y = y - result.size.height / 2f,
-			),
-		)
+	// "0" anchored to bottom
+	val zeroR = textMeasurer.measure("0", textStyle)
+	drawText(zeroR, color.copy(alpha = 0.6f), Offset(leftPadding - zeroR.size.width - LABEL_PADDING_PX, chartHeight - zeroR.size.height - 4f))
+
+	// Mid only if distinct and chart tall enough
+	if (midLabel != "0" && midLabel != maxLabel && chartHeight > maxR.size.height * 5f) {
+		val midR = textMeasurer.measure(midLabel, textStyle)
+		drawText(midR, color.copy(alpha = 0.6f), Offset(leftPadding - midR.size.width - LABEL_PADDING_PX, chartHeight / 2f - midR.size.height / 2f))
 	}
 }
