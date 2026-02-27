@@ -46,6 +46,7 @@ fun SettingsRoute(
     onNavigateToDebug: () -> Unit = {},
     onNavigateToActivities: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    onNavigateToNotificationManagement: () -> Unit = {},
     initialScreen: SettingsScreen = SettingsScreen.Root,
 ) {
     val vm: SettingsViewModel = hiltViewModel()
@@ -100,7 +101,9 @@ fun SettingsRoute(
                         onNavigateToActivities = onNavigateToActivities,
                         onNavigateToAbout = onNavigateToAbout,
                     )
-                    SettingsScreen.Tracking -> TrackingSettingsScreen()
+                    SettingsScreen.Tracking -> TrackingSettingsScreen(
+                        onNavigateToNotificationManagement = onNavigateToNotificationManagement
+                    )
                     SettingsScreen.Data -> DataSettingsScreen()
                     SettingsScreen.Export -> DataSettingsScreen() // Export merged into Data
                     SettingsScreen.Map -> MapSettingsScreen()

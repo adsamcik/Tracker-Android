@@ -24,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -40,8 +39,7 @@ import com.adsamcik.tracker.app.settings.ui.TrackingPresetSelector
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 
 @Composable
-fun TrackingSettingsScreen() {
-    val context = LocalContext.current
+fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) {
     val trackingVm: TrackingSettingsViewModel = hiltViewModel()
 
     // Single consolidated state
@@ -100,11 +98,7 @@ fun TrackingSettingsScreen() {
                 trackingVm.setCellEnabled(enabled)
             }
         },
-        onNotificationCustomize = {
-            context.startActivity(
-                android.content.Intent(context, com.adsamcik.tracker.tracker.notification.NotificationManagementActivity::class.java)
-            )
-        },
+        onNotificationCustomize = onNavigateToNotificationManagement,
     )
 }
 

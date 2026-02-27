@@ -46,7 +46,6 @@
             android:name="com.adsamcik.tracker.tracker.shortcut.ShortcutActivity"
             android:screenOrientation="portrait"
             tools:ignore="DiscouragedApi" />
-        <activity android:name=".notification.NotificationManagementActivity" />
 
         <receiver
             android:name="com.adsamcik.tracker.tracker.receiver.TrackerNotificationReceiver"

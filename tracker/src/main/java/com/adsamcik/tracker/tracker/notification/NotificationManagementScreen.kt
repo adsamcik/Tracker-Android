@@ -1,9 +1,5 @@
 package com.adsamcik.tracker.tracker.notification
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
@@ -28,7 +24,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,8 +42,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -59,22 +52,7 @@ import com.adsamcik.tracker.tracker.R
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Compose replacement for legacy NotificationManagementActivity (Recycler/ManageActivity). */
-class NotificationManagementActivity : ComponentActivity() {
-	private val viewModel: NotificationManagementViewModel by viewModels()
-
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		setContent {
-			AppTheme {
-				NotificationManagementRoute(
-					viewModel = viewModel,
-					onBack = { finish() }
-				)
-			}
-		}
-	}
-}
+// NotificationManagementActivity removed — screen is now a NavHost route.
 
 internal data class UiItem(
 	val id: String,
@@ -150,10 +128,10 @@ class NotificationManagementViewModel : ViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NotificationManagementRoute(
-	viewModel: NotificationManagementViewModel,
+fun NotificationManagementRoute(
 	onBack: () -> Unit,
 ) {
+	val viewModel: NotificationManagementViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 	val context = androidx.compose.ui.platform.LocalContext.current
 	LaunchedEffect(Unit) { viewModel.load(context) }
 	val items: List<UiItem> = viewModel.items

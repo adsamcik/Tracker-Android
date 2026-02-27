@@ -65,3 +65,6 @@ enum class SettingsSection {
 
 @Serializable
 data object ActivitySettings : AppRoute
+
+@Serializable
+data object NotificationManagement : AppRoute
