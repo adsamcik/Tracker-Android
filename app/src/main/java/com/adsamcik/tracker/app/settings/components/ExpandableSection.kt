@@ -26,8 +26,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSnap
 
 /**
@@ -80,7 +82,11 @@ fun ExpandableSection(
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Default.ExpandMore,
-                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        contentDescription = if (expanded) {
+                            stringResource(R.string.settings_section_collapse)
+                        } else {
+                            stringResource(R.string.settings_section_expand)
+                        },
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.rotate(rotationAngle)
                     )

@@ -674,6 +674,8 @@
     <string name="tracking_policy_custom_badge">Custom</string>
     <string name="collapse_details">Hide details</string>
     <string name="expand_details">Show details</string>
+    <string name="settings_section_collapse">Collapse</string>
+    <string name="settings_section_expand">Expand</string>
     <string name="tracking_policy_details_title">Configuration Details</string>
     <string name="preset_detail_location_precision">Location precision</string>
     <string name="preset_detail_min_distance">Minimum distance</string>
