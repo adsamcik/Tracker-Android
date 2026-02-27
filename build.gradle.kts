@@ -2,20 +2,6 @@ import org.gradle.api.GradleException
 import java.io.File
 import java.util.Locale
 
-buildscript {
-	configurations.configureEach {
-		resolutionStrategy.eachDependency {
-			if (requested.group == "com.squareup" && requested.name == "javapoet") {
-				useVersion("1.13.0")
-				because("Hilt 2.59.2 running on Kotlin 2.2.20 needs the canonicalName API from JavaPoet 1.13.0 on the buildscript classpath")
-			}
-		}
-	}
-	dependencies {
-		classpath("com.squareup:javapoet:1.13.0")
-	}
-}
-
 plugins {
 	// gradlew dependencyUpdates -Drevision=release
 	alias(libs.plugins.benmanes.versions)
