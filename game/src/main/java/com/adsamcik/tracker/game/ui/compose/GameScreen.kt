@@ -539,7 +539,7 @@ private fun Stat(label: String, value: Int, goal: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            text = if (goal > 0) "$value / $goal" else "$value",
+            text = if (goal > 0) "%,d / %,d".format(value, goal) else "%,d".format(value),
             style = MaterialTheme.typography.titleMedium, 
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface

@@ -44,8 +44,10 @@ object ProcessorPipelineModule {
 
 	@Provides
 	@IntoSet
-	fun provideSegmentDetectorProcessor(): SignalProcessor {
-		return SegmentDetectorProcessor()
+	fun provideSegmentDetectorProcessor(aggregator: AggregatorProcessor): SignalProcessor {
+		return SegmentDetectorProcessor(
+			onTripCompleted = { aggregator.notifyTripCompleted() },
+		)
 	}
 
 	@Provides
