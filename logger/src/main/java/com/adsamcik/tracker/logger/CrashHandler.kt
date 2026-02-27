@@ -30,6 +30,13 @@ import kotlinx.coroutines.runBlocking
 class CrashHandler(private val application: Application) : Thread.UncaughtExceptionHandler {
 
     private val defaultHandler: Thread.UncaughtExceptionHandler? = Thread.getDefaultUncaughtExceptionHandler()
+
+    // Uses a raw Executor instead of coroutines intentionally:
+    // storeCrashToDatabase() runs inside uncaughtException() where the coroutine
+    // infrastructure may be in a broken or partially-torn-down state. A plain
+    // single-thread executor with Future.get(timeout) is the safest way to do
+    // bounded-time I/O during a crash. The same executor is reused for the
+    // non-crash helpers (migrateCrashesToDatabase, cleanupOldCrashes) for simplicity.
     private val executor = Executors.newSingleThreadExecutor()
 
     companion object {

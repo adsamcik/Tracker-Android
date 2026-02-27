@@ -2,15 +2,9 @@
 
     <style name="AppTheme.Launcher">
         <item name="android:windowBackground">@drawable/background_splash</item>
-        <item name="android:navigationBarColor">@color/color_accent</item>
-        <item name="colorPrimaryDark">@color/color_accent</item>
-        <item name="android:statusBarColor">@color/color_accent</item>
     </style>
 
     <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar.Bridge">
-        <item name="colorPrimary">@color/color_primary</item>
-        <item name="colorPrimaryDark">@color/color_primary_dark</item>
-        <item name="colorAccent">@color/color_accent</item>
         <item name="android:windowBackground">@drawable/background_loading</item>
     </style>
 

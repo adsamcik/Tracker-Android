@@ -1,15 +1,18 @@
 package com.adsamcik.tracker.tracker.component.trigger
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Collection trigger for AMBIENT mode. Fires at a fixed interval without
@@ -24,19 +27,19 @@ internal class AmbientCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	private var repeatEveryMs: Long = DEFAULT_INTERVAL_MS
 
-	init {
-		Assist.ensureLooper()
-	}
-
-	private val handler = Handler(requireNotNull(Looper.myLooper()))
+	private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+	private var timerJob: Job? = null
 
 	@Volatile
 	private var receiver: TrackerTimerReceiver? = null
 
-	private val handlerCallback: Runnable = object : Runnable {
-		override fun run() {
-			this@AmbientCollectionTrigger.receiver?.onUpdate(createCycle())
-			handler.postDelayed(this, repeatEveryMs)
+	private fun startTimer() {
+		timerJob?.cancel()
+		timerJob = scope.launch {
+			while (true) {
+				delay(repeatEveryMs)
+				receiver?.onUpdate(createCycle())
+			}
 		}
 	}
 
@@ -47,18 +50,18 @@ internal class AmbientCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		this.receiver = receiver
-		handler.postDelayed(handlerCallback, repeatEveryMs)
+		startTimer()
 	}
 
 	override fun onDisable(context: Context) {
-		handler.removeCallbacks(handlerCallback)
+		timerJob?.cancel()
+		timerJob = null
 		receiver = null
 	}
 
 	override fun updateInterval(context: Context, intervalSeconds: Int, minDistanceMeters: Int) {
-		handler.removeCallbacks(handlerCallback)
 		repeatEveryMs = intervalSeconds * Time.SECOND_IN_MILLISECONDS
-		handler.postDelayed(handlerCallback, repeatEveryMs)
+		startTimer()
 	}
 
 	companion object {

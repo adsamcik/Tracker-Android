@@ -51,12 +51,9 @@ dependencies {
 	implementation(libs.kotlinx.coroutines.android)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
-	implementation(libs.androidx.constraintlayout)
-	implementation(libs.androidx.recyclerview)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.service)
 	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.preference)
 	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 

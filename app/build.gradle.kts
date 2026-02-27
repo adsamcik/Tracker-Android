@@ -263,11 +263,9 @@ dependencies {
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
-	implementation(libs.components.recycler)
 	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.androidx.constraintlayout)
-	implementation(libs.androidx.recyclerview)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.service)
 	implementation(libs.androidx.lifecycle.process)
@@ -332,9 +330,6 @@ dependencies {
 
 	// Google dependencies
 	implementation(libs.androidx.cardview)
-
-	// Preference
-	implementation(libs.androidx.preference)
 
 	// Open-source licenses
 	implementation(libs.licensesdialog)
