@@ -8,6 +8,11 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 
+// NOTE: SessionActivity is a reference-data entity (activity type definitions), not a per-session
+// record. It is actively managed via UI (SessionActivityActivityCompose) and seeded by
+// NativeSessionActivity. TrackerSession has a FK to this table. ActivitySnapshot does NOT replace
+// this entity — ActivitySnapshot records raw transitions, while SessionActivity defines types.
+// No deprecation needed; this entity serves a distinct purpose from the sessionless architecture.
 @Entity(tableName = "activity", indices = [Index("name")])
 data class SessionActivity(
 		@PrimaryKey(autoGenerate = true) var id: Long = 0,

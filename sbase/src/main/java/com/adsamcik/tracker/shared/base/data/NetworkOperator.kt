@@ -14,6 +14,9 @@ import kotlinx.parcelize.Parcelize
 /**
  * Information about cell network operator.
  */
+// TODO: Migrate to CellSample (which stores mcc/mnc inline). Dual-write active in
+//  DatabaseCellComponent (enableDualWrite flag). No production readers found — only written to.
+//  Once dual-write is disabled, this table will have no active writers or readers.
 @Entity(tableName = "network_operator", primaryKeys = ["mcc", "mnc"])
 @Parcelize
 data class NetworkOperator(
