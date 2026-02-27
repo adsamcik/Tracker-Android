@@ -55,7 +55,6 @@ internal object GoalTracker : CoroutineScope {
 	private var initialized = false
 
 	private var mLastSessionId: Long = -1
-	private val updateLock = Any()
 
 	private val job = SupervisorJob()
 	private val mutex = Mutex()
