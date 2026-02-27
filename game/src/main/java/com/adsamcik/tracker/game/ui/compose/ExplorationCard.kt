@@ -18,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -158,12 +159,15 @@ private fun StreakStat(
  */
 @Composable
 private fun SeasonIndicator(seasonsBitmask: Int) {
-	val seasonColors = listOf(
-		MaterialTheme.colorScheme.primary,     // Spring (bit 0)
-		MaterialTheme.colorScheme.tertiary,    // Summer (bit 1)
-		MaterialTheme.colorScheme.secondary,   // Autumn (bit 2)
-		MaterialTheme.colorScheme.outline,     // Winter (bit 3)
-	)
+	val colorScheme = MaterialTheme.colorScheme
+	val seasonColors = remember(colorScheme) {
+		listOf(
+			colorScheme.primary,     // Spring (bit 0)
+			colorScheme.tertiary,    // Summer (bit 1)
+			colorScheme.secondary,   // Autumn (bit 2)
+			colorScheme.outline,     // Winter (bit 3)
+		)
+	}
 	Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
 		for (i in 0 until SEASON_COUNT) {
 			val isCovered = (seasonsBitmask and (1 shl i)) != 0

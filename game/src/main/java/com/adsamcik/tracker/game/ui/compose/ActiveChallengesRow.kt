@@ -66,7 +66,7 @@ fun ActiveChallengesRow(
 			)
 		}
 		val emptySlots = (maxSlots - challenges.size).coerceAtLeast(0)
-		items(emptySlots) {
+		items(emptySlots, key = { "empty_$it" }) {
 			EmptySlotCard(onStartStreakClick = onStartStreakClick)
 		}
 	}

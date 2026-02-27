@@ -50,7 +50,16 @@ class GameDomainEventConsumer @Inject constructor(
 
 			val latestTimestamp = events.maxByOrNull { it.timestampMs.raw }?.timestampMs ?: return
 			events.forEach { event ->
-				handleEvent(event)
+				try {
+					handleEvent(event)
+				} catch (e: Exception) {
+					Logger.log(
+						LogData(
+							message = "Failed to process event ${event::class.simpleName}: ${e.message}",
+							source = CHALLENGE_LOG_SOURCE,
+						),
+					)
+				}
 			}
 			domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 		}

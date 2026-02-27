@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.game.challenge.progression
 
 import androidx.annotation.StringRes
+import androidx.room.withTransaction
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeStreakEntity
@@ -27,28 +28,32 @@ class StreakManager @Inject constructor() {
 	 * @return Updated streak state
 	 */
 	suspend fun onChallengeCompleted(database: ChallengeDatabase, now: Long): ChallengeStreakEntity {
-		val dao = database.challengeStreakDao()
-		dao.ensureExists()
-		val current = dao.get() ?: ChallengeStreakEntity()
+		var result: ChallengeStreakEntity? = null
+		database.withTransaction {
+			val dao = database.challengeStreakDao()
+			dao.ensureExists()
+			val current = dao.get() ?: ChallengeStreakEntity()
 
-		val newCount = current.currentCount + 1
-		val newBest = maxOf(newCount, current.bestCount)
+			val newCount = current.currentCount + 1
+			val newBest = maxOf(newCount, current.bestCount)
 
-		// Earn a freeze every COMPLETIONS_PER_FREEZE completions
-		val newFreezes = if (newCount % COMPLETIONS_PER_FREEZE == 0 && current.freezeCount < MAX_FREEZES) {
-			current.freezeCount + 1
-		} else {
-			current.freezeCount
+			// Earn a freeze every COMPLETIONS_PER_FREEZE completions
+			val newFreezes = if (newCount % COMPLETIONS_PER_FREEZE == 0 && current.freezeCount < MAX_FREEZES) {
+				current.freezeCount + 1
+			} else {
+				current.freezeCount
+			}
+
+			val updated = current.copy(
+				currentCount = newCount,
+				bestCount = newBest,
+				lastCompletionTime = now,
+				freezeCount = newFreezes,
+			)
+			dao.update(updated)
+			result = updated
 		}
-
-		val updated = current.copy(
-			currentCount = newCount,
-			bestCount = newBest,
-			lastCompletionTime = now,
-			freezeCount = newFreezes,
-		)
-		dao.update(updated)
-		return updated
+		return result!!
 	}
 
 	/**

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.game.challenge.progression
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.adsamcik.tracker.game.challenge.data.ChallengeInstanceNew
 import com.adsamcik.tracker.game.challenge.data.ChallengeOutcome
 import com.adsamcik.tracker.game.challenge.data.Medal
@@ -12,7 +13,8 @@ import com.adsamcik.tracker.game.challenge.database.entity.PlayerProfileEntity
 import com.adsamcik.tracker.game.challenge.database.entity.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import java.util.concurrent.TimeUnit
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -163,22 +165,25 @@ class ProgressionRepository @Inject constructor(
 		val xpAward = xpCalculator.calculateSessionXp(session, isVehicleOrStill)
 		if (xpAward.amount <= 0) return
 
-		// Check daily cap
-		val millisPerDay = TimeUnit.DAYS.toMillis(1)
-		val todayStart = (Time.nowMillis / millisPerDay) * millisPerDay
-		val todayXp = database.xpLedgerDao().getXpSince(todayStart)
-		val cappedAmount = (xpAward.amount).coerceAtMost(
-			(XpCalculator.DAILY_CAP - todayXp.toInt()).coerceAtLeast(0),
-		)
-		if (cappedAmount <= 0) return
+		database.withTransaction {
+			val now = Time.nowMillis
+			val todayStart = startOfDay(now)
+			val todayXp = database.xpLedgerDao().getXpSince(todayStart)
+			val cappedAmount = (xpAward.amount).coerceAtMost(
+				(XpCalculator.DAILY_CAP - todayXp.toInt()).coerceAtLeast(0),
+			)
+			if (cappedAmount <= 0) return@withTransaction
 
-		val xpEntry = XpLedgerEntity(
-			amount = cappedAmount,
-			source = XpSource.SESSION.name,
-			sourceId = session.id,
-			earnedAt = Time.nowMillis,
-		)
-		awardXpAndUpdateProfile(database, xpEntry)
+			val xpEntry = XpLedgerEntity(
+				amount = cappedAmount,
+				source = XpSource.SESSION.name,
+				sourceId = session.id,
+				earnedAt = now,
+			)
+			val insertId = database.xpLedgerDao().insertOrIgnore(xpEntry)
+			if (insertId == -1L) return@withTransaction
+			updatePlayerProfile(database)
+		}
 	}
 
 	/**
@@ -186,14 +191,14 @@ class ProgressionRepository @Inject constructor(
 	 * Uses insertOrIgnore for idempotency — duplicate awards (same source+source_id)
 	 * are silently skipped and return null.
 	 */
-	private fun awardXpAndUpdateProfile(
+	private suspend fun awardXpAndUpdateProfile(
 		database: ChallengeDatabase,
 		xpEntry: XpLedgerEntity,
 	): AwardResult? {
 		var result: AwardResult? = null
-		database.runInTransaction {
+		database.withTransaction {
 			val insertId = database.xpLedgerDao().insertOrIgnore(xpEntry)
-			if (insertId == -1L) return@runInTransaction
+			if (insertId == -1L) return@withTransaction
 			val (profile, leveledUp) = updatePlayerProfile(database)
 			result = AwardResult(xpEntry.amount, profile, leveledUp)
 		}
@@ -208,45 +213,48 @@ class ProgressionRepository @Inject constructor(
 		historyId: Long,
 		now: Long,
 	): List<String> {
-		val recordDao = database.challengePersonalRecordDao()
-		val newRecords = mutableListOf<String>()
+		var records: List<String>? = null
+		database.withTransaction {
+			val recordDao = database.challengePersonalRecordDao()
+			val newRecords = mutableListOf<String>()
 
-		// Check highest value record
-		val highestValue = recordDao.get(challengeType, "HIGHEST_VALUE")
-		if (highestValue == null || entity.currentValue > highestValue.value) {
-			val record = ChallengePersonalRecordEntity(
-				id = highestValue?.id ?: 0,
-				challengeType = challengeType,
-				metric = "HIGHEST_VALUE",
-				value = entity.currentValue,
-				historyId = historyId,
-				achievedAt = now,
-			)
-			if (highestValue == null) recordDao.insert(record) else recordDao.update(record)
-			newRecords.add("HIGHEST_VALUE")
-		}
-
-		// Check fastest completion (time used as fraction of allowed time)
-		val duration = entity.endTime - entity.startTime
-		if (duration > 0) {
-			val timeUsed = now - entity.startTime
-			val speedRatio = timeUsed.toDouble() / duration
-			val fastestRecord = recordDao.get(challengeType, "FASTEST_COMPLETION")
-			if (fastestRecord == null || speedRatio < fastestRecord.value) {
+			// Check highest value record
+			val highestValue = recordDao.get(challengeType, "HIGHEST_VALUE")
+			if (highestValue == null || entity.currentValue > highestValue.value) {
 				val record = ChallengePersonalRecordEntity(
-					id = fastestRecord?.id ?: 0,
+					id = highestValue?.id ?: 0,
 					challengeType = challengeType,
-					metric = "FASTEST_COMPLETION",
-					value = speedRatio,
+					metric = "HIGHEST_VALUE",
+					value = entity.currentValue,
 					historyId = historyId,
 					achievedAt = now,
 				)
-				if (fastestRecord == null) recordDao.insert(record) else recordDao.update(record)
-				newRecords.add("FASTEST_COMPLETION")
+				if (highestValue == null) recordDao.insert(record) else recordDao.update(record)
+				newRecords.add("HIGHEST_VALUE")
 			}
-		}
 
-		return newRecords
+			// Check fastest completion (time used as fraction of allowed time)
+			val duration = entity.endTime - entity.startTime
+			if (duration > 0) {
+				val timeUsed = now - entity.startTime
+				val speedRatio = timeUsed.toDouble() / duration
+				val fastestRecord = recordDao.get(challengeType, "FASTEST_COMPLETION")
+				if (fastestRecord == null || speedRatio < fastestRecord.value) {
+					val record = ChallengePersonalRecordEntity(
+						id = fastestRecord?.id ?: 0,
+						challengeType = challengeType,
+						metric = "FASTEST_COMPLETION",
+						value = speedRatio,
+						historyId = historyId,
+						achievedAt = now,
+					)
+					if (fastestRecord == null) recordDao.insert(record) else recordDao.update(record)
+					newRecords.add("FASTEST_COMPLETION")
+				}
+			}
+			records = newRecords
+		}
+		return records!!
 	}
 
 	/**
@@ -277,6 +285,16 @@ class ProgressionRepository @Inject constructor(
 		val profile: PlayerProfileEntity,
 		val leveledUp: Boolean,
 	)
+
+	private fun startOfDay(timeMillis: Long): Long {
+		val zoneId = ZoneId.systemDefault()
+		return Instant.ofEpochMilli(timeMillis)
+			.atZone(zoneId)
+			.toLocalDate()
+			.atStartOfDay(zoneId)
+			.toInstant()
+			.toEpochMilli()
+	}
 }
 
 /**

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -144,10 +145,6 @@ private fun MedalBreakdownBar(
 	val silverFraction = silver.toFloat() / total
 	val bronzeFraction = bronze.toFloat() / total
 
-	val goldColor = androidx.compose.ui.graphics.Color(0xFFFFD700)
-	val silverColor = androidx.compose.ui.graphics.Color(0xFFC0C0C0)
-	val bronzeColor = androidx.compose.ui.graphics.Color(0xFFCD7F32)
-
 	Row(
 		modifier = modifier
 			.fillMaxWidth()
@@ -159,7 +156,7 @@ private fun MedalBreakdownBar(
 				modifier = Modifier
 					.weight(goldFraction)
 					.height(12.dp)
-					.background(goldColor),
+					.background(GoldColor),
 			)
 		}
 		if (silverFraction > 0f) {
@@ -167,7 +164,7 @@ private fun MedalBreakdownBar(
 				modifier = Modifier
 					.weight(silverFraction)
 					.height(12.dp)
-					.background(silverColor),
+					.background(SilverColor),
 			)
 		}
 		if (bronzeFraction > 0f) {
@@ -175,8 +172,12 @@ private fun MedalBreakdownBar(
 				modifier = Modifier
 					.weight(bronzeFraction)
 					.height(12.dp)
-					.background(bronzeColor),
+					.background(BronzeColor),
 			)
 		}
 	}
 }
+
+private val GoldColor = Color(0xFFFFD700)
+private val SilverColor = Color(0xFFC0C0C0)
+private val BronzeColor = Color(0xFFCD7F32)

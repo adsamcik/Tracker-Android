@@ -72,40 +72,45 @@ internal class ChallengeWorker @AssistedInject constructor(
 		val notificationManager = applicationContext.notificationManager
 		val resources = applicationContext.resources
 
-		challengeManager.processSession(applicationContext, trackerSession) {
-			val title = "Completed challenge ${it.getTitle(applicationContext)}"
-			logGame(LogData(message = title, source = CHALLENGE_LOG_SOURCE))
-			val launchIntent = applicationContext.packageManager
-				.getLaunchIntentForPackage(applicationContext.packageName)
-				?.apply {
-					putExtra("navigate_to", "game")
-					putExtra("challenge_id", it.entity.id)
-					addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-				}
-			val contentIntent = launchIntent?.let { navIntent ->
-				PendingIntent.getActivity(
-					applicationContext,
-					it.entity.id.toInt(),
-					navIntent,
-					PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-				)
-			}
-			notificationManager.notify(
-					NOTIFICATION_ID,
-		    NotificationCompat.Builder(
-			    applicationContext,
-			    resources.getString(R.string.channel_challenges_id)
-		    )
-			    .setContentTitle(title)
-			    .setSmallIcon(com.adsamcik.tracker.game.R.drawable.ic_challenge_icon)
-				.setContentIntent(contentIntent)
-				.setAutoCancel(true)
-							.build()
-			)
-		}
-
 		challengeSession.isChallengeProcessed = true
 		challengeDatabase.sessionDao().update(challengeSession)
+		try {
+			challengeManager.processSession(applicationContext, trackerSession) {
+				val title = "Completed challenge ${it.getTitle(applicationContext)}"
+				logGame(LogData(message = title, source = CHALLENGE_LOG_SOURCE))
+				val launchIntent = applicationContext.packageManager
+					.getLaunchIntentForPackage(applicationContext.packageName)
+					?.apply {
+						putExtra("navigate_to", "game")
+						putExtra("challenge_id", it.entity.id)
+						addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+					}
+				val contentIntent = launchIntent?.let { navIntent ->
+					PendingIntent.getActivity(
+						applicationContext,
+						it.entity.id.toInt(),
+						navIntent,
+						PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+					)
+				}
+				notificationManager.notify(
+						NOTIFICATION_ID,
+			    NotificationCompat.Builder(
+				    applicationContext,
+				    resources.getString(R.string.channel_challenges_id)
+			    )
+				    .setContentTitle(title)
+				    .setSmallIcon(com.adsamcik.tracker.game.R.drawable.ic_challenge_icon)
+					.setContentIntent(contentIntent)
+					.setAutoCancel(true)
+								.build()
+				)
+			}
+		} catch (e: Exception) {
+			challengeSession.isChallengeProcessed = false
+			challengeDatabase.sessionDao().update(challengeSession)
+			return Result.retry()
+		}
 
 		logGame(
 				LogData(

@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -216,19 +217,13 @@ private fun FilterChipsRow(
 	currentFilter: TrophyFilter,
 	onFilterChanged: (TrophyFilter) -> Unit,
 ) {
-	val filters = listOf(
-		TrophyFilter.ALL to R.string.game_trophy_filter_all,
-		TrophyFilter.GOLD to R.string.game_trophy_filter_gold,
-		TrophyFilter.SILVER to R.string.game_trophy_filter_silver,
-		TrophyFilter.BRONZE to R.string.game_trophy_filter_bronze,
-	)
 	Row(
 		modifier = Modifier
 			.fillMaxWidth()
 			.padding(horizontal = 16.dp),
 		horizontalArrangement = Arrangement.spacedBy(8.dp),
 	) {
-		filters.forEach { (filter, labelRes) ->
+		TrophyFilters.forEach { (filter, labelRes) ->
 			FilterChip(
 				selected = currentFilter == filter,
 				onClick = { onFilterChanged(filter) },
@@ -282,6 +277,7 @@ private fun PersonalRecordsRow(records: List<PersonalRecordUi>) {
 
 @Composable
 private fun TrophyCard(trophy: TrophyItemUi) {
+	val dateFormatter = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
 	val medalEmoji = when (trophy.medal) {
 		"GOLD" -> "🥇"
 		"SILVER" -> "🥈"
@@ -332,7 +328,7 @@ private fun TrophyCard(trophy: TrophyItemUi) {
 					Text(
 						text = stringResource(
 							R.string.game_trophy_completed_on,
-							formatDate(trophy.completedAt),
+							dateFormatter.format(Date(trophy.completedAt)),
 						),
 						style = MaterialTheme.typography.labelSmall,
 						color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -357,11 +353,6 @@ private fun TrophyCard(trophy: TrophyItemUi) {
 	}
 }
 
-private fun formatDate(timestamp: Long): String {
-	val sdf = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-	return sdf.format(Date(timestamp))
-}
-
 private fun formatRecordValue(value: Double): String {
 	return if (value == value.toLong().toDouble()) {
 		value.toLong().toString()
@@ -369,3 +360,10 @@ private fun formatRecordValue(value: Double): String {
 		"%.1f".format(value)
 	}
 }
+
+private val TrophyFilters = listOf(
+	TrophyFilter.ALL to R.string.game_trophy_filter_all,
+	TrophyFilter.GOLD to R.string.game_trophy_filter_gold,
+	TrophyFilter.SILVER to R.string.game_trophy_filter_silver,
+	TrophyFilter.BRONZE to R.string.game_trophy_filter_bronze,
+)
