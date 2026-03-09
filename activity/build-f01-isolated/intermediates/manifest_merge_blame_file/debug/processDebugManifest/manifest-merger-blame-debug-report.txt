@@ -1,0 +1,48 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.adsamcik.tracker.activity" >
+4
+5    <uses-sdk android:minSdkVersion="26" />
+5-->INJECTED
+5-->INJECTED
+6
+7    <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" />
+7-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:3:5-94
+7-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:3:22-91
+8    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+8-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:4:5-79
+8-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:4:22-76
+9    <uses-permission android:name="${applicationId}.permission.TRACKER" />
+9-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:5:5-75
+9-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:5:22-72
+10
+11    <application>
+11-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:7:5-22:19
+12        <activity
+12-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:8:9-10:58
+13            android:name="com.adsamcik.tracker.activity.ui.SessionActivityActivityCompose"
+13-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:9:13-91
+14            android:windowSoftInputMode="adjustResize" />
+14-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:10:13-55
+15        <activity android:name="com.adsamcik.tracker.app.activity.debug.LogViewerActivity" />
+15-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:12:9-94
+15-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:12:19-91
+16
+17        <receiver
+17-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:14:9-21:20
+18            android:name="com.adsamcik.tracker.activity.receiver.ActivityReceiver"
+18-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:15:13-54
+19            android:exported="false"
+19-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:16:13-37
+20            android:permission="com.google.android.gms.permission.ACTIVITY_RECOGNITION" >
+20-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:17:13-88
+21            <intent-filter>
+21-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:18:13-20:29
+22                <action android:name="com.adsamcik.tracker.ACTIVITY_RESULT" />
+22-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:19:17-78
+22-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\src\main\AndroidManifest.xml:19:25-76
+23            </intent-filter>
+24        </receiver>
+25    </application>
+26
+27</manifest>

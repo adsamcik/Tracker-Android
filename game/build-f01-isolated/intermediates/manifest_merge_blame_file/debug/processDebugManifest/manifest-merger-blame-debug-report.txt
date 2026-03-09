@@ -1,0 +1,40 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    xmlns:dist="http://schemas.android.com/apk/distribution"
+4    package="com.adsamcik.tracker.game" >
+5
+6    <uses-sdk android:minSdkVersion="26" />
+6-->INJECTED
+6-->INJECTED
+7
+8    <uses-permission android:name="${applicationId}.permission.TRACKER" />
+8-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:4:5-75
+8-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:4:22-72
+9
+10    <dist:module dist:title="@string/module_game_title" >
+10-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:6:5-11:19
+10-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:6:18-56
+11        <dist:delivery>
+11-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:7:9-9:25
+12            <dist:install-time />
+12-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:8:13-34
+13        </dist:delivery>
+14
+15        <dist:fusing dist:include="false" />
+15-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:10:9-45
+15-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\main\AndroidManifest.xml:10:22-42
+16    </dist:module>
+17
+18    <application>
+18-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\debug\AndroidManifest.xml:2:5-7:19
+19        <activity
+19-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\debug\AndroidManifest.xml:3:9-6:48
+20            android:name="com.adsamcik.tracker.game.ui.compose.HostTestActivity"
+20-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\debug\AndroidManifest.xml:4:13-81
+21            android:exported="false"
+21-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\debug\AndroidManifest.xml:5:13-37
+22            android:label="HostTestActivity" />
+22-->C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\game\src\debug\AndroidManifest.xml:6:13-45
+23    </application>
+24
+25</manifest>

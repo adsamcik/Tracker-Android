@@ -1,0 +1,11 @@
+com.adsamcik.tracker.shared.utils
+dimen activity_horizontal_margin
+string action_navigate_back
+string percentage_format
+string permission_rationale_activity
+string permission_rationale_background_location
+string permission_rationale_denied
+string permission_rationale_location
+string permission_rationale_phone_state
+string permission_rationale_title
+string permission_rationale_understood

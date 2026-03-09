@@ -1,0 +1,6 @@
+R_DEF: Internal format may change without notice
+local
+string settings_log_enabled_default
+string settings_log_enabled_key
+string settings_log_performance_enabled_default
+string settings_log_performance_enabled_key

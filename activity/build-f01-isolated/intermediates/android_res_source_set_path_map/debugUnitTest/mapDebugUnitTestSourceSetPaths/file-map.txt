@@ -1,0 +1,4 @@
+com.adsamcik.tracker.activity.test.activity-test-0 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\generated\res\resValues\test\debug
+com.adsamcik.tracker.activity.test.activity-mergeDebugUnitTestResources-1 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\intermediates\incremental\debugUnitTest\mergeDebugUnitTestResources\merged.dir
+com.adsamcik.tracker.activity.test.activity-mergeDebugUnitTestResources-2 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\intermediates\incremental\debugUnitTest\mergeDebugUnitTestResources\stripped.dir
+com.adsamcik.tracker.activity.test.activity-debugUnitTest-3 C:\Users\adamnovak\Downloads\Tracker-Android-dev-v10\Tracker-Android-dev-v10\activity\build-f01-isolated\intermediates\merged_res\debugUnitTest\mergeDebugUnitTestResources
