@@ -52,16 +52,14 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * Shadow validation test — the SAFETY GATE for removing old PostTrackerComponent writers.
+ * Shadow validation test — safety gate for PersistenceProcessor correctness.
  *
- * Proves that [PersistenceProcessor] produces identical database rows to the old
- * RawLocationWriter, DatabaseCellComponent, DatabaseWifiComponent, and PressureSampleWriter.
+ * Proves that [PersistenceProcessor] produces the expected database rows for
+ * location, cell, wifi, pressure, step, and activity data.
  *
  * Each test creates synthetic tracking signals, runs them through `onSignal()` + `onFlush()`
  * (or `onStop()`), captures the entities sent to each DAO, and asserts field-level parity
- * with the values the old writers would have produced.
- *
- * No old code may be deleted until every test in this class passes.
+ * with the expected output.
  */
 @DisplayName("Shadow Validation — PersistenceProcessor vs old writers")
 class ShadowValidationTest {
@@ -230,7 +228,7 @@ class ShadowValidationTest {
 		}
 
 		@Test
-		fun `accuracy below 10m classified HIGH — matches RawLocationWriter`() = runTest {
+		fun `accuracy below 10m classified HIGH`() = runTest {
 			startProcessor()
 			processor.onSignal(
 				fullSignal(location = fullLocationSignal(accuracy = 5f)),

@@ -9,15 +9,13 @@ import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import javax.inject.Inject
 
 /**
- * Bridge processor that registers the notification concern in the new
- * signal pipeline. Caches the latest [TrackingSignal] each cycle.
+ * Bridge processor that registers the notification concern in the signal
+ * pipeline. Caches the latest [TrackingSignal] each cycle.
  *
- * The actual foreground notification update continues to be driven by
- * [com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent]
- * via TrackerService.updateData() until the old PostTrackerComponent
- * pipeline is removed (Phase 4). This processor exists solely to
- * ensure the notification concern has a home in the new pipeline and
- * will not be orphaned when the old pipeline is deleted.
+ * The actual foreground notification update is driven by
+ * [com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent].
+ * This processor ensures the notification concern has a home in the pipeline
+ * so it is not orphaned when old components are removed.
  */
 class NotificationProcessor @Inject constructor() : SignalProcessor {
 

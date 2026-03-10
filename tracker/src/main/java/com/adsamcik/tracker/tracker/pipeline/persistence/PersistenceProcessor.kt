@@ -37,9 +37,7 @@ import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 /**
- * Consolidates all persistence logic from the old PostTrackerComponents
- * (RawLocationWriter, PressureSampleWriter, DatabaseCellComponent,
- * DatabaseWifiComponent) into a single [SignalProcessor].
+ * Unified persistence processor that writes all tracking data to Room.
  *
  * [onSignal] only buffers data — no I/O. [onFlush] writes buffered data
  * to Room DAOs with per-table error isolation. A failure in one table
@@ -318,13 +316,11 @@ class PersistenceProcessor @Inject constructor(
 		internal const val STEP_BATCH_SIZE = 20
 		internal const val ACTIVITY_BATCH_SIZE = 20
 
-		// Quality thresholds matching RawLocationWriter behavior
 		private const val HIGH_ACCURACY_THRESHOLD = 10f
 		private const val MEDIUM_ACCURACY_THRESHOLD = 50f
 
 		/**
 		 * Classify location quality from horizontal accuracy.
-		 * Matches the old RawLocationWriter logic exactly.
 		 */
 		internal fun classifyQuality(horizontalAccuracyM: Float?): SampleQuality = when {
 			horizontalAccuracyM == null -> SampleQuality.COARSE
@@ -335,7 +331,6 @@ class PersistenceProcessor @Inject constructor(
 
 		/**
 		 * Infer motion state from activity recognition.
-		 * Matches the old RawLocationWriter logic exactly.
 		 */
 		internal fun inferMotionState(activity: ActivitySignal?): MotionState? {
 			if (activity == null) return null

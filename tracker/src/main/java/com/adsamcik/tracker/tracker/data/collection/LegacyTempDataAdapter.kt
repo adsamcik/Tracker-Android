@@ -6,7 +6,8 @@ import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 
 /**
  * Bridge adapter: creates a [MutableCollectionTempData] from a [TrackingCycle].
- * Used during migration while old components still read from TempData.
+ * This is the current bridge while old components still read from TempData.
+ * Will be removed when all consumers migrate to [TrackingCycle] directly.
  */
 internal object LegacyTempDataAdapter {
 

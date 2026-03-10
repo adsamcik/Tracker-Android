@@ -9,17 +9,15 @@ import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import javax.inject.Inject
 
 /**
- * Bridge processor that registers the ski-tracking concern in the new
- * signal pipeline. Caches the latest [TrackingSignal] each cycle.
+ * Bridge processor that registers the ski-tracking concern in the signal
+ * pipeline. Caches the latest [TrackingSignal] each cycle.
  *
  * The actual real-time ski detection (pressure + GPS analysis, lift
- * detection, segment writing) continues to be driven by
+ * detection, segment writing) is driven by
  * [com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent]
- * and [com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter]
- * via TrackerService.updateData() until the old PostTrackerComponent
- * pipeline is removed (Phase 4). This processor exists solely to
- * ensure the ski-tracking concern has a home in the new pipeline and
- * will not be orphaned when the old pipeline is deleted.
+ * and [com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter].
+ * This processor ensures the ski-tracking concern has a home in the pipeline
+ * so it is not orphaned when old components are removed.
  */
 class SkiTrackingProcessor @Inject constructor() : SignalProcessor {
 

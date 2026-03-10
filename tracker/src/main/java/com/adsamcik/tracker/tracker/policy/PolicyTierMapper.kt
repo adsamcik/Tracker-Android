@@ -4,10 +4,9 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.PolicyTier
 
 /**
- * Maps between the new [PolicyTier] system and the legacy [TrackingPolicy] enum.
+ * Maps between [PolicyTier] and the legacy [TrackingPolicy] enum.
  *
- * This bridge exists during the rearchitecture transition. Once all consumers
- * migrate to [PolicyTier], this mapper can be removed.
+ * Bridge mapper — will be removed once all consumers use [PolicyTier] directly.
  *
  * Mapping:
  * - [PolicyTier.OFF] -> not applicable (service not running)
