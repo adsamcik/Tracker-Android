@@ -11,7 +11,7 @@ import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 
 internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		TrackerDataProducerComponent(changeReceiver),
@@ -25,10 +25,10 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 	override val defaultRes: Int
 		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_steps_enabled_default
 
-	override fun onDataRequest(tempData: MutableCollectionTempData) {
+	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		if (stepCountSinceLastCollection >= 0) {
 			synchronized(lockObject) {
-				tempData.set(NEW_STEPS_ARG, stepCountSinceLastCollection)
+				builder.stepDelta = stepCountSinceLastCollection
 				stepCountSinceLastCollection = 0
 			}
 		} else {

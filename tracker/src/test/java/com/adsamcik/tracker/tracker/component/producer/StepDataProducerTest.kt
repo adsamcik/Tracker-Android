@@ -4,7 +4,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -54,8 +54,8 @@ class StepDataProducerTest {
 		return constructor.newInstance(3)
 	}
 
-	private fun createTempData(): MutableCollectionTempData {
-		return MutableCollectionTempData(System.currentTimeMillis(), System.nanoTime())
+	private fun createBuilder(): TrackingCycleBuilder {
+		return TrackingCycleBuilder(System.currentTimeMillis(), System.nanoTime())
 	}
 
 	private fun getLastStepCount(): Int {
@@ -158,21 +158,19 @@ class StepDataProducerTest {
 			producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 100f))
 			producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 115f))
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			val steps: Int? = tempData.tryGet(StepDataProducer.NEW_STEPS_ARG)
-			steps shouldBe 15
+			builder.stepDelta shouldBe 15
 			getStepCountSinceLastCollection() shouldBe 0
 		}
 
 		@Test
 		fun `reports zero steps when no steps accumulated`() {
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			val steps: Int? = tempData.tryGet(StepDataProducer.NEW_STEPS_ARG)
-			steps shouldBe 0
+			builder.stepDelta shouldBe 0
 		}
 
 		@Test
@@ -180,16 +178,16 @@ class StepDataProducerTest {
 			producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 100f))
 			producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 110f))
 
-			val tempData1 = createTempData()
-			producer.onDataRequest(tempData1)
-			tempData1.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG) shouldBe 10
+			val builder1 = createBuilder()
+			producer.onDataRequest(builder1)
+			builder1.stepDelta shouldBe 10
 
 			// More steps after first collection
 			producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 118f))
 
-			val tempData2 = createTempData()
-			producer.onDataRequest(tempData2)
-			tempData2.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG) shouldBe 8
+			val builder2 = createBuilder()
+			producer.onDataRequest(builder2)
+			builder2.stepDelta shouldBe 8
 		}
 
 		@Test
@@ -199,10 +197,10 @@ class StepDataProducerTest {
 
 			setStepCountSinceLastCollection(-1)
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG) shouldBe null
+			builder.stepDelta shouldBe null
 			unmockkObject(Reporter)
 		}
 	}

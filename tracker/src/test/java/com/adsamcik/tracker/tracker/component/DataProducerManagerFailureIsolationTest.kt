@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -120,7 +121,7 @@ class DataProducerManagerFailureIsolationTest {
 	) {
 		override val keyRes: Int = 0
 		override val defaultRes: Int = 0
-		override fun onDataRequest(tempData: MutableCollectionTempData) {
+		override fun onDataRequest(builder: TrackingCycleBuilder) {
 			throw exception
 		}
 	}
@@ -135,7 +136,7 @@ class DataProducerManagerFailureIsolationTest {
 
 		override val keyRes: Int = 0
 		override val defaultRes: Int = 0
-		override fun onDataRequest(tempData: MutableCollectionTempData) {
+		override fun onDataRequest(builder: TrackingCycleBuilder) {
 			wasInvoked = true
 		}
 	}

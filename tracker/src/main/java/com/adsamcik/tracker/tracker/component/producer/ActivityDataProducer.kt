@@ -11,7 +11,7 @@ import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 
 internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		TrackerDataProducerComponent(
@@ -22,20 +22,20 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 	override val defaultRes: Int
 		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_activity_enabled_default
 
-	private var lastActivity: ActivityInfo = ActivityInfo.UNKNOWN
+	@Volatile
+	private var lastSnapshot: ActivitySnapshot = ActivitySnapshot(ActivityInfo.UNKNOWN, -1L)
 
-	private var lastActivityElapsedTimeMillis = -1L
+	private data class ActivitySnapshot(val activity: ActivityInfo, val elapsedTimeMillis: Long)
 
-	override fun onDataRequest(tempData: MutableCollectionTempData) {
-		val lastActivity = lastActivity
-		val lastActivityElapsedTimeMillis = lastActivityElapsedTimeMillis
+	override fun onDataRequest(builder: TrackingCycleBuilder) {
+		val snapshot = lastSnapshot
 		val isActivityConfidentEnough =
-				Time.elapsedRealtimeMillis - lastActivityElapsedTimeMillis <= MAX_ACTIVITY_AGE_IN_MILLIS
+				Time.elapsedRealtimeMillis - snapshot.elapsedTimeMillis <= MAX_ACTIVITY_AGE_IN_MILLIS
 
 		if (isActivityConfidentEnough) {
-			tempData.setActivity(lastActivity)
+			builder.activity = snapshot.activity
 		} else {
-			tempData.setActivity(ActivityInfo.UNKNOWN)
+			builder.activity = ActivityInfo.UNKNOWN
 		}
 	}
 
@@ -44,8 +44,7 @@ internal class ActivityDataProducer(changeReceiver: TrackerDataProducerObserver)
 		if (activity.confidence < ACTIVITY_CONFIDENCE_THRESHOLD) return
 
 		if (activity.groupedActivity != GroupedActivity.UNKNOWN) {
-			lastActivity = activity
-			lastActivityElapsedTimeMillis = elapsedTime
+			lastSnapshot = ActivitySnapshot(activity, elapsedTime)
 		}
 	}
 

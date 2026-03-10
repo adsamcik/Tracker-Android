@@ -1,9 +1,8 @@
 package com.adsamcik.tracker.tracker.component.producer
 
 import android.net.wifi.ScanResult
-import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
@@ -32,8 +31,8 @@ class WifiDataProducerTest {
 		producer = WifiDataProducer(observer)
 	}
 
-	private fun createTempData(): MutableCollectionTempData {
-		return MutableCollectionTempData(System.currentTimeMillis(), System.nanoTime())
+	private fun createBuilder(): TrackingCycleBuilder {
+		return TrackingCycleBuilder(System.currentTimeMillis(), System.nanoTime())
 	}
 
 	private fun setScanData(scanResults: Array<ScanResult>?, time: Long = 1000L, relativeTime: Long = 2000L) {
@@ -61,11 +60,10 @@ class WifiDataProducerTest {
 		@Test
 		fun `returns null when no scan data available`() {
 			// scanData is null by default; appContext not initialized so it skips re-scan
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			val wifiData: WifiScanData? = tempData.tryGet(TrackerComponentRequirement.WIFI.name)
-			wifiData.shouldBeNull()
+			builder.wifiScan.shouldBeNull()
 		}
 
 		@Test
@@ -73,10 +71,10 @@ class WifiDataProducerTest {
 			val scanResults = arrayOf(createMockScanResult(), createMockScanResult())
 			setScanData(scanResults, time = 5000L, relativeTime = 10000L)
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			val wifiData: WifiScanData? = tempData.tryGet(TrackerComponentRequirement.WIFI.name)
+			val wifiData = builder.wifiScan
 			wifiData.shouldNotBeNull()
 			wifiData.data shouldHaveSize 2
 			wifiData.timeMillis shouldBe 5000L
@@ -88,14 +86,14 @@ class WifiDataProducerTest {
 			val scanResults = arrayOf(createMockScanResult())
 			setScanData(scanResults)
 
-			val tempData1 = createTempData()
-			producer.onDataRequest(tempData1)
-			tempData1.tryGet<WifiScanData>(TrackerComponentRequirement.WIFI.name).shouldNotBeNull()
+			val builder1 = createBuilder()
+			producer.onDataRequest(builder1)
+			builder1.wifiScan.shouldNotBeNull()
 
 			// Second request should have no data
-			val tempData2 = createTempData()
-			producer.onDataRequest(tempData2)
-			tempData2.tryGet<WifiScanData>(TrackerComponentRequirement.WIFI.name).shouldBeNull()
+			val builder2 = createBuilder()
+			producer.onDataRequest(builder2)
+			builder2.wifiScan.shouldBeNull()
 		}
 
 		@Test
@@ -103,10 +101,10 @@ class WifiDataProducerTest {
 			val scanResults = emptyArray<ScanResult>()
 			setScanData(scanResults)
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			val wifiData: WifiScanData? = tempData.tryGet(TrackerComponentRequirement.WIFI.name)
+			val wifiData = builder.wifiScan
 			wifiData.shouldNotBeNull()
 			wifiData.data shouldHaveSize 0
 		}
@@ -116,10 +114,10 @@ class WifiDataProducerTest {
 			val scanResults = Array(100) { createMockScanResult() }
 			setScanData(scanResults)
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			val wifiData: WifiScanData? = tempData.tryGet(TrackerComponentRequirement.WIFI.name)
+			val wifiData = builder.wifiScan
 			wifiData.shouldNotBeNull()
 			wifiData.data shouldHaveSize 100
 		}
@@ -128,7 +126,7 @@ class WifiDataProducerTest {
 		fun `resets scan time after collection`() {
 			setScanData(arrayOf(createMockScanResult()), time = 5000L, relativeTime = 10000L)
 
-			producer.onDataRequest(createTempData())
+			producer.onDataRequest(createBuilder())
 
 			// Verify internal time fields were reset
 			val scanTimeField = WifiDataProducer::class.java.getDeclaredField("scanTime")
@@ -151,10 +149,10 @@ class WifiDataProducerTest {
 			val result2 = createMockScanResult()
 			setScanData(arrayOf(result1, result2))
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			val wifiData = tempData.tryGet<WifiScanData>(TrackerComponentRequirement.WIFI.name)
+			val wifiData = builder.wifiScan
 			wifiData.shouldNotBeNull()
 			wifiData.data[0] shouldBe result1
 			wifiData.data[1] shouldBe result2

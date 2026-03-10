@@ -14,10 +14,9 @@ import android.Manifest
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.wifiManager
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.notification.WifiPermissionHintNotifier
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import com.adsamcik.tracker.logger.Reporter
@@ -50,12 +49,11 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
 
     private val scanDataLock = ReentrantLock()
 
-    override fun onDataRequest(tempData: MutableCollectionTempData) {
+    override fun onDataRequest(builder: TrackingCycleBuilder) {
         scanDataLock.withLock {
             val scanData = scanData
             if (scanData != null) {
-                val wifiScanData = WifiScanData(scanTime, scanTimeRelative, scanData)
-                tempData.set(TrackerComponentRequirement.WIFI.name, wifiScanData)
+                builder.wifiScan = WifiScanData(scanTime, scanTimeRelative, scanData)
 
                 this.scanData = null
                 scanTime = -1L

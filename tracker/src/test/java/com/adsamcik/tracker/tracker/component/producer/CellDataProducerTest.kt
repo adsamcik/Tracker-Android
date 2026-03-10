@@ -10,7 +10,7 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -72,8 +72,8 @@ class CellDataProducerTest {
 		return field.get(producer)
 	}
 
-	private fun createTempData(): MutableCollectionTempData {
-		return MutableCollectionTempData(System.currentTimeMillis(), System.nanoTime())
+	private fun createBuilder(): TrackingCycleBuilder {
+		return TrackingCycleBuilder(System.currentTimeMillis(), System.nanoTime())
 	}
 
 	private fun mockAirplaneMode(enabled: Boolean) {
@@ -100,11 +100,11 @@ class CellDataProducerTest {
 		fun `clears cached data and returns nothing in airplane mode`() {
 			mockAirplaneMode(enabled = true)
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
 			getPrivateField("lastCellScanData").shouldBeNull()
-			tempData.tryGet<Any>("CELL").shouldBeNull()
+			builder.cellScan.shouldBeNull()
 		}
 
 		@Test
@@ -113,10 +113,10 @@ class CellDataProducerTest {
 			mockReadPhonePermission(granted = false)
 			every { mockTelephonyManager.networkOperator } returns ""
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			tempData.tryGet<Any>("CELL").shouldBeNull()
+			builder.cellScan.shouldBeNull()
 		}
 
 		@Test
@@ -127,10 +127,10 @@ class CellDataProducerTest {
 			every { mockTelephonyManager.networkOperatorName } returns "T-Mobile"
 			every { mockTelephonyManager.allCellInfo } returns null
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			tempData.tryGet<Any>("CELL").shouldBeNull()
+			builder.cellScan.shouldBeNull()
 		}
 
 		@Test
@@ -150,10 +150,10 @@ class CellDataProducerTest {
 
 			every { mockTelephonyManager.allCellInfo } returns listOf(mockCellInfoLte)
 
-			val tempData = createTempData()
-			producer.onDataRequest(tempData)
+			val builder = createBuilder()
+			producer.onDataRequest(builder)
 
-			tempData.tryGet<Any>("CELL").shouldNotBeNull()
+			builder.cellScan.shouldNotBeNull()
 		}
 	}
 
@@ -200,17 +200,17 @@ class CellDataProducerTest {
 			every { mockTelephonyManager.allCellInfo } returns listOf(mockCellInfoLte)
 
 			// First request populates cache
-			val tempData1 = createTempData()
-			producer.onDataRequest(tempData1)
-			tempData1.tryGet<Any>("CELL").shouldNotBeNull()
+			val builder1 = createBuilder()
+			producer.onDataRequest(builder1)
+			builder1.cellScan.shouldNotBeNull()
 
 			// Immediately return empty allCellInfo to prove cache is used
 			every { mockTelephonyManager.allCellInfo } returns null
 
 			// Second request should use cached data (within TTL)
-			val tempData2 = createTempData()
-			producer.onDataRequest(tempData2)
-			tempData2.tryGet<Any>("CELL").shouldNotBeNull()
+			val builder2 = createBuilder()
+			producer.onDataRequest(builder2)
+			builder2.cellScan.shouldNotBeNull()
 		}
 	}
 }

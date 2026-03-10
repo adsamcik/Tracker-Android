@@ -8,7 +8,7 @@ import android.hardware.SensorManager
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlin.math.pow
 
 /**
@@ -27,12 +27,12 @@ internal class BarometerDataProducer(changeReceiver: TrackerDataProducerObserver
 	override val defaultRes: Int
 		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_barometer_enabled_default
 
-	override fun onDataRequest(tempData: MutableCollectionTempData) {
+	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		synchronized(lockObject) {
 			if (sampleCount > 0) {
 				val avgPressure = (pressureSum / sampleCount).toFloat()
 				val altitude = pressureToAltitude(avgPressure)
-				tempData.set(PRESSURE_KEY, PressureReading(avgPressure, altitude))
+				builder.pressure = PressureReading(avgPressure, altitude)
 				pressureSum = 0.0
 				sampleCount = 0
 			}

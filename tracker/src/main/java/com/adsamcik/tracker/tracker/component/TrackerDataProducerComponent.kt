@@ -5,7 +5,7 @@ import androidx.annotation.CallSuper
 import com.adsamcik.tracker.logger.assertTrue
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -52,5 +52,5 @@ internal abstract class TrackerDataProducerComponent(private val changeReceiver:
 		isEnabled = false
 	}
 
-	abstract fun onDataRequest(tempData: MutableCollectionTempData)
+	abstract fun onDataRequest(builder: TrackingCycleBuilder)
 }

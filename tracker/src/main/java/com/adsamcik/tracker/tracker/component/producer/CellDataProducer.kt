@@ -26,7 +26,7 @@ import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerObserver
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import android.os.SystemClock
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import com.adsamcik.tracker.tracker.utility.TelephonyUtils
 import java.util.*
 
@@ -44,7 +44,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 	private var lastCellScanData: CellScanData? = null
 	private var lastCellScanElapsedRealtimeMillis: Long = -1L
 
-	override fun onDataRequest(tempData: MutableCollectionTempData) {
+	override fun onDataRequest(builder: TrackingCycleBuilder) {
 		val context = requireNotNull(context)
 		// If airplane mode is enabled do not provide stale data.
 		if (Assist.isAirplaneModeEnabled(context)) {
@@ -72,7 +72,7 @@ internal class CellDataProducer(changeReceiver: TrackerDataProducerObserver) :
 			}
 		}
 
-		lastCellScanData?.let { tempData.setCellData(it) }
+		lastCellScanData?.let { builder.cellScan = it }
 	}
 
 	@Suppress("MagicNumber")
