@@ -17,6 +17,9 @@ internal data class TrackingCycle(
 	val wifiScan: WifiScanData? = null,
 	val stepDelta: Int? = null,
 	val totalStepsSinceBoot: Long? = null,
+	val stepSensorValueStart: Int = 0,
+	val stepSensorValueEnd: Int = 0,
+	val stepSensorReset: Boolean = false,
 	val pressure: PressureReading? = null,
 	val rawGpsAltitude: Double? = null,
 )

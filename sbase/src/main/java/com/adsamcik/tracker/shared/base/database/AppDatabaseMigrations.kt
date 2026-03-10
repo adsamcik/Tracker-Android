@@ -863,6 +863,59 @@ val MIGRATION_19_20: Migration = object : Migration(19, 20) {
  */
 val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 	override fun migrate(db: SupportSQLiteDatabase) {
+		val currentTimeMs = System.currentTimeMillis()
+
+		// Backfill cell_sample from legacy cell_location (if not already migrated).
+		// cell_location schema: id, time, mcc TEXT, mnc TEXT, cell_id, type, asu, lat, lon, alt
+		db.execSQL("""
+			INSERT OR IGNORE INTO cell_sample (
+				time_ms, cell_id, lac, mcc, mnc, network_type,
+				signal_strength, lat_e7, lon_e7, provenance, created_at
+			)
+			SELECT
+				cl.time,
+				cl.cell_id,
+				0,
+				CAST(cl.mcc AS INTEGER),
+				CAST(cl.mnc AS INTEGER),
+				cl.type,
+				cl.asu,
+				CASE WHEN cl.lat IS NOT NULL THEN CAST(cl.lat * 10000000 AS INTEGER) ELSE NULL END,
+				CASE WHEN cl.lon IS NOT NULL THEN CAST(cl.lon * 10000000 AS INTEGER) ELSE NULL END,
+				'LEGACY_MIGRATION',
+				$currentTimeMs
+			FROM cell_location cl
+			WHERE NOT EXISTS (
+				SELECT 1 FROM cell_sample cs
+				WHERE cs.time_ms = cl.time AND cs.cell_id = cl.cell_id
+			)
+		""".trimIndent())
+
+		// Backfill wifi_observation from legacy wifi_data (one observation per AP).
+		// wifi_data schema: bssid PK, longitude, latitude, altitude, first_seen, last_seen, ssid, capabilities, frequency, level
+		db.execSQL("""
+			INSERT OR IGNORE INTO wifi_observation (
+				time_ms, bssid, ssid, capabilities, frequency, level,
+				lat_e7, lon_e7, provenance, created_at
+			)
+			SELECT
+				wd.last_seen,
+				wd.bssid,
+				wd.ssid,
+				wd.capabilities,
+				wd.frequency,
+				wd.level,
+				CASE WHEN wd.latitude IS NOT NULL THEN CAST(wd.latitude * 10000000 AS INTEGER) ELSE NULL END,
+				CASE WHEN wd.longitude IS NOT NULL THEN CAST(wd.longitude * 10000000 AS INTEGER) ELSE NULL END,
+				'LEGACY_MIGRATION',
+				$currentTimeMs
+			FROM wifi_data wd
+			WHERE NOT EXISTS (
+				SELECT 1 FROM wifi_observation wo
+				WHERE wo.bssid = wd.bssid AND wo.time_ms = wd.last_seen
+			)
+		""".trimIndent())
+
 		db.execSQL("DROP TABLE IF EXISTS tracker_session")
 		db.execSQL("DROP TABLE IF EXISTS location_data")
 		db.execSQL("DROP TABLE IF EXISTS wifi_data")
@@ -870,7 +923,7 @@ val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 		db.execSQL("DROP TABLE IF EXISTS location_wifi_count")
 		android.util.Log.i(
 			"AppDatabase",
-			"Migration 20->21: Dropped legacy tables (tracker_session, location_data, wifi_data, cell_location, location_wifi_count)"
+			"Migration 20->21: Backfilled legacy wifi/cell data, then dropped legacy tables"
 		)
 	}
 }

@@ -42,6 +42,18 @@ import javax.inject.Inject
  * [onSignal] only buffers data — no I/O. [onFlush] writes buffered data
  * to Room DAOs with per-table error isolation. A failure in one table
  * (e.g. cell) does not lose data for another (e.g. wifi).
+ *
+ * ### Thread-safety contract
+ *
+ * The mutable buffers below are **not** protected by an internal lock.
+ * They are safe because all callers are serialized externally:
+ *
+ * - [onSignal] is called under the pipeline mutex in [ProcessorPipeline].
+ * - [onFlush] is called from the pipeline's slow-path which is
+ *   serialized by `componentMutex` in `TrackingOrchestrator`.
+ * - [onStop] is called under the pipeline mutex during shutdown.
+ *
+ * If this invariant changes, the buffers **must** be guarded by a lock.
  */
 class PersistenceProcessor @Inject constructor(
 	private val locationSampleDao: LocationSampleDao,
@@ -261,8 +273,11 @@ class PersistenceProcessor @Inject constructor(
 
 	/**
 	 * Drains [buffer] in chunks of [batchSize], calling [insert] for each chunk.
-	 * Errors are caught per-table so one failure doesn't lose other tables' data.
-	 * [CancellationException] is always re-thrown to respect structured concurrency.
+	 *
+	 * Each chunk is written independently so a failure in chunk N does not
+	 * prevent chunks N+1…M from being persisted. On [CancellationException]
+	 * the current chunk plus all remaining chunks are put back into [buffer]
+	 * so they survive a coroutine cancellation (e.g. service shutdown timeout).
 	 */
 	private suspend fun <T> flushTable(
 		tableName: String,
@@ -275,22 +290,26 @@ class PersistenceProcessor @Inject constructor(
 		val snapshot = buffer.toList()
 		buffer.clear()
 
-		try {
-			snapshot.chunked(batchSize).forEach { chunk ->
+		val chunks = snapshot.chunked(batchSize)
+		for ((index, chunk) in chunks.withIndex()) {
+			try {
 				insert(chunk)
+			} catch (e: CancellationException) {
+				// Put back this chunk + all remaining chunks
+				val remaining = chunks.subList(index, chunks.size).flatten()
+				buffer.addAll(0, remaining)
+				throw e
+			} catch (e: Exception) {
+				Log.w(TAG, "Flush failed for $tableName chunk $index (${chunk.size} records)", e)
+				errorCollector.reportError(
+					PersistenceError(
+						source = PROCESSOR_ID,
+						operation = "flush $tableName chunk $index",
+						recordCount = chunk.size,
+						cause = e,
+					),
+				)
 			}
-		} catch (e: CancellationException) {
-			throw e
-		} catch (e: Exception) {
-			Log.w(TAG, "Flush failed for $tableName (${snapshot.size} records)", e)
-			errorCollector.reportError(
-				PersistenceError(
-					source = PROCESSOR_ID,
-					operation = "flush $tableName",
-					recordCount = snapshot.size,
-					cause = e,
-				),
-			)
 		}
 	}
 

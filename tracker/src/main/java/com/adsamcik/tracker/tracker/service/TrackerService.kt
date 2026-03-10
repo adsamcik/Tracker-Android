@@ -275,11 +275,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					orchestrator.shutdown(context) { timerRef.onDisable(context) }
 				}
 			} finally {
+				orchestrator.resetMetadata()
 				cleanupScope.cancel()
 			}
 		}
-
-		orchestrator.resetMetadata()
 
 		ActivityWatcherService.poke(this@TrackerService, trackerRunning = false)
 

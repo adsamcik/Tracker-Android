@@ -33,6 +33,15 @@ internal class TrackingCycleBuilder(
 	var totalStepsSinceBoot: Long? = null
 
 	@Volatile
+	var stepSensorValueStart: Int = 0
+
+	@Volatile
+	var stepSensorValueEnd: Int = 0
+
+	@Volatile
+	var stepSensorReset: Boolean = false
+
+	@Volatile
 	var pressure: PressureReading? = null
 
 	@Volatile
@@ -47,6 +56,9 @@ internal class TrackingCycleBuilder(
 		wifiScan = wifiScan,
 		stepDelta = stepDelta,
 		totalStepsSinceBoot = totalStepsSinceBoot,
+		stepSensorValueStart = stepSensorValueStart,
+		stepSensorValueEnd = stepSensorValueEnd,
+		stepSensorReset = stepSensorReset,
 		pressure = pressure,
 		rawGpsAltitude = rawGpsAltitude,
 	)

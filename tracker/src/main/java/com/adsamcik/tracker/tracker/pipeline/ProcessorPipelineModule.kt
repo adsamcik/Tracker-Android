@@ -7,6 +7,8 @@ import com.adsamcik.tracker.stats.engine.processor.ExplorationProcessor
 import com.adsamcik.tracker.stats.engine.processor.SegmentDetectorProcessor
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
+import com.adsamcik.tracker.tracker.pipeline.NotificationProcessor
+import com.adsamcik.tracker.tracker.pipeline.SkiTrackingProcessor
 import com.adsamcik.tracker.tracker.pipeline.persistence.PersistenceProcessor
 import dagger.Module
 import dagger.Provides
@@ -70,13 +72,13 @@ object ProcessorPipelineModule {
 
 	@Provides
 	@IntoSet
-	fun provideNotificationProcessor(): SignalProcessor {
-		return NotificationProcessor()
+	fun provideNotificationProcessor(processor: NotificationProcessor): SignalProcessor {
+		return processor
 	}
 
 	@Provides
 	@IntoSet
-	fun provideSkiTrackingProcessor(): SignalProcessor {
-		return SkiTrackingProcessor()
+	fun provideSkiTrackingProcessor(processor: SkiTrackingProcessor): SignalProcessor {
+		return processor
 	}
 }

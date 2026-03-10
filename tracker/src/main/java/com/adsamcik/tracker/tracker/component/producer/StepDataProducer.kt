@@ -19,6 +19,8 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 	private val lockObject = Object()
 	private var lastStepCount = -1
 	private var stepCountSinceLastCollection = 0
+	private var stepValueAtCollectionStart: Int = -1
+	private var sensorResetDetected: Boolean = false
 
 	override val keyRes: Int
 		get() = com.adsamcik.tracker.shared.preferences.R.string.settings_steps_enabled_key
@@ -29,7 +31,13 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 		if (stepCountSinceLastCollection >= 0) {
 			synchronized(lockObject) {
 				builder.stepDelta = stepCountSinceLastCollection
+				builder.totalStepsSinceBoot = if (lastStepCount >= 0) lastStepCount.toLong() else null
+				builder.stepSensorValueStart = stepValueAtCollectionStart
+				builder.stepSensorValueEnd = lastStepCount
+				builder.stepSensorReset = sensorResetDetected
 				stepCountSinceLastCollection = 0
+				stepValueAtCollectionStart = lastStepCount
+				sensorResetDetected = false
 			}
 		} else {
 			Reporter.report("Negative step count since last collection $stepCountSinceLastCollection")
@@ -61,6 +69,7 @@ internal class StepDataProducer(changeReceiver: TrackerDataProducerObserver) :
 					//In case sensor would overflow and reset to 0 at some point
 					if (lastStepCount > stepCount) {
 						this.stepCountSinceLastCollection += stepCount
+						sensorResetDetected = true
 					} else {
 						this.stepCountSinceLastCollection += stepCount - lastStepCount
 					}
