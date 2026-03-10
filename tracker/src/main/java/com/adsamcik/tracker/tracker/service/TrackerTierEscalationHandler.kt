@@ -56,6 +56,12 @@ internal class TrackerTierEscalationHandler(
 	lateinit var dataComponentList: MutableList<DataTrackerComponent>
 	lateinit var postComponentList: MutableList<PostTrackerComponent>
 
+	/**
+	 * Callback invoked when escalation creates a new DataProducerManager.
+	 * The service must update its own field to use the new manager.
+	 */
+	var onProducerManagerChanged: ((DataProducerManager) -> Unit)? = null
+
 	var dataProducerManager: DataProducerManager? = null
 	var persistenceErrorCollector: DefaultPersistenceErrorCollector? = null
 	var processorPipeline: ProcessorPipeline? = null
@@ -111,6 +117,7 @@ internal class TrackerTierEscalationHandler(
 				val newManager = DataProducerManager(context, newTier)
 				newManager.onEnable()
 				dataProducerManager = newManager
+				onProducerManagerChanged?.invoke(newManager)
 
 				// Add GPS-dependent data components
 				val newDataComponents = componentFactory.buildEscalationDataComponents(context)

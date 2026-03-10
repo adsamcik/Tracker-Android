@@ -4,7 +4,6 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -15,13 +14,7 @@ import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.PressureSampleWriter
-import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
@@ -124,36 +117,16 @@ internal class TrackerComponentFactory(
 
 	/**
 	 * Build GPS-dependent post components added during tier escalation.
+	 *
+	 * Persistence is now handled by [PersistenceProcessor] in the stats pipeline,
+	 * so no database post-components are created here.
 	 */
+	@Suppress("UNUSED_PARAMETER")
 	suspend fun buildEscalationPostComponents(
 		context: Context,
 		errorCollector: DefaultPersistenceErrorCollector?,
 	): List<PostTrackerComponent> {
-		val dualWrite = trackerSettingsRepository.data.first().legacyDualWriteEnabled
-		val components = mutableListOf<PostTrackerComponent>()
-		if (errorCollector != null) {
-			components.add(DatabaseCellComponent(dualWrite).also { it.setErrorCollector(errorCollector) })
-			components.add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-			components.add(
-				DatabaseWifiComponent(
-					appDatabase.wifiDao(),
-					appDatabase.wifiObservationDao(),
-					dualWrite,
-				).also { it.setErrorCollector(errorCollector) }
-			)
-		}
-		components.add(
-			DatabaseWifiLocationCountComponent(appDatabase.wifiLocationCountDao()).also { comp ->
-				errorCollector?.let { comp.setErrorCollector(it) }
-			}
-		)
-		components.add(
-			RawLocationWriter(appDatabase.locationSampleDao()).also { comp ->
-				errorCollector?.let { comp.setErrorCollector(it) }
-			}
-		)
-		for (component in components) { component.onEnable(context) }
-		return components
+		return emptyList()
 	}
 
 	private suspend fun buildPreComponents(
@@ -198,7 +171,6 @@ internal class TrackerComponentFactory(
 	): List<PostTrackerComponent> {
 		val components = mutableListOf<PostTrackerComponent>()
 		components.add(notificationComponent)
-		components.add(PressureSampleWriter().also { it.setErrorCollector(errorCollector) })
 		val skiEnabled = trackingParamsRepository.data.first().skiDetectionEnabled
 		if (skiEnabled) {
 			val segmentWriter = SkiSegmentWriter()
@@ -213,28 +185,8 @@ internal class TrackerComponentFactory(
 				}
 			})
 		}
-		if (tier.isGpsEnabled) {
-			val dualWrite = trackerSettingsRepository.data.first().legacyDualWriteEnabled
-			components.add(DatabaseCellComponent(dualWrite).also { it.setErrorCollector(errorCollector) })
-			components.add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-			components.add(
-				DatabaseWifiComponent(
-					appDatabase.wifiDao(),
-					appDatabase.wifiObservationDao(),
-					dualWrite,
-				).also { it.setErrorCollector(errorCollector) }
-			)
-			components.add(
-				DatabaseWifiLocationCountComponent(
-					appDatabase.wifiLocationCountDao(),
-				).also { it.setErrorCollector(errorCollector) }
-			)
-			components.add(
-				RawLocationWriter(
-					appDatabase.locationSampleDao(),
-				).also { it.setErrorCollector(errorCollector) }
-			)
-		}
+		// Persistence (location, cell, wifi, pressure) is now handled by PersistenceProcessor
+		// in the stats pipeline — no database post-components are created here.
 		for (component in components) { component.onEnable(context) }
 		return components
 	}

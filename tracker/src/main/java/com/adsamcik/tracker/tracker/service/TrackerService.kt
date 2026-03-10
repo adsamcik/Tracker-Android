@@ -36,7 +36,6 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
 import com.adsamcik.tracker.tracker.component.producer.PressureReading
@@ -593,10 +592,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			try {
 				kotlinx.coroutines.withTimeoutOrNull(4_000L) {
 					componentMutex.withLock {
-						// Flush pending batched inserts before disabling components
-						postComponents.filterIsInstance<DatabaseLocationComponent>()
-							.firstOrNull()?.flushPending()
-
 						timerRef.onDisable(context)
 						onDestroyComponents(context)
 					}
