@@ -59,4 +59,16 @@ object ProcessorPipelineModule {
 	fun providePersistenceProcessor(instance: PersistenceProcessor): SignalProcessor {
 		return instance
 	}
+
+	@Provides
+	@IntoSet
+	fun provideNotificationProcessor(): SignalProcessor {
+		return NotificationProcessor()
+	}
+
+	@Provides
+	@IntoSet
+	fun provideSkiTrackingProcessor(): SignalProcessor {
+		return SkiTrackingProcessor()
+	}
 }
