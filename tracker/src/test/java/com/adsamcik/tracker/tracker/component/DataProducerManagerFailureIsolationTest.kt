@@ -1,0 +1,142 @@
+package com.adsamcik.tracker.tracker.component
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.robolectric.annotation.Config
+import tech.apter.junit.jupiter.robolectric.RobolectricExtension
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+
+/**
+ * Verifies that [DataProducerManager.getData] isolates individual producer
+ * failures so that one crashing producer does not prevent others from
+ * contributing data to the collection cycle.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+@ExtendWith(RobolectricExtension::class)
+@Config(sdk = [28])
+class DataProducerManagerFailureIsolationTest {
+
+	private lateinit var context: Context
+
+	@BeforeEach
+	fun setup() {
+		context = ApplicationProvider.getApplicationContext()
+	}
+
+	@Test
+	fun `failing producer does not prevent other producers from running`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val dispatchers = testDispatchers(testDispatcher)
+		val manager = DataProducerManager(context, PolicyTier.AMBIENT, dispatchers)
+
+		val throwingProducer = ThrowingProducer(RuntimeException("sensor failure"))
+		val recordingProducer = RecordingProducer()
+
+		activateProducer(manager, throwingProducer)
+		activateProducer(manager, recordingProducer)
+
+		val tempData = MutableCollectionTempData(
+			System.currentTimeMillis(),
+			System.nanoTime(),
+		)
+		manager.getData(tempData)
+
+		assertTrue(recordingProducer.wasInvoked, "Recording producer should have been called despite sibling failure")
+	}
+
+	@Test
+	fun `CancellationException still propagates`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val dispatchers = testDispatchers(testDispatcher)
+		val manager = DataProducerManager(context, PolicyTier.AMBIENT, dispatchers)
+
+		val cancellingProducer = ThrowingProducer(CancellationException("cancelled"))
+		activateProducer(manager, cancellingProducer)
+
+		val tempData = MutableCollectionTempData(
+			System.currentTimeMillis(),
+			System.nanoTime(),
+		)
+		assertFailsWith<CancellationException> {
+			manager.getData(tempData)
+		}
+	}
+
+	@Test
+	fun `all producers succeed when none throw`() = runTest {
+		val testDispatcher = StandardTestDispatcher(testScheduler)
+		val dispatchers = testDispatchers(testDispatcher)
+		val manager = DataProducerManager(context, PolicyTier.AMBIENT, dispatchers)
+
+		val producer1 = RecordingProducer()
+		val producer2 = RecordingProducer()
+
+		activateProducer(manager, producer1)
+		activateProducer(manager, producer2)
+
+		val tempData = MutableCollectionTempData(
+			System.currentTimeMillis(),
+			System.nanoTime(),
+		)
+		manager.getData(tempData)
+
+		assertTrue(producer1.wasInvoked)
+		assertTrue(producer2.wasInvoked)
+	}
+
+	// --- Helpers ---
+
+	private fun activateProducer(manager: DataProducerManager, component: TrackerDataProducerComponent) {
+		val field = DataProducerManager::class.java.getDeclaredField("activeProducerList")
+		field.isAccessible = true
+		@Suppress("UNCHECKED_CAST")
+		val list = field.get(manager) as java.util.concurrent.CopyOnWriteArrayList<TrackerDataProducerComponent>
+		list.add(component)
+	}
+
+	private fun testDispatchers(dispatcher: CoroutineDispatcher) = object : DispatchersProvider {
+		override val main: CoroutineDispatcher = dispatcher
+		override val default: CoroutineDispatcher = dispatcher
+		override val io: CoroutineDispatcher = dispatcher
+		override val unconfined: CoroutineDispatcher = dispatcher
+	}
+
+	private class ThrowingProducer(private val exception: Exception) : TrackerDataProducerComponent(
+		object : TrackerDataProducerObserver {
+			override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {}
+		}
+	) {
+		override val keyRes: Int = 0
+		override val defaultRes: Int = 0
+		override fun onDataRequest(tempData: MutableCollectionTempData) {
+			throw exception
+		}
+	}
+
+	private class RecordingProducer : TrackerDataProducerComponent(
+		object : TrackerDataProducerObserver {
+			override fun onStateChange(shouldBeEnabled: Boolean, component: TrackerDataProducerComponent) {}
+		}
+	) {
+		var wasInvoked = false
+			private set
+
+		override val keyRes: Int = 0
+		override val defaultRes: Int = 0
+		override fun onDataRequest(tempData: MutableCollectionTempData) {
+			wasInvoked = true
+		}
+	}
+}

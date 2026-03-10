@@ -14,6 +14,8 @@ import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -92,9 +94,21 @@ internal class DataProducerManager(
 		// Run all active producers in parallel on a background dispatcher to keep main thread free.
 		withContext(coroutineContext) {
 			activeProducerList.map { producer ->
-				async { producer.onDataRequest(tempData) }
+				async {
+					try {
+						producer.onDataRequest(tempData)
+					} catch (e: CancellationException) {
+						throw e
+					} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+						Log.e(TAG, "Producer ${producer::class.simpleName} failed: ${e.message}", e)
+					}
+				}
 			}.awaitAll()
 		}
+	}
+
+	companion object {
+		private const val TAG = "DataProducerManager"
 	}
 }
 

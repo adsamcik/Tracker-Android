@@ -53,9 +53,11 @@ import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -237,7 +239,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	}
 
-	@MainThread
 	private suspend fun initializeComponents(
 		isSessionUserInitiated: Boolean,
 		initialTier: PolicyTier
@@ -291,6 +292,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			this.dataProducerManager = this@TrackerService.dataProducerManager
 			this.persistenceErrorCollector = null // set below after factory creates it
 			this.processorPipeline = null // set below after pipeline creation
+			this.onProducerManagerChanged = { newManager ->
+				this@TrackerService.dataProducerManager = newManager
+			}
 			this.timerAccessor = object : TrackerTierEscalationHandler.TimerAccessor {
 				override fun get() = timerComponent
 				override fun set(timer: CollectionTriggerComponent) {
@@ -420,7 +424,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				timerComponent = TrackerTimerManager.getSelected(this@TrackerService)
 			}
 
-			val componentInitialization = async(Dispatchers.Main) {
+			val componentInitialization = async(Dispatchers.Default) {
 				initializeComponents(
 					isSessionUserInitiated = isUserInitiated,
 					initialTier = initialTier
@@ -432,8 +436,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			if (timerComponent.hasRequiredPermissions(this@TrackerService)) {
 				timerComponent.onEnable(this@TrackerService, this@TrackerService)
 			} else {
-				stopSelf()
 				Reporter.report("Missing permissions for ${timerComponent.javaClass}")
+				stopSelf()
 			}
 		}
 
@@ -467,6 +471,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 			try {
 				updateData(tempData)
+			} catch (e: CancellationException) {
+				throw e
 			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
 				Reporter.report(e)
 			} finally {
@@ -526,6 +532,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 
 	override fun onDestroy() {
+		// Capture references before super.onDestroy() cancels the coroutine scope
+		val timerRef = timerComponent
+		val postComponents = postComponentList.toList()
+		val context: Context = this
+
 		super.onDestroy()
 		stopForeground(STOP_FOREGROUND_REMOVE)
 		
@@ -533,24 +544,26 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		lockObservationJob?.cancel()
 		lockObservationJob = null
 
-		// Launch critical cleanup on a background thread with a bounded timeout.
-		// Avoid runBlocking on main thread to prevent ANR (C4 fix, reviewed).
-		val cleanupJob = launch(Dispatchers.Default) {
-			kotlinx.coroutines.withTimeoutOrNull(4_000L) {
-				componentMutex.withLock {
-					// Flush pending batched inserts before disabling components
-					postComponentList.filterIsInstance<DatabaseLocationComponent>().firstOrNull()?.flushPending()
+		// Fire-and-forget cleanup on an independent scope to avoid blocking the main thread.
+		// CoreService.onDestroy() already cancelled our CoroutineScope, so we use a standalone
+		// scope with a bounded lifetime to ensure cleanup completes without causing ANR.
+		val cleanupScope = kotlinx.coroutines.CoroutineScope(
+			Dispatchers.Default + kotlinx.coroutines.SupervisorJob()
+		)
+		cleanupScope.launch {
+			try {
+				kotlinx.coroutines.withTimeoutOrNull(4_000L) {
+					componentMutex.withLock {
+						// Flush pending batched inserts before disabling components
+						postComponents.filterIsInstance<DatabaseLocationComponent>()
+							.firstOrNull()?.flushPending()
 
-					timerComponent.onDisable(this@TrackerService)
-					onDestroyComponents(this@TrackerService)
+						timerRef.onDisable(context)
+						onDestroyComponents(context)
+					}
 				}
-			}
-		}
-
-		// Use a short runBlocking only to await the already-dispatched cleanup
-		kotlinx.coroutines.runBlocking {
-			kotlinx.coroutines.withTimeoutOrNull(5_000L) {
-				cleanupJob.join()
+			} finally {
+				cleanupScope.cancel()
 			}
 		}
 
