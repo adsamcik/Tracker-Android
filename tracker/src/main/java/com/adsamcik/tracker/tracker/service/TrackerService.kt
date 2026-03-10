@@ -30,6 +30,7 @@ import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
+import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
 import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
@@ -37,13 +38,17 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
+import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
+import com.adsamcik.tracker.tracker.component.producer.PressureReading
 import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
+import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
@@ -182,8 +187,37 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// Feed data to the ProcessorPipeline
 		processorPipeline?.let { pipeline ->
 			tryWithReport {
+				val cellTowers = tempData.tryGet<CellScanData>(
+					TrackerComponentRequirement.CELL.name
+				)?.registeredCells?.map { cell ->
+					com.adsamcik.tracker.stats.api.signal.CellTowerReading(
+						cellId = cell.cellId,
+						mcc = cell.networkOperator.mcc,
+						mnc = cell.networkOperator.mnc,
+						networkType = cell.type.ordinal,
+						signalStrength = cell.asu,
+					)
+				}
+
+				val wifiNetworks = tempData.tryGet<WifiScanData>(
+					TrackerComponentRequirement.WIFI.name
+				)?.data?.map { sr ->
+					com.adsamcik.tracker.stats.api.signal.WifiNetworkReading(
+						bssid = sr.BSSID ?: "",
+						ssid = sr.SSID ?: "",
+						capabilities = sr.capabilities ?: "",
+						frequency = sr.frequency,
+						level = sr.level,
+					)
+				}
+
+				val pressureReading = tempData.tryGet<PressureReading>(
+					BarometerDataProducer.PRESSURE_KEY
+				)
+
 				val signal = SignalAdapter.buildSignal(
 					timestampMs = tempData.timeMillis,
+					elapsedRealtimeNanos = tempData.elapsedRealtimeNanos,
 					latitude = collectionData.location?.latitude,
 					longitude = collectionData.location?.longitude,
 					accuracy = collectionData.location?.horizontalAccuracy,
@@ -192,6 +226,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					activityTypeCode = collectionData.activity?.activityType,
 					activityConfidence = collectionData.activity?.confidence,
 					stepDelta = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG),
+					cellTowers = cellTowers,
+					wifiNetworks = wifiNetworks,
+					pressureHpa = pressureReading?.pressureHpa,
+					pressureAltitudeM = pressureReading?.altitudeM,
+					policyTier = currentTier,
 				)
 				pipeline.onSignal(signal)
 			}

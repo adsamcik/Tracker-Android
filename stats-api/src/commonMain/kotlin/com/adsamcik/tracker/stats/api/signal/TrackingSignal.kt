@@ -57,9 +57,8 @@ data class CellSignal(
 /** Individual cell tower reading (platform-independent). */
 data class CellTowerReading(
 	val cellId: Long,
-	val lac: Int,
-	val mcc: Int,
-	val mnc: Int,
+	val mcc: String,
+	val mnc: String,
 	val networkType: Int,
 	val signalStrength: Int,
 )
