@@ -8,9 +8,13 @@ import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
+import com.adsamcik.tracker.stats.api.PlausibilityResult
+import com.adsamcik.tracker.stats.api.TripPlausibility
 
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
@@ -23,13 +27,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
 internal class SessionTrackerComponent(
 	private val isUserInitiated: Boolean,
-	private val sessionDao: SessionDataDao,
+	private val sessionSegmentDao: SessionSegmentDao,
 ) : DataTrackerComponent,
 	CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
@@ -37,6 +43,8 @@ internal class SessionTrackerComponent(
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
+
+	private val sessionMutex = Mutex()
 
 	private var mutableSession: MutableTrackerSession = MutableTrackerSession(
 		Time.nowMillis,
@@ -46,41 +54,48 @@ internal class SessionTrackerComponent(
 	val session: TrackerSession
 		get() = mutableSession
 
+	@Volatile
 	var isNewSession: Boolean = false
 		private set
 
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1
+	private var collectedLocationCount = 0
 	private val preferenceJobs = mutableListOf<Job>()
 
 	override suspend fun onDataUpdated(
 		tempData: CollectionTempData,
 		collectionData: MutableCollectionData
 	) {
-		mutableSession.run {
-			val locationData = tempData.tryGetLocationData()
-			val distance = locationData?.distance
-			distance?.let {
-				distanceInM += it
-
-				tempData.tryGetActivity()?.let { activity ->
-					validateActivity(
-						distance, tempData.elapsedRealtimeNanos,
-						activity.groupedActivity
-					)
+		sessionMutex.withLock {
+			mutableSession.run {
+				val locationData = tempData.tryGetLocationData()
+				if (locationData != null) {
+					collectedLocationCount++
 				}
-			}
+				val distance = locationData?.distance
+				distance?.let {
+					distanceInM += it
 
-			collections++
-			end = Time.nowMillis
+					tempData.tryGetActivity()?.let { activity ->
+						validateActivity(
+							distance, tempData.elapsedRealtimeNanos,
+							activity.groupedActivity
+						)
+					}
+				}
 
-			tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
-				assertMoreOrEqual(newSteps, 0)
-				steps += newSteps
-			}
+				collections++
+				end = Time.nowMillis
 
-			withContext(coroutineContext) {
-				sessionDao.update(this@run)
+				tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
+					assertMoreOrEqual(newSteps, 0)
+					steps += newSteps
+				}
+
+				withContext(coroutineContext) {
+					upsertSessionSegment(this@run)
+				}
 			}
 		}
 	}
@@ -110,12 +125,57 @@ internal class SessionTrackerComponent(
 		preferenceJobs.forEach(Job::cancel)
 		preferenceJobs.clear()
 
-		mutableSession.apply {
-			end = Time.nowMillis
-		}
+		sessionMutex.withLock {
+			mutableSession.apply {
+				end = Time.nowMillis
+			}
 
-		withContext(coroutineContext) {
-			sessionDao.update(mutableSession)
+			withContext(coroutineContext) {
+				if (isNewSession && collectedLocationCount == 0) {
+					// Rapid start/stop produced no GPS points — remove the pre-inserted row.
+					if (mutableSession.id > 0L) {
+						sessionSegmentDao.deleteById(mutableSession.id)
+					}
+				} else {
+					upsertSessionSegment(mutableSession)
+				}
+			}
+		}
+		job.cancel()
+	}
+
+	private fun upsertSessionSegment(session: TrackerSession) {
+		if (session.end < session.start) return
+
+		val durationMs = session.end - session.start
+		val hasAnomaly = TripPlausibility.evaluate(
+			distanceM = session.distanceInM,
+			durationMs = durationMs,
+			activityType = null,
+		) is PlausibilityResult.Implausible
+
+		val segment = SessionSegment(
+			id = if (session.id > 0L) session.id else 0,
+			startTimeMs = session.start,
+			endTimeMs = session.end,
+			distanceM = session.distanceInM,
+			steps = session.steps,
+			primaryActivity = null,
+			activityConfidence = null,
+			sampleCount = session.collections,
+			source = SegmentSource.USER_CREATED,
+			inferenceVersion = "tracker_v2",
+			createdAt = Time.nowMillis,
+			hasDistanceAnomaly = hasAnomaly,
+		)
+
+		if (session.id > 0L) {
+			sessionSegmentDao.update(segment)
+		} else {
+			val insertedId = sessionSegmentDao.insert(segment)
+			if (insertedId > 0L) {
+				session.id = insertedId
+			}
 		}
 	}
 
@@ -145,40 +205,36 @@ internal class SessionTrackerComponent(
 			.launchIn(this)
 
 		withContext(coroutineContext) {
-			initializeSession(context)
+			initializeSession()
 		}
 	}
 
 	@WorkerThread
-	private fun initializeSession(context: Context) {
-		val lastSession = sessionDao.getLast(1)
+	private fun initializeSession() {
 		val now = Time.nowMillis
-
-		var isNewSession = true
-		if (lastSession != null) {
-			val lastSessionEnd = lastSession.end
-			val lastSessionAge = now - lastSessionEnd
-
-			if (lastSessionAge in 0..SESSION_RESUME_TIMEOUT &&
-				lastSession.isUserInitiated == isUserInitiated &&
-				!isUserInitiated
-			) {
-				mutableSession = MutableTrackerSession(lastSession)
-				isNewSession = false
-			}
-		}
-
-		if (isNewSession) {
-			val session = MutableTrackerSession(now, isUserInitiated)
-			session.id = sessionDao.insert(session)
-			mutableSession = session
-		}
-
-		this.isNewSession = isNewSession
+		// Always start a new session segment — resume logic is handled at the
+		// SessionSegment level (the segment is upserted on every update).
+		val session = MutableTrackerSession(now, isUserInitiated)
+		val segment = SessionSegment(
+			id = 0,
+			startTimeMs = now,
+			endTimeMs = now,
+			distanceM = 0f,
+			steps = 0,
+			primaryActivity = null,
+			activityConfidence = null,
+			sampleCount = 0,
+			source = SegmentSource.USER_CREATED,
+			inferenceVersion = "tracker_v2",
+			createdAt = now,
+			hasDistanceAnomaly = false,
+		)
+		session.id = sessionSegmentDao.insert(segment)
+		mutableSession = session
+		isNewSession = true
 	}
 
 	companion object {
 		const val SESSION_RESUME_TIMEOUT = 15 * Time.MINUTE_IN_MILLISECONDS
 	}
 }
-

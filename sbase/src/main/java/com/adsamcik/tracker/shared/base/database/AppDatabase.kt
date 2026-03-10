@@ -7,14 +7,12 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.adsamcik.tracker.shared.base.data.NetworkOperator
 import com.adsamcik.tracker.shared.base.data.SessionActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.GeoFeaturePropertiesConverter
 import com.adsamcik.tracker.shared.base.database.converter.SessionlessTypeConverter
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
-import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
@@ -22,25 +20,17 @@ import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationWifiCountDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
-import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
-import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocationWifiCount
-import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
 import com.adsamcik.tracker.shared.base.database.data.FrequentPlaceEntity
 import com.adsamcik.tracker.shared.base.database.data.InferredTripEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
@@ -77,21 +67,16 @@ import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 19 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 21 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 19,
+		version = 21,
 		entities = [
-			// Legacy entities (kept for read-only access during migration period)
-			DatabaseLocation::class,
-			TrackerSession::class,
-			DatabaseWifiData::class,
+			// Core reference entities
 			SessionActivity::class,
 			NetworkOperator::class,
-			DatabaseCellLocation::class,
-			DatabaseLocationWifiCount::class,
-			// New sessionless architecture entities
+			// Sessionless architecture entities
 			LocationSample::class,
 			StepInterval::class,
 			ActivitySnapshot::class,
@@ -131,35 +116,9 @@ import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
 abstract class AppDatabase : RoomDatabase() {
 
 	/**
-	 * Provides access to location data
-	 */
-	abstract fun locationDao(): LocationDataDao
-
-	/**
-	 * Provides access to session data
-	 */
-	abstract fun sessionDao(): SessionDataDao
-
-	/**
-	 * Provides access to Wi-Fi data
-	 */
-	abstract fun wifiDao(): WifiDataDao
-
-	/**
-	 * Provides access to Wi-Fi count location data
-	 */
-	abstract fun wifiLocationCountDao(): LocationWifiCountDao
-
-
-	/**
 	 * Provides access to cell network operator data.
 	 */
 	abstract fun cellOperatorDao(): CellOperatorDao
-
-	/**
-	 * Provides access to cell location quality data.
-	 */
-	abstract fun cellLocationDao(): CellLocationDao
 
 	/**
 	 * Provides access to activity data.
@@ -322,27 +281,21 @@ abstract class AppDatabase : RoomDatabase() {
 						MIGRATION_15_16,
 						MIGRATION_16_17,
 				MIGRATION_17_18,
-				MIGRATION_18_19
+				MIGRATION_18_19,
+				MIGRATION_19_20,
+				MIGRATION_20_21
 				)
 		}
 
 		/**
 		 * Deletes all collected data from the database.
 		 * Does not delete database itself.
-		 * Clears both legacy session-based tables and new sessionless tables.
 		 */
 		@WorkerThread
 		fun deleteAllCollectedData(context: Context) {
 			val database = database(context)
 
 			database.runInTransaction {
-				// Legacy session-based tables
-				database.sessionDao().deleteAll()
-				database.cellLocationDao().deleteAll()
-				database.cellOperatorDao().deleteAll()
-				database.locationDao().deleteAll()
-				database.wifiDao().deleteAll()
-
 				// Sessionless architecture tables
 				database.locationSampleDao().deleteAll()
 				database.stepIntervalDao().deleteAll()

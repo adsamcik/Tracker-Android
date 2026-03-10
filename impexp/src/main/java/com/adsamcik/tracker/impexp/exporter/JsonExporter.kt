@@ -3,7 +3,8 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import kotlinx.coroutines.runBlocking
 import java.io.BufferedWriter
 import java.io.OutputStream
 import java.io.OutputStreamWriter
@@ -27,23 +28,23 @@ class JsonExporter : Exporter {
 
 	override fun export(
 		context: Context,
-		locationData: Sequence<DatabaseLocation>,
+		locationData: Sequence<LocationSample>,
 		outputStream: OutputStream,
 		dateRange: LongRange?,
 	): ExportResult {
 		val db = AppDatabase.database(context)
 
-		// SessionDataDao.getAll() is non-suspend, safe to call directly
 		val sessions = try {
-			db.sessionDao().getAll().map { s ->
+			val trips = runBlocking { db.tripDao().getBetween(0L, Long.MAX_VALUE) }
+			trips.map { t ->
 				SessionSnapshot(
-					id = s.id,
-					start = s.start,
-					end = s.end,
-					collections = s.collections,
-					distanceInM = s.distanceInM,
-					isUserInitiated = s.isUserInitiated,
-					steps = s.steps.takeIf { it > 0 },
+					id = t.id,
+					start = t.startTimeMs,
+					end = t.endTimeMs,
+					collections = t.sampleCount,
+					distanceInM = t.distanceM,
+					isUserInitiated = t.isUserInitiated,
+					steps = t.steps?.takeIf { it > 0 },
 				)
 			}
 		} catch (e: Exception) {
@@ -60,7 +61,7 @@ class JsonExporter : Exporter {
 	 */
 	internal fun writeJson(
 		outputStream: OutputStream,
-		locations: Sequence<DatabaseLocation>,
+		locations: Sequence<LocationSample>,
 		sessions: List<SessionSnapshot> = emptyList(),
 		dateRange: LongRange? = null,
 	): ExportResult {
@@ -77,10 +78,12 @@ class JsonExporter : Exporter {
 				// Locations array (streaming — one item at a time)
 				w.write(",\"locations\":[")
 				var first = true
-				locations.forEach { loc ->
+				locations.forEach { sample ->
+					val lat = sample.latE7 ?: return@forEach
+					val lon = sample.lonE7 ?: return@forEach
 					if (!first) w.write(",")
 					first = false
-					writeLocation(w, loc)
+					writeLocation(w, sample, lat, lon)
 				}
 				w.write("]")
 
@@ -101,16 +104,13 @@ class JsonExporter : Exporter {
 		}
 	}
 
-	private fun writeLocation(w: BufferedWriter, loc: DatabaseLocation) {
-		val l = loc.location
-		w.write("{\"time\":${l.time}")
-		w.write(",\"lat\":${l.latitude}")
-		w.write(",\"lon\":${l.longitude}")
-		l.altitude?.let { w.write(",\"alt\":$it") }
-		l.speed?.let { w.write(",\"spd\":$it") }
-		l.horizontalAccuracy?.let { w.write(",\"acc\":$it") }
-		w.write(",\"act\":${loc.activityInfo.activityType}")
-		w.write(",\"actConf\":${loc.activityInfo.confidence}")
+	private fun writeLocation(w: BufferedWriter, sample: LocationSample, latE7: Int, lonE7: Int) {
+		w.write("{\"time\":${sample.timeMs}")
+		w.write(",\"lat\":${latE7 / 1e7}")
+		w.write(",\"lon\":${lonE7 / 1e7}")
+		sample.altitudeM?.let { w.write(",\"alt\":${it.toDouble()}") }
+		sample.speedMps?.let { w.write(",\"spd\":$it") }
+		sample.hAccM?.let { w.write(",\"acc\":$it") }
 		w.write("}")
 	}
 
@@ -136,7 +136,7 @@ class JsonExporter : Exporter {
 }
 
 /**
- * Lightweight snapshot of a TrackerSession for JSON export.
+ * Lightweight snapshot of a Trip for JSON export.
  * Avoids coupling the exporter to Room entity internals.
  */
 data class SessionSnapshot(

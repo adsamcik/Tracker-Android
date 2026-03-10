@@ -2,7 +2,7 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.R
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.extension.applicationName
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
@@ -23,7 +23,7 @@ class GpxExporter : Exporter {
 
 	override fun export(
 			context: Context,
-			locationData: Sequence<DatabaseLocation>,
+			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,
 			dateRange: LongRange?
 	): ExportResult {
@@ -44,18 +44,21 @@ class GpxExporter : Exporter {
 
 		gpxBuilder.addTrack { track ->
 			track.addSegment { segment ->
-				// Single segment per track; future enhancement: split on time gaps or motion state
-				locationData.forEach {
-					val altitude = it.altitude
+				locationData.forEach { sample ->
+					val lat = sample.latE7 ?: return@forEach
+					val lon = sample.lonE7 ?: return@forEach
+					val latitude = lat / 1e7
+					val longitude = lon / 1e7
+					val altitude = sample.altitudeM?.toDouble()
 
 					val waypoint = when {
 						altitude != null -> WayPoint.of(
-								it.latitude,
-								it.longitude,
+								latitude,
+								longitude,
 								altitude,
-								it.time
+								sample.timeMs
 						)
-						else -> WayPoint.of(it.latitude, it.longitude, it.time)
+						else -> WayPoint.of(latitude, longitude, sample.timeMs)
 					}
 
 					segment.addPoint(waypoint)

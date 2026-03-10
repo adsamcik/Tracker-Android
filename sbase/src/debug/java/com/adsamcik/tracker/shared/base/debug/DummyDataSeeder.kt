@@ -2,10 +2,9 @@ package com.adsamcik.tracker.shared.base.debug
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.MotionState
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.google.android.gms.location.DetectedActivity
@@ -45,8 +44,8 @@ object DummyDataSeeder {
         val database = AppDatabase.database(context)
         
         // Check if database already has data
-        val existingSessionsCount = database.sessionDao().getAll().size
-        if (existingSessionsCount > 0) {
+        val existingTripsCount = database.tripDao().countAllTrips()
+        if (existingTripsCount > 0) {
             return@withContext SeedResult(false, "not-empty")
         }
 
@@ -80,8 +79,7 @@ object DummyDataSeeder {
      * Inserts dummy tracking data into the database
      */
     private fun insertDummyData(database: AppDatabase) {
-        val sessionDao = database.sessionDao()
-        val locationDao = database.locationDao()
+        val locationSampleDao = database.locationSampleDao()
         val sessionSegmentDao = database.sessionSegmentDao()
 
         // Create NYC trail checkpoints (Central Park to Brooklyn Bridge)
@@ -119,50 +117,38 @@ object DummyDataSeeder {
             val locations = interpolatePoints(checkpoints, startTime, duration)
 
             val endTime = if (locations.isNotEmpty()) locations.last().time else startTime + duration
+            val totalDistance = calculateTotalDistance(locations)
+            val steps = Random.nextInt(4000, 12000)
 
-            val session = TrackerSession(
-                start = startTime,
-                end = endTime,
-                isUserInitiated = false,
-                collections = locations.size,
-                distanceInM = calculateTotalDistance(locations),
-                distanceOnFootInM = calculateWalkingDistance(locations),
-                distanceInVehicleInM = calculateVehicleDistance(locations),
-                steps = Random.nextInt(4000, 12000)
-            )
-            sessionDao.insert(session)
-
-            // Insert all locations with embedded activity info
+            // Insert location samples
             locations.forEach { locationData ->
-                val location = Location(
-                    time = locationData.time,
-                    latitude = locationData.lat,
-                    longitude = locationData.lon,
-                    altitude = locationData.altitude,
-                    horizontalAccuracy = locationData.accuracy,
-                    verticalAccuracy = null,
-                    speed = locationData.speed,
-                    speedAccuracy = null
+                val sample = LocationSample(
+                    timeMs = locationData.time,
+                    elapsedRealtimeNanos = 0L,
+                    latE7 = (locationData.lat * 1e7).toInt(),
+                    lonE7 = (locationData.lon * 1e7).toInt(),
+                    altitudeM = locationData.altitude.toFloat(),
+                    rawGpsAltitudeM = locationData.altitude.toFloat(),
+                    hAccM = locationData.accuracy,
+                    vAccM = null,
+                    speedMps = locationData.speed,
+                    speedAccuracyMps = null,
+                    provider = "fused",
+                    quality = SampleQuality.HIGH,
+                    motionState = if (locationData.activity == DetectedActivity.WALKING) MotionState.MOVING else MotionState.MOVING,
+                    policy = null,
+                    bucketId = null,
+                    createdAt = System.currentTimeMillis()
                 )
-
-                val activityInfo = ActivityInfo(
-                    activityType = locationData.activity,
-                    confidence = Random.nextInt(75, 100)
-                )
-
-                val databaseLocation = DatabaseLocation(
-                    location = location,
-                    activityInfo = activityInfo
-                )
-                locationDao.insert(databaseLocation)
+                locationSampleDao.insert(sample)
             }
 
             // Insert matching session segment for trip DAO queries
             val segment = SessionSegment(
                 startTimeMs = startTime,
                 endTimeMs = endTime,
-                distanceM = session.distanceInM,
-                steps = session.steps,
+                distanceM = totalDistance,
+                steps = steps,
                 primaryActivity = DetectedActivity.WALKING,
                 activityConfidence = Random.nextInt(75, 100),
                 sampleCount = locations.size,

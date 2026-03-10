@@ -7,8 +7,8 @@ import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import javax.inject.Inject
 
 class ExplorerChallengeProcessor @Inject constructor() : ChallengeProcessor {
@@ -24,16 +24,18 @@ class ExplorerChallengeProcessor @Inject constructor() : ChallengeProcessor {
 	}
 
 	override fun extractProgress(context: Context, session: TrackerSession): Double {
-		val dao = AppDatabase.database(context).locationDao()
-		val locations = dao.getAllBetween(session.start, session.end)
+		val dao = AppDatabase.database(context).locationSampleDao()
+		val locations = kotlinx.coroutines.runBlocking {
+			dao.getAllBetween(session.start, session.end)
+		}
 		// Limit lookback to 6 months (fix for #103)
 		val lookbackStart = session.start - (180L * 24 * 60 * 60 * 1000)
 		return countUniqueLocations(dao, locations, lookbackStart, session.start).toDouble()
 	}
 
 	private fun countUniqueLocations(
-		dao: LocationDataDao,
-		locations: List<DatabaseLocation>,
+		dao: LocationSampleDao,
+		locations: List<LocationSample>,
 		from: Long,
 		to: Long
 	): Int {
@@ -41,25 +43,30 @@ class ExplorerChallengeProcessor @Inject constructor() : ChallengeProcessor {
 			return 0
 		}
 
-		val newLocations = locations.map {
-			Location.roundTo(it.latitude, ACCURACY_IN_METERS, it.longitude, ACCURACY_IN_METERS)
+		val newLocations = locations.mapNotNull { sample ->
+			val lat = sample.latE7?.div(1e7) ?: return@mapNotNull null
+			val lon = sample.lonE7?.div(1e7) ?: return@mapNotNull null
+			Location.roundTo(lat, ACCURACY_IN_METERS, lon, ACCURACY_IN_METERS)
 		}.distinct()
+
+		if (newLocations.isEmpty()) return 0
 
 		val minLat = newLocations.minOf { it.latitude } - Location.latitudeAccuracy(ACCURACY_IN_METERS)
 		val maxLat = newLocations.maxOf { it.latitude } + Location.latitudeAccuracy(ACCURACY_IN_METERS)
 		val minLon = newLocations.minOf { it.longitude } - Location.longitudeAccuracy(ACCURACY_IN_METERS, minLat)
 		val maxLon = newLocations.maxOf { it.longitude } + Location.longitudeAccuracy(ACCURACY_IN_METERS, maxLat)
 
-		val existingLocations = dao.getAllInsideAndBetween(
-			from = from,
-			to = to,
-			topLatitude = maxLat,
-			rightLongitude = maxLon,
-			bottomLatitude = minLat,
-			leftLongitude = minLon
-		).map {
-			Location.roundTo(it.latitude, ACCURACY_IN_METERS, it.longitude, ACCURACY_IN_METERS)
-		}.toSet()
+		// Filter in-memory since LocationSampleDao lacks a spatial query
+		val existingLocations = kotlinx.coroutines.runBlocking { dao.getAllBetween(from, to) }
+			.mapNotNull { sample ->
+				val lat = sample.latE7?.div(1e7) ?: return@mapNotNull null
+				val lon = sample.lonE7?.div(1e7) ?: return@mapNotNull null
+				if (lat in minLat..maxLat && lon in minLon..maxLon) {
+					Location.roundTo(lat, ACCURACY_IN_METERS, lon, ACCURACY_IN_METERS)
+				} else {
+					null
+				}
+			}.toSet()
 
 		val uniqueNewLocations = newLocations.filter { it !in existingLocations }
 

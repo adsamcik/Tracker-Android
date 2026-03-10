@@ -5,11 +5,11 @@ import android.util.JsonReader
 import android.util.JsonToken
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
@@ -59,18 +59,18 @@ internal class JsonImport : FileImport {
 	}
 
 	private fun importLocations(reader: JsonReader, database: AppDatabase): Int {
-		val locationDao = database.locationDao()
-		val batch = mutableListOf<DatabaseLocation>()
+		val sampleDao = database.locationSampleDao()
+		val batch = mutableListOf<LocationSample>()
 		var count = 0
 
 		reader.beginArray()
 		while (reader.hasNext()) {
-			val loc = readLocation(reader)
-			if (loc != null) {
-				batch.add(loc)
+			val sample = readLocationAsSample(reader)
+			if (sample != null) {
+				batch.add(sample)
 				count++
 				if (batch.size >= BATCH_SIZE) {
-					locationDao.insert(batch)
+					sampleDao.insert(batch)
 					batch.clear()
 				}
 			}
@@ -78,20 +78,18 @@ internal class JsonImport : FileImport {
 		reader.endArray()
 
 		if (batch.isNotEmpty()) {
-			locationDao.insert(batch)
+			sampleDao.insert(batch)
 		}
 		return count
 	}
 
-	private fun readLocation(reader: JsonReader): DatabaseLocation? {
+	private fun readLocationAsSample(reader: JsonReader): LocationSample? {
 		var time = 0L
 		var lat = 0.0
 		var lon = 0.0
 		var alt: Double? = null
 		var speed: Float? = null
 		var accuracy: Float? = null
-		var activityType = 0
-		var activityConf = 0
 
 		reader.beginObject()
 		while (reader.hasNext()) {
@@ -102,21 +100,36 @@ internal class JsonImport : FileImport {
 				"alt" -> alt = readNullableDouble(reader)
 				"spd" -> speed = readNullableDouble(reader)?.toFloat()
 				"acc" -> accuracy = readNullableDouble(reader)?.toFloat()
-				"act" -> activityType = reader.nextInt()
-				"actConf" -> activityConf = reader.nextInt()
+				"act" -> reader.nextInt()
+				"actConf" -> reader.nextInt()
 				else -> reader.skipValue()
 			}
 		}
 		reader.endObject()
 
-		// Validate required fields and bounds
 		if (time == 0L) return null
 		if (time < MIN_VALID_TIMESTAMP || time > MAX_VALID_TIMESTAMP) return null
 		if (lat < -90.0 || lat > 90.0) return null
 		if (lon < -180.0 || lon > 180.0) return null
 
-		val location = Location(time, lat, lon, alt, accuracy, null, speed, null)
-		return DatabaseLocation(location, ActivityInfo(activityType, activityConf))
+		return LocationSample(
+			timeMs = time,
+			elapsedRealtimeNanos = 0L,
+			latE7 = (lat * 1e7).toInt(),
+			lonE7 = (lon * 1e7).toInt(),
+			altitudeM = alt?.toFloat(),
+			rawGpsAltitudeM = null,
+			hAccM = accuracy,
+			vAccM = null,
+			speedMps = speed,
+			speedAccuracyMps = null,
+			provider = "import",
+			quality = SampleQuality.MEDIUM,
+			motionState = null,
+			policy = null,
+			bucketId = null,
+			createdAt = System.currentTimeMillis(),
+		)
 	}
 
 	private fun readNullableDouble(reader: JsonReader): Double? {
@@ -129,14 +142,14 @@ internal class JsonImport : FileImport {
 	}
 
 	private fun importSessions(reader: JsonReader, database: AppDatabase): Int {
-		val sessionDao = database.sessionDao()
+		val segmentDao = database.sessionSegmentDao()
 		var count = 0
 
 		reader.beginArray()
 		while (reader.hasNext()) {
-			val session = readSession(reader)
-			if (session != null) {
-				sessionDao.insert(session)
+			val segment = readSessionAsSegment(reader)
+			if (segment != null) {
+				segmentDao.insert(segment)
 				count++
 			}
 		}
@@ -144,40 +157,44 @@ internal class JsonImport : FileImport {
 		return count
 	}
 
-	private fun readSession(reader: JsonReader): MutableTrackerSession? {
+	private fun readSessionAsSegment(reader: JsonReader): SessionSegment? {
 		var start = 0L
 		var end = 0L
 		var collections = 0
 		var distanceInM = 0f
-		var isUserInitiated = true
 		var steps: Int? = null
 
 		reader.beginObject()
 		while (reader.hasNext()) {
 			when (reader.nextName()) {
-				"id" -> reader.nextLong() // skip — auto-generated on insert
+				"id" -> reader.nextLong()
 				"start" -> start = reader.nextLong()
 				"end" -> end = reader.nextLong()
 				"collections" -> collections = reader.nextInt()
 				"distanceInM" -> distanceInM = reader.nextDouble().toFloat()
-				"isUserInitiated" -> isUserInitiated = reader.nextBoolean()
+				"isUserInitiated" -> reader.nextBoolean()
 				"steps" -> steps = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); null } else reader.nextInt()
 				else -> reader.skipValue()
 			}
 		}
 		reader.endObject()
 
-		// Validate session data
 		if (start == 0L) return null
 		if (start < MIN_VALID_TIMESTAMP || start > MAX_VALID_TIMESTAMP) return null
 		if (end < start) return null
 
-		val session = MutableTrackerSession(start = start, isUserInitiated = isUserInitiated)
-		session.end = end
-		session.collections = collections
-		session.distanceInM = distanceInM
-		session.steps = steps ?: 0
-		return session
+		return SessionSegment(
+			startTimeMs = start,
+			endTimeMs = end,
+			distanceM = distanceInM,
+			steps = steps,
+			primaryActivity = null,
+			activityConfidence = null,
+			sampleCount = collections,
+			source = SegmentSource.USER_CREATED,
+			inferenceVersion = null,
+			createdAt = System.currentTimeMillis(),
+		)
 	}
 
 	private fun skipArray(reader: JsonReader) {

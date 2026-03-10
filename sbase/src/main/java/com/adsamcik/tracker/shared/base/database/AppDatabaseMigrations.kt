@@ -21,6 +21,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 21         │ 385         │ 🚧 UNRELEASED - Drop legacy tables       │
+ * │            │             │    (tracker_session, location_data,      │
+ * │            │             │    wifi_data, cell_location,             │
+ * │            │             │    location_wifi_count)                  │
+ * │ 20         │ 385         │ 🚧 UNRELEASED - has_distance_anomaly     │
  * │ 18         │ 385         │ 🚧 UNRELEASED - Ski detection tables     │
  * │            │             │    (pressure_sample, ski_run_segment)     │
  * │ 17         │ 385         │ 🚧 UNRELEASED - Route compression & storage │
@@ -828,6 +833,45 @@ val MIGRATION_18_19: Migration = object : Migration(18, 19) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		db.execSQL("ALTER TABLE location_sample ADD COLUMN raw_gps_alt_m REAL")
 		android.util.Log.i("AppDatabase", "Migration 18->19: Added raw_gps_alt_m column to location_sample")
+	}
+}
+
+/**
+ * Migration 19 → 20: Add has_distance_anomaly flag to session_segment.
+ *
+ * Persists the GPS plausibility check result at write time so the flag
+ * is authoritative rather than recomputed in the UI layer.
+ * Defaults to 0 (false) for all existing rows.
+ */
+val MIGRATION_19_20: Migration = object : Migration(19, 20) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL("ALTER TABLE session_segment ADD COLUMN has_distance_anomaly INTEGER NOT NULL DEFAULT 0")
+		android.util.Log.i("AppDatabase", "Migration 19->20: Added has_distance_anomaly column to session_segment")
+	}
+}
+
+/**
+ * Migration 20 → 21: Drop all legacy session-based tracking tables.
+ *
+ * Phase 5 of the sessionless architecture migration. All data now lives in
+ * location_sample, session_segment, wifi_observation, cell_sample, etc.
+ * Legacy tables are no longer read or written by any code path.
+ *
+ * NOTE: network_operator is KEPT — it is a reference table still used by the app
+ * (operator name lookups for cell info display). It has no FK from cell_sample
+ * but is conceptually referenced via mcc/mnc.
+ */
+val MIGRATION_20_21: Migration = object : Migration(20, 21) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		db.execSQL("DROP TABLE IF EXISTS tracker_session")
+		db.execSQL("DROP TABLE IF EXISTS location_data")
+		db.execSQL("DROP TABLE IF EXISTS wifi_data")
+		db.execSQL("DROP TABLE IF EXISTS cell_location")
+		db.execSQL("DROP TABLE IF EXISTS location_wifi_count")
+		android.util.Log.i(
+			"AppDatabase",
+			"Migration 20->21: Dropped legacy tables (tracker_session, location_data, wifi_data, cell_location, location_wifi_count)"
+		)
 	}
 }
 

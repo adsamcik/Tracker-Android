@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.game.challenge.worker
 
 import android.content.Context
+import android.app.PendingIntent
+import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.work.Worker
 import androidx.work.WorkerParameters
@@ -56,8 +58,19 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 
 		if (challengeSession.isChallengeProcessed) return Result.success()
 
-		val trackerSession = AppDatabase.database(applicationContext).sessionDao().get(sessionId)
-				?: return Result.failure()
+		val trip = kotlinx.coroutines.runBlocking {
+			AppDatabase.database(applicationContext).tripDao().getById(sessionId)
+		} ?: return Result.failure()
+
+		val trackerSession = com.adsamcik.tracker.shared.base.data.TrackerSession(
+			id = trip.id,
+			start = trip.startTimeMs,
+			end = trip.endTimeMs,
+			isUserInitiated = trip.isUserInitiated,
+			collections = trip.sampleCount,
+			distanceInM = trip.distanceM,
+			steps = trip.steps ?: 0,
+		)
 
 		val notificationManager = applicationContext.notificationManager
 		val resources = applicationContext.resources
@@ -70,6 +83,21 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		challengeManager.processSession(applicationContext, trackerSession) {
 			val title = "Completed challenge ${it.getTitle(applicationContext)}"
 			logGame(LogData(message = title, source = CHALLENGE_LOG_SOURCE))
+			val launchIntent = applicationContext.packageManager
+				.getLaunchIntentForPackage(applicationContext.packageName)
+				?.apply {
+					putExtra("navigate_to", "game")
+					putExtra("challenge_id", it.entity.id)
+					addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+				}
+			val contentIntent = launchIntent?.let { navIntent ->
+				PendingIntent.getActivity(
+					applicationContext,
+					it.entity.id.toInt(),
+					navIntent,
+					PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+				)
+			}
 			notificationManager.notify(
 					NOTIFICATION_ID,
 		    NotificationCompat.Builder(
@@ -78,6 +106,8 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		    )
 			    .setContentTitle(title)
 			    .setSmallIcon(com.adsamcik.tracker.game.R.drawable.ic_challenge_icon)
+				.setContentIntent(contentIntent)
+				.setAutoCancel(true)
 							.build()
 			)
 		}
@@ -101,4 +131,3 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 	}
 
 }
-

@@ -10,24 +10,46 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Read-only DAO projecting [com.adsamcik.tracker.shared.base.database.data.SessionSegment]
  * rows as [Trip] POJOs for UI consumption.
+ *
+ * Phase 5: Legacy tracker_session UNION ALL queries removed.
+ * All trip data now comes exclusively from session_segment.
  */
 @Dao
 interface TripDao {
 
 	/**
-	 * Paged list of all trips, newest first. Used by the Stats list.
+	 * All trips ordered by start time descending, paged.
 	 */
 	@Query(
 		"""
 		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
 		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
 		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
-		       source, created_at AS createdAt
+		       source, created_at AS createdAt,
+		       has_distance_anomaly AS hasDistanceAnomaly
 		FROM session_segment
-		ORDER BY start_time_ms DESC
+		WHERE sample_count > 0
+		ORDER BY startTimeMs DESC
 		"""
 	)
 	fun getAllPaged(): PagingSource<Int, Trip>
+
+	/**
+	 * Trips that overlap the selected time range, ordered by start time descending.
+	 */
+	@Query(
+		"""
+		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
+		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
+		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
+		       source, created_at AS createdAt,
+		       has_distance_anomaly AS hasDistanceAnomaly
+		FROM session_segment
+		WHERE start_time_ms <= :toMs AND end_time_ms >= :fromMs AND sample_count > 0
+		ORDER BY startTimeMs DESC
+		"""
+	)
+	fun getPagedOverlapping(fromMs: Long, toMs: Long): PagingSource<Int, Trip>
 
 	/**
 	 * Trips within a time range, ordered by start time descending.
@@ -37,10 +59,11 @@ interface TripDao {
 		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
 		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
 		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
-		       source, created_at AS createdAt
+		       source, created_at AS createdAt,
+		       has_distance_anomaly AS hasDistanceAnomaly
 		FROM session_segment
-		WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs
-		ORDER BY start_time_ms DESC
+		WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs AND sample_count > 0
+		ORDER BY startTimeMs DESC
 		LIMIT 500
 		"""
 	)
@@ -54,7 +77,8 @@ interface TripDao {
 		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
 		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
 		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
-		       source, created_at AS createdAt
+		       source, created_at AS createdAt,
+		       has_distance_anomaly AS hasDistanceAnomaly
 		FROM session_segment
 		WHERE id = :id
 		"""
@@ -71,7 +95,7 @@ interface TripDao {
 		       IFNULL(SUM(steps), 0) AS totalSteps,
 		       IFNULL(SUM(end_time_ms - start_time_ms), 0) AS totalDurationMs
 		FROM session_segment
-		WHERE start_time_ms >= :startOfDayMs AND end_time_ms <= :nowMs
+		WHERE start_time_ms >= :startOfDayMs AND end_time_ms <= :nowMs AND sample_count > 0
 		"""
 	)
 	suspend fun getTodaySummary(startOfDayMs: Long, nowMs: Long): TripDaySummary?
@@ -90,9 +114,11 @@ interface TripDao {
 		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
 		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
 		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
-		       source, created_at AS createdAt
+		       source, created_at AS createdAt,
+		       has_distance_anomaly AS hasDistanceAnomaly
 		FROM session_segment
-		ORDER BY start_time_ms DESC
+		WHERE sample_count > 0
+		ORDER BY startTimeMs DESC
 		LIMIT :limit
 		"""
 	)
@@ -107,11 +133,24 @@ interface TripDao {
 		SELECT id, start_time_ms AS startTimeMs, end_time_ms AS endTimeMs,
 		       distance_m AS distanceM, steps, primary_activity AS primaryActivity,
 		       activity_confidence AS activityConfidence, sample_count AS sampleCount,
-		       source, created_at AS createdAt
+		       source, created_at AS createdAt,
+		       has_distance_anomaly AS hasDistanceAnomaly
 		FROM session_segment
-		ORDER BY start_time_ms DESC
+		WHERE sample_count > 0
+		ORDER BY startTimeMs DESC
 		LIMIT :limit
 		"""
 	)
 	fun getRecentTripsFlow(limit: Int): Flow<List<Trip>>
+
+	@Query("SELECT COUNT(*) FROM session_segment WHERE sample_count > 0")
+	fun countAllTrips(): Long
+
+	@Query(
+		"""
+		SELECT COUNT(*) FROM session_segment
+		WHERE start_time_ms >= :fromMs AND end_time_ms <= :toMs AND sample_count > 0
+		"""
+	)
+	fun countTripsBetween(fromMs: Long, toMs: Long): Long
 }

@@ -74,7 +74,6 @@ internal class TrackerComponentFactory(
 	): ComponentSet {
 		val sessionComponent = SessionTrackerComponent(
 			isSessionUserInitiated,
-			appDatabase.sessionDao(),
 			appDatabase.sessionSegmentDao(),
 		).apply {
 			onEnable(context)

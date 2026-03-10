@@ -11,8 +11,14 @@ import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.Location
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -22,32 +28,122 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 		context,
 		workerParams
 	) {
-	private val activeRecognizers = listOf(
-		OnFootActivityRecognizer(),
-		VehicleActivityRecognizer(),
-		SkiActivityRecognizer()
-	)
 
 	override suspend fun doWork(): Result = coroutineScope {
+		val batchMode = inputData.getBoolean(ARG_BATCH_MODE, false)
+		if (batchMode) {
+			return@coroutineScope doBatchWork()
+		}
+
 		val sessionId = inputData.getLong(ARG_SESSION_ID, -1)
 		if (sessionId < 0) {
 			return@coroutineScope fail("Session id was either not set or was invalid.")
 		}
 
 		val database = AppDatabase.database(applicationContext)
-		val session = database.sessionDao().get(sessionId)
-			?: return@coroutineScope fail("Session with id $sessionId not found.", false)
-		val locationCollection = database.locationDao().getAllBetween(session.start, session.end)
+		val trip = database.tripDao().getById(sessionId)
+			?: return@coroutineScope fail("Trip with id $sessionId not found.", false)
 
-		// Pre-fetch pressure data for ski recognition
-		val pressureSamples = database.pressureSampleDao().getAllBetween(session.start, session.end)
+		// Parallel fetch: locations and pressure are independent once we have the trip
+		val locationsDeferred = async {
+			database.locationSampleDao().getAllBetween(trip.startTimeMs, trip.endTimeMs)
+				.mapNotNull { it.toDatabaseLocation() }
+		}
+		val pressureDeferred = async {
+			database.pressureSampleDao().getAllBetween(trip.startTimeMs, trip.endTimeMs)
+		}
+
+		// Find segments needing activity recognition within this trip
+		val segments = database.sessionSegmentDao()
+			.getAllBetween(trip.startTimeMs, trip.endTimeMs)
+			.filter { it.primaryActivity == null }
+
+		if (segments.isEmpty()) return@coroutineScope Result.success()
+
+		val allLocations = locationsDeferred.await()
+		val allPressure = pressureDeferred.await()
+
+		for (segment in segments) {
+			val segmentLocations = allLocations.filter {
+				it.time in segment.startTimeMs..segment.endTimeMs
+			}
+			val segmentPressure = allPressure.filter {
+				it.timeMs in segment.startTimeMs..segment.endTimeMs
+			}
+			processSession(segment, segmentLocations, segmentPressure, database)
+		}
+
+		Result.success()
+	}
+
+	/**
+	 * Batch mode: fetches all unrecognized segments and their data in O(3) queries,
+	 * then processes each segment against the pre-fetched data.
+	 */
+	private suspend fun doBatchWork(): Result = coroutineScope {
+		val database = AppDatabase.database(applicationContext)
+		val segments = database.sessionSegmentDao()
+			.getAllBetween(0L, Long.MAX_VALUE)
+			.filter { it.primaryActivity == null }
+		if (segments.isEmpty()) return@coroutineScope Result.success()
+
+		val minStart = segments.minOf { it.startTimeMs }
+		val maxEnd = segments.maxOf { it.endTimeMs }
+
+		// Batch-fetch all locations and pressure for the full time range (2 queries)
+		val allLocationsDeferred = async {
+			database.locationSampleDao().getAllBetween(minStart, maxEnd)
+				.mapNotNull { it.toDatabaseLocation() }
+		}
+		val allPressureDeferred = async {
+			database.pressureSampleDao().getAllBetween(minStart, maxEnd)
+		}
+
+		val allLocations = allLocationsDeferred.await()
+		val allPressure = allPressureDeferred.await()
+
+		for (segment in segments) {
+			val segmentLocations = allLocations.filter {
+				it.time in segment.startTimeMs..segment.endTimeMs
+			}
+			val segmentPressure = allPressure.filter {
+				it.timeMs in segment.startTimeMs..segment.endTimeMs
+			}
+			processSession(segment, segmentLocations, segmentPressure, database)
+		}
+
+		return@coroutineScope Result.success()
+	}
+
+	/**
+	 * Runs all activity recognizers against a single segment's data and persists the result.
+	 */
+	private suspend fun processSession(
+		segment: SessionSegment,
+		locationCollection: List<DatabaseLocation>,
+		pressureSamples: List<PressureSample>,
+		database: AppDatabase
+	): Result = coroutineScope {
+		val recognizers = listOf(
+			OnFootActivityRecognizer(),
+			VehicleActivityRecognizer(),
+			SkiActivityRecognizer()
+		)
+
 		val infraManager = SkiInfrastructureManager(applicationContext)
-		activeRecognizers.filterIsInstance<SkiActivityRecognizer>().forEach {
+		recognizers.filterIsInstance<SkiActivityRecognizer>().forEach {
 			it.pressureSamples = pressureSamples
 			it.infrastructureManager = infraManager
 		}
 
-		val deferredResults = activeRecognizers.map {
+		// Create TrackerSession for recognizer interface compatibility
+		val session = TrackerSession(
+			id = segment.id,
+			start = segment.startTimeMs,
+			end = segment.endTimeMs
+		)
+
+		val deferredResults = recognizers.map {
 			async {
 				val result = tryWithResultAndReport(
 					default = { ActivityRecognitionResult(null, 0) }
@@ -73,19 +169,19 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 			results.maxByOrNull { it.first.precisionConfidence * it.second.confidence }
 		) { "results was checked non-empty but maxByOrNull returned null" }
 
-		val mutableSession = MutableTrackerSession(session).apply {
-			sessionActivityId = activityRecognitionResult.second.requireRecognizedActivity.id
-		}
-
-		database.sessionDao().update(mutableSession)
+		val updatedSegment = segment.copy(
+			primaryActivity = activityRecognitionResult.second.requireRecognizedActivity.id.toInt(),
+			activityConfidence = activityRecognitionResult.second.confidence
+		)
+		database.sessionSegmentDao().update(updatedSegment)
 
 		// Persist ski run segments if skiing was detected
 		val skiRecognizer = activityRecognitionResult.first as? SkiActivityRecognizer
 		skiRecognizer?.skiSessionSummary?.let { summary ->
 			val now = System.currentTimeMillis()
-			val segments = summary.runs.map { run ->
+			val skiRunSegments = summary.runs.map { run ->
 				SkiRunSegment(
-					sessionId = sessionId,
+					sessionId = segment.id,
 					runIndex = run.runIndex,
 					segmentType = SkiSegmentType.valueOf(run.segmentType.name),
 					startTimeMs = run.startTimeMs,
@@ -97,7 +193,7 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 					createdAt = now
 				)
 			}
-			database.skiRunSegmentDao().insert(segments)
+			database.skiRunSegmentDao().insert(skiRunSegments)
 		}
 
 		return@coroutineScope Result.success()
@@ -114,8 +210,31 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 	}
 
 
+	/**
+	 * Converts a [LocationSample] to a [DatabaseLocation] for recognizer compatibility.
+	 * Activity info defaults to UNKNOWN since LocationSample doesn't store per-point activity.
+	 */
+	private fun LocationSample.toDatabaseLocation(): DatabaseLocation? {
+		val lat = latE7 ?: return null
+		val lon = lonE7 ?: return null
+		return DatabaseLocation(
+			location = Location(
+				time = timeMs,
+				latitude = lat / 1e7,
+				longitude = lon / 1e7,
+				altitude = altitudeM?.toDouble(),
+				horizontalAccuracy = hAccM,
+				verticalAccuracy = vAccM,
+				speed = speedMps,
+				speedAccuracy = speedAccuracyMps
+			),
+			activityInfo = ActivityInfo.UNKNOWN
+		)
+	}
+
 	companion object {
 		const val ARG_SESSION_ID = "sessionId"
+		const val ARG_BATCH_MODE = "batchMode"
 		const val WORK_TAG = "ActivityRecognition"
 	}
 }

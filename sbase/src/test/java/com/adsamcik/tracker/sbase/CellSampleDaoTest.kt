@@ -37,7 +37,7 @@ class CellSampleDaoTest {
 
 	private fun createSample(
 		timeMs: Long = 1000L,
-		cellId: Int = 12345,
+		cellId: Long = 12345L,
 		lac: Int = 100,
 		mcc: Int = 230,
 		mnc: Int = 1,
@@ -157,7 +157,7 @@ class CellSampleDaoTest {
 	@Test
 	fun `getSamplesWithoutCoordinates respects limit`()  { runTest {
 		repeat(5) { i ->
-			dao.insert(createSample(timeMs = (i * 1000 + 1000).toLong(), cellId = i))
+			dao.insert(createSample(timeMs = (i * 1000 + 1000).toLong(), cellId = i.toLong()))
 		}
 
 		dao.getSamplesWithoutCoordinates(3) shouldHaveSize 3

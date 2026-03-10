@@ -17,12 +17,7 @@ import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerCompo
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseCellComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseLocationComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.DatabaseWifiLocationCountComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
-import com.adsamcik.tracker.tracker.component.consumer.post.RawLocationWriter
 import com.adsamcik.tracker.tracker.component.consumer.pre.LocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.pre.PolicyAwareLocationPreTrackerComponent
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
@@ -81,7 +76,10 @@ internal class TrackerComponentManager @Inject constructor() {
         dataComponentList.clear()
         postComponentList.clear()
 
-        mobileSessionComponent = SessionTrackerComponent(isSessionUserInitiated, appDatabase.sessionDao()).apply {
+        mobileSessionComponent = SessionTrackerComponent(
+            isSessionUserInitiated,
+            appDatabase.sessionSegmentDao(),
+        ).apply {
             onEnable(context)
         }
 
@@ -131,16 +129,9 @@ internal class TrackerComponentManager @Inject constructor() {
         val errorCollector = DefaultPersistenceErrorCollector()
         persistenceErrorCollector = errorCollector
 
-        // Post Components - inject error collector into database components
+        // Post Components — persistence is now handled by PersistenceProcessor
         postComponentList.apply {
             add(notificationComponent)
-            if (initialTier.isGpsEnabled) {
-                add(DatabaseCellComponent().also { it.setErrorCollector(errorCollector) })
-                add(DatabaseLocationComponent().also { it.setErrorCollector(errorCollector) })
-                add(DatabaseWifiComponent(appDatabase.wifiDao(), appDatabase.wifiObservationDao()).also { it.setErrorCollector(errorCollector) })
-                add(DatabaseWifiLocationCountComponent(appDatabase.wifiLocationCountDao()))
-                add(RawLocationWriter(appDatabase.locationSampleDao()))
-            }
         }.forEach { it.onEnable(context) }
     }
 
@@ -287,8 +278,6 @@ internal class TrackerComponentManager @Inject constructor() {
     }
     
     suspend fun flushPending(scope: CoroutineScope) {
-        postComponentList.filterIsInstance<DatabaseLocationComponent>().firstOrNull()?.let { comp ->
-            scope.launch { comp.flushPending() }
-        }
+        // Persistence flushing is now handled by PersistenceProcessor.
     }
 }

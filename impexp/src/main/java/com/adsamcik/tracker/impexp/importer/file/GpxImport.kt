@@ -7,15 +7,15 @@ import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.SessionActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.Speed
 import io.jenetics.jpx.TrackSegment
@@ -96,13 +96,11 @@ internal class GpxImport : FileImport {
 	): Int {
 		var lastLocation: Location? = null
 
-		val locationList = ArrayList<DatabaseLocation>(segment.points.size)
+		val sampleList = ArrayList<LocationSample>(segment.points.size)
 
 		segment.points().forEach { waypoint ->
-			val databaseLocation = createDatabaseLocation(waypoint) ?: return@forEach
-			locationList.add(databaseLocation)
-
-			val location = databaseLocation.location
+			val location = createLocation(waypoint) ?: return@forEach
+			sampleList.add(location.toLocationSample())
 
 			val lastLocationTmp = lastLocation
 			if (lastLocationTmp != null) {
@@ -114,24 +112,34 @@ internal class GpxImport : FileImport {
 			lastLocation = location
 		}
 
-		val locationDao = database.locationDao()
-		locationList.chunked(100).forEach {
-			locationDao.insert(it)
+		database.locationSampleDao().let { dao ->
+			sampleList.chunked(100).forEach { dao.insert(it) }
 		}
 
 		saveSession(database, session)
-		return locationList.size
+		return sampleList.size
 	}
 
 	private fun saveSession(
 			database: AppDatabase,
-			session: TrackerSession
+			session: MutableTrackerSession
 	) {
-		val sessionDao = database.sessionDao()
-		sessionDao.insert(session)
+		val segment = SessionSegment(
+			startTimeMs = session.start,
+			endTimeMs = session.end,
+			distanceM = session.distanceInM,
+			steps = session.steps.takeIf { it > 0 },
+			primaryActivity = session.sessionActivityId?.toInt(),
+			activityConfidence = null,
+			sampleCount = session.collections,
+			source = SegmentSource.USER_CREATED,
+			inferenceVersion = null,
+			createdAt = System.currentTimeMillis(),
+		)
+		database.sessionSegmentDao().insert(segment)
 	}
 
-	private fun createDatabaseLocation(waypoint: WayPoint): DatabaseLocation? {
+	private fun createLocation(waypoint: WayPoint): Location? {
 		if (!waypoint.time.isPresent) return null
 
 		val time = waypoint.time.get().toEpochMilli()
@@ -139,8 +147,28 @@ internal class GpxImport : FileImport {
 		val longitude = waypoint.longitude.toDegrees()
 		val altitude = waypoint.elevation.orElse(null)?.toDouble()
 		val speed = waypoint.speed.orElse(null)?.to(Speed.Unit.METERS_PER_SECOND)?.toFloat()
-		val location = Location(time, latitude, longitude, altitude, null, null, speed, null)
-		return DatabaseLocation(location, ActivityInfo.UNKNOWN)
+		return Location(time, latitude, longitude, altitude, null, null, speed, null)
+	}
+
+	private fun Location.toLocationSample(): LocationSample {
+		return LocationSample(
+			timeMs = time,
+			elapsedRealtimeNanos = 0L,
+			latE7 = (latitude * 1e7).toInt(),
+			lonE7 = (longitude * 1e7).toInt(),
+			altitudeM = altitude?.toFloat(),
+			rawGpsAltitudeM = null,
+			hAccM = horizontalAccuracy,
+			vAccM = verticalAccuracy,
+			speedMps = speed,
+			speedAccuracyMps = speedAccuracy,
+			provider = "import",
+			quality = SampleQuality.MEDIUM,
+			motionState = null,
+			policy = null,
+			bucketId = null,
+			createdAt = System.currentTimeMillis(),
+		)
 	}
 }
 

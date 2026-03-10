@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.di
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import kotlinx.coroutines.CoroutineDispatcher
@@ -16,13 +16,13 @@ import kotlinx.coroutines.withContext
  *
  * Evolution strategy:
  * 1. [fetchTodaySummary] reads from materialized [DailySummaryDao] + [LiveStatsDao] first
- * 2. Falls back to legacy [SessionDataDao.getTodaySummary] if no materialized data exists
+ * 2. Falls back to [TripDao.getTodaySummary] if no materialized data exists
  * 3. [observeTodayLive] provides reactive Flow from [LiveStatsDao] for real-time dashboard
  *
  * Lifecycle: Application-scoped singleton (wired in AppGraph)
  */
 class DefaultDailySummaryProvider(
-	private val sessionDao: SessionDataDao,
+	private val tripDao: TripDao,
 	private val dailySummaryDao: DailySummaryDao,
 	private val liveStatsDao: LiveStatsDao,
 	private val ioDispatcher: CoroutineDispatcher
@@ -30,7 +30,8 @@ class DefaultDailySummaryProvider(
 
 	override suspend fun fetchTodaySummary(): DailySummary? = withContext(ioDispatcher) {
 		val now = Time.nowMillis
-		val epochDay = now / Time.DAY_IN_MILLISECONDS
+		val startOfDay = Time.todayMillis
+		val epochDay = startOfDay / Time.DAY_IN_MILLISECONDS
 
 		// Try materialized data first (fast single-row reads)
 		val liveStats = liveStatsDao.get()
@@ -54,25 +55,24 @@ class DefaultDailySummaryProvider(
 			)
 		}
 
-		// Fallback to legacy session-based query
-		val startOfDay = epochDay * Time.DAY_IN_MILLISECONDS
-		val summary = sessionDao.getTodaySummary(startOfDay, now)
+		// Fallback to trip-based query
+		val summary = tripDao.getTodaySummary(startOfDay, now)
 
-		if (summary == null || summary.sessionCount == 0) {
+		if (summary == null || summary.tripCount == 0) {
 			null
 		} else {
 			DailySummary(
-				totalDistanceM = summary.distanceInM,
-				totalSteps = summary.steps,
-				totalDurationMs = summary.duration,
-				sessionCount = summary.sessionCount
+				totalDistanceM = summary.totalDistanceM,
+				totalSteps = summary.totalSteps,
+				totalDurationMs = summary.totalDurationMs,
+				sessionCount = summary.tripCount
 			)
 		}
 	}
 
 	override fun observeTodayLive(): Flow<DailySummary?> {
 		return liveStatsDao.getFlow().map { liveStats ->
-			val epochDay = Time.nowMillis / Time.DAY_IN_MILLISECONDS
+			val epochDay = Time.todayMillis / Time.DAY_IN_MILLISECONDS
 			if (liveStats != null && liveStats.dateEpochDay == epochDay) {
 				DailySummary(
 					totalDistanceM = liveStats.dayTotalDistanceM,

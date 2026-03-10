@@ -23,7 +23,7 @@ class SettingsViewModel @Inject constructor(
         initialValue = TrackerSettingsState(
             autoUnitSwitch = false,
             lengthSystem = LengthSystem.Metric,
-            speedFormat = SpeedFormat.Hour
+            speedFormat = SpeedFormat.Hour,
         )
     )
 

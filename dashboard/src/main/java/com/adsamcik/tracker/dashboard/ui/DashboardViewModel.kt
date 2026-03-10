@@ -1,11 +1,10 @@
 package com.adsamcik.tracker.dashboard.ui
 
-import android.app.Application
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
@@ -18,12 +17,15 @@ import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
+import javax.inject.Inject
 
 /**
  * ViewModel for the Dashboard screen.
@@ -32,17 +34,18 @@ import java.util.Calendar
  * CompositionLocal-provided dependencies (tracker controller, lock manager, providers)
  * remain in the composable layer.
  */
-class DashboardViewModel(
-	application: Application,
+@HiltViewModel
+class DashboardViewModel @Inject constructor(
+	@ApplicationContext private val appContext: Context,
 	private val dispatchers: DispatchersProvider,
-	private val databaseProvider: (Context) -> AppDatabase = { AppDatabase.database(it) },
-) : AndroidViewModel(application) {
+	private val appDatabase: AppDatabase,
+) : ViewModel() {
 
 	private val _todaySummary = MutableStateFlow<DailySummary?>(null)
 	val todaySummary: StateFlow<DailySummary?> = _todaySummary.asStateFlow()
 
-	private val _dbLastSession = MutableStateFlow<TrackerSession?>(null)
-	val dbLastSession: StateFlow<TrackerSession?> = _dbLastSession.asStateFlow()
+	private val _dbLastSession = MutableStateFlow<Trip?>(null)
+	val dbLastSession: StateFlow<Trip?> = _dbLastSession.asStateFlow()
 
 	private val _recentTrips = MutableStateFlow<List<Trip>>(emptyList())
 	val recentTrips: StateFlow<List<Trip>> = _recentTrips.asStateFlow()
@@ -53,7 +56,7 @@ class DashboardViewModel(
 	private val _streakState = MutableStateFlow(StreakState())
 	val streakState: StateFlow<StreakState> = _streakState.asStateFlow()
 
-	private val _hasLocationPermission = MutableStateFlow(checkLocationPermission(application))
+	private val _hasLocationPermission = MutableStateFlow(checkLocationPermission(appContext))
 	val hasLocationPermission: StateFlow<Boolean> = _hasLocationPermission.asStateFlow()
 
 	private val _showLocationPermissionRequest = MutableStateFlow(false)
@@ -86,15 +89,14 @@ class DashboardViewModel(
 
 		viewModelScope.launch {
 			withContext(dispatchers.io) {
-				val db = databaseProvider(getApplication())
 				try {
 					if (lastSessionData == null) {
-						_dbLastSession.value = db.sessionDao().getLast(1)
+						_dbLastSession.value = appDatabase.tripDao().getRecentTrips(1).firstOrNull()
 					}
-					_recentTrips.value = db.tripDao().getRecentTrips(5)
+					_recentTrips.value = appDatabase.tripDao().getRecentTrips(5)
 
-					loadExplorationData(db)
-					loadStreakData(db)
+					loadExplorationData(appDatabase)
+					loadStreakData(appDatabase)
 				} catch (_: Exception) {
 					// DB errors are non-fatal — cards simply won't show
 				}

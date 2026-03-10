@@ -97,7 +97,7 @@ class DefaultTrackerSettingsRepository(
             TrackerSettingsState(
                 autoUnitSwitch = proto.autoUnitSwitch,
                 lengthSystem = proto.lengthSystem.toDomainLength(),
-                speedFormat = proto.speedFormat.toDomainSpeed()
+                speedFormat = proto.speedFormat.toDomainSpeed(),
             )
         }
 

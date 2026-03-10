@@ -4,12 +4,16 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Context
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
-import com.adsamcik.tracker.statistics.ui.exportGpx
+import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.statistics.export.GpxShareHelper
+import com.adsamcik.tracker.statistics.viewmodel.activityLabel
 import com.adsamcik.tracker.stats.api.repository.TripRepository
+import com.adsamcik.tracker.stats.api.repository.TripSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -23,6 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import kotlin.math.abs
 
 /**
  * Hilt-compatible ViewModel wrapper for [TripDetailPresenter].
@@ -36,7 +41,8 @@ class TripDetailPresenterViewModel @Inject constructor(
 	presenter: TripDetailPresenter,
 	private val tripDao: TripDao,
 	private val skiRunSegmentDao: SkiRunSegmentDao,
-	private val locationDataDao: LocationDataDao,
+	private val locationSampleDao: LocationSampleDao,
+	private val gpxShareHelper: GpxShareHelper,
 	savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -50,36 +56,55 @@ class TripDetailPresenterViewModel @Inject constructor(
 	private val _skiSegments = MutableStateFlow<List<SkiRunSegment>>(emptyList())
 	val skiSegments: StateFlow<List<SkiRunSegment>> = _skiSegments.asStateFlow()
 
+	private val _insights = MutableStateFlow(TripDetailInsights())
+	val insights: StateFlow<TripDetailInsights> = _insights.asStateFlow()
+
 	init {
 		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
-		loadSkiSegments()
+		loadSupplementalData()
 	}
 
-	private fun loadSkiSegments() {
+	private fun loadSupplementalData() {
 		viewModelScope.launch {
 			try {
 				val loaded = state.filterIsInstance<TripDetailState.Loaded>().first()
-				loadSkiSegmentsForTrip(loaded)
+				loadSupplementalDataForTrip(loaded)
 			} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
-				// Ski segments are optional — don't break trip detail on failure
+				// Supplemental data is optional — don't break trip detail on failure
 			}
 		}
 	}
 
-	private suspend fun loadSkiSegmentsForTrip(loaded: TripDetailState.Loaded) {
+	private suspend fun loadSupplementalDataForTrip(loaded: TripDetailState.Loaded) {
 		val trip = loaded.trip
-		val segments = skiRunSegmentDao.getByTimeRange(
-			trip.startTimeMs.raw,
-			trip.endTimeMs.raw
-		)
+		val tripStart = trip.startTimeMs.raw
+		val tripEnd = trip.endTimeMs.raw
+		val projection = withContext(Dispatchers.IO) {
+			tripDao.getById(tripId)
+		}
+		val samples = withContext(Dispatchers.IO) {
+			locationSampleDao.getAllBetween(tripStart, tripEnd)
+		}
+		val segments = withContext(Dispatchers.IO) {
+			skiRunSegmentDao.getByTimeRange(tripStart, tripEnd)
+		}
+
 		_skiSegments.value = segments
+		_insights.value = buildInsights(
+			trip = trip,
+			projection = projection,
+			samples = samples,
+		)
 	}
 
 	/**
 	 * Retry loading the trip detail after an error.
 	 */
 	fun retry() {
+		_insights.value = TripDetailInsights()
+		_skiSegments.value = emptyList()
 		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
+		loadSupplementalData()
 	}
 
 	/**
@@ -89,10 +114,12 @@ class TripDetailPresenterViewModel @Inject constructor(
 		viewModelScope.launch {
 			val loaded = state.value as? TripDetailState.Loaded ?: return@launch
 			val trip = loaded.trip
-			val points = withContext(Dispatchers.IO) {
-				locationDataDao.getAllBetweenOrdered(trip.startTimeMs.raw, trip.endTimeMs.raw)
-			}
-			exportGpx(context, trip, points)
+			gpxShareHelper.exportAndShare(
+				context = context,
+				tripId = tripId,
+				startTimeMs = trip.startTimeMs.raw,
+				endTimeMs = trip.endTimeMs.raw,
+			)
 		}
 	}
 
@@ -105,4 +132,90 @@ class TripDetailPresenterViewModel @Inject constructor(
 			onDeleted()
 		}
 	}
+}
+
+data class TripDetailInsights(
+	val activityType: String = "Trip",
+	val sourceLabel: String = "—",
+	val averageSpeedMps: Double? = null,
+	val maxSpeedMps: Double? = null,
+	val elevationGainM: Double? = null,
+	val elevationLossM: Double? = null,
+	val maxAltitudeM: Double? = null,
+	val routePoints: List<LocationSample> = emptyList(),
+)
+
+private fun buildInsights(
+	trip: TripSummary,
+	projection: Trip?,
+	samples: List<LocationSample>,
+): TripDetailInsights {
+	val altitudePoints = samples.mapNotNull { it.altitudeM?.toDouble() }
+	var gain = 0.0
+	var loss = 0.0
+	altitudePoints.zipWithNext { previous, current ->
+		val delta = current - previous
+		if (abs(delta) >= 1.0) {
+			if (delta > 0) gain += delta else loss += -delta
+		}
+	}
+
+	val maxSpeed = samples.mapNotNull { it.speedMps?.toDouble() }
+		.filter { it > 0.0 }
+		.maxOrNull()
+	val durationSeconds = (trip.duration.raw / 1000.0).takeIf { it > 0.0 }
+	val averageSpeed = durationSeconds
+		?.let { duration -> trip.distance.raw.toDouble().takeIf { it > 0.0 }?.div(duration) }
+
+	val routePoints = samples.filter { it.latE7 != null && it.lonE7 != null }
+
+	return TripDetailInsights(
+		activityType = resolveActivityType(projection, trip),
+		sourceLabel = resolveSourceLabel(samples, projection),
+		averageSpeedMps = averageSpeed,
+		maxSpeedMps = maxSpeed,
+		elevationGainM = gain.takeIf { it > 0.0 },
+		elevationLossM = loss.takeIf { it > 0.0 },
+		maxAltitudeM = altitudePoints.maxOrNull(),
+		routePoints = routePoints,
+	)
+}
+
+private fun resolveActivityType(projection: Trip?, trip: TripSummary): String {
+	projection?.primaryActivity?.let { return activityLabel(it) }
+	return trip.primaryMode.name
+		.replace('_', ' ')
+		.lowercase()
+		.replaceFirstChar { it.uppercase() }
+		.takeIf { it != "Unknown" }
+		?: "Trip"
+}
+
+private fun resolveSourceLabel(samples: List<LocationSample>, projection: Trip?): String {
+	val provider = samples
+		.groupingBy { normalizeProviderLabel(it.provider) }
+		.eachCount()
+		.maxByOrNull { it.value }
+		?.key
+
+	if (provider != null) {
+		return provider
+	}
+
+	return when (projection?.source) {
+		com.adsamcik.tracker.shared.base.database.data.SegmentSource.USER_CREATED -> "Manual"
+		com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_HIGH_CONFIDENCE -> "Inferred"
+		com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_MEDIUM_CONFIDENCE -> "Inferred"
+		com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_LOW_CONFIDENCE -> "Inferred"
+		com.adsamcik.tracker.shared.base.database.data.SegmentSource.LEGACY_MIGRATION -> "Legacy"
+		null -> "—"
+	}
+}
+
+private fun normalizeProviderLabel(provider: String): String = when (provider.lowercase()) {
+	"gps" -> "GPS"
+	"network" -> "Network"
+	"fused", "flp" -> "Fused"
+	"passive" -> "Passive"
+	else -> provider.replaceFirstChar { it.uppercase() }
 }

@@ -2,8 +2,7 @@ package com.adsamcik.tracker.impexp.exporter
 
 import android.annotation.SuppressLint
 import android.content.Context
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
@@ -19,7 +18,7 @@ class KmlExporter : Exporter {
 
 	override fun export(
 			context: Context,
-			locationData: Sequence<DatabaseLocation>,
+			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,
 			dateRange: LongRange?
 	): ExportResult {
@@ -31,11 +30,11 @@ class KmlExporter : Exporter {
 
 	private fun serialize(
 			stream: OutputStream,
-			locationData: Sequence<DatabaseLocation>
+			locationData: Sequence<LocationSample>
 	) {
 		OutputStreamWriter(stream).use { osw ->
 			writeBeginning(osw)
-			locationData.forEach { writeLocation(osw, it.location) }
+			locationData.forEach { writeSample(osw, it) }
 			writeEnding(osw)
 		}
 	}
@@ -47,13 +46,15 @@ class KmlExporter : Exporter {
 		return format.format(date)
 	}
 
-	private fun writeLocation(streamWriter: OutputStreamWriter, location: Location) {
-		if (!location.latitude.isFinite() || !location.longitude.isFinite()) return
+	private fun writeSample(streamWriter: OutputStreamWriter, sample: LocationSample) {
+		val lat = sample.latE7?.let { it / 1e7 } ?: return
+		val lon = sample.lonE7?.let { it / 1e7 } ?: return
+		if (!lat.isFinite() || !lon.isFinite()) return
 
-		streamWriter.write("<Placemark><TimeStamp><when>${formatTime(location.time)}</when></TimeStamp>")
-		val alt = location.altitude?.takeIf { it.isFinite() } ?: 0.0
+		streamWriter.write("<Placemark><TimeStamp><when>${formatTime(sample.timeMs)}</when></TimeStamp>")
+		val alt = sample.altitudeM?.toDouble()?.takeIf { it.isFinite() } ?: 0.0
 		streamWriter.write(
-				"<Point><coordinates>${location.longitude},${location.latitude},${alt}</coordinates></Point></Placemark>"
+				"<Point><coordinates>${lon},${lat},${alt}</coordinates></Point></Placemark>"
 		)
 	}
 

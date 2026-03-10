@@ -3,14 +3,14 @@ package com.adsamcik.tracker.statistics.data
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
-import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 class DefaultStatsRepository(
-    private val sessionDao: SessionDataDao,
+    private val tripDao: TripDao,
     private val ioDispatcher: CoroutineDispatcher
 ) : StatsRepository {
     companion object {
@@ -19,7 +19,7 @@ class DefaultStatsRepository(
         private const val INITIAL_LOAD_SIZE = 40
     }
 
-    override fun getSessionsPaged(): Flow<PagingData<TrackerSession>> {
+    override fun getSessionsPaged(): Flow<PagingData<Trip>> {
         return Pager(
             config = PagingConfig(
                 pageSize = PAGE_SIZE,
@@ -27,15 +27,15 @@ class DefaultStatsRepository(
                 enablePlaceholders = false,
                 initialLoadSize = INITIAL_LOAD_SIZE
             ),
-            pagingSourceFactory = { sessionDao.getAllPaged() }
+            pagingSourceFactory = { tripDao.getAllPaged() }
         ).flow
     }
 
     override suspend fun getSessionCount(): Long {
-        return withContext(ioDispatcher) { sessionDao.count() }
+        return withContext(ioDispatcher) { tripDao.countAllTrips() }
     }
 
-    override suspend fun getSessionById(sessionId: Long): TrackerSession? {
-        return withContext(ioDispatcher) { sessionDao.get(sessionId) }
+    override suspend fun getSessionById(sessionId: Long): Trip? {
+        return withContext(ioDispatcher) { tripDao.getById(sessionId) }
     }
 }

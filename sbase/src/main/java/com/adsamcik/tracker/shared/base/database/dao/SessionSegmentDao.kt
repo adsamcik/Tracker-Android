@@ -55,6 +55,12 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	fun deleteAll()
 
 	/**
+	 * Delete a single session segment by ID.
+	 */
+	@Query("DELETE FROM session_segment WHERE id = :id")
+	fun deleteById(id: Long)
+
+	/**
 	 * Delete segments older than given timestamp.
 	 */
 	@Query("DELETE FROM session_segment WHERE end_time_ms < :beforeMs")

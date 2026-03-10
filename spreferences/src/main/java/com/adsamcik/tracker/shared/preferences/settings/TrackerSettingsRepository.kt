@@ -8,14 +8,14 @@ import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
 data class TrackerSettingsState(
     val autoUnitSwitch: Boolean,
     val lengthSystem: LengthSystem,
-    val speedFormat: SpeedFormat
+    val speedFormat: SpeedFormat,
 ) {
     companion object {
         /** Default settings used as initial value before async load completes. */
         val DEFAULT = TrackerSettingsState(
             autoUnitSwitch = false,
             lengthSystem = LengthSystem.Metric,
-            speedFormat = SpeedFormat.Hour
+            speedFormat = SpeedFormat.Hour,
         )
     }
 }

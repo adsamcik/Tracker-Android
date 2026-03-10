@@ -1,24 +1,12 @@
 package com.adsamcik.tracker.shared.base.data
 
 import android.content.Context
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.ForeignKey
-import androidx.room.Index
-import androidx.room.PrimaryKey
 
 /**
- * Readonly tracking session data
+ * In-memory tracking session model (no longer a Room entity).
+ * Phase 5: @Entity removed — tracker_session table dropped.
+ * Persistence is handled via [com.adsamcik.tracker.shared.base.database.data.SessionSegment].
  */
-@Entity(
-		tableName = "tracker_session", foreignKeys = [ForeignKey(
-		entity = SessionActivity::class,
-		parentColumns = ["id"],
-		childColumns = ["session_activity_id"],
-		onDelete = ForeignKey.SET_NULL,
-		onUpdate = ForeignKey.NO_ACTION
-)], indices = [Index("session_activity_id")]
-)
 @Suppress("LongParameterList")
 open class TrackerSession(
 		id: Long = 0,
@@ -33,30 +21,24 @@ open class TrackerSession(
 		sessionActivityId: Long? = null
 ) {
 
-	@PrimaryKey(autoGenerate = true)
 	open var id: Long = id
 
 	open var start: Long = start
 
 	open var end: Long = end
 
-	@ColumnInfo(name = "user_initiated")
 	open var isUserInitiated: Boolean = isUserInitiated
 
 	open var collections: Int = collections
 
-	@ColumnInfo(name = "distance")
 	open var distanceInM: Float = distanceInM
 
-	@ColumnInfo(name = "distance_on_foot")
 	open var distanceOnFootInM: Float = distanceOnFootInM
 
-	@ColumnInfo(name = "distance_in_vehicle")
 	open var distanceInVehicleInM: Float = distanceInVehicleInM
 
 	open var steps: Int = steps
 
-	@ColumnInfo(name = "session_activity_id")
 	open var sessionActivityId: Long? = sessionActivityId
 
 	companion object {

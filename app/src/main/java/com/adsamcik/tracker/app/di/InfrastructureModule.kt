@@ -4,8 +4,9 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
+import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
+import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
@@ -15,15 +16,17 @@ import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
-import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.di.DefaultDispatcher
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
@@ -111,32 +114,18 @@ object InfrastructureModule {
     // DAO Providers - enable direct DAO injection without going through AppDatabase
 
     /**
-     * Provides SessionDataDao for tracking session persistence.
+     * Provides SessionSegmentDao for session segment persistence.
      */
     @Provides
     @Singleton
-    fun provideSessionDao(database: AppDatabase): SessionDataDao = database.sessionDao()
+    fun provideSessionSegmentDao(database: AppDatabase): SessionSegmentDao = database.sessionSegmentDao()
 
     /**
-     * Provides LocationDataDao for location data persistence.
+     * Provides LocationSampleDao for raw location sample access.
      */
     @Provides
     @Singleton
-    fun provideLocationDao(database: AppDatabase): LocationDataDao = database.locationDao()
-
-    /**
-     * Provides WifiDataDao for Wi-Fi data persistence.
-     */
-    @Provides
-    @Singleton
-    fun provideWifiDao(database: AppDatabase): WifiDataDao = database.wifiDao()
-
-    /**
-     * Provides CellLocationDao for cell location data persistence.
-     */
-    @Provides
-    @Singleton
-    fun provideCellLocationDao(database: AppDatabase): CellLocationDao = database.cellLocationDao()
+    fun provideLocationSampleDao(database: AppDatabase): LocationSampleDao = database.locationSampleDao()
 
     /**
      * Provides TrackerRunDao for tracker run state persistence.
@@ -249,4 +238,39 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideDomainEventDao(database: AppDatabase): DomainEventDao = database.domainEventDao()
+
+    /**
+     * Provides CellSampleDao for cell tower sample persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideCellSampleDao(database: AppDatabase): CellSampleDao = database.cellSampleDao()
+
+    /**
+     * Provides WifiObservationDao for Wi-Fi observation persistence.
+     */
+    @Provides
+    @Singleton
+    fun provideWifiObservationDao(database: AppDatabase): WifiObservationDao = database.wifiObservationDao()
+
+    /**
+     * Provides PressureSampleDao for barometric pressure data.
+     */
+    @Provides
+    @Singleton
+    fun providePressureSampleDao(database: AppDatabase): PressureSampleDao = database.pressureSampleDao()
+
+    /**
+     * Provides StepIntervalDao for step interval data.
+     */
+    @Provides
+    @Singleton
+    fun provideStepIntervalDao(database: AppDatabase): StepIntervalDao = database.stepIntervalDao()
+
+    /**
+     * Provides ActivitySnapshotDao for activity snapshot data.
+     */
+    @Provides
+    @Singleton
+    fun provideActivitySnapshotDao(database: AppDatabase): ActivitySnapshotDao = database.activitySnapshotDao()
 }
