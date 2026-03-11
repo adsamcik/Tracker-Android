@@ -36,7 +36,7 @@ class PointsAwardedDaoTest {
     fun countBetweenReturnsZeroWhenNoRows() {
         val now = 1_000L
         val result = dao.countBetween(0L, now)
-        result shouldBe 0
+        result shouldBe 0.0
     }
 
     @Test
@@ -45,7 +45,7 @@ class PointsAwardedDaoTest {
         val flow = dao.countBetweenFlow(0L, now)
 
         val initial = flow.first()
-        initial shouldBe 0
+        initial shouldBe 0.0
 
         dao.insert(
             PointsAwarded(
@@ -56,6 +56,6 @@ class PointsAwardedDaoTest {
         )
 
         val updated = flow.first()
-        updated shouldBe 42
+        updated shouldBe 42.0
     }
 }

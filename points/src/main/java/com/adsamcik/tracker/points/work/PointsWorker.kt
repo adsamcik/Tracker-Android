@@ -164,7 +164,8 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 					val distance = prevLocation.distanceFlat(location, LengthUnit.Meter)
 					val timeDelta = location.time - prevLocation.time
 					if (timeDelta <= 0 || distance <= 0.0) return@forEachIndexed
-					val speed = distance / timeDelta
+					val timeDeltaSeconds = timeDelta / 1000.0
+					val speed = distance / timeDeltaSeconds
 					val slope = kotlin.math.atan(diff / distance)
 					slopeList.add(
 						SlopeData(

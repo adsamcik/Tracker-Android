@@ -52,7 +52,7 @@ class DefaultGameRepository @Inject constructor(
     override fun getPointsToday(): Flow<Int> {
         return flow {
             emitAll(pointsDao.countBetweenFlow(startOfDay(Time.nowMillis), Time.nowMillis))
-        }.flowOn(Dispatchers.IO)
+        }.map { it.toInt() }.flowOn(Dispatchers.IO)
     }
     
     override fun getStepsSummary(): StateFlow<StepsSummaryData?> {

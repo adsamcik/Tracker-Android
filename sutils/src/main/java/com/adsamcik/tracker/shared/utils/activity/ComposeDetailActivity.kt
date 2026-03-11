@@ -25,7 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-// Legacy DynamicTrackerTheme removed; rely on Material 3 at app level
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 
 /**
  * Base activity for detail screens using Jetpack Compose
@@ -64,11 +64,12 @@ abstract class ComposeDetailActivity : ComponentActivity() {
         titleText = configuration.title
         
         setContent {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                Scaffold(
+            AppTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    Scaffold(
                         topBar = {
                             TopAppBar(
                                 title = {
@@ -102,12 +103,13 @@ abstract class ComposeDetailActivity : ComponentActivity() {
                             )
                         }
                     ) { paddingValues ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                    ) {
-                        Content()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues)
+                        ) {
+                            Content()
+                        }
                     }
                 }
             }

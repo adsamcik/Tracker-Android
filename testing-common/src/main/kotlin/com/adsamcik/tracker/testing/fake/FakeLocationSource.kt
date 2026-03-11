@@ -134,6 +134,30 @@ class FakeLocationSource {
         }
 
         /**
+         * Creates a domain Location that works on pure JVM (no Robolectric needed).
+         * Use this for pure JUnit 5 tests.
+         */
+        fun createDomainLocation(
+            latitude: Double = 0.0,
+            longitude: Double = 0.0,
+            altitude: Double? = null,
+            accuracy: Float? = null,
+            speed: Float? = null,
+            time: Long = System.currentTimeMillis(),
+        ): com.adsamcik.tracker.shared.base.data.Location {
+            return com.adsamcik.tracker.shared.base.data.Location(
+                time = time,
+                latitude = latitude,
+                longitude = longitude,
+                altitude = altitude,
+                horizontalAccuracy = accuracy,
+                verticalAccuracy = null,
+                speed = speed,
+                speedAccuracy = null,
+            )
+        }
+
+        /**
          * Generate a path of locations between two points.
          *
          * @param start Starting coordinates (lat, lon)
