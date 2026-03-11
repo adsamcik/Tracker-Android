@@ -14,7 +14,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
-import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
@@ -40,13 +39,13 @@ class DatabaseMaintenanceWorkerTest {
 		private val workerParams = mockk<WorkerParameters>(relaxed = true)
 		private val mockDb = mockk<AppDatabase>(relaxed = true)
 		private val mockStatement = mockk<SupportSQLiteStatement>(relaxed = true)
-		private val sqlSlot = slot<String>()
+		private val sqlSlots = mutableListOf<String>()
 
 		@BeforeEach
 		fun setUp() {
 			mockkObject(AppDatabase)
 			every { AppDatabase.database(any()) } returns mockDb
-			every { mockDb.compileStatement(capture(sqlSlot)) } returns mockStatement
+			every { mockDb.compileStatement(capture(sqlSlots)) } returns mockStatement
 		}
 
 		private fun executeDoWork(): ListenableWorker.Result {
@@ -61,32 +60,39 @@ class DatabaseMaintenanceWorkerTest {
 		@Test
 		fun `executes delete on compiled statement`() {
 			executeDoWork()
-			verify(exactly = 1) { mockStatement.executeUpdateDelete() }
+			verify(exactly = 2) { mockStatement.executeUpdateDelete() }
 		}
 
 		@Test
 		fun `SQL targets tracker_session table`() {
 			executeDoWork()
-			sqlSlot.captured shouldContain "DELETE FROM tracker_session"
+			sqlSlots.any { it.contains("DELETE FROM tracker_session") } shouldBe true
 		}
 
 		@Test
 		fun `SQL removes sessions where start is at or after end`() {
 			executeDoWork()
-			sqlSlot.captured shouldContain "start >= `end`"
+			sqlSlots.any { it.contains("start >= `end`") } shouldBe true
 		}
 
 		@Test
 		fun `SQL removes sessions with minimal collections and steps`() {
 			executeDoWork()
-			sqlSlot.captured shouldContain "collections <= 1"
-			sqlSlot.captured shouldContain "steps <= 10"
+			val sessionSql = sqlSlots.first { it.contains("tracker_session") }
+			sessionSql shouldContain "collections <= 1"
+			sessionSql shouldContain "steps <= 10"
 		}
 
 		@Test
 		fun `SQL uses OR to combine invalid session conditions`() {
 			executeDoWork()
-			sqlSlot.captured shouldContain "OR"
+			sqlSlots.any { it.contains("OR") } shouldBe true
+		}
+
+		@Test
+		fun `SQL cleans empty session segments`() {
+			executeDoWork()
+			sqlSlots.any { it.contains("DELETE FROM session_segment") } shouldBe true
 		}
 	}
 

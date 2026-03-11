@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
@@ -27,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,13 +65,28 @@ import kotlinx.coroutines.withContext
  * Compose-based debug tooling screen integrating system status display and log viewer.
  * Replaces legacy StatusActivity and LogViewerActivity with reactive Compose UI.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun DebugRoute() {
+fun DebugRoute(onNavigateBack: () -> Unit = {}) {
     val ctx = LocalContext.current
     val clearDialog = remember { mutableStateOf(false) }
     var statusExpanded by remember { mutableStateOf(false) }
     var logsExpanded by remember { mutableStateOf(false) }
-    Scaffold { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = ctx.getString(R.string.settings_debug_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = ctx.getString(R.string.action_navigate_back),
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -77,14 +94,6 @@ fun DebugRoute() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Text(
-                    text = ctx.getString(R.string.settings_debug_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.testTag("debug_route_title")
-                )
-            }
-
             item {
                 Button(
                     onClick = { clearDialog.value = true },

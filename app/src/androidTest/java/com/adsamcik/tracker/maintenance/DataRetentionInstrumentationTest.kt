@@ -10,10 +10,8 @@ import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -41,33 +39,43 @@ class DataRetentionInstrumentationTest {
         val db = AppDatabase.database(context)
         val now = System.currentTimeMillis()
         val old = now - 2L * 365L * 24L * 60L * 60L * 1000L
-        val locOld = DatabaseLocation(
-            location = Location(
-                time = old,
-                latitude = 0.0,
-                longitude = 0.0,
-                altitude = null,
-                horizontalAccuracy = null,
-                verticalAccuracy = null,
-                speed = null,
-                speedAccuracy = null
-            ),
-            activityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+        val sampleOld = LocationSample(
+            timeMs = old,
+            elapsedRealtimeNanos = 0L,
+            latE7 = 0,
+            lonE7 = 0,
+            altitudeM = null,
+            rawGpsAltitudeM = null,
+            hAccM = null,
+            vAccM = null,
+            speedMps = null,
+            speedAccuracyMps = null,
+            provider = "gps",
+            quality = SampleQuality.HIGH,
+            motionState = null,
+            policy = null,
+            bucketId = null,
+            createdAt = old,
         )
-        val locNew = DatabaseLocation(
-            location = Location(
-                time = now,
-                latitude = 1.0,
-                longitude = 1.0,
-                altitude = null,
-                horizontalAccuracy = null,
-                verticalAccuracy = null,
-                speed = null,
-                speedAccuracy = null
-            ),
-            activityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+        val sampleNew = LocationSample(
+            timeMs = now,
+            elapsedRealtimeNanos = 0L,
+            latE7 = (1.0 * 1e7).toInt(),
+            lonE7 = (1.0 * 1e7).toInt(),
+            altitudeM = null,
+            rawGpsAltitudeM = null,
+            hAccM = null,
+            vAccM = null,
+            speedMps = null,
+            speedAccuracyMps = null,
+            provider = "gps",
+            quality = SampleQuality.HIGH,
+            motionState = null,
+            policy = null,
+            bucketId = null,
+            createdAt = now,
         )
-        db.locationDao().insert(listOf(locOld, locNew))
+        db.locationSampleDao().insert(listOf(sampleOld, sampleNew))
 
         // Simulate process death by recreating WorkManager
         val config = Configuration.Builder()
@@ -93,8 +101,10 @@ class DataRetentionInstrumentationTest {
 
         // Run worker synchronously by polling until DB reflects pruning
         // Since we used SynchronousExecutor, the work should have run
-        val count = AppDatabase.database(context).locationDao().count()
+        val count = runBlocking {
+            AppDatabase.database(context).locationSampleDao().countBetween(0L, Long.MAX_VALUE)
+        }
         // Old row should be pruned, new should remain
-        assertEquals(1L, count)
+        assertEquals(1, count)
     }
 }

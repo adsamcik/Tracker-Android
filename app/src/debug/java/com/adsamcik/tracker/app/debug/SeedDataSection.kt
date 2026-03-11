@@ -19,8 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.debug.DummyDataSeeder
+import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
 import kotlinx.coroutines.launch
+import com.adsamcik.tracker.shared.base.R as BaseR
 
 /**
  * Debug-only composable that provides a button to seed dummy tracking data.
@@ -32,17 +35,20 @@ fun SeedDataSection() {
     val scope = rememberCoroutineScope()
     var seedStatus by remember { mutableStateOf<String?>(null) }
     var isSeeding by remember { mutableStateOf(false) }
+    var showConfirmation by remember { mutableStateOf(false) }
+
+    fun startSeeding() {
+        isSeeding = true
+        seedStatus = null
+        scope.launch {
+            val result = DummyDataSeeder.seed(ctx)
+            seedStatus = if (result.inserted) "✅ Seeded 3 sessions" else "❌ ${result.reason}"
+            isSeeding = false
+        }
+    }
 
     Button(
-        onClick = {
-            isSeeding = true
-            seedStatus = null
-            scope.launch {
-                val result = DummyDataSeeder.seed(ctx)
-                seedStatus = if (result.inserted) "✅ Seeded 3 sessions" else "❌ ${result.reason}"
-                isSeeding = false
-            }
-        },
+        onClick = { showConfirmation = true },
         enabled = !isSeeding,
         modifier = Modifier
             .fillMaxWidth()
@@ -64,4 +70,14 @@ fun SeedDataSection() {
             modifier = Modifier.padding(start = 4.dp, top = 4.dp)
         )
     }
+
+    ConfirmDialog(
+        visible = showConfirmation,
+        title = ctx.getString(R.string.settings_debug_seed_data_confirm_title),
+        message = ctx.getString(R.string.settings_debug_seed_data_confirm_message),
+        confirmLabel = ctx.getString(BaseR.string.generic_yes),
+        dismissLabel = ctx.getString(BaseR.string.generic_no),
+        onConfirm = ::startSeeding,
+        onDismiss = { showConfirmation = false },
+    )
 }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <resources>
-    <string name="app_name" translatable="false">Advention</string>
+    <string name="app_name" translatable="false">Tracker</string>
 
     <string name="dev_notification_dummy">Hello World!</string>
 
@@ -27,7 +27,7 @@
 
     <string name="module_download_progress">Downloaded %1$s / %2$s</string>
     <string name="module_error">Failed to install modules %1$s (error code %2$d)</string>
-    <string name="module_game_title">Games</string>
+    <string name="module_game_title">Game</string>
     <string name="module_installing">Installing module %s</string>
     <string name="module_map_title">Map</string>
     <string name="module_statistics_title">Statistics</string>
@@ -67,6 +67,8 @@
     <string name="settings_debug_generate_dummy_subtitle">Create test tracking data (DEBUG only)</string>
     <string name="settings_debug_disable_developer_subtitle">Hide developer options from settings</string>
     <string name="settings_debug_developer_mode_disabled_toast">Developer mode disabled</string>
+    <string name="settings_debug_seed_data_confirm_title">Seed dummy data?</string>
+    <string name="settings_debug_seed_data_confirm_message">This adds 3 dummy New York City sessions for development and testing. Continue?</string>
     <string name="settings_data_management_section">Data Management</string>
     <string name="settings_data_danger_zone_section">Danger Zone</string>
     <string name="settings_game_goals_managed_hint">Goal settings like daily/weekly steps are managed through the Goals feature</string>
@@ -115,6 +117,10 @@
     </string-array>
     <string name="settings_licenses_key" translatable="false">openSourceLicenses</string>
     <string name="settings_licenses_title">Open source licenses</string>
+    <string name="settings_licenses_subtitle">View bundled third-party notices included with this build.</string>
+    <string name="settings_licenses_loading">Loading licenses…</string>
+    <string name="settings_licenses_unavailable">Couldn’t load bundled third-party license data.</string>
+    <string name="settings_licenses_variant_unavailable">This build variant does not bundle generated license data. Use a release-like build to view third-party licenses.</string>
     <string name="settings_privacy_policy_title">Privacy Policy</string>
     <string name="settings_about_header">About</string>
     <string name="settings_about_app_title">Tracker by adsamcik</string>
@@ -153,9 +159,9 @@
     <string name="settings_remove_all_collected_data_summary">Deletes your tracking data (custom activities and settings will be kept)</string>
     <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
     <string-array name="settings_speed_format_names">
-        <item>In seconds</item>
-        <item>In minutes</item>
-        <item>In hours</item>
+        <item>Speed per second (m/s)</item>
+        <item>Pace per distance (min/km, min/mi)</item>
+        <item>Speed per hour (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Speed format</string>
     <string-array name="settings_speed_format_values" translatable="false">
@@ -570,13 +576,21 @@
     <string name="upgrade_to_precise_button_cancel">Maybe Later</string>
 
     <!-- Tracking Policy Preset Strings -->
-    <string name="tracking_preset_battery_saver_name">Battery Saver</string>
-    <string name="tracking_preset_battery_saver_description">Minimal battery use with approximate location and longer intervals</string>
+    <string name="tracking_preset_high_accuracy_name">High Accuracy</string>
+    <string name="tracking_preset_high_accuracy_description">Best detail with fastest updates and all major sensors enabled</string>
     <string name="tracking_preset_balanced_name">Balanced</string>
     <string name="tracking_preset_balanced_description">Good accuracy and reasonable battery life for daily tracking</string>
-    <string name="tracking_preset_high_precision_name">High Precision</string>
-    <string name="tracking_preset_high_precision_description">Maximum detail with all sensors enabled for detailed route capture</string>
+    <string name="tracking_preset_power_save_name">Power Save</string>
+    <string name="tracking_preset_power_save_description">Lower battery use with less frequent updates and reduced sensors</string>
     <string name="tracking_preset_custom_name">Custom</string>
+    <string name="tracking_preset_custom_description">Manually tune each tracking parameter</string>
+    <string name="tracking_preset_selector_title">Tracking Preset</string>
+    <string name="tracking_preset_selector_subtitle">Choose a profile, then switch to Custom to edit individual controls</string>
+    <string name="tracking_preset_custom_hint">Select Custom above to edit the detailed tracking controls below.</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
 
     <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Tracking Policy</string>

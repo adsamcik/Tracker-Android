@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.graphics.Color
@@ -42,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 
 private val NavBarShape = RoundedCornerShape(32.dp)
+private val NavRailShape = RoundedCornerShape(28.dp)
 
 @Composable
 fun FloatingNavigationBar(
@@ -113,6 +117,59 @@ fun FloatingNavigationBar(
 }
 
 @Composable
+fun AdaptiveNavigationRail(
+    items: List<NavigationItem>,
+    selectedItem: NavigationItem,
+    onItemClick: (NavigationItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = NavRailShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+        ),
+    ) {
+        NavigationRail(
+            containerColor = Color.Transparent,
+            modifier = Modifier.padding(vertical = 12.dp),
+        ) {
+            items.forEach { item ->
+                NavigationRailItem(
+                    selected = item == selectedItem,
+                    onClick = { onItemClick(item) },
+                    icon = {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.contentDescription,
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = item.contentDescription,
+                            maxLines = 1,
+                        )
+                    },
+                    alwaysShowLabel = false,
+                    modifier = Modifier
+                        .testTag(item.testTag)
+                        .semantics {
+                            this.selected = item == selectedItem
+                            if (item.stateDescription != null) {
+                                this.stateDescription = item.stateDescription
+                            }
+                        },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun FloatingNavItem(
     item: NavigationItem,
     isSelected: Boolean,
@@ -147,7 +204,8 @@ private fun FloatingNavItem(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = false, radius = 28.dp),
-                onClick = onClick
+                onClick = onClick,
+                role = Role.Tab
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

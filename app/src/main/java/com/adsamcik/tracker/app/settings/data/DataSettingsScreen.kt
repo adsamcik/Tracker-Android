@@ -115,18 +115,18 @@ fun DataSettingsScreen() {
         item {
             val retentionTitles = stringArrayResource(R.array.settings_data_retention_years_titles).toList()
             val retentionValues = stringArrayResource(R.array.settings_data_retention_years_values).toList()
-            DialogListPreference(
-                title = stringResource(R.string.settings_data_retention_years_title),
-                currentValue = uiState.dataRetentionYears.toString(),
-                entries = retentionTitles,
-                entryValues = retentionValues,
-                onValueChange = { selectedIndex ->
-                    val years = retentionValues[selectedIndex].toIntOrNull()
-                        ?: com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState.DEFAULT_RETENTION_YEARS
-                    dataVm.setDataRetentionYears(years)
-                }
-            )
-        }
+                DialogListPreference(
+                    title = stringResource(R.string.settings_data_retention_years_title),
+                    currentValue = uiState.dataRetentionYears.toString(),
+                    entries = retentionTitles,
+                    entryValues = retentionValues,
+                    onValueChange = { selectedIndex ->
+                        val years = retentionValues.getOrNull(selectedIndex)?.toIntOrNull()
+                            ?: return@DialogListPreference
+                        dataVm.setDataRetentionYears(years)
+                    }
+                )
+            }
 
         // Danger zone
         item {

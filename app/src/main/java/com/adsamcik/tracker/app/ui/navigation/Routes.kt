@@ -30,7 +30,18 @@ data object History : AppRoute
 data object Debug : AppRoute
 
 @Serializable
-data object Settings : AppRoute
+data class Settings(
+    val origin: SettingsOrigin = SettingsOrigin.DASHBOARD,
+    val nonce: Long = 0L,
+) : AppRoute
+
+@Serializable
+enum class SettingsOrigin {
+    DASHBOARD,
+    STATS,
+    MAP,
+    GAME,
+}
 
 @Serializable
 data object ActivitySettings : AppRoute

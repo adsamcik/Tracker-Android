@@ -47,7 +47,8 @@ fun SliderSettingsItemWithHelp(
     steps: Int,
     valueLabel: (Float) -> String,
     onValueChange: (Float) -> Unit,
-    helpTextRes: Int? = null
+    helpTextRes: Int? = null,
+    enabled: Boolean = true,
 ) {
     var showHelp by remember { mutableStateOf(false) }
     
@@ -90,7 +91,8 @@ fun SliderSettingsItemWithHelp(
                 onValueChange = onValueChange,
                 valueRange = valueRange,
                 steps = steps,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enabled = enabled,
             )
             Spacer(Modifier.width(12.dp))
             Text(
@@ -127,14 +129,15 @@ fun SwitchSettingsItemWithHelp(
     subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    helpTextRes: Int? = null
+    helpTextRes: Int? = null,
+    enabled: Boolean = true,
 ) {
     var showHelp by remember { mutableStateOf(false) }
     
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -170,7 +173,7 @@ fun SwitchSettingsItemWithHelp(
         }
         
         Spacer(Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = null)
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
     
     if (showHelp && helpTextRes != null) {

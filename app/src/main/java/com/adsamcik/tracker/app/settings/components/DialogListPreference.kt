@@ -14,14 +14,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 /**
  * Contract: Displays a list selection dialog when clicked. Shows current value.
@@ -77,10 +82,26 @@ fun SingleChoiceDialog(
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var tempSelectedIndex by remember { mutableStateOf(selectedIndex) }
+    var tempSelectedIndex by remember(selectedIndex) { mutableIntStateOf(selectedIndex) }
+    val coroutineScope = rememberCoroutineScope()
+
+    fun dismissSafely() {
+        coroutineScope.launch {
+            withFrameNanos { }
+            onDismiss()
+        }
+    }
+
+    fun confirmSafely() {
+        coroutineScope.launch {
+            withFrameNanos { }
+            onConfirm(tempSelectedIndex)
+        }
+    }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = ::dismissSafely,
+        properties = DialogProperties(dismissOnClickOutside = false),
         title = { Text(title) },
         text = {
             LazyColumn {
@@ -109,12 +130,12 @@ fun SingleChoiceDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(tempSelectedIndex) }) {
+            TextButton(onClick = ::confirmSafely) {
                 Text(stringResource(android.R.string.ok))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = ::dismissSafely) {
                 Text(stringResource(android.R.string.cancel))
             }
         }

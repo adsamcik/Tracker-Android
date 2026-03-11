@@ -3,23 +3,23 @@ package com.adsamcik.tracker.app.di
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
-import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
+import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
-import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
 import com.adsamcik.tracker.shared.base.time.SystemClock
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -122,13 +122,12 @@ class InfrastructureModuleTest {
 
 	@Nested
 	inner class `DAO providers` {
-		private val mockSessionDao = mockk<SessionDataDao>()
-		private val mockLocationDao = mockk<LocationDataDao>()
-		private val mockWifiDao = mockk<WifiDataDao>()
-		private val mockCellLocationDao = mockk<CellLocationDao>()
+		private val mockSessionSegmentDao = mockk<SessionSegmentDao>()
+		private val mockLocationSampleDao = mockk<LocationSampleDao>()
 		private val mockTrackerRunDao = mockk<TrackerRunDao>()
 		private val mockTripDao = mockk<TripDao>()
 		private val mockDailySummaryDao = mockk<DailySummaryDao>()
+		private val mockSkiRunSegmentDao = mockk<SkiRunSegmentDao>()
 		private val mockExplorationCellDao = mockk<ExplorationCellDao>()
 		private val mockExplorationStreakDao = mockk<ExplorationStreakDao>()
 		private val mockAchievementProgressDao = mockk<AchievementProgressDao>()
@@ -140,15 +139,15 @@ class InfrastructureModuleTest {
 		private val mockFrequentPlaceDao = mockk<FrequentPlaceDao>()
 		private val mockInferredTripDao = mockk<InferredTripDao>()
 		private val mockTripLegDao = mockk<TripLegDao>()
+		private val mockDomainEventDao = mockk<DomainEventDao>()
 
 		private val mockDb = mockk<AppDatabase> {
-			every { sessionDao() } returns mockSessionDao
-			every { locationDao() } returns mockLocationDao
-			every { wifiDao() } returns mockWifiDao
-			every { cellLocationDao() } returns mockCellLocationDao
+			every { sessionSegmentDao() } returns mockSessionSegmentDao
+			every { locationSampleDao() } returns mockLocationSampleDao
 			every { trackerRunDao() } returns mockTrackerRunDao
 			every { tripDao() } returns mockTripDao
 			every { dailySummaryDao() } returns mockDailySummaryDao
+			every { skiRunSegmentDao() } returns mockSkiRunSegmentDao
 			every { explorationCellDao() } returns mockExplorationCellDao
 			every { explorationStreakDao() } returns mockExplorationStreakDao
 			every { achievementProgressDao() } returns mockAchievementProgressDao
@@ -160,30 +159,19 @@ class InfrastructureModuleTest {
 			every { frequentPlaceDao() } returns mockFrequentPlaceDao
 			every { inferredTripDao() } returns mockInferredTripDao
 			every { tripLegDao() } returns mockTripLegDao
+			every { domainEventDao() } returns mockDomainEventDao
 		}
 
 		@Test
-		fun `provideSessionDao delegates to database`() {
-			module.provideSessionDao(mockDb) shouldBeSameInstanceAs mockSessionDao
-			verify { mockDb.sessionDao() }
+		fun `provideSessionSegmentDao delegates to database`() {
+			module.provideSessionSegmentDao(mockDb) shouldBeSameInstanceAs mockSessionSegmentDao
+			verify { mockDb.sessionSegmentDao() }
 		}
 
 		@Test
-		fun `provideLocationDao delegates to database`() {
-			module.provideLocationDao(mockDb) shouldBeSameInstanceAs mockLocationDao
-			verify { mockDb.locationDao() }
-		}
-
-		@Test
-		fun `provideWifiDao delegates to database`() {
-			module.provideWifiDao(mockDb) shouldBeSameInstanceAs mockWifiDao
-			verify { mockDb.wifiDao() }
-		}
-
-		@Test
-		fun `provideCellLocationDao delegates to database`() {
-			module.provideCellLocationDao(mockDb) shouldBeSameInstanceAs mockCellLocationDao
-			verify { mockDb.cellLocationDao() }
+		fun `provideLocationSampleDao delegates to database`() {
+			module.provideLocationSampleDao(mockDb) shouldBeSameInstanceAs mockLocationSampleDao
+			verify { mockDb.locationSampleDao() }
 		}
 
 		@Test
@@ -202,6 +190,12 @@ class InfrastructureModuleTest {
 		fun `provideDailySummaryDao delegates to database`() {
 			module.provideDailySummaryDao(mockDb) shouldBeSameInstanceAs mockDailySummaryDao
 			verify { mockDb.dailySummaryDao() }
+		}
+
+		@Test
+		fun `provideSkiRunSegmentDao delegates to database`() {
+			module.provideSkiRunSegmentDao(mockDb) shouldBeSameInstanceAs mockSkiRunSegmentDao
+			verify { mockDb.skiRunSegmentDao() }
 		}
 
 		@Test
@@ -268,6 +262,12 @@ class InfrastructureModuleTest {
 		fun `provideTripLegDao delegates to database`() {
 			module.provideTripLegDao(mockDb) shouldBeSameInstanceAs mockTripLegDao
 			verify { mockDb.tripLegDao() }
+		}
+
+		@Test
+		fun `provideDomainEventDao delegates to database`() {
+			module.provideDomainEventDao(mockDb) shouldBeSameInstanceAs mockDomainEventDao
+			verify { mockDb.domainEventDao() }
 		}
 	}
 }

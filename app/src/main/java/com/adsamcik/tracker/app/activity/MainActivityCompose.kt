@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
@@ -17,8 +18,11 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.app.onboarding.ui.OnboardingActivity
 import com.adsamcik.tracker.app.ui.MainRoot
+import com.adsamcik.tracker.app.ui.navigation.AppRoute
 import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Game
+import com.adsamcik.tracker.app.ui.navigation.Map
+import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.base.di.LocalLockManager
@@ -31,6 +35,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // Local DI access (keeping for future use)
 val LocalAppGraph = staticCompositionLocalOf<com.adsamcik.tracker.app.AppGraph> { 
@@ -46,100 +51,119 @@ val LocalAppGraph = staticCompositionLocalOf<com.adsamcik.tracker.app.AppGraph> 
 @AndroidEntryPoint
 class MainActivityCompose : ComponentActivity() {
 
-    private val selectedTab = mutableStateOf<Any>(Dashboard)
+    private val selectedTab = mutableStateOf<AppRoute>(Dashboard)
+    private val deepNavigationRequest = mutableStateOf<DeepNavigationRequest?>(null)
     
-    // Async state for splash screen
-    private var isReady by mutableStateOf(false)
-    private var showOnboarding by mutableStateOf(true)
+    private var startupDestination by mutableStateOf(StartupDestination.Pending)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Install splash screen before super.onCreate
         val splashScreen = installSplashScreen()
-        
-        // Keep splash screen visible while we check onboarding state
-        splashScreen.setKeepOnScreenCondition { !isReady }
-        
-        // Async check onboarding completion
-        val onboardingRepository = DefaultOnboardingRepository(applicationContext, Dispatchers.IO)
 
-        lifecycleScope.launch {
-            try {
-                android.util.Log.d("Startup", "Begin onboarding check")
-                // Explicitly ensure migration happens before we check state
-                // This avoids doing it inside the flow collection, preventing deadlocks
-                onboardingRepository.ensureInitialized()
-                android.util.Log.d("Startup", "Repository initialized")
-
-                // Safety timeout can stay as a good practice, but logic is now safe
-                val isCompleted = kotlinx.coroutines.withTimeoutOrNull(2000) {
-                    onboardingRepository.isCompleted.first()
-                } ?: true
-                
-                android.util.Log.d("Startup", "Onboarding state checked: $isCompleted")
-
-                showOnboarding = !isCompleted
-            } catch (e: Exception) {
-                // Log exception for debugging but don't crash startup
-                android.util.Log.e("Startup", "Error during onboarding initialization", e)
-                showOnboarding = false // Default to showing app content on error
-            } finally {
-                // ALWAYS finish splash screen
-                android.util.Log.d("Startup", "Releasing splash screen")
-                isReady = true
-            }
-        }
-        
         // Enable edge-to-edge for modern Compose UI
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        
+
+        val trackerApplication = application as Application
+        splashScreen.setKeepOnScreenCondition {
+            startupDestination == StartupDestination.Pending || !trackerApplication.isStartupReady
+        }
+
         setTheme(R.style.AppTheme_Translucent)
 
         // Restore selected tab
         savedInstanceState?.getString(KEY_SELECTED_TAB)?.let { restored ->
-            selectedTab.value = restored
+            selectedTab.value = routeFromKey(restored)
         }
 
-        // Handle initial intent
-        handleIntent(intent)
+        // Handle initial intent only on cold start to avoid replay after config changes
+        if (savedInstanceState == null) {
+            handleDeepNavigation(intent)
+        }
 
         setContent { ComposeRoot(selectedTab) }
+
+        val onboardingRepository = DefaultOnboardingRepository(applicationContext, Dispatchers.IO)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val destination = runCatching {
+                onboardingRepository.ensureInitialized()
+                if (onboardingRepository.isCompleted.first()) {
+                    StartupDestination.Main
+                } else {
+                    StartupDestination.Onboarding
+                }
+            }.getOrDefault(StartupDestination.Main)
+
+            withContext(Dispatchers.Main.immediate) {
+                startupDestination = destination
+            }
+        }
     }
 
     override fun onStart() {
         super.onStart()
-        // Navigation to onboarding now happens via compose navigation in ComposeRoot
-        // based on the async showOnboarding state
+        // Navigation to onboarding is driven from ComposeRoot once startup resolution finishes.
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleIntent(intent)
+        setIntent(intent)
+        handleDeepNavigation(intent)
     }
 
-    private fun handleIntent(intent: Intent?) {
-        val openGame = intent?.getBooleanExtra("openGame", false) == true
-        if (openGame) selectedTab.value = Game
+    private fun handleDeepNavigation(intent: Intent?) {
+        intent ?: return
+
+        val legacyOpenGame = intent.getBooleanExtra("openGame", false)
+        val target = intent.getStringExtra(EXTRA_NAVIGATE_TO) ?: if (legacyOpenGame) TARGET_GAME else null
+        if (target == null) return
+
+        val challengeId = intent.getLongExtra(EXTRA_CHALLENGE_ID, -1L)
+        val scrollTo = intent.getStringExtra(EXTRA_SCROLL_TO)
+        deepNavigationRequest.value = DeepNavigationRequest(
+            target = target,
+            challengeId = challengeId,
+            scrollTo = scrollTo
+        )
+
+        selectedTab.value = when (target) {
+            TARGET_GAME -> Game
+            TARGET_STATS -> Stats
+            else -> Dashboard
+        }
+        intent.removeExtra(EXTRA_NAVIGATE_TO)
     }
 
     @Composable
-    private fun ComposeRoot(selected: MutableState<Any>) {
+    private fun ComposeRoot(selected: MutableState<AppRoute>) {
         val darkTheme = isSystemInDarkTheme()
-        val appGraph = (application as Application).appGraph
-        
-        // Wait until async check is complete
-        if (!isReady) return
-        
-        // If onboarding not completed, navigate to onboarding
-        LaunchedEffect(showOnboarding) {
-            if (showOnboarding) {
-                startActivity(OnboardingActivity.createIntent(this@MainActivityCompose))
+
+        when (startupDestination) {
+            StartupDestination.Pending -> {
+                AppTheme(darkTheme = darkTheme) {
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {}
+                    }
+                }
+                return
             }
+
+            StartupDestination.Onboarding -> {
+                LaunchedEffect(Unit) {
+                    startActivity(OnboardingActivity.createIntent(this@MainActivityCompose))
+                }
+                return
+            }
+
+            StartupDestination.Main -> Unit
         }
-        
-        // Only show main content if onboarding is complete
-        if (showOnboarding) return
-        
+
+        val appGraph = (application as Application).appGraph
+
         AppTheme(darkTheme = darkTheme) {
             CompositionLocalProvider(
                 LocalAppGraph provides appGraph,
@@ -153,7 +177,11 @@ class MainActivityCompose : ComponentActivity() {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     Box(Modifier.fillMaxSize()) {
                         // Compose Navigation root with all app routes
-                        MainRoot(startDestination = selected.value) { route ->
+                        MainRoot(
+                            startDestination = selected.value,
+                            deepNavigationRequest = deepNavigationRequest.value,
+                            onDeepNavigationHandled = { deepNavigationRequest.value = null }
+                        ) { route ->
                             if (selected.value != route) selected.value = route
                         }
                     }
@@ -164,14 +192,44 @@ class MainActivityCompose : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        // Note: selectedTab state persistence changes.
-        // For simplicity with serialization, we might skip full restoration mapping here
-        // or just let it reset to default on process death for now,
-        // as managing Serializable persistence manually in Bundle is verbose without Parcelable.
-        // Assuming default behavior is acceptable for this migration phase.
+        outState.putString(KEY_SELECTED_TAB, selectedTab.value.routeKey())
+    }
+
+    private enum class StartupDestination {
+        Pending,
+        Onboarding,
+        Main,
     }
 
     companion object {
         private const val KEY_SELECTED_TAB = "main_selected_tab"
+        const val EXTRA_NAVIGATE_TO = "navigate_to"
+        const val EXTRA_CHALLENGE_ID = "challenge_id"
+        const val EXTRA_SCROLL_TO = "scroll_to"
+        const val TARGET_IMPEXP = "impexp"
+        const val TARGET_GAME = "game"
+        const val TARGET_DASHBOARD = "dashboard"
+        const val TARGET_STATS = "stats"
     }
 }
+
+private fun AppRoute.routeKey(): String = when (this) {
+    Dashboard -> "dashboard"
+    Stats -> "stats"
+    Map -> "map"
+    Game -> "game"
+    else -> "dashboard"
+}
+
+private fun routeFromKey(key: String): AppRoute = when (key) {
+    "stats" -> Stats
+    "map" -> Map
+    "game" -> Game
+    else -> Dashboard
+}
+
+data class DeepNavigationRequest(
+    val target: String,
+    val challengeId: Long = -1L,
+    val scrollTo: String? = null
+)

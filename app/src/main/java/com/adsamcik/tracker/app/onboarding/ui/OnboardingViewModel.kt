@@ -3,6 +3,7 @@ package com.adsamcik.tracker.app.onboarding.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,8 @@ class OnboardingViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 handleEvent(event)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Reporter.report(e)
                 _state.value = _state.value.copy()

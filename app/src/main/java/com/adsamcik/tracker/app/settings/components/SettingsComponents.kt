@@ -1,19 +1,21 @@
 package com.adsamcik.tracker.app.settings.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -23,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
@@ -40,14 +43,20 @@ fun SettingsItem(
     icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = subtitle?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
-        leadingContent = icon?.let { { Icon(it, contentDescription = null) } },
+    Row(
         modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .semantics { contentDescription = if (subtitle != null) "$title: $subtitle" else title }
-    )
+    ) {
+        SettingsItemContent(
+            title = title,
+            subtitle = subtitle,
+            icon = icon,
+        )
+    }
 }
 
 /**
@@ -63,14 +72,21 @@ fun SettingsItemWithValue(
     icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(value, style = MaterialTheme.typography.bodyMedium) },
-        leadingContent = icon?.let { { Icon(it, contentDescription = null) } },
+    Row(
         modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .semantics { contentDescription = "$title: $value" }
-    )
+    ) {
+        SettingsItemContent(
+            title = title,
+            subtitle = value,
+            icon = icon,
+            subtitleStyle = MaterialTheme.typography.bodyMedium,
+        )
+    }
 }
 
 /**
@@ -84,16 +100,30 @@ fun SwitchSettingsItem(
     title: String,
     subtitle: String? = null,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = subtitle?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
-        trailingContent = {
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
-        },
-        modifier = Modifier.clickable { onCheckedChange(!checked) }
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SettingsItemContent(
+            title = title,
+            subtitle = subtitle,
+            icon = null,
+        )
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+    }
 }
 
 /**
@@ -109,7 +139,8 @@ fun SliderSettingsItem(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     valueLabel: (Float) -> String,
-    onValueChange: (Float) -> Unit
+    onValueChange: (Float) -> Unit,
+    enabled: Boolean = true,
 ) {
     Column(
         modifier = Modifier
@@ -131,7 +162,8 @@ fun SliderSettingsItem(
                 onValueChange = onValueChange,
                 valueRange = valueRange,
                 steps = steps,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enabled = enabled,
             )
             Spacer(Modifier.width(12.dp))
             Text(
@@ -177,7 +209,7 @@ fun SettingsGroupCard(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
             )
         }
         Card(
@@ -188,11 +220,49 @@ fun SettingsGroupCard(
                  containerColor = MaterialTheme.colorScheme.surfaceContainer
             )
         ) {
-             Column(
-                 modifier = Modifier.padding(vertical = 4.dp),
-                 content = content
-             )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                content = content
+            )
         }
     }
 }
 
+@Composable
+private fun SettingsItemContent(
+    title: String,
+    subtitle: String?,
+    icon: ImageVector?,
+    subtitleStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodySmall,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = subtitleStyle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}

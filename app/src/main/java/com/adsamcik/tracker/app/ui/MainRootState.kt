@@ -71,7 +71,12 @@ class MainRootViewModel : ViewModel() {
                     _currentPrimaryRoute.value = Stats
                     _lastNonMapRoute.value = Stats
                 }
-                Game, Debug, Settings -> {
+                Game, Debug -> {
+                    _isMapExpanded.value = false
+                    _currentPrimaryRoute.value = destination
+                    _lastNonMapRoute.value = destination
+                }
+                is Settings -> {
                     _isMapExpanded.value = false
                     _currentPrimaryRoute.value = destination
                     _lastNonMapRoute.value = destination

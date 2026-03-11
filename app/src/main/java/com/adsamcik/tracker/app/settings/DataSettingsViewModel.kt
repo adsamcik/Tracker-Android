@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -7,6 +8,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -23,6 +25,10 @@ class DataSettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<DataSettingsUiState> = retentionConfigStore.config
+        .catch {
+            Log.e("DataSettingsViewModel", "Failed to load data settings", it)
+            emit(RetentionConfigState())
+        }
         .map { config ->
             DataSettingsUiState(
                 autoCleanupEnabled = config.autoCleanupEnabled,
@@ -33,13 +39,22 @@ class DataSettingsViewModel @Inject constructor(
 
     fun setAutoCleanupEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            retentionConfigStore.update { copy(autoCleanupEnabled = enabled) }
+            runCatching {
+                retentionConfigStore.update { copy(autoCleanupEnabled = enabled) }
+            }.onFailure {
+                Log.e("DataSettingsViewModel", "Failed to update auto-cleanup", it)
+            }
         }
     }
 
     fun setDataRetentionYears(years: Int) {
+        if (years <= 0) return
         viewModelScope.launch {
-            retentionConfigStore.update { copy(dataRetentionYears = years) }
+            runCatching {
+                retentionConfigStore.update { copy(dataRetentionYears = years) }
+            }.onFailure {
+                Log.e("DataSettingsViewModel", "Failed to update retention years", it)
+            }
         }
     }
 }

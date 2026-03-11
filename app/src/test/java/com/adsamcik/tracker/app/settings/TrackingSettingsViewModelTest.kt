@@ -2,11 +2,10 @@ package com.adsamcik.tracker.app.settings
 
 import android.content.Context
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
-import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -89,8 +88,8 @@ class TrackingSettingsViewModelTest {
         coEvery { trackingParamsRepository.setRequiredAccuracyMeters(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(requiredAccuracyMeters = firstArg())
         }
-        coEvery { trackingParamsRepository.setPresetName(any()) } answers {
-            paramsFlow.value = paramsFlow.value.copy(presetName = firstArg())
+        coEvery { trackingParamsRepository.setPreset(any()) } answers {
+            paramsFlow.value = paramsFlow.value.copy(presetName = firstArg<TrackingPreset>().name)
         }
     }
 
@@ -117,7 +116,7 @@ class TrackingSettingsViewModelTest {
         fun `currentPreset defaults to DEFAULT`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
-            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.DEFAULT
+            vm.uiState.value.currentPreset shouldBe TrackingPreset.DEFAULT
         }
 
         @Test
@@ -391,14 +390,14 @@ class TrackingSettingsViewModelTest {
     inner class PresetManagement {
 
         @Test
-        fun `applyPreset BATTERY_SAVER updates all settings`() = runTest(testDispatcher) {
+        fun `applyPreset POWER_SAVE updates all settings`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.applyPreset(TrackingPolicyPreset.BATTERY_SAVER)
+            vm.applyPreset(TrackingPreset.POWER_SAVE)
             advanceUntilIdle()
 
-            val config = TrackingPolicyPreset.BATTERY_SAVER.settings
+            val config = TrackingPreset.POWER_SAVE
             vm.uiState.value.locationEnabled shouldBe config.locationEnabled
             vm.uiState.value.activityEnabled shouldBe config.activityEnabled
             vm.uiState.value.stepsEnabled shouldBe config.stepsEnabled
@@ -407,28 +406,27 @@ class TrackingSettingsViewModelTest {
             vm.uiState.value.minDistance shouldBe config.minDistanceMeters
             vm.uiState.value.minTime shouldBe config.minTimeSeconds
             vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters
-            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.BATTERY_SAVER
+            vm.uiState.value.currentPreset shouldBe TrackingPreset.POWER_SAVE
             vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.LOW
         }
 
         @Test
-        fun `applyPreset HIGH_PRECISION updates all settings`() = runTest(testDispatcher) {
+        fun `applyPreset HIGH_ACCURACY updates all settings`() = runTest(testDispatcher) {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.applyPreset(TrackingPolicyPreset.HIGH_PRECISION)
+            vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
             advanceUntilIdle()
 
-            val config = TrackingPolicyPreset.HIGH_PRECISION.settings
+            val config = TrackingPreset.HIGH_ACCURACY
             vm.uiState.value.locationEnabled shouldBe config.locationEnabled
             vm.uiState.value.wifiEnabled shouldBe config.wifiEnabled
-            vm.uiState.value.wifiLocationCountEnabled shouldBe config.wifiLocationCountEnabled
+            vm.uiState.value.wifiLocationCountEnabled shouldBe config.wifiEnabled
             vm.uiState.value.cellEnabled shouldBe config.cellEnabled
-            vm.uiState.value.transitionDetectionEnabled shouldBe config.useTransitionDetection
             vm.uiState.value.minDistance shouldBe config.minDistanceMeters
             vm.uiState.value.minTime shouldBe config.minTimeSeconds
             vm.uiState.value.requiredAccuracy shouldBe config.requiredAccuracyMeters
-            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.HIGH_PRECISION
+            vm.uiState.value.currentPreset shouldBe TrackingPreset.HIGH_ACCURACY
             vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.HIGH
         }
 
@@ -437,14 +435,13 @@ class TrackingSettingsViewModelTest {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.applyPreset(TrackingPolicyPreset.BALANCED)
+            vm.applyPreset(TrackingPreset.BALANCED)
             advanceUntilIdle()
-            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.BALANCED
+            vm.uiState.value.currentPreset shouldBe TrackingPreset.BALANCED
 
             vm.setMinDistance(999)
             advanceUntilIdle()
-            // null indicates custom preset
-            vm.uiState.value.currentPreset.shouldBeNull()
+            vm.uiState.value.currentPreset shouldBe TrackingPreset.CUSTOM
         }
 
         @Test
@@ -455,12 +452,12 @@ class TrackingSettingsViewModelTest {
             // Go custom
             vm.setMinDistance(999)
             advanceUntilIdle()
-            vm.uiState.value.currentPreset.shouldBeNull()
+            vm.uiState.value.currentPreset shouldBe TrackingPreset.CUSTOM
 
             // Apply named preset
-            vm.applyPreset(TrackingPolicyPreset.BALANCED)
+            vm.applyPreset(TrackingPreset.BALANCED)
             advanceUntilIdle()
-            vm.uiState.value.currentPreset shouldBe TrackingPolicyPreset.BALANCED
+            vm.uiState.value.currentPreset shouldBe TrackingPreset.BALANCED
         }
 
         @Test
@@ -469,7 +466,7 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
 
             // All presets have at least location enabled
-            vm.applyPreset(TrackingPolicyPreset.BATTERY_SAVER)
+            vm.applyPreset(TrackingPreset.POWER_SAVE)
             advanceUntilIdle()
             vm.uiState.value.hasValidSources shouldBe true
         }
@@ -488,11 +485,11 @@ class TrackingSettingsViewModelTest {
             val vm = createViewModel()
             advanceUntilIdle()
 
-            vm.applyPreset(TrackingPolicyPreset.BATTERY_SAVER)
+            vm.applyPreset(TrackingPreset.POWER_SAVE)
             advanceUntilIdle()
             vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.LOW
 
-            vm.applyPreset(TrackingPolicyPreset.HIGH_PRECISION)
+            vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
             advanceUntilIdle()
             vm.uiState.value.currentBatteryImpact shouldBe BatteryImpact.HIGH
         }

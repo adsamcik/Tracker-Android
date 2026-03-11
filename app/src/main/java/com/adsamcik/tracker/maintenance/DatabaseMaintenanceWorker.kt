@@ -22,6 +22,11 @@ class DatabaseMaintenanceWorker(
                 "DELETE FROM tracker_session WHERE start >= `end` OR (collections <= 1 AND steps <= 10)"
             )
             clearInvalidSessions.executeUpdateDelete()
+
+            val clearEmptySegments = database.compileStatement(
+                "DELETE FROM session_segment WHERE sample_count = 0"
+            )
+            clearEmptySegments.executeUpdateDelete()
         }
         return Result.success()
     }

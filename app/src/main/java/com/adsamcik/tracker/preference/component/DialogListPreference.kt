@@ -1,144 +1,104 @@
 package com.adsamcik.tracker.preference.component
 
-import android.content.Context
-import android.content.res.TypedArray
-import android.util.AttributeSet
-import androidx.compose.runtime.*
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.preference.Preference
-import com.adsamcik.tracker.R
-import com.adsamcik.tracker.logger.assertEqual
-import com.adsamcik.tracker.shared.utils.compose.SingleChoiceDialog
-import java.util.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 
-/**
- * Dialog list preference using Compose SingleChoiceDialog
- */
-open class DialogListPreference : Preference {
-	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int, defStyleRes: Int) : super(
-		context, attrs,
-		defStyleAttr, defStyleRes
-	) {
-		initAttributes(context, attrs)
-	}
+@Composable
+fun DialogListPreference(
+	title: String,
+	currentValue: String,
+	entries: List<String>,
+	entryValues: List<String>,
+	onValueChange: (Int) -> Unit,
+	modifier: Modifier = Modifier,
+	subtitle: String? = null,
+) {
+	var showDialog by remember { mutableStateOf(false) }
+	val selectedIndex = entryValues.indexOf(currentValue).coerceAtLeast(0)
 
-	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet, defStyleAttr: Int) : super(
-		context,
-		attrs,
-		defStyleAttr
-	) {
-		initAttributes(context, attrs)
-	}
+	SettingsRow(
+		title = title,
+		subtitle = subtitle ?: entries.getOrNull(selectedIndex) ?: currentValue,
+		modifier = modifier,
+		onClick = { showDialog = true },
+	)
 
-	@Suppress("unused")
-	constructor(context: Context, attrs: AttributeSet) : super(context, attrs) {
-		initAttributes(context, attrs)
-	}
-
-	@Suppress("unused")
-	constructor(context: Context) : super(context)
-
-	protected val valueList: MutableList<String> = mutableListOf()
-	protected val keyList: MutableList<String> = mutableListOf()
-
-	protected var summaryText: String = ""
-	var selectedValueIndex: Int = -1
-		protected set
-
-	val selectedValue get() = valueList[selectedValueIndex]
-
-
-	private fun initAttributes(context: Context, attrs: AttributeSet) {
-		val attributes = context.obtainStyledAttributes(attrs, R.styleable.DialogListPreference)
-		val titleResources = attributes
-			.getTextArray(R.styleable.DialogListPreference_titles)
-			?.map { it.toString() }
-		if (titleResources != null) {
-			valueList.addAll(titleResources)
-		}
-
-		val keyResources = attributes
-			.getTextArray(R.styleable.DialogListPreference_keys)
-			?.map { it.toString() }
-		if (keyResources != null) {
-			keyList.addAll(keyResources)
-		}
-
-		attributes.recycle()
-		summaryText = summary.toString()
-	}
-
-	/**
-	 * Set dialog list values
-	 */
-	open fun setValues(list: List<String>, keys: List<String>) {
-		assertEqual(list.size, keys.size)
-		valueList.clear()
-		this.keyList.clear()
-
-		valueList.addAll(list)
-		this.keyList.addAll(keys)
-	}
-
-	override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
-		return a.getString(index) ?: ""
-	}
-
-	override fun onSetInitialValue(defaultValue: Any?) {
-		if (keyList.isEmpty()) return
-
-		val value = getPersistedString(keyList.first())
-		val index = keyList.indexOf(value)
-		setIndex(if (index >= 0) index else 0)
-	}
-
-	/**
-	 * Set currently selected index.
-	 */
-	open fun setIndex(index: Int) {
-		if (selectedValueIndex != index && index in 0..valueList.size) {
-			selectedValueIndex = index
-			val key = keyList[index]
-			persistString(key)
-			summary = String.format(Locale.getDefault(), summaryText, valueList[index])
-			notifyChanged()
-			notifyValueChanged(key)
-		}
-	}
-
-	protected fun notifyValueChanged(newKey: String) {
-		onPreferenceChangeListener?.onPreferenceChange(this, newKey)
-	}
-
-	override fun onClick() {
-		val activity = context as? androidx.activity.ComponentActivity
-			?: throw IllegalArgumentException("Context must be ComponentActivity for Compose dialog")
-		
-		val decor = activity.window.decorView as? android.view.ViewGroup
-			?: throw IllegalStateException("Cannot access window decorView")
-
-		val host = ComposeView(context).apply {
-			setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-			setContent {
-				var showDialog by remember { mutableStateOf(true) }
-				SingleChoiceDialog(
-					visible = showDialog,
-					title = title?.toString(),
-					items = valueList,
-					selectedIndex = selectedValueIndex,
-					onItemSelected = { index ->
-						setIndex(index)
-					},
-					onDismiss = {
-						showDialog = false
-						decor.removeView(this@apply)
+	if (showDialog) {
+		var tempSelection by remember(selectedIndex) { mutableIntStateOf(selectedIndex) }
+		AlertDialog(
+			onDismissRequest = { showDialog = false },
+			title = { Text(text = title) },
+			text = {
+				LazyColumn {
+					itemsIndexed(entries) { index, item ->
+						Row(
+							modifier = Modifier
+								.fillMaxWidth()
+								.selectable(
+									selected = index == tempSelection,
+									onClick = { tempSelection = index },
+									role = Role.RadioButton,
+								)
+								.padding(vertical = 8.dp),
+							verticalAlignment = Alignment.CenterVertically,
+						) {
+							RadioButton(selected = index == tempSelection, onClick = null)
+							Text(text = item, modifier = Modifier.padding(start = 12.dp))
+						}
 					}
-				)
-			}
+				}
+			},
+			confirmButton = {
+				TextButton(onClick = {
+					onValueChange(tempSelection)
+					showDialog = false
+				}) {
+					Text(text = stringResource(android.R.string.ok))
+				}
+			},
+			dismissButton = {
+				TextButton(onClick = { showDialog = false }) {
+					Text(text = stringResource(android.R.string.cancel))
+				}
+			},
+		)
+	}
+}
+
+@Composable
+private fun SettingsRow(
+	title: String,
+	subtitle: String,
+	modifier: Modifier = Modifier,
+	onClick: () -> Unit,
+) {
+	TextButton(
+		modifier = modifier.fillMaxWidth(),
+		onClick = onClick,
+	) {
+		Column(modifier = Modifier.fillMaxWidth()) {
+			Text(text = title)
+			Text(text = subtitle)
 		}
-		decor.addView(host)
 	}
 }

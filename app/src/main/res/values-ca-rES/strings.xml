@@ -81,11 +81,6 @@
     <string name="settings_other_title">Other</string>
     <string name="settings_remove_all_collected_data_summary">Deletes data acquired during collection (Custom activities, settings etc. will be kept)</string>
     <string name="settings_remove_all_collected_data_title">Delete all collected data</string>
-    <string-array name="settings_speed_format_names">
-        <item>In seconds</item>
-        <item>In minutes</item>
-        <item>In hours</item>
-    </string-array>
     <string name="settings_speed_format_title">Speed format</string>
     <string name="settings_style_mode_title">Style mode</string>
     <string name="settings_style_title">Style</string>

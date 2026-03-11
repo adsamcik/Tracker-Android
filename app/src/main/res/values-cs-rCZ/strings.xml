@@ -52,9 +52,9 @@
     <string name="settings_remove_all_collected_data_summary">Odstraní nasbíraná data (Uživatelské aktivity, nastavení atd. zůstanou nedotčena)</string>
     <string name="settings_remove_all_collected_data_title">Odstranit veškerá nasbíraná data</string>
     <string-array name="settings_speed_format_names">
-        <item>V sekundách</item>
-        <item>V minutách</item>
-        <item>V hodinách</item>
+        <item>Rychlost za sekundu (m/s)</item>
+        <item>Tempo na vzdálenost (min/km, min/mi)</item>
+        <item>Rychlost za hodinu (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Formát rychlosti</string>
     <string name="settings_style_mode_title">Režim barev</string>

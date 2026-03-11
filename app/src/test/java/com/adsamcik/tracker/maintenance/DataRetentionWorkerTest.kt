@@ -60,6 +60,7 @@ class DataRetentionWorkerTest {
             retentionStore.update { copy(autoCleanupEnabled = false) }
         }
     DataRetentionWorker.initialize(context)
+    Thread.sleep(200)
     shadowOf(Looper.getMainLooper()).idle()
     var works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
         assertTrue(works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
@@ -69,6 +70,7 @@ class DataRetentionWorkerTest {
             retentionStore.update { copy(autoCleanupEnabled = true) }
         }
     DataRetentionWorker.initialize(context)
+        Thread.sleep(200)
         shadowOf(Looper.getMainLooper()).idle()
         works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
         assertTrue(works.isNotEmpty())
@@ -78,6 +80,7 @@ class DataRetentionWorkerTest {
             retentionStore.update { copy(autoCleanupEnabled = false) }
         }
         DataRetentionWorker.initialize(context)
+        Thread.sleep(200)
         shadowOf(Looper.getMainLooper()).idle()
         works = wm.getWorkInfosForUniqueWork("APP.DATA_RETENTION_WEEKLY").get()
         assertTrue(works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })

@@ -47,6 +47,7 @@ import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
+import com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity
 import java.util.Locale
 
 @Composable
@@ -66,13 +67,13 @@ fun RootSettingsScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(bottom = 88.dp)
     ) {
         // Core settings group
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_core_group_title),
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 4.dp)
             ) {
                 SettingsItem(
                     title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_tracking_title),
@@ -96,7 +97,7 @@ fun RootSettingsScreen(
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_other_title),
-                modifier = Modifier.padding(top = 16.dp)
+                modifier = Modifier.padding(top = 12.dp)
             ) {
                 // Length system
                 val lengthNames = stringArrayResource(R.array.settings_length_system_names).toList()
@@ -148,7 +149,7 @@ fun RootSettingsScreen(
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_module_group_title),
-                modifier = Modifier.padding(top = 16.dp)
+                modifier = Modifier.padding(top = 12.dp)
             ) {
                 SettingsItem(
                     title = stringResource(R.string.module_map_title),
@@ -175,7 +176,7 @@ fun RootSettingsScreen(
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_about_header),
-                modifier = Modifier.padding(top = 16.dp)
+                modifier = Modifier.padding(top = 12.dp)
             ) {
                 SettingsItem(
                     title = stringResource(R.string.settings_about_app_title),
@@ -187,7 +188,7 @@ fun RootSettingsScreen(
                     title = stringResource(R.string.settings_licenses_title),
                     icon = Icons.AutoMirrored.Filled.Article,
                     onClick = {
-                        context.startActivity(Intent().setClassName(context, "com.adsamcik.tracker.license.LicenseActivity"))
+                        context.startActivity(Intent(context, ThirdPartyLicensesActivity::class.java))
                     }
                 )
                 SettingsItem(
@@ -211,7 +212,7 @@ fun RootSettingsScreen(
         // Debug (conditional)
         if (showDebug) {
             item {
-                SettingsGroupCard(modifier = Modifier.padding(top = 16.dp)) {
+                SettingsGroupCard(modifier = Modifier.padding(top = 12.dp)) {
                     SettingsItem(
                         title = stringResource(R.string.settings_debug_title),
                         subtitle = if (!com.adsamcik.tracker.BuildConfig.DEBUG)

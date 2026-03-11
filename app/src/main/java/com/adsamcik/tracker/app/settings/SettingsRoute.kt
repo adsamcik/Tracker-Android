@@ -66,6 +66,7 @@ fun SettingsRoute(onNavigateBack: () -> Unit = {}, onNavigateToDebug: () -> Unit
         Box(Modifier.fillMaxSize().padding(padding)) {
             AnimatedContent(
                 targetState = currentScreen,
+                modifier = Modifier.fillMaxSize(),
                 transitionSpec = {
                     val isForward = targetState != SettingsScreen.Root
                     if (isForward) {

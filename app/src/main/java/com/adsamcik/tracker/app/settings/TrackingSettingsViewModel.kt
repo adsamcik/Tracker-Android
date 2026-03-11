@@ -4,9 +4,9 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
-import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.app.settings.data.TrackingPresetSettings
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +19,8 @@ import javax.inject.Inject
 
 /** Consolidated UI state for the tracking settings screen. */
 data class TrackingSettingsUiState(
-    val currentPreset: TrackingPolicyPreset? = TrackingPolicyPreset.DEFAULT,
+    val isLoaded: Boolean = false,
+    val currentPreset: TrackingPreset = TrackingPreset.DEFAULT,
     val currentBatteryImpact: BatteryImpact = BatteryImpact.MODERATE,
     val locationEnabled: Boolean = true,
     val activityEnabled: Boolean = true,
@@ -50,11 +51,10 @@ class TrackingSettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             trackingParamsRepository.data.collect { params ->
-                val preset = TrackingPolicyPreset.values()
-                    .firstOrNull { it.name == params.presetName }
-                    .takeIf { params.presetName != "CUSTOM" }
+                val preset = params.preset
 
                 _uiState.value = _uiState.value.copy(
+                    isLoaded = true,
                     currentPreset = preset,
                     locationEnabled = params.locationEnabled,
                     activityEnabled = params.activityEnabled,
@@ -166,9 +166,9 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
 
-    fun applyPreset(preset: TrackingPolicyPreset) {
+    fun applyPreset(preset: TrackingPreset) {
         viewModelScope.launch {
-            val config = preset.settings
+            val config = preset
             trackingParamsRepository.update {
                 copy(
                     locationEnabled = config.locationEnabled,
@@ -176,9 +176,9 @@ class TrackingSettingsViewModel @Inject constructor(
                     stepsEnabled = config.stepsEnabled,
                     wifiEnabled = config.wifiEnabled,
                     wifiNetworkEnabled = config.wifiEnabled,
-                    wifiLocationCountEnabled = config.wifiLocationCountEnabled,
+                    wifiLocationCountEnabled = preset == TrackingPreset.HIGH_ACCURACY,
                     cellEnabled = config.cellEnabled,
-                    transitionDetectionEnabled = config.useTransitionDetection,
+                    transitionDetectionEnabled = transitionDetectionEnabled,
                     minDistanceMeters = config.minDistanceMeters,
                     minTimeSeconds = config.minTimeSeconds,
                     requiredAccuracyMeters = config.requiredAccuracyMeters,
@@ -189,8 +189,8 @@ class TrackingSettingsViewModel @Inject constructor(
     }
 
     private suspend fun markCustomPreset() {
-        if (_uiState.value.currentPreset != null) {
-            trackingParamsRepository.setPresetName("CUSTOM")
+        if (_uiState.value.currentPreset != TrackingPreset.CUSTOM) {
+            trackingParamsRepository.setPreset(TrackingPreset.CUSTOM)
         }
     }
 

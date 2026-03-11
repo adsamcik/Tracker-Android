@@ -252,7 +252,10 @@ class OnboardingActivity : ComponentActivity() {
     }
     
     private fun applyOnboardingPreferences(prefs: UserPreferences) {
-    val preferences = Preferences.getPref(this)
+        val preferences = Preferences.getPref(this)
+        val hasPrimaryTrackingSource =
+            prefs.enableLocationTracking || prefs.enableActivityTracking || prefs.enableStepsTracking
+        val locationEnabled = prefs.enableLocationTracking || !hasPrimaryTrackingSource
         preferences.edit {
             // Store location precision choice
             prefs.locationPrecisionMode?.let { mode ->
@@ -263,7 +266,7 @@ class OnboardingActivity : ComponentActivity() {
             }
             
             // Core enable toggles
-            setBoolean(PrefR.string.settings_location_enabled_key, prefs.enableLocationTracking)
+            setBoolean(PrefR.string.settings_location_enabled_key, locationEnabled)
             setBoolean(PrefR.string.settings_activity_enabled_key, prefs.enableActivityTracking)
             setBoolean(PrefR.string.settings_wifi_enabled_key, prefs.enableWifiTracking)
             setBoolean(PrefR.string.settings_cell_enabled_key, prefs.enableCellTracking)

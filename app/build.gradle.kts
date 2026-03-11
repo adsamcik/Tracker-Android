@@ -6,6 +6,7 @@ plugins {
 	alias(libs.plugins.kotlin.serialization)
 	alias(libs.plugins.ksp)
 	alias(libs.plugins.hilt)
+	alias(libs.plugins.oss.licenses)
 }
 
 android {
@@ -18,10 +19,7 @@ android {
 		versionCode = 385
 		versionName = "2025.1.0"
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		
-		androidResources {
-			localeFilters.addAll(listOf("en", "cs-rCZ"))
-		}
+		resourceConfigurations.addAll(listOf("en", "cs-rCZ"))
 	}
 
 	testOptions {
@@ -51,8 +49,6 @@ android {
 
 	buildTypes {
 		getByName("debug") {
-			enableAndroidTestCoverage = true
-			enableUnitTestCoverage = true
 			applicationIdSuffix = ".debug"
 			buildConfigField("boolean", "COMPOSE_MAIN", "true")
 		}
@@ -96,18 +92,7 @@ android {
 		abortOnError = false
 	}
 
-	packaging {
-		resources {
-			excludes += "META-INF/LICENSE.md"
-			excludes += "META-INF/LICENSE-notice.md"
-		}
-	}
-
 	sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
-
-	packaging {
-		resources.pickFirsts.add("META-INF/atomicfu.kotlin_module")
-	}
 
 	// dynamicFeatures removed; modules are now statically linked libraries
 	namespace = "com.adsamcik.tracker"

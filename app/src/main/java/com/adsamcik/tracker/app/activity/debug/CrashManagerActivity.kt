@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
 /**
  * Activity for managing crash data (export/clear) using Jetpack Compose
  */
-internal class CrashManagerActivity : ComposeDetailActivity() {
+class CrashManagerActivity : ComposeDetailActivity() {
 
     private val exportLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
