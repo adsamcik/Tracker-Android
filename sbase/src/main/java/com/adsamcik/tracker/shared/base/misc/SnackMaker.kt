@@ -6,6 +6,8 @@ import android.view.View
 import androidx.annotation.AnyThread
 import androidx.annotation.IntDef
 import androidx.annotation.StringRes
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.require
 import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
@@ -14,7 +16,6 @@ import com.google.android.material.snackbar.Snackbar.LENGTH_LONG
 import com.google.android.material.snackbar.Snackbar.LENGTH_SHORT
 import com.google.android.material.snackbar.Snackbar.make
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -27,7 +28,10 @@ import kotlin.coroutines.CoroutineContext
  * It can properly queue multiple Snackbars and display them in order.
  */
 @AnyThread
-class SnackMaker(view: View) : CoroutineScope {
+class SnackMaker(
+	view: View,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : CoroutineScope {
 	@Retention(AnnotationRetention.SOURCE)
 	@IntDef(LENGTH_INDEFINITE, LENGTH_LONG, LENGTH_SHORT)
 	annotation class SnackDuration
@@ -44,7 +48,7 @@ class SnackMaker(view: View) : CoroutineScope {
 	private val job = SupervisorJob()
 
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
+		get() = dispatchers.main + job
 
 	/**
 	 * Adds message to SnackMaker queue.
@@ -177,4 +181,3 @@ class SnackMaker(view: View) : CoroutineScope {
 		IMPORTANT
 	}
 }
-

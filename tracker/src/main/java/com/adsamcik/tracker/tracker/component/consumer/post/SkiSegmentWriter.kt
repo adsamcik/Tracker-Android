@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -15,7 +16,6 @@ import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
  * [SkiRunSegment] row.
  */
 internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
+	private val dispatchers = DefaultDispatchersProvider
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
 	private lateinit var database: AppDatabase
@@ -51,7 +52,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 
 	override suspend fun onEnable(context: Context) {
 		database = AppDatabase.database(context)
-		scope = CoroutineScope(Job() + Dispatchers.Default)
+		scope = CoroutineScope(Job() + dispatchers.default)
 		runIndex = 0
 		segmentStartTimeMs = 0L
 		segmentState = SkiState.IDLE
@@ -120,7 +121,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	private fun writeSegment(endTimeMs: Long) {
 		val segment = buildSegment(endTimeMs)
 		runIndex++
-		scope?.launch(Dispatchers.IO) {
+		scope?.launch(dispatchers.io) {
 			try {
 				database.skiRunSegmentDao().insert(segment)
 			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -132,7 +133,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	private suspend fun writeSegmentImmediate(endTimeMs: Long) {
 		val segment = buildSegment(endTimeMs)
 		runIndex++
-		kotlinx.coroutines.withContext(Dispatchers.IO) {
+		kotlinx.coroutines.withContext(dispatchers.io) {
 			try {
 				database.skiRunSegmentDao().insert(segment)
 			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {

@@ -3,8 +3,8 @@ package com.adsamcik.tracker.logger
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -13,6 +13,7 @@ import java.io.IOException
  * Utility class for exporting crash data
  */
 object CrashExporter {
+    private val dispatchers = DefaultDispatchersProvider
 
     /**
      * Export crash data to a specified URI
@@ -20,7 +21,7 @@ object CrashExporter {
      * @param uri Directory URI where crash data will be exported
      * @return Number of crashes exported
      */
-    suspend fun exportCrashData(context: Context, uri: Uri): Int = withContext(Dispatchers.IO) {
+    suspend fun exportCrashData(context: Context, uri: Uri): Int = withContext(dispatchers.io) {
         val crashes = LogDatabase.database(context).crashDataDao().getAllOrderedDesc()
         val crashFiles = getCrashFiles(context)
         
@@ -89,7 +90,7 @@ object CrashExporter {
      * @param context Application context
      * @return Number of crashes that were cleared
      */
-    suspend fun clearCrashData(context: Context): Int = withContext(Dispatchers.IO) {
+    suspend fun clearCrashData(context: Context): Int = withContext(dispatchers.io) {
         val crashDao = LogDatabase.database(context).crashDataDao()
         val databaseCount = crashDao.getCrashCount()
         crashDao.clearAll()
@@ -114,7 +115,7 @@ object CrashExporter {
      * @param context Application context
      * @return Number of crashes in total
      */
-    suspend fun getCrashCount(context: Context): Int = withContext(Dispatchers.IO) {
+    suspend fun getCrashCount(context: Context): Int = withContext(dispatchers.io) {
         val databaseCount = LogDatabase.database(context).crashDataDao().getCrashCount()
         val fileCount = getCrashFiles(context).size
         databaseCount + fileCount

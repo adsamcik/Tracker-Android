@@ -4,8 +4,9 @@ import android.content.Context
 import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -21,11 +22,12 @@ import kotlinx.coroutines.withContext
  * Layers produce [MapLibreLayerConfig] data rather than imperatively mutating a map.
  */
 abstract class BaseMapLayer<I, P>(
-    private val performanceManager: PerformanceManager = PerformanceManager()
+    private val performanceManager: PerformanceManager = PerformanceManager(),
+    private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) {
 
     private val layerJob = SupervisorJob()
-    private val layerScope = CoroutineScope(Dispatchers.Default + layerJob)
+    private val layerScope = CoroutineScope(dispatchers.default + layerJob)
 
     @Volatile
     private var enabled: Boolean = false
@@ -75,7 +77,7 @@ abstract class BaseMapLayer<I, P>(
                     lastConfig = config
                     val renderDuration = System.currentTimeMillis() - renderStartTime
 
-                    withContext(Dispatchers.Main) {
+                    withContext(dispatchers.main) {
                         if (enabled) {
                             afterEnable()
                             val totalDuration = System.currentTimeMillis() - startTime

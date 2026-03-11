@@ -3,8 +3,9 @@ package com.adsamcik.tracker.activity.ski
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.engine.ski.SkiLift
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -16,7 +17,10 @@ import java.io.File
  *
  * Directory: context.filesDir/ski-data/ski_infrastructure.db
  */
-class SkiInfrastructureManager(private val context: Context) {
+class SkiInfrastructureManager(
+	private val context: Context,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) {
 
 	private val dataDir = File(context.filesDir, "ski-data")
 	private val dbFile = File(dataDir, "ski_infrastructure.db")
@@ -25,7 +29,7 @@ class SkiInfrastructureManager(private val context: Context) {
 	fun isAvailable(): Boolean = dbFile.exists() && dbFile.length() > 0
 
 	/** Import a ski infrastructure database from a URI (SAF picker) */
-	suspend fun importDatabase(uri: Uri): SkiInfrastructureImportResult = withContext(Dispatchers.IO) {
+	suspend fun importDatabase(uri: Uri): SkiInfrastructureImportResult = withContext(dispatchers.io) {
 		dataDir.mkdirs()
 
 		val input = try {

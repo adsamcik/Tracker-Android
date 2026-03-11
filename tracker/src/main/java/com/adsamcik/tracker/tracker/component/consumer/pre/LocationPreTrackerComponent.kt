@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.component.consumer.pre
 
 import android.content.Context
 import android.os.Build
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 
@@ -10,7 +12,6 @@ import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
@@ -18,14 +19,16 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
-internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope {
+internal class LocationPreTrackerComponent(
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : PreTrackerComponent, CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
 		TrackerComponentRequirement.LOCATION
 	)
 
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
+		get() = dispatchers.main + job
 
 	private var requiredAccuracy = 0
 	private var accuracyJob: Job? = null

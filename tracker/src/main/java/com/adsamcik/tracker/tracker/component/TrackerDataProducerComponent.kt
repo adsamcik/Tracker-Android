@@ -3,19 +3,25 @@ package com.adsamcik.tracker.tracker.component
 import android.content.Context
 import androidx.annotation.CallSuper
 import com.adsamcik.tracker.logger.assertTrue
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
-internal abstract class TrackerDataProducerComponent(private val changeReceiver: TrackerDataProducerObserver) {
-    private val preferenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+internal abstract class TrackerDataProducerComponent(
+    private val changeReceiver: TrackerDataProducerObserver,
+    dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) {
+    private val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+    private val preferenceScope = CoroutineScope(SupervisorJob() + mainImmediate)
     private var preferenceJob: Job? = null
 
 	protected abstract val keyRes: Int

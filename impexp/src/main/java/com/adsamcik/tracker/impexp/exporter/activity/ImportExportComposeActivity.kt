@@ -59,6 +59,7 @@ import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
@@ -72,7 +73,6 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -83,6 +83,8 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 class ImportExportComposeActivity : ComponentActivity() {
     private lateinit var exporter: Exporter
@@ -145,7 +147,7 @@ fun ExportScreen(
 
     // Check for data availability
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
+        withContext(defaultDispatchers.io) {
             val tripCount = AppDatabase.database(activity).tripDao().countAllTrips()
             if (tripCount == 0L) {
                 showNoDataDialog.value = true
@@ -369,7 +371,7 @@ fun ExportScreen(
                                         "${activity.packageName}.fileprovider",
                                         file
                                     )
-                                    val shareSummary = withContext(Dispatchers.IO) {
+                                    val shareSummary = withContext(defaultDispatchers.io) {
                                         resolveShareTripSummary(
                                             context = activity,
                                             fallbackFileName = actualFileName,
@@ -540,7 +542,7 @@ suspend fun tryExport(
     snackBarHostState: SnackbarHostState,
     onSuccess: suspend () -> Unit
 ) {
-    withContext(Dispatchers.IO) {
+    withContext(defaultDispatchers.io) {
         val actualFileName = getExportFileName(fileName, exporter, range, context)
         
         // Auto-increment filename if file exists (macOS-style: file_1.gpx, file_2.gpx)
@@ -562,7 +564,7 @@ suspend fun tryExport(
             context = context
         )
 
-        withContext(Dispatchers.Main) {
+        withContext(defaultDispatchers.main) {
             when (result) {
                 is ExportResult.Success -> onSuccess()
                 is ExportResult.Error -> {
@@ -614,7 +616,7 @@ suspend fun export(
     range: ClosedRange<ZonedDateTime>?,
     context: Context
 ): ExportResult {
-    return withContext(Dispatchers.IO) {
+    return withContext(defaultDispatchers.io) {
         if (exporter.canSelectDateRange && range != null) {
             val database = AppDatabase.database(context)
             val locationSampleDao = database.locationSampleDao()

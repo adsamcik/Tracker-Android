@@ -7,19 +7,16 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.impexp.exporter.DatabaseExporter
 import com.adsamcik.tracker.impexp.exporter.EXPORT_LOG_SOURCE
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
-import com.adsamcik.tracker.impexp.exporter.GpxExporter
-import com.adsamcik.tracker.impexp.exporter.JsonExporter
-import com.adsamcik.tracker.impexp.exporter.KmlExporter
+import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.time.SystemClock
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -35,10 +32,11 @@ class ExportPlanWorker(
     appContext: Context,
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
+    private val dispatchers = DefaultDispatchersProvider
 
     private val planStore = ExportPlanStore(
         appContext,
-        Dispatchers.IO,
+        dispatchers.io,
         SystemClock
     )
 
@@ -87,7 +85,7 @@ class ExportPlanWorker(
         }
     }
 
-    private suspend fun executePlan(plan: ExportBackupPlan): PlanExportResult = withContext(Dispatchers.IO) {
+    private suspend fun executePlan(plan: ExportBackupPlan): PlanExportResult = withContext(dispatchers.io) {
         val exporter = resolveExporter(plan.format)
         // WorkManager Workers can't use constructor injection without HiltWorkerFactory;
         // direct DB access is acceptable here as Workers are scoped to background execution.
@@ -130,12 +128,9 @@ class ExportPlanWorker(
         }
     }
 
-    private fun resolveExporter(format: ExportFormat): Exporter = when (format) {
-        ExportFormat.GPX -> GpxExporter()
-        ExportFormat.KML -> KmlExporter()
-        ExportFormat.DATABASE -> DatabaseExporter()
-        ExportFormat.JSON -> JsonExporter()
-    }
+    private fun resolveExporter(format: ExportFormat): Exporter =
+        FormatRegistry.exporterFor(format.formatId)
+            ?: error("No exporter registered for format ${format.name}")
 
     private suspend fun resolveDateRange(scope: ExportScope, db: AppDatabase): LongRange? {
         return when (scope) {

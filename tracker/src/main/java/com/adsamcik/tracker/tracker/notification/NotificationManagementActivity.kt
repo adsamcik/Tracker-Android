@@ -38,10 +38,10 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.PreferenceDatabase
 import com.adsamcik.tracker.shared.base.database.data.NotificationPreference
 import com.adsamcik.tracker.tracker.R
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -73,6 +73,7 @@ private fun TrackerNotificationComponent.toUiItem(): UiItem =
 	UiItem(id = id, titleRes = titleRes, isInTitle = preference.isInTitle, isInContent = preference.isInContent)
 
 class NotificationManagementViewModel : ViewModel() {
+	private val dispatchers = DefaultDispatchersProvider
 	// Backing state kept internal; expose as read-only list to callers
 	internal var items: List<UiItem> by mutableStateOf(emptyList())
 		private set
@@ -83,14 +84,14 @@ class NotificationManagementViewModel : ViewModel() {
 
 	fun load(context: android.content.Context) {
 		if (items.isNotEmpty()) return
-		viewModelScope.launch(Dispatchers.Default) {
+		viewModelScope.launch(dispatchers.default) {
 			TrackerNotificationProvider.updatePreferences(context)
 			val raw = TrackerNotificationProvider.internalActiveList
 				.sortedBy { it.preference.order }
 				.onEachIndexed { index, comp ->
 					comp.preference = comp.preference.copy(order = index)
 				}
-			withContext(Dispatchers.Main) { items = raw.map { it.toUiItem() } }
+			withContext(dispatchers.main) { items = raw.map { it.toUiItem() } }
 		}
 	}
 
@@ -106,7 +107,7 @@ class NotificationManagementViewModel : ViewModel() {
 	}
 
 	fun persistOrder(context: android.content.Context) {
-		viewModelScope.launch(Dispatchers.IO) {
+		viewModelScope.launch(dispatchers.io) {
 			val dao = PreferenceDatabase.database(context).getNotificationDao()
 			val update = items.mapIndexed { index, ui ->
 				NotificationPreference(
@@ -122,7 +123,7 @@ class NotificationManagementViewModel : ViewModel() {
 
 	fun updateFlags(context: android.content.Context, id: String, inTitle: Boolean, inContent: Boolean) {
 		items = items.map { if (it.id == id) it.copy(isInTitle = inTitle, isInContent = inContent) else it }
-		viewModelScope.launch(Dispatchers.IO) {
+		viewModelScope.launch(dispatchers.io) {
 			val index = items.indexOfFirst { it.id == id }
 			if (index >= 0) {
 				PreferenceDatabase.database(context).getNotificationDao().upsert(
@@ -267,4 +268,3 @@ private fun NotificationItemRow(
 		}
 	}
 }
-

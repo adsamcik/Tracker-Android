@@ -26,12 +26,15 @@ import com.adsamcik.tracker.map.shared.layers.LayerCapabilities
 import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import com.adsamcik.tracker.map.shared.layers.LayerFactory
 import com.adsamcik.tracker.map.shared.layers.LayerRecipe
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Registry for map layers: registers layers directly. */
-class DefaultLayerRegistry : LayerRegistry {
+class DefaultLayerRegistry(
+    private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : LayerRegistry {
 
     /**
      * No-op layer placeholder.
@@ -257,7 +260,7 @@ class DefaultLayerRegistry : LayerRegistry {
                             val dao = AppDatabase.database(ctx).locationSampleDao()
                             LocationPathLayer(
                                 pointsProvider = { range ->
-                                    withContext(Dispatchers.IO) {
+                                    withContext(dispatchers.io) {
                                         val fromMs = if (!range.isEmpty()) range.first else 0L
                                         val toMs = if (!range.isEmpty()) range.last else Long.MAX_VALUE
                                         val rows = dao.getAllBetween(fromMs, toMs)

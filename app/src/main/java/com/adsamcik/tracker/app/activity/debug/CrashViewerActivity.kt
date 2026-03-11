@@ -25,9 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adsamcik.tracker.logger.CrashData
 import com.adsamcik.tracker.logger.LogDatabase
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.utils.activity.ComposeDetailActivity
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -35,6 +35,7 @@ import java.io.File
  * Activity for viewing crash logs using Jetpack Compose
  */
 internal class CrashViewerActivity : ComposeDetailActivity() {
+    private val dispatchers = DefaultDispatchersProvider
 
     override fun onConfigure(configuration: Configuration) {
         configuration.title = "Crash Viewer"
@@ -46,14 +47,14 @@ internal class CrashViewerActivity : ComposeDetailActivity() {
         var isLoading by remember { mutableStateOf(true) }
 
         LaunchedEffect(Unit) {
-            val databaseCrashes = withContext(Dispatchers.IO) {
+            val databaseCrashes = withContext(dispatchers.io) {
                 LogDatabase.database(this@CrashViewerActivity)
                     .crashDataDao()
                     .getLastOrderedDesc(50)
                     .map { CrashDisplayItem.DatabaseCrash(it) }
             }
             
-            val fileCrashes = withContext(Dispatchers.IO) {
+            val fileCrashes = withContext(dispatchers.io) {
                 getFileCrashes()
                     .map { CrashDisplayItem.FileCrash(it) }
             }

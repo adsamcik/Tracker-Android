@@ -2,11 +2,11 @@ package com.adsamcik.tracker.game.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -28,6 +28,7 @@ class ExplorationViewModel @Inject constructor(
 	private val explorationCellDao: ExplorationCellDao,
 	private val explorationStreakDao: ExplorationStreakDao,
 	private val achievementProgressDao: AchievementProgressDao,
+	private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
 	data class ExplorationState(
@@ -103,7 +104,7 @@ class ExplorationViewModel @Inject constructor(
 			}
 			.map { it as AchievementSummaryState? }
 			.catch { emit(null) }
-			.flowOn(Dispatchers.IO)
+			.flowOn(dispatchers.io)
 			.stateIn(
 				scope = viewModelScope,
 				started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
@@ -140,7 +141,7 @@ class ExplorationViewModel @Inject constructor(
 				)
 			},
 		)
-	}.flowOn(Dispatchers.IO)
+	}.flowOn(dispatchers.io)
 
 	companion object {
 		/** S2 cell level used for exploration (approx 0.8 km^2 per cell). */

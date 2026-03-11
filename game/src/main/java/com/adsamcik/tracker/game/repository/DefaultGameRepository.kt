@@ -6,9 +6,9 @@ import com.adsamcik.tracker.game.challenge.database.ChallengeDatabase
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +32,7 @@ class DefaultGameRepository @Inject constructor(
     private val application: Application,
     @ApplicationScope private val scope: CoroutineScope,
     private val sessionChannel: TrackerSessionChannel,
+    private val dispatchers: DispatchersProvider,
     private val challengeManager: ChallengeManager? = null
 ) : GameRepository {
     
@@ -52,7 +53,7 @@ class DefaultGameRepository @Inject constructor(
     override fun getPointsToday(): Flow<Int> {
         return flow {
             emitAll(pointsDao.countBetweenFlow(startOfDay(Time.nowMillis), Time.nowMillis))
-        }.map { it.toInt() }.flowOn(Dispatchers.IO)
+        }.map { it.toInt() }.flowOn(dispatchers.io)
     }
     
     override fun getStepsSummary(): StateFlow<StepsSummaryData?> {
@@ -102,7 +103,7 @@ class DefaultGameRepository @Inject constructor(
                     )
                 }
             }
-            .flowOn(Dispatchers.IO)
+            .flowOn(dispatchers.io)
     }
 
     override fun getStreak(): Flow<StreakUi?> {
@@ -116,7 +117,7 @@ class DefaultGameRepository @Inject constructor(
                     )
                 }
             }
-            .flowOn(Dispatchers.IO)
+            .flowOn(dispatchers.io)
     }
 
     override fun getTrophySummary(): Flow<TrophySummaryUi> {
@@ -132,7 +133,7 @@ class DefaultGameRepository @Inject constructor(
                 silverCount = silver,
                 bronzeCount = bronze,
             )
-        }.flowOn(Dispatchers.IO)
+        }.flowOn(dispatchers.io)
     }
 
     override fun getChallengeHistory(): Flow<List<TrophyItemUi>> {
@@ -151,7 +152,7 @@ class DefaultGameRepository @Inject constructor(
                     )
                 }
             }
-            .flowOn(Dispatchers.IO)
+            .flowOn(dispatchers.io)
     }
 
     override fun getPersonalRecords(): Flow<List<PersonalRecordUi>> {
@@ -166,7 +167,7 @@ class DefaultGameRepository @Inject constructor(
                     )
                 }
             }
-            .flowOn(Dispatchers.IO)
+            .flowOn(dispatchers.io)
     }
 
     override fun getLifetimeStats(): Flow<LifetimeStatsUi> {
@@ -188,6 +189,6 @@ class DefaultGameRepository @Inject constructor(
                 bronzeCount = bronze,
                 totalXpEarned = totalXp,
             )
-        }.flowOn(Dispatchers.IO)
+        }.flowOn(dispatchers.io)
     }
 }

@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Context
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
@@ -15,7 +16,6 @@ import com.adsamcik.tracker.statistics.viewmodel.activityLabel
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TripSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,6 +43,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 	private val skiRunSegmentDao: SkiRunSegmentDao,
 	private val locationSampleDao: LocationSampleDao,
 	private val gpxShareHelper: GpxShareHelper,
+	private val dispatchers: DispatchersProvider,
 	savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -79,13 +80,13 @@ class TripDetailPresenterViewModel @Inject constructor(
 		val trip = loaded.trip
 		val tripStart = trip.startTimeMs.raw
 		val tripEnd = trip.endTimeMs.raw
-		val projection = withContext(Dispatchers.IO) {
+		val projection = withContext(dispatchers.io) {
 			tripDao.getById(tripId)
 		}
-		val samples = withContext(Dispatchers.IO) {
+		val samples = withContext(dispatchers.io) {
 			locationSampleDao.getAllBetween(tripStart, tripEnd)
 		}
-		val segments = withContext(Dispatchers.IO) {
+		val segments = withContext(dispatchers.io) {
 			skiRunSegmentDao.getByTimeRange(tripStart, tripEnd)
 		}
 

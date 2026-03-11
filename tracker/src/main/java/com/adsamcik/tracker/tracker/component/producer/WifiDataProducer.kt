@@ -12,6 +12,8 @@ import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import android.Manifest
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.wifiManager
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.TrackerDataProducerComponent
@@ -22,15 +24,16 @@ import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import com.adsamcik.tracker.logger.Reporter
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
-    TrackerDataProducerComponent(changeReceiver) {
+internal class WifiDataProducer(
+    changeReceiver: TrackerDataProducerObserver,
+    private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : TrackerDataProducerComponent(changeReceiver, dispatchers) {
     override val keyRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_enabled_key
     override val defaultRes: Int = com.adsamcik.tracker.shared.preferences.R.string.settings_wifi_enabled_default
 
@@ -38,7 +41,7 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
     private var receiver: WifiReceiver = WifiReceiver()
     private lateinit var appContext: Context
     private val scope = CoroutineScope(
-        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
+        SupervisorJob() + dispatchers.io + CoroutineExceptionHandler { _, e -> Reporter.report(e) }
     )
 
     private var scanTime: Long = -1L
@@ -157,4 +160,3 @@ internal class WifiDataProducer(changeReceiver: TrackerDataProducerObserver) :
         }
     }
 }
-

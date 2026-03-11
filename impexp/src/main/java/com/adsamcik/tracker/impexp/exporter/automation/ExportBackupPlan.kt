@@ -35,6 +35,15 @@ enum class ExportFormat {
     DATABASE,
     JSON;
 
+    /** Stable identifier used by [com.adsamcik.tracker.impexp.format.FormatRegistry]. */
+    val formatId: String
+        get() = when (this) {
+            GPX -> "gpx"
+            KML -> "kml"
+            DATABASE -> "db"
+            JSON -> "json"
+        }
+
     internal fun toProto(): ExportFormatProto = when (this) {
         GPX -> ExportFormatProto.EXPORT_FORMAT_GPX
         KML -> ExportFormatProto.EXPORT_FORMAT_KML

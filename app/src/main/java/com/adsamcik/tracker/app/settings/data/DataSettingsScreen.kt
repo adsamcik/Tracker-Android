@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.app.settings.DataSettingsViewModel
 import com.adsamcik.tracker.app.settings.DebugSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.DialogListPreference
@@ -39,8 +40,9 @@ import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.app.settings.components.launchExportActivity
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 @Composable
 fun DataSettingsScreen() {
@@ -155,7 +157,7 @@ fun DataSettingsScreen() {
                 Button(
                     onClick = {
                         debugVm.hideDeleteDataDialog()
-                        coroutineScope.launch(Dispatchers.IO) {
+                        coroutineScope.launch(defaultDispatchers.io) {
                             com.adsamcik.tracker.shared.base.database.AppDatabase.deleteAllCollectedData(context)
                         }
                     },

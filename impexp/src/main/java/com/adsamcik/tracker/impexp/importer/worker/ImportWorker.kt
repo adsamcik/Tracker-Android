@@ -13,6 +13,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.room.withTransaction
 import com.adsamcik.tracker.impexp.R
+import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.impexp.importer.DataImport
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
@@ -134,10 +135,7 @@ class ImportWorker(
     @WorkerThread
     private suspend fun tryImport(stream: FileImportStream): ImportResult {
         val extension = stream.extension.lowercase(Locale.ROOT)
-        val importer = when (extension) {
-            "gpx", "kml" -> import.activeImporterList.find { it.supportedExtensions.contains(extension) }
-            else -> import.activeImporterList.find { it.supportedExtensions.contains(extension) }
-        }
+        val importer = FormatRegistry.importerForExtension(extension)
 
         if (importer != null) {
             return import(stream, importer)

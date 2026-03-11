@@ -13,6 +13,8 @@ import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.logger.assertFalse
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -28,8 +30,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.launchIn
@@ -51,6 +53,7 @@ interface BackgroundTrackingApiEntryPoint {
  */
 @Suppress("TooManyFunctions")
 object BackgroundTrackingApi {
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider
 	var isActive: Boolean = false
 		private set
 
@@ -259,7 +262,8 @@ object BackgroundTrackingApi {
 			BackgroundTrackingApiEntryPoint::class.java
 		)
 
-		val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+		val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+		val scope = CoroutineScope(SupervisorJob() + mainImmediate)
 		preferenceScope = scope
 
 		trackingParamsJob = entryPoint.trackingParamsRepository().data

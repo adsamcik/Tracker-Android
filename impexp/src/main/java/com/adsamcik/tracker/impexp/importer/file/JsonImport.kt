@@ -5,12 +5,13 @@ import android.util.JsonReader
 import android.util.JsonToken
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
 
@@ -23,14 +24,16 @@ import java.io.InputStreamReader
  * Session IDs are reassigned on import. This allows merging data from
  * multiple devices but breaks references to specific session IDs.
  */
-internal class JsonImport : FileImport {
+internal class JsonImport(
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("json")
 
 	override suspend fun import(
 		context: Context,
 		database: AppDatabase,
 		stream: FileImportStream,
-	): ImportResult = withContext(Dispatchers.IO) {
+	): ImportResult = withContext(dispatchers.io) {
 		var successCount = 0
 		JsonReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
 			reader.isLenient = true

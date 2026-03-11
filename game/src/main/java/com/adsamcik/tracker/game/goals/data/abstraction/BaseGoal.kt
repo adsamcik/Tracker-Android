@@ -9,19 +9,23 @@ import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 import kotlin.coroutines.CoroutineContext
 
-abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, CoroutineScope {
+abstract class BaseGoal(
+	protected val persistence: GoalPersistence,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : Goal, CoroutineScope {
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
+		get() = dispatchers.main + job
 
 	abstract val goalPreferenceKeyRes: Int
 	abstract val goalPreferenceDefaultRes: Int

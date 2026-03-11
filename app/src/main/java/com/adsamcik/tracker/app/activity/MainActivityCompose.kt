@@ -23,6 +23,7 @@ import com.adsamcik.tracker.app.ui.navigation.Dashboard
 import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Stats
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
@@ -38,7 +39,7 @@ import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepos
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,6 +60,7 @@ class MainActivityCompose : ComponentActivity() {
     @Inject lateinit var dailyPointsProvider: DailyPointsProvider
     @Inject lateinit var goalProgressProvider: GoalProgressProvider
     @Inject lateinit var activeChallengesProvider: ActiveChallengesProvider
+    @Inject lateinit var dispatchers: DispatchersProvider
 
     private val selectedTab = mutableStateOf<AppRoute>(Dashboard)
     private val deepNavigationRequest = mutableStateOf<DeepNavigationRequest?>(null)
@@ -92,9 +94,10 @@ class MainActivityCompose : ComponentActivity() {
 
         setContent { ComposeRoot(selectedTab) }
 
-        val onboardingRepository = DefaultOnboardingRepository(applicationContext, Dispatchers.IO)
+        val onboardingRepository = DefaultOnboardingRepository(applicationContext, dispatchers.io)
+        val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(dispatchers.io) {
             val destination = runCatching {
                 onboardingRepository.ensureInitialized()
                 if (onboardingRepository.isCompleted.first()) {
@@ -104,7 +107,7 @@ class MainActivityCompose : ComponentActivity() {
                 }
             }.getOrDefault(StartupDestination.Main)
 
-            withContext(Dispatchers.Main.immediate) {
+            withContext(mainImmediate) {
                 startupDestination = destination
             }
         }

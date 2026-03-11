@@ -2,6 +2,8 @@ package com.adsamcik.tracker.activity
 
 import android.content.Context
 import com.adsamcik.tracker.activity.event.ActivityDomainEventConsumer
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
@@ -10,7 +12,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
@@ -26,7 +27,8 @@ interface ActivityConsumerEntryPoint {
  */
 @Suppress("unused")
 class ActivityModuleInitializer : ModuleInitializer {
-	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider
+	private val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
 
 	private suspend fun initializeDatabase(context: Context) {
 		val activityDao = AppDatabase.database(context).activityDao()

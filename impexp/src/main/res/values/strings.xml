@@ -37,6 +37,11 @@
     <string name="settings_export_sqlite_summary">Export raw SQLite3 database file</string>
     <string name="settings_export_sqlite_title">Raw database file</string>
     <string name="settings_export_title">Export</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Database</string>
+
     <string name="settings_import_no_types">no types supported on your device, sorry.</string>
     <string name="settings_import_summary">Import data from supported types (%1$s) and archives (%2$s)</string>
     <string name="settings_import_title">Import</string>

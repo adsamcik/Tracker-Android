@@ -9,11 +9,11 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
@@ -26,9 +26,10 @@ import java.time.Duration
  * Periodic worker that deletes data older than N years to honor auto-cleanup setting.
  */
 class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
+    private val dispatchers = DefaultDispatchersProvider
 
     override suspend fun doWork(): Result {
-        val store = RetentionConfigStore(applicationContext, Dispatchers.IO)
+        val store = RetentionConfigStore(applicationContext, dispatchers.io)
         val config = store.config.first()
         if (!config.autoCleanupEnabled) {
             return Result.success()
@@ -46,7 +47,8 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Co
         private const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
     private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
 
-        private val preferenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        private val dispatchers = DefaultDispatchersProvider
+        private val preferenceScope = CoroutineScope(SupervisorJob() + dispatchers.default)
         private var preferenceJob: Job? = null
 
         /**
@@ -54,7 +56,7 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Co
          */
         fun initialize(context: Context) {
             val appContext = context.applicationContext
-            val store = RetentionConfigStore(appContext, Dispatchers.Default)
+            val store = RetentionConfigStore(appContext, dispatchers.default)
             preferenceJob?.cancel()
             preferenceJob = store.config
                 .map { it.autoCleanupEnabled }

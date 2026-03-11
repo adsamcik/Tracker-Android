@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.tracker.component.consumer.pre
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
@@ -8,7 +10,6 @@ import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -26,7 +27,8 @@ import kotlinx.coroutines.flow.StateFlow
  * and observes changes live (matching LocationPreTrackerComponent behavior).
  */
 internal class PolicyAwareLocationPreTrackerComponent(
-	private val policyFlow: StateFlow<com.adsamcik.tracker.tracker.policy.TrackingPolicy>
+	private val policyFlow: StateFlow<com.adsamcik.tracker.tracker.policy.TrackingPolicy>,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) : PreTrackerComponent {
 
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
@@ -37,7 +39,7 @@ internal class PolicyAwareLocationPreTrackerComponent(
 	private var accuracyJob: Job? = null
 
 	override suspend fun onEnable(context: Context) {
-		scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+		scope = CoroutineScope(SupervisorJob() + dispatchers.main)
 		userAccuracyThreshold = Preferences.getPref(context).fetchIntRes(
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
 			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default

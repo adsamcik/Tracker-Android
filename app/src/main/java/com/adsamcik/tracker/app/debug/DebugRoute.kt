@@ -57,10 +57,12 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
 import com.adsamcik.tracker.shared.base.di.LocalLockManager
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.tracker.controller.LockManager
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 /**
  * Compose-based debug tooling screen integrating system status display and log viewer.
@@ -154,7 +156,7 @@ private fun SystemStatusSection(
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.IO) {
+        scope.launch(defaultDispatchers.io) {
             val workManager = WorkManager.getInstance(context)
             val workInfos = workManager.getWorkInfosByTag("disableTillRecharge").get()
             hasRechargeJob = workInfos.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
@@ -251,12 +253,12 @@ private fun LogViewerSection(
 
     LaunchedEffect(expanded) {
         if (expanded && logs == null) {
-            scope.launch(Dispatchers.IO) {
+            scope.launch(defaultDispatchers.io) {
                 val data = LogDatabase
                     .database(context)
                     .genericLogDao()
                     .getLastOrderedDesc(1000)
-                withContext(Dispatchers.Main) {
+                withContext(defaultDispatchers.main) {
                     logs = data
                 }
             }

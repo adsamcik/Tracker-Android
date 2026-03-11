@@ -15,6 +15,7 @@ import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
@@ -22,7 +23,6 @@ import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.launchIn
@@ -41,6 +41,7 @@ import kotlin.coroutines.CoroutineContext
  * Tracks goals and exposes reactive Flow-based state.
  */
 internal object GoalTracker : CoroutineScope {
+	private val dispatchers = DefaultDispatchersProvider
 	// Reactive step and goal state (daily and weekly)
 	val stepsDay: StateFlow<Int> get() = goalList[0].value
 	val goalDay: StateFlow<Int> get() = goalList[0].target
@@ -59,7 +60,7 @@ internal object GoalTracker : CoroutineScope {
 	private val mutex = Mutex()
 
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Default + job
+		get() = dispatchers.default + job
 
 	private fun requireContext() = requireNotNull(mAppContext)
 
@@ -91,7 +92,7 @@ internal object GoalTracker : CoroutineScope {
 		}
 		if (!startObserver) return
 
-		launch(Dispatchers.Default) {
+		launch(dispatchers.default) {
 			goalList.forEach {
 				it.onEnable(context)
 			}
@@ -169,7 +170,7 @@ internal object GoalTracker : CoroutineScope {
 		if (mAppContext == null || goalList.size < 2) return
 		val context = requireContext()
 		val dailyTotal = totalSteps.coerceAtLeast(0)
-		val weeklyTotal = withContext(Dispatchers.IO) {
+		val weeklyTotal = withContext(dispatchers.io) {
 			loadCurrentWeekStepsWithTodayOverride(context, dailyTotal)
 		}
 		mutex.withLock {

@@ -2,7 +2,8 @@ package com.adsamcik.tracker.map.basemap
 
 import android.content.Context
 import android.net.Uri
-import kotlinx.coroutines.Dispatchers
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -13,12 +14,15 @@ import java.io.File
  * The same flow supports a future companion tile downloader app that exposes
  * files via FileProvider -- zero changes needed in Tracker.
  */
-class BasemapManager(private val context: Context) {
+class BasemapManager(
+    private val context: Context,
+    private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) {
 
     private val basemapDir = File(context.filesDir, "basemap")
 
     /** Copy a user-selected PMTiles file to internal storage. */
-    suspend fun importBasemap(uri: Uri): BasemapImportResult = withContext(Dispatchers.IO) {
+    suspend fun importBasemap(uri: Uri): BasemapImportResult = withContext(dispatchers.io) {
         basemapDir.mkdirs()
         val target = File(basemapDir, "custom.pmtiles")
 
@@ -66,7 +70,7 @@ class BasemapManager(private val context: Context) {
      * PMTiles requires random-access I/O which Android's AssetManager
      * cannot provide, so we copy to internal storage on first use.
      */
-    suspend fun ensureDefaultBasemap(): String = withContext(Dispatchers.IO) {
+    suspend fun ensureDefaultBasemap(): String = withContext(dispatchers.io) {
         basemapDir.mkdirs()
         val target = File(basemapDir, BUNDLED_BASEMAP_FILENAME)
         if (needsBundledBasemapCopy(target)) {

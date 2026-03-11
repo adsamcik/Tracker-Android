@@ -8,12 +8,12 @@ import com.adsamcik.tracker.activity.ski.SkiInfrastructureImportResult
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.map.basemap.BasemapImportResult
 import com.adsamcik.tracker.map.basemap.BasemapManager
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,10 +24,11 @@ import javax.inject.Inject
 class MapSettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val mapSettingsRepository: MapSettingsRepository,
+    private val dispatchers: DispatchersProvider,
 ) : ViewModel() {
 
-    val basemapManager = BasemapManager(context)
-    val skiInfrastructureManager = SkiInfrastructureManager(context)
+    val basemapManager = BasemapManager(context, dispatchers)
+    val skiInfrastructureManager = SkiInfrastructureManager(context, dispatchers)
 
     // Basemap path key for legacy preference (basemap path not in proto — it's file-system state)
     private val basemapPathKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
@@ -64,7 +65,7 @@ class MapSettingsViewModel @Inject constructor(
     }
 
     fun importBasemap(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(dispatchers.io) {
             when (val result = basemapManager.importBasemap(uri)) {
                 is BasemapImportResult.Success -> {
                     prefs.edit { setString(basemapPathKey, result.path) }
@@ -83,7 +84,7 @@ class MapSettingsViewModel @Inject constructor(
     }
 
     fun importSkiInfrastructure(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(dispatchers.io) {
             when (skiInfrastructureManager.importDatabase(uri)) {
                 is SkiInfrastructureImportResult.Success -> {
                     _skiInfraLoaded.value = true

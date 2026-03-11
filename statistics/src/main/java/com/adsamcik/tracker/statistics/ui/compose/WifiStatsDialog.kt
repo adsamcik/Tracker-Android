@@ -21,12 +21,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.sqlite.db.SimpleSQLiteQuery
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.statistics.R
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 @Composable
 fun WifiStatsDialog(
@@ -41,7 +43,7 @@ fun WifiStatsDialog(
 	LaunchedEffect(context) {
 		uiState = WifiStatsUiState.Loading
 		uiState = try {
-			val summary = withContext(Dispatchers.IO) {
+			val summary = withContext(defaultDispatchers.io) {
 				val database = AppDatabase.database(context)
 				val uniqueNetworks = database.wifiObservationDao().countDistinctBssid()
 				val cursor = database.query(

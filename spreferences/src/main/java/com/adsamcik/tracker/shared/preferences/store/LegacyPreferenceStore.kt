@@ -10,8 +10,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Plan 5 migration: Removed runBlocking; uses empty preferences as initial value.
  */
 internal object LegacyPreferenceStore {
+    private val dispatchers: DispatchersProvider = DefaultDispatchersProvider
 
     /**
      * Application-scoped CoroutineScope for DataStore operations.
@@ -39,7 +41,7 @@ internal object LegacyPreferenceStore {
      * cancellation, as it will be cleaned up when the process terminates.
      * Uses [SupervisorJob] to prevent failure propagation between independent operations.
      */
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
 
     private val stateFlowRef = AtomicReference<StateFlow<Preferences>?>(null)
 

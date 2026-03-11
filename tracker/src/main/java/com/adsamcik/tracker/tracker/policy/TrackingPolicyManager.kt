@@ -3,12 +3,13 @@ package com.adsamcik.tracker.tracker.policy
 import android.content.Context
 import com.adsamcik.tracker.tracker.BuildConfig
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +45,7 @@ class TrackingPolicyManager(
 	val escalationEngine: DefaultPolicyEscalationEngine? = null,
 	private val scope: CoroutineScope? = null,
 	database: AppDatabase? = null,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) {
 	private val database = database ?: AppDatabase.database(context)
 	private val trackerRunDao by lazy { this.database.trackerRunDao() }
@@ -86,7 +88,7 @@ class TrackingPolicyManager(
 			createdAt = now,
 		)
 
-		currentRunId = withContext(Dispatchers.IO) {
+		currentRunId = withContext(dispatchers.io) {
 			trackerRunDao.insert(run)
 		}
 		lastTransitionTime = now
@@ -271,7 +273,7 @@ class TrackingPolicyManager(
 			userInitiated = isUserInitiated,
 			createdAt = timeMs,
 		)
-		currentRunId = withContext(Dispatchers.IO) {
+		currentRunId = withContext(dispatchers.io) {
 			trackerRunDao.insert(run)
 		}
 		lastTransitionTime = timeMs
@@ -300,7 +302,7 @@ class TrackingPolicyManager(
 			userInitiated = isUserInitiated,
 			createdAt = timeMs,
 		)
-		currentRunId = withContext(Dispatchers.IO) {
+		currentRunId = withContext(dispatchers.io) {
 			trackerRunDao.insert(run)
 		}
 		lastTransitionTime = timeMs

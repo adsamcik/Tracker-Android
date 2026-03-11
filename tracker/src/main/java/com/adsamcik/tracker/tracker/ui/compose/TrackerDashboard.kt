@@ -146,6 +146,7 @@ import androidx.compose.material.icons.outlined.Star
 import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
@@ -167,6 +168,8 @@ import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.shared.preferences.R as PrefR
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 @Immutable
 internal data class TrackerDashboardUiState(
@@ -2584,7 +2587,7 @@ private fun RecentTripsCard(
 
     LaunchedEffect(Unit) {
         try {
-            trips = withContext(Dispatchers.IO) {
+            trips = withContext(defaultDispatchers.io) {
                 db.tripDao().getRecentTrips(3)
             }
         } catch (e: Exception) {

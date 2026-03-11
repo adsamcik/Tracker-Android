@@ -39,8 +39,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.logger.CrashExporter
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.utils.activity.ComposeDetailActivity
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -48,6 +48,7 @@ import kotlinx.coroutines.withContext
  * Activity for managing crash data (export/clear) using Jetpack Compose
  */
 class CrashManagerActivity : ComposeDetailActivity() {
+    private val dispatchers = DefaultDispatchersProvider
 
     private val exportLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -75,7 +76,7 @@ class CrashManagerActivity : ComposeDetailActivity() {
             scope.launch {
                 isExporting = true
                 try {
-                    val exportedCount = withContext(Dispatchers.IO) {
+                    val exportedCount = withContext(dispatchers.io) {
                         CrashExporter.exportCrashData(this@CrashManagerActivity, uri)
                     }
                     Toast.makeText(
@@ -96,7 +97,7 @@ class CrashManagerActivity : ComposeDetailActivity() {
         }
 
         LaunchedEffect(Unit) {
-            crashCount = withContext(Dispatchers.IO) {
+            crashCount = withContext(dispatchers.io) {
                 CrashExporter.getCrashCount(this@CrashManagerActivity)
             }
             isLoading = false
@@ -257,7 +258,7 @@ class CrashManagerActivity : ComposeDetailActivity() {
                             scope.launch {
                                 isClearing = true
                                 try {
-                                    val clearedCount = withContext(Dispatchers.IO) {
+                                    val clearedCount = withContext(dispatchers.io) {
                                         CrashExporter.clearCrashData(this@CrashManagerActivity)
                                     }
                                     crashCount = 0

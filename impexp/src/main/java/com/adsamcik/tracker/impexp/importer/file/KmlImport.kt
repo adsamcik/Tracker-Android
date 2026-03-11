@@ -5,6 +5,8 @@ import android.util.Xml
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
@@ -14,7 +16,6 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import java.time.Instant
@@ -22,14 +23,16 @@ import java.time.Instant
 /**
  * Imports KML files with [Placemark] [LineString] tracks.
  */
-internal class KmlImport : FileImport {
+internal class KmlImport(
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("kml")
 
 	override suspend fun import(
 		context: Context,
 		database: AppDatabase,
 		stream: FileImportStream
-	): ImportResult = withContext(Dispatchers.IO) {
+	): ImportResult = withContext(dispatchers.io) {
 		val parser = createParser().apply {
 			setInput(stream, null)
 		}

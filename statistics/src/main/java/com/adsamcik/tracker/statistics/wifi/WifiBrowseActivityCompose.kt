@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
@@ -49,9 +50,10 @@ import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 /**
  * Wi‑Fi list browser in Compose (legacy ManageActivity version removed).
@@ -92,13 +94,13 @@ private fun WifiBrowseRoute() {
 
     // initial load
     LaunchedEffect(filter, context) {
-        scope.launch(Dispatchers.Default) {
+        scope.launch(defaultDispatchers.default) {
             val dao = AppDatabase.database(context).wifiObservationDao()
-            val list = withContext(Dispatchers.IO) {
+            val list = withContext(defaultDispatchers.io) {
                 dao.getAllBetween(0L, Long.MAX_VALUE)
             }
             val filtered = applyFilter(list, filter)
-            withContext(Dispatchers.Main) {
+            withContext(defaultDispatchers.main) {
                 items.clear(); items.addAll(filtered.sortedBy { it.bssid })
             }
         }

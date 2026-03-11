@@ -7,11 +7,11 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
@@ -19,9 +19,10 @@ class RetentionPipelineWorker(
     appContext: Context,
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
+    private val dispatchers = DefaultDispatchersProvider
 
     override suspend fun doWork(): Result {
-        val store = RetentionConfigStore(applicationContext, Dispatchers.IO)
+        val store = RetentionConfigStore(applicationContext, dispatchers.io)
         val config = store.config.first()
 
         if (!config.autoPurgeEnabled) return Result.success()

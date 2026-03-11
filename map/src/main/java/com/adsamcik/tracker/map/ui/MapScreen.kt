@@ -46,10 +46,10 @@ import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.shared.MapStyleProvider
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
@@ -95,6 +95,8 @@ import org.maplibre.compose.map.OrnamentOptions
 import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 private const val MAP_LOAD_TAG = "MapScreen"
 
@@ -184,7 +186,7 @@ fun MapScreen(
     val mapLibreReady by MapLibreInitializer.isReady.collectAsState()
     LaunchedEffect(mapLibreReady) {
         if (!mapLibreReady) {
-            withContext(Dispatchers.IO) {
+            withContext(defaultDispatchers.io) {
                 MapLibreInitializer.initialize(appContext)
             }
         }

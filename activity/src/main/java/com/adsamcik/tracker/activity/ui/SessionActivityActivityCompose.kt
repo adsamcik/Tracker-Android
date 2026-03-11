@@ -59,13 +59,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.activity.R
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val defaultDispatchers = DefaultDispatchersProvider
 
 /**
  * Session activities manager in Compose (legacy base removed). Supports add / edit / swipe delete with undo.
@@ -95,9 +97,9 @@ fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
 
     // Load activities on first composition
     LaunchedEffect(Unit) {
-        scope.launch(Dispatchers.Default) {
+        scope.launch(defaultDispatchers.default) {
             val activities = SessionActivity.getAll(context)
-            withContext(Dispatchers.Main) {
+            withContext(defaultDispatchers.main) {
                 items.clear()
                 items.addAll(activities)
             }
@@ -111,7 +113,7 @@ fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
         onAddActivity = { showAddDialog = true },
         onEditActivity = { editingActivity = it },
         onDeleteActivity = { activity ->
-            scope.launch(Dispatchers.Default) {
+            scope.launch(defaultDispatchers.default) {
                 // Remove from list immediately for UI responsiveness
                 items.remove(activity)
                 
@@ -139,13 +141,13 @@ fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
             activity = null,
             onDismiss = { showAddDialog = false },
             onSave = { name ->
-                scope.launch(Dispatchers.Default) {
+                scope.launch(defaultDispatchers.default) {
                     val newActivity = SessionActivity(0, name, null)
                     val dao = AppDatabase.database(context).activityDao()
                     val id = dao.insert(newActivity)
                     val savedActivity = newActivity.copy(id = id)
                     
-                    withContext(Dispatchers.Main) {
+                    withContext(defaultDispatchers.main) {
                         items.add(savedActivity)
                         showAddDialog = false
                     }
@@ -160,12 +162,12 @@ fun SessionActivityRoute(onNavigateBack: (() -> Unit)? = null) {
             activity = activity,
             onDismiss = { editingActivity = null },
             onSave = { name ->
-                scope.launch(Dispatchers.Default) {
+                scope.launch(defaultDispatchers.default) {
                     val updatedActivity = activity.copy(name = name)
                     val dao = AppDatabase.database(context).activityDao()
                     dao.update(updatedActivity)
                     
-                    withContext(Dispatchers.Main) {
+                    withContext(defaultDispatchers.main) {
                         val index = items.indexOfFirst { it.id == activity.id }
                         if (index >= 0) {
                             items[index] = updatedActivity

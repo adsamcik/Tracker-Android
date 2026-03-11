@@ -22,7 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 // import removed: legacy MainActivity no longer used
@@ -53,11 +53,12 @@ import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
  */
 @OptIn(ExperimentalStdlibApi::class)
 class OnboardingActivity : ComponentActivity() {
+    private val dispatchers = DefaultDispatchersProvider
     
     private val viewModel: OnboardingViewModel by viewModels()
     private lateinit var permissionManager: IOnboardingPermissionManager
     private val onboardingRepository: OnboardingRepository by lazy {
-        DefaultOnboardingRepository(this, Dispatchers.IO)
+        DefaultOnboardingRepository(this, dispatchers.io)
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -288,8 +289,8 @@ class OnboardingActivity : ComponentActivity() {
         }
 
         // Persist auto-cleanup setting to Proto DataStore
-        lifecycleScope.launch(Dispatchers.IO) {
-            RetentionConfigStore(this@OnboardingActivity, Dispatchers.IO).update {
+        lifecycleScope.launch(dispatchers.io) {
+            RetentionConfigStore(this@OnboardingActivity, dispatchers.io).update {
                 copy(autoCleanupEnabled = prefs.autoCleanupOldData)
             }
         }
@@ -334,7 +335,7 @@ class OnboardingActivity : ComponentActivity() {
          * Prefer using OnboardingRepository.isCompleted directly with SplashScreen API.
          */
         suspend fun isOnboardingCompletedAsync(context: Context): Boolean {
-            return DefaultOnboardingRepository(context, Dispatchers.IO).isCompleted.first()
+            return DefaultOnboardingRepository(context, DefaultDispatchersProvider.io).isCompleted.first()
         }
     }
 }

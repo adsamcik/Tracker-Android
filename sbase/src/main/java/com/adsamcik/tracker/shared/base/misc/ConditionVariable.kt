@@ -1,7 +1,8 @@
 package com.adsamcik.tracker.shared.base.misc
 
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
@@ -21,10 +22,13 @@ typealias JobFunction = suspend CoroutineScope.() -> Unit
  * Waiters wait for specified condition to be satisfied.
  * When condition is satisfied job function associated with the waiter is invoked.
  */
-open class ConditionVariable<T>(default: T) : CoroutineScope {
+open class ConditionVariable<T>(
+	default: T,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
+) : CoroutineScope {
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Main + job
+		get() = dispatchers.main + job
 
 	protected val waiterLock: ReentrantLock = ReentrantLock()
 	protected val valueLock: ReentrantReadWriteLock = ReentrantReadWriteLock()
@@ -94,4 +98,3 @@ class ConditionVariableInt(value: Int) : ConditionVariable<Int>(value) {
 		return value
 	}
 }
-
