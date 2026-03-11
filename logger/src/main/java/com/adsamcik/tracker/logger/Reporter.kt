@@ -3,13 +3,12 @@ package com.adsamcik.tracker.logger
 import android.content.Context
 import android.util.Log
 import com.adsamcik.tracker.logger.BuildConfig
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.isEmulator
 import com.adsamcik.tracker.shared.base.logging.ErrorReporter
 import com.adsamcik.tracker.shared.base.logging.ReporterFacade
-import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
@@ -19,11 +18,14 @@ import kotlinx.coroutines.flow.onEach
  * Object that handles reporting of any message, error or exception that is passed to it.
  */
 object Reporter : ErrorReporter {
+	@Volatile
 	private var isInitialized = false
+
+	@Volatile
 	private var isEnabled = false
 	private const val TAG = "com.adsamcik.tracker-error"
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var preferenceJob: Job? = null
+	private val scope = CoroutineScope(SupervisorJob() + DefaultDispatchersProvider.default)
+	private var preferenceJob: Job? = null
 
 	/**
 	 * Initializes reporter. Required for proper functionality.
@@ -34,6 +36,9 @@ object Reporter : ErrorReporter {
 			isInitialized = true
 		}
 
+		// Register facade delegate before emulator guard so logging works during development
+		ReporterFacade.setDelegate(this)
+
 		if (isEmulator) return
 
 		preferenceJob?.cancel()
@@ -43,24 +48,39 @@ object Reporter : ErrorReporter {
 			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_default
 		).onEach { isEnabled = it }
 			.launchIn(scope)
-
-	// Register as facade delegate so other modules can log without depending on :logger
-	ReporterFacade.setDelegate(this)
 	}
 
-	private fun checkInitialized() {
+	private fun checkInitialized(): Boolean {
 		if (!isInitialized) {
-			throw UninitializedPropertyAccessException("Reporter needs to be initialized")
+			Log.w(TAG, "Reporter used before initialization")
+			return false
+		}
+		return true
+	}
+
+	private fun redactMessage(message: String): String = PiiRedactor.redact(message)
+
+	private fun redactThrowable(exception: Throwable): Throwable = Throwable(
+		redactMessage(exception.message ?: exception::class.java.simpleName),
+		exception.cause?.let { redactThrowable(it) }
+	).apply {
+		stackTrace = exception.stackTrace
+	}
+
+	private fun shouldEmitErrorLogs(): Boolean = BuildConfig.DEBUG || isEnabled
+
+	private fun debugTrace(message: String) {
+		if (BuildConfig.DEBUG) {
+			Exception(message).printStackTrace()
 		}
 	}
 
 	override fun report(exception: Throwable) {
-		@Suppress("TooGenericExceptionThrown")
-		if (BuildConfig.DEBUG) throw Exception(exception)
-
-		checkInitialized()
-		if (isEnabled) {
-			exception.message?.let { Log.e(TAG, it) }
+		if (!checkInitialized() || !shouldEmitErrorLogs()) return
+		val sanitizedException = redactThrowable(exception)
+		Log.e(TAG, sanitizedException.message.orEmpty(), sanitizedException)
+		if (BuildConfig.DEBUG) {
+			sanitizedException.printStackTrace()
 		}
 	}
 
@@ -69,16 +89,8 @@ object Reporter : ErrorReporter {
 	 *
 	 * @param message Message that is reported
 	 */
-	@Suppress("TooGenericExceptionThrown")
 	override fun report(message: String) {
-		if (BuildConfig.DEBUG) {
-			throw Exception(message)
-		}
-
-		checkInitialized()
-		if (isEnabled) {
-			Log.e(TAG, message)
-		}
+		logError(message)
 	}
 
 	/**
@@ -86,16 +98,8 @@ object Reporter : ErrorReporter {
 	 *
 	 * @param message Message that is logged
 	 */
-	@Suppress("TooGenericExceptionThrown")
 	override fun log(message: String) {
-		if (BuildConfig.DEBUG) {
-			throw Exception(message)
-		}
-
-		checkInitialized()
-		if (isEnabled) {
-			Log.e(TAG, message)
-		}
+		logError(message)
 	}
 
 	/**
@@ -112,10 +116,17 @@ object Reporter : ErrorReporter {
 		logWithSource(priority = Log.WARN, source = source, message = message)
 	}
 
+	private fun logError(message: String) {
+		if (!checkInitialized() || !shouldEmitErrorLogs()) return
+		val redactedMessage = redactMessage(message)
+		Log.e(TAG, redactedMessage)
+		debugTrace(redactedMessage)
+	}
+
 	private fun logWithSource(priority: Int, source: String, message: String) {
-		checkInitialized()
+		if (!checkInitialized()) return
 		if (!isEnabled && !BuildConfig.DEBUG) return
 		val scopedTag = "$TAG.$source"
-		Log.println(priority, scopedTag, message)
+		Log.println(priority, scopedTag, redactMessage(message))
 	}
 }
