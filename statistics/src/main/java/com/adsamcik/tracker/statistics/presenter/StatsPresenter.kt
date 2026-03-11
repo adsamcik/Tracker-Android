@@ -34,7 +34,7 @@ sealed interface StatsEvent {
 
 /**
  * Presenter for the stats overview screen.
- * Replaces StatsViewModel with repository-based data loading.
+ * Provides repository-based data loading for the stats overview screen.
  */
 class StatsPresenter @Inject constructor(
 	private val tripRepository: TripRepository,

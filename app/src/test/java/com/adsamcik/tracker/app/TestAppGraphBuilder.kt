@@ -32,7 +32,7 @@ import com.adsamcik.tracker.tracker.controller.FakeLockManager
  *     .build()
  * 
  * // Use testGraph in tests to inject into ViewModels / composables
- * val viewModel = testGraph.viewModelFactory.create(StatsViewModel::class.java)
+ * val viewModel = testGraph.viewModelFactory.create(StatsPresenterViewModel::class.java)
  * ```
  */
 class TestAppGraphBuilder(private val application: Application) {

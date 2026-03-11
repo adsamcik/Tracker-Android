@@ -37,7 +37,7 @@ abstract class RepositoryModule {
 
     /**
      * Binds SessionRepository interface to its default implementation.
-     * Used by StatsViewModel for accessing session data.
+     * Used by StatsPresenterViewModel for accessing session data.
      */
     @Binds
     @Singleton
