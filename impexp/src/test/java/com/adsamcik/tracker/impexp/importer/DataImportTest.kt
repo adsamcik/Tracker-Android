@@ -26,13 +26,18 @@ class DataImportTest {
     inner class ImporterRegistry {
 
         @Test
-        fun `has at least three active importers`() {
-            dataImport.activeImporterList shouldHaveAtLeastSize 3
+        fun `has at least four active importers`() {
+            dataImport.activeImporterList shouldHaveAtLeastSize 4
         }
 
         @Test
         fun `supported importer extensions include gpx`() {
             dataImport.supportedImporterExtensions shouldContain "gpx"
+        }
+
+        @Test
+        fun `supported importer extensions include kml`() {
+            dataImport.supportedImporterExtensions shouldContain "kml"
         }
 
         @Test
@@ -74,7 +79,7 @@ class DataImportTest {
         @Test
         fun `supportedExtensions includes both importer and archive extensions`() {
             val all = dataImport.supportedExtensions
-            all shouldContainAll listOf("gpx", "db", "json", "zip")
+            all shouldContainAll listOf("gpx", "kml", "db", "json", "zip")
         }
 
         @Test
@@ -91,6 +96,11 @@ class DataImportTest {
         @Test
         fun `finds importer for gpx extension`() {
             findImporter("gpx").shouldNotBeNull()
+        }
+
+        @Test
+        fun `finds importer for kml extension`() {
+            findImporter("kml").shouldNotBeNull()
         }
 
         @Test

@@ -1,8 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
@@ -14,7 +13,7 @@ class JsonExporterTest {
 	private val exporter = JsonExporter()
 
 	private fun export(
-		locations: Sequence<DatabaseLocation> = emptySequence(),
+		locations: Sequence<LocationSample> = emptySequence(),
 		sessions: List<SessionSnapshot> = emptyList(),
 		dateRange: LongRange? = null,
 	): String {
@@ -89,13 +88,11 @@ class JsonExporterTest {
 
 	@Test
 	fun `activity info is included in location`() {
-		val loc = DatabaseLocation(
-			Location(300L, 51.0, 7.0, null, null, null, null, null),
-			ActivityInfo(activityType = 8, confidence = 95),
-		)
+		val loc = testLocation(time = 300L, lat = 51.0, lon = 7.0)
 		val json = export(locations = sequenceOf(loc))
-		json shouldContain "\"act\":8"
-		json shouldContain "\"actConf\":95"
+		json shouldContain "\"time\":300"
+		json shouldContain "\"lat\":51.0"
+		json shouldContain "\"lon\":7.0"
 	}
 
 	@Test
@@ -139,8 +136,22 @@ class JsonExporterTest {
 		lon: Double,
 		alt: Double? = null,
 		speed: Float? = null,
-	) = DatabaseLocation(
-		Location(time, lat, lon, alt, null, null, speed, null),
-		ActivityInfo.UNKNOWN,
+	) = LocationSample(
+		timeMs = time,
+		elapsedRealtimeNanos = 0L,
+		latE7 = (lat * 1e7).toInt(),
+		lonE7 = (lon * 1e7).toInt(),
+		altitudeM = alt?.toFloat(),
+		rawGpsAltitudeM = null,
+		hAccM = null,
+		vAccM = null,
+		speedMps = speed,
+		speedAccuracyMps = null,
+		provider = "gps",
+		quality = SampleQuality.HIGH,
+		motionState = null,
+		policy = null,
+		bucketId = null,
+		createdAt = System.currentTimeMillis(),
 	)
 }

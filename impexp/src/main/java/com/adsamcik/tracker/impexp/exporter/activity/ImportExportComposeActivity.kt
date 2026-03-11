@@ -59,11 +59,16 @@ import com.adsamcik.tracker.impexp.R
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.extension.formatAsDuration
+import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
+import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
@@ -101,8 +106,7 @@ class ImportExportComposeActivity : ComponentActivity() {
                 ExportScreen(
                     exporter = exporter,
                     shareableDir = shareableDir,
-                    activity = this,
-                    filesDir = filesDir
+                    activity = this
                 )
             }
         }
@@ -119,8 +123,7 @@ class ImportExportComposeActivity : ComponentActivity() {
 fun ExportScreen(
     exporter: Exporter,
     shareableDir: File,
-    activity: Activity,
-    filesDir: File
+    activity: Activity
 ) {
     val scope = rememberCoroutineScope()
     val snackBarHostState = remember { SnackbarHostState() }
@@ -143,15 +146,8 @@ fun ExportScreen(
     // Check for data availability
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            val sessionDao = AppDatabase.database(activity).sessionDao()
-            val availableRange = sessionDao.range().let {
-                if (it.start == 0L && it.endInclusive == 0L) {
-                    LongRange.EMPTY
-                } else {
-                    LongRange(it.start, it.endInclusive)
-                }
-            }
-            if (availableRange.isEmpty()) {
+            val tripCount = AppDatabase.database(activity).tripDao().countAllTrips()
+            if (tripCount == 0L) {
                 showNoDataDialog.value = true
             }
         }
@@ -340,25 +336,7 @@ fun ExportScreen(
 
                 OutlinedButton(
                     onClick = {
-                        scope.launch {
-                            tryExport(
-                                directory = DocumentFile.fromFile(filesDir),
-                                forceOverride = false,
-                                exporter = exporter,
-                                fileName = fileNameState.value,
-                                range = if (canSelectDateRange) rangeState.value else null,
-                                context = activity,
-                                snackBarHostState = snackBarHostState,
-                                onSuccess = {
-                                    scope.launch {
-                                        snackBarHostState.showSnackbar(
-                                            message = activity.getString(R.string.export_button)
-                                        )
-                                    }
-                                    activity.finish()
-                                }
-                            )
-                        }
+                        exportLauncher.launch(null)
                     },
                     modifier = Modifier.weight(1f),
                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
@@ -388,12 +366,24 @@ fun ExportScreen(
                                     val file = File(shareableDir, fileNameWithExtension)
                                     val shareUri = FileProvider.getUriForFile(
                                         activity,
-                                        "com.adsamcik.tracker.fileprovider",
+                                        "${activity.packageName}.fileprovider",
                                         file
                                     )
+                                    val shareSummary = withContext(Dispatchers.IO) {
+                                        resolveShareTripSummary(
+                                            context = activity,
+                                            fallbackFileName = actualFileName,
+                                            range = if (canSelectDateRange) rangeState.value else null
+                                        )
+                                    }
                                     val shareIntent = Intent().apply {
                                         action = Intent.ACTION_SEND
                                         putExtra(Intent.EXTRA_STREAM, shareUri)
+                                        putExtra(
+                                            Intent.EXTRA_SUBJECT,
+                                            "Trail: ${shareSummary.tripName} — ${shareSummary.formattedDate}"
+                                        )
+                                        putExtra(Intent.EXTRA_TEXT, buildShareText(shareSummary))
                                         type = exporter.mimeType
                                         flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
                                     }
@@ -548,7 +538,7 @@ suspend fun tryExport(
     range: ClosedRange<ZonedDateTime>?,
     context: Context,
     snackBarHostState: SnackbarHostState,
-    onSuccess: () -> Unit
+    onSuccess: suspend () -> Unit
 ) {
     withContext(Dispatchers.IO) {
         val actualFileName = getExportFileName(fileName, exporter, range, context)
@@ -627,29 +617,20 @@ suspend fun export(
     return withContext(Dispatchers.IO) {
         if (exporter.canSelectDateRange && range != null) {
             val database = AppDatabase.database(context)
-            val locationDao = database.locationDao()
+            val locationSampleDao = database.locationSampleDao()
             val fromMs = range.start.toEpochMillis()
             val toMs = range.endInclusive.toEpochMillis()
 
-            val totalCount = locationDao.count(fromMs, toMs)
-            if (totalCount == 0L) {
+            val totalCount = locationSampleDao.countBetween(fromMs, toMs)
+            if (totalCount == 0) {
                 return@withContext ExportResult.Error(
                     LocalizedString(R.string.export_error_no_locations_in_interval)
                 )
             }
 
-            // Build a lazy sequence that pages through the database in chunks
-            // so the full dataset is never materialised in memory at once.
-            val locationSequence = sequence {
-                var offset = 0
-                while (true) {
-                    val page = locationDao.getBetweenPaged(fromMs, toMs, EXPORT_PAGE_SIZE, offset)
-                    if (page.isEmpty()) break
-                    yieldAll(page)
-                    if (page.size < EXPORT_PAGE_SIZE) break
-                    offset += page.size
-                }
-            }
+            val samples = locationSampleDao.getAllBetween(fromMs, toMs)
+            val locationSequence = samples.asSequence()
+                .filter { it.latE7 != null && it.lonE7 != null }
 
             val dateRange = LongRange(fromMs, toMs)
             exporter.export(context, locationSequence, outputStream, dateRange)
@@ -668,7 +649,7 @@ fun ExportScreenPreview() {
         override val extension: String = "zip"
         override fun export(
             context: Context,
-            locationData: Sequence<DatabaseLocation>,
+            locationData: Sequence<LocationSample>,
             outputStream: OutputStream,
             dateRange: LongRange?
         ): ExportResult {
@@ -678,7 +659,109 @@ fun ExportScreenPreview() {
     ExportScreen(
         exporter = exporter,
         shareableDir = File("/tmp"),
-        activity = Activity(),
-        filesDir = File("/tmp")
+        activity = Activity()
     )
+}
+
+private data class ShareTripSummary(
+    val tripName: String,
+    val formattedDate: String,
+    val activityEmoji: String,
+    val formattedDistance: String?,
+    val formattedDuration: String?,
+    val formattedSteps: String?
+)
+
+private fun buildShareText(trip: ShareTripSummary): String {
+    val titleLine = "${trip.activityEmoji} ${trip.tripName} — ${trip.formattedDate}"
+    val statsLine = if (
+        trip.formattedDistance != null &&
+        trip.formattedDuration != null &&
+        trip.formattedSteps != null
+    ) {
+        "📏 ${trip.formattedDistance} · ⏱ ${trip.formattedDuration} · 🦶 ${trip.formattedSteps}"
+    } else {
+        "📏 — · ⏱ — · 🦶 —"
+    }
+    return "$titleLine\n$statsLine\nExported from Tracker (local-only, no cloud)"
+}
+
+private suspend fun resolveShareTripSummary(
+    context: Context,
+    fallbackFileName: String,
+    range: ClosedRange<ZonedDateTime>?
+): ShareTripSummary {
+    val fallbackDate = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
+        (range?.start ?: Time.now).toLocalDate()
+    )
+    val fallbackName = fallbackFileName.replace('_', ' ').trim().ifEmpty { "Trip" }
+    val fallback = ShareTripSummary(
+        tripName = fallbackName,
+        formattedDate = fallbackDate,
+        activityEmoji = "📍",
+        formattedDistance = null,
+        formattedDuration = null,
+        formattedSteps = null
+    )
+
+    val targetRange = range ?: return fallback
+    val fromMs = targetRange.start.toEpochMillis()
+    val toMs = targetRange.endInclusive.toEpochMillis()
+
+    val database = AppDatabase.database(context)
+    val tripDao = database.tripDao()
+    if (tripDao.countTripsBetween(fromMs, toMs) == 0L) return fallback
+
+    val trips = tripDao.getBetween(fromMs, toMs)
+    val primaryTrip = trips.firstOrNull() ?: return fallback
+
+    val totalDistance = trips.sumOf { it.distanceM.toDouble() }.toFloat()
+    val totalDuration = trips.sumOf { it.durationMs }
+    val totalSteps = trips.sumOf { it.steps ?: 0 }
+
+    val activity = primaryTrip.primaryActivity?.toLong()?.let { id ->
+        database.activityDao().getLocalized(context, id)
+    }
+
+    val tripName = activity?.name?.takeIf { it.isNotBlank() } ?: fallbackName
+    val emoji = mapActivityToEmoji(activity?.name, activity?.id)
+    val date = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(
+        Instant.ofEpochMilli(primaryTrip.startTimeMs).atZone(ZoneId.systemDefault()).toLocalDate()
+    )
+    val lengthSystem = TrackerSettingsQuick.lengthSystem(context)
+    val distance = context.resources.formatDistance(
+        totalDistance,
+        digits = if (totalDistance >= 1000f) 1 else 2,
+        unit = lengthSystem
+    )
+
+    return ShareTripSummary(
+        tripName = tripName,
+        formattedDate = date,
+        activityEmoji = emoji,
+        formattedDistance = distance,
+        formattedDuration = totalDuration.formatAsDuration(context),
+        formattedSteps = totalSteps.formatReadable()
+    )
+}
+
+private fun mapActivityToEmoji(activityName: String?, activityId: Long?): String {
+    return when {
+        activityId == NativeSessionActivity.WALKING.id ||
+            activityName?.contains("walk", ignoreCase = true) == true -> "🥾"
+        activityId == NativeSessionActivity.RUNNING.id ||
+            activityName?.contains("run", ignoreCase = true) == true -> "🏃"
+        activityId == NativeSessionActivity.BICYCLE.id ||
+            activityName?.contains("ride", ignoreCase = true) == true ||
+            activityName?.contains("bike", ignoreCase = true) == true ||
+            activityName?.contains("cycle", ignoreCase = true) == true -> "🚴"
+        activityId == NativeSessionActivity.VEHICLE.id ||
+            activityId == NativeSessionActivity.LAND_VEHICLE.id ||
+            activityId == NativeSessionActivity.WATER_VEHICLE.id ||
+            activityId == NativeSessionActivity.AIR_VEHICLE.id ||
+            activityName?.contains("vehicle", ignoreCase = true) == true ||
+            activityName?.contains("car", ignoreCase = true) == true -> "🚗"
+        activityName?.contains("still", ignoreCase = true) == true -> "⏸️"
+        else -> "📍"
+    }
 }

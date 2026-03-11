@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import java.io.OutputStream
 
 /**
@@ -29,14 +29,14 @@ interface Exporter {
 	 * database, avoiding loading the entire dataset into memory at once.
 	 *
 	 * @param context Application context
-	 * @param locationData Lazy sequence of location data; may only be iterated once
+	 * @param locationData Lazy sequence of [LocationSample] data; may only be iterated once
 	 * @param outputStream Destination stream for the export file
 	 * @param dateRange Optional time range (epochMillis start..end) for metadata; avoids
 	 *   needing to scan the full sequence just for boundary timestamps
 	 */
 	fun export(
 			context: Context,
-			locationData: Sequence<DatabaseLocation>,
+			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,
 			dateRange: LongRange? = null
 	): ExportResult

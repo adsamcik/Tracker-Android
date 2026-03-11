@@ -2,14 +2,13 @@ package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.doubles.shouldBeExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -31,37 +30,37 @@ class JsonImportTest {
 
 	private val jsonImport = JsonImport()
 	private lateinit var mockDatabase: AppDatabase
-	private lateinit var mockLocationDao: LocationDataDao
-	private lateinit var mockSessionDao: SessionDataDao
+	private lateinit var mockLocationSampleDao: LocationSampleDao
+	private lateinit var mockSegmentDao: SessionSegmentDao
 	private lateinit var mockContext: Context
 
-	private val capturedLocations = mutableListOf<DatabaseLocation>()
-	private val capturedSessions = mutableListOf<TrackerSession>()
+	private val capturedSamples = mutableListOf<LocationSample>()
+	private val capturedSegments = mutableListOf<SessionSegment>()
 	private var locationInsertCallCount = 0
 
 	@BeforeEach
 	fun setUp() {
-		capturedLocations.clear()
-		capturedSessions.clear()
+		capturedSamples.clear()
+		capturedSegments.clear()
 		locationInsertCallCount = 0
 
-		mockLocationDao = mockk {
-			every { insert(any<Collection<DatabaseLocation>>()) } answers {
-				val batch = firstArg<Collection<DatabaseLocation>>()
-				capturedLocations.addAll(batch)
+		mockLocationSampleDao = mockk {
+			every { insert(any<Collection<LocationSample>>()) } answers {
+				val batch = firstArg<Collection<LocationSample>>()
+				capturedSamples.addAll(batch)
 				locationInsertCallCount++
 				batch.map { 0L }
 			}
 		}
-		mockSessionDao = mockk {
-			every { insert(any<TrackerSession>()) } answers {
-				capturedSessions.add(firstArg())
+		mockSegmentDao = mockk {
+			every { insert(any<SessionSegment>()) } answers {
+				capturedSegments.add(firstArg())
 				1L
 			}
 		}
 		mockDatabase = mockk {
-			every { locationDao() } returns mockLocationDao
-			every { sessionDao() } returns mockSessionDao
+			every { locationSampleDao() } returns mockLocationSampleDao
+			every { sessionSegmentDao() } returns mockSegmentDao
 		}
 		mockContext = mockk(relaxed = true)
 	}
@@ -96,14 +95,12 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 2
-		capturedLocations[0].location.latitude shouldBeExactly 50.0
-		capturedLocations[0].location.longitude shouldBeExactly 14.0
-		capturedLocations[0].location.altitude shouldBe 200.0
-		capturedLocations[0].location.speed shouldBe 3.5f
-		capturedLocations[0].activityInfo.activityType shouldBe 0
-		capturedLocations[0].activityInfo.confidence shouldBe 100
-		capturedLocations[1].location.latitude shouldBeExactly 50.1
+		capturedSamples shouldHaveSize 2
+		capturedSamples[0].latE7 shouldBe (50.0 * 1e7).toInt()
+		capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).toInt()
+		capturedSamples[0].altitudeM shouldBe 200.0f
+		capturedSamples[0].speedMps shouldBe 3.5f
+		capturedSamples[1].latE7 shouldBe (50.1 * 1e7).toInt()
 	} }
 
 	@Test
@@ -121,14 +118,13 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedSessions shouldHaveSize 1
-		val session = capturedSessions.first()
-		session.start shouldBe 1700000000000L
-		session.end shouldBe 1700001000000L
-		session.collections shouldBe 50
-		session.distanceInM shouldBe 1234.5f
-		session.isUserInitiated shouldBe true
-		session.steps shouldBe 500
+		capturedSegments shouldHaveSize 1
+		val segment = capturedSegments.first()
+		segment.startTimeMs shouldBe 1700000000000L
+		segment.endTimeMs shouldBe 1700001000000L
+		segment.sampleCount shouldBe 50
+		segment.distanceM shouldBe 1234.5f
+		segment.steps shouldBe 500
 	} }
 
 	// -- Schema Version --
@@ -180,7 +176,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 0
+		capturedSamples shouldHaveSize 0
 	} }
 
 	@Test
@@ -197,7 +193,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 0
+		capturedSamples shouldHaveSize 0
 	} }
 
 	@Test
@@ -214,7 +210,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 0
+		capturedSamples shouldHaveSize 0
 	} }
 
 	@Test
@@ -231,7 +227,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 0
+		capturedSamples shouldHaveSize 0
 	} }
 
 	@Test
@@ -248,7 +244,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 0
+		capturedSamples shouldHaveSize 0
 	} }
 
 	@Test
@@ -265,10 +261,10 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 1
-		capturedLocations[0].location.altitude shouldBe null
-		capturedLocations[0].location.speed shouldBe null
-		capturedLocations[0].location.horizontalAccuracy shouldBe null
+		capturedSamples shouldHaveSize 1
+		capturedSamples[0].altitudeM shouldBe null
+		capturedSamples[0].speedMps shouldBe null
+		capturedSamples[0].hAccM shouldBe null
 	} }
 
 	@Test
@@ -285,9 +281,9 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 1
-		capturedLocations[0].location.latitude shouldBeExactly 50.12345678
-		capturedLocations[0].location.longitude shouldBeExactly 14.98765432
+		capturedSamples shouldHaveSize 1
+		capturedSamples[0].latE7 shouldBe (50.12345678 * 1e7).toInt()
+		capturedSamples[0].lonE7 shouldBe (14.98765432 * 1e7).toInt()
 	} }
 
 	// -- Session Validation --
@@ -306,7 +302,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedSessions shouldHaveSize 0
+		capturedSegments shouldHaveSize 0
 	} }
 
 	@Test
@@ -323,7 +319,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedSessions shouldHaveSize 0
+		capturedSegments shouldHaveSize 0
 	} }
 
 	@Test
@@ -340,9 +336,8 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedSessions shouldHaveSize 1
-		capturedSessions[0].steps shouldBe 0
-		capturedSessions[0].isUserInitiated shouldBe false
+		capturedSegments shouldHaveSize 1
+		capturedSegments[0].steps shouldBe null
 	} }
 
 	// -- Unknown Fields --
@@ -377,7 +372,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 1
+		capturedSamples shouldHaveSize 1
 	} }
 
 	@Test
@@ -406,7 +401,7 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 450
+		capturedSamples shouldHaveSize 450
 		// 200 + 200 + 50 = 3 batch inserts
 		locationInsertCallCount shouldBe 3
 	} }
@@ -419,8 +414,8 @@ class JsonImportTest {
 
 		jsonImport.import(mockContext, mockDatabase, jsonStream(json))
 
-		capturedLocations shouldHaveSize 0
-		capturedSessions shouldHaveSize 0
+		capturedSamples shouldHaveSize 0
+		capturedSegments shouldHaveSize 0
 	} }
 
 	// -- Malformed JSON --

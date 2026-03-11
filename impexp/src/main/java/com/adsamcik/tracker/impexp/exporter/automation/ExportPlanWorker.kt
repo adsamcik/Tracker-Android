@@ -1,6 +1,10 @@
 package com.adsamcik.tracker.impexp.exporter.automation
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.impexp.exporter.DatabaseExporter
@@ -13,6 +17,7 @@ import com.adsamcik.tracker.impexp.exporter.KmlExporter
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.time.SystemClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -67,6 +72,7 @@ class ExportPlanWorker(
             when (exportResult) {
                 is PlanExportResult.Success -> {
                     Reporter.i(EXPORT_LOG_SOURCE, "Plan '${plan.name}' completed: ${exportResult.fileName} (${exportResult.recordCount} records)")
+                    showExportCompletedNotification(plan, exportResult)
                     Result.success()
                 }
                 is PlanExportResult.Failed -> {
@@ -97,20 +103,14 @@ class ExportPlanWorker(
         val outputFile = File(exportDir, fileName)
 
         // Build lazy paging sequence from DB (same pattern as ImportExportComposeActivity)
-        val locationDao = db.locationDao()
+        val locationSampleDao = db.locationSampleDao()
         val fromMs = dateRange?.first ?: 0L
         val toMs = dateRange?.last ?: Long.MAX_VALUE
         var recordCount = 0
-        val locationSequence = sequence {
-            var offset = 0
-            while (true) {
-                val page = locationDao.getBetweenPaged(fromMs, toMs, PAGE_SIZE, offset)
-                if (page.isEmpty()) break
-                yieldAll(page)
-                if (page.size < PAGE_SIZE) break
-                offset += page.size
-            }
-        }.onEach { recordCount++ }
+        val samples = locationSampleDao.getAllBetween(fromMs, toMs)
+        val locationSequence = samples.asSequence()
+            .filter { it.latE7 != null && it.lonE7 != null }
+            .onEach { recordCount++ }
 
         val result = FileOutputStream(outputFile).use { fos ->
             exporter.export(applicationContext, locationSequence, fos, dateRange)
@@ -137,12 +137,12 @@ class ExportPlanWorker(
         ExportFormat.JSON -> JsonExporter()
     }
 
-    private fun resolveDateRange(scope: ExportScope, db: AppDatabase): LongRange? {
+    private suspend fun resolveDateRange(scope: ExportScope, db: AppDatabase): LongRange? {
         return when (scope) {
             ExportScope.LastSession -> {
-                val session = db.sessionDao().getLast(1)
-                if (session != null) {
-                    session.start..session.end
+                val trip = db.tripDao().getRecentTrips(1).firstOrNull()
+                if (trip != null) {
+                    trip.startTimeMs..trip.endTimeMs
                 } else {
                     null
                 }
@@ -221,11 +221,44 @@ class ExportPlanWorker(
         }
     }
 
+    private fun showExportCompletedNotification(plan: ExportBackupPlan, result: PlanExportResult.Success) {
+        val launchIntent = applicationContext.packageManager
+            .getLaunchIntentForPackage(applicationContext.packageName)
+            ?.apply {
+                putExtra("navigate_to", "impexp")
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            } ?: return
+
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            plan.id.value.toInt(),
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(
+            applicationContext,
+            applicationContext.getString(com.adsamcik.tracker.shared.base.R.string.channel_other_id)
+        )
+            .setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
+            .setContentTitle("Export complete")
+            .setContentText(result.fileName)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(applicationContext).notify(
+            EXPORT_NOTIFICATION_ID_BASE + plan.id.value.toInt(),
+            notification
+        )
+    }
+
     companion object {
         const val KEY_PLAN_ID = "plan_id"
         const val KEY_TRIGGER_REASON = "trigger_reason"
         const val KEY_TRIGGER_METADATA = "trigger_metadata"
         private const val PAGE_SIZE = 2000
+        private const val EXPORT_NOTIFICATION_ID_BASE = 904_000
     }
 }
 

@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.documentfile.provider.DocumentFile
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import java.io.OutputStream
 
@@ -18,7 +18,7 @@ class DatabaseExporter : Exporter {
 
 	override fun export(
 			context: Context,
-			locationData: Sequence<DatabaseLocation>,
+			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,
 			dateRange: LongRange?
 	): ExportResult {

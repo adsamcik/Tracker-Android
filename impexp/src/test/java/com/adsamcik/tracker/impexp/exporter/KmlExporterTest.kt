@@ -1,8 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
@@ -31,19 +30,25 @@ class KmlExporterTest {
         latitude: Double,
         longitude: Double,
         altitude: Double? = null
-    ): DatabaseLocation {
-        val location = Location(
-            time = time,
-            latitude = latitude,
-            longitude = longitude,
-            altitude = altitude,
-            horizontalAccuracy = 10f,
-            verticalAccuracy = null,
-            speed = null,
-            speedAccuracy = null
+    ): LocationSample {
+        return LocationSample(
+            timeMs = time,
+            elapsedRealtimeNanos = 0L,
+            latE7 = (latitude * 1e7).toInt(),
+            lonE7 = (longitude * 1e7).toInt(),
+            altitudeM = altitude?.toFloat(),
+            rawGpsAltitudeM = null,
+            hAccM = 10f,
+            vAccM = null,
+            speedMps = null,
+            speedAccuracyMps = null,
+            provider = "gps",
+            quality = SampleQuality.HIGH,
+            motionState = null,
+            policy = null,
+            bucketId = null,
+            createdAt = System.currentTimeMillis(),
         )
-        val activityInfo = ActivityInfo(activityType = 0, confidence = 100)
-        return DatabaseLocation(location, activityInfo)
     }
 
     @Nested

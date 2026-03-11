@@ -3,14 +3,13 @@ package com.adsamcik.tracker.impexp.importer.file
 import android.content.Context
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.shared.base.data.SessionActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.doubles.shouldBeExactly
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -28,39 +27,39 @@ class GpxImportTest {
 
 	private val gpxImport = GpxImport()
 	private lateinit var mockDatabase: AppDatabase
-	private lateinit var mockLocationDao: LocationDataDao
-	private lateinit var mockSessionDao: SessionDataDao
+	private lateinit var mockLocationSampleDao: LocationSampleDao
+	private lateinit var mockSegmentDao: SessionSegmentDao
 	private lateinit var mockActivityDao: ActivityDao
 	private lateinit var mockContext: Context
 
-	private val capturedLocations = mutableListOf<DatabaseLocation>()
-	private val capturedSessions = mutableListOf<TrackerSession>()
+	private val capturedSamples = mutableListOf<LocationSample>()
+	private val capturedSegments = mutableListOf<SessionSegment>()
 	private var locationInsertCallCount = 0
 
 	@BeforeEach
 	fun setUp() {
-		capturedLocations.clear()
-		capturedSessions.clear()
+		capturedSamples.clear()
+		capturedSegments.clear()
 		locationInsertCallCount = 0
 
-		mockLocationDao = mockk {
-			every { insert(any<Collection<DatabaseLocation>>()) } answers {
-				val batch = firstArg<Collection<DatabaseLocation>>()
-				capturedLocations.addAll(batch)
+		mockLocationSampleDao = mockk {
+			every { insert(any<Collection<LocationSample>>()) } answers {
+				val batch = firstArg<Collection<LocationSample>>()
+				capturedSamples.addAll(batch)
 				locationInsertCallCount++
 				batch.map { 0L }
 			}
 		}
-		mockSessionDao = mockk {
-			every { insert(any<TrackerSession>()) } answers {
-				capturedSessions.add(firstArg())
+		mockSegmentDao = mockk {
+			every { insert(any<SessionSegment>()) } answers {
+				capturedSegments.add(firstArg())
 				1L
 			}
 		}
 		mockActivityDao = mockk(relaxed = true)
 		mockDatabase = mockk {
-			every { locationDao() } returns mockLocationDao
-			every { sessionDao() } returns mockSessionDao
+			every { locationSampleDao() } returns mockLocationSampleDao
+			every { sessionSegmentDao() } returns mockSegmentDao
 			every { activityDao() } returns mockActivityDao
 		}
 		mockContext = mockk(relaxed = true)
@@ -108,12 +107,12 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations shouldHaveSize 2
-			capturedLocations[0].location.latitude shouldBeExactly 50.0
-			capturedLocations[0].location.longitude shouldBeExactly 14.0
-			capturedLocations[0].location.altitude shouldBe 200.0
-			capturedLocations[1].location.latitude shouldBeExactly 50.1
-			capturedLocations[1].location.longitude shouldBeExactly 14.1
+			capturedSamples shouldHaveSize 2
+			capturedSamples[0].latE7 shouldBe (50.0 * 1e7).toInt()
+			capturedSamples[0].lonE7 shouldBe (14.0 * 1e7).toInt()
+			capturedSamples[0].altitudeM shouldBe 200.0f
+			capturedSamples[1].latE7 shouldBe (50.1 * 1e7).toInt()
+			capturedSamples[1].lonE7 shouldBe (14.1 * 1e7).toInt()
 		}
 
 		@Test
@@ -137,12 +136,11 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedSessions shouldHaveSize 1
-			val session = capturedSessions.first()
-			session.collections shouldBe 2
-			session.isUserInitiated shouldBe true
-			(session.end >= session.start) shouldBe true
-			(session.end - session.start) shouldBe 5 * 60 * 1000L
+			capturedSegments shouldHaveSize 1
+			val segment = capturedSegments.first()
+			segment.sampleCount shouldBe 2
+			(segment.endTimeMs >= segment.startTimeMs) shouldBe true
+			(segment.endTimeMs - segment.startTimeMs) shouldBe 5 * 60 * 1000L
 		}
 
 		@Test
@@ -163,9 +161,9 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations shouldHaveSize 1
-			capturedLocations[0].location.latitude shouldBeExactly 50.12345678
-			capturedLocations[0].location.longitude shouldBeExactly 14.98765432
+			capturedSamples shouldHaveSize 1
+			capturedSamples[0].latE7 shouldBe (50.12345678 * 1e7).toInt()
+			capturedSamples[0].lonE7 shouldBe (14.98765432 * 1e7).toInt()
 		}
 
 		@Test
@@ -187,7 +185,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations.first().location.altitude shouldBe 350.5
+			capturedSamples.first().altitudeM shouldBe 350.5f
 		}
 
 		@Test
@@ -208,7 +206,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations.first().location.altitude shouldBe null
+			capturedSamples.first().altitudeM shouldBe null
 		}
 
 		@Test
@@ -235,7 +233,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedSessions.first().distanceInM shouldBeGreaterThan 0f
+			capturedSegments.first().distanceM shouldBeGreaterThan 0f
 		}
 	}
 
@@ -333,8 +331,8 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations shouldHaveSize 0
-			capturedSessions shouldHaveSize 0
+			capturedSamples shouldHaveSize 0
+			capturedSegments shouldHaveSize 0
 		}
 
 		@Test
@@ -354,7 +352,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedSessions shouldHaveSize 0
+			capturedSegments shouldHaveSize 0
 		}
 
 		@Test
@@ -380,7 +378,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations shouldHaveSize 2
+			capturedSamples shouldHaveSize 2
 		}
 
 		@Test
@@ -406,7 +404,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedSessions shouldHaveSize 2
+			capturedSegments shouldHaveSize 2
 		}
 
 		@Test
@@ -428,7 +426,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations.first().location.altitude shouldBe -430.0
+			capturedSamples.first().altitudeM shouldBe -430.0f
 		}
 
 		@Test
@@ -452,11 +450,11 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations shouldHaveSize 2
-			capturedLocations[0].location.latitude shouldBeExactly 89.999
-			capturedLocations[0].location.longitude shouldBeExactly -179.999
-			capturedLocations[1].location.latitude shouldBeExactly -89.999
-			capturedLocations[1].location.longitude shouldBeExactly 179.999
+			capturedSamples shouldHaveSize 2
+			capturedSamples[0].latE7 shouldBe (89.999 * 1e7).toInt()
+			capturedSamples[0].lonE7 shouldBe (-179.999 * 1e7).toInt()
+			capturedSamples[1].latE7 shouldBe (-89.999 * 1e7).toInt()
+			capturedSamples[1].lonE7 shouldBe (179.999 * 1e7).toInt()
 		}
 
 		@Test
@@ -483,7 +481,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedSessions.first().collections shouldBe 3
+			capturedSegments.first().sampleCount shouldBe 3
 		}
 	}
 
@@ -512,7 +510,7 @@ class GpxImportTest {
 
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
-			capturedLocations shouldHaveSize 250
+			capturedSamples shouldHaveSize 250
 			// chunked(100) → 100 + 100 + 50 = 3 insert calls
 			locationInsertCallCount shouldBe 3
 		}

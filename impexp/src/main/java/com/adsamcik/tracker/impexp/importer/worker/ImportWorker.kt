@@ -134,8 +134,10 @@ class ImportWorker(
     @WorkerThread
     private suspend fun tryImport(stream: FileImportStream): ImportResult {
         val extension = stream.extension.lowercase(Locale.ROOT)
-        val importer = import.activeImporterList
-            .find { it.supportedExtensions.contains(extension) }
+        val importer = when (extension) {
+            "gpx", "kml" -> import.activeImporterList.find { it.supportedExtensions.contains(extension) }
+            else -> import.activeImporterList.find { it.supportedExtensions.contains(extension) }
+        }
 
         if (importer != null) {
             return import(stream, importer)
