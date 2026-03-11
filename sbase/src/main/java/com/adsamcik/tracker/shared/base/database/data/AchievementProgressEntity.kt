@@ -7,7 +7,11 @@ import androidx.room.PrimaryKey
 
 @Entity(
 	tableName = "achievement_progress",
-	indices = [Index(value = ["achievement_id"], unique = true)]
+	indices = [
+		Index(value = ["achievement_id"], unique = true),
+		Index(value = ["updated_at"]),
+		Index(value = ["unlocked_at"])
+	]
 )
 data class AchievementProgressEntity(
 	@PrimaryKey(autoGenerate = true) val id: Long = 0,

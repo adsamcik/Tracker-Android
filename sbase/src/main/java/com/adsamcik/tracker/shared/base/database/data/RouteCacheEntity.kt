@@ -16,6 +16,7 @@ import androidx.room.PrimaryKey
 	tableName = "route_cache",
 	indices = [
 		Index(value = ["session_id"]),
+		Index(value = ["segment_id"]),
 		Index(value = ["start_time"])
 	]
 )

@@ -15,7 +15,8 @@ import androidx.room.PrimaryKey
 		Index(
 			value = ["center_lat_e7", "center_lon_e7"],
 			name = "idx_frequent_place_coords"
-		)
+		),
+		Index(value = ["last_visit_ms"])
 	]
 )
 data class FrequentPlaceEntity(

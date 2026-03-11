@@ -14,7 +14,8 @@ import androidx.room.PrimaryKey
 	indices = [
 		Index(value = ["cell_token"], unique = true),
 		Index(value = ["level"]),
-		Index(value = ["first_discovered_at"])
+		Index(value = ["first_discovered_at"]),
+		Index(value = ["level", "first_discovered_at"])
 	]
 )
 data class ExplorationCellEntity(

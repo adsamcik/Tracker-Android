@@ -946,3 +946,23 @@ val MIGRATION_21_22: Migration = object : Migration(21, 22) {
 	}
 }
 
+/**
+ * Version 23: Add missing query indices for route cache, export logs,
+ * frequent places, exploration cells, and achievement progress.
+ */
+val MIGRATION_22_23: Migration = object : Migration(22, 23) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL("CREATE INDEX IF NOT EXISTS index_route_cache_segment_id ON route_cache(segment_id)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_export_log_completed_at ON export_log(completed_at)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_frequent_place_last_visit_ms ON frequent_place(last_visit_ms)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_exploration_cell_level_first_discovered_at ON exploration_cell(level, first_discovered_at)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_updated_at ON achievement_progress(updated_at)")
+			execSQL("CREATE INDEX IF NOT EXISTS index_achievement_progress_unlocked_at ON achievement_progress(unlocked_at)")
+			android.util.Log.i(
+				"AppDatabase",
+				"Migration 22->23: Added missing query indices for cache, export, place, exploration, and achievement tables"
+			)
+		}
+	}
+}

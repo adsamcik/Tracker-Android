@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -11,7 +12,10 @@ import androidx.room.PrimaryKey
  * file details, and success/failure status. Useful for showing export
  * history to the user and diagnosing export issues.
  */
-@Entity(tableName = "export_log")
+@Entity(
+	tableName = "export_log",
+	indices = [Index(value = ["completed_at"])]
+)
 data class ExportLogEntity(
 	@PrimaryKey(autoGenerate = true)
 	val id: Long = 0,
