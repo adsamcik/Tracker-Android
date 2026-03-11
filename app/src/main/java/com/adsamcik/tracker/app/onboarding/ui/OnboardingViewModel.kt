@@ -278,7 +278,6 @@ class OnboardingViewModel : ViewModel() {
             trackingMinTimeSeconds = null,
             
             // Gamification enabled by default (engagement)
-            enableAnonymousAnalytics = false, // Privacy-first
             autoStartTracking = false, // User-initiated
             enableSmartPause = true,
             autoCleanupOldData = false // User controls data retention

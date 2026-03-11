@@ -30,7 +30,6 @@ data class UserPreferences(
     val enableCloudBackup: Boolean = false,
     // Stage 2 additions
     val autoCleanupOldData: Boolean = false,
-    val enableAnonymousAnalytics: Boolean = false,
     val autoStartTracking: Boolean = false,
     val enableSmartPause: Boolean = true,
     // Auto-tracking settings mapped to real Settings screen options

@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.app.settings.root
 
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +16,10 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -189,21 +186,6 @@ fun RootSettingsScreen(
                     icon = Icons.AutoMirrored.Filled.Article,
                     onClick = {
                         context.startActivity(Intent(context, ThirdPartyLicensesActivity::class.java))
-                    }
-                )
-                SettingsItem(
-                    title = stringResource(R.string.settings_privacy_policy_title),
-                    icon = Icons.Default.PrivacyTip,
-                    onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/adsamcik/Tracker-Android/blob/master/PRIVACY_POLICY.md")))
-                    }
-                )
-                SettingsItem(
-                    title = stringResource(R.string.settings_send_feedback_title),
-                    subtitle = stringResource(R.string.settings_send_feedback_subtitle),
-                    icon = Icons.Default.Feedback,
-                    onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/adsamcik/Tracker-Android/issues")))
                     }
                 )
             }
