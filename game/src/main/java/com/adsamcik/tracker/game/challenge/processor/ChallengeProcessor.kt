@@ -32,7 +32,7 @@ interface ChallengeProcessor {
 	 *
 	 * @return The amount to add to [ChallengeEntity.currentValue]
 	 */
-	fun extractProgress(context: Context, session: TrackerSession): Double
+	suspend fun extractProgress(context: Context, session: TrackerSession): Double
 
 	/** Default required value for this challenge type at base difficulty. */
 	val defaultRequiredValue: Double

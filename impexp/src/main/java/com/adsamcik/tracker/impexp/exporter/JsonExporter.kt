@@ -4,7 +4,8 @@ import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.BufferedWriter
 import java.io.OutputStream
 import java.io.OutputStreamWriter
@@ -26,7 +27,7 @@ class JsonExporter : Exporter {
 	override val mimeType: String = "application/json"
 	override val extension: String = "json"
 
-	override fun export(
+	override suspend fun export(
 		context: Context,
 		locationData: Sequence<LocationSample>,
 		outputStream: OutputStream,
@@ -35,7 +36,7 @@ class JsonExporter : Exporter {
 		val db = AppDatabase.database(context)
 
 		val sessions = try {
-			val trips = runBlocking { db.tripDao().getBetween(0L, Long.MAX_VALUE) }
+			val trips = withContext(Dispatchers.IO) { db.tripDao().getBetween(0L, Long.MAX_VALUE) }
 			trips.map { t ->
 				SessionSnapshot(
 					id = t.id,

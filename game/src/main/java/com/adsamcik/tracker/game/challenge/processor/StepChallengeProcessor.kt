@@ -19,7 +19,7 @@ class StepChallengeProcessor @Inject constructor() : ChallengeProcessor {
 		)
 	}
 
-	override fun extractProgress(context: Context, session: TrackerSession): Double {
+	override suspend fun extractProgress(context: Context, session: TrackerSession): Double {
 		return session.steps.toDouble()
 	}
 

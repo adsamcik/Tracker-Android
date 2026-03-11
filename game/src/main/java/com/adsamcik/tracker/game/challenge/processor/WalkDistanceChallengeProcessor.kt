@@ -23,7 +23,7 @@ class WalkDistanceChallengeProcessor @Inject constructor() : ChallengeProcessor 
 		return context.getString(R.string.challenge_walk_in_the_park_description, formatted)
 	}
 
-	override fun extractProgress(context: Context, session: TrackerSession): Double {
+	override suspend fun extractProgress(context: Context, session: TrackerSession): Double {
 		return session.distanceOnFootInM.toDouble()
 	}
 

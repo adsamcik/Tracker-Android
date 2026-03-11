@@ -19,7 +19,7 @@ class ActiveTimeChallengeProcessor @Inject constructor() : ChallengeProcessor {
 		)
 	}
 
-	override fun extractProgress(context: Context, session: TrackerSession): Double {
+	override suspend fun extractProgress(context: Context, session: TrackerSession): Double {
 		val estimatedSeconds = (session.distanceOnFootInM / 1.4)
 			.coerceAtMost((session.end - session.start) / 1000.0)
 		return estimatedSeconds / 60.0

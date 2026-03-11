@@ -28,7 +28,7 @@ class SpeedChallengeProcessor @Inject constructor() : ChallengeProcessor {
 		return context.getString(R.string.challenge_speed_description, formatted)
 	}
 
-	override fun extractProgress(context: Context, session: TrackerSession): Double {
+	override suspend fun extractProgress(context: Context, session: TrackerSession): Double {
 		return session.distanceOnFootInM.toDouble()
 	}
 

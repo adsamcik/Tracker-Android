@@ -34,7 +34,7 @@ interface Exporter {
 	 * @param dateRange Optional time range (epochMillis start..end) for metadata; avoids
 	 *   needing to scan the full sequence just for boundary timestamps
 	 */
-	fun export(
+	suspend fun export(
 			context: Context,
 			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,

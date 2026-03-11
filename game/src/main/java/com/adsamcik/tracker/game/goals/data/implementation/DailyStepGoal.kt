@@ -24,15 +24,13 @@ class DailyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 	override val goalPreferenceDefaultRes: Int
 		get() = R.string.settings_game_goals_day_steps_default
 
-	override fun updateFromDatabase(context: Context) {
+	override suspend fun updateFromDatabase(context: Context) {
 		val today = Time.today
 		val tomorrow = Time.tomorrow
-		val todayTrips = kotlinx.coroutines.runBlocking {
-			AppDatabase
-				.database(context)
-				.tripDao()
-				.getBetween(today.toEpochMillis(), tomorrow.toEpochMillis())
-		}
+		val todayTrips = AppDatabase
+			.database(context)
+			.tripDao()
+			.getBetween(today.toEpochMillis(), tomorrow.toEpochMillis())
 
 		value = todayTrips.sumOf { it.steps ?: 0 }
 	}

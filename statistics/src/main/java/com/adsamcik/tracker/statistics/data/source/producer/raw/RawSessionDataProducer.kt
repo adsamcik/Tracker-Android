@@ -11,7 +11,7 @@ class RawSessionDataProducer : RawDataProducer {
 	override val type: StatDataSource
 		get() = StatDataSource.SESSION
 
-	override fun produce(context: Context, startTime: Long, endTime: Long): Any? {
+	override suspend fun produce(context: Context, startTime: Long, endTime: Long): Any? {
 		return null
 	}
 }

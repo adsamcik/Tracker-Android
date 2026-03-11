@@ -16,7 +16,7 @@ class KmlExporter : Exporter {
 	override val mimeType: String = "application/vnd.google-earth.kml+xml"
 	override val extension: String = "kml"
 
-	override fun export(
+	override suspend fun export(
 			context: Context,
 			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,

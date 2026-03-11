@@ -647,7 +647,7 @@ fun ExportScreenPreview() {
         override val canSelectDateRange: Boolean = true
         override val mimeType: String = "application/zip"
         override val extension: String = "zip"
-        override fun export(
+        override suspend fun export(
             context: Context,
             locationData: Sequence<LocationSample>,
             outputStream: OutputStream,

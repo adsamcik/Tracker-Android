@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.statistics.data.source.abstraction
 
 import android.content.Context
-import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.statistics.data.source.StatDataSource
 
 /**
@@ -18,8 +17,7 @@ interface RawDataProducer {
 	 *
 	 * @return Returns data or null if the data is not available.
 	 */
-	@WorkerThread
-	fun produce(
+	suspend fun produce(
 			context: Context,
 			startTime: Long,
 			endTime: Long

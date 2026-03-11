@@ -24,7 +24,7 @@ class ConsistencyChallengeProcessor @Inject constructor() : ChallengeProcessor {
 		)
 	}
 
-	override fun extractProgress(context: Context, session: TrackerSession): Double {
+	override suspend fun extractProgress(context: Context, session: TrackerSession): Double {
 		// Consistency doesn't use simple additive progress —
 		// it's handled by updateEntity() which manages the day set.
 		// Return 0 here; actual progress is computed in updateEntity.

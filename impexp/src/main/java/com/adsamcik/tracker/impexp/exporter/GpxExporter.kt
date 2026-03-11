@@ -21,7 +21,7 @@ class GpxExporter : Exporter {
 
 	override val extension: String = "gpx"
 
-	override fun export(
+	override suspend fun export(
 			context: Context,
 			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,

@@ -16,7 +16,7 @@ class DatabaseExporter : Exporter {
 	override val mimeType: String = "application/vnd.sqlite3"
 	override val extension: String = "db"
 
-	override fun export(
+	override suspend fun export(
 			context: Context,
 			locationData: Sequence<LocationSample>,
 			outputStream: OutputStream,

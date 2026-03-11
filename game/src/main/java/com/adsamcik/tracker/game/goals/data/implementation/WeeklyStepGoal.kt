@@ -28,18 +28,16 @@ class WeeklyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 	override val goalPreferenceDefaultRes: Int
 		get() = R.string.settings_game_goals_week_steps_default
 
-	override fun updateFromDatabase(context: Context) {
+	override suspend fun updateFromDatabase(context: Context) {
 		val now = Time.now
 		val startOfTheWeek = now
 			.with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1L)
 			.with(ChronoField.NANO_OF_DAY, 0L)
 		val endOfTheWeek = startOfTheWeek.plusWeeks(1L)
-		val weekTrips = kotlinx.coroutines.runBlocking {
-			AppDatabase
-				.database(context)
-				.tripDao()
-				.getBetween(startOfTheWeek.toEpochMillis(), endOfTheWeek.toEpochMillis())
-		}
+		val weekTrips = AppDatabase
+			.database(context)
+			.tripDao()
+			.getBetween(startOfTheWeek.toEpochMillis(), endOfTheWeek.toEpochMillis())
 
 		value = weekTrips.sumOf { it.steps ?: 0 }
 	}
