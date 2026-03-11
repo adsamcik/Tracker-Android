@@ -49,6 +49,10 @@ class ExplorationProcessor(
 					processorId = descriptor.id,
 					cellToken = discovery.token,
 					level = discovery.level,
+					centerLatE7 = discovery.centerLatE7,
+					centerLonE7 = discovery.centerLonE7,
+					quality = discovery.quality.ordinal,
+					seasonBit = discovery.seasonBit,
 				),
 			)
 		}

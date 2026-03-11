@@ -24,4 +24,7 @@ data class TrackingParamsState(
         const val DEFAULT_REQUIRED_ACCURACY = 50
         const val DEFAULT_PRESET = "BALANCED"
     }
+
+    val preset: TrackingPreset
+        get() = TrackingPreset.fromName(presetName)
 }

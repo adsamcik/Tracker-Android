@@ -54,7 +54,6 @@ android {
 
 	buildTypes {
 		getByName("debug") {
-			enableUnitTestCoverage = true
 		}
 		create("release_nominify") {
 			isMinifyEnabled = false

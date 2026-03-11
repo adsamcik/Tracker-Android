@@ -23,5 +23,8 @@ interface PointsAwardedDao : BaseDao<PointsAwarded> {
 	@Query("SELECT COALESCE(SUM(value), 0) FROM points_awarded WHERE time >= :from AND time <= :to")
 	fun countBetweenFlow(from: Long, to: Long): Flow<Int>
 
+	@Query("SELECT EXISTS(SELECT 1 FROM points_awarded WHERE time = :time AND source = :source LIMIT 1)")
+	fun hasAwardAt(time: Long, source: String): Boolean
+
 
 }

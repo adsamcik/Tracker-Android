@@ -76,6 +76,10 @@ class DefaultDomainEventRepository @Inject constructor(
 			is DomainEvent.CellDiscovered -> "CellDiscovered" to JSONObject().apply {
 				put("cellToken", cellToken)
 				put("level", level)
+				put("centerLatE7", centerLatE7)
+				put("centerLonE7", centerLonE7)
+				put("quality", quality)
+				put("seasonBit", seasonBit)
 			}
 			is DomainEvent.AchievementUnlocked -> "AchievementUnlocked" to JSONObject().apply {
 				put("achievementId", achievementId)
@@ -151,6 +155,10 @@ class DefaultDomainEventRepository @Inject constructor(
 				processorId = pid,
 				cellToken = json.getString("cellToken"),
 				level = json.getInt("level"),
+				centerLatE7 = json.optInt("centerLatE7", 0),
+				centerLonE7 = json.optInt("centerLonE7", 0),
+				quality = json.optInt("quality", 0),
+				seasonBit = json.optInt("seasonBit", 0),
 			)
 			"AchievementUnlocked" -> DomainEvent.AchievementUnlocked(
 				timestampMs = ts,

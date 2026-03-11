@@ -3,6 +3,7 @@ package com.adsamcik.tracker.points.event
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.logger.LogData
@@ -70,7 +71,11 @@ class PointsDomainEventConsumer @Inject constructor(
 			)
 			.build()
 
-		workManager.enqueue(workRequest)
+		workManager.enqueueUniqueWork(
+			uniqueWorkName(sessionId),
+			ExistingWorkPolicy.KEEP,
+			workRequest,
+		)
 
 		Logger.log(
 			LogData(
@@ -84,5 +89,7 @@ class PointsDomainEventConsumer @Inject constructor(
 		const val CONSUMER_ID = "points-module"
 		private const val ARG_SESSION_ID = "id"
 		private const val POINTS_WORK_TAG = "SessionPoints"
+
+		private fun uniqueWorkName(sessionId: Long): String = "$POINTS_WORK_TAG-$sessionId"
 	}
 }

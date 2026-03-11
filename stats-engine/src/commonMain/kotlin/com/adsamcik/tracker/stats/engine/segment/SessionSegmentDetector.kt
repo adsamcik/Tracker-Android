@@ -302,7 +302,10 @@ class SessionSegmentDetector(
 		}
 	}
 
-	private fun buildTripEnded(endTimeMs: Long): SegmentEvent.TripEnded {
+	private fun buildTripEnded(endTimeMs: Long): SegmentEvent.TripEnded? {
+		if (tripDistanceM <= 0f && tripSteps <= 0) {
+			return null
+		}
 		val primaryActivity = activityVotes.maxByOrNull { it.value }?.key
 		val avgConfidence = if (activityConfidenceCount > 0) {
 			activityConfidenceSum / activityConfidenceCount

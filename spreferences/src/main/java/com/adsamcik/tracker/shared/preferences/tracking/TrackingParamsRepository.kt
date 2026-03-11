@@ -23,6 +23,6 @@ interface TrackingParamsRepository {
     suspend fun setMinDistanceMeters(meters: Int)
     suspend fun setMinTimeSeconds(seconds: Int)
     suspend fun setRequiredAccuracyMeters(meters: Int)
-    suspend fun setPresetName(name: String)
+    suspend fun setPreset(preset: TrackingPreset)
     suspend fun setSkiDetectionEnabled(enabled: Boolean)
 }

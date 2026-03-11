@@ -38,7 +38,7 @@ class FormatHelpersTest {
 		val state = TrackerSettingsState(
 			autoUnitSwitch = false,
 			lengthSystem = system,
-			speedFormat = SpeedFormat.Hour
+			speedFormat = SpeedFormat.Hour,
 		)
 		resetSettingsSingleton(MutableStateFlow(state))
 	}

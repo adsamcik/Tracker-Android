@@ -30,7 +30,7 @@ message TrackingParamsProto {
   int32 min_time_seconds = 12;
   int32 required_accuracy_meters = 13;
 
-  // Current preset name (empty or "CUSTOM" for custom settings)
+  // Current preset name (HIGH_ACCURACY, BALANCED, POWER_SAVE, CUSTOM)
   string preset_name = 14;
 
   // Ski detection

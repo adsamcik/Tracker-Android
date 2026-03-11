@@ -136,6 +136,10 @@ class DefaultDomainEventRepositoryTest {
 				processorId = "test",
 				cellToken = "abc123",
 				level = 5,
+				centerLatE7 = 492000000,
+				centerLonE7 = 166000000,
+				quality = 2,
+				seasonBit = 4,
 			),
 		)
 	}

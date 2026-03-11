@@ -89,6 +89,27 @@ class AggregatorProcessor(
 		aggregator.seedDayTotals(distanceM, steps, durationMs, trips)
 	}
 
+	/**
+	 * Returns the current aggregator state as a flat metrics map for achievement evaluation.
+	 * Safe to call at any time; returns an empty map when the aggregator is inactive.
+	 *
+	 * Keys match the [AchievementCatalog] metric names where applicable.
+	 */
+	fun snapshotMetrics(): Map<String, Long> {
+		if (!aggregator.isActive) return emptyMap()
+		val snap = aggregator.snapshot()
+		return mapOf(
+			"total_distance_km" to (snap.dayTotalDistanceM / 1000f).toLong(),
+			"total_steps" to snap.dayTotalSteps.toLong(),
+			"total_trips" to snap.tripCount.toLong(),
+			"session_distance_m" to snap.sessionDistanceM.toLong(),
+			"session_steps" to snap.sessionSteps.toLong(),
+			"session_duration_ms" to snap.sessionDurationMs,
+			"longest_trip_km" to (snap.sessionDistanceM / 1000f).toLong(),
+			"best_daily_steps" to snap.dayTotalSteps.toLong(),
+		)
+	}
+
 	override fun checkpoint(): ByteArray = aggregator.serialize()
 
 	override fun restore(state: ByteArray) {

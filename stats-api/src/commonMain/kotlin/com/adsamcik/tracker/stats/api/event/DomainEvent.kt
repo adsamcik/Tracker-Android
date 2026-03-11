@@ -64,6 +64,10 @@ sealed interface DomainEvent {
 		override val processorId: String,
 		val cellToken: String,
 		val level: Int,
+		val centerLatE7: Int,
+		val centerLonE7: Int,
+		val quality: Int,
+		val seasonBit: Int,
 	) : DomainEvent
 
 	// --- Gamification context ---

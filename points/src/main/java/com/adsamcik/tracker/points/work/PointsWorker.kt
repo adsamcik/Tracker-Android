@@ -13,16 +13,18 @@ import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
 import androidx.annotation.VisibleForTesting
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 import kotlin.math.abs
 import kotlin.math.max
+import kotlinx.coroutines.runBlocking
 
 internal class PointsWorker(context: Context, workerParams: WorkerParameters) : Worker(
 	context,
@@ -38,43 +40,52 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 
 	override fun doWork(): Result {
 		val id = this.inputData.getPositiveLongReportNull(ARG_ID) ?: return Result.failure()
-		val session = AppDatabase.database(applicationContext).sessionDao().get(id)
-			?: return logResult("Found no session for point calculation.", Result.failure())
+		val trip = runBlocking {
+			AppDatabase.database(applicationContext).tripDao().getById(id)
+		} ?: return logResult("Found no session for point calculation.", Result.failure())
+		val awardTime = trip.endTimeMs.takeIf { it > 0L } ?: Time.nowMillis
+		val pointsDao = PointsDatabase
+			.database(applicationContext)
+			.pointsAwardedDao()
 
-		val locationData = AppDatabase.database(applicationContext)
-			.locationDao()
-			.getAllBetweenOrdered(session.start, session.end)
-			.filter { it.altitude != null && it.activityInfo.groupedActivity == GroupedActivity.ON_FOOT }
-
-		if (locationData.size <= 1) {
-			return logResult(
-				"Not enough locations with altitude and on foot for point calculation.",
-				Result.failure()
-			)
+		if (pointsDao.hasAwardAt(awardTime, AwardSource.SESSION.value)) {
+			return logResult("Points already awarded for session $id at $awardTime, skipping duplicate.", Result.success())
 		}
 
-		val slopeList = calculateSlope(locationData)
+		val locationData = runBlocking {
+			AppDatabase.database(applicationContext)
+				.locationSampleDao()
+				.getAllBetween(trip.startTimeMs, trip.endTimeMs)
+		}
+			.mapNotNull { it.toDatabaseLocation() }
+			.filter { it.altitude != null }
 
-		val points = slopeList.sumOf {
-			@Suppress("MagicNumber")
-			val slopePositive = max(it.slope, 0.0)
+		val points = if (locationData.size > 1) {
+			val slopeList = calculateSlope(locationData)
+			slopeList.sumOf {
+				@Suppress("MagicNumber")
+				val slopePositive = max(it.slope, 0.0)
 
-			@Suppress("MagicNumber")
-			val slopeBonus = kotlin.math.sqrt(slopePositive / HALF_SLOPE) * SLOPE_MULTIPLIER
+				@Suppress("MagicNumber")
+				val slopeBonus = kotlin.math.sqrt(slopePositive / HALF_SLOPE) * SLOPE_MULTIPLIER
 
-			it.distance * POINTS_PER_METER_MPS * it.speedMPS * (1.0 + slopeBonus)
+				it.distance * POINTS_PER_METER_MPS * it.speedMPS * (1.0 + slopeBonus)
+			}
+		} else {
+			calculateFallbackPoints(trip)
+		}
+
+		if (points <= 0.0) {
+			return logResult("No qualifying movement found for point calculation.", Result.failure())
 		}
 
 		val awardPoints = PointsAwarded(
-			Time.nowMillis,
+			awardTime,
 			Points(points),
 			AwardSource.SESSION
 		)
 
-		PointsDatabase
-			.database(applicationContext)
-			.pointsAwardedDao()
-			.insert(awardPoints)
+		pointsDao.insert(awardPoints)
 
 		return logResult(
 			"Awarded ${awardPoints.value.value.format(2)} points from ${awardPoints.source.value}",
@@ -84,6 +95,32 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 
 	private fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> =
 		Companion.calculateSlope(locationData)
+
+	private fun calculateFallbackPoints(trip: Trip): Double {
+		val durationMinutes = ((trip.endTimeMs - trip.startTimeMs).coerceAtLeast(0L) / 60_000.0)
+		val stepPoints = (trip.steps ?: 0).coerceAtLeast(0) * FALLBACK_POINTS_PER_STEP
+		val distancePoints = trip.distanceM.coerceAtLeast(0f) * FALLBACK_POINTS_PER_METER
+		val durationPoints = durationMinutes * FALLBACK_POINTS_PER_MINUTE
+		return max(stepPoints, max(distancePoints, durationPoints))
+	}
+
+	private fun LocationSample.toDatabaseLocation(): DatabaseLocation? {
+		val lat = latE7 ?: return null
+		val lon = lonE7 ?: return null
+		return DatabaseLocation(
+			location = Location(
+				time = timeMs,
+				latitude = lat / 1e7,
+				longitude = lon / 1e7,
+				altitude = altitudeM?.toDouble(),
+				horizontalAccuracy = hAccM,
+				verticalAccuracy = null,
+				speed = speedMps,
+				speedAccuracy = null,
+			),
+			activityInfo = ActivityInfo.UNKNOWN,
+		)
+	}
 
 	data class SlopeData(
 		val location: Location,
@@ -100,6 +137,9 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		private const val SLOPE_MULTIPLIER = 12
 		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
 		private const val ALTITUDE_THRESHOLD = 10.0
+		private const val FALLBACK_POINTS_PER_STEP = 0.01
+		private const val FALLBACK_POINTS_PER_METER = 0.005
+		private const val FALLBACK_POINTS_PER_MINUTE = 0.5
 
 		@VisibleForTesting
 		internal fun calculateSlope(locationData: Collection<DatabaseLocation>): Collection<SlopeData> {

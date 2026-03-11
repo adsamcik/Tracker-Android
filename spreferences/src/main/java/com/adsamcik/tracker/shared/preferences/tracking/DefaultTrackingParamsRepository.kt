@@ -17,7 +17,24 @@ import java.io.OutputStream
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 
 private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
-    override val defaultValue: TrackingParamsProto = TrackingParamsProto.getDefaultInstance()
+    override val defaultValue: TrackingParamsProto = TrackingParamsProto.newBuilder()
+        .setLocationEnabled(true)
+        .setActivityEnabled(true)
+        .setStepsEnabled(true)
+        .setWifiEnabled(false)
+        .setCellEnabled(false)
+        .setWifiNetworkEnabled(false)
+        .setWifiLocationCountEnabled(false)
+        .setAutoTrackingMode(1)
+        .setTransitionDetectionEnabled(true)
+        .setNotificationStyled(true)
+        .setMinDistanceMeters(TrackingParamsState.DEFAULT_MIN_DISTANCE)
+        .setMinTimeSeconds(TrackingParamsState.DEFAULT_MIN_TIME)
+        .setRequiredAccuracyMeters(TrackingParamsState.DEFAULT_REQUIRED_ACCURACY)
+        .setPresetName(TrackingParamsState.DEFAULT_PRESET)
+        .setSkiDetectionEnabled(false)
+        .setLegacyMigrated(false)
+        .build()
 
     override suspend fun readFrom(input: InputStream): TrackingParamsProto = try {
         TrackingParamsProto.parseFrom(input)
@@ -67,7 +84,7 @@ class DefaultTrackingParamsRepository(
     override suspend fun setMinDistanceMeters(meters: Int) = updateField { setMinDistanceMeters(meters.coerceAtLeast(1)) }
     override suspend fun setMinTimeSeconds(seconds: Int) = updateField { setMinTimeSeconds(seconds.coerceAtLeast(1)) }
     override suspend fun setRequiredAccuracyMeters(meters: Int) = updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
-    override suspend fun setPresetName(name: String) = updateField { setPresetName(name) }
+    override suspend fun setPreset(preset: TrackingPreset) = updateField { setPresetName(preset.name) }
     override suspend fun setSkiDetectionEnabled(enabled: Boolean) = updateField { setSkiDetectionEnabled(enabled) }
 
     private suspend fun updateField(block: TrackingParamsProto.Builder.() -> TrackingParamsProto.Builder) {
@@ -93,7 +110,7 @@ class DefaultTrackingParamsRepository(
             val cellEnabled = prefs.getBooleanRes(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default)
             val wifiNetworkEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
             val wifiLocationCountEnabled = prefs.getBooleanRes(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default)
-            val autoTrackingMode = prefs.getStringAsIntResString(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default)
+            val autoTrackingMode = prefs.getIntResString(PrefR.string.settings_tracking_activity_key, PrefR.string.settings_tracking_activity_default)
             val transitionEnabled = prefs.getBooleanRes(PrefR.string.settings_auto_tracking_transition_key, PrefR.string.settings_auto_tracking_transition_default)
             val notificationStyled = prefs.getBooleanRes(PrefR.string.settings_notification_styled_key, PrefR.string.settings_notification_styled_default)
             val minDistance = prefs.getInt(context.getString(PrefR.string.settings_tracking_min_distance_key), TrackingParamsState.DEFAULT_MIN_DISTANCE)
@@ -149,7 +166,7 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         minDistanceMeters = minDistanceMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_DISTANCE,
         minTimeSeconds = minTimeSeconds.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_TIME,
         requiredAccuracyMeters = requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY,
-        presetName = presetName.ifEmpty { TrackingParamsState.DEFAULT_PRESET },
+        presetName = TrackingPreset.fromName(presetName).name,
         skiDetectionEnabled = skiDetectionEnabled,
     )
 }

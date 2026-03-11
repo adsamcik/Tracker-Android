@@ -36,13 +36,6 @@ object Reporter : ErrorReporter {
 
 		if (isEmulator) return
 
-		val prefs = Preferences.getPref(context)
-		// Initial sync read for immediate availability; Flow subscription follows for updates
-		@Suppress("DEPRECATION")
-		isEnabled = prefs.getBooleanRes(
-			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_key,
-			com.adsamcik.tracker.shared.preferences.R.string.settings_error_reporting_default
-		)
 		preferenceJob?.cancel()
 		preferenceJob = PreferenceFlows.boolean(
 			context,
@@ -126,4 +119,3 @@ object Reporter : ErrorReporter {
 		Log.println(priority, scopedTag, message)
 	}
 }
-

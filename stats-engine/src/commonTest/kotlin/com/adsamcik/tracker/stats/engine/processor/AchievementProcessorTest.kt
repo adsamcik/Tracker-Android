@@ -69,4 +69,19 @@ class AchievementProcessorTest {
 		val postStopEvents = processor.onFlush()
 		postStopEvents.shouldBeEmpty()
 	}
+
+	@Test
+	fun `flush with real metrics produces achievement events`() = runTest {
+		val processor = AchievementProcessor(
+			evaluator = AchievementEvaluator(),
+			metricsProvider = {
+				mapOf("total_steps" to 15_000L)
+			},
+		)
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
+
+		val events = processor.onFlush()
+		// total_steps=15_000 should trigger BRONZE tier (10_000) on "steps_total" achievement
+		events.shouldHaveSize(1)
+	}
 }

@@ -50,8 +50,22 @@ class DefaultTripRepository @Inject constructor(
 			distance = DistanceM.coerced(distanceM),
 			steps = StepCount.coerced(steps ?: 0),
 			duration = DurationMs((endTimeMs - startTimeMs).coerceAtLeast(0L)),
-			primaryMode = TransportMode.UNKNOWN, // Will be enriched by TripEnricher
+			primaryMode = resolveTransportMode(),
 			sampleCount = sampleCount,
 		)
 	}
+
+	private fun com.adsamcik.tracker.shared.base.database.data.Trip.resolveTransportMode(): TransportMode =
+		when (primaryActivity) {
+			7 -> TransportMode.WALK
+			8 -> TransportMode.RUN
+			1 -> TransportMode.CYCLE
+			0 -> TransportMode.DRIVE
+			else -> when (source) {
+				com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_HIGH_CONFIDENCE,
+				com.adsamcik.tracker.shared.base.database.data.SegmentSource.INFERRED_MEDIUM_CONFIDENCE ->
+					TransportMode.TRANSIT
+				else -> TransportMode.UNKNOWN
+			}
+		}
 }

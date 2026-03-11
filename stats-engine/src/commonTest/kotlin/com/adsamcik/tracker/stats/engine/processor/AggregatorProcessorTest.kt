@@ -101,4 +101,27 @@ class AggregatorProcessorTest {
 		event.totalDistance.raw shouldBe 0f
 		event.totalSteps.raw shouldBe 0
 	}
+
+	@Test
+	fun `snapshotMetrics returns empty when inactive`() = runTest {
+		val processor = AggregatorProcessor(StreamingAggregator())
+
+		val metrics = processor.snapshotMetrics()
+		metrics shouldBe emptyMap()
+	}
+
+	@Test
+	fun `snapshotMetrics returns accumulated values when active`() = runTest {
+		val processor = AggregatorProcessor(StreamingAggregator())
+		val ctx = ProcessorContext(startTimestamp = EpochMs(1000L))
+		processor.onStart(ctx)
+
+		processor.onSignal(movingSignal(timestampMs = 2000L, distanceM = 1500f, steps = 42))
+
+		val metrics = processor.snapshotMetrics()
+		metrics["total_distance_km"] shouldBe 1L
+		metrics["total_steps"] shouldBe 42L
+		metrics["session_steps"] shouldBe 42L
+		metrics["session_distance_m"] shouldBe 1500L
+	}
 }

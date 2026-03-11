@@ -5,6 +5,7 @@ import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
+import android.util.Log
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.google.protobuf.InvalidProtocolBufferException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -43,7 +44,13 @@ class RetentionConfigStore(
     private val dataStore = context.retentionConfigDataStore
 
     val config: Flow<RetentionConfigState> = dataStore.data
-        .onStart { ensureDataSettingsMigrated() }
+        .onStart {
+            runCatching {
+                ensureDataSettingsMigrated()
+            }.onFailure {
+                Log.e("RetentionConfigStore", "Failed to migrate legacy data settings", it)
+            }
+        }
         .map { it.toDomain() }
 
     suspend fun update(block: RetentionConfigState.() -> RetentionConfigState) {
@@ -66,10 +73,16 @@ class RetentionConfigStore(
                 if (current.dataSettingsLegacyMigrated) return@updateData current
 
                 val prefs = Preferences.getPref(context)
-                val autoCleanup = prefs.getBooleanSync("autoCleanupOldData", false)
-                val retentionYearsStr = prefs.getStringSync("dataRetentionYears")
-                val retentionYears = retentionYearsStr?.toIntOrNull()
-                    ?: RetentionConfigState.DEFAULT_RETENTION_YEARS
+                val autoCleanup = runCatching {
+                    prefs.getBooleanSync("autoCleanupOldData", false)
+                }.getOrDefault(false)
+                val retentionYears = runCatching {
+                    prefs.getStringSync("dataRetentionYears")?.toIntOrNull()
+                        ?: prefs.getIntSync(
+                            "dataRetentionYears",
+                            RetentionConfigState.DEFAULT_RETENTION_YEARS
+                        )
+                }.getOrDefault(RetentionConfigState.DEFAULT_RETENTION_YEARS).coerceAtLeast(1)
 
                 current.toBuilder()
                     .setAutoCleanupEnabled(autoCleanup)

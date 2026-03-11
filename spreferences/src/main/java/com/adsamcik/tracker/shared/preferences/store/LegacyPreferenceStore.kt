@@ -123,6 +123,16 @@ internal object LegacyPreferenceStore {
             .distinctUntilChanged()
 
     /**
+     * Forces any pending DataStore writes to complete.
+     * DataStore serializes all write operations, so an identity [updateData]
+     * will only return after every previously-queued edit has been persisted.
+     */
+    suspend fun flush(context: Context) {
+        val appContext = context.applicationContext
+        appContext.legacyDataStore.updateData { it }
+    }
+
+    /**
      * Flow for values that may be stored as either Int or String (migration compatibility).
      * Returns String representation regardless of underlying storage type.
      */
