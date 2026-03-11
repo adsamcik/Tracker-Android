@@ -85,9 +85,11 @@ data class GoalListenable(val goal: Goal) {
 	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.
 	 */
-	fun onNewDay(context: Context, day: ZonedDateTime) {
-		notifyIfValueChanged {
-			goal.onNewDay(context, day)
+	suspend fun onNewDay(context: Context, day: ZonedDateTime) {
+		val valueBefore = goal.value
+		goal.onNewDay(context, day)
+		if (valueBefore != goal.value) {
+			valueMutable.value = goal.value
 		}
 	}
 }

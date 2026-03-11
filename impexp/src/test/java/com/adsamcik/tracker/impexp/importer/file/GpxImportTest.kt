@@ -12,6 +12,8 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -43,7 +45,7 @@ class GpxImportTest {
 		locationInsertCallCount = 0
 
 		mockLocationSampleDao = mockk {
-			every { insert(any<Collection<LocationSample>>()) } answers {
+			coEvery { insert(any<Collection<LocationSample>>()) } answers {
 				val batch = firstArg<Collection<LocationSample>>()
 				capturedSamples.addAll(batch)
 				locationInsertCallCount++
@@ -51,7 +53,7 @@ class GpxImportTest {
 			}
 		}
 		mockSegmentDao = mockk {
-			every { insert(any<SessionSegment>()) } answers {
+			coEvery { insert(any<SessionSegment>()) } answers {
 				capturedSegments.add(firstArg())
 				1L
 			}
@@ -244,7 +246,7 @@ class GpxImportTest {
 		@Test
 		fun `creates new activity from track type`() = runTest {
 			every { mockActivityDao.find("running") } returns null
-			every { mockActivityDao.insert(any<SessionActivity>()) } returns 42L
+			coEvery { mockActivityDao.insert(any<SessionActivity>()) } returns 42L
 
 			val gpx = """
 				<?xml version="1.0" encoding="UTF-8"?>
@@ -264,7 +266,7 @@ class GpxImportTest {
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
 			verify { mockActivityDao.find("running") }
-			verify { mockActivityDao.insert(any<SessionActivity>()) }
+			coVerify { mockActivityDao.insert(any<SessionActivity>()) }
 		}
 
 		@Test
@@ -290,7 +292,7 @@ class GpxImportTest {
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
 			verify { mockActivityDao.find("cycling") }
-			verify(exactly = 0) { mockActivityDao.insert(any<SessionActivity>()) }
+			coVerify(exactly = 0) { mockActivityDao.insert(any<SessionActivity>()) }
 		}
 
 		@Test
@@ -312,7 +314,7 @@ class GpxImportTest {
 			gpxImport.import(mockContext, mockDatabase, gpxStream(gpx))
 
 			verify(exactly = 0) { mockActivityDao.find(any()) }
-			verify(exactly = 0) { mockActivityDao.insert(any<SessionActivity>()) }
+			coVerify(exactly = 0) { mockActivityDao.insert(any<SessionActivity>()) }
 		}
 	}
 

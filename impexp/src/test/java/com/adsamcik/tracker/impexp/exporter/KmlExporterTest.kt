@@ -11,6 +11,7 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -68,7 +69,7 @@ class KmlExporterTest {
     inner class OutputStructure {
 
         @Test
-        fun `produces valid KML header`() {
+        fun `produces valid KML header`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
@@ -87,7 +88,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `produces well-formed XML`() {
+        fun `produces well-formed XML`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
@@ -107,7 +108,7 @@ class KmlExporterTest {
     inner class Placemarks {
 
         @Test
-        fun `includes placemark for each location`() {
+        fun `includes placemark for each location`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),
@@ -125,7 +126,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `handles single location`() {
+        fun `handles single location`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
@@ -143,7 +144,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `handles multiple locations in sequence`() {
+        fun `handles multiple locations in sequence`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = (0 until 100).map { i ->
                 createTestLocation(
@@ -168,7 +169,7 @@ class KmlExporterTest {
     inner class Coordinates {
 
         @Test
-        fun `serializes coordinates correctly`() {
+        fun `serializes coordinates correctly`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(
@@ -189,7 +190,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `handles location with null altitude`() {
+        fun `handles location with null altitude`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = null)
@@ -206,7 +207,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `handles extreme coordinate values`() {
+        fun `handles extreme coordinate values`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 89.999, longitude = 0.0, altitude = 0.0),
@@ -231,7 +232,7 @@ class KmlExporterTest {
     inner class Timestamps {
 
         @Test
-        fun `includes timestamp in placemark`() {
+        fun `includes timestamp in placemark`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
@@ -252,7 +253,7 @@ class KmlExporterTest {
     inner class Ordering {
 
         @Test
-        fun `preserves location ordering`() {
+        fun `preserves location ordering`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 100.0),
@@ -279,7 +280,7 @@ class KmlExporterTest {
     inner class InvalidValues {
 
         @Test
-        fun `NaN altitude produces valid KML with 0 altitude`() {
+        fun `NaN altitude produces valid KML with 0 altitude`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.NaN)
@@ -296,7 +297,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `Infinity altitude produces valid KML with 0 altitude`() {
+        fun `Infinity altitude produces valid KML with 0 altitude`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.POSITIVE_INFINITY)
@@ -313,7 +314,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `negative Infinity altitude produces valid KML with 0 altitude`() {
+        fun `negative Infinity altitude produces valid KML with 0 altitude`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = Double.NEGATIVE_INFINITY)
@@ -330,7 +331,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `NaN latitude skips the location entirely`() {
+        fun `NaN latitude skips the location entirely`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = Double.NaN, longitude = 14.0, altitude = 200.0)
@@ -347,7 +348,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `NaN longitude skips the location entirely`() {
+        fun `NaN longitude skips the location entirely`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = Double.NaN, altitude = 200.0)
@@ -364,7 +365,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `Infinity longitude skips the location entirely`() {
+        fun `Infinity longitude skips the location entirely`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = Double.POSITIVE_INFINITY, altitude = 200.0)
@@ -381,7 +382,7 @@ class KmlExporterTest {
         }
 
         @Test
-        fun `mixed valid and invalid locations only exports valid ones`() {
+        fun `mixed valid and invalid locations only exports valid ones`() = runTest {
             val context = mockk<android.content.Context>(relaxed = true)
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),

@@ -15,6 +15,7 @@ import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -87,7 +88,7 @@ class GpxExporterTest {
     inner class OutputStructure {
 
         @Test
-        fun `produces valid GPX header`() {
+        fun `produces valid GPX header`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),
                 createTestLocation(time = 1700001000000L, latitude = 50.1, longitude = 14.1, altitude = 210.0)
@@ -105,7 +106,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `produces well-formed XML structure`() {
+        fun `produces well-formed XML structure`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
             )
@@ -121,7 +122,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `includes metadata when dateRange is provided`() {
+        fun `includes metadata when dateRange is provided`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),
                 createTestLocation(time = 1700001000000L, latitude = 50.1, longitude = 14.1, altitude = 210.0)
@@ -140,7 +141,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `omits metadata when dateRange is null`() {
+        fun `omits metadata when dateRange is null`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
             )
@@ -158,7 +159,7 @@ class GpxExporterTest {
     inner class TrackPoints {
 
         @Test
-        fun `creates track with segment`() {
+        fun `creates track with segment`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
             )
@@ -175,7 +176,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `serializes waypoints with altitude`() {
+        fun `serializes waypoints with altitude`() = runTest {
             val locations = listOf(
                 createTestLocation(
                     time = 1700000000000L,
@@ -195,7 +196,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `handles waypoint without altitude`() {
+        fun `handles waypoint without altitude`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = null)
             )
@@ -211,7 +212,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `handles multiple waypoints`() {
+        fun `handles multiple waypoints`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0),
                 createTestLocation(time = 1700001000000L, latitude = 50.1, longitude = 14.1, altitude = 210.0),
@@ -228,7 +229,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `handles large number of waypoints`() {
+        fun `handles large number of waypoints`() = runTest {
             val locations = (0 until 1000).map { i ->
                 createTestLocation(
                     time = 1700000000000L + i * 1000L,
@@ -253,7 +254,7 @@ class GpxExporterTest {
     inner class Timestamps {
 
         @Test
-        fun `includes timestamp for waypoints`() {
+        fun `includes timestamp for waypoints`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.0, longitude = 14.0, altitude = 200.0)
             )
@@ -271,7 +272,7 @@ class GpxExporterTest {
     inner class Ordering {
 
         @Test
-        fun `preserves waypoint ordering`() {
+        fun `preserves waypoint ordering`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 50.111, longitude = 14.0, altitude = 100.0),
                 createTestLocation(time = 1700001000000L, latitude = 51.222, longitude = 15.0, altitude = 200.0),
@@ -297,7 +298,7 @@ class GpxExporterTest {
     inner class EdgeCases {
 
         @Test
-        fun `handles extreme coordinate values`() {
+        fun `handles extreme coordinate values`() = runTest {
             val locations = listOf(
                 createTestLocation(time = 1700000000000L, latitude = 89.999, longitude = 0.0, altitude = 0.0),
                 createTestLocation(time = 1700001000000L, latitude = -89.999, longitude = 180.0, altitude = 0.0),
@@ -316,7 +317,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `handles negative altitude`() {
+        fun `handles negative altitude`() = runTest {
             val locations = listOf(
                 createTestLocation(
                     time = 1700000000000L,
@@ -337,7 +338,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `handles high precision coordinates`() {
+        fun `handles high precision coordinates`() = runTest {
             val locations = listOf(
                 createTestLocation(
                     time = 1700000000000L,
@@ -359,7 +360,7 @@ class GpxExporterTest {
         }
 
         @Test
-        fun `handles zero coordinates`() {
+        fun `handles zero coordinates`() = runTest {
             val locations = listOf(
                 createTestLocation(
                     time = 1700000000000L,

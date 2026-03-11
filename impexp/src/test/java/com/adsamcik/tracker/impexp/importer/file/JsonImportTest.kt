@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -45,7 +46,7 @@ class JsonImportTest {
 		locationInsertCallCount = 0
 
 		mockLocationSampleDao = mockk {
-			every { insert(any<Collection<LocationSample>>()) } answers {
+			coEvery { insert(any<Collection<LocationSample>>()) } answers {
 				val batch = firstArg<Collection<LocationSample>>()
 				capturedSamples.addAll(batch)
 				locationInsertCallCount++
@@ -53,7 +54,7 @@ class JsonImportTest {
 			}
 		}
 		mockSegmentDao = mockk {
-			every { insert(any<SessionSegment>()) } answers {
+			coEvery { insert(any<SessionSegment>()) } answers {
 				capturedSegments.add(firstArg())
 				1L
 			}

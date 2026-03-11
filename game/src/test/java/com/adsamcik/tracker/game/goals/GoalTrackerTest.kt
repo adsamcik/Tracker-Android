@@ -15,6 +15,7 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.verify
 import io.mockk.verifyOrder
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -91,7 +92,7 @@ class GoalTrackerTest {
 	inner class ProgressTracking {
 
 		@Test
-		fun `update delegates to all registered goals`() {
+		fun `update delegates to all registered goals`() = runTest {
 			goalList.addAll(listOf(listenable1, listenable2))
 			val session = createSession()
 
@@ -102,12 +103,12 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `update with no registered goals does not throw`() {
+		fun `update with no registered goals does not throw`() = runTest {
 			GoalTracker.update(createSession())
 		}
 
 		@Test
-		fun `update passes session data unchanged to goals`() {
+		fun `update passes session data unchanged to goals`() = runTest {
 			goalList.add(listenable1)
 			val session = createSession(id = 99L, steps = 5000)
 
@@ -127,7 +128,7 @@ class GoalTrackerTest {
 	inner class SessionTracking {
 
 		@Test
-		fun `first update is always a new session`() {
+		fun `first update is always a new session`() = runTest {
 			goalList.add(listenable1)
 
 			GoalTracker.update(createSession(id = 42L))
@@ -136,7 +137,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `repeated update with same session id is not new`() {
+		fun `repeated update with same session id is not new`() = runTest {
 			goalList.add(listenable1)
 
 			GoalTracker.update(createSession(id = 42L, steps = 50))
@@ -149,7 +150,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `different session id is detected as new`() {
+		fun `different session id is detected as new`() = runTest {
 			goalList.add(listenable1)
 
 			GoalTracker.update(createSession(id = 1L))
@@ -159,7 +160,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `alternating session ids are always new`() {
+		fun `alternating session ids are always new`() = runTest {
 			goalList.add(listenable1)
 
 			GoalTracker.update(createSession(id = 1L, steps = 10))
@@ -170,7 +171,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `multiple updates to same session track correctly`() {
+		fun `multiple updates to same session track correctly`() = runTest {
 			goalList.add(listenable1)
 
 			GoalTracker.update(createSession(id = 7L, steps = 100))
@@ -187,7 +188,7 @@ class GoalTrackerTest {
 	inner class DailyReset {
 
 		@Test
-		fun `onNewDay resets session tracking so next update is new`() {
+		fun `onNewDay resets session tracking so next update is new`() = runTest {
 			mockkObject(Logger)
 			every { Logger.log(any<LogData>()) } just Runs
 			try {
@@ -213,7 +214,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `onNewDay allows different session to also be new`() {
+		fun `onNewDay allows different session to also be new`() = runTest {
 			mockkObject(Logger)
 			every { Logger.log(any<LogData>()) } just Runs
 			try {
@@ -238,7 +239,7 @@ class GoalTrackerTest {
 	inner class MultipleConcurrentGoals {
 
 		@Test
-		fun `all goals receive the same session update`() {
+		fun `all goals receive the same session update`() = runTest {
 			goalList.addAll(listOf(listenable1, listenable2))
 			val session = createSession(steps = 500)
 
@@ -249,7 +250,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `new session flag is consistent across all goals`() {
+		fun `new session flag is consistent across all goals`() = runTest {
 			goalList.addAll(listOf(listenable1, listenable2))
 
 			GoalTracker.update(createSession(id = 1L, steps = 100))
@@ -262,7 +263,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `all goals evaluated even when none complete`() {
+		fun `all goals evaluated even when none complete`() = runTest {
 			// Both goals return false (no completion)
 			every { mockGoal1.onSessionUpdated(any(), any()) } returns false
 			every { mockGoal2.onSessionUpdated(any(), any()) } returns false
@@ -276,7 +277,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `three goals all receive updates`() {
+		fun `three goals all receive updates`() = runTest {
 			val mockGoal3 = createMockGoal()
 			val listenable3 = GoalListenable(mockGoal3)
 			goalList.addAll(listOf(listenable1, listenable2, listenable3))
@@ -295,7 +296,7 @@ class GoalTrackerTest {
 	inner class GoalCompletionDetection {
 
 		@Test
-		fun `goal returning false does not trigger completion`() {
+		fun `goal returning false does not trigger completion`() = runTest {
 			every { mockGoal1.onSessionUpdated(any(), any()) } returns false
 			goalList.add(listenable1)
 
@@ -306,7 +307,7 @@ class GoalTrackerTest {
 		}
 
 		@Test
-		fun `result from onSessionUpdated is per-goal`() {
+		fun `result from onSessionUpdated is per-goal`() = runTest {
 			every { mockGoal1.onSessionUpdated(any(), any()) } returns false
 			every { mockGoal2.onSessionUpdated(any(), any()) } returns false
 			goalList.addAll(listOf(listenable1, listenable2))

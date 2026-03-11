@@ -1,10 +1,10 @@
 package com.adsamcik.tracker.game.goals
 
 import android.content.Context
+import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.Time
 import java.time.Duration
@@ -13,11 +13,11 @@ import java.util.concurrent.TimeUnit
 /**
  * Notifies goal tracker of a new day.
  */
-internal class NewDayGoalWorker(context: Context, workerParams: WorkerParameters) : Worker(
+internal class NewDayGoalWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(
 		context,
 		workerParams
 ) {
-	override fun doWork(): Result {
+	override suspend fun doWork(): Result {
 		GoalTracker.onNewDay()
 		return Result.success()
 	}

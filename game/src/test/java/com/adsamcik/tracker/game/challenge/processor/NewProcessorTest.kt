@@ -6,6 +6,7 @@ import com.adsamcik.tracker.game.challenge.data.ChallengeType
 import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -21,7 +22,7 @@ class NewProcessorTest {
 	}
 
 	@Test
-	fun `speed processor extracts distance on foot`() {
+	fun `speed processor extracts distance on foot`() = runTest {
 		val processor = SpeedChallengeProcessor()
 		val context: Context = mockk()
 		val session = createSession(distanceOnFoot = 1500f)

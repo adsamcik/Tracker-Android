@@ -70,7 +70,7 @@ interface Goal {
 	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.
 	 */
-	fun onNewDay(context: Context, day: ZonedDateTime)
+	suspend fun onNewDay(context: Context, day: ZonedDateTime)
 
 	/**
 	 * Builds notification for the goal.

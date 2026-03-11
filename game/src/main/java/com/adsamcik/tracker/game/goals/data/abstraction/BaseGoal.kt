@@ -113,7 +113,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 		return false
 	}
 
-	override fun onNewDay(context: Context, day: ZonedDateTime) {
+	override suspend fun onNewDay(context: Context, day: ZonedDateTime) {
 		val time = getGoalTime(day)
 		// This will trigger recount once a day if the goal is not reached, but
 		// because the cost should not be very high, the extra code complexity does not seem
@@ -127,7 +127,7 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 	/**
 	 * Called when value should be updated with data from database.
 	 */
-	protected abstract fun updateFromDatabase(context: Context)
+	protected abstract suspend fun updateFromDatabase(context: Context)
 
 	/**
 	 * Rounds date time to goal time.
