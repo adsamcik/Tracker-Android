@@ -1,8 +1,8 @@
 [versions]
 # Kotlin / KSP / AGP
 kotlin = "2.2.20"
-ksp = "2.2.20-2.0.3"
-agp = "9.1.0-rc01"
+ksp = "2.3.2"
+agp = "9.1.0"
 
 # Android SDK
 android-compile = "36"
