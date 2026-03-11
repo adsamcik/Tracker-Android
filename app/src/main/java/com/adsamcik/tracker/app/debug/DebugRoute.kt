@@ -56,7 +56,8 @@ import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
-import com.adsamcik.tracker.app.Application
+import com.adsamcik.tracker.shared.base.di.LocalLockManager
+import com.adsamcik.tracker.tracker.controller.LockManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -144,7 +145,7 @@ private fun SystemStatusSection(
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current
-    val lockManager = (context.applicationContext as Application).appGraph.lockManager
+    val lockManager = LocalLockManager.current as LockManager
     val isLocked by lockManager.isLockedFlow.collectAsState()
     val isTimeLocked = lockManager.isTimeLocked
     val isChargeLocked = lockManager.isChargeLocked

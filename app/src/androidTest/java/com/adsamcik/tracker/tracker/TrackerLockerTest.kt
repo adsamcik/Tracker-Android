@@ -2,9 +2,12 @@ package com.adsamcik.tracker.tracker
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.controller.LockManager
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -15,14 +18,22 @@ import org.junit.Test
 
 class TrackerLockerTest {
 
+	@EntryPoint
+	@InstallIn(SingletonComponent::class)
+	interface LockManagerEntryPoint {
+		fun lockManager(): LockManager
+	}
+
 	private lateinit var context: Context
 	private lateinit var lockManager: LockManager
 
 	@Before
 	fun setup() {
 		context = ApplicationProvider.getApplicationContext<Context>()
-		val app = context.applicationContext as Application
-		lockManager = app.appGraph.lockManager
+		lockManager = EntryPointAccessors.fromApplication(
+			context,
+			LockManagerEntryPoint::class.java
+		).lockManager()
 	}
 
 	@Test

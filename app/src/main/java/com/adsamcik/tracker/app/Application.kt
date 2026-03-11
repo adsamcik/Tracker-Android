@@ -28,28 +28,33 @@ import com.adsamcik.tracker.activity.ActivityModuleInitializer
 import com.adsamcik.tracker.tracker.module.TrackerModuleInitializer
 import com.adsamcik.tracker.game.GameModuleInitializer
 import android.app.Application as AndroidApplication
-import dagger.hilt.android.HiltAndroidApp
-import kotlinx.coroutines.*
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.time.Clock
-import com.adsamcik.tracker.shared.base.time.SystemClock
+import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
+import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
+import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.*
 import javax.inject.Inject
 
 
 /**
  * Main application
  * 
- * Composition Root Pattern (per copilot-instructions Section 16A):
- * - Initializes AppGraph as the single source of truth for dependencies
- * - Provides stable abstractions (Clock, DispatchersProvider, CoroutineScope)
- * - Enables test injection via Application subclassing
- * 
  * Hilt Integration:
- * - @HiltAndroidApp enables DI for Android components (Services, Workers, Receivers)
- * - AppGraph provides dependencies to Hilt modules (hybrid approach)
+ * - @HiltAndroidApp enables DI for all Android components
+ * - All app-scoped services provided via Hilt SingletonComponent
  * - Implements Configuration.Provider to inject HiltWorkerFactory for Workers
+ * - Startup warm-up eagerly touches Hilt singletons on a background thread
  */
 @HiltAndroidApp
 @Suppress("unused")
@@ -58,19 +63,12 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@Inject
 	lateinit var workerFactory: HiltWorkerFactory
 
-	// Core abstractions (exposed for rare direct access; prefer AppGraph)
+	@Inject
 	lateinit var dispatchers: DispatchersProvider
-		private set
 
-	lateinit var clock: Clock
-		private set
-
+	@Inject
+	@ApplicationScope
 	lateinit var appScope: CoroutineScope
-		private set
-
-	// Primary composition root - inject this into activities/services needing dependencies
-	lateinit var appGraph: AppGraph
-		private set
 
 	@Volatile
 	var isStartupReady: Boolean = false
@@ -81,12 +79,28 @@ class Application : AndroidApplication(), Configuration.Provider {
 			.setWorkerFactory(workerFactory)
 			.build()
 
+	/**
+	 * Entry point for eagerly resolving Hilt singletons during background startup.
+	 * Preserves two-phase warm-up: lightweight singletons first, DB-touching providers second.
+	 */
+	@EntryPoint
+	@InstallIn(SingletonComponent::class)
+	interface WarmUpEntryPoint {
+		fun trackerServiceController(): TrackerServiceController
+		fun lockManager(): LockManager
+		fun dailySummaryProvider(): DailySummaryProvider
+		fun dailyPointsProvider(): DailyPointsProvider
+		fun goalProgressProvider(): GoalProgressProvider
+		fun activeChallengesProvider(): ActiveChallengesProvider
+		fun exportAutomationController(): ExportAutomationController
+	}
+
 	companion object {
 		/**
 		 * Global application instance.
 		 * Used sparingly for backward compatibility with static access patterns.
 		 * 
-		 * @deprecated Prefer constructor injection via AppGraph when possible.
+		 * @deprecated Prefer Hilt injection when possible.
 		 */
 		lateinit var instance: Application
 			private set
@@ -158,6 +172,29 @@ class Application : AndroidApplication(), Configuration.Provider {
 		}
 	}
 
+	/**
+	 * Phase 1: resolve lightweight singletons (no DB access).
+	 * Eagerly touches Hilt-provided singletons so they are ready before UI needs them.
+	 */
+	@WorkerThread
+	private fun warmUp() {
+		val ep = EntryPointAccessors.fromApplication(this, WarmUpEntryPoint::class.java)
+		ep.trackerServiceController()
+		ep.lockManager()
+	}
+
+	/**
+	 * Phase 2: resolve DB-touching providers (lazy DB init on first query).
+	 */
+	@WorkerThread
+	private fun warmUpDeferred() {
+		val ep = EntryPointAccessors.fromApplication(this, WarmUpEntryPoint::class.java)
+		ep.dailySummaryProvider()
+		ep.dailyPointsProvider()
+		ep.goalProgressProvider()
+		ep.activeChallengesProvider()
+	}
+
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
 			try {
@@ -169,7 +206,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 					launch { preloadNativeLibraries() }
 					launch { MapLibreInitializer.initialize(this@Application) }
 					launch { initializeWorkManager() }
-					launch { appGraph.warmUp() }
+					launch { warmUp() }
 				}
 			} catch (t: Throwable) {
 				Log.e("App", "Background startup initialization failed", t)
@@ -179,7 +216,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 			launch(dispatchers.io) {
 				try {
-					appGraph.warmUpDeferred()
+					warmUpDeferred()
 					initializeClasses()
 					initializeModules()
 					initializeFeatures()
@@ -261,19 +298,11 @@ class Application : AndroidApplication(), Configuration.Provider {
 		instance = this
 		initializeImportantSingletons()
 
-		// Initialize core abstractions for composition root
-		dispatchers = DefaultDispatchersProvider
-		clock = SystemClock
-		appScope = CoroutineScope(SupervisorJob() + dispatchers.default)
-
 		// Flush pending DataStore writes when the app goes to background
 		ProcessLifecycleOwner.get().lifecycle.addObserver(
 			PreferenceFlushLifecycleObserver(this, appScope)
 		)
 		
-		// Build composition root with all dependencies
-		appGraph = AppGraph.create(dispatchers, clock, appScope)
-		appGraph.initialize(this)
 		startBackgroundStartup()
 	}
 

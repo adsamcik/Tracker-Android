@@ -3,15 +3,15 @@ package com.adsamcik.tracker.app.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.app.AppGraph
-import com.adsamcik.tracker.app.Application
 import com.adsamcik.tracker.tracker.controller.LockManager
+import dagger.hilt.android.EntryPointAccessors
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
@@ -56,8 +56,7 @@ class BootReceiverTest {
 		private val testScope = CoroutineScope(
 			UnconfinedTestDispatcher() + CoroutineExceptionHandler { _, _ -> }
 		)
-		private val appGraph = mockk<AppGraph>(relaxed = true)
-		private val app = mockk<Application>(relaxed = true)
+		private val entryPoint = mockk<BootReceiver.BootReceiverEntryPoint>()
 		private val context = mockk<Context>(relaxed = true)
 		private val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
 		private val receiver = spyk(BootReceiver())
@@ -65,10 +64,16 @@ class BootReceiverTest {
 		@BeforeEach
 		fun setUp() {
 			coEvery { lockManager.initializeFromPersistence(any()) } just Runs
-			every { appGraph.appScope } returns testScope
-			every { appGraph.lockManager } returns lockManager
-			every { app.appGraph } returns appGraph
-			every { context.applicationContext } returns app
+			every { entryPoint.lockManager() } returns lockManager
+			every { entryPoint.appScope() } returns testScope
+			every { context.applicationContext } returns context
+			mockkStatic(EntryPointAccessors::class)
+			every {
+				EntryPointAccessors.fromApplication(
+					any(),
+					BootReceiver.BootReceiverEntryPoint::class.java
+				)
+			} returns entryPoint
 			every { receiver.goAsync() } returns pendingResult
 		}
 

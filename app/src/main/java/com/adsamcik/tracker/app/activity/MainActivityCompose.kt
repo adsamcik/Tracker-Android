@@ -24,6 +24,10 @@ import com.adsamcik.tracker.app.ui.navigation.Game
 import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
+import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
+import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.base.di.LocalLockManager
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
@@ -31,16 +35,14 @@ import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.LocalActiveChallengesProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
+import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-// Local DI access (keeping for future use)
-val LocalAppGraph = staticCompositionLocalOf<com.adsamcik.tracker.app.AppGraph> { 
-    error("AppGraph not provided") 
-}
+import javax.inject.Inject
 
 /**
  * Compose-first Main activity following north star architecture.
@@ -50,6 +52,13 @@ val LocalAppGraph = staticCompositionLocalOf<com.adsamcik.tracker.app.AppGraph> 
  */
 @AndroidEntryPoint
 class MainActivityCompose : ComponentActivity() {
+
+    @Inject lateinit var trackerServiceController: TrackerServiceController
+    @Inject lateinit var lockManager: LockManager
+    @Inject lateinit var dailySummaryProvider: DailySummaryProvider
+    @Inject lateinit var dailyPointsProvider: DailyPointsProvider
+    @Inject lateinit var goalProgressProvider: GoalProgressProvider
+    @Inject lateinit var activeChallengesProvider: ActiveChallengesProvider
 
     private val selectedTab = mutableStateOf<AppRoute>(Dashboard)
     private val deepNavigationRequest = mutableStateOf<DeepNavigationRequest?>(null)
@@ -162,17 +171,16 @@ class MainActivityCompose : ComponentActivity() {
             StartupDestination.Main -> Unit
         }
 
-        val appGraph = (application as Application).appGraph
+        val appRef = this@MainActivityCompose
 
         AppTheme(darkTheme = darkTheme) {
             CompositionLocalProvider(
-                LocalAppGraph provides appGraph,
-                LocalTrackerController provides appGraph.trackerServiceController,
-                LocalLockManager provides appGraph.lockManager,
-                LocalDailySummaryProvider provides appGraph.dailySummaryProvider,
-                LocalDailyPointsProvider provides appGraph.dailyPointsProvider,
-                LocalGoalProgressProvider provides appGraph.goalProgressProvider,
-                LocalActiveChallengesProvider provides appGraph.activeChallengesProvider
+                LocalTrackerController provides appRef.trackerServiceController,
+                LocalLockManager provides appRef.lockManager,
+                LocalDailySummaryProvider provides appRef.dailySummaryProvider,
+                LocalDailyPointsProvider provides appRef.dailyPointsProvider,
+                LocalGoalProgressProvider provides appRef.goalProgressProvider,
+                LocalActiveChallengesProvider provides appRef.activeChallengesProvider
             ) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     Box(Modifier.fillMaxSize()) {
