@@ -93,6 +93,10 @@ class ActivityDomainEventConsumerTest {
 				processorId = "test-processor",
 				cellToken = "cell-xyz",
 				level = 7,
+				centerLatE7 = 0,
+				centerLonE7 = 0,
+				quality = 0,
+				seasonBit = 1,
 			)
 
 			coEvery {
@@ -120,6 +124,10 @@ class ActivityDomainEventConsumerTest {
 					processorId = "test-processor",
 					cellToken = "cell-1",
 					level = 3,
+					centerLatE7 = 0,
+					centerLonE7 = 0,
+					quality = 0,
+					seasonBit = 1,
 				),
 				DomainEvent.SessionEnded(
 					timestampMs = earlyTimestamp,

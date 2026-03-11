@@ -8,38 +8,31 @@ import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.ActivityRecognitionWorker
 import com.adsamcik.tracker.activity.logActivity
-import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.logger.LogData
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
 /**
  * Activity recognition API class, providing access to special activity recognition functions.
  */
 object ActivityRecognitionApi {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /**
+     * Enqueues a single batch worker that fetches all unrecognized sessions
+     * and processes them with O(3) queries instead of O(N*3).
+     */
     fun rerunRecognitionForAll(context: Context) {
         logActivity(LogData(message = "requesting recognition rerun", source = ACTIVITY_LOG_SOURCE))
-        scope.launch {
-            val sessionDao = AppDatabase.database(context).sessionDao()
-            val workManager = WorkManager.getInstance(context)
-            sessionDao.getAll().filter { it.id < 0 }.forEach {
-                val data = Data.Builder().putLong(ActivityRecognitionWorker.ARG_SESSION_ID, it.id)
+        val data = Data.Builder()
+            .putBoolean(ActivityRecognitionWorker.ARG_BATCH_MODE, true)
+            .build()
+        val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
+            .addTag(ActivityRecognitionWorker.WORK_TAG)
+            .setInputData(data)
+            .setConstraints(
+                Constraints
+                    .Builder()
+                    .setRequiresBatteryNotLow(true)
                     .build()
-                val workRequest = OneTimeWorkRequestBuilder<ActivityRecognitionWorker>()
-                    .addTag(ActivityRecognitionWorker.WORK_TAG)
-                    .setInputData(data)
-                    .setConstraints(
-                        Constraints
-                            .Builder()
-                            .setRequiresBatteryNotLow(true)
-                            .build()
-                    ).build()
+            ).build()
 
-                workManager.enqueue(workRequest)
-            }
-        }
+        WorkManager.getInstance(context).enqueue(workRequest)
     }
 }

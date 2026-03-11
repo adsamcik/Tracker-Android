@@ -26,7 +26,7 @@ interface ActivityConsumerEntryPoint {
  */
 @Suppress("unused")
 class ActivityModuleInitializer : ModuleInitializer {
-	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 	private fun initializeDatabase(context: Context) {
 		val activityDao = AppDatabase.database(context).activityDao()
@@ -42,7 +42,7 @@ class ActivityModuleInitializer : ModuleInitializer {
 	 * Initializes activity module.
 	 */
 	override fun initialize(context: Context) {
-		initializeDatabase(context)
+		scope.launch { initializeDatabase(context) }
 		initializeDomainEventConsumer(context)
 	}
 

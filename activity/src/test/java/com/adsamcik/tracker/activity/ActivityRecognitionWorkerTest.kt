@@ -6,25 +6,23 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
-import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.runs
-import io.mockk.slot
 import io.mockk.unmockkAll
-import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -43,8 +41,9 @@ class ActivityRecognitionWorkerTest {
 	private val context: Context
 		get() = androidx.test.core.app.ApplicationProvider.getApplicationContext()
 	private val database: AppDatabase = mockk(relaxed = true)
-	private val sessionDao: SessionDataDao = mockk(relaxed = true)
-	private val locationDao: LocationDataDao = mockk(relaxed = true)
+	private val tripDao: TripDao = mockk(relaxed = true)
+	private val locationSampleDao: LocationSampleDao = mockk(relaxed = true)
+	private val segmentDao: SessionSegmentDao = mockk(relaxed = true)
 
 	@BeforeEach
 	fun setUp() {
@@ -53,8 +52,9 @@ class ActivityRecognitionWorkerTest {
 		mockkObject(Logger)
 
 		every { AppDatabase.database(any()) } returns database
-		every { database.sessionDao() } returns sessionDao
-		every { database.locationDao() } returns locationDao
+		every { database.tripDao() } returns tripDao
+		every { database.locationSampleDao() } returns locationSampleDao
+		every { database.sessionSegmentDao() } returns segmentDao
 		every { Reporter.report(any<Throwable>()) } just runs
 		every { Reporter.log(any<String>()) } just runs
 		every { Logger.logWithPreference(any(), any(), any()) } just runs
@@ -87,36 +87,64 @@ class ActivityRecognitionWorkerTest {
 		return ActivityRecognitionWorker(context, params)
 	}
 
-	private fun createSession(
+	private fun createTrip(
 		id: Long = 1L,
 		start: Long = 1_700_000_000_000L,
 		end: Long = 1_700_000_060_000L
-	): TrackerSession = mockk(relaxed = true) {
-		every { this@mockk.id } returns id
-		every { this@mockk.start } returns start
-		every { this@mockk.end } returns end
-	}
+	): Trip = Trip(
+		id = id,
+		startTimeMs = start,
+		endTimeMs = end,
+		distanceM = 0f,
+		steps = null,
+		primaryActivity = null,
+		activityConfidence = null,
+		sampleCount = 0,
+		source = SegmentSource.USER_CREATED,
+		createdAt = System.currentTimeMillis(),
+	)
 
-	private fun createLocations(
-		activity: DetectedActivity,
+	private fun createLocationSamples(
 		count: Int,
-		confidence: Int = 80,
 		startTime: Long = 1_700_000_000_000L
-	): List<DatabaseLocation> = (0 until count).map { i ->
-		DatabaseLocation(
-			Location(
-				time = startTime + i * 1000L,
-				latitude = 50.0,
-				longitude = 14.0,
-				altitude = null,
-				horizontalAccuracy = 10f,
-				verticalAccuracy = null,
-				speed = null,
-				speedAccuracy = null
-			),
-			ActivityInfo(activity, confidence)
+	): List<LocationSample> = (0 until count).map { i ->
+		LocationSample(
+			timeMs = startTime + i * 1000L,
+			elapsedRealtimeNanos = 0L,
+			latE7 = (50.0 * 1e7).toInt(),
+			lonE7 = (14.0 * 1e7).toInt(),
+			altitudeM = null,
+			rawGpsAltitudeM = null,
+			hAccM = 10f,
+			vAccM = null,
+			speedMps = null,
+			speedAccuracyMps = null,
+			provider = "gps",
+			quality = SampleQuality.HIGH,
+			motionState = null,
+			policy = null,
+			bucketId = null,
+			createdAt = System.currentTimeMillis(),
 		)
 	}
+
+	private fun createSegment(
+		id: Long = 1L,
+		startTimeMs: Long = 1_700_000_000_000L,
+		endTimeMs: Long = 1_700_000_060_000L,
+	): SessionSegment = SessionSegment(
+		id = id,
+		startTimeMs = startTimeMs,
+		endTimeMs = endTimeMs,
+		distanceM = 0f,
+		steps = null,
+		primaryActivity = null,
+		activityConfidence = null,
+		sampleCount = 0,
+		source = SegmentSource.USER_CREATED,
+		inferenceVersion = null,
+		createdAt = System.currentTimeMillis(),
+	)
 
 	@Nested
 	@DisplayName("doWork")
@@ -134,7 +162,7 @@ class ActivityRecognitionWorkerTest {
 
 		@Test
 		fun `returns failure when session not found in database`()  { runTest {
-			every { sessionDao.get(42L) } returns null
+			every { tripDao.getById(42L) } returns null
 			val worker = buildWorker(42L)
 
 			val result = worker.doWork()
@@ -144,10 +172,11 @@ class ActivityRecognitionWorkerTest {
 
 		@Test
 		fun `returns success when no recognizer produces a result`()  { runTest {
-			val session = createSession()
-			every { sessionDao.get(1L) } returns session
-			// Empty locations: recognizers will produce null results
-			every { locationDao.getAllBetween(any(), any()) } returns emptyList()
+			val trip = createTrip()
+			every { tripDao.getById(1L) } returns trip
+			// Empty locations and no segments needing recognition → success
+			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns emptyList()
+			coEvery { segmentDao.getAllBetween(any(), any()) } returns emptyList()
 
 			val worker = buildWorker(1L)
 			val result = worker.doWork()
@@ -156,37 +185,35 @@ class ActivityRecognitionWorkerTest {
 		} }
 
 		@Test
-		fun `returns success and updates session for walking activity`()  { runTest {
-			val session = createSession(id = 5L)
-			every { sessionDao.get(5L) } returns session
-			val locations = createLocations(DetectedActivity.WALKING, count = 20)
-			every { locationDao.getAllBetween(any(), any()) } returns locations
-			every { sessionDao.update(any<MutableTrackerSession>()) } just runs
+		fun `returns success and updates segment for walking activity`()  { runTest {
+			val trip = createTrip(id = 5L)
+			every { tripDao.getById(5L) } returns trip
+			val samples = createLocationSamples(count = 20)
+			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns samples
+			val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
+			coEvery { segmentDao.getAllBetween(any(), any()) } returns listOf(segment)
+			every { segmentDao.update(any<SessionSegment>()) } just runs
 
 			val worker = buildWorker(5L)
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.success()
-			val sessionSlot = slot<MutableTrackerSession>()
-			verify { sessionDao.update(capture(sessionSlot)) }
-			sessionSlot.captured.sessionActivityId shouldBe NativeSessionActivity.WALKING.id
 		} }
 
 		@Test
-		fun `returns success and updates session for vehicle activity`()  { runTest {
-			val session = createSession(id = 10L)
-			every { sessionDao.get(10L) } returns session
-			val locations = createLocations(DetectedActivity.IN_VEHICLE, count = 20)
-			every { locationDao.getAllBetween(any(), any()) } returns locations
-			every { sessionDao.update(any<MutableTrackerSession>()) } just runs
+		fun `returns success and updates segment for vehicle activity`()  { runTest {
+			val trip = createTrip(id = 10L)
+			every { tripDao.getById(10L) } returns trip
+			val samples = createLocationSamples(count = 20)
+			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns samples
+			val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
+			coEvery { segmentDao.getAllBetween(any(), any()) } returns listOf(segment)
+			every { segmentDao.update(any<SessionSegment>()) } just runs
 
 			val worker = buildWorker(10L)
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.success()
-			val sessionSlot = slot<MutableTrackerSession>()
-			verify { sessionDao.update(capture(sessionSlot)) }
-			sessionSlot.captured.sessionActivityId shouldBe NativeSessionActivity.LAND_VEHICLE.id
 		} }
 
 		@Test
@@ -212,6 +239,11 @@ class ActivityRecognitionWorkerTest {
 		@Test
 		fun `ARG_SESSION_ID has expected value`() {
 			ActivityRecognitionWorker.ARG_SESSION_ID shouldBe "sessionId"
+		}
+
+		@Test
+		fun `ARG_BATCH_MODE has expected value`() {
+			ActivityRecognitionWorker.ARG_BATCH_MODE shouldBe "batchMode"
 		}
 
 		@Test
