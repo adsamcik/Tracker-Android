@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.ui
 
 import android.content.Context
 import android.util.Log
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.base.SupportsDateRange
@@ -32,9 +33,10 @@ class LayerController {
         context: Context,
         descriptor: LayerDescriptor?,
         quality: Float,
-        dateRange: LongRange
+        dateRange: LongRange,
+        bounds: Bounds? = null
     ) {
-        setLayers(context, listOfNotNull(descriptor), quality, dateRange)
+        setLayers(context, listOfNotNull(descriptor), quality, dateRange, bounds)
     }
 
     /**
@@ -45,7 +47,8 @@ class LayerController {
         context: Context,
         descriptors: List<LayerDescriptor>,
         quality: Float,
-        dateRange: LongRange
+        dateRange: LongRange,
+        bounds: Bounds? = null
     ) {
         try {
             if (currentLayers.isNotEmpty()) {
@@ -74,7 +77,7 @@ class LayerController {
                             builtLayer.dateRange = dateRange
                         }
 
-                        builtLayer.enable(context, quality).join()
+                        builtLayer.enable(context, quality, bounds).join()
                         builtLayer.lastConfig?.let(configs::add)
                     }
                 } catch (e: CancellationException) {

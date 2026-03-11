@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.graphics.PolylineOptimizer
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
@@ -20,7 +21,8 @@ class LocationPathLayer(
 
     override var dateRange: LongRange = LongRange(0, Long.MAX_VALUE)
 
-    override suspend fun loadData(context: Context): Input {
+    override suspend fun loadData(context: Context, bounds: Bounds?): Input {
+        // Path layer always loads the full track regardless of viewport
         val points = pointsProvider(dateRange)
         return Input(points)
     }

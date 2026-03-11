@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.map.data.cameraToBounds
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
@@ -100,9 +101,11 @@ class MapStore @Inject constructor(
     private var lastBearing: Float = 0f
 
     private var applyLayerJob: Job? = null
+    private var cameraRefreshJob: Job? = null
     private var overlayUpdateJob: Job? = null
     private var lastLocationUpdate: Long = 0L
     private val locationUpdateDebounceMs = 100L
+    private val cameraRefreshDebounceMs = 500L
     private var hasReceivedInitialLocation: Boolean = false
     private var lastKnownUserLocation: LatLngModel? = null
     private var lastKnownAccuracyM: Double = 0.0
@@ -224,6 +227,14 @@ class MapStore @Inject constructor(
                 savedStateHandle[CAMERA_ZOOM_KEY] = event.position.zoom
                 savedStateHandle[CAMERA_TILT_KEY] = event.position.tilt
                 savedStateHandle[CAMERA_BEARING_KEY] = event.position.bearing
+                // Debounced layer refresh so heatmaps reload with new viewport bounds
+                if (_state.value.activeLayerIds.isNotEmpty()) {
+                    cameraRefreshJob?.cancel()
+                    cameraRefreshJob = viewModelScope.launch {
+                        delay(cameraRefreshDebounceMs)
+                        applyLayer()
+                    }
+                }
             }
             is MapEvent.SetUserLocation -> {
                 val now = System.currentTimeMillis()
@@ -323,8 +334,9 @@ class MapStore @Inject constructor(
             _state.update { it.copy(layerLoadingProgress = 50) }
             try {
                 val s = _state.value
+                val bounds = cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
                 withContext(Dispatchers.Default) {
-                    engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange)
+                    engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds)
                 }
                 val legend = engine.activeLegend()
                 val config = engine.activeLayerConfig()
@@ -496,6 +508,7 @@ class MapStore @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         applyLayerJob?.cancel()
+        cameraRefreshJob?.cancel()
         overlayUpdateJob?.cancel()
         try {
             layerManager?.destroy()

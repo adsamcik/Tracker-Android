@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.ui
 
 import android.content.Context
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
@@ -28,7 +29,7 @@ private class StubMapLayer : BaseMapLayer<Unit, Unit>(PerformanceManager()) {
     @Volatile
     var disableCalled = false
 
-    override suspend fun loadData(context: Context) = Unit
+    override suspend fun loadData(context: Context, bounds: Bounds?) = Unit
     override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
     override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
     override fun onDisable() {

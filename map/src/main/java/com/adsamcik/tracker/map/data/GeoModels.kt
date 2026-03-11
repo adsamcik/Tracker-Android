@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.data
 
 import com.adsamcik.tracker.shared.base.database.entity.GeoFeatureEntity
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity
+import kotlin.math.pow
 
 /**
  * Domain models / query descriptors for geo repository.
@@ -16,6 +17,24 @@ data class Bounds(
     val west: Double
 ) {
     init { require(north >= south && east >= west) }
+}
+
+/**
+ * Compute a [Bounds] bounding box from a camera center and zoom level.
+ * Adds 50% padding on each side so data is pre-fetched for smooth panning.
+ * Returns `null` when zoom is too low (world-level view) because filtering
+ * would not meaningfully reduce the result set.
+ */
+fun cameraToBounds(lat: Double, lng: Double, zoom: Double): Bounds? {
+    if (zoom < 3.0) return null
+    val degreesVisible = 360.0 / 2.0.pow(zoom)
+    val halfDeg = degreesVisible / 2.0 * 1.5 // 50 % padding
+    return Bounds(
+        north = (lat + halfDeg).coerceAtMost(90.0),
+        south = (lat - halfDeg).coerceAtLeast(-90.0),
+        east = (lng + halfDeg).coerceAtMost(180.0),
+        west = (lng - halfDeg).coerceAtLeast(-180.0)
+    )
 }
 
 data class GeoQuery(

@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
 import android.graphics.Color
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
@@ -34,9 +35,10 @@ class CellHeatmapLayer(
 
     override fun intensity(): Float = quality
 
-    override suspend fun loadData(context: Context): List<WeightedGeoFeature> {
+    override suspend fun loadData(context: Context, bounds: Bounds?): List<WeightedGeoFeature> {
         val query = GeoQuery(
             source = GeoSource.CELL,
+            bounds = bounds,
             weight = "asu"
         )
         return repo.queryWeighted(query, "asu").first()

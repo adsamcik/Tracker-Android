@@ -3,6 +3,7 @@ package com.adsamcik.tracker.map.integration
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
@@ -28,7 +29,7 @@ class LayerSwitchIntegrationTest {
         @Volatile var configProduced = false
         @Volatile var disabled = false
 
-        override suspend fun loadData(context: Context): Unit = Unit
+        override suspend fun loadData(context: Context, bounds: Bounds?): Unit = Unit
         override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets): Unit = Unit
         override fun produceConfig(processed: Unit): MapLibreLayerConfig? {
             configProduced = true

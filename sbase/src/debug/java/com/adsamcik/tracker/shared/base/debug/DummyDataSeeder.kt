@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.base.debug
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
@@ -50,7 +51,7 @@ object DummyDataSeeder {
         }
 
         try {
-            database.runInTransaction {
+            database.withTransaction {
                 insertDummyData(database)
             }
             SeedResult(true)
@@ -66,7 +67,7 @@ object DummyDataSeeder {
     suspend fun seed(context: Context): SeedResult = withContext(Dispatchers.IO) {
         val database = AppDatabase.database(context)
         try {
-            database.runInTransaction {
+            database.withTransaction {
                 insertDummyData(database)
             }
             SeedResult(true)
@@ -75,10 +76,10 @@ object DummyDataSeeder {
         }
     }
 
-    /**
-     * Inserts dummy tracking data into the database
-     */
-    private fun insertDummyData(database: AppDatabase) {
+	/**
+	 * Inserts dummy tracking data into the database
+	 */
+	private suspend fun insertDummyData(database: AppDatabase) {
         val locationSampleDao = database.locationSampleDao()
         val sessionSegmentDao = database.sessionSegmentDao()
 
@@ -112,7 +113,7 @@ object DummyDataSeeder {
             Pair(now - 4L * hour, 35L * 60L * 1000L)
         )
 
-        sessionsPlan.forEach { (startTime, duration) ->
+        for ((startTime, duration) in sessionsPlan) {
             // Generate interpolated points with realistic GPS behavior and evenly distribute over duration
             val locations = interpolatePoints(checkpoints, startTime, duration)
 
@@ -121,7 +122,7 @@ object DummyDataSeeder {
             val steps = Random.nextInt(4000, 12000)
 
             // Insert location samples
-            locations.forEach { locationData ->
+            for (locationData in locations) {
                 val sample = LocationSample(
                     timeMs = locationData.time,
                     elapsedRealtimeNanos = 0L,

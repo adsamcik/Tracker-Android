@@ -37,7 +37,7 @@ class DefaultLayerRegistry : LayerRegistry {
      * No-op layer placeholder.
      */
     private class NoMapLayer : BaseMapLayer<Unit, Unit>() {
-        override suspend fun loadData(context: android.content.Context) = Unit
+        override suspend fun loadData(context: android.content.Context, bounds: com.adsamcik.tracker.map.data.Bounds?) = Unit
         override fun processData(input: Unit, budgets: PerformanceManager.PerformanceBudgets) = Unit
         override fun produceConfig(processed: Unit): MapLibreLayerConfig? = null
     }

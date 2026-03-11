@@ -2,6 +2,7 @@ package com.adsamcik.tracker.map.layers.base
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import org.junit.Assert.assertTrue
@@ -20,7 +21,7 @@ private class TestLayer : BaseMapLayer<List<Int>, List<Int>>(PerformanceManager(
         before = true
     }
 
-    override suspend fun loadData(context: Context): List<Int> {
+    override suspend fun loadData(context: Context, bounds: Bounds?): List<Int> {
         loaded = true
         return listOf(1, 2, 3)
     }

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.layers.base
 
 import android.content.Context
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import kotlinx.coroutines.CoroutineScope
@@ -42,8 +43,9 @@ abstract class BaseMapLayer<I, P>(
 
     /**
      * Start the layer. If already enabled, the running work is cancelled and the layer restarts.
+     * @param bounds Optional viewport bounds for spatial filtering. Null loads all data.
      */
-    fun enable(context: Context, quality: Float): Job {
+    fun enable(context: Context, quality: Float, bounds: Bounds? = null): Job {
         val startTime = System.currentTimeMillis()
 
         synchronized(this@BaseMapLayer) {
@@ -59,7 +61,7 @@ abstract class BaseMapLayer<I, P>(
                 beforeEnable(context)
 
                 val loadStartTime = System.currentTimeMillis()
-                val input = loadData(context)
+                val input = loadData(context, bounds)
                 val loadDuration = System.currentTimeMillis() - loadStartTime
 
                 val processStartTime = System.currentTimeMillis()
@@ -106,8 +108,10 @@ abstract class BaseMapLayer<I, P>(
     /** Hook: called on background thread before loading data. */
     protected open fun beforeEnable(context: Context) {}
 
-    /** Implement: load domain data (I) from repositories/DAOs. Heavy work allowed. Suspend allowed. */
-    protected abstract suspend fun loadData(context: Context): I
+    /** Implement: load domain data (I) from repositories/DAOs. Heavy work allowed. Suspend allowed.
+     *  @param bounds Optional viewport bounds for spatial filtering. Null means load all data.
+     */
+    protected abstract suspend fun loadData(context: Context, bounds: Bounds?): I
 
     /** Implement/override: transform/filter data using performance budgets. Heavy work allowed. */
     protected abstract fun processData(

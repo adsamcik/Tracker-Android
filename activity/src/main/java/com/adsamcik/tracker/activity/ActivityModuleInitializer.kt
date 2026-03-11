@@ -28,7 +28,7 @@ interface ActivityConsumerEntryPoint {
 class ActivityModuleInitializer : ModuleInitializer {
 	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-	private fun initializeDatabase(context: Context) {
+	private suspend fun initializeDatabase(context: Context) {
 		val activityDao = AppDatabase.database(context).activityDao()
 
 		val sessionActivity = NativeSessionActivity.entries.map {

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
@@ -33,10 +34,8 @@ class WifiCountHeatmapLayer(
 
     override fun intensity(): Float = quality
 
-    override suspend fun loadData(context: Context): List<WeightedGeoFeature> {
-        // Use unweighted query; each observation contributes weight 1.0
-        // so the heatmap shows AP count density, not signal strength.
-        val query = GeoQuery(source = GeoSource.WIFI)
+    override suspend fun loadData(context: Context, bounds: Bounds?): List<WeightedGeoFeature> {
+        val query = GeoQuery(source = GeoSource.WIFI, bounds = bounds)
         return repo.query(query).first().map { feature ->
             WeightedGeoFeature(feature.lat, feature.lon, feature.time, weight = 1.0)
         }

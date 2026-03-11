@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.presentation.bridge
 
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.shared.MapLayerData
 import kotlinx.collections.immutable.ImmutableList
@@ -9,9 +10,9 @@ import kotlinx.collections.immutable.ImmutableList
  * Produces [MapLibreLayerConfig] data for rendering and [MapOverlayState] for overlays.
  */
 interface LayerEngine {
-    suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange)
-    suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange) {
-        selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange)
+    suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange, bounds: Bounds? = null)
+    suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange, bounds: Bounds? = null) {
+        selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange, bounds)
     }
     fun clear()
     fun activeLegend(): MapLayerData?

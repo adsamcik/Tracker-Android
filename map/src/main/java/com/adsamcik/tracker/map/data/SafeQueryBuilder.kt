@@ -102,19 +102,19 @@ class SafeQueryBuilder private constructor(
     timeFrom?.let { appendClause(selection, "$timeCol >= ?").also { args += it } }
     timeTo?.let { appendClause(selection, "$timeCol <= ?").also { args += it } }
         if (north != null) {
-            appendClause(selection, "lat <= ?")
+            appendClause(selection, "${latColumn()} <= ?")
             args += north as Double
         }
         if (south != null) {
-            appendClause(selection, "lat >= ?")
+            appendClause(selection, "${latColumn()} >= ?")
             args += south as Double
         }
         if (east != null) {
-            appendClause(selection, "lon <= ?")
+            appendClause(selection, "${lonColumn()} <= ?")
             args += east as Double
         }
         if (west != null) {
-            appendClause(selection, "lon >= ?")
+            appendClause(selection, "${lonColumn()} >= ?")
             args += west as Double
         }
 
@@ -133,6 +133,16 @@ class SafeQueryBuilder private constructor(
         Table.LOCATION -> "time"
         Table.WIFI -> "last_seen"
         Table.CELL -> "time"
+    }
+
+    private fun latColumn(): String = when (table) {
+        Table.WIFI -> "latitude"
+        else -> "lat"
+    }
+
+    private fun lonColumn(): String = when (table) {
+        Table.WIFI -> "longitude"
+        else -> "lon"
     }
 
     private fun appendClause(builder: StringBuilder, clause: String) {

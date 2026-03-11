@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.map.layers.impl
 
 import android.content.Context
+import com.adsamcik.tracker.map.data.Bounds
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.perf.PerformanceManager
@@ -40,7 +41,7 @@ class SpeedHeatmapLayerTest {
         fun testGeoJsonFrom(processed: String) = geoJsonFrom(processed)
         fun testRadiusPx() = radiusPx()
         fun testIntensity() = intensity()
-        suspend fun testLoadData(context: Context) = loadData(context)
+        suspend fun testLoadData(context: Context, bounds: Bounds? = null) = loadData(context, bounds)
         fun testProcessData(
             input: List<WeightedGeoFeature>,
             budgets: PerformanceManager.PerformanceBudgets
