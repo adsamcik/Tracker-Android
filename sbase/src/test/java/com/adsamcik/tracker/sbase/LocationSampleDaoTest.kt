@@ -58,6 +58,7 @@ class LocationSampleDaoTest {
 		latE7 = latE7,
 		lonE7 = lonE7,
 		altitudeM = altitudeM,
+		rawGpsAltitudeM = altitudeM,
 		hAccM = hAccM,
 		vAccM = vAccM,
 		speedMps = speedMps,

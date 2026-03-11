@@ -76,7 +76,15 @@ data class SessionSegment(
 	 * Row creation timestamp (for auditing/debugging).
 	 */
 	@ColumnInfo(name = "created_at")
-	val createdAt: Long
+	val createdAt: Long,
+
+	/**
+	 * True when the segment's average speed exceeds the plausible threshold
+	 * for its activity type, indicating likely GPS glitch artifacts.
+	 * Evaluated at persistence time via [com.adsamcik.tracker.stats.api.TripPlausibility].
+	 */
+	@ColumnInfo(name = "has_distance_anomaly", defaultValue = "0")
+	val hasDistanceAnomaly: Boolean = false
 )
 
 /**

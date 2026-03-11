@@ -16,7 +16,7 @@
     <string name="activity_raw_still">Still</string>
     <string name="activity_raw_tilting">Tilting</string>
     <string name="activity_still">Still</string>
-    <string name="activity_unknown">Unknown</string>
+    <string name="activity_unknown">Detecting…</string>
     <string name="activity_vehicle">Vehicle</string>
     
     <!-- Extended activity catalog (historical translations now have defaults) -->

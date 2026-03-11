@@ -43,6 +43,27 @@ interface CellSampleDao : BaseDao<CellSample> {
 	suspend fun countWithoutCoordinates(): Int
 
 	/**
+	 * Count unique cell towers by MCC+MNC+cell_id.
+	 */
+	@Query("SELECT COUNT(*) FROM (SELECT 1 FROM cell_sample GROUP BY mcc, mnc, cell_id)")
+	fun uniqueCount(): Long
+
+	/**
+	 * Count unique cell towers by MCC+MNC+cell_id in a time range.
+	 */
+	@Query(
+		"""
+		SELECT COUNT(*) FROM (
+			SELECT 1
+			FROM cell_sample
+			WHERE time_ms >= :fromMs AND time_ms <= :toMs
+			GROUP BY mcc, mnc, cell_id
+		)
+		"""
+	)
+	fun uniqueCount(fromMs: Long, toMs: Long): Long
+
+	/**
 	 * Delete all cell samples.
 	 */
 	@Query("DELETE FROM cell_sample")

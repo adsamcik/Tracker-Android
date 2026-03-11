@@ -14,7 +14,13 @@ data class Trip(
 	val activityConfidence: Int?,
 	val sampleCount: Int,
 	val source: SegmentSource,
-	val createdAt: Long
+	val createdAt: Long,
+	/**
+	 * True when the trip's average speed exceeds the plausible threshold,
+	 * indicating likely GPS glitch artifacts. Persisted at write time;
+	 * for legacy tracker_session rows, computed via SQL fallback.
+	 */
+	val hasDistanceAnomaly: Boolean = false,
 ) {
 	val durationMs: Long get() = endTimeMs - startTimeMs
 	val isUserInitiated: Boolean get() = source == SegmentSource.USER_CREATED

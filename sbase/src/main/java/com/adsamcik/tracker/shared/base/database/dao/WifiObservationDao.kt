@@ -49,6 +49,18 @@ interface WifiObservationDao : BaseDao<WifiObservation> {
 	suspend fun countWithoutCoordinates(): Int
 
 	/**
+	 * Count distinct Wi-Fi networks (BSSID) seen in the database.
+	 */
+	@Query("SELECT COUNT(DISTINCT bssid) FROM wifi_observation")
+	fun countDistinctBssid(): Long
+
+	/**
+	 * Count distinct Wi-Fi networks (BSSID) seen in the given time range.
+	 */
+	@Query("SELECT COUNT(DISTINCT bssid) FROM wifi_observation WHERE time_ms >= :fromMs AND time_ms <= :toMs")
+	fun countDistinctBssid(fromMs: Long, toMs: Long): Long
+
+	/**
 	 * Delete all Wi-Fi observations.
 	 */
 	@Query("DELETE FROM wifi_observation")

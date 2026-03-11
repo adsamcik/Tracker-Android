@@ -70,6 +70,14 @@ fun Int.formatReadable(): String {
 	return df.format(this)
 }
 
+fun Int.formatTrackedSteps(stepCounterSupported: Boolean, unavailableText: String = "—"): String {
+	return when {
+		this > 0 -> formatReadable()
+		stepCounterSupported -> "0"
+		else -> unavailableText
+	}
+}
+
 /**
  * Formats double in to human readable locale sensitive format.
  * eg. 123,456,789 (123 456 789)

@@ -28,10 +28,10 @@ data class CellSample(
 	val timeMs: Long,
 
 	/**
-	 * Cell tower ID (CID).
+	 * Cell tower ID (CID). Long to support 5G NR NCI values.
 	 */
 	@ColumnInfo(name = "cell_id")
-	val cellId: Int,
+	val cellId: Long,
 
 	/**
 	 * Location Area Code (LAC).

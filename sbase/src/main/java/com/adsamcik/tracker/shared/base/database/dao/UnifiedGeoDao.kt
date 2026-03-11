@@ -5,43 +5,39 @@ import androidx.room.RawQuery
 import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 import com.adsamcik.tracker.shared.base.database.entity.GeoFeatureEntity
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
-import com.adsamcik.tracker.shared.base.database.data.DatabaseCellLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
+import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.entity.GeoWeightedFeatureEntity
 
 /**
  * Raw query based unified geo DAO returning generic GeoFeatureEntity objects.
- * Phase 3.1: Only location implementation required; wifi/cell to follow.
  */
 @Dao
 interface UnifiedGeoDao {
     /**
-     * Execute a raw query that must project columns as: time (Long), lat (Double), lon (Double)
-     * Optional additional numeric columns are mapped into the properties map (handled later at repository layer).
-     * For now we only expose a Flow<List<GeoFeatureEntity>> for location backing table changes.
+     * Execute a raw query that must project columns as: time (Long), lat (Double), lon (Double).
+     * Observes the location_sample table for invalidation.
      */
-    @RawQuery(observedEntities = [DatabaseLocation::class])
+    @RawQuery(observedEntities = [LocationSample::class])
     fun queryLocations(query: SupportSQLiteQuery): Flow<List<GeoFeatureEntity>>
 
     /**
-     * Wifi geo features. Query must alias latitude/longitude/last_seen as lat/lon/time respectively
-     * (SafeQueryBuilder handles this automatically).
+     * Wifi geo features. Observes the wifi_observation table for invalidation.
      */
-    @RawQuery(observedEntities = [DatabaseWifiData::class])
+    @RawQuery(observedEntities = [WifiObservation::class])
     fun queryWifi(query: SupportSQLiteQuery): Flow<List<GeoFeatureEntity>>
 
     /**
-     * Cell geo features. Table already uses lat/lon/time column names.
+     * Cell geo features. Observes the cell_sample table for invalidation.
      */
-    @RawQuery(observedEntities = [DatabaseCellLocation::class])
+    @RawQuery(observedEntities = [CellSample::class])
     fun queryCells(query: SupportSQLiteQuery): Flow<List<GeoFeatureEntity>>
 
-    // Weighted variants. Query must project lat, lon, time, weight (numeric)
-    @RawQuery(observedEntities = [DatabaseLocation::class])
+    @RawQuery(observedEntities = [LocationSample::class])
     fun queryLocationsWeighted(query: SupportSQLiteQuery): Flow<List<GeoWeightedFeatureEntity>>
-    @RawQuery(observedEntities = [DatabaseWifiData::class])
+    @RawQuery(observedEntities = [WifiObservation::class])
     fun queryWifiWeighted(query: SupportSQLiteQuery): Flow<List<GeoWeightedFeatureEntity>>
-    @RawQuery(observedEntities = [DatabaseCellLocation::class])
+    @RawQuery(observedEntities = [CellSample::class])
     fun queryCellsWeighted(query: SupportSQLiteQuery): Flow<List<GeoWeightedFeatureEntity>>
 }

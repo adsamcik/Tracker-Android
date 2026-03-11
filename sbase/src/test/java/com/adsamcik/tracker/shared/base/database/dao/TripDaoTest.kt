@@ -40,7 +40,8 @@ class TripDaoTest {
 		endTimeMs: Long,
 		distanceM: Float = 1000f,
 		steps: Int? = 500,
-		source: SegmentSource = SegmentSource.USER_CREATED
+		source: SegmentSource = SegmentSource.USER_CREATED,
+		hasDistanceAnomaly: Boolean = false,
 	): SessionSegment = SessionSegment(
 		startTimeMs = startTimeMs,
 		endTimeMs = endTimeMs,
@@ -51,7 +52,8 @@ class TripDaoTest {
 		sampleCount = 10,
 		source = source,
 		inferenceVersion = null,
-		createdAt = System.currentTimeMillis()
+		createdAt = System.currentTimeMillis(),
+		hasDistanceAnomaly = hasDistanceAnomaly,
 	)
 
 	@Test
@@ -168,5 +170,45 @@ class TripDaoTest {
 
 		assertEquals(true, userTrip.isUserInitiated)
 		assertEquals(false, inferredTrip.isUserInitiated)
+	}
+
+	@Test
+	fun anomalyFlagDefaultsToFalse() = runBlocking {
+		val id = segmentDao.insert(createSegment(1000L, 2000L, distanceM = 500f))
+		val trip = tripDao.getById(id)!!
+		assertEquals(false, trip.hasDistanceAnomaly)
+	}
+
+	@Test
+	fun anomalyFlagTrueWhenPersisted() = runBlocking {
+		val id = segmentDao.insert(
+			createSegment(1000L, 2000L, distanceM = 9_393_800f, hasDistanceAnomaly = true)
+		)
+		val trip = tripDao.getById(id)!!
+		assertEquals(true, trip.hasDistanceAnomaly)
+	}
+
+	@Test
+	fun anomalyFlagProjectedInGetBetween() = runBlocking {
+		segmentDao.insert(createSegment(1000L, 2000L, distanceM = 500f, hasDistanceAnomaly = false))
+		segmentDao.insert(createSegment(3000L, 4000L, distanceM = 9_393_800f, hasDistanceAnomaly = true))
+
+		val trips = tripDao.getBetween(0L, 5000L)
+		assertEquals(2, trips.size)
+		val anomalous = trips.first { it.hasDistanceAnomaly }
+		val plausible = trips.first { !it.hasDistanceAnomaly }
+		assertEquals(9_393_800f, anomalous.distanceM)
+		assertEquals(500f, plausible.distanceM)
+	}
+
+	@Test
+	fun anomalyFlagProjectedInGetRecentTrips() = runBlocking {
+		segmentDao.insert(createSegment(1000L, 2000L, distanceM = 500f, hasDistanceAnomaly = false))
+		segmentDao.insert(createSegment(3000L, 4000L, distanceM = 9_393_800f, hasDistanceAnomaly = true))
+
+		val trips = tripDao.getRecentTrips(10)
+		assertEquals(2, trips.size)
+		val anomalous = trips.first { it.hasDistanceAnomaly }
+		assertEquals(true, anomalous.hasDistanceAnomaly)
 	}
 }

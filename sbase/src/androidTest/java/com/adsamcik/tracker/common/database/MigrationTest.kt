@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.MIGRATION_10_11
 import com.adsamcik.tracker.shared.base.database.MIGRATION_11_12
 import com.adsamcik.tracker.shared.base.database.MIGRATION_12_13
 import com.adsamcik.tracker.shared.base.database.MIGRATION_16_17
+import com.adsamcik.tracker.shared.base.database.MIGRATION_19_20
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
@@ -522,8 +523,37 @@ class MigrationTest {
 		}
 	}
 
+	@Test
+	@Throws(IOException::class)
+	fun migrate19To20_addsDistanceAnomalyFlagToSessionSegment() {
+		val db = helper.createDatabase(TEST_DB, 19)
+		db.execSQL(
+			"""
+				INSERT INTO session_segment (
+					id, start_time_ms, end_time_ms, distance_m, steps,
+					primary_activity, activity_confidence, sample_count,
+					source, inference_version, created_at
+				) VALUES (
+					1, 1000, 2000, 9393800.0, 12,
+					NULL, NULL, 10,
+					'USER_CREATED', 'legacy_tracker_bridge', 3000
+				)
+			""".trimIndent()
+		)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 20, true, MIGRATION_19_20).apply {
+			val cursor = query("SELECT has_distance_anomaly FROM session_segment WHERE id = 1")
+			with(cursor) {
+				assertTrue(moveToFirst())
+				assertEquals(0, getInt(0))
+				assertFalse(moveToNext())
+			}
+			cursor.close()
+		}
+	}
+
 	companion object {
 		private const val TEST_DB = "migration-test"
 	}
 }
-
