@@ -1,8 +1,11 @@
 package com.adsamcik.tracker.dashboard.ui.compose.cards
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,15 +18,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingActionRing
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
-import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
-import com.adsamcik.tracker.dashboard.ui.compose.visualization.GoalProgressRings
-import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -34,14 +36,27 @@ import com.adsamcik.tracker.shared.utils.extension.formatDistance
  * and dual goal progress rings.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 internal fun TodayProgressCard(
 	state: DashboardUiState,
+	onToggleTracking: () -> Unit,
+	onRequestPermission: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
+	val configuration = LocalConfiguration.current
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
 	val summary = state.todaySummary
+	val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+	val contentPadding = if (isLandscape) 16.dp else 20.dp
+	val metricSpacing = if (isLandscape) 12.dp else 16.dp
+	val metricRowSpacing = if (isLandscape) 8.dp else 12.dp
+	val primaryMetricStyle = if (isLandscape) {
+		MaterialTheme.typography.headlineMedium
+	} else {
+		MaterialTheme.typography.displaySmall
+	}
 
 	Card(
 		modifier = modifier.fillMaxWidth(),
@@ -53,13 +68,13 @@ internal fun TodayProgressCard(
 		Row(
 			modifier = Modifier
 				.fillMaxWidth()
-				.padding(20.dp),
-			horizontalArrangement = Arrangement.SpaceBetween,
-			verticalAlignment = Alignment.CenterVertically,
+				.padding(contentPadding),
+			horizontalArrangement = Arrangement.spacedBy(12.dp),
+			verticalAlignment = Alignment.Top,
 		) {
 			// Left side: header + stats
 			Column(
-				verticalArrangement = Arrangement.spacedBy(4.dp),
+				verticalArrangement = Arrangement.spacedBy(if (isLandscape) 2.dp else 4.dp),
 				modifier = Modifier.weight(1f),
 			) {
 				Text(
@@ -72,7 +87,7 @@ internal fun TodayProgressCard(
 					Text(
 						text = stringResource(R.string.dashboard_today_no_activity),
 						style = MaterialTheme.typography.bodyLarge,
-						color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+						color = MaterialTheme.colorScheme.onSurface,
 					)
 				} else {
 					// Primary metric: distance
@@ -84,21 +99,24 @@ internal fun TodayProgressCard(
 
 					Text(
 						text = distanceText,
-						style = MaterialTheme.typography.displaySmall,
+						style = primaryMetricStyle,
 						fontWeight = FontWeight.Bold,
 						color = MaterialTheme.colorScheme.onSurface,
 					)
 
-					Spacer(Modifier.height(8.dp))
+					Spacer(Modifier.height(if (isLandscape) 6.dp else 8.dp))
 
 					// Secondary metrics
-					Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+					FlowRow(
+						horizontalArrangement = Arrangement.spacedBy(metricSpacing),
+						verticalArrangement = Arrangement.spacedBy(metricRowSpacing),
+					) {
 						// Duration
 						Column {
 							Text(
 								text = stringResource(R.string.dashboard_today_duration),
 								style = MaterialTheme.typography.labelMedium,
-								color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+								color = MaterialTheme.colorScheme.onSurface,
 							)
 							Text(
 								text = summary.totalDurationMs.formatAsDuration(context),
@@ -114,7 +132,7 @@ internal fun TodayProgressCard(
 								Text(
 									text = stringResource(R.string.dashboard_today_steps),
 									style = MaterialTheme.typography.labelMedium,
-									color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+									color = MaterialTheme.colorScheme.onSurface,
 								)
 								Text(
 									text = summary.totalSteps.formatReadable(),
@@ -131,7 +149,7 @@ internal fun TodayProgressCard(
 								Text(
 									text = stringResource(R.string.dashboard_today_trips),
 									style = MaterialTheme.typography.labelMedium,
-									color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+									color = MaterialTheme.colorScheme.onSurface,
 								)
 								Text(
 									text = summary.sessionCount.toString(),
@@ -145,16 +163,20 @@ internal fun TodayProgressCard(
 				}
 			}
 
-			// Right side: Goal rings
-			if (state.goalProgress.gamificationEnabled && state.goalProgress.dailyGoalSteps > 0) {
-				Box(
-					contentAlignment = Alignment.Center,
-					modifier = Modifier.padding(start = 16.dp),
-				) {
-					GoalProgressRings(goalProgress = state.goalProgress)
-				}
+			// Right side: Tracking action (play/stop) integrated with goal rings
+			Box(
+				contentAlignment = Alignment.Center,
+				modifier = Modifier.padding(start = if (isLandscape) 8.dp else 16.dp),
+			) {
+				TrackingActionRing(
+					isTracking = state.isTracking,
+					hasPermission = state.hasLocationPermission,
+					goalProgress = state.goalProgress,
+					onToggleTracking = onToggleTracking,
+					onRequestPermission = onRequestPermission,
+					compact = isLandscape,
+				)
 			}
 		}
 	}
 }
-

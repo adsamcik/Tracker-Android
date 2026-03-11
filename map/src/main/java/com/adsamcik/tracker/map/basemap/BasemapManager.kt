@@ -57,7 +57,7 @@ class BasemapManager(private val context: Context) {
     suspend fun ensureDefaultBasemap(): String = withContext(Dispatchers.IO) {
         basemapDir.mkdirs()
         val target = File(basemapDir, BUNDLED_BASEMAP_FILENAME)
-        if (!target.exists()) {
+        if (needsBundledBasemapCopy(target)) {
             context.assets.open(ASSET_BASEMAP_NAME).use { input ->
                 target.outputStream().use { output ->
                     input.copyTo(output, bufferSize = 8192)
@@ -68,7 +68,24 @@ class BasemapManager(private val context: Context) {
     }
 
     companion object {
+        private val PMTILES_MAGIC = "PMTiles".encodeToByteArray()
+        private const val PMTILES_VERSION = 0x03
+        private const val PMTILES_HEADER_PREFIX_LENGTH = 8
         private const val BUNDLED_BASEMAP_FILENAME = "default.pmtiles"
         private const val ASSET_BASEMAP_NAME = "basemap.pmtiles"
+    }
+
+    private fun needsBundledBasemapCopy(target: File): Boolean {
+        if (!target.exists() || target.length() < PMTILES_HEADER_PREFIX_LENGTH) {
+            return true
+        }
+
+        return !target.inputStream().use { input ->
+            val header = ByteArray(PMTILES_HEADER_PREFIX_LENGTH)
+            val bytesRead = input.read(header)
+            bytesRead == PMTILES_HEADER_PREFIX_LENGTH &&
+                header.copyOfRange(0, PMTILES_MAGIC.size).contentEquals(PMTILES_MAGIC) &&
+                header[PMTILES_MAGIC.size].toInt() == PMTILES_VERSION
+        }
     }
 }

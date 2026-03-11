@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
     <!-- Module title for distribution manifest -->
-    <string name="module_game_title">Games</string>
+    <string name="module_game_title">Game</string>
 
     <string name="challenge_easy">Easy</string>
     <string name="challenge_explorer_description">Collect %1$s new locations</string>
@@ -44,7 +44,6 @@
     <string name="goals_value">%1$s of %2$s</string>
     
     <!-- Game screen UI strings -->
-    <string name="game_points_details">Details</string>
     <string name="game_steps_goals_title">Steps goals</string>
     <string name="game_steps_today">Today</string>
     <string name="game_steps_week">Week</string>
@@ -70,6 +69,9 @@
     <string name="game_challenge_time_remaining">%1$s remaining</string>
     <string name="game_challenge_slot_empty">?</string>
     <string name="game_challenge_start_hint">Start tracking!</string>
+    <string name="game_challenge_picker_title">Start a challenge</string>
+    <string name="game_challenge_picker_message">Pick a challenge to jump straight into its details.</string>
+    <string name="game_challenge_picker_empty_message">No challenge is ready yet. Open Trophy Case to review unlocked goals and challenge progress.</string>
     <string name="game_challenge_medal_gold_threshold">Gold: finish in %1$s</string>
     <string name="game_challenge_medal_silver_threshold">Silver: finish in %1$s</string>
 
@@ -104,8 +106,11 @@
     <string name="medal_silver">Silver</string>
     <string name="medal_bronze">Bronze</string>
     <string name="medal_none">None</string>
-    <string name="game_points_breakdown_coming_soon">Points breakdown coming soon</string>
     <string name="game_points_start_tracking_hint">Start tracking to earn points!</string>
+    <string name="game_start_tracking_action">Start Tracking</string>
+    <string name="game_track_and_earn_points_action">Track &amp; Earn Points</string>
+    <string name="game_open_settings">Open settings</string>
+    <string name="game_close">Close</string>
 
     <!-- Exploration card -->
     <string name="exploration_title">Exploration</string>
@@ -125,6 +130,10 @@
     <string name="achievements_gold">Gold</string>
     <string name="achievements_diamond">Diamond</string>
     <string name="achievements_none_yet">No achievements unlocked yet. Start exploring!</string>
+    <string name="achievement_unlocked_notification_title">Achievement unlocked: %1$s</string>
+    <string name="achievement_unlocked_notification_description">Reached %1$s tier</string>
+    <string name="achievement_progress_notification_title">Achievement almost complete: %1$s</string>
+    <string name="achievement_progress_notification_description">%1$d%% complete (%2$d/%3$d)</string>
 
     <string-array name="goals_encouragement">
         <item>Good job</item>

@@ -10,12 +10,9 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
 import java.util.concurrent.CopyOnWriteArrayList
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
-import com.adsamcik.tracker.tracker.data.collection.LegacyTempDataAdapter
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import android.util.Log
 import kotlinx.coroutines.CancellationException
@@ -93,8 +90,15 @@ internal class DataProducerManager(
 		activeProducerList.clear()
 	}
 
-	suspend fun getData(tempData: MutableCollectionTempData): TrackingCycle {
-		val builder = TrackingCycleBuilder(tempData.timeMillis, tempData.elapsedRealtimeNanos)
+	/**
+	 * Runs all active producers, merges their output with the trigger-supplied
+	 * [incomingCycle] (which may already carry location data from a GPS trigger),
+	 * and returns an enriched [TrackingCycle].
+	 */
+	suspend fun getData(incomingCycle: TrackingCycle): TrackingCycle {
+		val builder = TrackingCycleBuilder(incomingCycle.timestampMs, incomingCycle.elapsedRealtimeNanos)
+		// Carry over location from the trigger (if present)
+		builder.location = incomingCycle.location
 		// Run all active producers in parallel on a background dispatcher to keep main thread free.
 		withContext(coroutineContext) {
 			activeProducerList.map { producer ->
@@ -109,10 +113,7 @@ internal class DataProducerManager(
 				}
 			}.awaitAll()
 		}
-		val cycle = builder.build()
-		// Bridge: copy typed data back into tempData for old consumers
-		LegacyTempDataAdapter.populateTempData(tempData, cycle)
-		return cycle
+		return builder.build()
 	}
 
 	companion object {

@@ -19,8 +19,7 @@ import com.adsamcik.tracker.stats.api.TripPlausibility
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,12 +63,12 @@ internal class SessionTrackerComponent(
 	private val preferenceJobs = mutableListOf<Job>()
 
 	override suspend fun onDataUpdated(
-		tempData: CollectionTempData,
+		cycle: TrackingCycle,
 		collectionData: MutableCollectionData
 	) {
 		sessionMutex.withLock {
 			mutableSession.run {
-				val locationData = tempData.tryGetLocationData()
+				val locationData = cycle.location
 				if (locationData != null) {
 					collectedLocationCount++
 				}
@@ -77,9 +76,9 @@ internal class SessionTrackerComponent(
 				distance?.let {
 					distanceInM += it
 
-					tempData.tryGetActivity()?.let { activity ->
+					cycle.activity?.let { activity ->
 						validateActivity(
-							distance, tempData.elapsedRealtimeNanos,
+							distance, cycle.elapsedRealtimeNanos,
 							activity.groupedActivity
 						)
 					}
@@ -88,7 +87,7 @@ internal class SessionTrackerComponent(
 				collections++
 				end = Time.nowMillis
 
-				tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
+				cycle.stepDelta?.let { newSteps ->
 					assertMoreOrEqual(newSteps, 0)
 					steps += newSteps
 				}

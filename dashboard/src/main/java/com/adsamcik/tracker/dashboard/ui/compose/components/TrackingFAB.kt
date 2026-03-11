@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -125,10 +126,16 @@ internal fun TrackingFAB(
 		isTracking -> stringResource(DashboardR.string.dashboard_cd_stop_tracking)
 		else -> stringResource(DashboardR.string.dashboard_cd_start_tracking)
 	}
+	val fabClickLabel = when {
+		!hasPermission -> stringResource(DashboardR.string.dashboard_action_enable_location)
+		isTracking -> stringResource(DashboardR.string.dashboard_cd_stop_tracking)
+		else -> stringResource(DashboardR.string.dashboard_cd_start_tracking)
+	}
 
 	Box(
 		contentAlignment = Alignment.Center,
-		modifier = modifier.size(buttonSize + 16.dp),
+		modifier = modifier
+			.size(buttonSize + 16.dp)
 	) {
 		// Outer glow ring when tracking
 		if (isTracking) {
@@ -165,14 +172,15 @@ internal fun TrackingFAB(
 			tonalElevation = if (isTracking) 4.dp else 2.dp,
 			modifier = Modifier
 				.size(buttonSize)
+				.semantics(mergeDescendants = true) {
+					contentDescription = fabContentDescription
+					onClick(label = fabClickLabel, action = null)
+				}
 				.graphicsLayer {
 					scaleX = pulseScale
 					scaleY = pulseScale
 				}
-				.testTag("tracking_fab")
-				.semantics {
-					contentDescription = fabContentDescription
-				},
+				.testTag("tracking_fab"),
 		) {
 			Box(
 				contentAlignment = Alignment.Center,
@@ -182,11 +190,6 @@ internal fun TrackingFAB(
 					!hasPermission -> Icons.Default.LocationOff
 					isTracking -> Icons.Default.Stop
 					else -> Icons.Default.PlayArrow
-				}
-				val description = when {
-					!hasPermission -> stringResource(R.string.description_tracking_start)
-					isTracking -> stringResource(R.string.description_tracking_stop)
-					else -> stringResource(R.string.description_tracking_start)
 				}
 
 				AnimatedContent(
@@ -209,7 +212,7 @@ internal fun TrackingFAB(
 				) { targetIcon ->
 					Icon(
 						imageVector = targetIcon,
-						contentDescription = description,
+						contentDescription = null,
 						tint = contentColor,
 						modifier = Modifier
 							.size(40.dp)

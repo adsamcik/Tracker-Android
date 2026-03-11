@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.dashboard.ui.compose.cards
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
@@ -37,20 +40,43 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
 @Composable
 internal fun StreakBanner(
 	streakState: StreakState,
+	onClick: (() -> Unit)? = null,
 	modifier: Modifier = Modifier,
 ) {
-	if (streakState.currentStreak <= 0 && streakState.weeklyDistances.isEmpty()) {
-		// No streak and no weekly data — show encouragement
-		EncouragementBanner(modifier)
+	if (streakState.currentStreak <= 0) {
+		// No active streak — keep the banner in a single encouragement state.
+		EncouragementBanner(
+			modifier = modifier,
+			onClick = onClick,
+		)
 		return
 	}
 
 	val primaryColor = MaterialTheme.colorScheme.primary
 	val tertiaryColor = MaterialTheme.colorScheme.tertiary
 	val errorColor = MaterialTheme.colorScheme.error
+	val streakContentDescription = stringResource(
+		R.string.dashboard_cd_streak_banner,
+		streakState.currentStreak,
+	)
+	val streakClickLabel = stringResource(R.string.dashboard_action_view_streak_details)
 
 	Card(
-		modifier = modifier.fillMaxWidth(),
+		modifier = modifier
+			.fillMaxWidth()
+			.semantics(mergeDescendants = true) {
+				contentDescription = streakContentDescription
+			}
+			.then(
+				if (onClick != null) {
+					Modifier.clickable(
+						onClickLabel = streakClickLabel,
+						onClick = onClick,
+					)
+				} else {
+					Modifier
+				},
+			),
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.surfaceContainer,
 		),
@@ -67,7 +93,7 @@ internal fun StreakBanner(
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Icon(
 					imageVector = Icons.Filled.LocalFireDepartment,
-					contentDescription = stringResource(R.string.dashboard_cd_fire_icon),
+					contentDescription = null,
 					tint = if (streakState.currentStreak > 0) {
 						MaterialTheme.colorScheme.error
 					} else {
@@ -141,9 +167,29 @@ internal fun StreakBanner(
 }
 
 @Composable
-private fun EncouragementBanner(modifier: Modifier = Modifier) {
+private fun EncouragementBanner(
+	modifier: Modifier = Modifier,
+	onClick: (() -> Unit)? = null,
+) {
+	val streakContentDescription = stringResource(R.string.dashboard_cd_streak_banner_empty)
+	val streakClickLabel = stringResource(R.string.dashboard_action_view_streak_details)
+
 	Card(
-		modifier = modifier.fillMaxWidth(),
+		modifier = modifier
+			.fillMaxWidth()
+			.semantics(mergeDescendants = true) {
+				contentDescription = streakContentDescription
+			}
+			.then(
+				if (onClick != null) {
+					Modifier.clickable(
+						onClickLabel = streakClickLabel,
+						onClick = onClick,
+					)
+				} else {
+					Modifier
+				},
+			),
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.surfaceContainer,
 		),
@@ -157,7 +203,7 @@ private fun EncouragementBanner(modifier: Modifier = Modifier) {
 		) {
 			Icon(
 				imageVector = Icons.Filled.LocalFireDepartment,
-				contentDescription = stringResource(R.string.dashboard_cd_fire_icon),
+				contentDescription = null,
 				tint = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.size(24.dp),
 			)

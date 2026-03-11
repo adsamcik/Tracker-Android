@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.dashboard.ui.compose.cards
 
+import android.content.pm.PackageManager
+
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,7 +60,18 @@ internal fun LastSessionCard(
 		digits = if (session.distanceInM >= 1000f) 1 else 2,
 		unit = settings.lengthSystem,
 	)
-	val stepsText = session.steps.takeIf { it > 0 }?.formatReadable() ?: "0"
+	val stepCounterSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+	val stepsUnavailable = session.steps <= 0 && !stepCounterSupported
+	val stepsText = when {
+		session.steps > 0 -> session.steps.formatReadable()
+		stepCounterSupported -> "0"
+		else -> stringResource(R.string.dashboard_metric_not_available_short)
+	}
+	val stepsSupportingText = if (stepsUnavailable) {
+		stringResource(R.string.dashboard_last_session_steps_unavailable)
+	} else {
+		null
+	}
 	val sessionAge = DateUtils.getRelativeTimeSpanString(
 		session.start,
 		System.currentTimeMillis(),
@@ -71,14 +84,33 @@ internal fun LastSessionCard(
 		durationText,
 		distanceText,
 	)
+	val viewDetailsLabel = stringResource(R.string.dashboard_action_view_details)
+	val mapContentDescription = if (pathPoints != null && pathPoints.isNotEmpty()) {
+		stringResource(
+			R.string.dashboard_cd_session_path,
+			pathPoints.size,
+		)
+	} else {
+		null
+	}
+	val cardModifier = modifier
+		.fillMaxWidth()
+		.semantics {
+			contentDescription = cardContentDescription
+		}
+		.then(
+			if (onSessionDetailClick != null) {
+				Modifier.clickable(onClickLabel = viewDetailsLabel) {
+					val tripId = if (session.id > 0L) -session.id else session.id
+					onSessionDetailClick(tripId)
+				}
+			} else {
+				Modifier
+			},
+		)
 
 	Card(
-		onClick = { onSessionDetailClick?.invoke(session.id) },
-		modifier = modifier
-			.fillMaxWidth()
-			.semantics {
-				contentDescription = cardContentDescription
-			},
+		modifier = cardModifier,
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
 		),
@@ -126,6 +158,7 @@ internal fun LastSessionCard(
 				SessionMetricItem(
 					label = stringResource(R.string.dashboard_last_session_steps),
 					value = stepsText,
+					supportingText = stepsSupportingText,
 					modifier = Modifier.weight(1f),
 				)
 			}
@@ -138,7 +171,13 @@ internal fun LastSessionCard(
 						.fillMaxWidth()
 						.height(120.dp)
 						.clip(MaterialTheme.shapes.medium)
-						.clickable { onMapClick() },
+						.semantics {
+							contentDescription = mapContentDescription.orEmpty()
+						}
+						.clickable(
+							onClickLabel = stringResource(R.string.dashboard_action_view_map),
+							onClick = onMapClick,
+						),
 				) {
 					SessionPathPreview(
 						points = pathPoints,
@@ -176,6 +215,7 @@ internal fun LastSessionCard(
 private fun SessionMetricItem(
 	label: String,
 	value: String,
+	supportingText: String? = null,
 	modifier: Modifier = Modifier,
 ) {
 	Column(modifier) {
@@ -191,5 +231,13 @@ private fun SessionMetricItem(
 			fontWeight = FontWeight.SemiBold,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
+		if (!supportingText.isNullOrBlank()) {
+			Spacer(Modifier.height(2.dp))
+			Text(
+				text = supportingText,
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+		}
 	}
 }

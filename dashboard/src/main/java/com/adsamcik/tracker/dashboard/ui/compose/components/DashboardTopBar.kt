@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +74,8 @@ internal fun DashboardTopBar(
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
+	val settingsContentDescription = stringResource(R.string.dashboard_cd_open_settings)
+	val settingsClickLabel = stringResource(R.string.dashboard_action_open_settings)
 
 	Surface(modifier = modifier, color = MaterialTheme.colorScheme.surface) {
 		Column {
@@ -147,10 +150,21 @@ internal fun DashboardTopBar(
 						}
 					}
 
-					IconButton(onClick = onSettingsClick) {
+					IconButton(
+						onClick = onSettingsClick,
+						modifier = Modifier
+							.size(48.dp)
+							.semantics {
+								contentDescription = settingsContentDescription
+								onClick(
+									label = settingsClickLabel,
+									action = null,
+								)
+							},
+					) {
 						Icon(
 							Icons.Default.Settings,
-							contentDescription = stringResource(TrackerR.string.description_settings),
+							contentDescription = null,
 						)
 					}
 				},

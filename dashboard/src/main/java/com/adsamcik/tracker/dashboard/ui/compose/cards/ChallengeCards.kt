@@ -29,6 +29,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,13 +93,30 @@ private fun ChallengeCard(
 		"hard" -> stringResource(R.string.dashboard_challenge_hard)
 		else -> stringResource(R.string.dashboard_challenge_medium)
 	}
+	val progressPercent = (challenge.progress.coerceIn(0f, 1f) * 100).toInt()
+	val cardContentDescription = stringResource(
+		R.string.dashboard_cd_challenge_card,
+		challenge.title,
+		progressPercent,
+	)
+	val viewDetailsLabel = stringResource(R.string.dashboard_action_view_details)
 
 	Card(
 		modifier = modifier
 			.width(160.dp)
 			.height(120.dp)
+			.semantics(mergeDescendants = true) {
+				contentDescription = cardContentDescription
+			}
 			.then(
-				if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+				if (onClick != null) {
+					Modifier.clickable(
+						onClickLabel = viewDetailsLabel,
+						onClick = onClick,
+					)
+				} else {
+					Modifier
+				},
 			),
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -181,12 +200,25 @@ private fun EmptyChallengeCard(
 	onClick: (() -> Unit)?,
 	modifier: Modifier = Modifier,
 ) {
+	val challengesClickLabel = stringResource(R.string.dashboard_action_view_challenges)
+	val emptyCardContentDescription = stringResource(R.string.dashboard_cd_challenge_empty)
+
 	Card(
 		modifier = modifier
 			.width(160.dp)
 			.height(120.dp)
+			.semantics(mergeDescendants = true) {
+				contentDescription = emptyCardContentDescription
+			}
 			.then(
-				if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+				if (onClick != null) {
+					Modifier.clickable(
+						onClickLabel = challengesClickLabel,
+						onClick = onClick,
+					)
+				} else {
+					Modifier
+				},
 			),
 		colors = CardDefaults.cardColors(
 			containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -201,7 +233,7 @@ private fun EmptyChallengeCard(
 		) {
 			Icon(
 				imageVector = Icons.Filled.EmojiEvents,
-				contentDescription = stringResource(R.string.dashboard_cd_challenge_icon),
+				contentDescription = null,
 				tint = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.size(32.dp),
 			)

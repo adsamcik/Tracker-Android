@@ -10,6 +10,13 @@ import java.io.File
  */
 object MapStyleProvider {
 
+    private const val PMTILES_VERSION = 0x03
+    private const val PMTILES_MIN_ZOOM_OFFSET = 0x64
+    private const val PMTILES_MAX_ZOOM_OFFSET = 0x65
+    private const val PMTILES_HEADER_SIZE = 127
+    private val PMTILES_MAGIC = "PMTiles".encodeToByteArray()
+    private val DEFAULT_BUNDLE_ZOOM_RANGE = ZoomRange(min = 0, max = 6)
+
     /**
      * Build a style JSON string at runtime referencing a user-imported PMTiles file.
      * Returns null if the file doesn't exist.
@@ -17,7 +24,11 @@ object MapStyleProvider {
     fun customStyleJson(pmtilesPath: String, isDarkTheme: Boolean): String? {
         val file = File(pmtilesPath)
         if (!file.exists()) return null
-        return buildStyleJson(pmtilesPath, isDarkTheme)
+        return buildStyleJson(
+            pmtilesPath = pmtilesPath,
+            isDarkTheme = isDarkTheme,
+            zoomRange = readPmtilesZoomRange(file),
+        )
     }
 
     /**
@@ -26,9 +37,29 @@ object MapStyleProvider {
      * because PMTiles requires random-access I/O.
      */
     fun defaultStyleJson(basemapPath: String, isDarkTheme: Boolean): String =
-        buildStyleJson(basemapPath, isDarkTheme)
+        buildStyleJson(
+            pmtilesPath = basemapPath,
+            isDarkTheme = isDarkTheme,
+            zoomRange = readPmtilesZoomRange(File(basemapPath)) ?: DEFAULT_BUNDLE_ZOOM_RANGE,
+        )
 
-    private fun buildStyleJson(pmtilesPath: String, isDarkTheme: Boolean): String {
+    private fun buildStyleJson(
+        pmtilesPath: String,
+        isDarkTheme: Boolean,
+        zoomRange: ZoomRange?,
+    ): String {
+        val normalizedPath = File(pmtilesPath).absolutePath.replace('\\', '/')
+        val fileUri = if (normalizedPath.startsWith("/")) {
+            "file://$normalizedPath"
+        } else {
+            "file:///$normalizedPath"
+        }
+        val zoomConfig = buildString {
+            zoomRange?.let {
+                append(",\n                  \"minzoom\": ${it.min}")
+                append(",\n                  \"maxzoom\": ${it.max}")
+            }
+        }
         val bg = if (isDarkTheme) "#1a1a2e" else "#f0f0f0"
         val earth = if (isDarkTheme) "#1e1e2e" else "#e8e0d8"
         val landcover = if (isDarkTheme) "#1a2a1a" else "#d4e8c2"
@@ -36,6 +67,7 @@ object MapStyleProvider {
         val landuse = if (isDarkTheme) "#1a2a1a" else "#e0e8e0"
         val boundary = if (isDarkTheme) "#555555" else "#999999"
         val road = if (isDarkTheme) "#333333" else "#ffffff"
+        val building = if (isDarkTheme) "#2a2438" else "#d7c7b8"
         val name = if (isDarkTheme) "Tracker Dark" else "Tracker Light"
 
         // Source layer names must match the Protomaps basemap schema:
@@ -47,7 +79,7 @@ object MapStyleProvider {
               "sources": {
                 "basemap": {
                   "type": "vector",
-                  "url": "pmtiles://file:///$pmtilesPath"
+                  "url": "pmtiles://$fileUri"$zoomConfig
                 }
               },
               "layers": [
@@ -57,9 +89,44 @@ object MapStyleProvider {
                 {"id":"water","type":"fill","source":"basemap","source-layer":"water","paint":{"fill-color":"$water"}},
                 {"id":"landuse","type":"fill","source":"basemap","source-layer":"landuse","paint":{"fill-color":"$landuse"}},
                 {"id":"boundaries","type":"line","source":"basemap","source-layer":"boundaries","paint":{"line-color":"$boundary","line-width":1}},
-                {"id":"roads","type":"line","source":"basemap","source-layer":"roads","paint":{"line-color":"$road","line-width":1}}
+                {"id":"roads","type":"line","source":"basemap","source-layer":"roads","paint":{"line-color":"$road","line-width":["interpolate",["linear"],["zoom"],4,0.5,8,1,12,1.5,16,3]}},
+                {"id":"buildings","type":"fill","source":"basemap","source-layer":"buildings","minzoom":12,"paint":{"fill-color":"$building","fill-opacity":0.6}}
               ]
             }
         """.trimIndent()
     }
+
+    private fun readPmtilesZoomRange(file: File): ZoomRange? {
+        if (!file.exists() || file.length() < PMTILES_HEADER_SIZE) {
+            return null
+        }
+
+        return try {
+            val header = ByteArray(PMTILES_HEADER_SIZE)
+            file.inputStream().use { input ->
+                if (input.read(header) != PMTILES_HEADER_SIZE) {
+                    return null
+                }
+            }
+
+            val hasValidMagic =
+                header.copyOfRange(0, PMTILES_MAGIC.size).contentEquals(PMTILES_MAGIC) &&
+                    header[PMTILES_MAGIC.size].toInt() == PMTILES_VERSION
+            if (!hasValidMagic) {
+                return null
+            }
+
+            ZoomRange(
+                min = header[PMTILES_MIN_ZOOM_OFFSET].toInt() and 0xFF,
+                max = header[PMTILES_MAX_ZOOM_OFFSET].toInt() and 0xFF,
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private data class ZoomRange(
+        val min: Int,
+        val max: Int,
+    )
 }

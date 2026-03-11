@@ -5,16 +5,21 @@ import android.os.Build
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.hilt.work.HiltWorkerFactory
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
+import androidx.work.WorkManager
 import com.adsamcik.tracker.BuildConfig
 import com.adsamcik.tracker.logger.CrashHandler
 import com.adsamcik.tracker.logger.Logger
+import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.points.PointsInitializer
 import com.adsamcik.tracker.maintenance.DataRetentionWorker
+import com.adsamcik.tracker.map.MapLibreInitializer
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.tracker.service.ActivityWatcherService
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
@@ -23,13 +28,13 @@ import com.adsamcik.tracker.activity.ActivityModuleInitializer
 import com.adsamcik.tracker.tracker.module.TrackerModuleInitializer
 import com.adsamcik.tracker.game.GameModuleInitializer
 import android.app.Application as AndroidApplication
-import android.util.Log
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.*
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.SystemClock
+import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import javax.inject.Inject
 
 
@@ -65,6 +70,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	// Primary composition root - inject this into activities/services needing dependencies
 	lateinit var appGraph: AppGraph
+		private set
+
+	@Volatile
+	var isStartupReady: Boolean = false
 		private set
 	
 	override val workManagerConfiguration: Configuration
@@ -111,9 +120,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 		Reporter.initialize(this)
 		Logger.initialize(this)
 		CrashHandler(this).initialize()
+		ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+			override fun onStart(owner: LifecycleOwner) {
+				ActivityWatcherService.poke(this@Application)
+			}
+		})
 	}
 
-	@MainThread
 	private fun initializeDatabaseMaintenance() {
 		// Schedule periodic DB maintenance if WorkManager is available
 		try {
@@ -140,7 +153,57 @@ class Application : AndroidApplication(), Configuration.Provider {
 	}
 
 	@WorkerThread
-	private fun initializeFeatures() {
+	private fun initializeWorkManager() {
+		try {
+			WorkManager.initialize(this, workManagerConfiguration)
+		} catch (e: IllegalStateException) {
+			Log.w("App", "WorkManager already initialized: ${e.message}")
+		}
+	}
+
+	private fun startBackgroundStartup() {
+		appScope.launch(dispatchers.io) {
+			try {
+				preloadNativeLibraries()
+				MapLibreInitializer.initialize(this@Application)
+				initializeWorkManager()
+				appGraph.warmUp()
+			} catch (t: Throwable) {
+				Log.e("App", "Background startup initialization failed", t)
+			} finally {
+				isStartupReady = true
+			}
+
+			launch(dispatchers.io) {
+				try {
+					// Keep StrictMode noisy: only dependency wiring stays on the main thread.
+					initializeClasses()
+					initializeModules()
+					initializeFeatures()
+					initializeDatabaseMaintenance()
+				} catch (t: Throwable) {
+					Log.e("App", "Deferred startup initialization failed", t)
+				}
+			}
+		}
+	}
+
+	/**
+	 * Pre-load heavy native libraries on a background thread so they don't
+	 * block the main thread when the corresponding UI first renders.
+	 * MapLibre's native lib (~5s load on emulator) is the primary culprit.
+	 */
+	@WorkerThread
+	private fun preloadNativeLibraries() {
+		try {
+			System.loadLibrary("maplibre")
+		} catch (e: UnsatisfiedLinkError) {
+			Log.w("App", "MapLibre native library not available: ${e.message}")
+		}
+	}
+
+	@WorkerThread
+	private suspend fun initializeFeatures() {
 		// Points
 		PointsInitializer().initialize(this)
 
@@ -156,14 +219,12 @@ class Application : AndroidApplication(), Configuration.Provider {
 	 * Processes any unconsumed SessionEnded events on startup (crash recovery).
 	 */
 	@WorkerThread
-	private fun initializePrecisionUpgradeConsumer() {
+	private suspend fun initializePrecisionUpgradeConsumer() {
 		val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
 			this,
 			PrecisionUpgradeEntryPoint::class.java,
 		)
-		kotlinx.coroutines.runBlocking {
-			entryPoint.precisionUpgradeConsumer().processUnconsumed()
-		}
+		entryPoint.precisionUpgradeConsumer().processUnconsumed()
 	}
 
 	@dagger.hilt.EntryPoint
@@ -201,22 +262,16 @@ class Application : AndroidApplication(), Configuration.Provider {
 		dispatchers = DefaultDispatchersProvider
 		clock = SystemClock
 		appScope = CoroutineScope(SupervisorJob() + dispatchers.default)
+
+		// Flush pending DataStore writes when the app goes to background
+		ProcessLifecycleOwner.get().lifecycle.addObserver(
+			PreferenceFlushLifecycleObserver(this, appScope)
+		)
 		
 		// Build composition root with all dependencies
 		appGraph = AppGraph.create(dispatchers, clock, appScope)
 		appGraph.initialize(this)
-		// Warm up export automation so plan observation/scheduling starts immediately
-		appGraph.exportAutomationController
-
-		// Preference observers must be registered on main thread
-		initializeDatabaseMaintenance()
-
-		appScope.launch {
-			initializeClasses()
-			initializeModules()
-			initializeFeatures()
-		}
+		startBackgroundStartup()
 	}
 
 }
-

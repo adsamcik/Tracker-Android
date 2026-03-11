@@ -3,19 +3,33 @@
     <string name="dashboard_title">Dashboard</string>
     <string name="dashboard_tracking_title">Tracking</string>
     <string name="dashboard_recording">Recording</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Tracking stopped unexpectedly</string>
 
 
     <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Activity type</string>
     <string name="dashboard_cd_challenge_icon">Challenge</string>
+    <string name="dashboard_cd_challenge_card">Challenge: %1$s, %2$d%% complete. Tap to view</string>
+    <string name="dashboard_cd_challenge_empty">Start a challenge. Tap to view challenges</string>
     <string name="dashboard_cd_explore_icon">Exploration</string>
     <string name="dashboard_cd_fire_icon">Streak</string>
     <string name="dashboard_cd_forward_arrow">View details</string>
-    <string name="dashboard_cd_last_session">Last session: %1$s duration, %2$s distance</string>
+    <string name="dashboard_cd_last_session">Last session: %1$s duration, %2$s distance. Tap for details</string>
     <string name="dashboard_cd_locked_badge">Tracking locked</string>
+    <string name="dashboard_cd_open_settings">Open settings</string>
     <string name="dashboard_cd_start_tracking">Start tracking</string>
     <string name="dashboard_cd_start_tracking_permission">Start tracking, permission required</string>
+    <string name="dashboard_cd_streak_banner">Streak: %1$d days. Tap to view streak details</string>
+    <string name="dashboard_cd_streak_banner_empty">Start a streak. Tap to view streak details</string>
     <string name="dashboard_cd_stop_tracking">Stop tracking</string>
+    <string name="dashboard_action_enable_location">Enable location access</string>
+    <string name="dashboard_action_open_settings">Open settings</string>
+    <string name="dashboard_action_view_challenges">View challenges</string>
+    <string name="dashboard_action_view_details">View details</string>
+    <string name="dashboard_action_view_map">View map</string>
+    <string name="dashboard_action_view_streak_details">View streak details</string>
+    <string name="dashboard_action_open_tracking_settings">Settings</string>
+    <string name="dashboard_action_restart_tracking">Restart</string>
 
     <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Altitude profile, %1$.0f–%2$.0f m</string>
@@ -25,6 +39,7 @@
 
     <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Awaiting GPS signal…</string>
+    <string name="dashboard_tracking_recording_route">Recording route…</string>
     <string name="dashboard_milestone_distance">km reached!</string>
     <string name="dashboard_milestone_steps">steps reached!</string>
     <string name="dashboard_milestone_time">min tracked!</string>
@@ -42,6 +57,7 @@
     <string name="dashboard_today_trips">Trips</string>
     <string name="dashboard_daily_goal">Daily</string>
     <string name="dashboard_weekly_goal">Weekly</string>
+    <string name="dashboard_goal_get_started">Get started</string>
     <string name="dashboard_goal_on_track">On track</string>
     <string name="dashboard_goal_ahead">Ahead</string>
     <string name="dashboard_goal_behind">Behind</string>
@@ -59,8 +75,11 @@
     <string name="dashboard_last_session_duration">Duration</string>
     <string name="dashboard_last_session_distance">Distance</string>
     <string name="dashboard_last_session_steps">Steps</string>
+    <string name="dashboard_last_session_steps_unavailable">Step sensor unavailable</string>
+    <string name="dashboard_metric_not_available_short">N/A</string>
     <string name="dashboard_last_session_view_map">View Map</string>
     <string name="dashboard_recent_trips_title">Recent Trips</string>
+    <string name="dashboard_recent_trips_empty">No recent trips. Start tracking to see your journeys here.</string>
     <string name="dashboard_exploration_title">Exploration</string>
     <string name="dashboard_exploration_new_today">New today</string>
     <string name="dashboard_exploration_total_cells">Total cells</string>
@@ -111,6 +130,16 @@
     <string name="dashboard_empty_feature_privacy">Privacy</string>
     <string name="dashboard_empty_feature_privacy_desc">All data stays on your device</string>
     <string name="dashboard_empty_icon_desc">Location tracking illustration</string>
+    <string name="dashboard_empty_quick_start_title">Quick start</string>
+    <string name="dashboard_empty_quick_start_subtitle">Here’s the fastest way to turn this blank dashboard into useful maps, sessions, and daily progress.</string>
+    <string name="dashboard_empty_step_customize_title">Choose your tracking style</string>
+    <string name="dashboard_empty_step_customize_desc">Open Settings any time to adjust presets, battery use, and the sensors you want to record.</string>
+    <string name="dashboard_empty_step_start_title">Start your first track</string>
+    <string name="dashboard_empty_step_start_desc">Tap the floating action button to begin a walk, run, ride, or background tracking session.</string>
+    <string name="dashboard_empty_step_review_title">Review maps and stats</string>
+    <string name="dashboard_empty_step_review_desc">After your first session, the Dashboard, Map, and Statistics tabs will fill with recent activity and insights.</string>
+    <string name="dashboard_empty_fab_hint_title">Ready when you are</string>
+    <string name="dashboard_empty_fab_hint_desc">Use the action button in the bottom-right corner to start tracking as soon as location access is granted.</string>
 
     <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">No altitude data</string>
@@ -130,4 +159,12 @@
     <string name="dashboard_metric_wifi">WiFi</string>
     <string name="dashboard_metric_cell">Cell</string>
     <string name="dashboard_metric_coordinates">Coordinates</string>
+
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Start tracking</string>
+    <string name="dashboard_ring_enable_location">Enable location</string>
+    <string name="dashboard_pill_start">Start</string>
+    <string name="dashboard_pill_stop">Stop</string>
+    <string name="dashboard_pill_enable_location">Enable location</string>
+    <string name="dashboard_pill_recording">Recording · %1$s</string>
 </resources>

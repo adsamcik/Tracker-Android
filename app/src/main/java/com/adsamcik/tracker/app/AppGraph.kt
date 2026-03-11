@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app
 
 import android.app.Application
 import android.content.Context
+import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.game.di.DefaultDailyPointsProvider
 import com.adsamcik.tracker.game.di.DefaultGoalProgressProvider
 import com.adsamcik.tracker.game.di.DefaultActiveChallengesProvider
@@ -59,6 +60,17 @@ class AppGraph(
     fun initialize(app: Application) {
         application = app
     }
+
+    @WorkerThread
+    fun warmUp() {
+        database.openHelper.writableDatabase
+        trackerServiceController
+        lockManager
+        dailySummaryProvider
+        dailyPointsProvider
+        goalProgressProvider
+        activeChallengesProvider
+    }
     
     // Core infrastructure (application-scoped)
     val database: AppDatabase by lazy {
@@ -93,7 +105,7 @@ class AppGraph(
     // Dashboard providers (application-scoped)
     val dailySummaryProvider: DailySummaryProvider by lazy {
         DefaultDailySummaryProvider(
-            database.sessionDao(),
+            database.tripDao(),
             database.dailySummaryDao(),
             database.liveStatsDao(),
             dispatchers.io
@@ -111,7 +123,7 @@ class AppGraph(
     val activeChallengesProvider: ActiveChallengesProvider by lazy {
         DefaultActiveChallengesProvider(gameRepository, appScope)
     }
-    
+
     companion object {
         /**
          * Create production AppGraph with real system dependencies.

@@ -16,6 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +53,7 @@ fun HeroLevelCard(
 	streakCount: Int,
 	streakBest: Int,
 	freezeCount: Int,
+	onStartTrackingClick: () -> Unit = {},
 	modifier: Modifier = Modifier,
 ) {
 	GlassCard(
@@ -57,7 +62,7 @@ fun HeroLevelCard(
 			.fillMaxWidth()
 	) {
 		if (level == 0 || xpForNextLevel == 0L) {
-			EmptyLevelContent()
+			EmptyLevelContent(onStartTrackingClick = onStartTrackingClick)
 		} else {
 			LevelContent(
 				level = level,
@@ -72,17 +77,27 @@ fun HeroLevelCard(
 }
 
 @Composable
-private fun EmptyLevelContent() {
-	Text(
-		text = stringResource(R.string.game_hero_start_tracking_hint),
-		style = MaterialTheme.typography.bodyMedium,
-		color = MaterialTheme.colorScheme.onSurfaceVariant,
-		modifier = Modifier
-			.fillMaxWidth()
-			.heightIn(min = 48.dp)
-			.padding(vertical = 8.dp),
-		textAlign = TextAlign.Center,
-	)
+private fun EmptyLevelContent(onStartTrackingClick: () -> Unit) {
+	Column(horizontalAlignment = Alignment.CenterHorizontally) {
+		Text(
+			text = stringResource(R.string.game_hero_start_tracking_hint),
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+			modifier = Modifier
+				.fillMaxWidth()
+				.heightIn(min = 48.dp)
+				.padding(vertical = 8.dp),
+			textAlign = TextAlign.Center,
+		)
+		FilledTonalButton(onClick = onStartTrackingClick) {
+			Text(text = stringResource(R.string.game_start_tracking_action))
+			Icon(
+				imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+				contentDescription = null,
+				modifier = Modifier.padding(start = 8.dp),
+			)
+		}
+	}
 }
 
 @Composable

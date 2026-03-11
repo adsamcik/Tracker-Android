@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.ui.compose
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import java.text.NumberFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,10 +11,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -25,13 +28,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,11 +63,12 @@ import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
-import com.adsamcik.tracker.game.repository.PlayerProfileUi
-import com.adsamcik.tracker.game.repository.StreakUi
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
 import com.adsamcik.tracker.game.repository.TrophySummaryUi
+import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
+import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 
 data class StepsSummaryUi(
     val stepsToday: Int,
@@ -68,98 +81,300 @@ data class ChallengeUi(
     val id: Long,
     val title: String,
     val description: String,
-    val progress: Float
+    val progress: Float,
+    val difficulty: String = "",
+    val timeRemainingMs: Long = 0L,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameScreen(
-    pointsToday: Int,
-    steps: StepsSummaryUi?,
-    challenges: List<ChallengeUi>,
-    miniGameEntries: List<MiniGameEntry>,
-    explorationState: ExplorationState,
-    achievementState: AchievementSummaryState,
-    playerProfile: PlayerProfileUi?,
-    streak: StreakUi?,
-    trophySummary: TrophySummaryUi,
+    pointsToday: Int? = null,
+    steps: StepsSummaryUi? = null,
+    challenges: List<ChallengeUi>? = null,
+    miniGameEntries: List<MiniGameEntry>? = null,
+    explorationState: ExplorationState? = null,
+    achievementState: AchievementSummaryState? = null,
+    heroLevelState: HeroLevelUiState? = null,
+    trophySummary: TrophySummaryUi? = null,
     modifier: Modifier = Modifier,
     isLoadingChallenges: Boolean = false,
     onViewAllAchievements: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onNavigateToTrophyCase: () -> Unit = {},
+    onChallengeClick: (ChallengeUi) -> Unit = {},
+    onStartStreakClick: () -> Unit = {},
+    onNavigateToTracker: () -> Unit = {},
 ) {
-    Box(
+	val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
+    val layoutDirection = LocalLayoutDirection.current
+    val horizontalInsetStart = safeDrawingPadding.calculateStartPadding(layoutDirection)
+    val horizontalInsetEnd = safeDrawingPadding.calculateEndPadding(layoutDirection)
+    val safeBottomPadding = safeDrawingPadding.calculateBottomPadding()
+    val navigationLayout = rememberMainNavigationLayout()
+    val bottomClearance = if (navigationLayout == MainNavigationLayout.SideRail) {
+        24.dp + safeBottomPadding
+    } else {
+        AppDimensions.FloatingNavBarClearance + navBarPadding + safeBottomPadding + 24.dp
+    }
+    Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+            .background(MaterialTheme.colorScheme.background),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.module_game_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
+                actions = {
+                    IconButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = stringResource(R.string.game_open_settings),
+                        )
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing),
-            contentPadding = PaddingValues(top = 16.dp, bottom = AppDimensions.FloatingNavBarClearance),
+                .padding(innerPadding)
+                .padding(start = horizontalInsetStart, end = horizontalInsetEnd),
+            contentPadding = PaddingValues(
+                top = 16.dp,
+                bottom = bottomClearance,
+            ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Text(
-                    text = stringResource(R.string.module_game_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
+                if (heroLevelState == null) {
+                    LoadingGameCard()
+                } else {
+                    HeroLevelCard(
+                        level = heroLevelState.playerProfile?.level ?: 0,
+                        xpIntoCurrentLevel = heroLevelState.playerProfile?.xpIntoCurrentLevel ?: 0L,
+                        xpForNextLevel = heroLevelState.playerProfile?.xpForNextLevel ?: 0L,
+                        streakCount = heroLevelState.streak?.currentCount ?: 0,
+                        streakBest = heroLevelState.streak?.bestCount ?: 0,
+                        freezeCount = heroLevelState.streak?.freezeCount ?: 0,
+                        onStartTrackingClick = onNavigateToTracker,
+                    )
+                }
             }
             item {
-                HeroLevelCard(
-                    level = playerProfile?.level ?: 0,
-                    xpIntoCurrentLevel = playerProfile?.xpIntoCurrentLevel ?: 0L,
-                    xpForNextLevel = playerProfile?.xpForNextLevel ?: 0L,
-                    streakCount = streak?.currentCount ?: 0,
-                    streakBest = streak?.bestCount ?: 0,
-                    freezeCount = streak?.freezeCount ?: 0,
-                )
+                if (pointsToday == null) {
+                    LoadingGameCard()
+                } else {
+                    PointsCard(
+                        points = pointsToday,
+                        onStartTrackingClick = onNavigateToTracker,
+                    )
+                }
             }
             item {
-                PointsCard(pointsToday)
+                if (steps == null) {
+                    LoadingGameCard()
+                } else {
+                    StepsCard(steps)
+                }
             }
             item {
-                steps?.let { StepsCard(it) }
+                if (explorationState == null) {
+                    LoadingGameCard()
+                } else {
+                    ExplorationCard(state = explorationState)
+                }
             }
             item {
-                ExplorationCard(state = explorationState)
-            }
-            item {
-                AchievementCard(
-                    state = achievementState,
-                    onViewAll = onViewAllAchievements,
-                )
+                if (achievementState == null) {
+                    LoadingGameCard()
+                } else {
+                    AchievementCard(
+                        state = achievementState,
+                        onViewAll = onViewAllAchievements,
+                    )
+                }
             }
             item { SectionHeader(text = stringResource(R.string.game_active_challenges)) }
             item {
-                ActiveChallengesRow(challenges = challenges)
+                if (isLoadingChallenges || challenges == null) {
+                    ChallengesLoadingState()
+                } else {
+                    ActiveChallengesRow(
+                        challenges = challenges,
+                        onChallengeClick = onChallengeClick,
+                        onStartStreakClick = onStartStreakClick,
+                    )
+                }
             }
             item { SectionHeader(text = stringResource(R.string.minigame_section_title)) }
             item {
-                MiniGamesGrid(
-                    games = miniGameEntries.map { entry ->
-                        MiniGameUi(
-                            id = entry.id,
-                            name = stringResource(entry.nameRes),
-                            description = stringResource(entry.descriptionRes),
-                            unlockLevel = entry.unlockLevel,
-                            isUnlocked = entry.isUnlocked,
-                        )
-                    },
-                )
+                if (miniGameEntries == null) {
+                    LoadingGameCard()
+                } else {
+                    MiniGamesGrid(
+                        games = miniGameEntries.map { entry ->
+                            MiniGameUi(
+                                id = entry.id,
+                                name = stringResource(entry.nameRes),
+                                description = stringResource(entry.descriptionRes),
+                                unlockLevel = entry.unlockLevel,
+                                isUnlocked = entry.isUnlocked,
+                            )
+                        },
+                    )
+                }
             }
             item {
-                TrophySummaryCard(
-                    totalCompleted = trophySummary.totalCompleted,
-                    goldCount = trophySummary.goldCount,
-                    silverCount = trophySummary.silverCount,
-                    bronzeCount = trophySummary.bronzeCount,
-                    onViewTrophyCase = onNavigateToTrophyCase,
-                )
+                if (trophySummary == null) {
+                    LoadingGameCard()
+                } else {
+                    TrophySummaryCard(
+                        totalCompleted = trophySummary.totalCompleted,
+                        goldCount = trophySummary.goldCount,
+                        silverCount = trophySummary.silverCount,
+                        bronzeCount = trophySummary.bronzeCount,
+                        onViewTrophyCase = onNavigateToTrophyCase,
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+internal fun ChallengeDetailsDialog(
+	challenge: ChallengeUi,
+	onDismiss: () -> Unit,
+	onViewTrophyCase: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = modifier,
+        title = {
+            Text(
+                text = challenge.title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = challenge.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "${(challenge.progress * 100).toInt()}% complete",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = challenge.difficulty.replace('_', ' ').lowercase()
+                        .replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.game_challenge_time_remaining,
+                        formatTimeRemaining(challenge.timeRemainingMs),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onViewTrophyCase) {
+                Text(text = stringResource(R.string.game_trophy_view_all))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.game_close))
+            }
+        },
+	)
+}
+
+@Composable
+internal fun ChallengePickerDialog(
+	challenges: List<ChallengeUi>,
+	onDismiss: () -> Unit,
+	onChallengeSelected: (ChallengeUi) -> Unit,
+	onOpenTrophyCase: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		modifier = modifier,
+		title = {
+			Text(
+				text = stringResource(R.string.game_challenge_picker_title),
+				style = MaterialTheme.typography.titleLarge,
+				fontWeight = FontWeight.Bold,
+			)
+		},
+		text = {
+			if (challenges.isEmpty()) {
+				Text(
+					text = stringResource(R.string.game_challenge_picker_empty_message),
+					style = MaterialTheme.typography.bodyMedium,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+			} else {
+				Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+					Text(
+						text = stringResource(R.string.game_challenge_picker_message),
+						style = MaterialTheme.typography.bodyMedium,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+					)
+					challenges.forEach { challenge ->
+						Text(
+							text = challenge.title,
+							style = MaterialTheme.typography.titleMedium,
+							color = MaterialTheme.colorScheme.primary,
+							modifier = Modifier.clickable { onChallengeSelected(challenge) },
+						)
+					}
+				}
+			}
+		},
+		confirmButton = {
+			TextButton(
+				onClick = if (challenges.isEmpty()) onOpenTrophyCase else onDismiss,
+			) {
+				Text(
+					text = stringResource(
+						if (challenges.isEmpty()) {
+							R.string.game_trophy_view_all
+						} else {
+							R.string.game_close
+						},
+					),
+				)
+			}
+		},
+		dismissButton = {
+			if (challenges.isEmpty()) {
+				TextButton(onClick = onDismiss) {
+					Text(text = stringResource(R.string.game_close))
+				}
+			}
+		},
+	)
 }
 
 @Composable
@@ -173,63 +388,63 @@ private fun SectionHeader(text: String) {
 }
 
 @Composable
-private fun PointsCard(points: Int) {
-    val detailsLabel = stringResource(R.string.game_points_details)
-    val context = LocalContext.current
-    val comingSoonText = stringResource(R.string.game_points_breakdown_coming_soon)
+private fun PointsCard(
+    points: Int,
+    onStartTrackingClick: () -> Unit,
+) {
     GlassCard(
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth()
     ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.Star,
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Column(Modifier.padding(start = 16.dp)) {
-                    Text(
-                        text = points.toString(),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (points == 0) {
-                            stringResource(R.string.game_points_start_tracking_hint)
-                        } else {
-                            stringResource(R.string.points_earned_today)
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Column(Modifier.padding(start = 16.dp)) {
+                        Text(
+                            text = NumberFormat.getIntegerInstance().format(points),
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(R.string.points_earned_today),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-            Box(
-                modifier = Modifier
-                    .clip(MaterialTheme.shapes.medium)
-                    .clickable {
-                        Toast.makeText(context, comingSoonText, Toast.LENGTH_SHORT).show()
-                    }
-                    .padding(8.dp)
-                    .semantics { contentDescription = detailsLabel }
-            ) {
-                 // Simplified action indicator, perhaps an arrow
+            if (points == 0) {
+                OutlinedButton(
+                    onClick = onStartTrackingClick,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text(text = stringResource(R.string.game_track_and_earn_points_action))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
             }
         }
     }
@@ -248,7 +463,7 @@ private fun StepsCard(steps: StepsSummaryUi) {
                     Icons.AutoMirrored.Outlined.DirectionsWalk,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = AppColors.ActivityWalk // Keeping specific activity color
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = stringResource(R.string.game_steps_goals_title),
@@ -265,6 +480,37 @@ private fun StepsCard(steps: StepsSummaryUi) {
             ) {
                 Stat(stringResource(R.string.game_steps_today), steps.stepsToday, steps.goalDay)
                 Stat(stringResource(R.string.game_steps_week), steps.stepsWeek, steps.goalWeek)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingGameCard() {
+    GlassCard(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(32.dp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = stringResource(R.string.game_loading),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -343,6 +589,19 @@ private fun ChallengesEmptyState() {
         subtitle = stringResource(R.string.game_challenges_empty_subtitle),
         modifier = Modifier.padding(horizontal = 16.dp)
     )
+}
+
+private fun formatTimeRemaining(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val days = totalSeconds / 86400
+    val hours = (totalSeconds % 86400) / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    return when {
+        days > 0 -> "${days}d ${hours}h"
+        hours > 0 -> "${hours}h ${minutes}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "<1m"
+    }
 }
 
 @Composable

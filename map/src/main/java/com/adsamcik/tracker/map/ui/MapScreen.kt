@@ -1,16 +1,18 @@
 package com.adsamcik.tracker.map.ui
 
-import android.location.Address
-import android.location.Geocoder
-import android.os.Build
+import android.util.Log
 import com.adsamcik.tracker.logger.Reporter
+import com.adsamcik.tracker.map.MapLibreInitializer
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,28 +28,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.map.data.GeoJsonConverter
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
+import com.adsamcik.tracker.map.presentation.sensors.LocationAndSensorsManager
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
+import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
-import com.adsamcik.tracker.shared.map.CoordinateBounds
 import com.adsamcik.tracker.shared.map.MapStyleProvider
+import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.preferences.Preferences
-import kotlin.coroutines.resume
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
@@ -78,10 +84,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import org.maplibre.compose.map.OrnamentOptions
 import com.adsamcik.tracker.shared.base.constant.LengthConstants
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
+
+private const val MAP_LOAD_TAG = "MapScreen"
 
 
 /**
@@ -95,10 +110,31 @@ fun MapScreen(
     overlayMode: Boolean = false,
     bottomPaddingPx: Int = 0,
     isLocationPermissionGranted: Boolean = false,
+    topInsetPadding: Dp = 0.dp,
 ) {
     val state by store.state.collectAsState()
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
+    val appContext = context.applicationContext
+    val trackerController = LocalTrackerController.current as TrackerServiceController
+    val isTracking by trackerController.isServiceRunningFlow.collectAsState()
+    val activeSession by trackerController.sessionFlow.collectAsState()
+    val livePathPoints by trackerController.pathPointsFlow.collectAsState()
+    val activeTrackingPath by remember(isTracking, activeSession, livePathPoints) {
+        derivedStateOf {
+            if (!isTracking) {
+                emptyList()
+            } else {
+                val sessionId = activeSession?.id
+                val path = livePathPoints
+                if (sessionId != null && path != null && path.first == sessionId) {
+                    path.second.map { LatLngModel(lat = it.latitude, lng = it.longitude) }
+                } else {
+                    emptyList()
+                }
+            }
+        }
+    }
 
     // Resolve basemap style: custom imported PMTiles or bundled default.
     // PMTiles requires random-access I/O, so the bundled asset must be
@@ -139,13 +175,96 @@ fun MapScreen(
             else -> null
         }
     }
+    var isMapLoading by remember(baseStyle) { mutableStateOf(baseStyle != null) }
+
+    // Pre-initialize MapLibre SDK off the main thread.
+    // Application.startBackgroundStartup already calls this, but if the user
+    // navigates to the map tab before startup completes, this fallback ensures
+    // the heavy FileSource init still runs on IO instead of blocking the UI.
+    val mapLibreReady by MapLibreInitializer.isReady.collectAsState()
+    LaunchedEffect(mapLibreReady) {
+        if (!mapLibreReady) {
+            withContext(Dispatchers.IO) {
+                MapLibreInitializer.initialize(appContext)
+            }
+        }
+    }
 
     val density = LocalDensity.current
     val bottomPaddingDp = with(density) { bottomPaddingPx.toDp() }
-
-    val cameraState = rememberCameraState(
-        firstPosition = CameraPosition(target = Position(0.0, 0.0), zoom = 1.0)
+    val sheetVisibility = state.sheet.visibility
+    val shouldBlockMapGestures = sheetVisibility == com.adsamcik.tracker.map.presentation.udf.SheetVisibility.Expanded
+    val hasUserLocation = remember(state.overlays) {
+        derivedStateOf { state.overlays.any { it is MapOverlayState.UserMarker } }
+    }
+    val hasSearchResult = remember(state.overlays) {
+        derivedStateOf { state.overlays.any { it is MapOverlayState.SearchMarker } }
+    }
+    val isLayerLoading = state.layerLoadingProgress in 1..99
+    val isAccessibilityLoading = isMapLoading || isLayerLoading
+    val hasActiveLayer = state.activeLayerIds.isNotEmpty()
+    val hasNoData = state.layerConfig == null && !isAccessibilityLoading && hasActiveLayer
+    val mapAccessibilityLabels = MapAccessibilityLabels(
+        mapOverview = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_map_overview),
+        centeredOnYourLocation = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_centered_on_location),
+        showingYourLocation = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_showing_location),
+        loadingData = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_loading_data),
+        noRecordedData = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_no_recorded_data),
+        noLayerSelected = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_no_layer_selected),
+        searchResultVisible = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_search_result_visible),
+        activeRecordingVisible = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_active_recording_visible),
+        recordedRouteHistory = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_recorded_route_history),
+        locationHeatmap = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_location_heatmap),
+        cellHeatmap = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_cell_heatmap),
+        wifiHeatmap = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_wifi_heatmap),
+        wifiCountHeatmap = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_wifi_count_heatmap),
+        speedHeatmap = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_speed_heatmap),
+        savedMapData = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_saved_map_data),
+        worldScale = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_world_scale),
+        regionalScale = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_regional_scale),
+        cityScale = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_city_scale),
+        neighborhoodScale = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_neighborhood_scale),
+        streetScale = stringResource(com.adsamcik.tracker.map.R.string.map_a11y_street_scale),
     )
+    val mapAccessibilitySummary = remember(
+        state.isFollowing,
+        hasUserLocation.value,
+        hasSearchResult.value,
+        isAccessibilityLoading,
+        hasNoData,
+        state.activeLayerIds,
+        activeTrackingPath,
+        state.camera.zoom,
+        mapAccessibilityLabels,
+    ) {
+        buildMapAccessibilitySummary(
+            isFollowing = state.isFollowing,
+            hasUserLocation = hasUserLocation.value,
+            hasSearchResult = hasSearchResult.value,
+            isLoading = isAccessibilityLoading,
+            hasNoData = hasNoData,
+            activeLayerIds = state.activeLayerIds,
+            activeTrackingVisible = activeTrackingPath.size >= 2,
+            zoom = state.camera.zoom,
+            labels = mapAccessibilityLabels,
+        )
+    }
+
+    val initialCameraPosition = remember {
+        val saved = state.camera
+        if (saved.zoom > 0f) {
+            CameraPosition(
+                target = Position(saved.lat, saved.lng),
+                zoom = saved.zoom.toDouble(),
+                tilt = saved.tilt.toDouble(),
+                bearing = saved.bearing.toDouble(),
+            )
+        } else {
+            CameraPosition(target = Position(0.0, 0.0), zoom = 2.0)
+        }
+    }
+
+    val cameraState = rememberCameraState(firstPosition = initialCameraPosition)
 
     val gestureOptions = remember(overlayMode) {
         if (overlayMode) {
@@ -165,18 +284,41 @@ fun MapScreen(
     val followCanceledText = stringResource(com.adsamcik.tracker.map.R.string.map_follow_canceled)
 
     Box(Modifier.fillMaxSize()) {
-        if (baseStyle != null) {
+        if (baseStyle != null && mapLibreReady) {
             MaplibreMap(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clearAndSetSemantics {
+                        contentDescription = mapAccessibilitySummary
+                    },
                 baseStyle = baseStyle,
                 cameraState = cameraState,
                 options = MapOptions(
                     gestureOptions = gestureOptions,
-                    ornamentOptions = OrnamentOptions(isScaleBarEnabled = false),
+                    ornamentOptions = OrnamentOptions(
+                        padding = PaddingValues(
+                            start = 16.dp,
+                            top = 16.dp,
+                            end = 16.dp,
+                            bottom = bottomPaddingDp + 16.dp,
+                        ),
+                        isScaleBarEnabled = false,
+                    ),
                 ),
+                onMapLoadFinished = {
+                    isMapLoading = false
+                },
+                onMapLoadFailed = { reason ->
+                    isMapLoading = false
+                    Log.e(
+                        MAP_LOAD_TAG,
+                        "MapLibre failed to load basemap: ${reason ?: "unknown reason"}",
+                    )
+                },
             ) {
                 // Declarative data layers -- reactive via Compose recomposition
                 MapDataLayers(layerConfig = state.layerConfig)
+                MapActiveTrackingLayer(path = activeTrackingPath)
                 // Declarative user overlays
                 MapUserOverlays(overlays = state.overlays.toList())
             }
@@ -186,8 +328,110 @@ fun MapScreen(
             )
         }
 
+        MapTitleBadge(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = topInsetPadding + 16.dp, start = 16.dp, end = 16.dp),
+        )
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isMapLoading,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = topInsetPadding + 12.dp),
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                tonalElevation = 3.dp,
+                shadowElevation = 2.dp,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Text(
+                        text = stringResource(com.adsamcik.tracker.map.R.string.map_loading),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
+
+        // Empty state — no data for active layer
+        androidx.compose.animation.AnimatedVisibility(
+            visible = hasNoData,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(start = 32.dp, end = 32.dp, bottom = bottomPaddingDp),
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 2.dp,
+                shadowElevation = 2.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = stringResource(com.adsamcik.tracker.map.R.string.map_empty_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            }
+        }
+
+        if (shouldBlockMapGestures) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .then(
+                        if (sheetVisibility == com.adsamcik.tracker.map.presentation.udf.SheetVisibility.Expanded) {
+                            Modifier.fillMaxSize()
+                        } else {
+                            Modifier
+                                .fillMaxWidth()
+                                .height(bottomPaddingDp)
+                        }
+                    )
+                    .pointerInput(sheetVisibility, bottomPaddingPx) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+            )
+        }
+
         // Layer loading indicator
-        val isLayerLoading = state.layerLoadingProgress in 1..99
         androidx.compose.animation.AnimatedVisibility(
             visible = isLayerLoading,
             modifier = Modifier.align(Alignment.TopCenter),
@@ -195,7 +439,12 @@ fun MapScreen(
             exit = androidx.compose.animation.fadeOut(),
         ) {
             androidx.compose.material3.LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = topInsetPadding)
+                    .semantics {
+                        contentDescription = "Loading map layer"
+                    }
             )
         }
 
@@ -204,7 +453,7 @@ fun MapScreen(
             metersPerDp = cameraState.metersPerDpAtTarget,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 16.dp, bottom = bottomPaddingDp + 16.dp),
+                .padding(start = 16.dp, bottom = bottomPaddingDp + 40.dp),
         )
 
         // Permission denied banner
@@ -213,7 +462,7 @@ fun MapScreen(
                 visible = true,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(16.dp),
+                    .padding(top = topInsetPadding + 16.dp, start = 16.dp, end = 16.dp),
             ) {
                 androidx.compose.material3.Card(
                     colors = androidx.compose.material3.CardDefaults.cardColors(
@@ -234,6 +483,39 @@ fun MapScreen(
             }
         }
 
+    }
+
+    val locationManager = remember(appContext) { LocationAndSensorsManager(appContext) }
+
+    LaunchedEffect(locationManager, isLocationPermissionGranted, overlayMode) {
+        if (!isLocationPermissionGranted || overlayMode) return@LaunchedEffect
+        try {
+            locationManager.locationUpdates(highAccuracy = true).collectLatest { (lat, lng, accuracy) ->
+                store.dispatch(
+                    MapEvent.SetUserLocation(
+                        latLng = LatLngModel(lat = lat, lng = lng),
+                        accuracyM = accuracy.coerceAtLeast(0.0),
+                    )
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Reporter.report(e)
+        }
+    }
+
+    LaunchedEffect(locationManager, overlayMode) {
+        if (overlayMode) return@LaunchedEffect
+        try {
+            locationManager.bearingUpdates().collectLatest { bearing ->
+                store.dispatch(MapEvent.SetBearing(bearing))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Reporter.report(e)
+        }
     }
 
     // Observe gesture-initiated camera moves to cancel follow
@@ -283,6 +565,8 @@ fun MapScreen(
                             padding = PaddingValues(32.dp),
                             duration = 500.milliseconds,
                         )
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Reporter.report(e)
                     }
@@ -295,6 +579,8 @@ fun MapScreen(
                             ),
                             duration = 500.milliseconds,
                         )
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Reporter.report(e)
                     }
@@ -302,51 +588,21 @@ fun MapScreen(
                 is MapEffect.ShowFollowCanceled -> {
                     try {
                         snackbarHostState.showSnackbar(followCanceledText)
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Reporter.report(e)
                     }
                 }
-                is MapEffect.PerformGeocode -> {
+                is MapEffect.ShowSearchFormatHint -> {
                     try {
-                        if (!Geocoder.isPresent()) {
-                            snackbarHostState.showSnackbar(
-                                context.getString(com.adsamcik.tracker.map.R.string.map_search_no_geocoder)
-                            )
-                        } else {
-                            val geocoder = Geocoder(context)
-                            val addresses = geocodeLocationName(geocoder, effect.query)
-                            val address = addresses
-                                ?.firstOrNull { it.hasLatitude() && it.hasLongitude() }
-                            if (address == null) {
-                                snackbarHostState.showSnackbar(
-                                    context.getString(
-                                        com.adsamcik.tracker.map.R.string.map_search_no_results,
-                                        effect.query
-                                    )
-                                )
-                            } else {
-                                val lat = address.latitude
-                                val lng = address.longitude
-                                // ~1.1 km delta around the geocoded point,
-                                // giving a reasonable zoom level for the result.
-                                val delta = 0.01
-                                val bounds = CoordinateBounds(
-                                    topBound = lat + delta,
-                                    rightBound = lng + delta,
-                                    bottomBound = lat - delta,
-                                    leftBound = lng - delta,
-                                )
-                                store.dispatch(MapEvent.GeocodeResult(bounds))
-                            }
-                        }
+                        snackbarHostState.showSnackbar(
+                            context.getString(com.adsamcik.tracker.map.R.string.map_search_invalid_format)
+                        )
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Reporter.report(e)
-                        snackbarHostState.showSnackbar(
-                            context.getString(
-                                com.adsamcik.tracker.map.R.string.map_search_no_results,
-                                effect.query
-                            )
-                        )
                     }
                 }
             }
@@ -362,36 +618,60 @@ fun MapScreen(
 private fun MapDataLayers(layerConfig: MapLibreLayerConfig?) {
     if (layerConfig == null) return
 
-    key(layerConfig) {
-        when (layerConfig) {
+    val configs = when (layerConfig) {
+        is MapLibreLayerConfig.Composite -> layerConfig.layers
+        else -> listOf(layerConfig)
+    }
+
+    configs.forEachIndexed { index, config ->
+        key(config, index) {
+            when (config) {
             is MapLibreLayerConfig.Heatmap -> {
                 val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(layerConfig.geoJson)
+                    data = GeoJsonData.JsonString(config.geoJson)
                 )
                 HeatmapLayer(
-                    id = "heatmap-layer",
+                    id = "heatmap-layer-$index",
                     source = source,
-                    radius = const(layerConfig.radiusPx.dp),
-                    intensity = const(layerConfig.intensity),
-                    opacity = const(layerConfig.opacity),
-                    weight = Feature[layerConfig.weightProperty] as Expression<FloatValue>,
-                    color = buildHeatmapColorExpr(layerConfig.colorStops),
+                    radius = const(config.radiusPx.dp),
+                    intensity = const(config.intensity),
+                    opacity = const(config.opacity),
+                    weight = Feature[config.weightProperty] as Expression<FloatValue>,
+                    color = buildHeatmapColorExpr(config.colorStops),
                 )
             }
-            is MapLibreLayerConfig.Line -> {
+                is MapLibreLayerConfig.Line -> {
                 val source = rememberGeoJsonSource(
-                    data = GeoJsonData.JsonString(layerConfig.geoJson)
+                    data = GeoJsonData.JsonString(config.geoJson)
                 )
                 LineLayer(
-                    id = "line-layer",
+                    id = "line-layer-$index",
                     source = source,
-                    color = const(Color(layerConfig.colorArgb)),
-                    width = const(layerConfig.widthDp.dp),
-                    opacity = const(layerConfig.opacity),
+                    color = const(Color(config.colorArgb)),
+                    width = const(config.widthDp.dp),
+                    opacity = const(config.opacity),
                 )
+            }
+                is MapLibreLayerConfig.Composite -> Unit
             }
         }
     }
+}
+
+@Composable
+private fun MapActiveTrackingLayer(path: List<LatLngModel>) {
+    if (path.size < 2) return
+
+    val source = rememberGeoJsonSource(
+        data = GeoJsonData.JsonString(GeoJsonConverter.lineToFeatureCollection(path))
+    )
+    LineLayer(
+        id = "active-tracking-line",
+        source = source,
+        color = const(MaterialTheme.colorScheme.primary),
+        width = const(5.dp),
+        opacity = const(0.95f),
+    )
 }
 
 /**
@@ -435,6 +715,21 @@ private fun MapUserOverlays(overlays: List<MapOverlayState>) {
                     opacity = const(0.3f),
                 )
             }
+            is MapOverlayState.SearchMarker -> {
+                val src = rememberGeoJsonSource(
+                    data = GeoJsonData.JsonString(
+                        GeoJsonConverter.pointToFeature(overlay.latLng.lat, overlay.latLng.lng)
+                    )
+                )
+                CircleLayer(
+                    id = "search-dot-$index",
+                    source = src,
+                    radius = const(10.dp),
+                    color = const(MaterialTheme.colorScheme.tertiary),
+                    strokeColor = const(MaterialTheme.colorScheme.surface),
+                    strokeWidth = const(2.dp),
+                )
+            }
             is MapOverlayState.Polyline -> {
                 // Polylines handled via MapLibreLayerConfig.Line in the main data layer
             }
@@ -461,36 +756,22 @@ private fun buildHeatmapColorExpr(
 
 private fun Float.toNumber(): Number = this
 
-/**
- * Version-aware geocoding: uses the callback-based API on Android 13+ (API 33)
- * and falls back to the deprecated synchronous API on older devices.
- */
-private suspend fun geocodeLocationName(
-    geocoder: Geocoder,
-    query: String,
-    maxResults: Int = 1,
-): List<Address>? {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        suspendCancellableCoroutine { continuation ->
-            geocoder.getFromLocationName(
-                query,
-                maxResults,
-                object : Geocoder.GeocodeListener {
-                    override fun onGeocode(addresses: MutableList<Address>) {
-                        continuation.resume(addresses)
-                    }
-
-                    override fun onError(errorMessage: String?) {
-                        continuation.resume(null)
-                    }
-                },
-            )
-        }
-    } else {
-        withContext(Dispatchers.IO) {
-            @Suppress("DEPRECATION")
-            geocoder.getFromLocationName(query, maxResults)
-        }
+@Composable
+private fun MapTitleBadge(
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(999.dp),
+        tonalElevation = 3.dp,
+        shadowElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+    ) {
+        Text(
+            text = stringResource(com.adsamcik.tracker.map.R.string.module_map_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        )
     }
 }
 
@@ -515,10 +796,11 @@ private fun ScaleBar(
     Column(
         modifier = modifier
             .background(
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                RoundedCornerShape(4.dp),
+                MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                RoundedCornerShape(8.dp),
             )
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .semantics { contentDescription = "Map scale: ${spec.label}" },
     ) {
         Text(
             text = spec.label,

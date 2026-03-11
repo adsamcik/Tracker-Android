@@ -1,8 +1,13 @@
 package com.adsamcik.tracker.statistics.fragment
 
 import android.content.Context
+import androidx.annotation.StringRes
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +30,7 @@ import androidx.paging.compose.LazyPagingItems
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import java.time.Instant
@@ -37,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Flight
@@ -47,28 +54,42 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.adsamcik.tracker.shared.utils.style.compose.AppColors
+import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
+import com.adsamcik.tracker.shared.utils.style.compose.MainNavigationLayout
+import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
+import com.adsamcik.tracker.statistics.viewmodel.DayBar
 
 /**
  * Refresh state for statistics route. Mirrors the test expectations.
@@ -89,6 +110,12 @@ sealed interface AppendUiState {
     data object Error : AppendUiState
 }
 
+enum class StatsHeaderAction {
+    Summary,
+    Dates,
+    Wifi,
+}
+
 /** Test host expects this signature. */
 @Composable
 fun StatsScreen(
@@ -98,10 +125,18 @@ fun StatsScreen(
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    selectedHeaderAction: StatsHeaderAction? = null,
+    weeklyBars: List<DayBar> = emptyList(),
     onTripClick: (Long) -> Unit = {},
+    onTripViewOnMap: (Long) -> Unit = {},
+    onTripDelete: (Long) -> Unit = {},
+    onExportGpx: (Trip) -> Unit = {},
+    activeDateFilterLabel: String? = null,
     // Optional paging trips supplied by route; tests omit it and rely on placeholders.
     sessions: LazyPagingItems<Trip>? = null,
 ) {
+    val navigationLayout = rememberMainNavigationLayout()
+    val bottomClearance = if (navigationLayout == MainNavigationLayout.SideRail) 24.dp else AppDimensions.FloatingNavBarClearance
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -118,7 +153,22 @@ fun StatsScreen(
                 RefreshUiState.Loading -> LoadingState()
                 RefreshUiState.Empty -> EmptyState()
                 RefreshUiState.Error -> ErrorState(onRetry)
-                RefreshUiState.Content -> ContentState(appendState, onRetry, onShowSummary, onShowWeek, onOpenWifi, onTripClick, sessions)
+                RefreshUiState.Content -> ContentState(
+                    appendState = appendState,
+                    bottomClearance = bottomClearance,
+                    onRetry = onRetry,
+                    onShowSummary = onShowSummary,
+                    onShowWeek = onShowWeek,
+                    onOpenWifi = onOpenWifi,
+                    selectedHeaderAction = selectedHeaderAction,
+                    weeklyBars = weeklyBars,
+                    onTripClick = onTripClick,
+                    onTripViewOnMap = onTripViewOnMap,
+                    onTripDelete = onTripDelete,
+                    onExportGpx = onExportGpx,
+                    activeDateFilterLabel = activeDateFilterLabel,
+                    pagingItems = sessions,
+                )
             }
         }
     }
@@ -186,50 +236,82 @@ private fun ErrorState(onRetry: () -> Unit) {
 @Composable
 private fun ContentState(
     appendState: AppendUiState,
+    bottomClearance: androidx.compose.ui.unit.Dp,
     onRetry: () -> Unit,
     onShowSummary: () -> Unit,
     onShowWeek: () -> Unit,
     onOpenWifi: () -> Unit,
+    selectedHeaderAction: StatsHeaderAction? = null,
+    weeklyBars: List<DayBar> = emptyList(),
     onTripClick: (Long) -> Unit = {},
+    onTripViewOnMap: (Long) -> Unit = {},
+    onTripDelete: (Long) -> Unit = {},
+    onExportGpx: (Trip) -> Unit = {},
+    activeDateFilterLabel: String? = null,
     pagingItems: LazyPagingItems<Trip>? = null,
 ) {
+    val sessionCount = pagingItems?.itemCount ?: 5
+    val showSparseSummary = pagingItems != null && sessionCount in 1..2
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
             top = 16.dp, // Increased top padding
-            bottom = 120.dp, // Space for floating nav bar
+            bottom = bottomClearance,
             start = 16.dp,
             end = 16.dp
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(key = "header_actions") { 
-            HeaderActions(onShowSummary, onShowWeek, onOpenWifi) 
+            HeaderActions(
+                onShowSummary = onShowSummary,
+                onShowWeek = onShowWeek,
+                onOpenWifi = onOpenWifi,
+                selectedAction = selectedHeaderAction,
+            )
+        }
+
+        if (!activeDateFilterLabel.isNullOrBlank()) {
+            item(key = "active_date_filter") {
+                ActiveFilterCard(activeDateFilterLabel)
+            }
         }
         
         if (pagingItems != null) {
             val count = pagingItems.itemCount
-            var lastDateKey: String? = null
             
             items(count) { index ->
                 val trip = pagingItems[index]
                 if (trip != null) {
-                    // Calculate date key for grouping
+                    // Derive header visibility from previous item's date, not mutable state
                     val tripDate = if (trip.startTimeMs > 0) {
                         Instant.ofEpochMilli(trip.startTimeMs)
                             .atZone(ZoneId.systemDefault())
                             .toLocalDate()
                     } else null
                     
-                    val currentDateKey = tripDate?.toString()
+                    val prevDate = if (index > 0) {
+                        val prevTrip = pagingItems.peek(index - 1)
+                        if (prevTrip != null && prevTrip.startTimeMs > 0) {
+                            Instant.ofEpochMilli(prevTrip.startTimeMs)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                        } else null
+                    } else null
                     
-                    // Show date header when date changes
-                    if (currentDateKey != null && currentDateKey != lastDateKey) {
+                    // Show date header when date differs from previous item (or is first)
+                    if (tripDate != null && tripDate != prevDate) {
                         DateHeader(trip.startTimeMs)
-                        lastDateKey = currentDateKey
                     }
                     
-                    TripRow(trip, onClick = { onTripClick(trip.id) })
+                    TripRow(
+                        trip = trip,
+                        onClick = { onTripClick(trip.id) },
+                        onViewOnMap = { onTripViewOnMap(trip.id) },
+                        onDelete = { onTripDelete(trip.id) },
+                        onExportGpx = { onExportGpx(trip) },
+                    )
                 }
             }
         } else {
@@ -241,7 +323,16 @@ private fun ContentState(
                 TripRow(Trip(id = index.toLong(), startTimeMs = 0, endTimeMs = 0, distanceM = 0f, steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0, source = com.adsamcik.tracker.shared.base.database.data.SegmentSource.USER_CREATED, createdAt = 0))
             }
         }
-        
+
+        if (showSparseSummary) {
+            item(key = "sparse_summary_footer") {
+                SparseStatsSummaryCard(
+                    visibleSessionCount = sessionCount,
+                    weeklyBars = weeklyBars,
+                )
+            }
+        }
+         
         // Footer append UI state inline
         item(key = "append_state_footer") {
             AppendStateSection(appendState, onRetry)
@@ -259,32 +350,41 @@ private fun AppendStateSection(state: AppendUiState, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun HeaderActions(onShowSummary: () -> Unit, onShowWeek: () -> Unit, onOpenWifi: () -> Unit) {
+private fun HeaderActions(
+    onShowSummary: () -> Unit,
+    onShowWeek: () -> Unit,
+    onOpenWifi: () -> Unit,
+    selectedAction: StatsHeaderAction?,
+) {
     val summaryLabel = stringResource(R.string.stats_sum_title)
-    val weekLabel = stringResource(R.string.stats_weekly_title)
-    val wifiLabel = stringResource(R.string.stats_wifi_label)
+    val weekLabel = stringResource(R.string.stats_filter_dates)
+    val wifiLabel = stringResource(R.string.stats_wifi_chip_label)
+    val scrollState = rememberScrollState()
     
     Row(
-        Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState)
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         ActionChip(
             onClick = onShowSummary,
             icon = Icons.Filled.Summarize,
             label = summaryLabel,
-            modifier = Modifier.weight(1f)
+            isSelected = selectedAction == StatsHeaderAction.Summary,
         )
         ActionChip(
             onClick = onShowWeek,
             icon = Icons.Filled.CalendarMonth,
             label = weekLabel,
-            modifier = Modifier.weight(1f)
+            isSelected = selectedAction == StatsHeaderAction.Dates,
         )
         ActionChip(
             onClick = onOpenWifi,
             icon = Icons.Filled.Wifi,
             label = wifiLabel,
-            modifier = Modifier.weight(1f)
+            isSelected = selectedAction == StatsHeaderAction.Wifi,
         )
     }
 }
@@ -294,29 +394,238 @@ private fun ActionChip(
     onClick: () -> Unit,
     icon: ImageVector,
     label: String,
+    isSelected: Boolean,
     modifier: Modifier = Modifier
 ) {
-    GlassCard(
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    FilterChip(
         modifier = modifier
             .height(56.dp)
-            .clickable { onClick() }
+            .semantics {
+                contentDescription = label
+                selected = isSelected
+            },
+        selected = isSelected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = containerColor,
+            selectedLabelColor = contentColor,
+            selectedLeadingIconColor = contentColor,
+            containerColor = containerColor,
+            labelColor = contentColor,
+            iconColor = if (isSelected) contentColor else MaterialTheme.colorScheme.primary,
+        ),
+    )
+}
+
+@Composable
+private fun ActiveFilterCard(label: String) {
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
             .semantics { contentDescription = label },
         shape = MaterialTheme.shapes.large
     ) {
         Row(
-            modifier = Modifier.fillMaxSize(), // GlassCard applies padding internally, need to be careful
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
-                imageVector = icon,
+                imageVector = Icons.Filled.CalendarMonth,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            // Hide label on small screens? Or ensure GlassCard padding isn't too big.
-            // GlassCard has 16.dp padding. Might be tight.
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+    }
+}
+
+@Composable
+private fun SparseStatsSummaryCard(
+    visibleSessionCount: Int,
+    weeklyBars: List<DayBar>,
+) {
+    val context = LocalContext.current
+    val resources = context.resources
+    val settings = remember { TrackerSettingsQuick.snapshot(context) }
+    val totalDistanceM = remember(weeklyBars) { weeklyBars.sumOf { it.distanceM.toDouble() }.toFloat() }
+    val totalSteps = remember(weeklyBars) { weeklyBars.sumOf { it.steps } }
+    val activeDays = remember(weeklyBars) { weeklyBars.count { it.distanceM > 0f || it.steps > 0 } }
+    val distanceText = remember(totalDistanceM, settings) {
+        resources.formatDistance(
+            totalDistanceM,
+            digits = if (totalDistanceM >= 1000f) 1 else 2,
+            unit = settings.lengthSystem,
+        )
+    }
+
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("stats_sparse_summary"),
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = stringResource(R.string.stats_sparse_summary_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.stats_sparse_summary_subtitle,
+                        visibleSessionCount,
+                        visibleSessionCount,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SummaryMetricCard(
+                    label = stringResource(R.string.stats_distance_total),
+                    value = distanceText,
+                    modifier = Modifier.weight(1f),
+                )
+                SummaryMetricCard(
+                    label = stringResource(R.string.stats_steps),
+                    value = totalSteps.formatReadable(),
+                    modifier = Modifier.weight(1f),
+                )
+                SummaryMetricCard(
+                    label = stringResource(R.string.stats_sparse_summary_active_days),
+                    value = activeDays.formatReadable(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            Text(
+                text = stringResource(R.string.stats_sparse_summary_week_label),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                weeklyBars.forEach { dayBar ->
+                    WeeklySummaryDayChip(
+                        dayBar = dayBar,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryMetricCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun WeeklySummaryDayChip(
+    dayBar: DayBar,
+    modifier: Modifier = Modifier,
+) {
+    val hasActivity = dayBar.distanceM > 0f || dayBar.steps > 0
+    val containerColor = if (hasActivity) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (hasActivity) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(containerColor)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = dayBar.dayLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            text = if (dayBar.steps > 0) dayBar.steps.formatReadable() else "—",
+            style = MaterialTheme.typography.bodySmall,
+            color = contentColor,
+            maxLines = 1,
+        )
     }
 }
 
@@ -331,26 +640,52 @@ private val sessionDateFormatter: DateTimeFormatter by lazy {
 /**
  * Returns an appropriate icon for the trip based on primary activity type.
  */
-private fun getTripIcon(trip: Trip): ImageVector {
+private data class TripActivityPresentation(
+    val icon: ImageVector,
+    @StringRes val labelRes: Int,
+)
+
+private fun getTripActivityPresentation(trip: Trip): TripActivityPresentation {
     // Use DetectedActivity constants from Google Play Services
     return when (trip.primaryActivity) {
-        0 -> Icons.Filled.DirectionsCar         // IN_VEHICLE
-        1 -> Icons.AutoMirrored.Filled.DirectionsBike // ON_BICYCLE
-        2 -> Icons.AutoMirrored.Filled.DirectionsWalk // ON_FOOT
-        7 -> Icons.AutoMirrored.Filled.DirectionsWalk // WALKING
-        8 -> Icons.AutoMirrored.Filled.DirectionsRun  // RUNNING
+        0 -> TripActivityPresentation(Icons.Filled.DirectionsCar, BaseR.string.activity_in_vehicle)
+        1 -> TripActivityPresentation(Icons.AutoMirrored.Filled.DirectionsBike, BaseR.string.activity_bicycle)
+        2 -> TripActivityPresentation(Icons.AutoMirrored.Filled.DirectionsWalk, BaseR.string.activity_on_foot)
+        7 -> TripActivityPresentation(Icons.AutoMirrored.Filled.DirectionsWalk, BaseR.string.activity_walking)
+        8 -> TripActivityPresentation(Icons.AutoMirrored.Filled.DirectionsRun, BaseR.string.activity_running)
         else -> {
-            // Infer from metrics if no recognized activity
             val steps = trip.steps ?: 0
             when {
-                steps > 0 && trip.distanceM > 1000 -> Icons.AutoMirrored.Filled.DirectionsRun
-                steps > 0 -> Icons.AutoMirrored.Filled.DirectionsWalk
-                trip.distanceM > 0 -> Icons.Filled.Route
-                else -> Icons.Filled.Route
+                steps > 0 && trip.distanceM > 1000 -> TripActivityPresentation(
+                    Icons.AutoMirrored.Filled.DirectionsRun,
+                    BaseR.string.activity_running
+                )
+                steps > 0 -> TripActivityPresentation(
+                    Icons.AutoMirrored.Filled.DirectionsWalk,
+                    BaseR.string.activity_walking
+                )
+                else -> TripActivityPresentation(Icons.Filled.Route, R.string.stats_format_unknown_activity)
             }
         }
     }
 }
+
+internal fun getTripActivityLabel(context: Context, trip: Trip): String =
+    context.getString(getTripActivityPresentation(trip).labelRes)
+
+internal fun buildTripRowContentDescription(
+    timeText: String,
+    activityTypeText: String,
+    durationText: String?,
+    distanceText: String?,
+    stepsText: String?,
+): String = listOfNotNull(
+    timeText.takeIf { it.isNotBlank() },
+    activityTypeText.takeIf { it.isNotBlank() },
+    durationText?.takeIf { it.isNotBlank() },
+    distanceText?.takeIf { it.isNotBlank() },
+    stepsText?.takeIf { it.isNotBlank() },
+).joinToString(separator = ", ")
 
 /**
  * Trip row with activity icon, formatted duration, distance, and steps.
@@ -358,11 +693,16 @@ private fun getTripIcon(trip: Trip): ImageVector {
 @Composable
 internal fun TripRow(
     trip: Trip,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    onViewOnMap: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onExportGpx: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val resources = context.resources
     val settings = remember { TrackerSettingsQuick.snapshot(context) }
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     
     val durationMs = trip.durationMs
     
@@ -387,92 +727,235 @@ internal fun TripRow(
             )
         } else "--"
     }
+
+    val dateText = remember(trip.startTimeMs) {
+        if (trip.startTimeMs > 0L) {
+            sessionDateFormatter.format(
+                Instant.ofEpochMilli(trip.startTimeMs)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+            )
+        } else "--"
+    }
     
-    val tripIcon = remember(trip) { getTripIcon(trip) }
+    val tripActivity = remember(trip.primaryActivity, trip.steps, trip.distanceM) {
+        getTripActivityPresentation(trip)
+    }
+    val tripIcon = tripActivity.icon
+    val activityTypeText = stringResource(tripActivity.labelRes)
+    val steps = trip.steps ?: 0
+    val stepsText = remember(steps) {
+        if (steps > 0) {
+            resources.getQuantityString(R.plurals.stats_trip_row_steps_content_description, steps, steps.formatReadable())
+        } else {
+            null
+        }
+    }
     
-    GlassCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .testTag("stats_trip_row"),
-        shape = com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Activity icon with colored background
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = tripIcon,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-            
-            Spacer(Modifier.width(16.dp))
-            
-            // Main content
-            Column(modifier = Modifier.weight(1f)) {
-                // Time and activity label
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = timeText,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (durationText != null) {
-                        Text(
-                            text = "• $durationText",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+    val rowLabel = remember(timeText, activityTypeText, durationText, distanceText, stepsText) {
+        buildTripRowContentDescription(
+            timeText = timeText,
+            activityTypeText = activityTypeText,
+            durationText = durationText,
+            distanceText = distanceText,
+            stepsText = stepsText,
+        )
+    }
+
+    if (showDeleteDialog && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.trip_detail_delete_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.trip_detail_delete_confirm_message))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        DeleteSummaryLine(
+                            label = stringResource(R.string.trip_detail_date),
+                            value = dateText,
+                        )
+                        DeleteSummaryLine(
+                            label = stringResource(R.string.trip_detail_distance),
+                            value = distanceText ?: "--",
+                        )
+                        DeleteSummaryLine(
+                            label = stringResource(R.string.trip_detail_duration),
+                            value = durationText ?: "--",
                         )
                     }
                 }
-                
-                Spacer(Modifier.height(4.dp))
-                
-                // Metrics row
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDelete()
+                    }
                 ) {
-                    if (distanceText != null) {
-                        MetricBadge(
-                            icon = Icons.Filled.Route,
-                            value = distanceText
-                        )
-                    }
-                    val steps = trip.steps ?: 0
-                    if (steps > 0) {
-                        MetricBadge(
-                            icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                            value = steps.formatReadable()
-                        )
-                    }
-                    if (distanceText == null && steps == 0) {
+                    Text(stringResource(R.string.trip_detail_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.trip_detail_cancel))
+                }
+            },
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape)
+            .then(
+                if (onClick != null || onViewOnMap != null || onDelete != null) {
+                    Modifier.tripRowClickable(
+                        onClick = onClick,
+                        onLongClick = { showMenu = true },
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .semantics {
+                contentDescription = rowLabel
+            }
+            .testTag("stats_session_row")
+    ) {
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = com.adsamcik.tracker.shared.utils.style.compose.TerrainCardShape
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = tripIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
-                            text = stringResource(R.string.stats_session_subtitle_placeholder),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = timeText,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        if (durationText != null) {
+                            Text(
+                                text = "• $durationText",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (distanceText != null) {
+                            MetricBadge(
+                                icon = Icons.Filled.Route,
+                                value = distanceText
+                            )
+                        }
+                        if (steps > 0) {
+                            MetricBadge(
+                                icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+                                value = steps.formatReadable()
+                            )
+                        }
+                        if (distanceText == null && steps == 0) {
+                            Text(
+                                text = stringResource(R.string.stats_session_subtitle_placeholder),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
         }
+
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+        ) {
+            if (onClick != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.trip_detail_title)) },
+                    onClick = {
+                        showMenu = false
+                        onClick()
+                    },
+                )
+            }
+            if (onViewOnMap != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.trip_detail_route_map)) },
+                    onClick = {
+                        showMenu = false
+                        onViewOnMap()
+                    },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
+                onClick = {
+                    showMenu = false
+                    onExportGpx?.invoke()
+                },
+            )
+            if (onDelete != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.trip_detail_delete)) },
+                    onClick = {
+                        showMenu = false
+                        showDeleteDialog = true
+                    },
+                )
+            }
+        }
     }
 }
+
+@Composable
+private fun DeleteSummaryLine(
+    label: String,
+    value: String,
+) {
+    Text(
+        text = "$label: $value",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+private fun Modifier.tripRowClickable(
+    onClick: (() -> Unit)?,
+    onLongClick: () -> Unit,
+): Modifier = combinedClickable(
+    onClick = { onClick?.invoke() },
+    onLongClick = onLongClick,
+    role = Role.Button,
+)
 
 @Composable
 private fun MetricBadge(

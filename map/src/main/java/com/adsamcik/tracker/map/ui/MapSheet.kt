@@ -1,10 +1,13 @@
 package com.adsamcik.tracker.map.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,18 +16,21 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Close
@@ -36,18 +42,21 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.Slider
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -55,12 +64,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,21 +81,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalClipboardManager
 import com.adsamcik.tracker.map.R
 import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
+import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
+import com.adsamcik.tracker.shared.utils.style.compose.BottomSheetShape
+import com.adsamcik.tracker.shared.utils.style.compose.MomentumPillShape
+import java.util.Locale
+
+internal const val MAP_SHEET_DRAG_HANDLE_TAG = "map_sheet_drag_handle"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,18 +122,21 @@ fun MapSheet(
     bottomInsetPx: Int = 0,
     onBottomPaddingChanged: (Int) -> Unit = {}
 ) {
-    val state by store.state.collectAsState()
+    val state by store.state.collectAsStateWithLifecycle()
     val uiState = state
     val visibility = uiState.sheet.visibility
-
     val bottomSheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
         skipHiddenState = false,
         confirmValueChange = { true }
     )
     val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
+    BackHandler(enabled = visibility == SheetVisibility.Expanded) {
+        store.dispatch(MapEvent.SetSheet(SheetVisibility.Peek))
+    }
 
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val layers = remember(registry) { registry.getAllLayers() }
     var showErrorMessage by remember { mutableStateOf<String?>(null) }
     var showDateRangeDialog by remember { mutableStateOf(false) }
@@ -154,225 +182,381 @@ fun MapSheet(
     val density = LocalDensity.current
     
     val bottomInsetDp = with(density) { effectiveBottomInsetPx.toDp() }
-    
-    // Peek height must clear bottom insets (app nav bar + system nav bar) 
-    // plus space for drag handle (20dp) + search bar (56dp) + padding (24dp)
-    val peekHeight = 100.dp + bottomInsetDp
+    val currentCenterCoordinates = remember(uiState.camera.lat, uiState.camera.lng) {
+        String.format(Locale.US, "%.5f, %.5f", uiState.camera.lat, uiState.camera.lng)
+    }
+
+    // Peek height includes the visible controls plus the safe area hidden behind app/system bars.
+    val peekHeight = 192.dp + bottomInsetDp
+    val visibleSheetHeight = if (visibility == SheetVisibility.Hidden) 0.dp else peekHeight
 
     Box(modifier = modifier.fillMaxSize()) {
         BottomSheetScaffold(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics {
+                    customActions = listOf(
+                        androidx.compose.ui.semantics.CustomAccessibilityAction(
+                            label = if (visibility == SheetVisibility.Expanded) "Collapse sheet" else "Expand sheet"
+                        ) {
+                            if (visibility == SheetVisibility.Expanded) {
+                                store.dispatch(MapEvent.SetSheet(SheetVisibility.Peek))
+                            } else {
+                                store.dispatch(MapEvent.SetSheet(SheetVisibility.Expanded))
+                            }
+                            true
+                        }
+                    )
+                },
             scaffoldState = scaffoldState,
             sheetPeekHeight = peekHeight,
-            sheetDragHandle = {},
+            sheetShape = BottomSheetShape,
+            sheetDragHandle = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .minimumInteractiveComponentSize()
+                        .testTag(MAP_SHEET_DRAG_HANDLE_TAG),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BottomSheetDefaults.DragHandle()
+                }
+            },
             topBar = {},
             containerColor = Color.Transparent,
             sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             sheetContent = {
-                // Content only visible when expanded
-                val safeBottomPadding = bottomInsetDp + 16.dp
-
-                // Drag handle for sheet affordance
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(bottom = bottomInsetDp)
                 ) {
-                    Box(
+                    // Search bar — always visible in peek
+                    Surface(
+                        shape = MomentumPillShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        tonalElevation = 2.dp,
+                        shadowElevation = 4.dp,
                         modifier = Modifier
-                            .width(32.dp)
-                            .height(4.dp)
-                            .background(
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(2.dp)
-                            )
-                    )
-                }
-
-                // Search bar — always visible in peek
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                    tonalElevation = 2.dp,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 8.dp)
-                        .height(56.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 8.dp)
+                            .heightIn(min = 92.dp)
                     ) {
-                        Icon(
-                            Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.description_map_search),
-                            modifier = Modifier.padding(start = 12.dp, end = 12.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Box(modifier = Modifier.weight(1f)) {
-                            TextField(
-                                value = uiState.search.query,
-                                onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                IconButton(
+                                    onClick = { store.dispatch(MapEvent.SubmitSearch) },
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Search,
+                                        contentDescription = stringResource(R.string.description_map_search),
+                                        modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    TextField(
+                                        value = uiState.search.query,
+                                        onValueChange = { q -> store.dispatch(MapEvent.UpdateSearchQuery(q)) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 56.dp)
+                                            .onFocusChanged { f ->
+                                                if (f.isFocused != uiState.search.hasFocus) {
+                                                    store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
+                                                }
+                                            },
+                                        singleLine = true,
+                                        placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                        keyboardActions = KeyboardActions(onSearch = { store.dispatch(MapEvent.SubmitSearch) }),
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent,
+                                            disabledContainerColor = Color.Transparent,
+                                            focusedIndicatorColor = Color.Transparent,
+                                            unfocusedIndicatorColor = Color.Transparent,
+                                            disabledIndicatorColor = Color.Transparent
+                                        )
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) },
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                                    enabled = uiState.search.query.isNotEmpty()
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = stringResource(R.string.map_search_clear),
+                                        tint = if (uiState.search.query.isNotEmpty()) {
+                                            MaterialTheme.colorScheme.onSurface
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                                        }
+                                    )
+                                }
+                            }
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .onFocusChanged { f ->
-                                        if (f.isFocused != uiState.search.hasFocus) {
-                                            store.dispatch(MapEvent.SetSearchFocus(f.isFocused))
+                                    .padding(start = 8.dp, end = 12.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        val clipboardText = clipboardManager.getText()?.text?.trim().orEmpty()
+                                        if (clipboardText.isBlank()) {
+                                            showErrorMessage = null
+                                            showErrorMessage = context.getString(R.string.map_search_clipboard_empty)
+                                        } else {
+                                            store.dispatch(MapEvent.UpdateSearchQuery(clipboardText))
+                                            store.dispatch(MapEvent.SubmitSearch)
                                         }
                                     },
-                                singleLine = true,
-                                placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                keyboardActions = KeyboardActions(onSearch = { store.dispatch(MapEvent.SubmitSearch) }),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    disabledContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    disabledIndicatorColor = Color.Transparent
+                                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                ) {
+                                    Text(text = stringResource(R.string.map_search_paste))
+                                }
+                                Text(
+                                    text = stringResource(
+                                        R.string.map_search_current_center,
+                                        currentCenterCoordinates
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        }
+                    }
+
+                    // Search result feedback
+                    if (uiState.search.resultStatus == SearchResultStatus.NotFound) {
+                        Text(
+                            text = stringResource(R.string.map_search_not_found),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    } else if (uiState.search.resultStatus == SearchResultStatus.Found) {
+                        Text(
+                            text = stringResource(R.string.map_search_found),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    // Quick layer chips — always visible in peek for one-tap switching
+                    val quickLayerScrollState = rememberScrollState()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(quickLayerScrollState)
+                            .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        layers.forEach { layer ->
+                            val isLayerSelected = if (layer.id == "none") {
+                                uiState.activeLayerIds.isEmpty()
+                            } else {
+                                uiState.activeLayerIds.contains(layer.id)
+                            }
+                            FilterChip(
+                                selected = isLayerSelected,
+                                onClick = {
+                                    try {
+                                        store.dispatch(MapEvent.SelectLayer(layer.id))
+                                    } catch (_: Exception) { }
+                                },
+                                label = {
+                                    Text(
+                                        text = try { context.getString(layer.titleRes) } catch (_: Exception) { layer.id },
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                },
+                                leadingIcon = if (isLayerSelected) {
+                                    {
+                                        Icon(
+                                            Icons.Filled.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else {
+                                    {
+                                        Icon(
+                                            getLayerIcon(layer.id),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                },
+                                shape = MaterialTheme.shapes.small,
                             )
                         }
-                        if (uiState.search.query.isNotEmpty()) {
-                            IconButton(onClick = { store.dispatch(MapEvent.UpdateSearchQuery("")) }) {
-                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_search_clear))
-                            }
-                        }
-                    }
-                }
-
-                // Sheet body — only render when not in peek to avoid content bleeding below
-                if (visibility != SheetVisibility.Peek && visibility != SheetVisibility.Hidden) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                        contentPadding = PaddingValues(
-                            top = 16.dp,
-                            bottom = safeBottomPadding,
-                            start = 16.dp,
-                            end = 16.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                    // --- Header & Error ---
-                    if (showErrorMessage != null) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer
-                                )
-                            ) {
-                                Text(
-                                    text = showErrorMessage ?: "",
-                                    modifier = Modifier.padding(16.dp),
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        }
                     }
 
-                    // --- Filters Section ---
-                    item {
-                        Text(
-                            text = stringResource(R.string.map_filters_title),
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    }
-
-                    // Quality Slider
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(stringResource(R.string.map_quality_label), style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    text = "%.2fx".format(uiState.quality), 
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(stringResource(R.string.map_quality_low), style = MaterialTheme.typography.labelSmall)
-                                Slider(
-                                    value = uiState.quality,
-                                    onValueChange = { v -> store.setQuality(v) },
-                                    valueRange = 0.25f..2.0f,
-                                    steps = 6,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(horizontal = 8.dp)
-                                        .semantics {
-                                            contentDescription = "Quality setting: ${String.format("%.2f", uiState.quality)} times"
-                                        }
-                                )
-                                Text(stringResource(R.string.map_quality_high), style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-
-                    // Date Range
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    // Sheet body — only render when not in peek to avoid content bleeding below
+                    if (visibility != SheetVisibility.Peek && visibility != SheetVisibility.Hidden) {
+                        val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
+                        val maxSheetContentHeight = screenHeightDp * 0.65f
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = maxSheetContentHeight),
+                            contentPadding = PaddingValues(
+                                top = 16.dp,
+                                bottom = 16.dp,
+                                start = 16.dp,
+                                end = 16.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Column {
-                                Text(stringResource(R.string.map_date_range_all_time), style = MaterialTheme.typography.titleMedium)
-                                val rangeText = remember(uiState.dateRange) {
-                                    val start = uiState.dateRange.first
-                                    val end = uiState.dateRange.last
-                                    if (start == 0L && end == Long.MAX_VALUE) null else {
-                                        val fmt = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
-                                        "${fmt.format(java.util.Date(start))} - ${fmt.format(java.util.Date(end))}"
+                            // --- Header & Error ---
+                            if (showErrorMessage != null) {
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.errorContainer
+                                        )
+                                    ) {
+                                        Text(
+                                            text = showErrorMessage ?: "",
+                                            modifier = Modifier.padding(16.dp),
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
                                     }
                                 }
-                                if (rangeText != null) {
-                                     Text(rangeText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+
+                            // --- Filters Section ---
+                            item {
+                                Text(
+                                    text = stringResource(R.string.map_filters_title),
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+
+                            // Map Detail (replaces quality slider)
+                            item {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        stringResource(R.string.map_quality_label),
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    val qualityOptions = listOf(
+                                        "Fast" to 0.5f,
+                                        "Balanced" to 1.0f,
+                                        "Detailed" to 2.0f,
+                                    )
+                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                        qualityOptions.forEachIndexed { index, (label, value) ->
+                                            SegmentedButton(
+                                                selected = uiState.quality == value,
+                                                onClick = { store.setQuality(value) },
+                                                shape = SegmentedButtonDefaults.itemShape(
+                                                    index = index,
+                                                    count = qualityOptions.size
+                                                ),
+                                            ) {
+                                                Text(label)
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                            
-                            Button(
-                                onClick = { showDateRangeDialog = true },
-                                contentPadding = PaddingValues(horizontal = 24.dp)
-                            ) {
-                                Text(stringResource(R.string.map_date_range_button))
+
+                            // Date Range
+                            item {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(stringResource(R.string.tips_map_date_range_title), style = MaterialTheme.typography.titleMedium)
+                                    val isAllTime = uiState.dateRange.first == 0L && uiState.dateRange.last == Long.MAX_VALUE
+                                    val now = remember { System.currentTimeMillis() }
+                                    val oneWeekMs = 7L * 24 * 60 * 60 * 1000
+                                    val oneMonthMs = 30L * 24 * 60 * 60 * 1000
+
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        FilterChip(
+                                            selected = isAllTime,
+                                            onClick = { store.setDateRange(0L..Long.MAX_VALUE) },
+                                            label = { Text(stringResource(R.string.map_date_range_all_time)) },
+                                            shape = MaterialTheme.shapes.small,
+                                        )
+                                        FilterChip(
+                                            selected = !isAllTime && uiState.dateRange.first >= now - oneWeekMs,
+                                            onClick = { store.setDateRange((now - oneWeekMs)..now) },
+                                            label = { Text(stringResource(R.string.map_date_preset_week)) },
+                                            shape = MaterialTheme.shapes.small,
+                                        )
+                                        FilterChip(
+                                            selected = !isAllTime && uiState.dateRange.first >= now - oneMonthMs && uiState.dateRange.first < now - oneWeekMs,
+                                            onClick = { store.setDateRange((now - oneMonthMs)..now) },
+                                            label = { Text(stringResource(R.string.map_date_preset_month)) },
+                                            shape = MaterialTheme.shapes.small,
+                                        )
+                                        FilterChip(
+                                            selected = !isAllTime && uiState.dateRange.first < now - oneMonthMs,
+                                            onClick = { showDateRangeDialog = true },
+                                            label = { Text(stringResource(R.string.map_date_preset_custom)) },
+                                            trailingIcon = { Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                            shape = MaterialTheme.shapes.small,
+                                        )
+                                    }
+
+                                    if (!isAllTime) {
+                                        val rangeText = remember(uiState.dateRange) {
+                                            val fmt = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
+                                            "${fmt.format(java.util.Date(uiState.dateRange.first))} – ${fmt.format(java.util.Date(uiState.dateRange.last))}"
+                                        }
+                                        Text(
+                                            rangeText,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            // --- Layers Section ---
+                            item {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(R.string.map_layers_title),
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+
+                            items(layers, key = { it.id }) { layer ->
+                                val isSelected = if (layer.id == "none") {
+                                    uiState.activeLayerIds.isEmpty()
+                                } else {
+                                    uiState.activeLayerIds.contains(layer.id)
+                                }
+                                MapLayerCard(
+                                    layer = layer,
+                                    isSelected = isSelected,
+                                    onSelect = {
+                                        try {
+                                            store.dispatch(MapEvent.SelectLayer(layer.id))
+                                            showErrorMessage = null
+                                        } catch (e: Exception) {
+                                            showErrorMessage = context.getString(R.string.map_layer_load_error)
+                                        }
+                                    }
+                                )
                             }
                         }
-                    }
-
-                    // --- Layers Section ---
-                    item {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = stringResource(R.string.map_layers_title),
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    items(layers, key = { it.id }) { layer ->
-                        val isSelected = uiState.activeLayerIds.contains(layer.id)
-                        MapLayerCard(
-                            layer = layer,
-                            isSelected = isSelected,
-                            onSelect = {
-                                try {
-                                    store.dispatch(MapEvent.SelectLayer(layer.id))
-                                    showErrorMessage = null
-                                } catch (e: Exception) {
-                                    showErrorMessage = "Failed to load layer: ${e.message}"
-                                }
-                            }
-                        )
-                    }
                     }
                 }
             },
@@ -380,66 +564,87 @@ fun MapSheet(
         )
         
         // Floating map controls (outside sheet)
-        if (imeBottom == 0 && visibility != SheetVisibility.Expanded) {
+        val haptic = LocalHapticFeedback.current
+        if (imeBottom == 0) {
             Column(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(
-                        end = 16.dp,
-                        bottom = peekHeight + bottomInsetDp + 16.dp
-                    ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                        .align(Alignment.BottomEnd)
+                        .padding(
+                            end = 16.dp,
+                            bottom = visibleSheetHeight + 16.dp
+                        ),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Layers
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                    tonalElevation = 2.dp,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier.size(52.dp)
-                ) {
-                    IconButton(onClick = {
-                        if (visibility == SheetVisibility.Expanded) {
-                            store.dispatch(MapEvent.SetSheet(SheetVisibility.Peek))
-                        } else {
-                            store.dispatch(MapEvent.SetSheet(SheetVisibility.Expanded))
+                // Layers — hide when expanded (sheet already shows layers)
+                if (visibility != SheetVisibility.Expanded) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        tonalElevation = 2.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        val layersDesc = stringResource(R.string.map_layers_button)
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                store.dispatch(MapEvent.SetSheet(SheetVisibility.Expanded))
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .semantics {
+                                    contentDescription = layersDesc
+                                },
+                        ) {
+                            Icon(
+                                Icons.Filled.Layers,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                         }
-                    }) {
-                        Icon(
-                            Icons.Filled.Layers,
-                            contentDescription = stringResource(R.string.map_layers_button),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
                     }
                 }
 
-                // Location
+                // Location — always visible (even when expanded)
                 val isFollowing = uiState.isFollowing
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                    color = if (isFollowing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
                     tonalElevation = 2.dp,
                     shadowElevation = 4.dp,
-                    modifier = Modifier.size(52.dp)
+                    modifier = Modifier.size(56.dp)
                 ) {
-                    IconButton(onClick = { store.dispatch(MapEvent.ToggleFollow) }) {
+                    val locationDesc = stringResource(R.string.tips_map_my_location_title)
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            store.dispatch(MapEvent.ToggleFollow)
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics {
+                                contentDescription = locationDesc
+                                stateDescription = if (isFollowing) "Following" else "Not following"
+                                role = Role.Switch
+                            },
+                    ) {
                         Icon(
                             Icons.Filled.MyLocation,
-                            contentDescription = stringResource(R.string.tips_map_my_location_title),
-                            tint = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            contentDescription = null,
+                            tint = if (isFollowing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
             }
         }
 
-        // Snackbar for layer loading errors - positioned above sheet
+        // Snackbar for layer loading errors - positioned above FABs
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = peekHeight + bottomInsetDp + 8.dp)
+                .padding(bottom = visibleSheetHeight + 80.dp)
         )
     }
 
@@ -467,9 +672,9 @@ fun MapSheet(
         }
     }
 
-    // Auto-expand when user focuses search or keyboard is visible; auto-peek when keyboard hides
-    LaunchedEffect(uiState.search.hasFocus, imeBottom) {
-        if (uiState.search.hasFocus || imeBottom > 0) {
+    // Only auto-expand for keyboard visibility; collapse when keyboard hides
+    LaunchedEffect(imeBottom) {
+        if (imeBottom > 0) {
             if (visibility != SheetVisibility.Expanded) {
                 expandedByKeyboard = true
             }
@@ -481,10 +686,22 @@ fun MapSheet(
     }
 
     // Report current bottom padding for the map (visible sheet peek height)
-    LaunchedEffect(bottomSheetState, peekHeight, effectiveBottomInsetPx) {
-         val peekHeightPx = with(density) { peekHeight.roundToPx() }
-         val totalBottom = (effectiveBottomInsetPx + peekHeightPx).coerceAtLeast(0) 
-         onBottomPaddingChanged(totalBottom)
+    LaunchedEffect(visibility, peekHeight) {
+        val visibleSheetHeightPx = with(density) { visibleSheetHeight.roundToPx() }
+        onBottomPaddingChanged(visibleSheetHeightPx.coerceAtLeast(0))
+    }
+
+    // First-visit onboarding tip
+    val mapPrefs = remember { com.adsamcik.tracker.shared.preferences.Preferences.getPref(context) }
+    val tipShown = remember { mapPrefs.getBoolean("map_tips_shown_v2", false) }
+    if (!tipShown) {
+        LaunchedEffect(Unit) {
+            snackbarHostState.showSnackbar(
+                message = context.getString(R.string.tips_map_sheet_description),
+                duration = androidx.compose.material3.SnackbarDuration.Long,
+            )
+            mapPrefs.edit { setBoolean("map_tips_shown_v2", true) }
+        }
     }
 }
 
@@ -512,13 +729,17 @@ fun MapLayerCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onSelect)
-            .semantics { selected = isSelected },
-        shape = MaterialTheme.shapes.large,
+            .semantics(mergeDescendants = true) {
+                selected = isSelected
+                role = Role.RadioButton
+                stateDescription = if (isSelected) "Selected" else "Not selected"
+            },
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // Softer background
+                MaterialTheme.colorScheme.surfaceContainerLow
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -555,6 +776,8 @@ fun MapLayerCard(
                 if (legend != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     if (legend.valueList.isNotEmpty()) {
+                        val firstLabel = legend.valueList.firstOrNull()?.let { try { context.getString(it.nameRes) } catch (_: Exception) { "" } } ?: ""
+                        val lastLabel = legend.valueList.lastOrNull()?.let { try { context.getString(it.nameRes) } catch (_: Exception) { "" } } ?: ""
                         // Show colorful legend strip
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -563,6 +786,7 @@ fun MapLayerCard(
                                 .fillMaxWidth()
                                 .height(8.dp)
                                 .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.extraSmall)
+                                .semantics { contentDescription = "Legend: $firstLabel to $lastLabel" }
                         ) {
                              legend.valueList.forEach { value ->
                                  Box(
@@ -583,14 +807,14 @@ fun MapLayerCard(
                             if (first != null) {
                                 Text(
                                     try { context.getString(first.nameRes) } catch(e:Exception){""}, 
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             if (last != null && last != first) {
                                 Text(
                                      try { context.getString(last.nameRes) } catch(e:Exception){""},
-                                     style = MaterialTheme.typography.labelSmall,
+                                     style = MaterialTheme.typography.bodyMedium,
                                      color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -610,8 +834,20 @@ fun MapLayerCard(
                 }
             }
             
-            // Checkmark if selected?
-            // Currently using background color which is sufficient
+            if (isSelected) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.padding(4.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -628,3 +864,4 @@ private fun getLayerIcon(layerId: String): ImageVector {
         else -> Icons.Filled.Layers
     }
 }
+

@@ -928,3 +928,21 @@ val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 	}
 }
 
+/**
+ * Version 22: Widen cell_sample.cell_id from Int to Long for 5G NR NCI support.
+ *
+ * SQLite stores INTEGER as up to 8 bytes natively, so no physical column change
+ * is required. This migration is a no-op that bumps the version so Room's
+ * schema validator accepts the entity change from Kotlin Int → Long.
+ */
+val MIGRATION_21_22: Migration = object : Migration(21, 22) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		// No-op: SQLite INTEGER already supports 64-bit values.
+		// Room maps both Kotlin Int and Long to "INTEGER NOT NULL".
+		android.util.Log.i(
+			"AppDatabase",
+			"Migration 21->22: cell_sample.cell_id widened to Long (no-op, SQLite INTEGER is 64-bit)"
+		)
+	}
+}
+

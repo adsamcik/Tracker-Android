@@ -3,8 +3,7 @@ package com.adsamcik.tracker.tracker.service
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.LengthUnit
-import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -26,20 +25,20 @@ internal class TrackerPolicyFeeder {
 	 *
 	 * @param policyManager   the active tracking policy manager.
 	 * @param collectionData  data collected in this cycle.
-	 * @param tempData        temporary collection data containing step counts.
+	 * @param cycle           tracking cycle containing step counts.
 	 * @param scope           coroutine scope for launching async policy updates.
 	 */
 	fun feed(
 		policyManager: TrackingPolicyManager,
 		collectionData: CollectionData,
-		tempData: MutableCollectionTempData,
+		cycle: TrackingCycle,
 		scope: CoroutineScope,
 	) {
-		val currentTimeMs = tempData.timeMillis
+		val currentTimeMs = cycle.timestampMs
 
 		feedActivityTransition(policyManager, collectionData, currentTimeMs, scope)
 		feedLocationChange(policyManager, collectionData, currentTimeMs, scope)
-		feedStepUpdate(policyManager, tempData, currentTimeMs, scope)
+		feedStepUpdate(policyManager, cycle, currentTimeMs, scope)
 	}
 
 	/**
@@ -98,11 +97,11 @@ internal class TrackerPolicyFeeder {
 
 	private fun feedStepUpdate(
 		policyManager: TrackingPolicyManager,
-		tempData: MutableCollectionTempData,
+		cycle: TrackingCycle,
 		currentTimeMs: Long,
 		scope: CoroutineScope,
 	) {
-		tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)?.let { newSteps ->
+		cycle.stepDelta?.let { newSteps ->
 			if (newSteps > 0) {
 				accumulatedStepCount += newSteps
 				scope.launch {

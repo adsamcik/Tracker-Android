@@ -25,7 +25,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.SignalAdapter
@@ -225,18 +225,18 @@ internal class TrackingOrchestrator(
 	 * is not running.
 	 *
 	 * @param context  Android context for post-component callbacks.
-	 * @param tempData temporary data collected by the timer trigger.
+	 * @param cycle    tracking cycle from the timer trigger.
 	 * @param scope    coroutine scope for launching async policy updates.
 	 */
 	suspend fun onCycleUpdate(
 		context: Context,
-		tempData: MutableCollectionTempData,
+		cycle: TrackingCycle,
 		scope: CoroutineScope,
 	) {
 		componentMutex.withLock {
 			if (!controller.isServiceRunning) return
 
-			collectAndProcess(context, tempData, scope)
+			collectAndProcess(context, cycle, scope)
 		}
 	}
 
@@ -280,17 +280,17 @@ internal class TrackingOrchestrator(
 	@Suppress("LongMethod")
 	private suspend fun collectAndProcess(
 		context: Context,
-		tempData: MutableCollectionTempData,
+		triggerCycle: TrackingCycle,
 		scope: CoroutineScope,
 	) {
-		val cycle = requireNotNull(dataProducerManager).getData(tempData)
+		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
 
 		// if we don't know the accuracy the location is worthless
 		if (!preComponentList.all {
-					if (it.requirementsMet(tempData)) {
+					if (it.requirementsMet(cycle)) {
 						tryWithResultAndReport(
 								{ true }) {
-							it.onNewData(tempData)
+							it.onNewData(cycle)
 						}
 					} else {
 						true
@@ -299,40 +299,40 @@ internal class TrackingOrchestrator(
 			return
 		}
 
-		val collectionData = MutableCollectionData(tempData.timeMillis)
+		val collectionData = MutableCollectionData(cycle.timestampMs)
 
 		dataComponentList
 				.asSequence()
-				.filter { it.requirementsMet(tempData) }
+				.filter { it.requirementsMet(cycle) }
 				.forEach {
 					tryWithReport {
-						it.onDataUpdated(tempData, collectionData)
+						it.onDataUpdated(cycle, collectionData)
 					}
 				}
 
-		requireNotNull(sessionComponent).onDataUpdated(tempData, collectionData)
+		requireNotNull(sessionComponent).onDataUpdated(cycle, collectionData)
 
 		// Emit updated session and collection data via controller
 		controller.updateSession(session)
 		controller.updateCollectionData(collectionData)
 
 		// Explicit post-component calls (no longer via generic list)
-		if (notificationComponent.requirementsMet(tempData)) {
+		if (notificationComponent.requirementsMet(cycle)) {
 			tryWithReport {
-				notificationComponent.onNewData(context, session, collectionData, tempData)
+				notificationComponent.onNewData(context, session, collectionData, cycle)
 			}
 		}
 		skiSegmentWriter?.let { writer ->
-			if (writer.requirementsMet(tempData)) {
+			if (writer.requirementsMet(cycle)) {
 				tryWithReport {
-					writer.onNewData(context, session, collectionData, tempData)
+					writer.onNewData(context, session, collectionData, cycle)
 				}
 			}
 		}
 		skiTrackingComponent?.let { ski ->
-			if (ski.requirementsMet(tempData)) {
+			if (ski.requirementsMet(cycle)) {
 				tryWithReport {
-					ski.onNewData(context, session, collectionData, tempData)
+					ski.onNewData(context, session, collectionData, cycle)
 				}
 			}
 		}
@@ -361,8 +361,8 @@ internal class TrackingOrchestrator(
 				}
 
 				val signal = SignalAdapter.buildSignal(
-					timestampMs = tempData.timeMillis,
-					elapsedRealtimeNanos = tempData.elapsedRealtimeNanos,
+					timestampMs = cycle.timestampMs,
+					elapsedRealtimeNanos = cycle.elapsedRealtimeNanos,
 					latitude = collectionData.location?.latitude,
 					longitude = collectionData.location?.longitude,
 					accuracy = collectionData.location?.horizontalAccuracy,
@@ -389,7 +389,7 @@ internal class TrackingOrchestrator(
 		// Update tracking policy based on collected data (adaptive tracking)
 		trackingPolicyManager?.let { policyMgr ->
 			tryWithReport {
-				policyFeeder.feed(policyMgr, collectionData, tempData, scope)
+				policyFeeder.feed(policyMgr, collectionData, cycle, scope)
 			}
 		}
 

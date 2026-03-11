@@ -1,23 +1,29 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.Manifest
-import android.app.Application
+import android.content.Context
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
@@ -27,9 +33,13 @@ import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Entry point composable for the Dashboard tab.
@@ -42,13 +52,12 @@ fun DashboardRoute(
 	onOpenSettings: () -> Unit = {},
 	onOpenMap: () -> Unit = {},
 	onOpenGame: (() -> Unit)? = null,
+	onOpenChallenges: (() -> Unit)? = onOpenGame,
 	onSessionDetailClick: ((Long) -> Unit)? = null,
 	contentPadding: PaddingValues = PaddingValues(),
 ) {
 	val context = LocalContext.current
-	val viewModel: DashboardViewModel = viewModel {
-		DashboardViewModel(context.applicationContext as Application, DefaultDispatchersProvider)
-	}
+	val viewModel: DashboardViewModel = hiltViewModel()
 
 	// Dependencies via CompositionLocal
 	val controller = LocalTrackerController.current as TrackerServiceController
@@ -63,9 +72,12 @@ fun DashboardRoute(
 	val showLocationPermissionRequest by viewModel.showLocationPermissionRequest.collectAsState()
 	val permissionDenied by viewModel.permissionDenied.collectAsState()
 	val snackbarHostState = remember { SnackbarHostState() }
+	val coroutineScope = rememberCoroutineScope()
+	var userRequestedStop by remember { mutableStateOf(false) }
 
 	// Observe tracking state
 	val isTracking by controller.isServiceRunningFlow.collectAsState()
+	val sessionInfo by controller.sessionInfoFlow.collectAsState()
 	val isLocked by lockManager.isLockedFlow.collectAsState()
 	val policyTier by controller.policyTierFlow.collectAsState()
 	val sessionData by controller.sessionFlow.collectAsState()
@@ -92,8 +104,54 @@ fun DashboardRoute(
 		viewModel.loadHistoricalData(isTracking, lastSessionData)
 	}
 
+	LaunchedEffect(isTracking, sessionInfo) {
+		if (!isTracking && sessionInfo == null) {
+			userRequestedStop = false
+			return@LaunchedEffect
+		}
+
+		while (isTracking || sessionInfo != null) {
+			delay(5_000)
+			if (TrackerServiceApi.isRunningInSystem(context)) {
+				continue
+			}
+
+			if (controller.isServiceRunning) {
+				controller.updateServiceRunning(false)
+				controller.updateSessionInfo(null)
+				controller.updatePolicyTier(com.adsamcik.tracker.stats.api.PolicyTier.OFF)
+			}
+
+			if (!userRequestedStop) {
+				val result = snackbarHostState.showSnackbar(
+					message = context.getString(R.string.dashboard_tracking_stopped_unexpectedly),
+					actionLabel = context.getString(R.string.dashboard_action_restart_tracking),
+				)
+				if (result == SnackbarResult.ActionPerformed) {
+					TrackerServiceApi.startService(context, isUserInitiated = true)
+				}
+			}
+
+			userRequestedStop = false
+			break
+		}
+	}
+
 	// Resolve display session (active → controller last → DB last)
-	val displaySession = if (isTracking) sessionData else (sessionData ?: lastSessionData ?: dbLastSession)
+	val dbLastSessionAsTracker: TrackerSession? = remember(dbLastSession) {
+		dbLastSession?.let { trip ->
+			TrackerSession(
+				id = trip.id,
+				start = trip.startTimeMs,
+				end = trip.endTimeMs,
+				isUserInitiated = false,
+				collections = trip.sampleCount,
+				distanceInM = trip.distanceM,
+				steps = trip.steps ?: 0,
+			)
+		}
+	}
+	val displaySession = if (isTracking) sessionData else (sessionData ?: lastSessionData ?: dbLastSessionAsTracker)
 	val displayPathPoints = if (isTracking) pathPoints else (pathPoints ?: lastPathPoints)
 
 	val relevantPathPoints = remember(displaySession, displayPathPoints) {
@@ -105,11 +163,14 @@ fun DashboardRoute(
 			null
 		}
 	}
+	val unifiedTodaySummary = remember(todaySummary, goalProgress.stepsToday) {
+		todaySummary.withUnifiedSteps(goalProgress.stepsToday)
+	}
 
 	// Determine dashboard mode
 	val dashboardMode = when {
 		isTracking -> DashboardMode.TRACKING
-		todaySummary?.isEmpty == false -> DashboardMode.IDLE
+		unifiedTodaySummary?.isEmpty == false -> DashboardMode.IDLE
 		displaySession != null -> DashboardMode.IDLE
 		else -> DashboardMode.EMPTY
 	}
@@ -127,7 +188,7 @@ fun DashboardRoute(
 		sessionData = displaySession,
 		collectionData = collectionData,
 		pathPoints = relevantPathPoints,
-		todaySummary = todaySummary,
+		todaySummary = unifiedTodaySummary,
 		pointsToday = pointsToday,
 		goalProgress = GoalProgressState(
 			gamificationEnabled = goalProgress.gamificationEnabled,
@@ -178,19 +239,53 @@ fun DashboardRoute(
 		onMapClick = onOpenMap,
 		onToggleTracking = { shouldStart ->
 			if (shouldStart) {
+				userRequestedStop = false
+				if (!hasAnyTrackingOptionEnabled(context)) {
+					coroutineScope.launch {
+						val result = snackbarHostState.showSnackbar(
+							message = context.getString(com.adsamcik.tracker.tracker.R.string.error_nothing_to_track),
+							actionLabel = context.getString(R.string.dashboard_action_open_tracking_settings),
+						)
+						if (result == SnackbarResult.ActionPerformed) {
+							onOpenSettings()
+						}
+					}
+					return@DashboardScreen
+				}
 				if (hasLocationPermission) {
 					TrackerServiceApi.startService(context, isUserInitiated = true)
 				} else {
 					viewModel.requestPermission()
 				}
 			} else {
+				userRequestedStop = true
 				TrackerServiceApi.stopService(context)
 			}
 		},
 		onRequestPermission = { viewModel.requestPermission() },
 		onGameClick = onOpenGame,
+		onChallengesClick = onOpenChallenges,
 		onSessionDetailClick = onSessionDetailClick,
 		snackbarHostState = snackbarHostState,
 		modifier = Modifier.padding(contentPadding),
 	)
+}
+
+private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
+	if (this == null || goalStepsToday <= 0) return this
+
+	return when {
+		totalSteps == goalStepsToday -> this
+		else -> copy(totalSteps = goalStepsToday)
+	}
+}
+
+private fun hasAnyTrackingOptionEnabled(context: Context): Boolean {
+	val preferences = Preferences.getPref(context)
+	return preferences.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default) ||
+		preferences.getBooleanRes(PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default) ||
+		preferences.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default) ||
+		preferences.getBooleanRes(PrefR.string.settings_cell_enabled_key, PrefR.string.settings_cell_enabled_default) ||
+		preferences.getBooleanRes(PrefR.string.settings_wifi_location_count_enabled_key, PrefR.string.settings_wifi_location_count_enabled_default) ||
+		preferences.getBooleanRes(PrefR.string.settings_wifi_network_enabled_key, PrefR.string.settings_wifi_network_enabled_default)
 }

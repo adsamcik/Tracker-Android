@@ -25,7 +25,7 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
@@ -221,10 +221,10 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
-	override fun onUpdate(tempData: MutableCollectionTempData): Job = launch(Dispatchers.Default) {
+	override fun onUpdate(cycle: TrackingCycle): Job = launch(Dispatchers.Default) {
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
-			orchestrator.onCycleUpdate(this@TrackerService, tempData, this@TrackerService)
+			orchestrator.onCycleUpdate(this@TrackerService, cycle, this@TrackerService)
 		} catch (e: CancellationException) {
 			throw e
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {

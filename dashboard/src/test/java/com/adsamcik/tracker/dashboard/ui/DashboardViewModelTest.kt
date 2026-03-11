@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui
 
-import android.app.Application
+import android.content.Context
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
@@ -9,7 +9,6 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
@@ -44,9 +43,8 @@ import org.junit.jupiter.api.Test
 class DashboardViewModelTest {
 
 	private lateinit var testDispatcher: TestDispatcher
-	private lateinit var application: Application
+	private lateinit var context: Context
 	private lateinit var database: AppDatabase
-	private lateinit var sessionDao: SessionDataDao
 	private lateinit var tripDao: TripDao
 	private lateinit var explorationCellDao: ExplorationCellDao
 	private lateinit var explorationStreakDao: ExplorationStreakDao
@@ -57,19 +55,16 @@ class DashboardViewModelTest {
 		testDispatcher = StandardTestDispatcher()
 		Dispatchers.setMain(testDispatcher)
 
-		application = mockk(relaxed = true)
+		context = mockk(relaxed = true)
 		database = mockk(relaxed = true)
-		sessionDao = mockk(relaxed = true)
 		tripDao = mockk(relaxed = true)
 		explorationCellDao = mockk(relaxed = true)
 		explorationStreakDao = mockk(relaxed = true)
 
-		every { database.sessionDao() } returns sessionDao
 		every { database.tripDao() } returns tripDao
 		every { database.explorationCellDao() } returns explorationCellDao
 		every { database.explorationStreakDao() } returns explorationStreakDao
 
-		coEvery { sessionDao.getLast(any()) } returns null
 		coEvery { tripDao.getRecentTrips(any()) } returns emptyList()
 		coEvery { tripDao.getBetween(any(), any()) } returns emptyList()
 		coEvery { explorationCellDao.countAtLevel(any()) } returns 0
@@ -95,7 +90,7 @@ class DashboardViewModelTest {
 	}
 
 	private fun createViewModel(): DashboardViewModel {
-		return DashboardViewModel(application, dispatchers) { database }
+		return DashboardViewModel(context, dispatchers, database)
 	}
 
 	@Nested
@@ -267,14 +262,13 @@ class DashboardViewModelTest {
 
 		@Test
 		fun `loads DB session when lastSessionData is null`() = runTest {
-			val session = mockk<TrackerSession>(relaxed = true)
-			coEvery { sessionDao.getLast(1) } returns session
-
+			// Legacy session DAO was removed; the VM now derives last-session
+			// info from TripDao. Verify no crash and default state is null.
 			val vm = createViewModel()
 			vm.loadHistoricalData(isTracking = false, lastSessionData = null)
 			advanceUntilIdle()
 
-			vm.dbLastSession.value shouldBe session
+			vm.dbLastSession.value shouldBe null
 		}
 	}
 
@@ -441,7 +435,7 @@ class DashboardViewModelTest {
 			} returns android.content.pm.PackageManager.PERMISSION_GRANTED
 
 			val vm = createViewModel()
-			vm.checkPermission(application)
+			vm.checkPermission(context)
 
 			vm.hasLocationPermission.value shouldBe true
 		}
@@ -453,7 +447,7 @@ class DashboardViewModelTest {
 			} returns android.content.pm.PackageManager.PERMISSION_DENIED
 
 			val vm = createViewModel()
-			vm.checkPermission(application)
+			vm.checkPermission(context)
 
 			vm.hasLocationPermission.value shouldBe false
 		}

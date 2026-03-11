@@ -46,6 +46,18 @@
     <string name="stats_weekly_chart_steps_total">steps this week</string>
     <string name="stats_wifi_count">Wi-Fi count</string>
     <string name="stats_wifi_label">Wi‑Fi</string>
+    <string name="stats_wifi_chip_label">Wi‑Fi stats</string>
+    <string name="stats_filter_dates">Dates</string>
+    <string name="stats_filter_dialog_title">Choose date range</string>
+    <string name="stats_filter_active_label">Showing %1$s</string>
+    <string name="stats_filter_clear">Clear filter</string>
+    <string name="stats_sparse_summary_title">This week at a glance</string>
+    <string name="stats_sparse_summary_active_days">Active days</string>
+    <string name="stats_sparse_summary_week_label">Daily activity</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Only %1$d session is visible, so this compact summary fills in the rest of your recent activity.</item>
+        <item quantity="other">Only %1$d sessions are visible, so this compact summary fills in the rest of your recent activity.</item>
+    </plurals>
     <string name="stats_error_generic">Something went wrong</string>
     <string name="stats_loading">Loading sessions…</string>
     <string name="stats_failed_to_load">Failed to load</string>
@@ -58,6 +70,10 @@
 
     <string name="stats_session_activity_selection_title">Select Activity</string>
     <string name="stats_session_activity_selection_empty">No activities available</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s step</item>
+        <item quantity="other">%1$s steps</item>
+    </plurals>
 
     <!-- Date headers -->
     <string name="stats_date_today">Today</string>
@@ -74,6 +90,14 @@
     <string name="stats_week_empty">No weekly statistics available</string>
     <string name="stats_week_empty_subtitle">Track for 7 days to see your weekly summary</string>
     <string name="stats_week_error">Failed to load weekly statistics</string>
+    <string name="stats_wifi_dialog_title">Wi‑Fi statistics</string>
+    <string name="stats_wifi_dialog_loading">Loading Wi‑Fi statistics…</string>
+    <string name="stats_wifi_dialog_empty_title">No Wi‑Fi data available</string>
+    <string name="stats_wifi_dialog_empty_subtitle">Wi‑Fi statistics will appear after scans are collected.</string>
+    <string name="stats_wifi_dialog_error">Failed to load Wi‑Fi statistics</string>
+    <string name="stats_wifi_unique_networks">Unique networks seen</string>
+    <string name="stats_wifi_total_scans">Total scans</string>
+    <string name="stats_wifi_average_per_scan">Average networks per scan</string>
 
     <!-- Trip detail screen -->
     <string name="trip_detail_title">Trip Details</string>
@@ -86,16 +110,24 @@
     <string name="trip_detail_retry">Retry</string>
     <string name="trip_detail_duration">Duration</string>
     <string name="trip_detail_distance">Distance</string>
+    <string name="trip_detail_date">Date</string>
     <string name="trip_detail_steps">Steps</string>
     <string name="trip_detail_samples">Samples</string>
     <string name="trip_detail_source">Source</string>
     <string name="trip_detail_wifi_coming_soon">Wi-Fi browser coming soon</string>
     <string name="trip_detail_avg_speed">Avg speed</string>
     <string name="trip_detail_max_speed">Max speed</string>
+    <string name="trip_detail_pace">Pace</string>
+    <string name="trip_detail_activity_type">Activity type</string>
+    <string name="trip_detail_start_time">Start time</string>
+    <string name="trip_detail_end_time">End time</string>
     <string name="trip_detail_elevation_gain">Elevation gain</string>
+    <string name="trip_detail_elevation_loss">Elevation loss</string>
     <string name="trip_detail_max_altitude">Max altitude</string>
     <string name="trip_detail_route_map">Route map</string>
     <string name="trip_detail_no_location_data">No location data</string>
+    <string name="trip_detail_route_unavailable_legacy">Route map not available for legacy sessions</string>
+    <string name="trip_detail_route_no_gps_points">Distance recorded but no GPS route available</string>
     <string name="trip_detail_delete">Delete</string>
     <string name="trip_detail_export_gpx">Export as GPX</string>
     <string name="trip_detail_delete_confirm_title">Delete trip?</string>
@@ -146,6 +178,8 @@
     <!-- Trips empty -->
     <string name="history_trips_empty_title">No trips recorded</string>
     <string name="history_trips_empty_desc">Trips will appear here as you move around</string>
+    <string name="trip_gps_anomaly">GPS anomaly detected — distance may be inaccurate</string>
+    <string name="trip_deleted_snackbar">Trip deleted</string>
 
     <!-- Calendar -->
     <string name="history_calendar_previous_month">Previous month</string>
