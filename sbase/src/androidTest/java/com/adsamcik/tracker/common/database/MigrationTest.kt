@@ -10,9 +10,16 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.MIGRATION_10_11
 import com.adsamcik.tracker.shared.base.database.MIGRATION_11_12
 import com.adsamcik.tracker.shared.base.database.MIGRATION_12_13
+import com.adsamcik.tracker.shared.base.database.MIGRATION_13_14
+import com.adsamcik.tracker.shared.base.database.MIGRATION_14_15
+import com.adsamcik.tracker.shared.base.database.MIGRATION_15_16
 import com.adsamcik.tracker.shared.base.database.MIGRATION_16_17
+import com.adsamcik.tracker.shared.base.database.MIGRATION_17_18
+import com.adsamcik.tracker.shared.base.database.MIGRATION_18_19
 import com.adsamcik.tracker.shared.base.database.MIGRATION_19_20
 import com.adsamcik.tracker.shared.base.database.MIGRATION_2_3
+import com.adsamcik.tracker.shared.base.database.MIGRATION_20_21
+import com.adsamcik.tracker.shared.base.database.MIGRATION_21_22
 import com.adsamcik.tracker.shared.base.database.MIGRATION_3_4
 import com.adsamcik.tracker.shared.base.database.MIGRATION_4_5
 import com.adsamcik.tracker.shared.base.database.MIGRATION_5_6
@@ -339,6 +346,91 @@ class MigrationTest {
 
 	@Test
 	@Throws(IOException::class)
+	fun migrate11To12() {
+		val db = helper.createDatabase(TEST_DB, 11)
+		db.execSQL(
+			"""
+				INSERT INTO location_data (
+					id,
+					time,
+					lat,
+					lon,
+					alt,
+					hor_acc,
+					ver_acc,
+					speed,
+					s_acc,
+					activity,
+					confidence
+				) VALUES (
+					1,
+					1000,
+					48.125,
+					17.875,
+					200.0,
+					5.0,
+					1.0,
+					2.5,
+					0.5,
+					3,
+					80
+				)
+			""".trimIndent()
+		)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 12, true, MIGRATION_11_12).apply {
+			val compositeTimeIndexCursor = query(
+				"SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_location_time_lat_lon'"
+			)
+			with(compositeTimeIndexCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("idx_location_time_lat_lon", getString(0))
+				assertFalse(moveToNext())
+			}
+			compositeTimeIndexCursor.close()
+
+			val compositeLatLonIndexCursor = query(
+				"SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_location_lat_lon'"
+			)
+			with(compositeLatLonIndexCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("idx_location_lat_lon", getString(0))
+				assertFalse(moveToNext())
+			}
+			compositeLatLonIndexCursor.close()
+
+			val droppedIndexCursor = query(
+				"""
+					SELECT COUNT(*) FROM sqlite_master
+					WHERE type = 'index' AND name IN (
+						'index_location_data_time',
+						'index_location_data_lat',
+						'index_location_data_lon'
+					)
+				""".trimIndent()
+			)
+			with(droppedIndexCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(0, getInt(0))
+				assertFalse(moveToNext())
+			}
+			droppedIndexCursor.close()
+
+			val dataCursor = query("SELECT time, lat, lon FROM location_data WHERE id = 1")
+			with(dataCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(1000L, getLong(0))
+				assertEquals(48.125, getDouble(1), 0.00001)
+				assertEquals(17.875, getDouble(2), 0.00001)
+				assertFalse(moveToNext())
+			}
+			dataCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
 	fun migrate12To13() {
 		val db = helper.createDatabase(TEST_DB, 12)
 
@@ -472,6 +564,365 @@ class MigrationTest {
 
 	@Test
 	@Throws(IOException::class)
+	fun migrate13To14() {
+		val db = helper.createDatabase(TEST_DB, 13)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 14, true, MIGRATION_13_14).apply {
+			execSQL(
+				"""
+					INSERT INTO daily_summary (
+						date_epoch_day,
+						total_distance_m,
+						total_steps,
+						total_duration_ms,
+						trip_count,
+						active_tracking_ms,
+						last_updated_ms,
+						created_at
+					) VALUES (
+						20001,
+						12345.5,
+						4321,
+						3600000,
+						3,
+						1200000,
+						1700001000000,
+						1700000000000
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO live_stats (
+						id,
+						date_epoch_day,
+						session_distance_m,
+						session_steps,
+						session_duration_ms,
+						day_total_distance_m,
+						day_total_steps,
+						day_total_duration_ms,
+						last_updated_ms
+					) VALUES (
+						1,
+						20001,
+						2450.5,
+						1200,
+						900000,
+						12345.5,
+						4321,
+						3600000,
+						1700001000000
+					)
+				""".trimIndent()
+			)
+
+			val dailySummaryCursor = query(
+				"""
+					SELECT total_distance_m, total_steps, trip_count
+					FROM daily_summary
+					WHERE date_epoch_day = 20001
+				""".trimIndent()
+			)
+			with(dailySummaryCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(12345.5, getDouble(0), 0.00001)
+				assertEquals(4321, getInt(1))
+				assertEquals(3, getInt(2))
+				assertFalse(moveToNext())
+			}
+			dailySummaryCursor.close()
+
+			val liveStatsCursor = query(
+				"""
+					SELECT session_distance_m, day_total_distance_m, day_total_steps
+					FROM live_stats
+					WHERE id = 1
+				""".trimIndent()
+			)
+			with(liveStatsCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(2450.5, getDouble(0), 0.00001)
+				assertEquals(12345.5, getDouble(1), 0.00001)
+				assertEquals(4321, getInt(2))
+				assertFalse(moveToNext())
+			}
+			liveStatsCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate14To15() {
+		val db = helper.createDatabase(TEST_DB, 14)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 15, true, MIGRATION_14_15).apply {
+			execSQL(
+				"""
+					INSERT INTO frequent_place (
+						id,
+						center_lat_e7,
+						center_lon_e7,
+						radius_m,
+						visit_count,
+						first_visit_ms,
+						last_visit_ms,
+						auto_category,
+						created_at
+					) VALUES (
+						1,
+						481250000,
+						178750000,
+						75.0,
+						4,
+						1700000000000,
+						1700000600000,
+						'HOME',
+						1700000000000
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO inferred_trip (
+						id,
+						segment_id,
+						start_time_ms,
+						end_time_ms,
+						distance_m,
+						steps,
+						primary_activity,
+						transport_mode,
+						departure_place_id,
+						arrival_place_id,
+						source,
+						inference_version,
+						leg_count,
+						created_at
+					) VALUES (
+						1,
+						99,
+						1700000000000,
+						1700000900000,
+						1525.5,
+						2100,
+						7,
+						'WALK',
+						1,
+						1,
+						'TEST',
+						'v1',
+						1,
+						1700000000000
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO trip_leg (
+						id,
+						trip_id,
+						sequence_index,
+						start_time_ms,
+						end_time_ms,
+						distance_m,
+						transport_mode,
+						created_at
+					) VALUES (
+						1,
+						1,
+						0,
+						1700000000000,
+						1700000900000,
+						1525.5,
+						'WALK',
+						1700000000000
+					)
+				""".trimIndent()
+			)
+
+			val tripCursor = query(
+				"""
+					SELECT transport_mode, departure_place_id, arrival_place_id, leg_count
+					FROM inferred_trip
+					WHERE id = 1
+				""".trimIndent()
+			)
+			with(tripCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("WALK", getString(0))
+				assertEquals(1, getInt(1))
+				assertEquals(1, getInt(2))
+				assertEquals(1, getInt(3))
+				assertFalse(moveToNext())
+			}
+			tripCursor.close()
+
+			val tripLegCursor = query(
+				"""
+					SELECT trip_id, sequence_index, distance_m, transport_mode
+					FROM trip_leg
+					WHERE id = 1
+				""".trimIndent()
+			)
+			with(tripLegCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(1, getInt(0))
+				assertEquals(0, getInt(1))
+				assertEquals(1525.5, getDouble(2), 0.00001)
+				assertEquals("WALK", getString(3))
+				assertFalse(moveToNext())
+			}
+			tripLegCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate15To16() {
+		val db = helper.createDatabase(TEST_DB, 15)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 16, true, MIGRATION_15_16).apply {
+			execSQL(
+				"""
+					INSERT INTO exploration_cell (
+						id,
+						cell_token,
+						level,
+						quality,
+						first_discovered_at,
+						last_visited_at,
+						visit_count,
+						season_bitmask,
+						center_lat_e7,
+						center_lon_e7,
+						created_at
+					) VALUES (
+						1,
+						'89c259',
+						12,
+						3,
+						1700000000000,
+						1700000500000,
+						2,
+						5,
+						481250000,
+						178750000,
+						1700000000000
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO exploration_streak (
+						type,
+						current_count,
+						best_count,
+						last_increment_day,
+						updated_at
+					) VALUES (
+						'DAILY',
+						4,
+						7,
+						20001,
+						1700000600000
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO achievement_progress (
+						id,
+						achievement_id,
+						current_value,
+						target_value,
+						tier,
+						unlocked_at,
+						updated_at
+					) VALUES (
+						1,
+						'walk-100km',
+						75,
+						100,
+						2,
+						NULL,
+						1700000600000
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO personal_record (
+						id,
+						metric,
+						value,
+						achieved_at,
+						updated_at
+					) VALUES (
+						1,
+						'longest_distance',
+						12000.5,
+						1700000700000,
+						1700000700000
+					)
+				""".trimIndent()
+			)
+
+			val explorationCellCursor = query(
+				"SELECT cell_token, visit_count, season_bitmask FROM exploration_cell WHERE id = 1"
+			)
+			with(explorationCellCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("89c259", getString(0))
+				assertEquals(2, getInt(1))
+				assertEquals(5, getInt(2))
+				assertFalse(moveToNext())
+			}
+			explorationCellCursor.close()
+
+			val streakCursor = query(
+				"SELECT current_count, best_count, last_increment_day FROM exploration_streak WHERE type = 'DAILY'"
+			)
+			with(streakCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(4, getInt(0))
+				assertEquals(7, getInt(1))
+				assertEquals(20001, getInt(2))
+				assertFalse(moveToNext())
+			}
+			streakCursor.close()
+
+			val achievementCursor = query(
+				"SELECT achievement_id, current_value, target_value, tier FROM achievement_progress WHERE id = 1"
+			)
+			with(achievementCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("walk-100km", getString(0))
+				assertEquals(75, getInt(1))
+				assertEquals(100, getInt(2))
+				assertEquals(2, getInt(3))
+				assertFalse(moveToNext())
+			}
+			achievementCursor.close()
+
+			val personalRecordCursor = query(
+				"SELECT metric, value FROM personal_record WHERE id = 1"
+			)
+			with(personalRecordCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("longest_distance", getString(0))
+				assertEquals(12000.5, getDouble(1), 0.00001)
+				assertFalse(moveToNext())
+			}
+			personalRecordCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
 	fun migrate16To17_domainEventTable() {
 		val db = helper.createDatabase(TEST_DB, 16)
 		db.close()
@@ -525,6 +976,170 @@ class MigrationTest {
 
 	@Test
 	@Throws(IOException::class)
+	fun migrate17To18() {
+		val db = helper.createDatabase(TEST_DB, 17)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 18, true, MIGRATION_17_18).apply {
+			execSQL(
+				"""
+					INSERT INTO pressure_sample (
+						id,
+						time_ms,
+						elapsed_realtime_nanos,
+						pressure_hpa,
+						altitude_m,
+						bucket_id,
+						created_at
+					) VALUES (
+						1,
+						1700000000000,
+						1000000,
+						1013.25,
+						215.4,
+						7,
+						1700000000000
+					)
+				""".trimIndent()
+			)
+			execSQL(
+				"""
+					INSERT INTO ski_run_segment (
+						id,
+						session_id,
+						run_index,
+						segment_type,
+						start_time_ms,
+						end_time_ms,
+						vertical_m,
+						distance_m,
+						max_speed_mps,
+						avg_speed_mps,
+						lift_type,
+						created_at
+					) VALUES (
+						1,
+						42,
+						0,
+						'DOWNHILL',
+						1700000000000,
+						1700000300000,
+						450.5,
+						1800.0,
+						22.2,
+						12.3,
+						'CHAIRLIFT',
+						1700000000000
+					)
+				""".trimIndent()
+			)
+
+			val pressureCursor = query(
+				"SELECT pressure_hpa, altitude_m, bucket_id FROM pressure_sample WHERE id = 1"
+			)
+			with(pressureCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(1013.25, getDouble(0), 0.00001)
+				assertEquals(215.4, getDouble(1), 0.00001)
+				assertEquals(7, getInt(2))
+				assertFalse(moveToNext())
+			}
+			pressureCursor.close()
+
+			val skiRunCursor = query(
+				"""
+					SELECT session_id, segment_type, vertical_m, lift_type
+					FROM ski_run_segment
+					WHERE id = 1
+				""".trimIndent()
+			)
+			with(skiRunCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(42, getInt(0))
+				assertEquals("DOWNHILL", getString(1))
+				assertEquals(450.5, getDouble(2), 0.00001)
+				assertEquals("CHAIRLIFT", getString(3))
+				assertFalse(moveToNext())
+			}
+			skiRunCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate18To19() {
+		val db = helper.createDatabase(TEST_DB, 18)
+		db.execSQL(
+			"""
+				INSERT INTO location_sample (
+					id,
+					time_ms,
+					elapsed_realtime_nanos,
+					lat_e7,
+					lon_e7,
+					alt_m,
+					h_acc_m,
+					v_acc_m,
+					speed_mps,
+					speed_accuracy_mps,
+					provider,
+					quality,
+					motion_state,
+					policy,
+					bucket_id,
+					created_at
+				) VALUES (
+					1,
+					1700000000000,
+					1000000,
+					481250000,
+					178750000,
+					123.4,
+					5.0,
+					1.2,
+					3.4,
+					0.5,
+					'gps',
+					'HIGH',
+					'WALKING',
+					'STANDARD',
+					11,
+					1700000000000
+				)
+			""".trimIndent()
+		)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 19, true, MIGRATION_18_19).apply {
+			val columnCursor = query(
+				"""
+					SELECT name, type, "notnull"
+					FROM pragma_table_info('location_sample')
+					WHERE name = 'raw_gps_alt_m'
+				""".trimIndent()
+			)
+			with(columnCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("raw_gps_alt_m", getString(0))
+				assertEquals("REAL", getString(1))
+				assertEquals(0, getInt(2))
+				assertFalse(moveToNext())
+			}
+			columnCursor.close()
+
+			val dataCursor = query("SELECT alt_m, raw_gps_alt_m FROM location_sample WHERE id = 1")
+			with(dataCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(123.4, getDouble(0), 0.00001)
+				assertEquals(null, getDoubleOrNull(1))
+				assertFalse(moveToNext())
+			}
+			dataCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
 	fun migrate19To20_addsDistanceAnomalyFlagToSessionSegment() {
 		val db = helper.createDatabase(TEST_DB, 19)
 		db.execSQL(
@@ -550,6 +1165,200 @@ class MigrationTest {
 				assertFalse(moveToNext())
 			}
 			cursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate20To21() {
+		val db = helper.createDatabase(TEST_DB, 20)
+		db.execSQL(
+			"""
+				INSERT INTO cell_location (
+					id,
+					time,
+					mcc,
+					mnc,
+					cell_id,
+					type,
+					asu,
+					lat,
+					lon,
+					alt
+				) VALUES (
+					1,
+					1700000000000,
+					'230',
+					'01',
+					987654,
+					13,
+					42,
+					48.125,
+					17.875,
+					250.0
+				)
+			""".trimIndent()
+		)
+		db.execSQL(
+			"""
+				INSERT INTO wifi_data (
+					bssid,
+					longitude,
+					latitude,
+					altitude,
+					first_seen,
+					last_seen,
+					ssid,
+					capabilities,
+					frequency,
+					level
+				) VALUES (
+					'00:11:22:33:44:55',
+					18.5,
+					49.25,
+					150.0,
+					1699999900000,
+					1700000050000,
+					'Tracker WiFi',
+					'[WPA2-PSK-CCMP][ESS]',
+					2412,
+					-55
+				)
+			""".trimIndent()
+		)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 21, true, MIGRATION_20_21).apply {
+			val cellSampleCursor = query(
+				"""
+					SELECT cell_id, mcc, mnc, lat_e7, lon_e7, provenance
+					FROM cell_sample
+					WHERE time_ms = 1700000000000
+				""".trimIndent()
+			)
+			with(cellSampleCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(987654, getInt(0))
+				assertEquals(230, getInt(1))
+				assertEquals(1, getInt(2))
+				assertEquals(481250000, getInt(3))
+				assertEquals(178750000, getInt(4))
+				assertEquals("LEGACY_MIGRATION", getString(5))
+				assertFalse(moveToNext())
+			}
+			cellSampleCursor.close()
+
+			val wifiObservationCursor = query(
+				"""
+					SELECT bssid, time_ms, ssid, lat_e7, lon_e7, provenance
+					FROM wifi_observation
+					WHERE bssid = '00:11:22:33:44:55'
+				""".trimIndent()
+			)
+			with(wifiObservationCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("00:11:22:33:44:55", getString(0))
+				assertEquals(1700000050000L, getLong(1))
+				assertEquals("Tracker WiFi", getString(2))
+				assertEquals(492500000, getInt(3))
+				assertEquals(185000000, getInt(4))
+				assertEquals("LEGACY_MIGRATION", getString(5))
+				assertFalse(moveToNext())
+			}
+			wifiObservationCursor.close()
+
+			val droppedTablesCursor = query(
+				"""
+					SELECT COUNT(*) FROM sqlite_master
+					WHERE type = 'table' AND name IN (
+						'tracker_session',
+						'location_data',
+						'wifi_data',
+						'cell_location',
+						'location_wifi_count'
+					)
+				""".trimIndent()
+			)
+			with(droppedTablesCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(0, getInt(0))
+				assertFalse(moveToNext())
+			}
+			droppedTablesCursor.close()
+
+			val networkOperatorCursor = query(
+				"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'network_operator'"
+			)
+			with(networkOperatorCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(1, getInt(0))
+				assertFalse(moveToNext())
+			}
+			networkOperatorCursor.close()
+		}
+	}
+
+	@Test
+	@Throws(IOException::class)
+	fun migrate21To22() {
+		val db = helper.createDatabase(TEST_DB, 21)
+		db.execSQL(
+			"""
+				INSERT INTO cell_sample (
+					id,
+					time_ms,
+					cell_id,
+					lac,
+					mcc,
+					mnc,
+					network_type,
+					signal_strength,
+					lat_e7,
+					lon_e7,
+					provenance,
+					created_at
+				) VALUES (
+					1,
+					1700000000000,
+					5000000000,
+					99,
+					230,
+					1,
+					20,
+					-85,
+					481250000,
+					178750000,
+					'TEST',
+					1700000000000
+				)
+			""".trimIndent()
+		)
+		db.close()
+
+		helper.runMigrationsAndValidate(TEST_DB, 22, true, MIGRATION_21_22).apply {
+			val columnCursor = query(
+				"""
+					SELECT name, type, "notnull"
+					FROM pragma_table_info('cell_sample')
+					WHERE name = 'cell_id'
+				""".trimIndent()
+			)
+			with(columnCursor) {
+				assertTrue(moveToFirst())
+				assertEquals("cell_id", getString(0))
+				assertEquals("INTEGER", getString(1))
+				assertEquals(1, getInt(2))
+				assertFalse(moveToNext())
+			}
+			columnCursor.close()
+
+			val dataCursor = query("SELECT cell_id FROM cell_sample WHERE id = 1")
+			with(dataCursor) {
+				assertTrue(moveToFirst())
+				assertEquals(5000000000L, getLong(0))
+				assertFalse(moveToNext())
+			}
+			dataCursor.close()
 		}
 	}
 
