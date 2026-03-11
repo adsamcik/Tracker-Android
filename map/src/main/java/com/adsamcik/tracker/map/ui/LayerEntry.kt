@@ -2,7 +2,7 @@ package com.adsamcik.tracker.map.ui
 
 import android.content.Context
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
-import com.adsamcik.tracker.shared.map.MapLayerData
+import com.adsamcik.tracker.map.shared.MapLayerData
 
 /**
  * Factory-based wrapper for layers that need Context to construct.

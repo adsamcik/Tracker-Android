@@ -225,7 +225,6 @@ dependencies {
 	androidTestImplementation(libs.espresso)
 	androidTestImplementation(libs.mockk.android)
 	androidTestImplementation(project(":testing-common"))
-	implementation(project(":smap"))
 }
 
 // Configure JUnit 5 for unit tests

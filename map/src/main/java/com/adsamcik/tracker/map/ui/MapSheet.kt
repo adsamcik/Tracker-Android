@@ -105,7 +105,7 @@ import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
-import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
+import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import com.adsamcik.tracker.shared.utils.style.compose.BottomSheetShape
 import com.adsamcik.tracker.shared.utils.style.compose.MomentumPillShape
 import java.util.Locale

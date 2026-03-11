@@ -49,7 +49,6 @@ dependencies {
 	// Internal modules
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))
-	implementation(project(":smap"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
 	implementation(project(":tracker"))

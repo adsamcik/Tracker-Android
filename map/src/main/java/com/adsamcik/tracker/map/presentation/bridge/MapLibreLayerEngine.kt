@@ -4,7 +4,7 @@ import android.content.Context
 import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.ui.LayerController
-import com.adsamcik.tracker.shared.map.MapLayerData
+import com.adsamcik.tracker.map.shared.MapLayerData
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 

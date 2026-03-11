@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.map.layers
+package com.adsamcik.tracker.map.shared.layers
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes

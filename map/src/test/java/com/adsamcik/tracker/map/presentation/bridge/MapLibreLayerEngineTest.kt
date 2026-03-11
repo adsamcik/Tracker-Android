@@ -3,8 +3,8 @@ package com.adsamcik.tracker.map.presentation.bridge
 import android.content.Context
 import com.adsamcik.tracker.map.layers.registry.LayerRegistry
 import com.adsamcik.tracker.map.ui.LayerController
-import com.adsamcik.tracker.shared.map.MapLayerData
-import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
+import com.adsamcik.tracker.map.shared.MapLayerData
+import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe

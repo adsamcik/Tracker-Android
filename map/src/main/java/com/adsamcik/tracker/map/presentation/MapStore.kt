@@ -13,7 +13,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
-import com.adsamcik.tracker.shared.map.CoordinateBounds
+import com.adsamcik.tracker.map.shared.CoordinateBounds
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf

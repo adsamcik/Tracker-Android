@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.map
+package com.adsamcik.tracker.map.shared
 
 import android.os.Parcelable
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants.MAX_LATITUDE

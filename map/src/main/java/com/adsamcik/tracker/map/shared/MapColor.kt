@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.map
+package com.adsamcik.tracker.map.shared
 
 import android.os.Parcelable
 import androidx.annotation.ColorInt

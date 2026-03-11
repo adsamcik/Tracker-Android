@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.map
+package com.adsamcik.tracker.map.shared
 
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe

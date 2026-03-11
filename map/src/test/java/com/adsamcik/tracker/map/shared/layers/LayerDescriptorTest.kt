@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.shared.map.layers
+package com.adsamcik.tracker.map.shared.layers
 
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue

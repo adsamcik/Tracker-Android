@@ -45,7 +45,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
-import com.adsamcik.tracker.shared.map.MapStyleProvider
+import com.adsamcik.tracker.map.shared.MapStyleProvider
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.coroutines.cancellation.CancellationException

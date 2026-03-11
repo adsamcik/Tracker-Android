@@ -7,7 +7,7 @@ import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SheetStateModel
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
-import com.adsamcik.tracker.shared.map.MapLayerData
+import com.adsamcik.tracker.map.shared.MapLayerData
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.Dispatchers

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.map.presentation.bridge
 
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
-import com.adsamcik.tracker.shared.map.MapLayerData
+import com.adsamcik.tracker.map.shared.MapLayerData
 import kotlinx.collections.immutable.ImmutableList
 
 /**

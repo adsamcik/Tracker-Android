@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.map.layers.registry
 
-import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
+import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 
 /** Registry abstraction for discovering available layers. */
 interface LayerRegistry {

@@ -55,7 +55,6 @@ android {
 }
 
 dependencies {
-	implementation(project(":smap"))
 	// Removed :app dependency as part of converting to a library module
 	implementation(project(":sbase"))
 	implementation(project(":sutils"))

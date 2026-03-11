@@ -6,8 +6,8 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.base.SupportsDateRange
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
-import com.adsamcik.tracker.shared.map.MapLayerData
-import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
+import com.adsamcik.tracker.map.shared.MapLayerData
+import com.adsamcik.tracker.map.shared.layers.LayerDescriptor
 import kotlinx.coroutines.CancellationException
 
 /**

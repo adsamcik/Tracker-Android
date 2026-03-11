@@ -2,7 +2,7 @@ package com.adsamcik.tracker.map.presentation.udf
 
 import androidx.compose.runtime.Immutable
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
-import com.adsamcik.tracker.shared.map.CoordinateBounds
+import com.adsamcik.tracker.map.shared.CoordinateBounds
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
