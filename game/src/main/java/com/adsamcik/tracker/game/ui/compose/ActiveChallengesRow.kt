@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
@@ -45,6 +47,8 @@ fun ActiveChallengesRow(
 	challenges: List<ChallengeUi>,
 	modifier: Modifier = Modifier,
 	maxSlots: Int = 3,
+	onChallengeClick: (ChallengeUi) -> Unit = {},
+	onStartStreakClick: () -> Unit = {},
 ) {
 	LazyRow(
 		modifier = modifier,
@@ -52,17 +56,23 @@ fun ActiveChallengesRow(
 		contentPadding = PaddingValues(horizontal = 16.dp),
 	) {
 		items(challenges.take(maxSlots), key = { it.id }) { challenge ->
-			ChallengeCard(challenge)
+			ChallengeCard(
+				challenge = challenge,
+				onClick = onChallengeClick,
+			)
 		}
 		val emptySlots = (maxSlots - challenges.size).coerceAtLeast(0)
 		items(emptySlots) {
-			EmptySlotCard()
+			EmptySlotCard(onStartStreakClick = onStartStreakClick)
 		}
 	}
 }
 
 @Composable
-private fun ChallengeCard(challenge: ChallengeUi) {
+private fun ChallengeCard(
+	challenge: ChallengeUi,
+	onClick: (ChallengeUi) -> Unit,
+) {
 	val percent = (challenge.progress * 100).toInt()
 	val description = "Challenge: ${challenge.title}, $percent percent"
 
@@ -70,6 +80,7 @@ private fun ChallengeCard(challenge: ChallengeUi) {
 		modifier = Modifier
 			.width(160.dp)
 			.heightIn(min = 120.dp)
+			.clickable(role = Role.Button) { onClick(challenge) }
 			.semantics { contentDescription = description },
 	) {
 		Column(
@@ -142,7 +153,7 @@ private fun ProgressArc(progress: Float) {
 }
 
 @Composable
-private fun EmptySlotCard() {
+private fun EmptySlotCard(onStartStreakClick: () -> Unit) {
 	val infiniteTransition = rememberInfiniteTransition(label = "emptySlotPulse")
 	val alpha by infiniteTransition.animateFloat(
 		initialValue = 0.3f,
@@ -157,7 +168,8 @@ private fun EmptySlotCard() {
 	GlassCard(
 		modifier = Modifier
 			.width(160.dp)
-			.heightIn(min = 120.dp),
+			.heightIn(min = 120.dp)
+			.clickable(role = Role.Button, onClick = onStartStreakClick),
 	) {
 		Column(
 			horizontalAlignment = Alignment.CenterHorizontally,
@@ -172,7 +184,7 @@ private fun EmptySlotCard() {
 			Text(
 				text = stringResource(R.string.game_challenge_start_hint),
 				style = MaterialTheme.typography.labelSmall,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				color = MaterialTheme.colorScheme.primary,
 			)
 		}
 	}

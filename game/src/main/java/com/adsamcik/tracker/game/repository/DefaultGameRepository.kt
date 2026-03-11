@@ -81,7 +81,9 @@ class DefaultGameRepository @Inject constructor(
                         id = inst.entity.id,
                         title = inst.getTitle(application),
                         description = inst.getDescription(application),
-                        progress = inst.progress.toFloat()
+                        progress = inst.progress.toFloat(),
+                        difficulty = inst.entity.difficulty.name,
+                        timeRemainingMs = (inst.entity.endTime - Time.nowMillis).coerceAtLeast(0L),
                     )
                 }
             }

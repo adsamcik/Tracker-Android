@@ -100,14 +100,18 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 
 	override fun onSessionUpdated(session: TrackerSession, isNewSession: Boolean): Boolean {
 		onSessionUpdatedInternal(session, isNewSession)
+		return evaluateGoalReached()
+	}
+
+	protected abstract fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean)
+
+	protected fun evaluateGoalReached(): Boolean {
 		if (!isReported && value >= target) {
 			lastReportTime = getGoalTime(Time.now)
 			return true
 		}
 		return false
 	}
-
-	protected abstract fun onSessionUpdatedInternal(session: TrackerSession, isNewSession: Boolean)
 
 	override fun onNewDay(context: Context, day: ZonedDateTime) {
 		val time = getGoalTime(day)
@@ -137,7 +141,8 @@ abstract class BaseGoal(protected val persistence: GoalPersistence) : Goal, Coro
 		// Build an intent to open the app without a compile-time dependency on :app
 		// Use the default launch intent and pass the extra recognized by MainActivity
 		val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-			putExtra("openGame", true)
+			putExtra("navigate_to", "dashboard")
+			putExtra("scroll_to", "goals")
 			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
 		}
 		val pendingIntent = PendingIntent.getActivity(

@@ -100,6 +100,10 @@ class GameDomainEventConsumerTest {
 				processorId = "test-processor",
 				cellToken = "cell-abc",
 				level = 5,
+				centerLatE7 = 0,
+				centerLonE7 = 0,
+				quality = 0,
+				seasonBit = 1,
 			)
 
 			coEvery {
@@ -127,6 +131,10 @@ class GameDomainEventConsumerTest {
 					processorId = "test-processor",
 					cellToken = "cell-1",
 					level = 3,
+					centerLatE7 = 0,
+					centerLonE7 = 0,
+					quality = 0,
+					seasonBit = 1,
 				),
 				DomainEvent.SessionEnded(
 					timestampMs = lateTimestamp,

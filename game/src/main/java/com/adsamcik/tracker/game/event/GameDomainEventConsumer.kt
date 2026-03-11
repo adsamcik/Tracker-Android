@@ -1,14 +1,21 @@
 package com.adsamcik.tracker.game.event
 
 import android.content.Context
+import android.app.PendingIntent
+import android.content.Intent
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
+import com.adsamcik.tracker.game.GAME_LOG_SOURCE
+import com.adsamcik.tracker.game.GOALS_LOG_SOURCE
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.worker.ChallengeWorker
+import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.preferences.Preferences
@@ -44,7 +51,7 @@ class GameDomainEventConsumer @Inject constructor(
 		domainEventRepository.markConsumed(CONSUMER_ID, latestTimestamp)
 	}
 
-	private fun handleEvent(event: DomainEvent) {
+	private suspend fun handleEvent(event: DomainEvent) {
 		when (event) {
 			is DomainEvent.SessionEnded -> onSessionEnded(event)
 			is DomainEvent.DailySummaryUpdated -> onDailySummaryUpdated(event)
@@ -97,26 +104,102 @@ class GameDomainEventConsumer @Inject constructor(
 		)
 	}
 
-	/**
-	 * Will replace GoalsSessionUpdateReceiver per-cycle updates in the future.
-	 * Currently a no-op — GoalTracker still receives per-cycle updates via TrackerUpdateReceiver.
-	 * TODO: Migrate goal infrastructure to accept event-based cumulative step counts.
-	 */
-	private fun onDailySummaryUpdated(@Suppress("UNUSED_PARAMETER") event: DomainEvent.DailySummaryUpdated) {
-		// Goal migration deferred — requires changes to Goal/BaseGoal/StepGoal class hierarchy
-		// to accept direct value-set instead of per-session delta updates.
+	private suspend fun onDailySummaryUpdated(event: DomainEvent.DailySummaryUpdated) {
+		val cumulativeSteps = event.totalSteps.raw.toInt().coerceAtLeast(0)
+		GoalTracker.updateCumulativeSteps(cumulativeSteps)
+		Logger.log(
+			LogData(
+				message = "DailySummaryUpdated event → cumulative steps synced to goals: $cumulativeSteps",
+				source = GOALS_LOG_SOURCE,
+			),
+		)
 	}
 
 	private fun onAchievementUnlocked(event: DomainEvent.AchievementUnlocked) {
-		// Achievement unlock notification — future implementation
+		val title = context.getString(R.string.achievement_unlocked_notification_title, event.achievementId)
+		val description = context.getString(R.string.achievement_unlocked_notification_description, event.tier)
+		val launchIntent = (context.packageManager.getLaunchIntentForPackage(context.packageName)
+			?: Intent(Intent.ACTION_MAIN).apply {
+				addCategory(Intent.CATEGORY_LAUNCHER)
+				setPackage(context.packageName)
+				flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+			}).apply {
+			putExtra("navigate_to", "game")
+			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+		}
+		val contentIntent = PendingIntent.getActivity(
+			context,
+			NotificationsIds.achievementUnlocked(event),
+			launchIntent,
+			PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+		)
+		NotificationManagerCompat.from(context).notify(
+			NotificationsIds.achievementUnlocked(event),
+			NotificationCompat.Builder(
+				context,
+				context.getString(com.adsamcik.tracker.shared.base.R.string.channel_challenges_id),
+			)
+				.setSmallIcon(R.drawable.ic_challenge_icon)
+				.setContentTitle(title)
+				.setContentText(description)
+				.setStyle(NotificationCompat.BigTextStyle().bigText(description))
+				.setContentIntent(contentIntent)
+				.setAutoCancel(true)
+				.build(),
+		)
 	}
 
 	private fun onAchievementProgress(event: DomainEvent.AchievementProgress) {
-		// Achievement progress update — future implementation
+		val progressFraction = if (event.targetValue <= 0L) 0.0 else event.currentValue.toDouble() / event.targetValue.toDouble()
+		Logger.log(
+			LogData(
+				message = "Achievement progress: ${event.achievementId} ${event.currentValue}/${event.targetValue}",
+				source = GAME_LOG_SOURCE,
+			),
+		)
+
+		if (progressFraction >= ACHIEVEMENT_PROGRESS_NOTIFY_THRESHOLD) {
+			val progressPercent = (progressFraction * 100.0).toInt().coerceIn(0, 100)
+			val text = context.getString(
+				R.string.achievement_progress_notification_description,
+				progressPercent,
+				event.currentValue,
+				event.targetValue,
+			)
+			NotificationManagerCompat.from(context).notify(
+				NotificationsIds.achievementProgress(event),
+				NotificationCompat.Builder(
+					context,
+					context.getString(com.adsamcik.tracker.shared.base.R.string.channel_challenges_id),
+				)
+					.setSmallIcon(R.drawable.ic_challenge_icon)
+					.setContentTitle(
+						context.getString(
+							R.string.achievement_progress_notification_title,
+							event.achievementId,
+						),
+					)
+					.setContentText(text)
+					.setOnlyAlertOnce(true)
+					.setAutoCancel(true)
+					.build(),
+			)
+		}
 	}
 
 	companion object {
 		const val CONSUMER_ID = "game-module"
 		private const val CHALLENGE_WORK_TAG = "Challenge"
+		private const val ACHIEVEMENT_PROGRESS_NOTIFY_THRESHOLD = 0.90
+	}
+
+	private object NotificationsIds {
+		fun achievementUnlocked(event: DomainEvent.AchievementUnlocked): Int {
+			return "${event.achievementId}:${event.timestampMs.raw}:unlocked".hashCode()
+		}
+
+		fun achievementProgress(event: DomainEvent.AchievementProgress): Int {
+			return "${event.achievementId}:${event.timestampMs.raw}:progress".hashCode()
+		}
 	}
 }

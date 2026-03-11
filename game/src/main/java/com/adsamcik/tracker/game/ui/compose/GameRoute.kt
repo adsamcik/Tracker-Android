@@ -4,14 +4,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.challenge.progression.UnlockableFeature
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel
@@ -21,26 +22,37 @@ import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel
  */
 @Composable
 fun GameRoute(
+	openChallengePickerRequest: Long = 0L,
 	onNavigateToTrophyCase: () -> Unit = {},
+	onOpenSettings: () -> Unit = {},
+	onNavigateToTracker: () -> Unit = {},
 ) {
 	val vm: GameViewModel = hiltViewModel()
 	val explorationVm: ExplorationViewModel = hiltViewModel()
 	val progressionVm: ProgressionViewModel = hiltViewModel()
-	val points by vm.pointsToday.collectAsState()
-	val steps by vm.stepsSummary.collectAsState()
-	val challenges by vm.challenges.collectAsState()
-	val miniGameEntries by vm.miniGameEntries.collectAsState()
-	val exploration by explorationVm.explorationState.collectAsState()
-	val achievements by explorationVm.achievementState.collectAsState()
-	val profile by progressionVm.playerProfile.collectAsState()
-	val streak by progressionVm.streak.collectAsState()
-	val trophySummary by progressionVm.trophySummary.collectAsState()
+	val points by vm.pointsToday.collectAsStateWithLifecycle()
+	val steps by vm.stepsSummary.collectAsStateWithLifecycle()
+	val challenges by vm.challenges.collectAsStateWithLifecycle()
+	val miniGameEntries by vm.miniGameEntries.collectAsStateWithLifecycle()
+	val exploration by explorationVm.explorationState.collectAsStateWithLifecycle()
+	val achievements by explorationVm.achievementState.collectAsStateWithLifecycle()
+	val heroLevelState by progressionVm.heroLevelState.collectAsStateWithLifecycle()
+	val trophySummary by progressionVm.trophySummary.collectAsStateWithLifecycle()
 
 	// Unlock event state
 	var unlockEvent by remember { mutableStateOf<UnlockEvent?>(null) }
+	var selectedChallenge by remember { mutableStateOf<ChallengeUi?>(null) }
+	var showChallengePicker by rememberSaveable { mutableStateOf(false) }
+	var handledChallengePickerRequest by rememberSaveable { mutableStateOf(0L) }
 	LaunchedEffect(Unit) {
 		progressionVm.unlockEvents.collect { event ->
 			unlockEvent = event
+		}
+	}
+	LaunchedEffect(openChallengePickerRequest) {
+		if (openChallengePickerRequest != 0L && openChallengePickerRequest != handledChallengePickerRequest) {
+			showChallengePicker = true
+			handledChallengePickerRequest = openChallengePickerRequest
 		}
 	}
 
@@ -52,11 +64,43 @@ fun GameRoute(
 			miniGameEntries = miniGameEntries,
 			explorationState = exploration,
 			achievementState = achievements,
-			playerProfile = profile,
-			streak = streak,
+			heroLevelState = heroLevelState,
 			trophySummary = trophySummary,
+			isLoadingChallenges = challenges == null,
+			onOpenSettings = onOpenSettings,
 			onNavigateToTrophyCase = onNavigateToTrophyCase,
+			onChallengeClick = { challenge -> selectedChallenge = challenge },
+			onStartStreakClick = { showChallengePicker = true },
+			onNavigateToTracker = onNavigateToTracker,
 		)
+
+		selectedChallenge?.let { challenge ->
+			ChallengeDetailsDialog(
+				challenge = challenge,
+				onDismiss = { selectedChallenge = null },
+				onViewTrophyCase = {
+					selectedChallenge = null
+					onNavigateToTrophyCase()
+				},
+				modifier = Modifier.align(Alignment.Center),
+			)
+		}
+
+		if (showChallengePicker) {
+			ChallengePickerDialog(
+				challenges = challenges.orEmpty(),
+				onDismiss = { showChallengePicker = false },
+				onChallengeSelected = { challenge ->
+					showChallengePicker = false
+					selectedChallenge = challenge
+				},
+				onOpenTrophyCase = {
+					showChallengePicker = false
+					onNavigateToTrophyCase()
+				},
+				modifier = Modifier.align(Alignment.Center),
+			)
+		}
 
 		// Unlock announcement overlay
 		unlockEvent?.let { event ->

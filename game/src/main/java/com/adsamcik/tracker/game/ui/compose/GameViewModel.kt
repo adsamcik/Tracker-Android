@@ -26,10 +26,14 @@ class GameViewModel @Inject constructor(
     private val miniGameRegistry: MiniGameRegistry,
 ) : ViewModel() {
 
-    val pointsToday = gameRepository.getPointsToday()
-        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
+    val pointsToday: StateFlow<Int?> = gameRepository.getPointsToday()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+            initialValue = null,
+        )
 
-    val stepsSummary = gameRepository.getStepsSummary()
+    val stepsSummary: StateFlow<StepsSummaryUi?> = gameRepository.getStepsSummary()
         .map { data -> 
             data?.let {
                 StepsSummaryUi(
@@ -40,22 +44,32 @@ class GameViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, null)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+            initialValue = null,
+        )
 
-    val challenges = gameRepository.getActiveChallenges()
+    val challenges: StateFlow<List<ChallengeUi>?> = gameRepository.getActiveChallenges()
         .map { dataList ->
             dataList.map { data ->
                 ChallengeUi(
                     id = data.id,
                     title = data.title,
                     description = data.description,
-                    progress = data.progress
+                    progress = data.progress,
+                    difficulty = data.difficulty,
+                    timeRemainingMs = data.timeRemainingMs,
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+            initialValue = null,
+        )
 
-    val miniGameEntries: StateFlow<List<MiniGameEntry>> = gameRepository.getPlayerProfile()
+    val miniGameEntries: StateFlow<List<MiniGameEntry>?> = gameRepository.getPlayerProfile()
         .map { profile ->
             val playerLevel = profile?.level ?: 1
             miniGameRegistry.allSorted().map { game ->
@@ -68,5 +82,13 @@ class GameViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+            initialValue = null,
+        )
+
+    private companion object {
+        const val STATE_STOP_TIMEOUT_MS = 5_000L
+    }
 }

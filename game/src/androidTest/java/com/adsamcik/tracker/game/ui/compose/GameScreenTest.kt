@@ -42,4 +42,22 @@ class GameScreenTest {
         composeRule.onNodeWithText("Explorer").assertIsDisplayed()
         composeRule.onNodeWithText("Walk 3 km").assertIsDisplayed()
     }
+
+    @Test
+    fun showsTodayScopeEvenWhenPointsAreZero() {
+        composeRule.setContent {
+            GameScreen(
+                pointsToday = 0,
+                steps = StepsSummaryUi(stepsToday = 0, stepsWeek = 0, goalDay = 1000, goalWeek = 7000),
+                challenges = emptyList(),
+            )
+        }
+
+        composeRule.onNodeWithText("0").assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.points_earned_today))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.game_track_and_earn_points_action)
+        ).assertIsDisplayed()
+    }
 }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -28,7 +29,7 @@ class TrophyCaseViewModel @Inject constructor(
 	private val _filter = MutableStateFlow(TrophyFilter.ALL)
 	val filter: StateFlow<TrophyFilter> = _filter
 
-	val trophies: StateFlow<List<TrophyItemUi>> = combine(
+	val trophies: StateFlow<List<TrophyItemUi>?> = combine(
 		gameRepository.getChallengeHistory(),
 		_filter,
 	) { history, filterValue ->
@@ -38,21 +39,53 @@ class TrophyCaseViewModel @Inject constructor(
 			TrophyFilter.SILVER -> history.filter { it.medal == "SILVER" }
 			TrophyFilter.BRONZE -> history.filter { it.medal == "BRONZE" }
 		}
-	}.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+	}.stateIn(
+		scope = viewModelScope,
+		started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+		initialValue = null,
+	)
 
-	val personalRecords: StateFlow<List<PersonalRecordUi>> =
+	val personalRecords: StateFlow<List<PersonalRecordUi>?> =
 		gameRepository.getPersonalRecords()
-			.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+			.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+				initialValue = null,
+			)
 
-	val lifetimeStats: StateFlow<LifetimeStatsUi> =
+	val lifetimeStats: StateFlow<LifetimeStatsUi?> =
 		gameRepository.getLifetimeStats()
 			.stateIn(
-				viewModelScope,
-				SharingStarted.Lazily,
-				LifetimeStatsUi(0, 0, 0f, 0, 0, 0, 0L),
+				scope = viewModelScope,
+				started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+				initialValue = null,
+			)
+
+	val activeChallenges: StateFlow<List<ChallengeUi>?> =
+		gameRepository.getActiveChallenges()
+			.map { challenges ->
+				challenges.map { challenge ->
+					ChallengeUi(
+						id = challenge.id,
+						title = challenge.title,
+						description = challenge.description,
+						progress = challenge.progress,
+						difficulty = challenge.difficulty,
+						timeRemainingMs = challenge.timeRemainingMs,
+					)
+				}
+			}
+			.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+				initialValue = null,
 			)
 
 	fun setFilter(filter: TrophyFilter) {
 		_filter.value = filter
+	}
+
+	private companion object {
+		const val STATE_STOP_TIMEOUT_MS = 5_000L
 	}
 }

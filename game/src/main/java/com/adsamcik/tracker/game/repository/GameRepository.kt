@@ -62,7 +62,9 @@ data class ChallengeData(
     val id: Long,
     val title: String,
     val description: String,
-    val progress: Float
+    val progress: Float,
+    val difficulty: String = "",
+    val timeRemainingMs: Long = 0L,
 )
 
 /**

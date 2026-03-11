@@ -62,6 +62,12 @@ interface Goal {
 	fun onSessionUpdated(session: TrackerSession, isNewSession: Boolean): Boolean
 
 	/**
+	 * Called when a cumulative (absolute) step value is available.
+	 * Returns true if goal is reached.
+	 */
+	fun onCumulativeStepsUpdated(totalSteps: Int): Boolean = false
+
+	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.
 	 */
 	fun onNewDay(context: Context, day: ZonedDateTime)

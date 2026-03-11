@@ -29,8 +29,8 @@ class DefaultActiveChallengesProvider(
 						title = data.title,
 						description = data.description,
 						progress = data.progress,
-						difficulty = "",
-						timeRemainingMs = 0,
+						difficulty = data.difficulty.lowercase(),
+						timeRemainingMs = data.timeRemainingMs,
 					)
 				}
 			}

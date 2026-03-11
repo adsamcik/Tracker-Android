@@ -74,6 +74,15 @@ data class GoalListenable(val goal: Goal) {
 	}
 
 	/**
+	 * Called when cumulative (absolute) step value changes.
+	 */
+	fun onCumulativeStepsUpdated(totalSteps: Int): Boolean {
+		return notifyIfValueChanged<Boolean> {
+			goal.onCumulativeStepsUpdated(totalSteps)
+		}
+	}
+
+	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.
 	 */
 	fun onNewDay(context: Context, day: ZonedDateTime) {

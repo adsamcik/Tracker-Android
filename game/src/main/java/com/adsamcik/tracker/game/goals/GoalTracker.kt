@@ -15,7 +15,9 @@ import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.notification.Notifications
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
@@ -26,6 +28,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import java.time.temporal.ChronoField
+import java.time.temporal.WeekFields
+import java.util.Locale
 import kotlin.coroutines.CoroutineContext
 
 
@@ -42,10 +51,13 @@ internal object GoalTracker : CoroutineScope {
 	private val goalList: MutableList<GoalListenable> = mutableListOf()
 
 	private var mAppContext: Context? = null
+	@Volatile
+	private var initialized = false
 
 	private var mLastSessionId: Long = -1
 
 	private val job = SupervisorJob()
+	private val mutex = Mutex()
 
 	override val coroutineContext: CoroutineContext
 		get() = Dispatchers.Default + job
@@ -58,17 +70,27 @@ internal object GoalTracker : CoroutineScope {
 	 */
 	@AnyThread
 	fun initialize(context: Context, sessionChannel: TrackerSessionChannel) {
-		mAppContext = context.applicationContext
+		if (initialized) return
+		var startObserver = false
 
-		val persistence = PreferencesGoalPersistence(context)
-		listOf(
-				DailyStepGoal(persistence),
-				WeeklyStepGoal(persistence)
-		)
-				.map { GoalListenable(it) }
-				.forEach {
-					goalList.add(it)
-				}
+		synchronized(this) {
+			if (initialized) return@synchronized
+
+			mAppContext = context.applicationContext
+
+			val persistence = PreferencesGoalPersistence(context)
+			listOf(
+					DailyStepGoal(persistence),
+					WeeklyStepGoal(persistence)
+			)
+					.map { GoalListenable(it) }
+					.forEach {
+						goalList.add(it)
+					}
+			initialized = true
+			startObserver = true
+		}
+		if (!startObserver) return
 
 		launch(Dispatchers.Default) {
 			goalList.forEach {
@@ -134,13 +156,53 @@ internal object GoalTracker : CoroutineScope {
 	 * Called when new session data is available.
 	 */
 	internal fun update(session: TrackerSession) {
-		val isNewSession = mLastSessionId != session.id
-		mLastSessionId = session.id
+		runBlocking {
+			mutex.withLock {
+				val isNewSession = mLastSessionId != session.id
+				mLastSessionId = session.id
 
-		goalList.forEach {
-			if (it.onSessionUpdated(session, isNewSession)) {
-				onGoalReached(it.goal)
+				goalList.forEach {
+					if (it.onSessionUpdated(session, isNewSession)) {
+						onGoalReached(it.goal)
+					}
+				}
 			}
 		}
+	}
+
+	internal suspend fun updateCumulativeSteps(totalSteps: Int) {
+		if (mAppContext == null || goalList.size < 2) return
+		val context = requireContext()
+		val dailyTotal = totalSteps.coerceAtLeast(0)
+		val weeklyTotal = withContext(Dispatchers.IO) {
+			loadCurrentWeekStepsWithTodayOverride(context, dailyTotal)
+		}
+		mutex.withLock {
+			mLastSessionId = -1L
+
+			if (goalList[0].onCumulativeStepsUpdated(dailyTotal)) {
+				onGoalReached(goalList[0].goal)
+			}
+			if (goalList[1].onCumulativeStepsUpdated(weeklyTotal)) {
+				onGoalReached(goalList[1].goal)
+			}
+		}
+	}
+
+	private suspend fun loadCurrentWeekStepsWithTodayOverride(context: Context, todayTotal: Int): Int {
+		val tripDao = AppDatabase.database(context).tripDao()
+		val todayFromDb = tripDao
+			.getBetween(Time.today.toEpochMillis(), Time.tomorrow.toEpochMillis())
+			.sumOf { it.steps ?: 0 }
+		val now = Time.now
+		val weekStart = now
+			.with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1L)
+			.with(ChronoField.NANO_OF_DAY, 0L)
+		val weekEnd = weekStart.plusWeeks(1L)
+		val weekTotal = tripDao
+			.getBetween(weekStart.toEpochMillis(), weekEnd.toEpochMillis())
+			.sumOf { it.steps ?: 0 }
+
+		return (weekTotal - todayFromDb + todayTotal).coerceAtLeast(0)
 	}
 }

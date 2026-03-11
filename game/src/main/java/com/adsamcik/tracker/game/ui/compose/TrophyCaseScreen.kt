@@ -49,11 +49,13 @@ import java.util.Locale
 
 @Composable
 fun TrophyCaseScreen(
-	trophies: List<TrophyItemUi>,
-	personalRecords: List<PersonalRecordUi>,
-	lifetimeStats: LifetimeStatsUi,
+	activeChallenges: List<ChallengeUi>?,
+	trophies: List<TrophyItemUi>?,
+	personalRecords: List<PersonalRecordUi>?,
+	lifetimeStats: LifetimeStatsUi?,
 	currentFilter: TrophyFilter,
 	onFilterChanged: (TrophyFilter) -> Unit,
+	onChallengeClick: (ChallengeUi) -> Unit,
 	onBack: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -102,8 +104,35 @@ fun TrophyCaseScreen(
 				)
 			}
 
+			if (activeChallenges == null) {
+				item {
+					TrophyCaseLoadingCard()
+				}
+			} else if (activeChallenges.isNotEmpty()) {
+				item {
+					Text(
+						text = stringResource(R.string.game_active_challenges),
+						style = MaterialTheme.typography.titleMedium,
+						fontWeight = FontWeight.Bold,
+						color = MaterialTheme.colorScheme.onSurface,
+						modifier = Modifier.padding(horizontal = 16.dp),
+					)
+				}
+				item {
+					ActiveChallengesRow(
+						challenges = activeChallenges,
+						onChallengeClick = onChallengeClick,
+						onStartStreakClick = {},
+					)
+				}
+			}
+
 			// Personal records
-			if (personalRecords.isNotEmpty()) {
+			if (personalRecords == null) {
+				item {
+					TrophyCaseLoadingCard()
+				}
+			} else if (personalRecords.isNotEmpty()) {
 				item {
 					Text(
 						text = stringResource(R.string.game_personal_records_title),
@@ -119,7 +148,11 @@ fun TrophyCaseScreen(
 			}
 
 			// Trophy list
-			if (trophies.isEmpty()) {
+			if (trophies == null) {
+				item {
+					TrophyCaseLoadingCard()
+				}
+			} else if (trophies.isEmpty()) {
 				item {
 					EmptyStateCard(
 						icon = Icons.Outlined.EmojiEvents,
@@ -137,7 +170,42 @@ fun TrophyCaseScreen(
 			// Lifetime stats
 			item {
 				Spacer(modifier = Modifier.height(8.dp))
-				LifetimeStatsSection(stats = lifetimeStats)
+				if (lifetimeStats == null) {
+					TrophyCaseLoadingCard()
+				} else {
+					LifetimeStatsSection(stats = lifetimeStats)
+				}
+			}
+		}
+	}
+}
+
+@Composable
+private fun TrophyCaseLoadingCard() {
+	GlassCard(
+		modifier = Modifier
+			.padding(horizontal = 16.dp)
+			.fillMaxWidth()
+	) {
+		Box(
+			modifier = Modifier
+				.fillMaxWidth()
+				.padding(vertical = 32.dp),
+			contentAlignment = Alignment.Center,
+		) {
+			Column(
+				horizontalAlignment = Alignment.CenterHorizontally,
+				verticalArrangement = Arrangement.spacedBy(16.dp),
+			) {
+				androidx.compose.material3.CircularProgressIndicator(
+					modifier = Modifier.size(32.dp),
+					color = MaterialTheme.colorScheme.primary,
+				)
+				Text(
+					text = stringResource(R.string.game_loading),
+					style = MaterialTheme.typography.bodyMedium,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
 			}
 		}
 	}

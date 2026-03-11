@@ -34,12 +34,14 @@ class WeeklyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 			.with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1L)
 			.with(ChronoField.NANO_OF_DAY, 0L)
 		val endOfTheWeek = startOfTheWeek.plusWeeks(1L)
-		val lastWeekSessions = AppDatabase
-			.database(context)
-			.sessionDao()
-			.getAllBetween(startOfTheWeek.toEpochMillis(), endOfTheWeek.toEpochMillis())
+		val weekTrips = kotlinx.coroutines.runBlocking {
+			AppDatabase
+				.database(context)
+				.tripDao()
+				.getBetween(startOfTheWeek.toEpochMillis(), endOfTheWeek.toEpochMillis())
+		}
 
-		value = lastWeekSessions.sumOf { it.steps }
+		value = weekTrips.sumOf { it.steps ?: 0 }
 	}
 
 

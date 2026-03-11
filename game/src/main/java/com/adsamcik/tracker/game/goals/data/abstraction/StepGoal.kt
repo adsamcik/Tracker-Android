@@ -33,6 +33,13 @@ abstract class StepGoal(persistence: GoalPersistence) : BaseGoal(persistence) {
 		}
 	}
 
+	override fun onCumulativeStepsUpdated(totalSteps: Int): Boolean {
+		val normalizedTotal = totalSteps.coerceAtLeast(0)
+		lastStepValue = normalizedTotal
+		value = normalizedTotal
+		return evaluateGoalReached()
+	}
+
 	@CallSuper
 	override suspend fun onEnableInternal(context: Context) {
 		// Initial sync read for immediate availability; Flow subscription follows for updates

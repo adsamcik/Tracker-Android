@@ -58,7 +58,7 @@ class ExplorationViewModel @Inject constructor(
 		val progress: Float,
 	)
 
-	val explorationState: StateFlow<ExplorationState> = combine(
+	val explorationState: StateFlow<ExplorationState?> = combine(
 		explorationCellDao.countAtLevelFlow(EXPLORATION_LEVEL),
 		streakFlow(),
 	) { totalCells, streakData ->
@@ -70,10 +70,15 @@ class ExplorationViewModel @Inject constructor(
 			recentDiscoveries = streakData.recentCells,
 		)
 	}
-		.catch { emit(ExplorationState()) }
-		.stateIn(viewModelScope, SharingStarted.Lazily, ExplorationState())
+		.map { it as ExplorationState? }
+		.catch { emit(null) }
+		.stateIn(
+			scope = viewModelScope,
+			started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+			initialValue = null,
+		)
 
-	val achievementState: StateFlow<AchievementSummaryState> =
+	val achievementState: StateFlow<AchievementSummaryState?> =
 		achievementProgressDao.getAllFlow()
 			.map { allProgress ->
 				val unlocked = allProgress.filter { it.unlockedAt != null }
@@ -96,9 +101,14 @@ class ExplorationViewModel @Inject constructor(
 					nextClosest = nextClosest,
 				)
 			}
-			.catch { emit(AchievementSummaryState()) }
+			.map { it as AchievementSummaryState? }
+			.catch { emit(null) }
 			.flowOn(Dispatchers.IO)
-			.stateIn(viewModelScope, SharingStarted.Lazily, AchievementSummaryState())
+			.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS),
+				initialValue = null,
+			)
 
 	/** Intermediate data holder for streak + season + recent cell loading. */
 	private data class StreakData(
@@ -136,6 +146,7 @@ class ExplorationViewModel @Inject constructor(
 		/** S2 cell level used for exploration (approx 0.8 km^2 per cell). */
 		private const val EXPLORATION_LEVEL = 14
 		private const val RECENT_LIMIT = 5
+		private const val STATE_STOP_TIMEOUT_MS = 5_000L
 		private const val STREAK_TYPE_DAILY = "DAILY_DISCOVERY"
 
 		// Achievement tier constants matching AchievementProgressEntity.tier values

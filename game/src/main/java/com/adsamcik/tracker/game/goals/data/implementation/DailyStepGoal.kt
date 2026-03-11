@@ -27,12 +27,14 @@ class DailyStepGoal(persistence: GoalPersistence) : StepGoal(persistence) {
 	override fun updateFromDatabase(context: Context) {
 		val today = Time.today
 		val tomorrow = Time.tomorrow
-		val todaySessions = AppDatabase
-			.database(context)
-			.sessionDao()
-			.getAllBetween(today.toEpochMillis(), tomorrow.toEpochMillis())
+		val todayTrips = kotlinx.coroutines.runBlocking {
+			AppDatabase
+				.database(context)
+				.tripDao()
+				.getBetween(today.toEpochMillis(), tomorrow.toEpochMillis())
+		}
 
-		value = todaySessions.sumOf { it.steps }
+		value = todayTrips.sumOf { it.steps ?: 0 }
 	}
 
 

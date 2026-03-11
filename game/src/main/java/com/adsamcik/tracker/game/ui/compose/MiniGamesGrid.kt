@@ -1,9 +1,11 @@
 package com.adsamcik.tracker.game.ui.compose
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -73,10 +76,25 @@ private fun MiniGameCard(
     game: MiniGameUi,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val alphaValue = if (game.isUnlocked) 1f else 0.4f
 
     GlassCard(
-        modifier = modifier.alpha(alphaValue),
+        modifier = modifier
+            .alpha(alphaValue)
+            .then(
+                if (game.isUnlocked) {
+                    Modifier
+                } else {
+                    Modifier.clickable {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.minigame_locked, game.unlockLevel),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            ),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
