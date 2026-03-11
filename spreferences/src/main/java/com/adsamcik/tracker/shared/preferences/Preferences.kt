@@ -2,11 +2,8 @@ package com.adsamcik.tracker.shared.preferences
 
 import android.content.Context
 import android.content.res.Resources
-import androidx.annotation.ColorRes
-import androidx.annotation.DimenRes
 import androidx.annotation.IntegerRes
 import androidx.annotation.StringRes
-import androidx.core.content.res.ResourcesCompat
 import androidx.datastore.preferences.core.Preferences as DataPreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
@@ -15,12 +12,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.preferences.store.LegacyPreferenceStore
-import com.adsamcik.tracker.shared.preferences.type.LengthSystem
-import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
-import com.adsamcik.tracker.shared.preferences.extension.getPreferredLengthSystem
 
 /**
  * Legacy synchronous preference accessor backed by DataStore.
@@ -104,28 +96,12 @@ open class Preferences {
         return getInt(key, default)
     }
 
-    suspend fun fetchIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
-        val key = getKey(keyRes)
-        val default = resources.getString(defaultRes).toInt()
-        return fetchInt(key, default)
-    }
-
     @Suppress("DEPRECATION")
     @Deprecated("Use observeInt or suspend getInt", ReplaceWith("getIntResString(keyRes, defaultRes)"))
     fun getIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
         val key = getKey(keyRes)
         val default = resources.getString(defaultRes).toInt()
         return getInt(key, default)
-    }
-
-    @Suppress("DEPRECATION")
-    fun getStringAsIntResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Int {
-        return getStringRes(keyRes, defaultRes).toInt()
-    }
-
-    @Suppress("DEPRECATION")
-    fun getStringAsInt(key: String, default: Int = 0): Int {
-        return getString(key, default.toString()).toInt()
     }
 
     suspend fun fetchInt(key: String, default: Int = 0): Int {
@@ -184,27 +160,6 @@ open class Preferences {
         return LegacyPreferenceStore.booleanFlow(appContext, key, default)
     }
 
-    @Suppress("DEPRECATION")
-    fun getColorRes(@StringRes keyRes: Int, @ColorRes defaultRes: Int, theme: Resources.Theme? = null): Int {
-        val key = getKey(keyRes)
-        val color = ResourcesCompat.getColor(resources, defaultRes, theme)
-        return getInt(key, color)
-    }
-
-    @Suppress("DEPRECATION")
-    fun getLongRes(@StringRes keyRes: Int, @IntegerRes defaultRes: Int): Long {
-        val key = getKey(keyRes)
-        val default = resources.getInteger(defaultRes).toLong()
-        return getLong(key, default)
-    }
-
-    @Suppress("DEPRECATION")
-    fun getLongResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Long {
-        val key = getKey(keyRes)
-        val default = resources.getString(defaultRes).toLong()
-        return getLong(key, default)
-    }
-
     suspend fun fetchLong(key: String, default: Long = 0L): Long {
         return observeLong(key, default).first()
     }
@@ -224,24 +179,11 @@ open class Preferences {
         return LegacyPreferenceStore.longFlow(appContext, key, default)
     }
 
-    suspend fun fetchFloatResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Float {
-        val key = getKey(keyRes)
-        val default = resources.getString(defaultRes).toFloat()
-        return fetchFloat(key, default)
-    }
-
     @Suppress("DEPRECATION")
     @Deprecated("Use observeFloat or suspend getFloat", ReplaceWith("getFloatResString(keyRes, defaultRes)"))
     fun getFloatResString(@StringRes keyRes: Int, @StringRes defaultRes: Int): Float {
         val key = getKey(keyRes)
         val default = resources.getString(defaultRes).toFloat()
-        return getFloat(key, default)
-    }
-
-    @Suppress("DEPRECATION")
-    fun getFloatRes(@StringRes keyRes: Int, @DimenRes defaultRes: Int): Float {
-        val key = getKey(keyRes)
-        val default = ResourcesCompat.getFloat(resources, defaultRes)
         return getFloat(key, default)
     }
 
@@ -268,16 +210,6 @@ open class Preferences {
     fun getDouble(key: String, default: Double = Double.NaN): Double {
         val bits = getLong(key, default.toRawBits())
         return Double.fromBits(bits)
-    }
-
-    fun getPreferredLengthSystem(context: Context, sessionActivity: SessionActivity?): LengthSystem {
-        val settings = TrackerSettingsQuick.snapshot(context)
-        val base = settings.lengthSystem
-        return if (!settings.autoUnitSwitch || sessionActivity == null) {
-            base
-        } else {
-            sessionActivity.getPreferredLengthSystem() ?: base
-        }
     }
 
     open fun edit(func: MutablePreferences.() -> Unit) {
