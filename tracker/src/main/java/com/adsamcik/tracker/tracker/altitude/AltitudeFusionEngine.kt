@@ -16,7 +16,7 @@ import kotlin.math.pow
  * determine local sea-level pressure, eliminating weather-dependent absolute error.
  * Recalibrates periodically to compensate for barometer drift.
  *
- * Thread-safety: NOT thread-safe. Use from a single coroutine context.
+ * Thread-safety: All public mutating methods are synchronized.
  */
 internal class AltitudeFusionEngine(
 	private val recalibrationIntervalMs: Long = DEFAULT_RECALIBRATION_INTERVAL_MS,
@@ -59,6 +59,7 @@ internal class AltitudeFusionEngine(
 	 * @param currentPressureHpa Current barometer pressure reading in hPa.
 	 * @param timeMs Current time in milliseconds.
 	 */
+	@Synchronized
 	fun calibrate(gpsAltitudeMsl: Double, currentPressureHpa: Float, timeMs: Long) {
 		// Inverse of barometric formula: P0 = P / (1 - alt/44330)^(1/0.1903)
 		val ratio = 1.0 - gpsAltitudeMsl / BAROMETRIC_CONSTANT
@@ -98,6 +99,7 @@ internal class AltitudeFusionEngine(
 	 * @param timeMs Current time in milliseconds.
 	 * @return The fused altitude estimate, or null if insufficient data.
 	 */
+	@Synchronized
 	fun update(
 		gpsAltitudeMsl: Double?,
 		gpsVerticalAccuracyM: Float? = null,
@@ -157,6 +159,7 @@ internal class AltitudeFusionEngine(
 	/**
 	 * Resets all state. Call when starting a new tracking session.
 	 */
+	@Synchronized
 	fun reset() {
 		calibratedSeaLevelPressureHpa = null
 		lastCalibrationTimeMs = 0L

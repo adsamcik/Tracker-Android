@@ -14,7 +14,7 @@ import androidx.core.location.altitude.AltitudeConverterCompat
  * The Kalman filter provides both smoothing and fusion, dynamically weighting
  * GPS (using verticalAccuracy²) and barometer (calibrated, ~1m² noise) sources.
  *
- * Thread-safety: This class is NOT thread-safe. Use from a single coroutine context.
+ * Thread-safety: All public mutating methods are synchronized via delegation to AltitudeFusionEngine.
  */
 internal class AltitudeProcessor(
 	private val verticalAccuracyThresholdM: Float = DEFAULT_VERTICAL_ACCURACY_THRESHOLD_M

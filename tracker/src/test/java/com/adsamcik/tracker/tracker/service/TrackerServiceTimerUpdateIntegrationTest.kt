@@ -5,13 +5,13 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
-import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import io.mockk.*
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -56,8 +56,8 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `policy manager progression triggers correct interval updates`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		// Initial policy should be PASSIVE_LOW
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
@@ -65,20 +65,20 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 		// Escalate to MOVEMENT_SUSPECTED (need non-zero baseline)
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime) // Baseline
-		manager.onStepUpdate(stepCount = 35, timeMs = baseTime + 60_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime) // Baseline
+		onStepUpdateAndAwait(manager, stepCount = 35, timeMs = baseTime + 60_000) // 25 steps/min
 
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 		verifyIntervalForPolicy(TrackingPolicy.MOVEMENT_SUSPECTED)
 
 		// Escalate to ACTIVE_MODERATE
-		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000) // 55 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 90, timeMs = baseTime + 120_000) // 55 steps/min
 
 		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
 		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_MODERATE)
 
 		// Escalate to ACTIVE_ELEVATED
-		manager.onStepUpdate(stepCount = 185, timeMs = baseTime + 180_000) // 95 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 185, timeMs = baseTime + 180_000) // 95 steps/min
 
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
 		verifyIntervalForPolicy(TrackingPolicy.ACTIVE_ELEVATED)
@@ -86,15 +86,15 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `activity transition triggers timer interval update`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 
 		// Simulate activity transition from STILL to WALKING
 		val baseTime = System.currentTimeMillis()
-		manager.onActivityTransition(activityType = 3, confidence = 80, timeMs = baseTime) // STILL
-		manager.onActivityTransition(activityType = 7, confidence = 75, timeMs = baseTime + 5000) // WALKING
+		onActivityTransitionAndAwait(manager, activityType = 3, confidence = 80, timeMs = baseTime) // STILL
+		onActivityTransitionAndAwait(manager, activityType = 7, confidence = 75, timeMs = baseTime + 5000) // WALKING
 
 		// Should escalate to MOVEMENT_SUSPECTED
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
@@ -103,13 +103,13 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `location change triggers timer interval update`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 
 		// Simulate significant location change
-		manager.onLocationChange(displacementMeters = 100f, timeMs = System.currentTimeMillis())
+		onLocationChangeAndAwait(manager, displacementMeters = 100f, timeMs = System.currentTimeMillis())
 
 		// Should escalate to ACTIVE_MODERATE
 		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
@@ -118,8 +118,8 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `user initiated session maintains high frequency intervals`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = true, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		// User-initiated should start at USER_INITIATED policy
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
@@ -127,9 +127,9 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 		// Verify it doesn't change even with updates
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 0, timeMs = baseTime)
-		manager.onActivityTransition(activityType = 3, confidence = 80, timeMs = baseTime)
-		manager.onLocationChange(displacementMeters = 10f, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 0, timeMs = baseTime)
+		onActivityTransitionAndAwait(manager, activityType = 3, confidence = 80, timeMs = baseTime)
+		onLocationChangeAndAwait(manager, displacementMeters = 10f, timeMs = baseTime)
 
 		// Should still be USER_INITIATED
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
@@ -181,16 +181,16 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `multiple rapid policy changes produce stable final interval`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Rapid escalation (need non-zero baseline)
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime) // Baseline
-		manager.onStepUpdate(stepCount = 35, timeMs = baseTime + 60_000) // 25 steps/min
-		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000) // 55 steps/min
-		manager.onStepUpdate(stepCount = 185, timeMs = baseTime + 180_000) // 95 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime) // Baseline
+		onStepUpdateAndAwait(manager, stepCount = 35, timeMs = baseTime + 60_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 90, timeMs = baseTime + 120_000) // 55 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 185, timeMs = baseTime + 180_000) // 95 steps/min
 
 		// Final policy should be ACTIVE_ELEVATED
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
@@ -205,17 +205,17 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `policy remains stable when near threshold boundaries`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Oscillate around 40 steps/min threshold
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 49, timeMs = baseTime + 60_000) // 39 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 49, timeMs = baseTime + 60_000) // 39 steps/min
 		val policyBefore = manager.currentPolicy.value
 
-		manager.onStepUpdate(stepCount = 90, timeMs = baseTime + 120_000) // 41 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 90, timeMs = baseTime + 120_000) // 41 steps/min
 		val policyAfter = manager.currentPolicy.value
 
 		// Verify crossing threshold changes policy
@@ -225,17 +225,17 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `consecutive activity transitions refine policy selection`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// WALKING activity
-		manager.onActivityTransition(activityType = 7, confidence = 80, timeMs = baseTime)
+		onActivityTransitionAndAwait(manager, activityType = 7, confidence = 80, timeMs = baseTime)
 		val walkingPolicy = manager.currentPolicy.value
 
 		// RUNNING activity
-		manager.onActivityTransition(activityType = 8, confidence = 85, timeMs = baseTime + 60_000)
+		onActivityTransitionAndAwait(manager, activityType = 8, confidence = 85, timeMs = baseTime + 60_000)
 		val runningPolicy = manager.currentPolicy.value
 
 		// Running should be at least as aggressive as walking
@@ -245,18 +245,18 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `mixed signal sources converge to consistent policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Multi-level escalation through all policy levels
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
-		manager.onActivityTransition(activityType = 8, confidence = 90, timeMs = baseTime + 90_000) // RUNNING → ACTIVE_MODERATE
-		manager.onStepUpdate(stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min
-		manager.onLocationChange(displacementMeters = 300f, timeMs = baseTime + 150_000) // Significant movement
-		manager.onStepUpdate(stepCount = 143, timeMs = baseTime + 180_000) // 81 steps/min → ACTIVE_ELEVATED
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
+		onActivityTransitionAndAwait(manager, activityType = 8, confidence = 90, timeMs = baseTime + 90_000) // RUNNING → ACTIVE_MODERATE
+		onStepUpdateAndAwait(manager, stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min
+		onLocationChangeAndAwait(manager, displacementMeters = 300f, timeMs = baseTime + 150_000) // Significant movement
+		onStepUpdateAndAwait(manager, stepCount = 143, timeMs = baseTime + 180_000) // 81 steps/min → ACTIVE_ELEVATED
 
 		// Should converge to ACTIVE_ELEVATED after multi-level escalation
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
@@ -265,18 +265,18 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `conflicting signals prioritize step count`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Multi-level step escalation
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
-		manager.onStepUpdate(stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min → ACTIVE_MODERATE
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
+		onStepUpdateAndAwait(manager, stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min → ACTIVE_MODERATE
 
 		// Activity says STILL (conflicting), but doesn't cause de-escalation
-		manager.onActivityTransition(activityType = 3, confidence = 75, timeMs = baseTime + 150_000)
+		onActivityTransitionAndAwait(manager, activityType = 3, confidence = 75, timeMs = baseTime + 150_000)
 
 		// Step count should remain (activity doesn't de-escalate, only escalates)
 		assertEquals(
@@ -288,8 +288,8 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `user-initiated policy maintains maximum collection frequency`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = true, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
 		verifyIntervalForPolicy(TrackingPolicy.USER_INITIATED)
@@ -297,8 +297,8 @@ class TrackerServiceTimerUpdateIntegrationTest {
 		val baseTime = System.currentTimeMillis()
 
 		// Even with inactivity signals, should maintain USER_INITIATED intervals
-		manager.onActivityTransition(activityType = 3, confidence = 95, timeMs = baseTime) // STILL
-		manager.onLocationChange(displacementMeters = 5f, timeMs = baseTime + 60_000) // Minimal movement
+		onActivityTransitionAndAwait(manager, activityType = 3, confidence = 95, timeMs = baseTime) // STILL
+		onLocationChangeAndAwait(manager, displacementMeters = 5f, timeMs = baseTime + 60_000) // Minimal movement
 
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
 		verifyIntervalForPolicy(TrackingPolicy.USER_INITIATED)
@@ -306,20 +306,20 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `policy downgrade after extended inactivity reduces intervals`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Multi-level escalation to ACTIVE_ELEVATED
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
-		manager.onStepUpdate(stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min → ACTIVE_MODERATE
-		manager.onStepUpdate(stepCount = 143, timeMs = baseTime + 180_000) // 81 steps/min → ACTIVE_ELEVATED
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 21, timeMs = baseTime + 60_000) // 11 steps/min → MOVEMENT_SUSPECTED
+		onStepUpdateAndAwait(manager, stepCount = 62, timeMs = baseTime + 120_000) // 41 steps/min → ACTIVE_MODERATE
+		onStepUpdateAndAwait(manager, stepCount = 143, timeMs = baseTime + 180_000) // 81 steps/min → ACTIVE_ELEVATED
 		val elevatedInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
 
 		// Extended period (>300s cooldown) with minimal movement
-		manager.onStepUpdate(stepCount = 148, timeMs = baseTime + 600_000) // 5 steps/min after long pause
+		onStepUpdateAndAwait(manager, stepCount = 148, timeMs = baseTime + 600_000) // 5 steps/min after long pause
 
 		val passiveInterval = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
 
@@ -329,18 +329,18 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `location accuracy degradation alone does not drastically change policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Establish moderate activity
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 50, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 50, timeMs = baseTime + 60_000)
 		val policyBefore = manager.currentPolicy.value
 
 		// Minimal displacement despite time passing
-		manager.onLocationChange(displacementMeters = 5f, timeMs = baseTime + 120_000)
+		onLocationChangeAndAwait(manager, displacementMeters = 5f, timeMs = baseTime + 120_000)
 		val policyAfter = manager.currentPolicy.value
 
 		// Policy should not drastically downgrade from minimal displacement alone (could be indoor activity)
@@ -349,16 +349,16 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `rapid start-stop cycles maintain consistent interval behavior`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 
 		// Rapid start-stop-start
-		manager.start()
+		startAndAwait(manager)
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 		val interval1 = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
 
-		manager.stop()
+		stopAndAwait(manager)
 		
-		manager.start()
+		startAndAwait(manager)
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 		val interval2 = PolicyIntervalMapper.getIntervalSeconds(manager.currentPolicy.value)
 
@@ -368,16 +368,16 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `extreme step rates are clamped to ACTIVE_ELEVATED`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Multi-level escalation even with extreme step rates (one level at a time)
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 221, timeMs = baseTime + 60_000) // 211 steps/min → MOVEMENT_SUSPECTED
-		manager.onStepUpdate(stepCount = 432, timeMs = baseTime + 120_000) // 211 steps/min → ACTIVE_MODERATE
-		manager.onStepUpdate(stepCount = 643, timeMs = baseTime + 180_000) // 211 steps/min → ACTIVE_ELEVATED
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 221, timeMs = baseTime + 60_000) // 211 steps/min → MOVEMENT_SUSPECTED
+		onStepUpdateAndAwait(manager, stepCount = 432, timeMs = baseTime + 120_000) // 211 steps/min → ACTIVE_MODERATE
+		onStepUpdateAndAwait(manager, stepCount = 643, timeMs = baseTime + 180_000) // 211 steps/min → ACTIVE_ELEVATED
 
 		// Should cap at ACTIVE_ELEVATED (not exceed it) after multi-level escalation
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
@@ -386,18 +386,18 @@ class TrackerServiceTimerUpdateIntegrationTest {
 
 	@Test
 	fun `zero speed from location does not force downgrade if steps are active`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Active step rate
-		manager.onStepUpdate(stepCount = 10, timeMs = baseTime)
-		manager.onStepUpdate(stepCount = 60, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 10, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 60, timeMs = baseTime + 60_000)
 		val activePolicyBefore = manager.currentPolicy.value
 
 		// Minimal displacement despite steps (e.g., treadmill or indoor activity)
-		manager.onLocationChange(displacementMeters = 2f, timeMs = baseTime + 120_000)
+		onLocationChangeAndAwait(manager, displacementMeters = 2f, timeMs = baseTime + 120_000)
 
 		// Should trust step count over minimal displacement
 		assertTrue(
@@ -438,4 +438,29 @@ class TrackerServiceTimerUpdateIntegrationTest {
 			}
 		}
 	}
+	private suspend fun kotlinx.coroutines.test.TestScope.startAndAwait(manager: TrackingPolicyManager) {
+		manager.start()
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.stopAndAwait(manager: TrackingPolicyManager) {
+		manager.stop()
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.onStepUpdateAndAwait(manager: TrackingPolicyManager, stepCount: Int, timeMs: Long) {
+		manager.onStepUpdate(stepCount = stepCount, timeMs = timeMs)
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.onActivityTransitionAndAwait(manager: TrackingPolicyManager, activityType: Int, confidence: Int, timeMs: Long) {
+		manager.onActivityTransition(activityType = activityType, confidence = confidence, timeMs = timeMs)
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.onLocationChangeAndAwait(manager: TrackingPolicyManager, displacementMeters: Float, timeMs: Long) {
+		manager.onLocationChange(displacementMeters = displacementMeters, timeMs = timeMs)
+		advanceUntilIdle()
+	}
+
 }

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
+import android.app.ActivityManager
 import android.content.Context
 import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.adsamcik.tracker.shared.base.extension.stopService
@@ -57,6 +58,19 @@ object TrackerServiceApi {
 	 */
 	fun isActive(context: Context): Boolean = 
 		getController(context).isServiceRunning
+
+	/**
+	 * Checks the Android service manager directly to detect stale UI state after
+	 * unexpected foreground-service termination.
+	 */
+	@Suppress("DEPRECATION")
+	fun isRunningInSystem(context: Context): Boolean {
+		val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+			?: return false
+		return activityManager.getRunningServices(Int.MAX_VALUE).any { info ->
+			info.service.className == TrackerService::class.java.name
+		}
+	}
 
 	/**
 	 * Starts tracker service in foreground.

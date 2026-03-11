@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.test.FakePreferencesHelper
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import io.mockk.*
 import org.junit.After
 import org.junit.Before
@@ -15,6 +16,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import android.location.Location
+import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
+import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -56,6 +60,11 @@ class FusedLocationCollectionTriggerTest {
 		every { 
 			com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(any<Context>())
 		} returns mockClient
+
+		// Mock Reporter to prevent uninitialized errors in tests
+		mockkObject(com.adsamcik.tracker.logger.Reporter)
+		every { com.adsamcik.tracker.logger.Reporter.report(any<Throwable>()) } just runs
+		every { com.adsamcik.tracker.logger.Reporter.report(any<String>()) } just runs
 	}
 
 	@After
@@ -289,6 +298,29 @@ class FusedLocationCollectionTriggerTest {
 	}
 
 	@Test
+	fun `location callback ignores updates after disable`() {
+		val callbackSlot = slot<LocationCallback>()
+		every {
+			mockClient.requestLocationUpdates(any<LocationRequest>(), capture(callbackSlot), any())
+		} returns mockk(relaxed = true)
+
+		trigger.onEnable(context, receiver)
+		trigger.onDisable(context)
+
+		val location = Location("test").apply {
+			latitude = 50.0
+			longitude = 14.0
+			time = System.currentTimeMillis()
+			elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+		}
+
+		callbackSlot.captured.onLocationResult(LocationResult.create(listOf(location)))
+
+		verify(exactly = 0) { receiver.onUpdate(any()) }
+		verify(exactly = 0) { receiver.onError(any()) }
+	}
+
+	@Test
 	fun `LocationRequest uses high-accuracy priority`() {
 		// Grant fine location permission so hasPreciseLocationPermission returns true
 		val shadowApp = org.robolectric.Shadows.shadowOf(context.applicationContext as android.app.Application)
@@ -341,5 +373,42 @@ class FusedLocationCollectionTriggerTest {
 		val request = requestSlot.captured
 		assertEquals(0.0f, request.minUpdateDistanceMeters)
 		assertTrue(request.intervalMillis > 0)
+	}
+
+	@Test
+	fun `onEnable handles SecurityException when permission revoked`() {
+		// Simulate SecurityException thrown by FusedLocationProviderClient when permission is revoked
+		every {
+			mockClient.requestLocationUpdates(any<LocationRequest>(), any<LocationCallback>(), any())
+		} throws SecurityException("Client must have ACCESS_FINE_LOCATION permission")
+
+		// Should not throw — graceful degradation
+		trigger.onEnable(context, receiver)
+
+		// Verify error was reported to receiver with STOP_SERVICE severity
+		val errorSlot = slot<TrackerTimerErrorData>()
+		verify { receiver.onError(capture(errorSlot)) }
+		assertEquals(TrackerTimerErrorSeverity.STOP_SERVICE, errorSlot.captured.severity)
+	}
+
+	@Test
+	fun `updateInterval handles SecurityException when permission revoked mid-tracking`() {
+		// Enable normally first
+		trigger.onEnable(context, receiver)
+
+		clearMocks(mockClient, answers = false)
+		// Now simulate permission revoked before updateInterval
+		every {
+			mockClient.requestLocationUpdates(any<LocationRequest>(), any<LocationCallback>(), any())
+		} throws SecurityException("Client must have ACCESS_FINE_LOCATION permission")
+		every { mockClient.removeLocationUpdates(any<LocationCallback>()) } returns mockk(relaxed = true)
+
+		// Should not throw — graceful degradation
+		trigger.updateInterval(context, intervalSeconds = 30, minDistanceMeters = 15)
+
+		// Verify error was reported
+		val errorSlot = slot<TrackerTimerErrorData>()
+		verify { receiver.onError(capture(errorSlot)) }
+		assertEquals(TrackerTimerErrorSeverity.STOP_SERVICE, errorSlot.captured.severity)
 	}
 }

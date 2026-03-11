@@ -3,9 +3,9 @@ package com.adsamcik.tracker.tracker.policy
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -51,21 +51,21 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `rapid walk-stop cycles respect cooldown`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Establish baseline
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 
 		// Start walking (escalate to MOVEMENT_SUSPECTED)
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Stop walking (still within cooldown - should NOT de-escalate yet)
-		manager.onStepUpdate(stepCount = 130, timeMs = baseTime + 120_000) // 5 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 130, timeMs = baseTime + 120_000) // 5 steps/min
 		assertEquals(
 			TrackingPolicy.MOVEMENT_SUSPECTED,
 			manager.currentPolicy.value,
@@ -73,19 +73,19 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Resume walking before cooldown expires (should escalate to ACTIVE_MODERATE)
-		manager.onStepUpdate(stepCount = 195, timeMs = baseTime + 180_000) // 65 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 195, timeMs = baseTime + 180_000) // 65 steps/min
 		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
 	}
 
 	@Test
 	fun `rapid activity transitions within cooldown do not cause re-escalation`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Establish STILL baseline
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 3, // STILL
 			confidence = 80,
 			timeMs = baseTime
@@ -93,7 +93,7 @@ class TrackingPolicyEdgeCaseTest {
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 
 		// First transition: STILL -> WALKING (escalates to MOVEMENT_SUSPECTED)
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 7, // WALKING
 			confidence = 80,
 			timeMs = baseTime + 1000
@@ -101,7 +101,7 @@ class TrackingPolicyEdgeCaseTest {
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Rapid transition: WALKING -> STILL (within cooldown)
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 3, // STILL
 			confidence = 75,
 			timeMs = baseTime + 60_000
@@ -114,7 +114,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Rapid transition: STILL -> WALKING (within cooldown)
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 7, // WALKING
 			confidence = 85,
 			timeMs = baseTime + 120_000
@@ -125,18 +125,18 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `alternating step rates within same threshold do not trigger oscillation`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Step rate 15 steps/min (MOVEMENT_SUSPECTED threshold)
-		manager.onStepUpdate(stepCount = 115, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 115, timeMs = baseTime + 60_000)
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Step rate 12 steps/min (still above 10 threshold, same level)
-		manager.onStepUpdate(stepCount = 127, timeMs = baseTime + 120_000)
+		onStepUpdateAndAwait(manager, stepCount = 127, timeMs = baseTime + 120_000)
 		assertEquals(
 			TrackingPolicy.MOVEMENT_SUSPECTED,
 			manager.currentPolicy.value,
@@ -144,19 +144,19 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Step rate 18 steps/min (still MOVEMENT_SUSPECTED range)
-		manager.onStepUpdate(stepCount = 145, timeMs = baseTime + 180_000)
+		onStepUpdateAndAwait(manager, stepCount = 145, timeMs = baseTime + 180_000)
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 	}
 
 	@Test
 	fun `rapid location changes escalate progressively without cooldown protection`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// First significant location change (100m) - escalates immediately
-		manager.onLocationChange(displacementMeters = 100f, timeMs = baseTime)
+		onLocationChangeAndAwait(manager, displacementMeters = 100f, timeMs = baseTime)
 		assertEquals(
 			TrackingPolicy.ACTIVE_MODERATE,
 			manager.currentPolicy.value,
@@ -164,7 +164,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Second rapid location change (150m) - escalates again
-		manager.onLocationChange(displacementMeters = 150f, timeMs = baseTime + 60_000)
+		onLocationChangeAndAwait(manager, displacementMeters = 150f, timeMs = baseTime + 60_000)
 		assertEquals(
 			TrackingPolicy.ACTIVE_ELEVATED,
 			manager.currentPolicy.value,
@@ -172,7 +172,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Further changes don't escalate (already at max)
-		manager.onLocationChange(displacementMeters = 200f, timeMs = baseTime + 120_000)
+		onLocationChangeAndAwait(manager, displacementMeters = 200f, timeMs = baseTime + 120_000)
 		assertEquals(
 			TrackingPolicy.ACTIVE_ELEVATED,
 			manager.currentPolicy.value,
@@ -186,11 +186,11 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `long passive period maintains PASSIVE_LOW`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Simulate overnight stationary (8 hours with minimal steps)
 		val eightHoursMs = 8 * 60 * 60 * 1000L
@@ -200,7 +200,7 @@ class TrackingPolicyEdgeCaseTest {
 			val elapsedMs = (eightHoursMs / intervals) * i
 			// 1-2 steps per 5 minutes (very minimal movement, like sleep)
 			val stepIncrement = if (i % 2 == 0) 1 else 2
-			manager.onStepUpdate(
+			onStepUpdateAndAwait(manager, 
 				stepCount = 100 + (i * stepIncrement),
 				timeMs = baseTime + elapsedMs
 			)
@@ -216,19 +216,19 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `passive period followed by sudden activity escalates`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 		
 		val baseTime = System.currentTimeMillis()
-		manager.start()
+		startAndAwait(manager)
 
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Minimal activity (stays PASSIVE_LOW)
-		manager.onStepUpdate(stepCount = 105, timeMs = baseTime + 60_000) // 5 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 105, timeMs = baseTime + 60_000) // 5 steps/min
 		assertEquals(TrackingPolicy.PASSIVE_LOW, manager.currentPolicy.value)
 
 		// Sudden activity: 25 steps in next minute
-		manager.onStepUpdate(stepCount = 130, timeMs = baseTime + 120_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 130, timeMs = baseTime + 120_000) // 25 steps/min
 		assertEquals(
 			TrackingPolicy.MOVEMENT_SUSPECTED,
 			manager.currentPolicy.value,
@@ -236,7 +236,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Continue with higher activity: 65 steps in next minute
-		manager.onStepUpdate(stepCount = 195, timeMs = baseTime + 180_000) // 65 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 195, timeMs = baseTime + 180_000) // 65 steps/min
 		assertEquals(
 			TrackingPolicy.ACTIVE_MODERATE,
 			manager.currentPolicy.value,
@@ -246,13 +246,13 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `extended STILL activity maintains PASSIVE_LOW`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 
 		// Initial STILL activity
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 3, // STILL
 			confidence = 95,
 			timeMs = baseTime
@@ -261,7 +261,7 @@ class TrackingPolicyEdgeCaseTest {
 
 		// Repeated STILL confirmations over several hours
 		for (i in 1..24) { // Every 15 minutes for 6 hours
-			manager.onActivityTransition(
+			onActivityTransitionAndAwait(manager, 
 				activityType = 3, // STILL
 				confidence = 90 + (i % 10),
 				timeMs = baseTime + (i * 15 * 60 * 1000L)
@@ -282,19 +282,19 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `cooldown mechanism exists and policy transitions update lastTransitionTime`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 		
 		val baseTime = System.currentTimeMillis()
-		manager.start()
+		startAndAwait(manager)
 
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Escalate to MOVEMENT_SUSPECTED  
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Further escalate to ACTIVE_MODERATE
-		manager.onStepUpdate(stepCount = 170, timeMs = baseTime + 120_000) // 45 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 170, timeMs = baseTime + 120_000) // 45 steps/min
 		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
 
 		// Note: Cooldown de-escalation uses real time (Time.nowMillis) internally,
@@ -305,18 +305,18 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `multiple escalations within cooldown period only count first`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// First escalation: PASSIVE -> MOVEMENT_SUSPECTED
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 60_000)
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Second escalation attempt within cooldown: MOVEMENT -> ACTIVE_MODERATE
-		manager.onStepUpdate(stepCount = 190, timeMs = baseTime + 120_000) // 65 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 190, timeMs = baseTime + 120_000) // 65 steps/min
 		assertEquals(
 			TrackingPolicy.ACTIVE_MODERATE,
 			manager.currentPolicy.value,
@@ -324,7 +324,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Third escalation attempt: ACTIVE_MODERATE -> ACTIVE_ELEVATED
-		manager.onStepUpdate(stepCount = 285, timeMs = baseTime + 180_000) // 95 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 285, timeMs = baseTime + 180_000) // 95 steps/min
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
 	}
 
@@ -334,20 +334,20 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `high-frequency step updates maintain stability`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
 		var currentStepCount = 100
 
-		manager.onStepUpdate(stepCount = currentStepCount, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = currentStepCount, timeMs = baseTime)
 
 		// Simulate high-frequency updates (every 10 seconds for 5 minutes)
 		for (i in 1..30) {
 			val elapsedMs = i * 10_000L
 			currentStepCount += 2 // ~12 steps/min (MOVEMENT_SUSPECTED range)
 
-			manager.onStepUpdate(stepCount = currentStepCount, timeMs = baseTime + elapsedMs)
+			onStepUpdateAndAwait(manager, stepCount = currentStepCount, timeMs = baseTime + elapsedMs)
 		}
 
 		// Should stabilize at MOVEMENT_SUSPECTED
@@ -360,19 +360,19 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `mixed signal types converge to consistent policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 		
 		val baseTime = System.currentTimeMillis()
-		manager.start()
+		startAndAwait(manager)
 
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Step signal: walking pace
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Activity signal: establish STILL baseline first, then transition to WALKING
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 3, // STILL
 			confidence = 85,
 			timeMs = baseTime + 90_000
@@ -381,7 +381,7 @@ class TrackingPolicyEdgeCaseTest {
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Now transition to WALKING (STILL→WALKING escalates)
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 7, // WALKING
 			confidence = 85,
 			timeMs = baseTime + 95_000
@@ -393,7 +393,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Step signal: increases to running pace
-		manager.onStepUpdate(stepCount = 220, timeMs = baseTime + 120_000) // 95 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 220, timeMs = baseTime + 120_000) // 95 steps/min
 		assertEquals(
 			TrackingPolicy.ACTIVE_ELEVATED,
 			manager.currentPolicy.value,
@@ -403,11 +403,11 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `shouldRequestLocation remains consistent during oscillation`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Verify PASSIVE_LOW doesn't require location
 		assertFalse(
@@ -416,14 +416,14 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Escalate to MOVEMENT_SUSPECTED
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 60_000)
 		assertFalse(
 			manager.shouldRequestLocation(),
 			"MOVEMENT_SUSPECTED should not require location"
 		)
 
 		// Escalate to ACTIVE_MODERATE
-		manager.onStepUpdate(stepCount = 180, timeMs = baseTime + 120_000)
+		onStepUpdateAndAwait(manager, stepCount = 180, timeMs = baseTime + 120_000)
 		assertTrue(
 			manager.shouldRequestLocation(),
 			"ACTIVE_MODERATE should require location"
@@ -453,15 +453,15 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `step rate just above threshold escalates consistently`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 		
 		val baseTime = System.currentTimeMillis()
-		manager.start()
+		startAndAwait(manager)
 
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// 11 steps/min (just above 10 threshold → MOVEMENT_SUSPECTED)
-		manager.onStepUpdate(stepCount = 111, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 111, timeMs = baseTime + 60_000)
 		assertEquals(
 			TrackingPolicy.MOVEMENT_SUSPECTED,
 			manager.currentPolicy.value,
@@ -469,7 +469,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// 41 steps/min (just above 40 threshold → ACTIVE_MODERATE)
-		manager.onStepUpdate(stepCount = 152, timeMs = baseTime + 120_000)
+		onStepUpdateAndAwait(manager, stepCount = 152, timeMs = baseTime + 120_000)
 		assertEquals(
 			TrackingPolicy.ACTIVE_MODERATE,
 			manager.currentPolicy.value,
@@ -477,7 +477,7 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// 81 steps/min (just above 80 threshold → ACTIVE_ELEVATED)
-		manager.onStepUpdate(stepCount = 233, timeMs = baseTime + 180_000)
+		onStepUpdateAndAwait(manager, stepCount = 233, timeMs = baseTime + 180_000)
 		assertEquals(
 			TrackingPolicy.ACTIVE_ELEVATED,
 			manager.currentPolicy.value,
@@ -487,18 +487,18 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `zero step increment maintains current policy`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Escalate to MOVEMENT_SUSPECTED
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 60_000)
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Zero step increment (device idle)
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 120_000)
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 120_000)
 		assertEquals(
 			TrackingPolicy.MOVEMENT_SUSPECTED,
 			manager.currentPolicy.value,
@@ -508,14 +508,14 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `very large step increment does not skip policy levels`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Massive step increment (200 steps/min - unrealistic but tests boundary)
-		manager.onStepUpdate(stepCount = 300, timeMs = baseTime + 60_000)
+		onStepUpdateAndAwait(manager, stepCount = 300, timeMs = baseTime + 60_000)
 
 		// Should escalate one level at a time (state machine behavior)
 		assertEquals(
@@ -525,10 +525,10 @@ class TrackingPolicyEdgeCaseTest {
 		)
 
 		// Continue escalation
-		manager.onStepUpdate(stepCount = 500, timeMs = baseTime + 120_000)
+		onStepUpdateAndAwait(manager, stepCount = 500, timeMs = baseTime + 120_000)
 		assertEquals(TrackingPolicy.ACTIVE_MODERATE, manager.currentPolicy.value)
 
-		manager.onStepUpdate(stepCount = 700, timeMs = baseTime + 180_000)
+		onStepUpdateAndAwait(manager, stepCount = 700, timeMs = baseTime + 180_000)
 		assertEquals(TrackingPolicy.ACTIVE_ELEVATED, manager.currentPolicy.value)
 	}
 
@@ -538,24 +538,24 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `system handles intermittent activity patterns`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = false, database = database, escalationEngine = DefaultPolicyEscalationEngine())
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = false, scope = backgroundScope, database = database)
 		
 		val baseTime = System.currentTimeMillis()
-		manager.start()
+		startAndAwait(manager)
 
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Simulate short bursts of activity (2 cycles within 4 minutes)
 		// Cycle 1: Active
-		manager.onStepUpdate(stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 125, timeMs = baseTime + 60_000) // 25 steps/min
 		assertEquals(TrackingPolicy.MOVEMENT_SUSPECTED, manager.currentPolicy.value)
 
 		// Cycle 1: Idle (but still above threshold overall)
-		manager.onStepUpdate(stepCount = 130, timeMs = baseTime + 120_000) // 5 steps/min  
+		onStepUpdateAndAwait(manager, stepCount = 130, timeMs = baseTime + 120_000) // 5 steps/min  
 		// Should remain at MOVEMENT_SUSPECTED (within cooldown)
 
 		// Cycle 2: Active again
-		manager.onStepUpdate(stepCount = 155, timeMs = baseTime + 180_000) // 25 steps/min
+		onStepUpdateAndAwait(manager, stepCount = 155, timeMs = baseTime + 180_000) // 25 steps/min
 		// Should remain at MOVEMENT_SUSPECTED or escalate
 
 		// Final state should not be PASSIVE_LOW (intermittent activity detected)
@@ -568,30 +568,55 @@ class TrackingPolicyEdgeCaseTest {
 
 	@Test
 	fun `user-initiated policy survives oscillation attempts`() = runTest {
-		val manager = TrackingPolicyManager(context, isUserInitiated = true, database = database, escalationEngine = DefaultPolicyEscalationEngine())
-		manager.start()
+		val manager = TrackingPolicyManager(context = context, isUserInitiated = true, scope = backgroundScope, database = database)
+		startAndAwait(manager)
 
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
 
 		val baseTime = System.currentTimeMillis()
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime)
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime)
 
 		// Attempt various escalation/de-escalation triggers
-		manager.onStepUpdate(stepCount = 100, timeMs = baseTime + 60_000) // Zero steps
+		onStepUpdateAndAwait(manager, stepCount = 100, timeMs = baseTime + 60_000) // Zero steps
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
 
-		manager.onActivityTransition(
+		onActivityTransitionAndAwait(manager, 
 			activityType = 3, // STILL
 			confidence = 100,
 			timeMs = baseTime + 120_000
 		)
 		assertEquals(TrackingPolicy.USER_INITIATED, manager.currentPolicy.value)
 
-		manager.onStepUpdate(stepCount = 500, timeMs = baseTime + 180_000) // Massive steps
+		onStepUpdateAndAwait(manager, stepCount = 500, timeMs = baseTime + 180_000) // Massive steps
 		assertEquals(
 			TrackingPolicy.USER_INITIATED,
 			manager.currentPolicy.value,
 			"User-initiated policy should be immutable"
 		)
 	}
+	private suspend fun kotlinx.coroutines.test.TestScope.startAndAwait(manager: TrackingPolicyManager) {
+		manager.start()
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.stopAndAwait(manager: TrackingPolicyManager) {
+		manager.stop()
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.onStepUpdateAndAwait(manager: TrackingPolicyManager, stepCount: Int, timeMs: Long) {
+		manager.onStepUpdate(stepCount = stepCount, timeMs = timeMs)
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.onActivityTransitionAndAwait(manager: TrackingPolicyManager, activityType: Int, confidence: Int, timeMs: Long) {
+		manager.onActivityTransition(activityType = activityType, confidence = confidence, timeMs = timeMs)
+		advanceUntilIdle()
+	}
+
+	private suspend fun kotlinx.coroutines.test.TestScope.onLocationChangeAndAwait(manager: TrackingPolicyManager, displacementMeters: Float, timeMs: Long) {
+		manager.onLocationChange(displacementMeters = displacementMeters, timeMs = timeMs)
+		advanceUntilIdle()
+	}
+
 }

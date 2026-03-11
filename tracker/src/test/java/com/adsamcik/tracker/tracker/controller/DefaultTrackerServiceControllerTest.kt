@@ -163,7 +163,7 @@ class DefaultTrackerServiceControllerTest {
 			val session = createSession(id = 1L)
 			controller.updateSession(session)
 
-			controller.sessionFlow.value shouldBe session
+			controller.sessionFlow.value?.id shouldBe session.id
 		}
 
 		@Test
@@ -173,7 +173,7 @@ class DefaultTrackerServiceControllerTest {
 			controller.updateSession(null)
 
 			controller.sessionFlow.value.shouldBeNull()
-			controller.lastSessionFlow.value shouldBe session
+			controller.lastSessionFlow.value?.id shouldBe session.id
 		}
 
 		@Test

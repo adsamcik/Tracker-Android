@@ -20,6 +20,7 @@ import com.adsamcik.tracker.tracker.notification.component.SkiNotificationCompon
 import com.adsamcik.tracker.tracker.notification.component.SpeedNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.StartTimeNotificationComponent
 import com.adsamcik.tracker.tracker.notification.component.WiFiCountNotificationComponent
+import com.adsamcik.tracker.tracker.notification.component.BatteryNotificationComponent
 
 object TrackerNotificationProvider {
 	internal val internalActiveList = listOf(
@@ -39,7 +40,8 @@ object TrackerNotificationProvider {
 			SkiNotificationComponent(),
 			SpeedNotificationComponent(),
 			StartTimeNotificationComponent(),
-			WiFiCountNotificationComponent()
+			WiFiCountNotificationComponent(),
+			BatteryNotificationComponent()
 	)
 
 	val activeComponentList: List<BaseTrackerNotificationComponent> get() = internalActiveList

@@ -107,7 +107,8 @@ class TrackingPolicyManager(
 					} else {
 						PolicyTierMapper.toTrackingPolicy(state.tier)
 					}
-					onEngineStateChanged(newPolicy, state.transitionReason.name, now)
+					// Use current time, not captured start time (C5 fix)
+					onEngineStateChanged(newPolicy, state.transitionReason.name, Time.nowMillis)
 				}
 			}
 		}

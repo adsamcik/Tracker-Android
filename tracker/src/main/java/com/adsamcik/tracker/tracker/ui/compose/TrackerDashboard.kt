@@ -10,6 +10,7 @@ package com.adsamcik.tracker.tracker.ui.compose
 
 import android.content.Context
 import android.text.format.DateUtils
+import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -85,6 +86,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -117,11 +120,18 @@ import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -142,9 +152,12 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
+import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
+import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
@@ -163,7 +176,8 @@ internal data class TrackerDashboardUiState(
     val collectionData: CollectionData? = null,
     val hasLocationPermission: Boolean = false,
     val pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
-    val policyTier: PolicyTier = PolicyTier.OFF
+    val policyTier: PolicyTier = PolicyTier.OFF,
+    val precisionModePreset: TrackingPreset = TrackingPreset.BALANCED
 )
 
 @Composable
@@ -174,6 +188,7 @@ internal fun TrackerDashboard(
     onRequestPermission: () -> Unit,
     onToggleTracking: (Boolean) -> Unit,
     onGameClick: (() -> Unit)? = null,
+    onPrecisionModeToggle: () -> Unit,
     onSessionDetailClick: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier,
     snackbarHostState: androidx.compose.material3.SnackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -183,6 +198,7 @@ internal fun TrackerDashboard(
     val sessionData = state.sessionData
     val collectionData = state.collectionData
     val hasLocationPermission = state.hasLocationPermission
+    val wallClockNowMillis = rememberWallClockMillis(isTracking)
 
     val haptics = LocalHapticFeedback.current
     
@@ -201,8 +217,10 @@ internal fun TrackerDashboard(
                 isTracking = isTracking,
                 isLocked = isLocked,
                 policyTier = state.policyTier,
+                precisionModePreset = state.precisionModePreset,
                 onSettingsClick = onSettingsClick,
-                onGameClick = onGameClick
+                onGameClick = onGameClick,
+                onPrecisionModeToggle = onPrecisionModeToggle
             )
         },
         floatingActionButton = {
@@ -232,6 +250,7 @@ internal fun TrackerDashboard(
                 collectionData = collectionData,
                 isTracking = isTracking,
                 isLocked = isLocked,
+                wallClockNowMillis = wallClockNowMillis,
                 onSettingsClick = onSettingsClick,
                 onMapClick = onMapClick,
                 onSessionDetailClick = onSessionDetailClick,
@@ -301,8 +320,10 @@ private fun TrackerTopBar(
     isTracking: Boolean,
     isLocked: Boolean,
     policyTier: PolicyTier = PolicyTier.OFF,
+    precisionModePreset: TrackingPreset,
     onSettingsClick: () -> Unit,
     onGameClick: (() -> Unit)? = null,
+    onPrecisionModeToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -328,8 +349,11 @@ private fun TrackerTopBar(
                     }
                 },
                 actions = {
-                    // Policy tier chip - show current tracking tier when active
-                    PolicyTierChip(tier = policyTier)
+                    PolicyTierChip(
+                        tier = policyTier,
+                        precisionModePreset = precisionModePreset,
+                        onClick = onPrecisionModeToggle
+                    )
 
                     // Points chip - show when gamification has points
                     if (pointsToday > 0 && onGameClick != null) {
@@ -391,11 +415,34 @@ private fun TrackerTopBar(
 }
 
 @Composable
+private fun rememberWallClockMillis(isTracking: Boolean): Long {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val nowMillis by produceState(
+        initialValue = Time.nowMillis,
+        key1 = isTracking,
+        key2 = lifecycle
+    ) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            value = Time.nowMillis
+            if (!isTracking) return@repeatOnLifecycle
+
+            while (currentCoroutineContext().isActive) {
+                delay(1000)
+                value = Time.nowMillis
+            }
+        }
+    }
+
+    return nowMillis
+}
+
+@Composable
 private fun TrackingContent(
     sessionData: TrackerSession?,
     collectionData: CollectionData?,
     isTracking: Boolean,
     isLocked: Boolean,
+    wallClockNowMillis: Long,
     onSettingsClick: () -> Unit,
     onMapClick: () -> Unit,
     onSessionDetailClick: ((Long) -> Unit)? = null,
@@ -466,7 +513,9 @@ private fun TrackingContent(
                         isTracking = isTracking,
                         sessionData = sessionData,
                         collectionData = collectionData,
-                        onMapClick = onMapClick
+                        wallClockNowMillis = wallClockNowMillis,
+                        onMapClick = onMapClick,
+                        pathPoints = pathPoints
                     )
                 }
             }
@@ -684,7 +733,8 @@ private fun SessionOverviewCard(
         digits = if (session.distanceInM >= 1000f) 1 else 2,
         unit = settings.lengthSystem
     )
-    val stepsText = session.steps.takeIf { it > 0 }?.formatReadable() ?: "0"
+    val stepCounterSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+    val stepsText = session.steps.formatTrackedSteps(stepCounterSupported)
     val updatesText = context.getString(R.string.collection_count_value, session.collections)
     val sessionAge = DateUtils.getRelativeTimeSpanString(
         session.start,
@@ -898,16 +948,54 @@ private fun StatusAndQuickStatsCard(
     isTracking: Boolean,
     sessionData: TrackerSession?,
     collectionData: CollectionData?,
+    wallClockNowMillis: Long,
     onMapClick: () -> Unit,
+    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val resources = context.resources
     val settings = TrackerSettingsQuick.snapshot(context)
-    
+    var selectedTab by rememberSaveable { mutableStateOf(TrackingStatsTab.LIVE) }
+
     val currentSpeed = collectionData?.location?.speed
     val currentActivity = collectionData?.activity?.getGroupedActivityName(context)
-    
+    val sessionEnd = when {
+        isTracking -> wallClockNowMillis
+        sessionData != null && sessionData.end > sessionData.start -> sessionData.end
+        else -> wallClockNowMillis
+    }
+    val durationMillis = if (sessionData != null) (sessionEnd - sessionData.start).coerceAtLeast(0L) else 0L
+    val durationText = durationMillis.formatAsDuration(context)
+    val isMoving = (currentSpeed ?: 0f) > 0.5f
+    val derivedDistanceMeters = remember(pathPoints) {
+        pathPoints.orEmpty().windowed(size = 2).sumOf { (start, end) ->
+            start.distance(end, LengthUnit.Meter)
+        }.toFloat()
+    }
+    val distanceMeters = maxOf(sessionData?.distanceInM ?: 0f, derivedDistanceMeters)
+    val distanceText = resources.formatDistance(
+        distanceMeters,
+        digits = if (distanceMeters >= 1000f) 1 else 0,
+        unit = settings.lengthSystem
+    )
+    val avgSpeed = remember(pathPoints) {
+        calculateMovingAverageSpeed(pathPoints)
+    }
+    val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
+    val speedText = currentSpeed?.let { resources.formatSpeed(context, it.toDouble(), 1) } ?: "—"
+    val altitudeText = collectionData?.location?.altitude?.let {
+        resources.formatDistance(it.toFloat(), 0, settings.lengthSystem)
+    } ?: "—"
+    val accuracyText = collectionData?.location?.horizontalAccuracy?.let {
+        "±${resources.formatDistance(it, 0, settings.lengthSystem)}"
+    } ?: "—"
+    val stepCounterSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
+    val stepsText = sessionData?.steps?.formatTrackedSteps(stepCounterSupported) ?: "—"
+    val wifiText = collectionData?.wifi?.inRange?.size?.takeIf { it > 0 }?.toString() ?: "—"
+    val cellText = collectionData?.cell?.totalCount?.takeIf { it > 0 }?.toString() ?: "—"
+    val activityText = currentActivity ?: "—"
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -960,18 +1048,8 @@ private fun StatusAndQuickStatsCard(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            
+
             Spacer(Modifier.height(12.dp))
-            
-            // Main Metric: Speed (if available) or Duration
-            val sessionEnd = when {
-                sessionData != null && sessionData.end > sessionData.start -> sessionData.end
-                else -> Time.nowMillis
-            }
-            val durationMillis = if (sessionData != null) (sessionEnd - sessionData.start).coerceAtLeast(0L) else 0L
-            val durationText = durationMillis.formatAsDuration(context)
-            
-            val isMoving = (currentSpeed ?: 0f) > 0.5f // Threshold for "moving" UI state
 
             // Primary Metric Area with animated values
             Row(
@@ -1015,127 +1093,125 @@ private fun StatusAndQuickStatsCard(
                     }
                 }
             }
-            
-            Spacer(Modifier.height(16.dp))
-            
-            // Secondary Stats Grid - Compact 3-column layout
-            if (sessionData != null) {
-                val distanceText = resources.formatDistance(
-                    sessionData.distanceInM,
-                    digits = if (sessionData.distanceInM >= 1000f) 1 else 0,
-                    unit = settings.lengthSystem
-                )
-                
-                val avgSpeed = if (durationMillis > 0) {
-                     (sessionData.distanceInM.toDouble()) / (durationMillis / 1000.0)
-                } else 0.0
-                val avgSpeedText = resources.formatSpeed(context, avgSpeed, 1)
-                val altitude = collectionData?.location?.altitude
-                val accuracy = collectionData?.location?.horizontalAccuracy
 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Row 1: Distance, Avg Speed, Altitude (3-column)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        CompactStatItem(
-                            label = stringResource(R.string.tracker_distance_title),
-                            value = distanceText,
-                            modifier = Modifier.weight(1f)
-                        )
-                        CompactStatItem(
-                            label = stringResource(R.string.tracker_average_label),
-                            value = avgSpeedText,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (altitude != null) {
-                            CompactStatItem(
-                                label = stringResource(R.string.altitude_title),
-                                value = resources.formatDistance(altitude.toFloat(), 0, settings.lengthSystem),
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                    }
-                    
-                    // Row 2: Activity, Steps, Accuracy (3-column)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        if (currentActivity != null) {
-                            CompactStatItem(
-                                label = stringResource(R.string.tracker_activity_title),
-                                value = currentActivity,
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                        
-                        if (sessionData.steps > 0) {
-                            CompactStatItem(
-                                label = stringResource(R.string.tracker_steps_title),
-                                value = sessionData.steps.formatReadable(),
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                        
-                        if (accuracy != null) {
-                            CompactStatItem(
-                                label = stringResource(R.string.tracker_accuracy_label),
-                                value = "±${resources.formatDistance(accuracy, 0, settings.lengthSystem)}",
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                    }
-                    
-                    // Row 3: Technical badges (WiFi, Cell, Coordinates) - more compact
-                    val wifiCount = collectionData?.wifi?.inRange?.size
-                    val cellCount = collectionData?.cell?.totalCount
-                    val location = collectionData?.location
-                    
-                    if ((wifiCount != null && wifiCount > 0) || (cellCount != null && cellCount > 0) || location != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (wifiCount != null && wifiCount > 0) {
-                                TechnicalStatItem(
-                                    icon = Icons.Filled.Wifi,
-                                    text = "$wifiCount"
-                                )
-                            }
-                            
-                            if (cellCount != null && cellCount > 0) {
-                                TechnicalStatItem(
-                                    icon = Icons.Filled.SignalCellularAlt,
-                                    text = "$cellCount"
-                                )
-                            }
-                            
-                            // Show coordinates inline
-                            if (location != null) {
-                                val coordText = "${Assist.coordinateToString(location.latitude)}, ${Assist.coordinateToString(location.longitude)}"
-                                Text(
-                                    text = coordText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
+            Spacer(Modifier.height(16.dp))
+
+            TabRow(selectedTabIndex = TrackingStatsTab.entries.indexOf(selectedTab)) {
+                TrackingStatsTab.entries.forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(text = stringResource(tab.titleRes)) }
+                    )
                 }
             }
+
+            Spacer(Modifier.height(12.dp))
+
+            when (selectedTab) {
+                TrackingStatsTab.LIVE -> {
+                    TrackingStatRow(
+                        first = stringResource(R.string.speed_title) to speedText,
+                        second = stringResource(R.string.tracker_average_label) to avgSpeedText,
+                        third = stringResource(R.string.tracker_accuracy_label) to accuracyText
+                    )
+                }
+
+                TrackingStatsTab.ROUTE -> {
+                    TrackingStatRow(
+                        first = stringResource(R.string.tracker_distance_title) to distanceText,
+                        second = stringResource(R.string.duration_title) to durationText,
+                        third = stringResource(R.string.altitude_title) to altitudeText
+                    )
+                }
+
+                TrackingStatsTab.ACTIVITY -> {
+                    TrackingStatRow(
+                        first = stringResource(R.string.tracker_activity_title) to activityText,
+                        second = stringResource(R.string.tracker_steps_title) to stepsText,
+                        third = stringResource(R.string.tracker_accuracy_label) to accuracyText
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    TrackingTechnicalRow(
+                        wifiText = wifiText,
+                        cellText = cellText,
+                        coordinatesText = collectionData?.location?.let { location ->
+                            "${Assist.coordinateToString(location.latitude)}, ${Assist.coordinateToString(location.longitude)}"
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private enum class TrackingStatsTab(val titleRes: Int) {
+    LIVE(R.string.tracker_live_tab),
+    ROUTE(R.string.tracker_route_tab),
+    ACTIVITY(R.string.tracker_activity_tab)
+}
+
+@Composable
+private fun TrackingStatRow(
+    first: Pair<String, String>,
+    second: Pair<String, String>,
+    third: Pair<String, String>
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        CompactStatItem(
+            label = first.first,
+            value = first.second,
+            modifier = Modifier.weight(1f)
+        )
+        CompactStatItem(
+            label = second.first,
+            value = second.second,
+            modifier = Modifier.weight(1f)
+        )
+        CompactStatItem(
+            label = third.first,
+            value = third.second,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun TrackingTechnicalRow(
+    wifiText: String,
+    cellText: String,
+    coordinatesText: String?
+) {
+    if (wifiText == "—" && cellText == "—" && coordinatesText == null) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (wifiText != "—") {
+            TechnicalStatItem(
+                icon = Icons.Filled.Wifi,
+                text = wifiText
+            )
+        }
+        if (cellText != "—") {
+            TechnicalStatItem(
+                icon = Icons.Filled.SignalCellularAlt,
+                text = cellText
+            )
+        }
+        if (coordinatesText != null) {
+            Text(
+                text = coordinatesText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                modifier = Modifier.weight(1f),
+                maxLines = 1
+            )
         }
     }
 }
@@ -1160,6 +1236,32 @@ private fun ActiveStatItem(
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onPrimaryContainer
         )
+    }
+}
+
+private fun calculateMovingAverageSpeed(
+    pathPoints: List<com.adsamcik.tracker.shared.base.data.Location>?
+): Double {
+    if (pathPoints.isNullOrEmpty() || pathPoints.size < 2) return 0.0
+
+    var movingDistanceMeters = 0.0
+    var movingDurationSeconds = 0.0
+
+    pathPoints.windowed(size = 2).forEach { (start, end) ->
+        val deltaMillis = end.time - start.time
+        if (deltaMillis <= 0L) return@forEach
+
+        val segmentDistanceMeters = start.distance(end, LengthUnit.Meter)
+        if (segmentDistanceMeters <= 0.0) return@forEach
+
+        movingDistanceMeters += segmentDistanceMeters
+        movingDurationSeconds += deltaMillis.toDouble() / 1000.0
+    }
+
+    return if (movingDurationSeconds > 0.0) {
+        movingDistanceMeters / movingDurationSeconds
+    } else {
+        0.0
     }
 }
 
@@ -2387,35 +2489,78 @@ private fun GoalProgressRing(
 // region Phase 4a: PolicyTierChip
 
 /**
- * Compact chip displaying the current tracking policy tier in the top bar.
- * Hidden when tier is [PolicyTier.OFF].
+ * Compact chip displaying and toggling the tracking precision mode in the top bar.
  */
 @Composable
-private fun PolicyTierChip(tier: PolicyTier, modifier: Modifier = Modifier) {
-    if (tier == PolicyTier.OFF) return
-    val (label, containerColor) = when (tier) {
-        PolicyTier.AMBIENT -> stringResource(R.string.policy_tier_ambient) to MaterialTheme.colorScheme.tertiaryContainer
-        PolicyTier.ACTIVE -> stringResource(R.string.policy_tier_active) to MaterialTheme.colorScheme.primaryContainer
-        PolicyTier.PRECISION -> stringResource(R.string.policy_tier_precision) to MaterialTheme.colorScheme.secondaryContainer
-        PolicyTier.OFF -> return
+@OptIn(ExperimentalMaterial3Api::class)
+private fun PolicyTierChip(
+    tier: PolicyTier,
+    precisionModePreset: TrackingPreset,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val isBatterySaver = precisionModePreset == TrackingPreset.POWER_SAVE
+    val label = stringResource(
+        if (isBatterySaver) {
+            R.string.tracking_preset_battery_saver_title
+        } else {
+            R.string.tracking_preset_high_precision_title
+        }
+    )
+    val nextLabel = stringResource(
+        if (isBatterySaver) {
+            R.string.tracking_preset_high_precision_title
+        } else {
+            R.string.tracking_preset_battery_saver_title
+        }
+    )
+    val policyLabel = when (tier) {
+        PolicyTier.AMBIENT -> stringResource(R.string.policy_tier_ambient)
+        PolicyTier.ACTIVE -> stringResource(R.string.policy_tier_active)
+        PolicyTier.PRECISION -> stringResource(R.string.policy_tier_precision)
+        PolicyTier.OFF -> stringResource(R.string.policy_tier_ambient)
     }
-    val contentColor = when (tier) {
-        PolicyTier.AMBIENT -> MaterialTheme.colorScheme.onTertiaryContainer
-        PolicyTier.ACTIVE -> MaterialTheme.colorScheme.onPrimaryContainer
-        PolicyTier.PRECISION -> MaterialTheme.colorScheme.onSecondaryContainer
-        PolicyTier.OFF -> return
+    val hintText = stringResource(R.string.tracker_precision_chip_hint, nextLabel)
+    val containerColor = when {
+        isBatterySaver -> MaterialTheme.colorScheme.surfaceVariant
+        tier == PolicyTier.PRECISION -> MaterialTheme.colorScheme.secondaryContainer
+        tier == PolicyTier.ACTIVE -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.tertiaryContainer
+    }
+    val contentColor = when {
+        isBatterySaver -> MaterialTheme.colorScheme.onSurfaceVariant
+        tier == PolicyTier.PRECISION -> MaterialTheme.colorScheme.onSecondaryContainer
+        tier == PolicyTier.ACTIVE -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onTertiaryContainer
     }
     Surface(
+        onClick = onClick,
         shape = MaterialTheme.shapes.small,
         color = containerColor,
-        modifier = modifier.padding(end = 4.dp)
+        modifier = modifier
+            .padding(end = 4.dp)
+            .semantics {
+                contentDescription = "$label. ${context.getString(R.string.policy_tier_status_prefix)} $policyLabel. $hintText"
+            }
     ) {
-        Text(
-            text = label,
+        Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = contentColor
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = if (isBatterySaver) Icons.Default.LocationOff else Icons.Default.LocationSearching,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = contentColor
+            )
+        }
     }
 }
 

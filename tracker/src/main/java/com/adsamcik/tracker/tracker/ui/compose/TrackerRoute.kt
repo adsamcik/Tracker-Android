@@ -10,15 +10,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.base.di.LocalLockManager
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.launch
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+private interface TrackerRouteEntryPoint {
+    fun trackingParamsRepository(): TrackingParamsRepository
+}
 
 /**
  * Entry point composable for Tracker tab.
@@ -38,10 +54,17 @@ fun TrackerRoute(
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     
     // Access dependencies via CompositionLocal (no app.Application import needed!)
     val controller = LocalTrackerController.current as TrackerServiceController
     val lockManager = LocalLockManager.current as LockManager
+    val trackingParamsRepository = remember(context) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            TrackerRouteEntryPoint::class.java
+        ).trackingParamsRepository()
+    }
     
     // Permission state
     var hasLocationPermission by remember {
@@ -54,24 +77,25 @@ fun TrackerRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     
     // Observe tracking state via injected controller (replaces TrackerService static access)
-    val isTracking by controller.isServiceRunningFlow.collectAsState()
+    val isTracking by controller.isServiceRunningFlow.collectAsStateWithLifecycle()
     
     // Observe lock state via injected manager (replaces TrackerLocker static access)
-    val isLocked by lockManager.isLockedFlow.collectAsState()
+    val isLocked by lockManager.isLockedFlow.collectAsStateWithLifecycle()
 
     // Observe policy tier via injected controller (Phase 4a: visual indicator)
-    val policyTier by controller.policyTierFlow.collectAsState()
+    val policyTier by controller.policyTierFlow.collectAsStateWithLifecycle()
     
     // Observe session info via injected controller
-    val sessionInfo by controller.sessionInfoFlow.collectAsState()
+    val sessionInfo by controller.sessionInfoFlow.collectAsStateWithLifecycle()
     
     // Observe full session and collection data via injected controller
-    val sessionData by controller.sessionFlow.collectAsState()
-    val collectionData by controller.collectionDataFlow.collectAsState()
-    val pathPoints by controller.pathPointsFlow.collectAsState()
+    val sessionData by controller.sessionFlow.collectAsStateWithLifecycle()
+    val collectionData by controller.collectionDataFlow.collectAsStateWithLifecycle()
+    val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
+    val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
     
-    val lastSessionData by controller.lastSessionFlow.collectAsState()
-    val lastPathPoints by controller.lastPathPointsFlow.collectAsState()
+    val lastSessionData by controller.lastSessionFlow.collectAsStateWithLifecycle()
+    val lastPathPoints by controller.lastPathPointsFlow.collectAsStateWithLifecycle()
     
     val displaySession = if (isTracking) sessionData else (sessionData ?: lastSessionData)
     val displayPathPoints = if (isTracking) pathPoints else (pathPoints ?: lastPathPoints)
@@ -82,6 +106,10 @@ fun TrackerRoute(
         } else {
             null
         }
+    }
+    val precisionModePreset = when (trackingParams.preset) {
+        TrackingPreset.POWER_SAVE -> TrackingPreset.POWER_SAVE
+        else -> TrackingPreset.HIGH_ACCURACY
     }
     
     // Contextual permission request dialog (Apple-style: rationale before system prompt)
@@ -126,7 +154,8 @@ fun TrackerRoute(
             collectionData = collectionData,
             hasLocationPermission = hasLocationPermission,
             pathPoints = relevantPathPoints,
-            policyTier = policyTier
+            policyTier = policyTier,
+            precisionModePreset = precisionModePreset
         ),
         onSettingsClick = onOpenSettings,
         onMapClick = onOpenMap,
@@ -144,6 +173,25 @@ fun TrackerRoute(
             }
         },
         onGameClick = onOpenGame,
+        onPrecisionModeToggle = {
+            scope.launch {
+                val nextPreset = if (precisionModePreset == TrackingPreset.POWER_SAVE) {
+                    TrackingPreset.HIGH_ACCURACY
+                } else {
+                    TrackingPreset.POWER_SAVE
+                }
+                trackingParamsRepository.applyDashboardPreset(nextPreset)
+                snackbarHostState.showSnackbar(
+                    message = context.getString(
+                        if (nextPreset == TrackingPreset.HIGH_ACCURACY) {
+                            R.string.tracker_precision_mode_enabled
+                        } else {
+                            R.string.tracker_battery_mode_enabled
+                        }
+                    )
+                )
+            }
+        },
         onSessionDetailClick = onSessionDetailClick,
         modifier = Modifier.padding(contentPadding),
         snackbarHostState = snackbarHostState
@@ -159,4 +207,22 @@ private fun checkLocationPermission(context: Context): Boolean {
         context,
         Manifest.permission.ACCESS_COARSE_LOCATION
     ) == PackageManager.PERMISSION_GRANTED
+}
+
+private suspend fun TrackingParamsRepository.applyDashboardPreset(preset: TrackingPreset) {
+    update {
+        copy(
+            locationEnabled = preset.locationEnabled,
+            activityEnabled = preset.activityEnabled,
+            stepsEnabled = preset.stepsEnabled,
+            wifiEnabled = preset.wifiEnabled,
+            wifiNetworkEnabled = preset.wifiEnabled,
+            wifiLocationCountEnabled = preset == TrackingPreset.HIGH_ACCURACY,
+            cellEnabled = preset.cellEnabled,
+            minDistanceMeters = preset.minDistanceMeters,
+            minTimeSeconds = preset.minTimeSeconds,
+            requiredAccuracyMeters = preset.requiredAccuracyMeters,
+            presetName = preset.name,
+        )
+    }
 }

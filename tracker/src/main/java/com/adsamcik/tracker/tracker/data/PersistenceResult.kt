@@ -7,7 +7,7 @@ package com.adsamcik.tracker.tracker.data
  * - Errors crossing module boundaries must surface as sealed results
  * - All public cross-module operation outcomes MUST be represented by a sealed type suffixed with `Result`
  * 
- * Used by database components (DatabaseLocationComponent, DatabaseCellComponent, DatabaseWifiComponent)
+ * Used by database components (LocationComponent, CellComponent, WifiComponent)
  * to report persistence failures instead of silently swallowing exceptions.
  */
 sealed class PersistenceResult {
@@ -36,7 +36,7 @@ sealed class PersistenceResult {
  * Error event emitted when database persistence fails.
  * Contains information for logging, user notification, and debugging.
  * 
- * @param source The component that encountered the error (e.g., "DatabaseLocationComponent").
+ * @param source The component that encountered the error (e.g., "LocationComponent").
  * @param operation Description of the failed operation (e.g., "batch insert locations").
  * @param recordCount Number of records that failed to persist.
  * @param cause The underlying exception.

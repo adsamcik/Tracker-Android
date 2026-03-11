@@ -41,8 +41,6 @@ android {
 
 	buildTypes {
 		getByName("debug") {
-			enableAndroidTestCoverage = true
-			enableUnitTestCoverage = true
 		}
 
 		create("release_nominify") {
@@ -54,14 +52,6 @@ android {
 			// Requires: Comprehensive proguard rules or migration to explicit DI
 			isMinifyEnabled = false
 			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-		}
-	}
-
-	packaging {
-		resources {
-			excludes += "/META-INF/{AL2.0,LGPL2.1}"
-			excludes += "META-INF/LICENSE.md"
-			excludes += "META-INF/LICENSE-notice.md"
 		}
 	}
 
@@ -112,6 +102,7 @@ dependencies {
 	implementation(libs.compose.foundation)
 	implementation(libs.compose.foundation.layout)
 	implementation(libs.compose.runtime)
+	implementation(libs.androidx.lifecycle.runtime.compose)
 	// DataStore (proto for typed settings, preferences for migration compatibility)
 	implementation(libs.androidx.datastore.core)
 	implementation(libs.androidx.datastore.preferences)

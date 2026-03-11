@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.pipeline
 
+import android.util.Log
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
@@ -8,6 +9,7 @@ import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -22,6 +24,8 @@ import kotlinx.coroutines.sync.withLock
  * - Signal fan-out to all active processors (filtered by tier)
  * - Periodic flush with domain event collection
  * - Failure isolation via SupervisorJob per processor
+ * - Health tracking: processors with [MAX_CONSECUTIVE_FAILURES] consecutive
+ *   errors are automatically disabled for the remainder of the session.
  *
  * Thread safety:
  * - Signal delivery + state mutation protected by [mutex].
@@ -44,13 +48,46 @@ class ProcessorPipeline(
 	private var isRunning = false
 	private val lastFlushTime = mutableMapOf<String, Long>()
 	private var supervisorJob = SupervisorJob()
+	private val inFlightDispatches = mutableListOf<Job>()
 
 	/** Cached active processors. Rebuilt on start/escalate — never recomputed in hot path. */
 	private var cachedActiveProcessors: List<SignalProcessor> = emptyList()
 
+	// --- Health tracking ---
+	private val failureCounts = mutableMapOf<String, Int>()
+	private val _disabledProcessors = mutableSetOf<String>()
+
+	/** Processors disabled due to repeated failures in this session. */
+	val disabledProcessors: Set<String> get() = _disabledProcessors.toSet()
+
 	private fun rebuildActiveProcessors() {
 		cachedActiveProcessors = sortedProcessors.filter {
-			it.descriptor.requiredTier <= currentTier
+			it.descriptor.requiredTier <= currentTier && it.descriptor.id !in _disabledProcessors
+		}
+	}
+
+	/**
+	 * Record a processor failure and disable if threshold exceeded.
+	 *
+	 * Caller **must** ensure exclusive access to mutable state
+	 * (i.e. call under [mutex] or wrap in `mutex.withLock`).
+	 */
+	private fun recordFailure(processorId: String, operation: String, e: Exception) {
+		val count = (failureCounts[processorId] ?: 0) + 1
+		failureCounts[processorId] = count
+		Log.w(TAG, "Processor $processorId $operation failed (consecutive: $count): ${e.message}")
+
+		if (count >= MAX_CONSECUTIVE_FAILURES && processorId !in _disabledProcessors) {
+			_disabledProcessors.add(processorId)
+			cachedActiveProcessors = cachedActiveProcessors.filter { it.descriptor.id != processorId }
+			Log.w(TAG, "Processor $processorId disabled after $count consecutive failures")
+		}
+	}
+
+	/** Reset failure count on successful operation. Hot-path safe (no-op when map empty). */
+	private fun resetFailureCount(processorId: String) {
+		if (failureCounts.isNotEmpty()) {
+			failureCounts.remove(processorId)
 		}
 	}
 
@@ -69,6 +106,8 @@ class ProcessorPipeline(
 		currentTier = tier
 		isRunning = true
 		lastFlushTime.clear()
+		failureCounts.clear()
+		_disabledProcessors.clear()
 		rebuildActiveProcessors()
 
 		val context = ProcessorContext(
@@ -78,13 +117,15 @@ class ProcessorPipeline(
 		)
 
 		for (processor in cachedActiveProcessors) {
+			val id = processor.descriptor.id
 			try {
 				processor.onStart(context)
-				lastFlushTime[processor.descriptor.id] = startTimestamp.raw
+				lastFlushTime[id] = startTimestamp.raw
+				resetFailureCount(id)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				System.err.println("Processor ${processor.descriptor.id} failed to start: ${e.message}")
+				recordFailure(id, "start", e)
 			}
 		}
 	}
@@ -103,10 +144,14 @@ class ProcessorPipeline(
 			if (!isRunning) return
 
 			for (processor in cachedActiveProcessors) {
+				val id = processor.descriptor.id
 				try {
 					processor.onSignal(signal)
+					resetFailureCount(id)
+				} catch (e: CancellationException) {
+					throw e
 				} catch (e: Exception) {
-					System.err.println("Processor ${processor.descriptor.id} signal error: ${e.message}")
+					recordFailure(id, "signal", e)
 				}
 			}
 
@@ -125,18 +170,24 @@ class ProcessorPipeline(
 		if (flushCandidates.isEmpty()) return
 		val events = mutableListOf<DomainEvent>()
 		for (processor in flushCandidates) {
+			val id = processor.descriptor.id
 			try {
 				events.addAll(processor.onFlush())
+				mutex.withLock { resetFailureCount(id) }
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				System.err.println("Processor ${processor.descriptor.id} flush error: ${e.message}")
+				mutex.withLock { recordFailure(id, "flush", e) }
 			}
 		}
 
-		if (events.isNotEmpty()) {
-			scope.launch(supervisorJob) {
+		if (events.isNotEmpty() && isRunning) {
+			val job = scope.launch(supervisorJob) {
 				onDomainEvents(events)
+			}
+			synchronized(inFlightDispatches) {
+				inFlightDispatches.add(job)
+				job.invokeOnCompletion { synchronized(inFlightDispatches) { inFlightDispatches.remove(job) } }
 			}
 		}
 	}
@@ -163,13 +214,15 @@ class ProcessorPipeline(
 			val toStart = newActive - oldActive
 			val context = ProcessorContext(startTimestamp = timestamp)
 			for (processor in toStart) {
+				val id = processor.descriptor.id
 				try {
 					processor.onStart(context)
-					lastFlushTime[processor.descriptor.id] = timestamp.raw
+					lastFlushTime[id] = timestamp.raw
+					resetFailureCount(id)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					System.err.println("Processor ${processor.descriptor.id} escalation start error: ${e.message}")
+					recordFailure(id, "escalation-start", e)
 				}
 			}
 
@@ -180,19 +233,27 @@ class ProcessorPipeline(
 		if (toStop.isEmpty()) return
 		val events = mutableListOf<DomainEvent>()
 		for (processor in toStop) {
+			val id = processor.descriptor.id
 			try {
 				events.addAll(processor.onStop())
-				mutex.withLock { lastFlushTime.remove(processor.descriptor.id) }
+				mutex.withLock {
+					lastFlushTime.remove(id)
+					resetFailureCount(id)
+				}
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				System.err.println("Processor ${processor.descriptor.id} de-escalation stop error: ${e.message}")
+				mutex.withLock { recordFailure(id, "de-escalation-stop", e) }
 			}
 		}
 
-		if (events.isNotEmpty()) {
-			scope.launch(supervisorJob) {
+		if (events.isNotEmpty() && isRunning) {
+			val job = scope.launch(supervisorJob) {
 				onDomainEvents(events)
+			}
+			synchronized(inFlightDispatches) {
+				inFlightDispatches.add(job)
+				job.invokeOnCompletion { synchronized(inFlightDispatches) { inFlightDispatches.remove(job) } }
 			}
 		}
 	}
@@ -209,12 +270,13 @@ class ProcessorPipeline(
 			isRunning = false
 
 			for (processor in cachedActiveProcessors) {
+				val id = processor.descriptor.id
 				try {
 					events.addAll(processor.onStop())
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
-					System.err.println("Processor ${processor.descriptor.id} stop error: ${e.message}")
+					recordFailure(id, "stop", e)
 				}
 			}
 
@@ -229,11 +291,21 @@ class ProcessorPipeline(
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				System.err.println("Final domain event dispatch failed: ${e.message}")
+				Log.w(TAG, "Final domain event dispatch failed: ${e.message}")
 			}
 		}
 
-		// Wait for in-flight event dispatches to complete, then cancel
+		// Join in-flight event dispatches, then cancel the supervisor
+		val pendingJobs: List<Job>
+		synchronized(inFlightDispatches) {
+			pendingJobs = inFlightDispatches.toList()
+		}
+		pendingJobs.forEach { it.join() }
 		supervisorJob.cancelAndJoin()
+	}
+
+	companion object {
+		private const val TAG = "ProcessorPipeline"
+		private const val MAX_CONSECUTIVE_FAILURES = 5
 	}
 }

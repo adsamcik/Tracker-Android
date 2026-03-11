@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.controller
 
 import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.stats.api.PolicyState
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -70,12 +71,12 @@ class DefaultTrackerServiceController : TrackerServiceController {
             // Service stopping, retain last session data
             val currentSession = _sessionFlow.value
             if (currentSession != null) {
-                _lastSessionFlow.value = currentSession
+                _lastSessionFlow.value = MutableTrackerSession(currentSession)
                 _lastPathPointsFlow.value = _pathPointsFlow.value
             }
             _pathPointsFlow.value = null
         }
-        _sessionFlow.value = session
+        _sessionFlow.value = session?.let(::MutableTrackerSession)
     }
     
     override fun updateCollectionData(data: CollectionData?) {
@@ -88,7 +89,7 @@ class DefaultTrackerServiceController : TrackerServiceController {
             val currentPath = _pathPointsFlow.value
             
             if (currentPath == null || currentPath.first != currentSession.id) {
-                _pathPointsFlow.value = currentSession.id to listOf(newLocation)
+                _pathPointsFlow.value = currentSession.id to mutableListOf(newLocation)
             } else {
                 val points = currentPath.second
                 val lastLocation = points.last()
@@ -99,6 +100,7 @@ class DefaultTrackerServiceController : TrackerServiceController {
                     results
                 )
                 if (results[0] > 10) {
+                    // Publish a new list instance so StateFlow detects the change
                     _pathPointsFlow.value = currentSession.id to (points + newLocation)
                 }
             }

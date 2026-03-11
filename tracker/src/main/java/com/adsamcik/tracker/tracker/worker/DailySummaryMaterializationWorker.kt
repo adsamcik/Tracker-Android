@@ -30,9 +30,9 @@ class DailySummaryMaterializationWorker(
 		val dailySummaryDao = database.dailySummaryDao()
 
 		val now = Time.nowMillis
-		val epochDay = now / Time.DAY_IN_MILLISECONDS
-		val startOfDay = epochDay * Time.DAY_IN_MILLISECONDS
-		val endOfDay = startOfDay + Time.DAY_IN_MILLISECONDS
+		val startOfDay = Time.todayMillis
+		val endOfDay = Time.tomorrowMillis
+		val epochDay = startOfDay / Time.DAY_IN_MILLISECONDS
 
 		// Aggregate from session_segment table for today
 		val segments = segmentDao.getAllBetween(startOfDay, endOfDay)

@@ -6,7 +6,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.shared.base.Time
@@ -18,9 +22,11 @@ import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
 import dagger.hilt.android.AndroidEntryPoint
-import java.util.*
 import javax.inject.Inject
-import kotlin.concurrent.scheduleAtFixedRate
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Hilt EntryPoint for accessing dependencies from static context (companion object methods)
@@ -45,7 +51,7 @@ class ActivityWatcherService : CoreService() {
 	@Inject
 	lateinit var lockManager: LockManager
 
-	private val timer: Timer = Timer()
+	private var pollingJob: Job? = null
 
 	private lateinit var notificationManager: NotificationManager
 
@@ -63,11 +69,15 @@ class ActivityWatcherService : CoreService() {
 		BackgroundTrackingApi.initialize(this)
 		poke(this)
 
-		timer.scheduleAtFixedRate(0L, updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS) {
-			val newActivityInfo = ActivityRequestManager.lastActivity
-			if (newActivityInfo != activityInfo) {
-				activityInfo = newActivityInfo
-				notificationManager.notify(NOTIFICATION_ID, updateNotification())
+		// M2 fix: Replace java.util.Timer with coroutine-based polling
+		pollingJob = launch {
+			while (isActive) {
+				delay(updatePreferenceInSeconds * Time.SECOND_IN_MILLISECONDS)
+				val newActivityInfo = ActivityRequestManager.lastActivity
+				if (newActivityInfo != activityInfo) {
+					activityInfo = newActivityInfo
+					notificationManager.notify(NOTIFICATION_ID, updateNotification())
+				}
 			}
 		}
 	}
@@ -75,7 +85,8 @@ class ActivityWatcherService : CoreService() {
 	override fun onDestroy() {
 		super.onDestroy()
 		instance = null
-		timer.cancel()
+		pollingJob?.cancel()
+		pollingJob = null
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -120,6 +131,7 @@ class ActivityWatcherService : CoreService() {
 	}
 
 	companion object {
+		private const val TAG = "ActivityWatcherService"
 		private const val NOTIFICATION_ID = -568465
 
 		private var instance: ActivityWatcherService? = null
@@ -171,7 +183,27 @@ class ActivityWatcherService : CoreService() {
 			if (updateInterval > 0 && autoTracking > 0) {
 				if (watcherPreference && !trackerLocked && !trackerRunning) {
 					if (instance == null) {
-						context.startForegroundService<ActivityWatcherService> { }
+						if (!canStartForegroundService()) {
+							Log.i(
+								TAG,
+								"Skipping ActivityWatcherService start because the app is not in the foreground"
+							)
+							return
+						}
+						try {
+							context.startForegroundService<ActivityWatcherService> { }
+						} catch (exception: SecurityException) {
+							Log.w(TAG, "Activity watcher start blocked by security policy", exception)
+						} catch (exception: RuntimeException) {
+							val isForegroundStartRestricted =
+								Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+										exception::class.java.name == "android.app.ForegroundServiceStartNotAllowedException"
+							if (isForegroundStartRestricted) {
+								Log.w(TAG, "Skipped starting ActivityWatcherService from background-restricted context")
+							} else {
+								throw exception
+							}
+						}
 					}
 					return
 				}
@@ -179,6 +211,14 @@ class ActivityWatcherService : CoreService() {
 
 			instance?.stopSelf()
 		}
+
+		private fun canStartForegroundService(): Boolean {
+			if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+				return true
+			}
+
+			return ProcessLifecycleOwner.get().lifecycle.currentState
+				.isAtLeast(Lifecycle.State.STARTED)
+		}
 	}
 }
-

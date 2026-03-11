@@ -10,8 +10,7 @@ package com.adsamcik.tracker.tracker.altitude
  * the altitude fusion use case. No matrix library dependency —
  * all 2x2 math is inlined for clarity and performance.
  *
- * @param processNoiseAltitude Process noise for altitude (m²). Controls trust in the model.
- * @param processNoiseVelocity Process noise for vertical velocity (m²/s²).
+ * Thread-safety: All public mutating methods are synchronized.
  */
 internal class AltitudeKalmanFilter(
 	private val processNoiseAltitude: Double = DEFAULT_PROCESS_NOISE_ALTITUDE,
@@ -58,6 +57,7 @@ internal class AltitudeKalmanFilter(
 	 *
 	 * Process noise: Q = [[q_alt * dt, 0], [0, q_vel * dt]]
 	 */
+	@Synchronized
 	fun predict(timeMs: Long) {
 		if (!initialized) return
 
@@ -92,6 +92,7 @@ internal class AltitudeKalmanFilter(
 	 *        For GPS: use verticalAccuracy². For barometer: use ~1.0.
 	 * @param timeMs Current time in milliseconds.
 	 */
+	@Synchronized
 	fun update(altitudeM: Double, measurementNoiseM2: Double, timeMs: Long) {
 		if (!initialized) {
 			// First measurement initializes the filter
@@ -140,8 +141,8 @@ internal class AltitudeKalmanFilter(
 	/**
 	 * Resets the filter to uninitialized state.
 	 */
+	@Synchronized
 	fun reset() {
-		x0 = 0.0
 		x1 = 0.0
 		p00 = INITIAL_VARIANCE
 		p01 = 0.0

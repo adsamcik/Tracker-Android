@@ -180,6 +180,8 @@
 
     <string name="speed_title">Speed</string>
     <string name="speed_value">speed %s</string>
+    <string name="battery_title">Battery</string>
+    <string name="battery_low_warning">⚡ Low battery: %d%%</string>
 
     <string name="start_time_title">Session start time</string>
     <string name="start_time_value">start %s</string>
@@ -291,6 +293,13 @@
     <string name="tracker_share_session_summary">Share session summary</string>
     <string name="tracker_long_press_to_copy">Long-press to copy</string>
     <string name="tracker_copy_session_summary">Copy session summary</string>
+    <string name="tracker_live_tab">Live</string>
+    <string name="tracker_route_tab">Route</string>
+    <string name="tracker_activity_tab">Activity</string>
+    <string name="tracker_precision_mode_enabled">High precision tracking enabled</string>
+    <string name="tracker_battery_mode_enabled">Battery saver tracking enabled</string>
+    <string name="policy_tier_status_prefix">GPS policy:</string>
+    <string name="tracker_precision_chip_hint">Tap to switch to %1$s</string>
     <string name="action_navigate_back">Navigate back</string>
 
 </resources>
