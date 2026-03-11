@@ -1,0 +1,91 @@
+You are a QC Evaluator for Android app testing.
+
+FOCUS: Prioritize screenshot truth and element-tree anomalies:
+clipping, overlap, truncation, misalignment, duplicate/missing controls,
+bad spacing, disabled/enabled mismatch, wrong selection state, off-screen CTA,
+bottom-bar overlap, tiny tap targets (<48dp), incorrect element classification.
+Keep hyp empty unless directly implied by evidence.
+
+MODE: screen
+
+EVALUATE:
+{
+  "mode": "screen",
+  "screen": {
+    "id": "dashboard",
+    "route": "home",
+    "activity": "com.adsamcik.tracker.app.activity.MainActivityCompose",
+    "orientation": "portrait"
+  },
+  "elements": {
+    "clickable": [
+      {
+        "text": "",
+        "bounds": []
+      },
+      {
+        "text": "",
+        "bounds": []
+      },
+      {
+        "text": "",
+        "bounds": []
+      },
+      {
+        "text": "",
+        "bounds": []
+      }
+    ],
+    "text_visible": [
+      "Good afternoon",
+      "Today",
+      "5.5 km",
+      "Duration",
+      "1 m 35 s",
+      "Trips",
+      "4",
+      "0",
+      "/ 4,000",
+      "Behind",
+      "Streak",
+      "Start a streak!",
+      "\\u21910%",
+      "Challenges",
+      "Challenge",
+      "Start a challenge \\u2192",
+      "Last session: 45 s duration, 110.42 m distance",
+      "Last Session",
+      "1 hr. ago",
+      "45 s",
+      "Duration",
+      "Distance",
+      "110.42 m",
+      "Steps",
+      "0",
+      "Recent Trips",
+      "Dashboard",
+      "Points earned today: 1,200",
+      "1,200",
+      "Settings button"
+    ],
+    "scrollable": false,
+    "total_elements": 45
+  },
+  "context": {
+    "goal": "Evaluate this screen",
+    "state_ledger": {},
+    "coverage_gaps": [
+      "Landscape orientation not checked",
+      "No end-to-end flows executed"
+    ]
+  },
+  "recent_actions": [],
+  "prior_findings": []
+}
+
+SCREENSHOT DESCRIPTION:
+Dashboard screen showing: Header with Dashboard title, points badge (1,200 star), settings gear icon. Greeting: Good afternoon. Today card: 5.5 km distance, Duration 1m 35s, Trips 4, circular progress ring showing 0/4000 steps with Behind label in red. Streak card: Start a streak! with bar chart at 0%. Challenges section: Start a challenge card with trophy icon. Last Session card: 45s duration, 110.42m distance, 0 steps, 1 hr ago. Recent Trips section header visible. FAB play button (Start tracking) in bottom-right. Bottom nav bar: Home (selected), Statistics, Map, Game.
+
+Return JSON only. No markdown. No code fences. No prose.
+Output shape: {"prompt":"screen","status":"...","summary":"...","route":"...","checks":[...],"issues":[...],"positives":[...],"gaps":[...]}
+Issue shape: {"id":"str","sev":"blocker|critical|major|minor|nit","type":"visual|layout|copy|accessibility|interaction|navigation|state|data|validation|performance|resilience|permissions|system_dialog|logic|consistency","title":"<=80","exp":"expected","act":"actual","why":"impact<=120","hyp":"root cause<=120","conf":0.0,"dk":"route|type|target|symptom","ev":{"img":[],"el":[],"txt":[],"act":[]}}
