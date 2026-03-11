@@ -1,8 +1,6 @@
 plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
-	alias(libs.plugins.kotlin.parcelize)
-	alias(libs.plugins.ksp)
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.robolectric.junit5)
 }
@@ -67,27 +65,13 @@ dependencies {
 	// Core
 	implementation(libs.kotlin.stdlib.jdk8)
 	implementation(libs.kotlinx.coroutines.android)
-	implementation(libs.androidx.appcompat)
 	implementation(libs.androidx.core.ktx)
-	implementation(libs.androidx.constraintlayout)
-	implementation(libs.androidx.recyclerview)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
-	implementation(libs.androidx.lifecycle.service)
-	implementation(libs.androidx.lifecycle.process)
-	implementation(libs.androidx.preference)
-	implementation(libs.androidx.lifecycle.common.java8)
 	implementation(libs.google.material)
 	implementation(libs.google.play.services.base)
 	implementation(libs.google.play.services.location)
 
-	// JSON
-	implementation(libs.moshi)
-	ksp(libs.moshi.kotlin.codegen)
-
 	// 1st/3rd party
-	implementation(libs.components.recycler)
-	implementation(libs.component.slider)
-	implementation(libs.spotlight)
 	implementation(libs.suncalc)
 
 	// WorkManager
@@ -103,11 +87,7 @@ dependencies {
 	implementation(libs.activity.compose)
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.compose.animation)
-	implementation(libs.compose.animation.graphics)
-	implementation(libs.navigation.compose)
-	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.compose.runtime)
-	implementation(libs.constraintlayout.compose)
 	implementation(libs.material.kolor)
 	androidTestImplementation(libs.compose.ui.test.junit4)
 	debugImplementation(libs.compose.ui.test.manifest)
