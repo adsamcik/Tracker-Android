@@ -5,8 +5,9 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SegmentSource
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.statistics.data.Stat
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,8 +17,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 /**
  * Comprehensive integration tests for DefaultSessionRepository.
@@ -54,8 +55,12 @@ class DefaultSessionRepositoryTest {
             AppDatabase::class.java
         ).allowMainThreadQueries().build()
         
-        // Override the singleton database for testing
-        AppDatabase.database = { database }
+        // Override the singleton database for testing via reflection
+        val instanceField = database::class.java.superclass
+            ?.superclass
+            ?.getDeclaredField("instance")
+            ?.apply { isAccessible = true }
+        instanceField?.set(AppDatabase.Companion, database)
         
         repository = DefaultSessionRepository(context, testDispatchers)
     }
@@ -71,111 +76,126 @@ class DefaultSessionRepositoryTest {
         val stats = repository.getSummaryStats()
 
         // Then: returns stats with zero values
-        assertTrue(stats.isNotEmpty(), "Stats list should not be empty even with no data")
+        assertTrue("Stats list should not be empty even with no data", stats.isNotEmpty())
         
         // Verify expected stat types exist (time, distance, steps, collections, counts)
-        assertTrue(stats.size >= 8, "Expected at least 8 stat entries for empty DB")
+        assertTrue("Expected at least 8 stat entries for empty DB", stats.size >= 8)
     }
 
     @Test
     fun getSummaryStats_singleSession_returnsCorrectAggregates() = runTest(testDispatcher) {
-        // Given: a single session with known values
-        val sessionDao = database.sessionDao()
-        val session = TrackerSession(
+        // Given: a single session segment with known values
+        val segmentDao = database.sessionSegmentDao()
+        val segment = SessionSegment(
             id = 0,
-            start = 1_000_000_000L,
-            end = 1_000_060_000L,      // 60 seconds duration
-            distanceInM = 1000.0f,      // 1 km
-            distanceOnFootInM = 600.0f,
-            distanceInVehicleInM = 400.0f,
+            startTimeMs = 1_000_000_000L,
+            endTimeMs = 1_000_060_000L,      // 60 seconds duration
+            distanceM = 1000.0f,              // 1 km
             steps = 800,
-            collections = 10
+            primaryActivity = null,
+            activityConfidence = null,
+            sampleCount = 10,
+            source = SegmentSource.USER_CREATED,
+            inferenceVersion = "test",
+            createdAt = System.currentTimeMillis(),
         )
-        val insertedId = sessionDao.insert(session)
+        segmentDao.insert(segment)
         
         // When: requesting summary stats
         val stats = repository.getSummaryStats()
 
         // Then: stats reflect the single session
-        assertTrue(stats.isNotEmpty())
+        assertTrue("Should have stat entries", stats.isNotEmpty())
         
         // Note: Exact value assertions depend on formatting logic in SummaryGenerator
         // We verify structure and presence of key metrics
         val statNames = stats.map { it.nameRes }
-        assertTrue(statNames.isNotEmpty(), "Should have stat entries")
+        assertTrue(statNames.isNotEmpty())
     }
 
     @Test
     fun getSummaryStats_multipleSessions_aggregatesCorrectly() = runTest(testDispatcher) {
-        // Given: three sessions with varying data
-        val sessionDao = database.sessionDao()
-        val sessions = listOf(
-            TrackerSession(
+        // Given: three session segments with varying data
+        val segmentDao = database.sessionSegmentDao()
+        val segments = listOf(
+            SessionSegment(
                 id = 0,
-                start = 1_000_000_000L,
-                end = 1_000_120_000L,  // 120s
-                distanceInM = 2000.0f,
-                distanceOnFootInM = 1500.0f,
-                distanceInVehicleInM = 500.0f,
+                startTimeMs = 1_000_000_000L,
+                endTimeMs = 1_000_120_000L,  // 120s
+                distanceM = 2000.0f,
                 steps = 1500,
-                collections = 20
+                primaryActivity = null,
+                activityConfidence = null,
+                sampleCount = 20,
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = "test",
+                createdAt = System.currentTimeMillis(),
             ),
-            TrackerSession(
+            SessionSegment(
                 id = 0,
-                start = 2_000_000_000L,
-                end = 2_000_180_000L,  // 180s
-                distanceInM = 3000.0f,
-                distanceOnFootInM = 2000.0f,
-                distanceInVehicleInM = 1000.0f,
+                startTimeMs = 2_000_000_000L,
+                endTimeMs = 2_000_180_000L,  // 180s
+                distanceM = 3000.0f,
                 steps = 2000,
-                collections = 30
+                primaryActivity = null,
+                activityConfidence = null,
+                sampleCount = 30,
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = "test",
+                createdAt = System.currentTimeMillis(),
             ),
-            TrackerSession(
+            SessionSegment(
                 id = 0,
-                start = 3_000_000_000L,
-                end = 3_000_240_000L,  // 240s
-                distanceInM = 5000.0f,
-                distanceOnFootInM = 3000.0f,
-                distanceInVehicleInM = 2000.0f,
+                startTimeMs = 3_000_000_000L,
+                endTimeMs = 3_000_240_000L,  // 240s
+                distanceM = 5000.0f,
                 steps = 3000,
-                collections = 40
+                primaryActivity = null,
+                activityConfidence = null,
+                sampleCount = 40,
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = "test",
+                createdAt = System.currentTimeMillis(),
             )
         )
         
-        sessions.forEach { sessionDao.insert(it) }
+        segments.forEach { segmentDao.insert(it) }
 
         // When: requesting summary stats
         val stats = repository.getSummaryStats()
 
         // Then: aggregates sum correctly
         // Total: 10000m distance, 6500m on foot, 3500m in vehicle, 6500 steps, 90 collections
-        assertTrue(stats.isNotEmpty())
+        assertTrue("Should have session count stat", stats.isNotEmpty())
         
         // Verify session count stat exists
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null, "Should have session count stat")
+        assertTrue(sessionCountStat != null)
     }
 
     @Test
     fun getSummaryStats_largeDataset_performsWithinReasonableTime() = runTest(testDispatcher) {
-        // Given: 1000 sessions simulating real-world usage
-        val sessionDao = database.sessionDao()
+        // Given: 1000 session segments simulating real-world usage
+        val segmentDao = database.sessionSegmentDao()
         val baseTime = 1_600_000_000_000L // Sept 2020
         
-        val sessions = (1..1000).map { index ->
-            TrackerSession(
+        val segments = (1..1000).map { index ->
+            SessionSegment(
                 id = 0,
-                start = baseTime + (index * 3600_000L), // 1 hour apart
-                end = baseTime + (index * 3600_000L) + 600_000L, // 10 min duration
-                distanceInM = (500 + index % 100).toFloat(),
-                distanceOnFootInM = (300 + index % 50).toFloat(),
-                distanceInVehicleInM = (200 + index % 50).toFloat(),
+                startTimeMs = baseTime + (index * 3600_000L), // 1 hour apart
+                endTimeMs = baseTime + (index * 3600_000L) + 600_000L, // 10 min duration
+                distanceM = (500 + index % 100).toFloat(),
                 steps = 500 + (index % 200),
-                collections = 10 + (index % 5)
+                primaryActivity = null,
+                activityConfidence = null,
+                sampleCount = 10 + (index % 5),
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = "test",
+                createdAt = System.currentTimeMillis(),
             )
         }
         
-        sessions.forEach { sessionDao.insert(it) }
+        segments.forEach { segmentDao.insert(it) }
 
         // When: requesting summary stats (measure time implicitly via test timeout)
         val startTime = System.currentTimeMillis()
@@ -183,12 +203,12 @@ class DefaultSessionRepositoryTest {
         val duration = System.currentTimeMillis() - startTime
 
         // Then: completes and returns data
-        assertTrue(stats.isNotEmpty())
-        assertTrue(duration < 5000, "Summary generation for 1000 sessions should complete within 5s, took ${duration}ms")
+        assertTrue("Summary generation for 1000 sessions should complete within 5s, took ${duration}ms", stats.isNotEmpty())
+        assertTrue(duration < 5000)
         
         // Verify session count reflects all 1000 sessions
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null, "Should have session count stat for large dataset")
+        assertTrue("Should have session count stat for large dataset", sessionCountStat != null)
     }
 
     @Test
@@ -197,135 +217,153 @@ class DefaultSessionRepositoryTest {
         val stats = repository.getWeeklyStats()
 
         // Then: returns stats with zero values
-        assertTrue(stats.isNotEmpty(), "Weekly stats list should not be empty even with no data")
+        assertTrue("Weekly stats list should not be empty even with no data", stats.isNotEmpty())
     }
 
     @Test
     fun getWeeklyStats_onlyOldSessions_returnsZeroAggregates() = runTest(testDispatcher) {
-        // Given: sessions older than 7 days
-        val sessionDao = database.sessionDao()
+        // Given: session segments older than 7 days
+        val segmentDao = database.sessionSegmentDao()
         val now = System.currentTimeMillis()
         val tenDaysAgo = now - (10 * 24 * 3600_000L)
         
-        val oldSession = TrackerSession(
+        val oldSegment = SessionSegment(
             id = 0,
-            start = tenDaysAgo,
-            end = tenDaysAgo + 600_000L,
-            distanceInM = 5000.0f,
-            distanceOnFootInM = 3000.0f,
-            distanceInVehicleInM = 2000.0f,
+            startTimeMs = tenDaysAgo,
+            endTimeMs = tenDaysAgo + 600_000L,
+            distanceM = 5000.0f,
             steps = 4000,
-            collections = 50
+            primaryActivity = null,
+            activityConfidence = null,
+            sampleCount = 50,
+            source = SegmentSource.USER_CREATED,
+            inferenceVersion = "test",
+            createdAt = System.currentTimeMillis(),
         )
-        sessionDao.insert(oldSession)
+        segmentDao.insert(oldSegment)
 
         // When: requesting weekly stats
         val stats = repository.getWeeklyStats()
 
         // Then: returns zero aggregates (no sessions in last 7 days)
-        assertTrue(stats.isNotEmpty())
+        assertTrue("Should have session count stat", stats.isNotEmpty())
         
         // Session count for the week should be zero (or reflect no recent sessions)
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null, "Should have session count stat")
+        assertTrue(sessionCountStat != null)
     }
 
     @Test
     fun getWeeklyStats_mixedTimeRange_onlyIncludesRecentSessions() = runTest(testDispatcher) {
-        // Given: mix of old and recent sessions
-        val sessionDao = database.sessionDao()
+        // Given: mix of old and recent session segments
+        val segmentDao = database.sessionSegmentDao()
         val now = System.currentTimeMillis()
         val threeDaysAgo = now - (3 * 24 * 3600_000L)
         val tenDaysAgo = now - (10 * 24 * 3600_000L)
         
-        // Recent session (should be included)
-        val recentSession = TrackerSession(
+        // Recent segment (should be included)
+        val recentSegment = SessionSegment(
             id = 0,
-            start = threeDaysAgo,
-            end = threeDaysAgo + 600_000L,
-            distanceInM = 2000.0f,
-            distanceOnFootInM = 1500.0f,
-            distanceInVehicleInM = 500.0f,
+            startTimeMs = threeDaysAgo,
+            endTimeMs = threeDaysAgo + 600_000L,
+            distanceM = 2000.0f,
             steps = 1500,
-            collections = 20
+            primaryActivity = null,
+            activityConfidence = null,
+            sampleCount = 20,
+            source = SegmentSource.USER_CREATED,
+            inferenceVersion = "test",
+            createdAt = System.currentTimeMillis(),
         )
         
-        // Old session (should be excluded)
-        val oldSession = TrackerSession(
+        // Old segment (should be excluded)
+        val oldSegment = SessionSegment(
             id = 0,
-            start = tenDaysAgo,
-            end = tenDaysAgo + 600_000L,
-            distanceInM = 5000.0f,
-            distanceOnFootInM = 3000.0f,
-            distanceInVehicleInM = 2000.0f,
+            startTimeMs = tenDaysAgo,
+            endTimeMs = tenDaysAgo + 600_000L,
+            distanceM = 5000.0f,
             steps = 4000,
-            collections = 50
+            primaryActivity = null,
+            activityConfidence = null,
+            sampleCount = 50,
+            source = SegmentSource.USER_CREATED,
+            inferenceVersion = "test",
+            createdAt = System.currentTimeMillis(),
         )
         
-        sessionDao.insert(recentSession)
-        sessionDao.insert(oldSession)
+        segmentDao.insert(recentSegment)
+        segmentDao.insert(oldSegment)
 
         // When: requesting weekly stats
         val stats = repository.getWeeklyStats()
 
         // Then: only recent session is aggregated
-        assertTrue(stats.isNotEmpty())
+        assertTrue("Should have session count stat for weekly data", stats.isNotEmpty())
         
         // Verify structure (exact values depend on formatting)
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null, "Should have session count stat for weekly data")
+        assertTrue(sessionCountStat != null)
     }
 
     @Test
     fun getWeeklyStats_multipleRecentSessions_aggregatesCorrectly() = runTest(testDispatcher) {
-        // Given: multiple sessions within the last 7 days
-        val sessionDao = database.sessionDao()
+        // Given: multiple session segments within the last 7 days
+        val segmentDao = database.sessionSegmentDao()
         val now = System.currentTimeMillis()
         
-        val recentSessions = listOf(
-            TrackerSession(
+        val recentSegments = listOf(
+            SessionSegment(
                 id = 0,
-                start = now - (1 * 24 * 3600_000L), // 1 day ago
-                end = now - (1 * 24 * 3600_000L) + 600_000L,
-                distanceInM = 1000.0f,
-                distanceOnFootInM = 800.0f,
-                distanceInVehicleInM = 200.0f,
+                startTimeMs = now - (1 * 24 * 3600_000L), // 1 day ago
+                endTimeMs = now - (1 * 24 * 3600_000L) + 600_000L,
+                distanceM = 1000.0f,
                 steps = 800,
-                collections = 10
+                primaryActivity = null,
+                activityConfidence = null,
+                sampleCount = 10,
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = "test",
+                createdAt = System.currentTimeMillis(),
             ),
-            TrackerSession(
+            SessionSegment(
                 id = 0,
-                start = now - (3 * 24 * 3600_000L), // 3 days ago
-                end = now - (3 * 24 * 3600_000L) + 600_000L,
-                distanceInM = 1500.0f,
-                distanceOnFootInM = 1000.0f,
-                distanceInVehicleInM = 500.0f,
+                startTimeMs = now - (3 * 24 * 3600_000L), // 3 days ago
+                endTimeMs = now - (3 * 24 * 3600_000L) + 600_000L,
+                distanceM = 1500.0f,
                 steps = 1000,
-                collections = 15
+                primaryActivity = null,
+                activityConfidence = null,
+                sampleCount = 15,
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = "test",
+                createdAt = System.currentTimeMillis(),
             ),
-            TrackerSession(
+            SessionSegment(
                 id = 0,
-                start = now - (5 * 24 * 3600_000L), // 5 days ago
-                end = now - (5 * 24 * 3600_000L) + 600_000L,
-                distanceInM = 2000.0f,
-                distanceOnFootInM = 1200.0f,
-                distanceInVehicleInM = 800.0f,
+                startTimeMs = now - (5 * 24 * 3600_000L), // 5 days ago
+                endTimeMs = now - (5 * 24 * 3600_000L) + 600_000L,
+                distanceM = 2000.0f,
                 steps = 1200,
-                collections = 20
+                primaryActivity = null,
+                activityConfidence = null,
+                sampleCount = 20,
+                source = SegmentSource.USER_CREATED,
+                inferenceVersion = "test",
+                createdAt = System.currentTimeMillis(),
             )
         )
         
-        recentSessions.forEach { sessionDao.insert(it) }
+        recentSegments.forEach { segmentDao.insert(it) }
 
         // When: requesting weekly stats
         val stats = repository.getWeeklyStats()
 
         // Then: aggregates all three sessions
         // Total: 4500m distance, 3000m on foot, 1500m in vehicle, 3000 steps, 45 collections
-        assertTrue(stats.isNotEmpty())
+        assertTrue("Should have session count for recent sessions", stats.isNotEmpty())
         
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null, "Should have session count for recent sessions")
+        assertTrue(sessionCountStat != null)
     }
 
     @Test
@@ -341,7 +379,7 @@ class DefaultSessionRepositoryTest {
         testDispatcher.scheduler.advanceUntilIdle()
         
         // Success indicates proper dispatcher usage
-        assertTrue(true, "Test completed, confirming IO dispatcher usage")
+        assertTrue("Test completed, confirming IO dispatcher usage", true)
     }
 
     @Test
@@ -354,6 +392,6 @@ class DefaultSessionRepositoryTest {
         // Then: test dispatcher was used
         testDispatcher.scheduler.advanceUntilIdle()
         
-        assertTrue(true, "Test completed, confirming IO dispatcher usage")
+        assertTrue("Test completed, confirming IO dispatcher usage", true)
     }
 }

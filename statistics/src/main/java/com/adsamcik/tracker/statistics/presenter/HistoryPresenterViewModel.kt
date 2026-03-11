@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -60,6 +61,9 @@ class HistoryPresenterViewModel @Inject constructor(
 
 	private val _calendarState = MutableStateFlow(CalendarState())
 	val calendarState: StateFlow<CalendarState> = _calendarState.asStateFlow()
+
+	private val _pendingDeletes = MutableStateFlow<Set<Long>>(emptySet())
+	val pendingDeletes: StateFlow<Set<Long>> = _pendingDeletes.asStateFlow()
 
 	val explorationStats: StateFlow<ExplorationStats> = explorationRepository
 		.observeCellCount(EXPLORATION_ZOOM_LEVEL)
@@ -203,6 +207,31 @@ class HistoryPresenterViewModel @Inject constructor(
 				selectedDay = null,
 				selectedDayDetail = null,
 			)
+		}
+	}
+
+	/**
+	 * Mark a trip as pending deletion. The trip is hidden in the UI
+	 * but remains in the database until [confirmDeleteTrip] is called.
+	 */
+	fun requestDeleteTrip(tripId: Long) {
+		_pendingDeletes.value = _pendingDeletes.value + tripId
+	}
+
+	/**
+	 * Cancel a pending deletion, restoring the trip in the UI.
+	 */
+	fun undoDeleteTrip(tripId: Long) {
+		_pendingDeletes.value = _pendingDeletes.value - tripId
+	}
+
+	/**
+	 * Permanently delete a trip from the database and clear pending state.
+	 */
+	fun confirmDeleteTrip(tripId: Long) {
+		_pendingDeletes.value = _pendingDeletes.value - tripId
+		viewModelScope.launch {
+			tripDao.deleteById(tripId)
 		}
 	}
 

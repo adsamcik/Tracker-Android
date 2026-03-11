@@ -1,19 +1,31 @@
 package com.adsamcik.tracker.statistics.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,12 +44,14 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Displays a paged list of trips.
+ * Displays a paged list of trips with swipe-to-delete support.
  */
 @Composable
 internal fun TripsContent(
 	tripsItems: LazyPagingItems<Trip>,
 	onTripClick: (Long) -> Unit,
+	onDeleteTrip: (Long) -> Unit,
+	pendingDeletes: Set<Long>,
 	modifier: Modifier = Modifier,
 ) {
 	if (tripsItems.itemCount == 0) {
@@ -65,16 +79,79 @@ internal fun TripsContent(
 			key = { tripsItems[it]?.id ?: it },
 		) { index ->
 			val trip = tripsItems[index] ?: return@items
-			TripCard(
+			if (trip.id in pendingDeletes) return@items
+			SwipeToDeleteTripCard(
 				trip = trip,
 				onClick = { onTripClick(trip.id) },
+				onDelete = { onDeleteTrip(trip.id) },
 			)
 		}
 	}
 }
 
 /**
+ * Wraps [TripCard] in a [SwipeToDismissBox] for swipe-to-delete.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SwipeToDeleteTripCard(
+	trip: Trip,
+	onClick: () -> Unit,
+	onDelete: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val dismissState = rememberSwipeToDismissBoxState(
+		confirmValueChange = { dismissValue ->
+			if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+				onDelete()
+				true
+			} else {
+				false
+			}
+		},
+	)
+
+	SwipeToDismissBox(
+		state = dismissState,
+		backgroundContent = { SwipeDeleteBackground() },
+		modifier = modifier,
+		content = {
+			TripCard(
+				trip = trip,
+				onClick = onClick,
+			)
+		},
+	)
+}
+
+@Composable
+private fun SwipeDeleteBackground() {
+	Box(
+		modifier = Modifier
+			.fillMaxSize()
+			.padding(horizontal = 16.dp)
+			.background(
+				MaterialTheme.colorScheme.errorContainer,
+				shape = MaterialTheme.shapes.medium,
+			),
+		contentAlignment = Alignment.CenterEnd,
+	) {
+		Icon(
+			imageVector = Icons.Default.Delete,
+			contentDescription = stringResource(
+				com.adsamcik.tracker.shared.base.R.string.generic_delete,
+			),
+			tint = MaterialTheme.colorScheme.onErrorContainer,
+			modifier = Modifier
+				.padding(end = 16.dp)
+				.size(24.dp),
+		)
+	}
+}
+
+/**
  * Card displaying a single trip with activity icon, label, distance, and duration.
+ * Shows a warning indicator for trips with physically implausible GPS distances.
  */
 @Composable
 internal fun TripCard(
@@ -82,9 +159,19 @@ internal fun TripCard(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	val plausible = !trip.hasDistanceAnomaly
+	val containerColor = if (plausible) {
+		CardDefaults.cardColors()
+	} else {
+		CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+		)
+	}
+
 	Card(
 		onClick = onClick,
 		modifier = modifier.fillMaxWidth(),
+		colors = containerColor,
 	) {
 		Row(
 			modifier = Modifier.padding(16.dp),
@@ -94,7 +181,11 @@ internal fun TripCard(
 			Icon(
 				imageVector = activityIcon(trip.primaryActivity),
 				contentDescription = null,
-				tint = MaterialTheme.colorScheme.primary,
+				tint = if (plausible) {
+					MaterialTheme.colorScheme.primary
+				} else {
+					MaterialTheme.colorScheme.error
+				},
 			)
 			Column(modifier = Modifier.weight(1f)) {
 				Text(
@@ -104,19 +195,36 @@ internal fun TripCard(
 				Text(
 					text = formatTripTimeRange(trip.startTimeMs, trip.endTimeMs),
 					style = MaterialTheme.typography.bodySmall,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					color = MaterialTheme.colorScheme.onSurface,
 				)
 			}
 			Column(horizontalAlignment = Alignment.End) {
-				Text(
-					text = formatDistanceLabel(trip.distanceM),
-					style = MaterialTheme.typography.labelMedium,
-					color = MaterialTheme.colorScheme.primary,
-				)
+				if (!plausible) {
+					Row(verticalAlignment = Alignment.CenterVertically) {
+						Icon(
+							imageVector = Icons.Filled.Warning,
+							contentDescription = stringResource(R.string.trip_gps_anomaly),
+							tint = MaterialTheme.colorScheme.error,
+							modifier = Modifier.size(14.dp),
+						)
+						Spacer(modifier = Modifier.width(4.dp))
+						Text(
+							text = formatDistanceLabel(trip.distanceM),
+							style = MaterialTheme.typography.labelMedium,
+							color = MaterialTheme.colorScheme.error,
+						)
+					}
+				} else {
+					Text(
+						text = formatDistanceLabel(trip.distanceM),
+						style = MaterialTheme.typography.labelMedium,
+						color = MaterialTheme.colorScheme.primary,
+					)
+				}
 				Text(
 					text = formatDuration(trip.durationMs),
 					style = MaterialTheme.typography.labelSmall,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					color = MaterialTheme.colorScheme.onSurface,
 				)
 			}
 		}

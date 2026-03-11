@@ -57,6 +57,7 @@ sealed interface TimelineEntry {
 		val subtitle: String,
 		val timeLabel: String,
 		val modeIcon: ImageVector,
+		val isDistancePlausible: Boolean = true,
 	) : TimelineEntry {
 		override val id: String get() = "trip_$tripId"
 	}
@@ -250,6 +251,7 @@ class HistoryViewModel @Inject constructor(
 							subtitle = "${timeFormatter.format(java.util.Date(trip.startTimeMs))} - ${timeFormatter.format(java.util.Date(trip.endTimeMs))}",
 							timeLabel = formatDistanceLabel(trip.distanceM),
 							modeIcon = activityIcon(trip.primaryActivity),
+							isDistancePlausible = !trip.hasDistanceAnomaly,
 						),
 					)
 				}

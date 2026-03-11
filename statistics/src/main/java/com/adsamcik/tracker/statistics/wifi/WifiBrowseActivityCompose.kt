@@ -43,7 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseWifiData
+import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.extension.formatAsShortDateTime
 import com.adsamcik.tracker.shared.utils.style.compose.AppColors
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -85,7 +85,7 @@ private const val DEFAULT_LIMIT = 1000L
 @Composable
 private fun WifiBrowseRoute() {
     val scope = rememberCoroutineScope()
-    val items = remember { mutableStateListOf<DatabaseWifiData>() }
+    val items = remember { mutableStateListOf<WifiObservation>() }
     var filter by remember { mutableStateOf(WifiFilter()) }
     var showDialog by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -93,23 +93,13 @@ private fun WifiBrowseRoute() {
     // initial load
     LaunchedEffect(filter, context) {
         scope.launch(Dispatchers.Default) {
-            val dao = AppDatabase.database(context).wifiDao()
-            val list = if (needsFiltering(filter)) {
-                // Raw query building replicating previous logic
-                val where = buildWhere(filter)
-                val query = androidx.sqlite.db.SupportSQLiteQueryBuilder
-                    .builder("wifi_data")
-                    .apply {
-                        if (where.first.isNotBlank()) selection(where.first, where.second)
-                        limit(filter.count.toString())
-                    }
-                    .create()
-                dao.getAll(query)
-            } else {
-                dao.getAll(filter.count)
+            val dao = AppDatabase.database(context).wifiObservationDao()
+            val list = withContext(Dispatchers.IO) {
+                dao.getAllBetween(0L, Long.MAX_VALUE)
             }
+            val filtered = applyFilter(list, filter)
             withContext(Dispatchers.Main) {
-                items.clear(); items.addAll(list.sortedBy { it.bssid })
+                items.clear(); items.addAll(filtered.sortedBy { it.bssid })
             }
         }
     }
@@ -134,6 +124,18 @@ private fun WifiBrowseRoute() {
 private fun needsFiltering(f: WifiFilter): Boolean =
     !f.bssid.isNullOrBlank() || !f.ssid.isNullOrBlank() || !f.capabilities.isNullOrBlank() || !f.frequency.isNullOrBlank()
 
+private fun applyFilter(list: List<WifiObservation>, f: WifiFilter): List<WifiObservation> {
+    var result = list
+    if (!f.bssid.isNullOrBlank()) result = result.filter { it.bssid.contains(f.bssid, ignoreCase = true) }
+    if (!f.ssid.isNullOrBlank()) result = result.filter { it.ssid.contains(f.ssid, ignoreCase = true) }
+    if (!f.capabilities.isNullOrBlank()) result = result.filter { it.capabilities.contains(f.capabilities, ignoreCase = true) }
+    if (!f.frequency.isNullOrBlank()) {
+        val freqPrefix = f.frequency
+        result = result.filter { it.frequency.toString().startsWith(freqPrefix) }
+    }
+    return result.take(f.count.toInt())
+}
+
 private fun buildWhere(f: WifiFilter): Pair<String, Array<String>> {
     val conditions = mutableListOf<String>()
     val args = mutableListOf<String>()
@@ -147,7 +149,7 @@ private fun buildWhere(f: WifiFilter): Pair<String, Array<String>> {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WifiBrowseScreen(
-    items: List<DatabaseWifiData>,
+    items: List<WifiObservation>,
     filter: WifiFilter,
     onOpenFilter: () -> Unit,
 ) {
@@ -217,15 +219,15 @@ private fun HeaderRow() {
 }
 
 @Composable
-private fun WifiItemRow(item: DatabaseWifiData) {
+private fun WifiItemRow(item: WifiObservation) {
     Column {
         WifiTableRow(
             bssid = item.bssid,
             ssid = item.ssid,
             capabilities = item.capabilities,
             frequency = stringResource(R.string.wifilist_item_frequency, item.frequency),
-            firstSeen = item.firstSeen.formatAsShortDateTime(),
-            lastSeen = item.lastSeen.formatAsShortDateTime(),
+            firstSeen = item.timeMs.formatAsShortDateTime(),
+            lastSeen = item.timeMs.formatAsShortDateTime(),
             header = false
         )
         // Add a separator

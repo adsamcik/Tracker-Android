@@ -107,7 +107,7 @@ class StatsViewModel @Inject constructor(
 
     /**
      * Load summary statistics from repository.
-     * Uses legacy SessionRepository which delegates to SummaryGenerator.
+     * Uses SessionRepository summary adapter backed by Room aggregates.
      */
     fun loadSummaryStats() {
         viewModelScope.launch {
@@ -125,7 +125,7 @@ class StatsViewModel @Inject constructor(
 
     /**
      * Load weekly statistics from repository.
-     * Uses legacy SessionRepository which delegates to SummaryGenerator.
+     * Uses SessionRepository summary adapter backed by Room aggregates.
      */
     fun loadWeeklyStats() {
         viewModelScope.launch {

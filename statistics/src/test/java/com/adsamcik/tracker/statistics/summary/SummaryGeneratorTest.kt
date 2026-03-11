@@ -2,12 +2,12 @@ package com.adsamcik.tracker.statistics.summary
 
 import android.content.Context
 import android.content.res.Resources
+import android.database.Cursor
+import androidx.sqlite.db.SupportSQLiteQuery
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.CellLocationDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationDataDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionDataDao
-import com.adsamcik.tracker.shared.base.database.dao.WifiDataDao
-import com.adsamcik.tracker.shared.base.database.data.TrackerSessionSummary
+import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.TripDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.statistics.R
@@ -30,11 +30,10 @@ class SummaryGeneratorTest {
 
 	private val context: Context = mockk(relaxed = true)
 	private val resources: Resources = mockk(relaxed = true)
-	private val database: AppDatabase = mockk()
-	private val wifiDao: WifiDataDao = mockk()
-	private val cellDao: CellLocationDao = mockk()
-	private val locationDao: LocationDataDao = mockk()
-	private val sessionDao: SessionDataDao = mockk()
+	private val database: AppDatabase = mockk(relaxed = true)
+	private val wifiObservationDao: WifiObservationDao = mockk()
+	private val cellSampleDao: CellSampleDao = mockk()
+	private val tripDao: TripDao = mockk(relaxed = true)
 
 	@BeforeEach
 	fun setUp() {
@@ -49,10 +48,9 @@ class SummaryGeneratorTest {
 
 		every { AppDatabase.database(any()) } returns database
 		every { TrackerSettingsQuick.lengthSystem(any()) } returns LengthSystem.Metric
-		every { database.wifiDao() } returns wifiDao
-		every { database.cellLocationDao() } returns cellDao
-		every { database.locationDao() } returns locationDao
-		every { database.sessionDao() } returns sessionDao
+		every { database.wifiObservationDao() } returns wifiObservationDao
+		every { database.cellSampleDao() } returns cellSampleDao
+		every { database.tripDao() } returns tripDao
 	}
 
 	@AfterEach
@@ -60,44 +58,44 @@ class SummaryGeneratorTest {
 		unmockkAll()
 	}
 
-	private fun sessionSummary(
+	/**
+	 * Stubs the raw SQL cursor returned by database.query() for segment summary queries.
+	 * Columns: duration, collections (sample_count), distance, steps
+	 */
+	private fun stubSegmentSummaryCursor(
 		duration: Long = 0L,
 		collections: Int = 0,
 		distanceInM: Float = 0f,
-		distanceOnFootInM: Float = 0f,
-		distanceInVehicleInM: Float = 0f,
 		steps: Int = 0,
-	) = TrackerSessionSummary(
-		duration = duration,
-		collections = collections,
-		distanceInM = distanceInM,
-		distanceOnFootInM = distanceOnFootInM,
-		distanceInVehicleInM = distanceInVehicleInM,
-		steps = steps,
-	)
+	) {
+		val cursor = mockk<Cursor>()
+		every { cursor.moveToFirst() } returns true
+		every { cursor.getLong(0) } returns duration
+		every { cursor.getInt(1) } returns collections
+		every { cursor.getFloat(2) } returns distanceInM
+		every { cursor.getInt(3) } returns steps
+		every { cursor.close() } returns Unit
+		every { database.query(any<SupportSQLiteQuery>()) } returns cursor
+	}
 
 	private fun stubDaoCounts(
-		locationCount: Long = 0L,
 		wifiCount: Long = 0L,
 		cellCount: Long = 0L,
-		sessionCount: Long = 0L,
+		tripCount: Long = 0L,
 	) {
-		every { locationDao.count() } returns locationCount
-		every { wifiDao.count() } returns wifiCount
-		every { cellDao.uniqueCount() } returns cellCount
-		every { sessionDao.count() } returns sessionCount
+		every { wifiObservationDao.countDistinctBssid() } returns wifiCount
+		every { cellSampleDao.uniqueCount() } returns cellCount
+		every { tripDao.countAllTrips() } returns tripCount
 	}
 
 	private fun stubTimedDaoCounts(
-		locationCount: Long = 0L,
 		wifiCount: Long = 0L,
 		cellCount: Long = 0L,
-		sessionCount: Long = 0L,
+		tripCount: Long = 0L,
 	) {
-		every { locationDao.count(any(), any()) } returns locationCount
-		every { wifiDao.count(any(), any()) } returns wifiCount
-		every { cellDao.uniqueCount(any(), any()) } returns cellCount
-		every { sessionDao.count(any(), any()) } returns sessionCount
+		every { wifiObservationDao.countDistinctBssid(any(), any()) } returns wifiCount
+		every { cellSampleDao.uniqueCount(any(), any()) } returns cellCount
+		every { tripDao.countTripsBetween(any(), any()) } returns tripCount
 	}
 
 	// =====================================================================
@@ -110,7 +108,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `returns exactly 10 stats for session summary plus counts`() {
-			every { sessionDao.getSummary() } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubDaoCounts()
 
 			val result = SummaryGenerator.buildSummary(context)
@@ -121,7 +119,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `all stats have INFORMATION display type`() {
-			every { sessionDao.getSummary() } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubDaoCounts()
 
 			val result = SummaryGenerator.buildSummary(context)
@@ -133,11 +131,9 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `session summary stats appear before count stats`() {
-			every { sessionDao.getSummary() } returns sessionSummary(
+			stubSegmentSummaryCursor(
 				duration = 3600000L,
 				distanceInM = 5000f,
-				distanceOnFootInM = 3000f,
-				distanceInVehicleInM = 2000f,
 				collections = 100,
 				steps = 5000,
 			)
@@ -156,7 +152,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `count stats include location, wifi, cell, and session counts`() {
-			every { sessionDao.getSummary() } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubDaoCounts()
 
 			val result = SummaryGenerator.buildSummary(context)
@@ -170,19 +166,16 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `all stat data values are non-blank strings`() {
-			every { sessionDao.getSummary() } returns sessionSummary(
+			stubSegmentSummaryCursor(
 				duration = 7200000L,
 				distanceInM = 10000f,
-				distanceOnFootInM = 6000f,
-				distanceInVehicleInM = 4000f,
 				collections = 250,
 				steps = 12000,
 			)
 			stubDaoCounts(
-				locationCount = 500L,
 				wifiCount = 300L,
 				cellCount = 50L,
-				sessionCount = 10L,
+				tripCount = 10L,
 			)
 
 			val result = SummaryGenerator.buildSummary(context)
@@ -194,7 +187,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `zero session data produces valid stats`() {
-			every { sessionDao.getSummary() } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubDaoCounts()
 
 			val result = SummaryGenerator.buildSummary(context)
@@ -216,7 +209,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `returns exactly 10 stats for seven day summary`() {
-			every { sessionDao.getSummary(any(), any()) } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubTimedDaoCounts()
 
 			val result = SummaryGenerator.buildSevenDaySummary(context)
@@ -226,7 +219,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `all stats have INFORMATION display type`() {
-			every { sessionDao.getSummary(any(), any()) } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubTimedDaoCounts()
 
 			val result = SummaryGenerator.buildSevenDaySummary(context)
@@ -238,7 +231,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `seven day summary includes session stats first`() {
-			every { sessionDao.getSummary(any(), any()) } returns sessionSummary(
+			stubSegmentSummaryCursor(
 				duration = 1800000L,
 				distanceInM = 2500f,
 				steps = 3000,
@@ -257,7 +250,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `seven day count stats have correct resource IDs`() {
-			every { sessionDao.getSummary(any(), any()) } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubTimedDaoCounts()
 
 			val result = SummaryGenerator.buildSevenDaySummary(context)
@@ -271,19 +264,16 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `seven day summary with typical data produces valid stats`() {
-			every { sessionDao.getSummary(any(), any()) } returns sessionSummary(
+			stubSegmentSummaryCursor(
 				duration = 14400000L,
 				distanceInM = 25000f,
-				distanceOnFootInM = 15000f,
-				distanceInVehicleInM = 10000f,
 				collections = 500,
 				steps = 20000,
 			)
 			stubTimedDaoCounts(
-				locationCount = 1000L,
 				wifiCount = 800L,
 				cellCount = 120L,
-				sessionCount = 14L,
+				tripCount = 14L,
 			)
 
 			val result = SummaryGenerator.buildSevenDaySummary(context)
@@ -297,7 +287,7 @@ class SummaryGeneratorTest {
 
 		@Test
 		fun `zero data seven day summary still returns correct structure`() {
-			every { sessionDao.getSummary(any(), any()) } returns sessionSummary()
+			stubSegmentSummaryCursor()
 			stubTimedDaoCounts()
 
 			val result = SummaryGenerator.buildSevenDaySummary(context)

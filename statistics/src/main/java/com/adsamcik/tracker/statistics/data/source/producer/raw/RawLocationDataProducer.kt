@@ -4,9 +4,10 @@ import android.content.Context
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.statistics.data.source.StatDataSource
 import com.adsamcik.tracker.statistics.data.source.abstraction.RawDataProducer
+import kotlinx.coroutines.runBlocking
 
 /**
- * Produces raw ordered list of locations.
+ * Produces raw ordered list of location samples.
  */
 class RawLocationDataProducer : RawDataProducer {
 	override val type: StatDataSource
@@ -17,7 +18,9 @@ class RawLocationDataProducer : RawDataProducer {
 			startTime: Long,
 			endTime: Long
 	): Any {
-		return AppDatabase.database(context).locationDao()
-				.getAllBetweenOrdered(startTime, endTime)
+		return runBlocking {
+			AppDatabase.database(context).locationSampleDao()
+				.getAllBetween(startTime, endTime)
+		}
 	}
 }

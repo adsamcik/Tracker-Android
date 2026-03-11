@@ -1,9 +1,10 @@
 package com.adsamcik.tracker.statistics.ui
 
-import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -48,34 +50,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
+import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
+import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.style.compose.EmptyStateCard
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.statistics.R
+import com.adsamcik.tracker.statistics.presenter.TripDetailInsights
 import com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModel
 import com.adsamcik.tracker.statistics.presenter.TripDetailState
+import com.adsamcik.tracker.statistics.presenter.RouteEmptyReason
+import com.adsamcik.tracker.statistics.presenter.resolveRouteEmptyReason
 import com.adsamcik.tracker.stats.api.repository.TripSummary
-import java.io.File
-import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
+import kotlin.math.roundToInt
 
 private const val MS_TO_KMH = 3.6
+private const val MS_TO_MPH = 2.236936
+private const val METERS_TO_FEET = 3.28084
+private const val METERS_PER_KILOMETER = 1000.0
+private const val METERS_PER_MILE = 1609.344
 
 /**
  * Entry composable for trip detail screen.
@@ -88,8 +99,10 @@ fun TripDetailRoute(
 	onBack: () -> Unit,
 	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
+	BackHandler(onBack = onBack)
 	val state by viewModel.state.collectAsState()
 	val skiSegments by viewModel.skiSegments.collectAsState()
+	val insights by viewModel.insights.collectAsState()
 	var showDeleteDialog by remember { mutableStateOf(false) }
 	var showMenu by remember { mutableStateOf(false) }
 	val context = LocalContext.current
@@ -167,7 +180,11 @@ fun TripDetailRoute(
 				}
 
 				is TripDetailState.Loaded -> {
-					TripOverview(trip = s.trip, skiSegments = skiSegments)
+					TripOverview(
+						trip = s.trip,
+						insights = insights,
+						skiSegments = skiSegments,
+					)
 				}
 
 				is TripDetailState.NotFound -> {
@@ -211,12 +228,13 @@ fun TripDetailRoute(
 }
 
 private val dateTimeFormatter: DateTimeFormatter by lazy {
-	DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+	DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.MEDIUM)
 }
 
 @Composable
 private fun TripOverview(
 	trip: TripSummary,
+	insights: TripDetailInsights,
 	skiSegments: List<com.adsamcik.tracker.shared.base.database.data.SkiRunSegment> = emptyList()
 ) {
 	val context = LocalContext.current
@@ -226,6 +244,11 @@ private fun TripOverview(
 	val startText = remember(trip.startTimeMs) {
 		dateTimeFormatter.format(
 			Instant.ofEpochMilli(trip.startTimeMs.raw).atZone(ZoneId.systemDefault())
+		)
+	}
+	val endText = remember(trip.endTimeMs) {
+		dateTimeFormatter.format(
+			Instant.ofEpochMilli(trip.endTimeMs.raw).atZone(ZoneId.systemDefault())
 		)
 	}
 	val durationText = remember(trip.duration) {
@@ -238,15 +261,32 @@ private fun TripOverview(
 			unit = settings.lengthSystem
 		)
 	}
+	val averageSpeedText = remember(insights.averageSpeedMps, settings.lengthSystem) {
+		insights.averageSpeedMps.formatSpeed(settings.lengthSystem)
+	}
+	val maxSpeedText = remember(insights.maxSpeedMps, settings.lengthSystem) {
+		insights.maxSpeedMps.formatSpeed(settings.lengthSystem)
+	}
+	val paceText = remember(trip.distance.raw, trip.duration.raw, settings.lengthSystem) {
+		formatPace(trip.distance.raw.toDouble(), trip.duration.raw, settings.lengthSystem)
+	}
+	val elevationGainText = remember(insights.elevationGainM, settings.lengthSystem) {
+		insights.elevationGainM.formatElevation(settings.lengthSystem)
+	}
+	val elevationLossText = remember(insights.elevationLossM, settings.lengthSystem) {
+		insights.elevationLossM.formatElevation(settings.lengthSystem)
+	}
+	val maxAltitudeText = remember(insights.maxAltitudeM, settings.lengthSystem) {
+		insights.maxAltitudeM.formatElevation(settings.lengthSystem)
+	}
 
 	Column(
 		modifier = Modifier
 			.fillMaxSize()
 			.verticalScroll(rememberScrollState())
-			.padding(16.dp),
+			.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp)
 	) {
-		// Header card with time and icon
 		GlassCard(modifier = Modifier.fillMaxWidth()) {
 			Row(
 				modifier = Modifier.fillMaxWidth(),
@@ -268,13 +308,13 @@ private fun TripOverview(
 				}
 				Column(Modifier.padding(start = 16.dp)) {
 					Text(
-						text = startText,
+						text = insights.activityType,
 						style = MaterialTheme.typography.titleMedium,
 						fontWeight = FontWeight.SemiBold,
 						color = MaterialTheme.colorScheme.onSurface
 					)
 					Text(
-						text = durationText,
+						text = "$startText → $endText",
 						style = MaterialTheme.typography.bodyMedium,
 						color = MaterialTheme.colorScheme.onSurfaceVariant
 					)
@@ -282,27 +322,45 @@ private fun TripOverview(
 			}
 		}
 
-		// Primary metrics grid
-		Row(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalArrangement = Arrangement.spacedBy(12.dp)
-		) {
-			MetricCard(
-				label = stringResource(R.string.trip_detail_distance),
-				value = distanceText,
-				modifier = Modifier.weight(1f)
-			)
-			MetricCard(
-				label = stringResource(R.string.trip_detail_steps),
-				value = trip.steps.raw.formatReadable(),
-				modifier = Modifier.weight(1f)
-			)
-		}
+		MetricRow(
+			firstLabel = stringResource(R.string.trip_detail_duration),
+			firstValue = durationText,
+			secondLabel = stringResource(R.string.trip_detail_distance),
+			secondValue = distanceText,
+		)
+		MetricRow(
+			firstLabel = stringResource(R.string.trip_detail_steps),
+			firstValue = trip.steps.raw.formatReadable(),
+			secondLabel = stringResource(R.string.trip_detail_avg_speed),
+			secondValue = averageSpeedText,
+		)
+		MetricRow(
+			firstLabel = stringResource(R.string.trip_detail_max_speed),
+			firstValue = maxSpeedText,
+			secondLabel = stringResource(R.string.trip_detail_pace),
+			secondValue = paceText,
+		)
 
-		// Developer metrics behind expandable toggle
-		DeveloperMetrics(trip)
+		RoutePreviewCard(
+			points = insights.routePoints,
+			sourceLabel = insights.sourceLabel,
+			hasDistance = trip.distance.raw > 0f,
+		)
+		TripFactsCard(
+			activityType = insights.activityType,
+			source = insights.sourceLabel,
+			startTime = startText,
+			endTime = endText,
+			elevationGain = elevationGainText,
+			elevationLoss = elevationLossText,
+			maxAltitude = maxAltitudeText,
+		)
+		DeveloperMetrics(
+			trip = trip,
+			insights = insights,
+			maxAltitudeText = maxAltitudeText,
+		)
 
-		// Ski session detail (only shown when ski segments exist)
 		if (skiSegments.isNotEmpty()) {
 			com.adsamcik.tracker.statistics.ui.ski.SkiSessionDetailSection(
 				segments = skiSegments,
@@ -313,14 +371,156 @@ private fun TripOverview(
 }
 
 @Composable
-private fun DeveloperMetrics(trip: TripSummary) {
+private fun MetricRow(
+	firstLabel: String,
+	firstValue: String,
+	secondLabel: String,
+	secondValue: String,
+) {
+	Row(
+		modifier = Modifier.fillMaxWidth(),
+		horizontalArrangement = Arrangement.spacedBy(12.dp)
+	) {
+		MetricCard(
+			label = firstLabel,
+			value = firstValue,
+			modifier = Modifier.weight(1f)
+		)
+		MetricCard(
+			label = secondLabel,
+			value = secondValue,
+			modifier = Modifier.weight(1f)
+		)
+	}
+}
+
+@Composable
+private fun RoutePreviewCard(
+	points: List<LocationSample>,
+	sourceLabel: String,
+	hasDistance: Boolean,
+) {
+	val emptyReason = resolveRouteEmptyReason(
+		routePointCount = points.size,
+		hasDistance = hasDistance,
+		sourceLabel = sourceLabel,
+	)
+	GlassCard(modifier = Modifier.fillMaxWidth()) {
+		Column {
+			Text(
+				text = stringResource(R.string.trip_detail_route_map),
+				style = MaterialTheme.typography.titleMedium,
+				fontWeight = FontWeight.SemiBold,
+				color = MaterialTheme.colorScheme.onSurface
+			)
+			Spacer(Modifier.height(12.dp))
+			if (emptyReason != null) {
+				Text(
+					text = stringResource(
+						when (emptyReason) {
+							RouteEmptyReason.LEGACY_NO_ROUTE ->
+								R.string.trip_detail_route_unavailable_legacy
+
+							RouteEmptyReason.DISTANCE_NO_ROUTE ->
+								R.string.trip_detail_route_no_gps_points
+
+							RouteEmptyReason.NO_DATA ->
+								R.string.trip_detail_no_location_data
+						}
+					),
+					style = MaterialTheme.typography.bodyMedium,
+					color = MaterialTheme.colorScheme.onSurfaceVariant
+				)
+			} else {
+				TripRoutePreview(
+					points = points,
+					modifier = Modifier
+						.fillMaxWidth()
+						.height(180.dp)
+				)
+			}
+		}
+	}
+}
+
+@Composable
+private fun TripFactsCard(
+	activityType: String,
+	source: String,
+	startTime: String,
+	endTime: String,
+	elevationGain: String,
+	elevationLoss: String,
+	maxAltitude: String,
+) {
+	GlassCard(modifier = Modifier.fillMaxWidth()) {
+		Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+			FactRow(
+				label = stringResource(R.string.trip_detail_activity_type),
+				value = activityType,
+			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_source),
+				value = source,
+			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_start_time),
+				value = startTime,
+			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_end_time),
+				value = endTime,
+			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_elevation_gain),
+				value = elevationGain,
+			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_elevation_loss),
+				value = elevationLoss,
+			)
+			FactRow(
+				label = stringResource(R.string.trip_detail_max_altitude),
+				value = maxAltitude,
+			)
+		}
+	}
+}
+
+@Composable
+private fun FactRow(
+	label: String,
+	value: String,
+) {
+	Column {
+		Text(
+			text = label,
+			style = MaterialTheme.typography.labelMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant
+		)
+		Spacer(Modifier.height(2.dp))
+		Text(
+			text = value,
+			style = MaterialTheme.typography.bodyLarge,
+			color = MaterialTheme.colorScheme.onSurface
+		)
+	}
+}
+
+@Composable
+private fun DeveloperMetrics(
+	trip: TripSummary,
+	insights: TripDetailInsights,
+	maxAltitudeText: String,
+) {
 	var expanded by remember { mutableStateOf(false) }
 
 	Row(
 		modifier = Modifier
 			.fillMaxWidth()
+			.heightIn(min = 48.dp)
 			.clickable { expanded = !expanded }
-			.padding(vertical = 4.dp),
+			.padding(horizontal = 8.dp, vertical = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
 		horizontalArrangement = Arrangement.Center
 	) {
@@ -330,13 +530,13 @@ private fun DeveloperMetrics(trip: TripSummary) {
 				else R.string.trip_detail_show_details
 			),
 			style = MaterialTheme.typography.labelMedium,
-			color = MaterialTheme.colorScheme.onSurfaceVariant
+			color = MaterialTheme.colorScheme.onSurface
 		)
 		Icon(
 			imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
 			contentDescription = null,
 			modifier = Modifier.size(20.dp),
-			tint = MaterialTheme.colorScheme.onSurfaceVariant
+			tint = MaterialTheme.colorScheme.onSurface
 		)
 	}
 
@@ -345,21 +545,88 @@ private fun DeveloperMetrics(trip: TripSummary) {
 		enter = expandVertically(),
 		exit = shrinkVertically()
 	) {
-		Row(
-			modifier = Modifier.fillMaxWidth(),
-			horizontalArrangement = Arrangement.spacedBy(12.dp)
-		) {
-			MetricCard(
-				label = stringResource(R.string.trip_detail_samples),
-				value = trip.sampleCount.toString(),
-				modifier = Modifier.weight(1f)
+		Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+			MetricRow(
+				firstLabel = stringResource(R.string.trip_detail_samples),
+				firstValue = trip.sampleCount.toString(),
+				secondLabel = stringResource(R.string.trip_detail_source),
+				secondValue = insights.sourceLabel,
 			)
-			MetricCard(
-				label = stringResource(R.string.trip_detail_source),
-				value = trip.primaryMode.name.replace('_', ' ').lowercase()
-					.replaceFirstChar { it.uppercase() },
-				modifier = Modifier.weight(1f)
+			MetricRow(
+				firstLabel = stringResource(R.string.trip_detail_activity_type),
+				firstValue = insights.activityType,
+				secondLabel = stringResource(R.string.trip_detail_max_altitude),
+				secondValue = maxAltitudeText,
 			)
+		}
+	}
+}
+
+@Composable
+private fun TripRoutePreview(
+	points: List<LocationSample>,
+	modifier: Modifier = Modifier,
+) {
+	val primaryColor = MaterialTheme.colorScheme.primary
+	val startColor = MaterialTheme.colorScheme.tertiary
+	val endColor = MaterialTheme.colorScheme.error
+
+	Canvas(modifier = modifier) {
+		if (points.size < 2) return@Canvas
+
+		var minLat = Double.MAX_VALUE
+		var maxLat = Double.MIN_VALUE
+		var minLon = Double.MAX_VALUE
+		var maxLon = Double.MIN_VALUE
+
+		val e7Divisor = 1e7
+		points.forEach { point ->
+			val lat = (point.latE7 ?: return@forEach) / e7Divisor
+			val lon = (point.lonE7 ?: return@forEach) / e7Divisor
+			minLat = minOf(minLat, lat)
+			maxLat = maxOf(maxLat, lat)
+			minLon = minOf(minLon, lon)
+			maxLon = maxOf(maxLon, lon)
+		}
+
+		val latRange = (maxLat - minLat).takeIf { it > 0.0 } ?: 0.001
+		val lonRange = (maxLon - minLon).takeIf { it > 0.0 } ?: 0.001
+		val paddedLatMin = minLat - latRange * 0.1
+		val paddedLonMin = minLon - lonRange * 0.1
+		val paddedLatRange = latRange * 1.2
+		val paddedLonRange = lonRange * 1.2
+
+		val screenPoints = points.mapNotNull { point ->
+			val lat = (point.latE7 ?: return@mapNotNull null) / e7Divisor
+			val lon = (point.lonE7 ?: return@mapNotNull null) / e7Divisor
+			Offset(
+				x = ((lon - paddedLonMin) / paddedLonRange).toFloat() * size.width,
+				y = (1 - ((lat - paddedLatMin) / paddedLatRange)).toFloat() * size.height,
+			)
+		}
+
+		val path = Path().apply {
+			screenPoints.forEachIndexed { index, offset ->
+				if (index == 0) moveTo(offset.x, offset.y) else lineTo(offset.x, offset.y)
+			}
+		}
+
+		drawPath(
+			path = path,
+			color = primaryColor,
+			style = Stroke(
+				width = 4.dp.toPx(),
+				cap = StrokeCap.Round,
+				join = StrokeJoin.Round,
+			),
+			alpha = 0.75f,
+		)
+
+		screenPoints.firstOrNull()?.let { start ->
+			drawCircle(color = startColor, radius = 7.dp.toPx(), center = start)
+		}
+		screenPoints.lastOrNull()?.let { end ->
+			drawCircle(color = endColor, radius = 7.dp.toPx(), center = end)
 		}
 	}
 }
@@ -386,44 +653,6 @@ private fun DeleteConfirmationDialog(
 	)
 }
 
-internal fun exportGpx(
-	context: android.content.Context,
-	trip: TripSummary,
-	points: List<DatabaseLocation>
-) {
-	val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-		timeZone = TimeZone.getTimeZone("UTC")
-	}
-
-	val sb = StringBuilder()
-	sb.append("""<?xml version="1.0" encoding="UTF-8"?>""")
-	sb.append("""<gpx version="1.1" creator="Tracker">""")
-	sb.append("<trk><trkseg>")
-	for (pt in points) {
-		sb.append("""<trkpt lat="${pt.latitude}" lon="${pt.longitude}">""")
-		pt.altitude?.let { sb.append("<ele>$it</ele>") }
-		sb.append("<time>${sdf.format(Date(pt.time))}</time>")
-		sb.append("</trkpt>")
-	}
-	sb.append("</trkseg></trk></gpx>")
-
-	val file = File(context.cacheDir, "trip_${trip.id}.gpx")
-	file.writeText(sb.toString())
-
-	val uri = FileProvider.getUriForFile(
-		context,
-		"${context.packageName}.fileprovider",
-		file
-	)
-
-	val shareIntent = Intent(Intent.ACTION_SEND).apply {
-		type = "application/gpx+xml"
-		putExtra(Intent.EXTRA_STREAM, uri)
-		addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-	}
-	context.startActivity(Intent.createChooser(shareIntent, null))
-}
-
 @Composable
 private fun MetricCard(
 	label: String,
@@ -446,4 +675,52 @@ private fun MetricCard(
 			)
 		}
 	}
+}
+
+private fun Double?.formatSpeed(lengthSystem: LengthSystem): String {
+	val speed = this ?: return "—"
+	val converted = when (lengthSystem) {
+		LengthSystem.Imperial -> speed * MS_TO_MPH
+		else -> speed * MS_TO_KMH
+	}
+	val unit = when (lengthSystem) {
+		LengthSystem.Imperial -> "mph"
+		else -> "km/h"
+	}
+	return String.format(Locale.getDefault(), "%.1f %s", converted, unit)
+}
+
+private fun Double?.formatElevation(lengthSystem: LengthSystem): String {
+	val elevation = this ?: return "—"
+	val converted = when (lengthSystem) {
+		LengthSystem.Imperial -> elevation * METERS_TO_FEET
+		else -> elevation
+	}
+	val unit = when (lengthSystem) {
+		LengthSystem.Imperial -> "ft"
+		else -> "m"
+	}
+	return "${converted.roundToInt()} $unit"
+}
+
+private fun formatPace(
+	distanceMeters: Double,
+	durationMs: Long,
+	lengthSystem: LengthSystem,
+): String {
+	if (distanceMeters <= 0.0 || durationMs <= 0L) return "—"
+	val unitDistance = when (lengthSystem) {
+		LengthSystem.Imperial -> distanceMeters / METERS_PER_MILE
+		else -> distanceMeters / METERS_PER_KILOMETER
+	}
+	if (unitDistance <= 0.0) return "—"
+
+	val totalSeconds = (durationMs / 1000.0 / unitDistance).roundToInt()
+	val minutes = totalSeconds / 60
+	val seconds = totalSeconds % 60
+	val unitLabel = when (lengthSystem) {
+		LengthSystem.Imperial -> "mi"
+		else -> "km"
+	}
+	return String.format(Locale.getDefault(), "%d:%02d / %s", minutes, seconds, unitLabel)
 }

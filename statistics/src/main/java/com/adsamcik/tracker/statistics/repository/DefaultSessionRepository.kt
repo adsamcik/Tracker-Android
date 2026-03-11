@@ -3,10 +3,9 @@ package com.adsamcik.tracker.statistics.repository
 import android.content.Context
 import androidx.paging.PagingSource
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.statistics.data.Stat
-import com.adsamcik.tracker.statistics.summary.SummaryGenerator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -24,18 +23,18 @@ class DefaultSessionRepository @Inject constructor(
     @ApplicationContext context: Context,
     private val dispatchers: DispatchersProvider
 ) : SessionRepository {
-    private val sessionDao = AppDatabase.database(context).sessionDao()
+    private val tripDao = AppDatabase.database(context).tripDao()
     private val context = context
     
-    override fun getAllSessionsPaged(): PagingSource<Int, TrackerSession> {
-        return sessionDao.getAllPaged()
+    override fun getAllSessionsPaged(): PagingSource<Int, Trip> {
+        return tripDao.getAllPaged()
     }
     
     override suspend fun getSummaryStats(): List<Stat> = withContext(dispatchers.io) {
-        SummaryGenerator.buildSummary(context)
+        SessionStatsAdapter.buildSummary(context)
     }
     
     override suspend fun getWeeklyStats(): List<Stat> = withContext(dispatchers.io) {
-        SummaryGenerator.buildSevenDaySummary(context)
+        SessionStatsAdapter.buildSevenDaySummary(context)
     }
 }

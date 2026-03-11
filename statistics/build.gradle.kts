@@ -61,6 +61,7 @@ dependencies {
 	implementation(project(":sutils"))
 	implementation(project(":spreferences"))
 	implementation(project(":logger"))
+	implementation(project(":impexp"))
 
 	// Stats architecture
 	implementation(project(":stats-api"))
