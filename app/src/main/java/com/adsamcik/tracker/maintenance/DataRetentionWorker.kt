@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.maintenance
 
 import android.content.Context
+import androidx.hilt.work.HiltWorker
 import androidx.annotation.WorkerThread
 import androidx.annotation.VisibleForTesting
 import androidx.room.withTransaction
@@ -13,6 +14,8 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -25,12 +28,16 @@ import java.time.Duration
 /**
  * Periodic worker that deletes data older than N years to honor auto-cleanup setting.
  */
-class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
-    private val dispatchers = DefaultDispatchersProvider
+@HiltWorker
+class DataRetentionWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted workerParams: WorkerParameters,
+    private val retentionConfigStore: RetentionConfigStore,
+    private val appDatabase: AppDatabase,
+) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        val store = RetentionConfigStore(applicationContext, dispatchers.io)
-        val config = store.config.first()
+        val config = retentionConfigStore.config.first()
         if (!config.autoCleanupEnabled) {
             return Result.success()
         }
@@ -38,7 +45,7 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Co
         val years = config.dataRetentionYears
         val cutoff = System.currentTimeMillis() - yearsToMillis(years)
         tryWithReport {
-            pruneOlderThan(applicationContext, cutoff)
+            pruneOlderThan(appDatabase, cutoff)
         }
         return Result.success()
     }
@@ -92,8 +99,7 @@ class DataRetentionWorker(context: Context, workerParams: WorkerParameters) : Co
         }
 
         @WorkerThread
-        private suspend fun pruneOlderThan(context: Context, cutoffMillis: Long) {
-            val db = AppDatabase.database(context)
+        private suspend fun pruneOlderThan(db: AppDatabase, cutoffMillis: Long) {
             db.withTransaction {
                 // Locations
                 db.compileStatement("DELETE FROM location_data WHERE time < ?")

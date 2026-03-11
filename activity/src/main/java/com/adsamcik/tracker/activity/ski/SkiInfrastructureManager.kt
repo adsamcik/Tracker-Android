@@ -5,9 +5,11 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.stats.engine.ski.SkiLift
 import kotlinx.coroutines.withContext
 import java.io.File
+import javax.inject.Inject
 
 /**
  * Manages the optional ski infrastructure database.
@@ -17,8 +19,8 @@ import java.io.File
  *
  * Directory: context.filesDir/ski-data/ski_infrastructure.db
  */
-class SkiInfrastructureManager(
-	private val context: Context,
+class SkiInfrastructureManager @Inject constructor(
+	@ApplicationContext private val context: Context,
 	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) {
 

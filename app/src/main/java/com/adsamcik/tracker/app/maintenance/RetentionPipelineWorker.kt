@@ -1,29 +1,32 @@
 package com.adsamcik.tracker.app.maintenance
 
 import android.content.Context
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.logging.ReporterFacade
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
-class RetentionPipelineWorker(
-    appContext: Context,
-    params: WorkerParameters,
+@HiltWorker
+class RetentionPipelineWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val retentionConfigStore: RetentionConfigStore,
+    private val appDatabase: AppDatabase,
 ) : CoroutineWorker(appContext, params) {
-    private val dispatchers = DefaultDispatchersProvider
 
     override suspend fun doWork(): Result {
-        val store = RetentionConfigStore(applicationContext, dispatchers.io)
-        val config = store.config.first()
+        val config = retentionConfigStore.config.first()
 
         if (!config.autoPurgeEnabled) return Result.success()
 
@@ -35,15 +38,14 @@ class RetentionPipelineWorker(
         }
 
         return try {
-            val db = AppDatabase.database(applicationContext)
             val now = System.currentTimeMillis()
 
-            purgeRawData(db, config, now)
-            purgeWifiCellData(db, config, now)
-            purgeTripData(db, config, now)
-            purgeDailySummaries(db, config, now)
-            purgeExplorationData(db, config, now)
-            purgeLegacySessions(db, config, now)
+            purgeRawData(appDatabase, config, now)
+            purgeWifiCellData(appDatabase, config, now)
+            purgeTripData(appDatabase, config, now)
+            purgeDailySummaries(appDatabase, config, now)
+            purgeExplorationData(appDatabase, config, now)
+            purgeLegacySessions(appDatabase, config, now)
 
             Result.success()
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {

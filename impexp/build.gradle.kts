@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.protobuf)
     alias(libs.plugins.robolectric.junit5)
@@ -126,6 +127,11 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.junit5.robolectric)
     testImplementation(libs.androidx.test.core)
+
+    // Hilt (Dependency Injection)
+    implementation(libs.hilt.android)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.compiler)
 }
 
 // Configure JUnit 5 for unit tests

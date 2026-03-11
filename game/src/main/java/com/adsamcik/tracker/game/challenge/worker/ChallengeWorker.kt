@@ -4,6 +4,7 @@ import android.content.Context
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.R
@@ -16,21 +17,20 @@ import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 
-internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(
+@HiltWorker
+internal class ChallengeWorker @AssistedInject constructor(
+		@Assisted context: Context,
+		@Assisted workerParams: WorkerParameters,
+		private val challengeDatabase: ChallengeDatabase,
+		private val appDatabase: AppDatabase,
+		private val challengeManager: ChallengeManager,
+) : CoroutineWorker(
 		context,
-		workerParams
+		workerParams,
 ) {
-
-	@EntryPoint
-	@InstallIn(SingletonComponent::class)
-	interface ChallengeManagerEntryPoint {
-		fun challengeManager(): ChallengeManager
-	}
 
 	private suspend fun getSession(database: ChallengeDatabase, id: Long): ChallengeSessionData {
 		val databaseSession = database.sessionDao().get(id)
@@ -52,13 +52,11 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		val sessionId = inputData.getPositiveLongReportNull(ARG_SESSION_ID)
 				?: return Result.failure()
 
-		val database = ChallengeDatabase.database(applicationContext)
-
-		val challengeSession = getSession(database, sessionId)
+		val challengeSession = getSession(challengeDatabase, sessionId)
 
 		if (challengeSession.isChallengeProcessed) return Result.success()
 
-		val trip = AppDatabase.database(applicationContext).tripDao().getById(sessionId)
+		val trip = appDatabase.tripDao().getById(sessionId)
 			?: return Result.failure()
 
 		val trackerSession = com.adsamcik.tracker.shared.base.data.TrackerSession(
@@ -73,11 +71,6 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 
 		val notificationManager = applicationContext.notificationManager
 		val resources = applicationContext.resources
-
-		val challengeManager = EntryPointAccessors.fromApplication(
-			applicationContext,
-			ChallengeManagerEntryPoint::class.java
-		).challengeManager()
 
 		challengeManager.processSession(applicationContext, trackerSession) {
 			val title = "Completed challenge ${it.getTitle(applicationContext)}"
@@ -112,7 +105,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		}
 
 		challengeSession.isChallengeProcessed = true
-		database.sessionDao().update(challengeSession)
+		challengeDatabase.sessionDao().update(challengeSession)
 
 		logGame(
 				LogData(

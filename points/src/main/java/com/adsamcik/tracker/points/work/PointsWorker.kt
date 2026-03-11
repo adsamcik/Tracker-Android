@@ -3,6 +3,7 @@ package com.adsamcik.tracker.points.work
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.hilt.work.HiltWorker
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.points.POINTS_LOG_SOURCE
@@ -22,10 +23,18 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlin.math.abs
 import kotlin.math.max
 
-internal class PointsWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(
+@HiltWorker
+internal class PointsWorker @AssistedInject constructor(
+	@Assisted context: Context,
+	@Assisted workerParams: WorkerParameters,
+	private val appDatabase: AppDatabase,
+	private val pointsDatabase: PointsDatabase,
+) : CoroutineWorker(
 	context,
 	workerParams
 ) {
@@ -39,18 +48,16 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 
 	override suspend fun doWork(): Result {
 		val id = this.inputData.getPositiveLongReportNull(ARG_ID) ?: return Result.failure()
-		val trip = AppDatabase.database(applicationContext).tripDao().getById(id)
+		val trip = appDatabase.tripDao().getById(id)
 			?: return logResult("Found no session for point calculation.", Result.failure())
 		val awardTime = trip.endTimeMs.takeIf { it > 0L } ?: Time.nowMillis
-		val pointsDao = PointsDatabase
-			.database(applicationContext)
-			.pointsAwardedDao()
+		val pointsDao = pointsDatabase.pointsAwardedDao()
 
 		if (pointsDao.hasAwardAt(awardTime, AwardSource.SESSION.value)) {
 			return logResult("Points already awarded for session $id at $awardTime, skipping duplicate.", Result.success())
 		}
 
-		val locationData = AppDatabase.database(applicationContext)
+		val locationData = appDatabase
 			.locationSampleDao()
 			.getAllBetween(trip.startTimeMs, trip.endTimeMs)
 			.mapNotNull { it.toDatabaseLocation() }

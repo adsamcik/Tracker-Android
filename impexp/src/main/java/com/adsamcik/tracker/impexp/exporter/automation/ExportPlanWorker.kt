@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.impexp.exporter.EXPORT_LOG_SOURCE
@@ -12,11 +13,13 @@ import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
-import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import com.adsamcik.tracker.shared.base.time.SystemClock
+import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.base.time.Clock
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -28,17 +31,15 @@ import java.util.Locale
  * Worker responsible for executing a specific export backup plan.
  * Resolves format → exporter, scope → date range, executes, and logs to export_log.
  */
-class ExportPlanWorker(
-    appContext: Context,
-    params: WorkerParameters
+@HiltWorker
+class ExportPlanWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val planStore: ExportPlanStore,
+    private val appDatabase: AppDatabase,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val clock: Clock,
 ) : CoroutineWorker(appContext, params) {
-    private val dispatchers = DefaultDispatchersProvider
-
-    private val planStore = ExportPlanStore(
-        appContext,
-        dispatchers.io,
-        SystemClock
-    )
 
     override suspend fun doWork(): Result {
         val planId = inputData.getLong(KEY_PLAN_ID, -1L)
@@ -58,13 +59,13 @@ class ExportPlanWorker(
             return Result.success()
         }
 
-        val startedAt = SystemClock.currentTimeMillis()
+        val startedAt = clock.currentTimeMillis()
         val trigger = inputData.getString(KEY_TRIGGER_REASON) ?: "unknown"
         Reporter.i(EXPORT_LOG_SOURCE, "Executing plan '${plan.name}' (trigger=$trigger)")
 
         return try {
             val exportResult = executePlan(plan)
-            val completedAt = SystemClock.currentTimeMillis()
+            val completedAt = clock.currentTimeMillis()
             logExport(plan, exportResult, startedAt, completedAt)
 
             when (exportResult) {
@@ -80,19 +81,16 @@ class ExportPlanWorker(
             }
         } catch (e: Exception) {
             Reporter.w(EXPORT_LOG_SOURCE, "Plan '${plan.name}' threw exception: ${e.message}")
-            logExport(plan, PlanExportResult.Failed(e.message ?: "Unknown error"), startedAt, SystemClock.currentTimeMillis())
+            logExport(plan, PlanExportResult.Failed(e.message ?: "Unknown error"), startedAt, clock.currentTimeMillis())
             Result.retry()
         }
     }
 
-    private suspend fun executePlan(plan: ExportBackupPlan): PlanExportResult = withContext(dispatchers.io) {
+    private suspend fun executePlan(plan: ExportBackupPlan): PlanExportResult = withContext(ioDispatcher) {
         val exporter = resolveExporter(plan.format)
-        // WorkManager Workers can't use constructor injection without HiltWorkerFactory;
-        // direct DB access is acceptable here as Workers are scoped to background execution.
-        val db = AppDatabase.database(applicationContext)
 
         // Resolve date range from scope
-        val dateRange = resolveDateRange(plan.scope, db)
+        val dateRange = resolveDateRange(plan.scope)
 
         // Build output file
         val exportDir = resolveExportDirectory(plan)
@@ -101,7 +99,7 @@ class ExportPlanWorker(
         val outputFile = File(exportDir, fileName)
 
         // Build lazy paging sequence from DB (same pattern as ImportExportComposeActivity)
-        val locationSampleDao = db.locationSampleDao()
+        val locationSampleDao = appDatabase.locationSampleDao()
         val fromMs = dateRange?.first ?: 0L
         val toMs = dateRange?.last ?: Long.MAX_VALUE
         var recordCount = 0
@@ -132,10 +130,10 @@ class ExportPlanWorker(
         FormatRegistry.exporterFor(format.formatId)
             ?: error("No exporter registered for format ${format.name}")
 
-    private suspend fun resolveDateRange(scope: ExportScope, db: AppDatabase): LongRange? {
+    private suspend fun resolveDateRange(scope: ExportScope): LongRange? {
         return when (scope) {
             ExportScope.LastSession -> {
-                val trip = db.tripDao().getRecentTrips(1).firstOrNull()
+                val trip = appDatabase.tripDao().getRecentTrips(1).firstOrNull()
                 if (trip != null) {
                     trip.startTimeMs..trip.endTimeMs
                 } else {
@@ -143,7 +141,7 @@ class ExportPlanWorker(
                 }
             }
             is ExportScope.RollingWindow -> {
-                val now = SystemClock.currentTimeMillis()
+                val now = clock.currentTimeMillis()
                 val windowMs = scope.count.toLong() * when (scope.unit) {
                     ExportScope.WindowUnit.DAY -> 86_400_000L
                     ExportScope.WindowUnit.WEEK -> 604_800_000L
@@ -182,9 +180,6 @@ class ExportPlanWorker(
         completedAt: Long,
     ) {
         try {
-            // WorkManager Workers can't use constructor injection without HiltWorkerFactory;
-        // direct DB access is acceptable here as Workers are scoped to background execution.
-        val db = AppDatabase.database(applicationContext)
             val entity = when (result) {
                 is PlanExportResult.Success -> ExportLogEntity(
                     format = plan.format.name,
@@ -210,7 +205,7 @@ class ExportPlanWorker(
                     createdAt = completedAt,
                 )
             }
-            db.exportLogDao().insert(entity)
+            appDatabase.exportLogDao().insert(entity)
         } catch (e: Exception) {
             Reporter.w(EXPORT_LOG_SOURCE, "Failed to log export: ${e.message}")
         }

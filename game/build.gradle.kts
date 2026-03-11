@@ -150,6 +150,7 @@ dependencies {
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)
 	implementation(libs.hilt.navigation.compose)
+	implementation(libs.hilt.work)
 }
 
 // Configure JUnit 5 for unit tests

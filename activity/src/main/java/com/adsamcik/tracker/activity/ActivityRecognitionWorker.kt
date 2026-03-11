@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.activity
 
 import android.content.Context
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.activity.recognizer.ActivityRecognitionResult
@@ -14,16 +15,24 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
+import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
+import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.DatabaseLocation
-import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerParameters) :
+@HiltWorker
+internal class ActivityRecognitionWorker @AssistedInject constructor(
+	@Assisted context: Context,
+	@Assisted workerParams: WorkerParameters,
+	private val database: AppDatabase,
+	private val skiInfrastructureManager: SkiInfrastructureManager,
+) :
 	CoroutineWorker(
 		context,
 		workerParams
@@ -40,7 +49,6 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 			return@coroutineScope fail("Session id was either not set or was invalid.")
 		}
 
-		val database = AppDatabase.database(applicationContext)
 		val trip = database.tripDao().getById(sessionId)
 			?: return@coroutineScope fail("Trip with id $sessionId not found.", false)
 
@@ -81,7 +89,6 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 	 * then processes each segment against the pre-fetched data.
 	 */
 	private suspend fun doBatchWork(): Result = coroutineScope {
-		val database = AppDatabase.database(applicationContext)
 		val segments = database.sessionSegmentDao()
 			.getAllBetween(0L, Long.MAX_VALUE)
 			.filter { it.primaryActivity == null }
@@ -130,10 +137,9 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 			SkiActivityRecognizer()
 		)
 
-		val infraManager = SkiInfrastructureManager(applicationContext)
 		recognizers.filterIsInstance<SkiActivityRecognizer>().forEach {
 			it.pressureSamples = pressureSamples
-			it.infrastructureManager = infraManager
+			it.infrastructureManager = skiInfrastructureManager
 		}
 
 		// Create TrackerSession for recognizer interface compatibility
@@ -238,4 +244,3 @@ internal class ActivityRecognitionWorker(context: Context, workerParams: WorkerP
 		const val WORK_TAG = "ActivityRecognition"
 	}
 }
-
