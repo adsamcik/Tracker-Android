@@ -56,6 +56,9 @@ dependencies {
 	// Project dependencies for domain models
 	implementation(project(":sbase"))
 	implementation(project(":spreferences"))
+	implementation(project(":tracker"))
+	implementation(project(":stats-api"))
+	implementation(project(":stats-engine"))
 
 	// Kotlin & Coroutines
 	implementation(libs.kotlin.stdlib.jdk8)

@@ -2,7 +2,7 @@ package com.adsamcik.tracker.app
 
 import android.app.Application
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
-import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
+import com.adsamcik.tracker.testing.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import kotlinx.coroutines.CoroutineScope
@@ -11,8 +11,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.StandardTestDispatcher
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.FakeTrackerServiceController
-import com.adsamcik.tracker.tracker.controller.FakeLockManager
+import com.adsamcik.tracker.testing.fake.FakeTrackerServiceController
+import com.adsamcik.tracker.testing.fake.FakeLockManager
 
 /**
  * Builder for creating test variants of AppGraph with fake dependencies.

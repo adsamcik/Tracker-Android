@@ -1,4 +1,4 @@
-package com.adsamcik.tracker.tracker.controller
+package com.adsamcik.tracker.testing.fake
 
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.CollectionData
@@ -8,10 +8,36 @@ import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.tracker.data.PersistenceError
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * Fake implementation of TrackerServiceController for testing.
+ *
+ * Contract:
+ * - Input: Test code calls updateXxx methods to simulate tracking events
+ * - Output: Reactive StateFlows emit test-controlled values
+ * - Thread-safety: MutableStateFlow is thread-safe
+ * - Lifecycle: Test-scoped (create new instance per test)
+ *
+ * Usage:
+ * ```kotlin
+ * val fakeController = FakeTrackerServiceController()
+ * val testGraph = TestAppGraphBuilder()
+ *     .withTrackerServiceController(fakeController)
+ *     .build()
+ *
+ * // Simulate tracking start
+ * fakeController.updateServiceRunning(true)
+ * fakeController.updateSessionInfo(TrackerSessionInfo(isUserInitiated = true))
+ *
+ * // Assert UI state
+ * composeTestRule.onNodeWithText("Tracking Active").assertExists()
+ * ```
+ */
 class FakeTrackerServiceController : TrackerServiceController {
     private val _isServiceRunning = MutableStateFlow(false)
     override val isServiceRunningFlow: StateFlow<Boolean> get() = _isServiceRunning
@@ -35,9 +61,6 @@ class FakeTrackerServiceController : TrackerServiceController {
     private val _lastPathPointsFlow = MutableStateFlow<Pair<Long, List<Location>>?>(null)
     override val lastPathPointsFlow: StateFlow<Pair<Long, List<Location>>?> get() = _lastPathPointsFlow
 
-    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
-    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
-
     private val _policyTierFlow = MutableStateFlow(PolicyTier.OFF)
     override val policyTierFlow: StateFlow<PolicyTier> get() = _policyTierFlow
 
@@ -46,6 +69,15 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     private val _skiStateFlow = MutableStateFlow<RealTimeSkiState?>(null)
     override val skiStateFlow: StateFlow<RealTimeSkiState?> get() = _skiStateFlow
+
+    private var _persistenceErrorFlow: SharedFlow<PersistenceError>? = null
+    override val persistenceErrorFlow: SharedFlow<PersistenceError>? get() = _persistenceErrorFlow
+
+    /**
+     * Mutable flow for emitting test persistence errors.
+     * Call emitPersistenceError() to simulate database failures.
+     */
+    val testPersistenceErrors = MutableSharedFlow<PersistenceError>(replay = 5)
 
     override fun updateServiceRunning(isRunning: Boolean) {
         _isServiceRunning.value = isRunning
@@ -77,5 +109,21 @@ class FakeTrackerServiceController : TrackerServiceController {
 
     override fun updateSkiState(state: RealTimeSkiState?) {
         _skiStateFlow.value = state
+    }
+
+    /**
+     * Simulates a persistence error for testing.
+     * Requires enablePersistenceErrors() to be called first.
+     */
+    suspend fun emitPersistenceError(error: PersistenceError) {
+        testPersistenceErrors.emit(error)
+    }
+
+    /**
+     * Enables persistence error simulation for tests.
+     * Call this before checking persistenceErrorFlow in tests.
+     */
+    fun enablePersistenceErrors() {
+        _persistenceErrorFlow = testPersistenceErrors
     }
 }

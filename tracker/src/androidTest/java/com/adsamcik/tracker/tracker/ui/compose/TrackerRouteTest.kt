@@ -13,8 +13,8 @@ import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.LocalLockManager
 import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.testing.data.TestDataFactory
-import com.adsamcik.tracker.tracker.controller.FakeLockManager
-import com.adsamcik.tracker.tracker.controller.FakeTrackerServiceController
+import com.adsamcik.tracker.testing.fake.FakeLockManager
+import com.adsamcik.tracker.testing.fake.FakeTrackerServiceController
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import org.junit.Rule
 import org.junit.Test
