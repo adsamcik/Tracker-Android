@@ -43,9 +43,12 @@
     <string name="map_layer_no_data">Current layer has no available data</string>
     <string name="map_layer_none">No overlay</string>
     <string name="map_layer_none_title">No overlay</string>
+    <string name="map_date_preset_week">Last week</string>
+    <string name="map_date_preset_month">Last month</string>
+    <string name="map_date_preset_custom">Custom…</string>
     <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_count_heatmap_description">Heatmap showing the density of Wi-Fi networks detected in different areas.</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
+    <string name="map_layer_wifi_count_heatmap_description">Heatmap showing where the highest counts of Wi-Fi detections are clustered.</string>
+    <string name="map_layer_wifi_heatmap_description">Heatmap showing Wi-Fi density weighted by signal strength.</string>
     <string name="map_layer_wifi_heatmap_high">High density</string>
     <string name="map_layer_wifi_heatmap_low">Low density</string>
     <string name="map_layer_wifi_heatmap_medium">Medium density</string>
@@ -63,8 +66,8 @@
 
     <string name="settings_map_basemap_path_key">map.basemap.path</string>
     <string name="settings_map_basemap_title">Basemap</string>
-    <string name="settings_map_basemap_custom">Custom (tap to reset)</string>
-    <string name="settings_map_basemap_default">Default (z0-z6 overview)</string>
+    <string name="settings_map_basemap_custom">Custom .pmtiles file active (tap to remove)</string>
+    <string name="settings_map_basemap_default">Built-in basemap active. Tap to import a custom .pmtiles file.</string>
     <string name="settings_map_advanced_section_title">Advanced Settings</string>
     <string name="settings_map_max_heat_summary">Heatmap will have max value after selected amount of visits.</string>
     <string name="settings_map_max_heat_title">Max heat after visits</string>
@@ -80,14 +83,20 @@
     <string name="tips_map_hidden_sheet_title">The sheet is gone!!!</string>
     <string name="tips_map_my_location_description">Tapping on this button moves you to your location. Map will follow your location until you move the map manually. Tapping on it again while following shows you the direction you are facing.</string>
     <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_search_description">Type in this area to search. Tapping on the magnifying glass on the right triggers the search, or you can use your keyboards search button, if it has one.</string>
+    <string name="tips_map_search_description">Type or paste coordinates here to jump on the map. Supported formats include 48.8566, 2.3522; 48.8566 2.3522; N48.8566 E2.3522; and 48°51\'24\"N 2°21\'08\"E.</string>
     <string name="tips_map_search_title">Search</string>
     <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
     <string name="tips_map_sheet_title">More options</string>
 
     <!-- Map Sheet Controls -->
-    <string name="map_search_placeholder">Search…</string>
+    <string name="map_search_placeholder">Go to coordinates (e.g., 48.8566, 2.3522)</string>
+    <string name="map_search_invalid_format">Try 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
     <string name="map_search_clear">Clear search</string>
+    <string name="map_search_paste">Paste</string>
+    <string name="map_search_clipboard_empty">Clipboard doesn\'t contain coordinates yet</string>
+    <string name="map_search_current_center">Map center: %1$s</string>
+    <string name="map_search_not_found">Invalid coordinates. Try: 48.8566, 2.3522</string>
+    <string name="map_search_found">Moved to location ✓</string>
     <string name="map_layers_button">Map layers</string>
     <string name="map_date_range_button">Date range</string>
     <string name="map_date_range_dialog_ok">OK</string>
@@ -99,10 +108,33 @@
     <string name="map_quality_high">High</string>
     <string name="map_date_range_all_time">All time</string>
     <string name="map_layers_title">Map Layers</string>
+    <string name="map_layer_load_error">Couldn\'t load this layer. Try selecting a different one.</string>
+    <string name="map_empty_title">No data yet</string>
+    <string name="map_empty_subtitle">Start tracking to see your location history on this map.</string>
     <string name="map_loading">Loading map…</string>
-    <string name="map_follow_canceled">Location following canceled</string>
+    <string name="map_follow_canceled">Stopped centering on your location</string>
     <string name="map_legend_button">Legend</string>
     <string name="map_generating_tiles">Generating %d tiles…</string>
+    <string name="map_a11y_map_overview">Map overview</string>
+    <string name="map_a11y_centered_on_location">Map centered on your location</string>
+    <string name="map_a11y_showing_location">Map showing your location</string>
+    <string name="map_a11y_loading_data">Loading recorded map data</string>
+    <string name="map_a11y_no_recorded_data">Selected layer has no recorded data yet</string>
+    <string name="map_a11y_no_layer_selected">No map layer selected</string>
+    <string name="map_a11y_search_result_visible">Search result marker visible</string>
+    <string name="map_a11y_active_recording_visible">Active recording path visible</string>
+    <string name="map_a11y_recorded_route_history">Showing recorded route history</string>
+    <string name="map_a11y_location_heatmap">Showing a location heatmap</string>
+    <string name="map_a11y_cell_heatmap">Showing a cell coverage heatmap</string>
+    <string name="map_a11y_wifi_heatmap">Showing a Wi-Fi heatmap</string>
+    <string name="map_a11y_wifi_count_heatmap">Showing a Wi-Fi count heatmap</string>
+    <string name="map_a11y_speed_heatmap">Showing a speed heatmap</string>
+    <string name="map_a11y_saved_map_data">Showing saved map data</string>
+    <string name="map_a11y_world_scale">World scale</string>
+    <string name="map_a11y_regional_scale">Regional scale</string>
+    <string name="map_a11y_city_scale">City scale</string>
+    <string name="map_a11y_neighborhood_scale">Neighborhood scale</string>
+    <string name="map_a11y_street_scale">Street scale</string>
     
     <!-- Help Text for Map Settings -->
     <string name="help_map_quality">Rendering detail multiplier. Higher values show more detail but may slow down map loading on older devices.</string>

@@ -41,6 +41,8 @@ sealed interface MapOverlayState {
     @Immutable
     data class AccuracyCircle(val latLng: LatLngModel, val radiusM: Double) : MapOverlayState
     @Immutable
+    data class SearchMarker(val latLng: LatLngModel) : MapOverlayState
+    @Immutable
     data class Polyline(
         val points: ImmutableList<LatLngModel>,
         val colorArgb: Int = 0xFF007AFF.toInt(),
@@ -51,8 +53,12 @@ sealed interface MapOverlayState {
 @Immutable
 data class SearchState(
     val query: String = "",
-    val hasFocus: Boolean = false
+    val hasFocus: Boolean = false,
+    val resultStatus: SearchResultStatus = SearchResultStatus.Idle,
 )
+
+@Immutable
+enum class SearchResultStatus { Idle, Found, NotFound }
 
 @Immutable
 data class MapUiSettings(
@@ -92,7 +98,6 @@ sealed interface MapEvent {
     data class UpdateSearchQuery(val query: String) : MapEvent
     data class SetSearchFocus(val hasFocus: Boolean) : MapEvent
     data object SubmitSearch : MapEvent
-    data class GeocodeResult(val bounds: CoordinateBounds?) : MapEvent
     data class SetUserLocation(val latLng: LatLngModel, val accuracyM: Double) : MapEvent
     data class SetBearing(val bearing: Float) : MapEvent
 }
@@ -101,5 +106,5 @@ sealed interface MapEffect {
     data object ShowFollowCanceled : MapEffect
     data class CenterCamera(val bounds: CoordinateBounds) : MapEffect
     data class SetCameraBearing(val bearing: Float) : MapEffect
-    data class PerformGeocode(val query: String) : MapEffect
+    data object ShowSearchFormatHint : MapEffect
 }

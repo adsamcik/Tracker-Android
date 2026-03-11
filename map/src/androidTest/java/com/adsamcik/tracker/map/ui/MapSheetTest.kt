@@ -5,6 +5,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -405,6 +406,23 @@ class MapSheetTest {
 
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithContentDescription("Hide")
+            .assertMinTouchTargetSize()
+    }
+
+    @Test
+    fun dragHandle_meetsMinTouchTargetSize() {
+        stateFlow.value = MapState(
+            sheet = SheetStateModel(visibility = SheetVisibility.Peek)
+        )
+
+        composeTestRule.setContent {
+            MapSheet(
+                registry = mockRegistry,
+                store = mockStore
+            )
+        }
+
+        composeTestRule.onNodeWithTag(MAP_SHEET_DRAG_HANDLE_TAG)
             .assertMinTouchTargetSize()
     }
 

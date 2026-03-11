@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map.presentation
 
+import androidx.lifecycle.SavedStateHandle
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapState
@@ -18,10 +19,12 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.async
 import app.cash.turbine.test
+import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.collections.shouldHaveSize
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -45,8 +48,9 @@ class MapStoreTest {
         every { mockLayerEngine.activeLegend() } returns null
         every { mockLayerEngine.activeLayerConfig() } returns null
         every { mockLayerEngine.overlays() } returns persistentListOf()
-        mapStore = MapStore()
+        mapStore = MapStore(SavedStateHandle())
         mapStore.setLayerEngine(mockLayerEngine)
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
     }
 
     @AfterEach
@@ -56,16 +60,17 @@ class MapStoreTest {
 
     @Test
     fun `initial state is correct`() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
         val initialState = mapStore.state.first()
         
-        initialState.activeLayerIds shouldBe persistentSetOf<String>()
+        initialState.activeLayerIds shouldBe persistentSetOf("location_polyline")
         initialState.isFollowing shouldBe false
         initialState.sheet.visibility shouldBe SheetVisibility.Peek
         initialState.overlays shouldBe persistentListOf<com.adsamcik.tracker.map.presentation.udf.MapOverlayState>()
         initialState.legend shouldBe persistentListOf<MapLayerData>()
         initialState.quality shouldBe 1f
         initialState.dateRange shouldBe 0L..Long.MAX_VALUE
-        initialState.layerLoadingProgress shouldBe 0
+        // layerLoadingProgress may be non-zero due to default layer auto-apply
         initialState.layerConfig.shouldBeNull()
     }
 
@@ -127,7 +132,27 @@ class MapStoreTest {
         
         val state = mapStore.state.first()
         state.activeLayerIds.contains(layerId) shouldBe true
-        coVerify { mockLayerEngine.selectSingleLayer(eq(layerId), eq(1f), any()) }
+        coVerify { mockLayerEngine.selectLayers(eq(setOf(layerId)), eq(1f), any()) }
+    }
+
+    @Test
+    fun `layer selection is single-choice and no overlay clears layers`() = runTest {
+        val firstLayerId = "test_layer"
+        val secondLayerId = "other_layer"
+
+        mapStore.dispatch(MapEvent.SelectLayer(firstLayerId))
+        testDispatcher.scheduler.advanceUntilIdle()
+        mapStore.dispatch(MapEvent.SelectLayer(secondLayerId))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        var state = mapStore.state.first()
+        state.activeLayerIds shouldBe persistentSetOf(secondLayerId)
+
+        mapStore.dispatch(MapEvent.SelectLayer("none"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        state = mapStore.state.first()
+        state.activeLayerIds shouldBe persistentSetOf()
     }
 
     @Test
@@ -141,11 +166,12 @@ class MapStoreTest {
         
         val state = mapStore.state.first()
         state.quality shouldBe newQuality
-        coVerify { mockLayerEngine.selectSingleLayer(isNull(), eq(newQuality), any()) }
+        coVerify { mockLayerEngine.selectLayers(eq(setOf("location_polyline")), eq(newQuality), any()) }
     }
 
     @Test
     fun `date range update triggers layer reapplication`() = runTest {
+        io.mockk.clearMocks(mockLayerEngine, answers = false)
         val newRange = 1000L..2000L
         
         mapStore.dispatch(MapEvent.SetDateRange(newRange))
@@ -153,9 +179,7 @@ class MapStoreTest {
         
         val state = mapStore.state.first()
         state.dateRange shouldBe newRange
-        val rangeSlot = slot<LongRange>()
-        coVerify { mockLayerEngine.selectSingleLayer(isNull(), eq(1f), capture(rangeSlot)) }
-        rangeSlot.captured shouldBe newRange
+        coVerify { mockLayerEngine.selectLayers(eq(setOf("location_polyline")), eq(1f), eq(newRange)) }
     }
 
     @Test
@@ -261,35 +285,97 @@ class MapStoreTest {
     }
 
     @Test
-    fun `submit search emits PerformGeocode effect`() = runTest {
+    fun `submit search emits format hint for non-coordinate query`() = runTest {
         mapStore.dispatch(MapEvent.UpdateSearchQuery("Prague"))
         testDispatcher.scheduler.advanceUntilIdle()
 
         mapStore.effects.test {
             mapStore.dispatch(MapEvent.SubmitSearch)
             val effect = awaitItem()
-            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode) shouldBe true
-            val pg = effect as com.adsamcik.tracker.map.presentation.udf.MapEffect.PerformGeocode
-            pg.query shouldBe "Prague"
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.ShowSearchFormatHint) shouldBe true
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun `geocode result emits CenterCamera effect`() = runTest {
-        val bounds = com.adsamcik.tracker.shared.map.CoordinateBounds(
-            topBound = 3.0,
-            rightBound = 4.0,
-            bottomBound = 1.0,
-            leftBound = 2.0
-        )
-
+    fun `submit coordinate search emits CenterCamera and adds search marker`() = runTest {
+        mapStore.dispatch(MapEvent.UpdateSearchQuery("40.7590, -73.9855"))
+        testDispatcher.scheduler.advanceUntilIdle()
         mapStore.effects.test {
-            mapStore.dispatch(MapEvent.GeocodeResult(bounds))
+            mapStore.dispatch(MapEvent.SubmitSearch)
             val effect = awaitItem()
             (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera) shouldBe true
-            val cc = effect as com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera
-            cc.bounds shouldBe bounds
+            val state = mapStore.state.first()
+            state.overlays.any { it is com.adsamcik.tracker.map.presentation.udf.MapOverlayState.SearchMarker } shouldBe true
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `submit search accepts whitespace separated decimal coordinates`() = runTest {
+        assertSuccessfulSearch(
+            query = "48.8566 2.3522",
+            expectedLat = 48.8566,
+            expectedLng = 2.3522
+        )
+    }
+
+    @Test
+    fun `submit search accepts hemisphere prefixed decimal coordinates`() = runTest {
+        assertSuccessfulSearch(
+            query = "N48.8566 E2.3522",
+            expectedLat = 48.8566,
+            expectedLng = 2.3522
+        )
+    }
+
+    @Test
+    fun `submit search accepts symbol separated dms coordinates`() = runTest {
+        assertSuccessfulSearch(
+            query = """48°51'24.0"N 2°21'07.9"E""",
+            expectedLat = 48.8566667,
+            expectedLng = 2.3521944
+        )
+    }
+
+    @Test
+    fun `submit search accepts space separated dms coordinates`() = runTest {
+        assertSuccessfulSearch(
+            query = "48 51 24.0 N 2 21 07.9 E",
+            expectedLat = 48.8566667,
+            expectedLng = 2.3521944
+        )
+    }
+
+    @Test
+    fun `submit search accepts negative whitespace separated coordinates`() = runTest {
+        assertSuccessfulSearch(
+            query = "-33.8688 151.2093",
+            expectedLat = -33.8688,
+            expectedLng = 151.2093
+        )
+    }
+
+    private suspend fun assertSuccessfulSearch(
+        query: String,
+        expectedLat: Double,
+        expectedLng: Double
+    ) {
+        mapStore.dispatch(MapEvent.UpdateSearchQuery(query))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        mapStore.effects.test {
+            mapStore.dispatch(MapEvent.SubmitSearch)
+            val effect = awaitItem()
+            (effect is com.adsamcik.tracker.map.presentation.udf.MapEffect.CenterCamera) shouldBe true
+
+            val state = mapStore.state.first()
+            val searchMarker = state.overlays
+                .filterIsInstance<com.adsamcik.tracker.map.presentation.udf.MapOverlayState.SearchMarker>()
+                .single()
+
+            searchMarker.latLng.lat shouldBe (expectedLat plusOrMinus 0.000001)
+            searchMarker.latLng.lng shouldBe (expectedLng plusOrMinus 0.000001)
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -1,7 +1,10 @@
 package com.adsamcik.tracker.map.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -13,9 +16,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.compose.material3.SnackbarHostState
 import com.adsamcik.tracker.map.layers.registry.DefaultLayerRegistry
 import com.adsamcik.tracker.map.presentation.MapStore
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerEngine
@@ -87,7 +87,8 @@ fun MapRoute(
             snackbarHostState = snackbarHostState,
             overlayMode = false,
             bottomPaddingPx = finalBottomPadding,
-            isLocationPermissionGranted = hasPermission
+            isLocationPermissionGranted = hasPermission,
+            topInsetPadding = 72.dp,
         )
 
         MapSheet(

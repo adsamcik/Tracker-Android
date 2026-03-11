@@ -26,7 +26,6 @@ import com.adsamcik.tracker.shared.map.layers.LayerCapabilities
 import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
 import com.adsamcik.tracker.shared.map.layers.LayerFactory
 import com.adsamcik.tracker.shared.map.layers.LayerRecipe
-import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import com.adsamcik.tracker.shared.utils.style.color.ColorGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,13 +146,18 @@ class DefaultLayerRegistry : LayerRegistry {
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiHeatmapLayer", R.string.map_layer_wifi_heatmap_title),
-                            colorList = listOf(ColorConstants.GREEN, ColorConstants.ORANGE, ColorConstants.RED),
+                            colorList = listOf(
+                                Color.rgb(255, 183, 77),
+                                Color.rgb(255, 152, 0),
+                                Color.rgb(255, 112, 67),
+                                Color.rgb(213, 0, 0)
+                            ),
                             legend = MapLegend(
                                 description = R.string.map_layer_wifi_heatmap_description,
                                 valueList = listOf(
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_low, ColorConstants.GREEN),
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_medium, ColorConstants.ORANGE),
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_high, ColorConstants.RED)
+                                    MapLegendValue(R.string.map_layer_wifi_heatmap_low, Color.rgb(255, 183, 77)),
+                                    MapLegendValue(R.string.map_layer_wifi_heatmap_medium, Color.rgb(255, 152, 0)),
+                                    MapLegendValue(R.string.map_layer_wifi_heatmap_high, Color.rgb(213, 0, 0))
                                 )
                             )
                         )
@@ -178,13 +182,17 @@ class DefaultLayerRegistry : LayerRegistry {
                         },
                         legend = MapLayerData(
                             info = MapLayerInfo("WifiCountHeatmapLayer", R.string.map_layer_wifi_count_heatmap_title),
-                            colorList = listOf(ColorConstants.GREEN, ColorConstants.ORANGE, ColorConstants.RED),
+                            colorList = listOf(
+                                Color.rgb(31, 200, 255),
+                                Color.rgb(63, 81, 181),
+                                Color.rgb(106, 27, 154)
+                            ),
                             legend = MapLegend(
-                                description = R.string.map_layer_wifi_heatmap_description,
+                                description = R.string.map_layer_wifi_count_heatmap_description,
                                 valueList = listOf(
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_low, ColorConstants.GREEN),
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_medium, ColorConstants.ORANGE),
-                                    MapLegendValue(R.string.map_layer_wifi_heatmap_high, ColorConstants.RED)
+                                    MapLegendValue(R.string.map_layer_wifi_heatmap_low, Color.rgb(31, 200, 255)),
+                                    MapLegendValue(R.string.map_layer_wifi_heatmap_medium, Color.rgb(63, 81, 181)),
+                                    MapLegendValue(R.string.map_layer_wifi_heatmap_high, Color.rgb(106, 27, 154))
                                 )
                             )
                         )
@@ -246,22 +254,20 @@ class DefaultLayerRegistry : LayerRegistry {
                 recipe = LayerRecipe(factory = LayerFactory {
                     LayerEntry(
                         build = { ctx ->
-                            val dao = AppDatabase.database(ctx).locationDao()
+                            val dao = AppDatabase.database(ctx).locationSampleDao()
                             LocationPathLayer(
                                 pointsProvider = { range ->
                                     withContext(Dispatchers.IO) {
-                                        // Resolve effective time bounds: use provided range or fall back to actual data range
-                                        val effective = if (!range.isEmpty()) range else {
-                                            val dr = dao.range() ?: return@withContext emptyList()
-                                            LongRange(dr.start, dr.endInclusive)
-                                        }
-                                        val rows = if (!effective.isEmpty()) dao.getAllBetweenOrdered(effective.first, effective.last) else emptyList()
+                                        val fromMs = if (!range.isEmpty()) range.first else 0L
+                                        val toMs = if (!range.isEmpty()) range.last else Long.MAX_VALUE
+                                        val rows = dao.getAllBetween(fromMs, toMs)
+                                            .filter { it.latE7 != null && it.lonE7 != null }
                                         if (rows.isEmpty()) emptyList() else {
                                             val maxPrePoints = 30_000
                                             val step = (rows.size / maxPrePoints).coerceAtLeast(1)
                                             rows.asSequence()
                                                 .filterIndexed { index, _ -> index % step == 0 }
-                                                .map { LatLngModel(it.latitude, it.longitude) }
+                                                .map { LatLngModel(it.latE7!! / 1e7, it.lonE7!! / 1e7) }
                                                 .toList()
                                         }
                                     }

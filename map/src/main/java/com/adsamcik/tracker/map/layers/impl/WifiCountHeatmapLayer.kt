@@ -8,7 +8,6 @@ import com.adsamcik.tracker.map.data.GeoSource
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
 import com.adsamcik.tracker.map.layers.base.HeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
-import com.adsamcik.tracker.shared.utils.style.color.ColorConstants
 import kotlinx.coroutines.flow.first
 
 /**
@@ -21,9 +20,11 @@ class WifiCountHeatmapLayer(
 ) : HeatmapLayer<List<WeightedGeoFeature>, String>() {
 
     override fun colorStops(): List<Pair<Float, Int>> = listOf(
-        0.0f to ColorConstants.GREEN,
-        0.5f to ColorConstants.ORANGE,
-        1.0f to ColorConstants.RED
+        0.0f to 0x001FC8FF,
+        0.18f to 0x661FC8FF,
+        0.42f to 0xFF1FC8FF.toInt(),
+        0.7f to 0xFF3F51B5.toInt(),
+        1.0f to 0xFF6A1B9A.toInt()
     )
 
     override fun geoJsonFrom(processed: String): String = processed
@@ -45,12 +46,17 @@ class WifiCountHeatmapLayer(
         input: List<WeightedGeoFeature>,
         budgets: PerformanceManager.PerformanceBudgets
     ): String {
-        val capped = if (input.size > budgets.maxPoints) {
-            val step = (input.size / budgets.maxPoints).coerceAtLeast(1)
-            input.filterIndexed { index, _ -> index % step == 0 }
-        } else {
-            input
+        val aggregated = aggregateWifiCells(
+            input = input,
+            maxPoints = budgets.maxPoints,
+            cellSizeDegrees = (0.0006 / quality.coerceAtLeast(0.6f)).toFloat()
+        )
+        if (aggregated.isEmpty()) return GeoJsonConverter.pointsToFeatureCollection(aggregated)
+
+        val maxWeight = aggregated.maxOf { it.weight }.coerceAtLeast(1.0)
+        val normalized = aggregated.map { feature ->
+            feature.copy(weight = (feature.weight / maxWeight).coerceIn(0.0, 1.0))
         }
-        return GeoJsonConverter.pointsToFeatureCollection(capped)
+        return GeoJsonConverter.pointsToFeatureCollection(normalized)
     }
 }

@@ -8,15 +8,17 @@ import com.adsamcik.tracker.map.layers.base.SupportsDateRange
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.shared.map.MapLayerData
 import com.adsamcik.tracker.shared.map.layers.LayerDescriptor
+import kotlinx.coroutines.CancellationException
 
 /**
  * Controls map layer lifecycle and manages active layer state.
  * Layers now produce [MapLibreLayerConfig] data rather than mutating a map.
  */
 class LayerController {
-    private var currentLayerDescriptor: LayerDescriptor? = null
-    private var currentLayer: BaseMapLayer<*, *>? = null
-    private var currentLegend: MapLayerData? = null
+    private var currentLayerDescriptors: List<LayerDescriptor> = emptyList()
+    private val currentLayers = mutableListOf<BaseMapLayer<*, *>>()
+    private var currentLegends: List<MapLayerData> = emptyList()
+    private var currentConfig: MapLibreLayerConfig? = null
 
     companion object {
         private const val TAG = "LayerController"
@@ -32,36 +34,70 @@ class LayerController {
         quality: Float,
         dateRange: LongRange
     ) {
+        setLayers(context, listOfNotNull(descriptor), quality, dateRange)
+    }
+
+    /**
+     * Set active layers with proper cleanup and error handling.
+     * Suspends until all layer pipelines complete.
+     */
+    suspend fun setLayers(
+        context: Context,
+        descriptors: List<LayerDescriptor>,
+        quality: Float,
+        dateRange: LongRange
+    ) {
         try {
-            currentLayer?.let {
-                Log.d(TAG, "Clearing current layer: ${currentLayerDescriptor?.id}")
-                clearCurrentLayer()
+            if (currentLayers.isNotEmpty()) {
+                Log.d(TAG, "Clearing current layers: ${currentLayerDescriptors.map { it.id }}")
+                clearCurrentLayers()
             }
 
-            if (descriptor != null) {
-                Log.d(TAG, "Setting new layer: ${descriptor.id}")
-                val entry = descriptor.recipe.factory.create() as? LayerEntry
-                    ?: run {
-                        Log.e(TAG, "Factory for ${descriptor.id} did not produce a LayerEntry")
-                        return
-                    }
-                val builtLayer = entry.build(context)
-                currentLegend = entry.legend
-                currentLayer = builtLayer
-                currentLayerDescriptor = descriptor
+            if (descriptors.isNotEmpty()) {
+                val builtLayers = mutableListOf<BaseMapLayer<*, *>>()
+                val legends = mutableListOf<MapLayerData>()
+                val configs = mutableListOf<MapLibreLayerConfig>()
 
-                // Set date range if supported
-                if (builtLayer is SupportsDateRange) {
-                    builtLayer.dateRange = dateRange
+                try {
+                    descriptors.forEach { descriptor ->
+                        Log.d(TAG, "Setting layer: ${descriptor.id}")
+                        val entry = descriptor.recipe.factory.create() as? LayerEntry
+                            ?: run {
+                                Log.e(TAG, "Factory for ${descriptor.id} did not produce a LayerEntry")
+                                return@forEach
+                            }
+                        val builtLayer = entry.build(context)
+                        legends.add(entry.legend)
+                        builtLayers.add(builtLayer)
+
+                        if (builtLayer is SupportsDateRange) {
+                            builtLayer.dateRange = dateRange
+                        }
+
+                        builtLayer.enable(context, quality).join()
+                        builtLayer.lastConfig?.let(configs::add)
+                    }
+                } catch (e: CancellationException) {
+                    builtLayers.forEach { it.disable() }
+                    throw e
                 }
 
-                // Enable the layer and await pipeline completion
-                builtLayer.enable(context, quality).join()
+                currentLayerDescriptors = descriptors
+                currentLayers.clear()
+                currentLayers.addAll(builtLayers)
+                currentLegends = legends
+                currentConfig = when (configs.size) {
+                    0 -> null
+                    1 -> configs.first()
+                    else -> MapLibreLayerConfig.Composite(configs.toList())
+                }
             } else {
                 clearState()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting layer: ${descriptor?.id}", e)
+            Log.e(TAG, "Error setting layers: ${descriptors.joinToString { it.id }}", e)
             Reporter.report(e)
             clearState()
         }
@@ -72,7 +108,7 @@ class LayerController {
      */
     fun clear() {
         try {
-            clearCurrentLayer()
+            clearCurrentLayers()
             clearState()
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing layer", e)
@@ -84,12 +120,13 @@ class LayerController {
     /**
      * Get active legend data.
      */
-    fun activeLegend(): MapLayerData? = currentLegend
+    fun activeLegend(): MapLayerData? = currentLegends.firstOrNull()
+    fun activeLegends(): List<MapLayerData> = currentLegends
 
     /**
      * Get active layer config produced by the current layer.
      */
-    fun activeLayerConfig(): MapLibreLayerConfig? = currentLayer?.lastConfig
+    fun activeLayerConfig(): MapLibreLayerConfig? = currentConfig
 
     /**
      * Handle low memory situations by clearing cache.
@@ -104,7 +141,7 @@ class LayerController {
     fun destroy() {
         Log.d(TAG, "Destroying LayerController")
         try {
-            clearCurrentLayer()
+            clearCurrentLayers()
         } catch (e: Exception) {
             Log.e(TAG, "Error during cleanup", e)
         } finally {
@@ -112,13 +149,14 @@ class LayerController {
         }
     }
 
-    private fun clearCurrentLayer() {
-        currentLayer?.disable()
+    private fun clearCurrentLayers() {
+        currentLayers.forEach { it.disable() }
     }
 
     private fun clearState() {
-        currentLayerDescriptor = null
-        currentLayer = null
-        currentLegend = null
+        currentLayerDescriptors = emptyList()
+        currentLayers.clear()
+        currentLegends = emptyList()
+        currentConfig = null
     }
 }

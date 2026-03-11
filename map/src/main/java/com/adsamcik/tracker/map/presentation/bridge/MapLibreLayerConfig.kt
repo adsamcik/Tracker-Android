@@ -25,4 +25,9 @@ sealed interface MapLibreLayerConfig {
         val widthDp: Float = 4f,
         val opacity: Float = 1f
     ) : MapLibreLayerConfig
+
+    @Immutable
+    data class Composite(
+        val layers: List<MapLibreLayerConfig>
+    ) : MapLibreLayerConfig
 }

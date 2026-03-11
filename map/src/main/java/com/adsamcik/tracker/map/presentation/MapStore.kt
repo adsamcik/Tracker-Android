@@ -1,14 +1,17 @@
 package com.adsamcik.tracker.map.presentation
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
+import com.adsamcik.tracker.map.presentation.udf.CameraModel
 import com.adsamcik.tracker.map.presentation.udf.MapEvent
 import com.adsamcik.tracker.map.presentation.udf.MapState
 import com.adsamcik.tracker.map.presentation.udf.MapEffect
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
+import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.shared.map.CoordinateBounds
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,6 +19,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,19 +29,46 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import kotlin.math.abs
 
 /**
  * MapStore: holds central MapState, reduces MapEvent, and bridges to LayerEngine.
  * Zero Google Maps dependencies -- uses CoordinateBounds and MapLibreLayerConfig.
  */
 @HiltViewModel
-class MapStore @Inject constructor() : ViewModel() {
+class MapStore @Inject constructor(
+    private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
+
+    private enum class CoordinateAxis { Latitude, Longitude }
+
+    private data class ParsedCoordinateComponent(
+        val axis: CoordinateAxis,
+        val value: Double
+    )
+
+    companion object {
+        private const val SELECTED_LAYER_ID_KEY = "selected_layer_id"
+        private const val NONE_LAYER_ID = "none"
+        private const val DEFAULT_LAYER_ID = "location_polyline"
+        private const val CAMERA_LAT_KEY = "camera_lat"
+        private const val CAMERA_LNG_KEY = "camera_lng"
+        private const val CAMERA_ZOOM_KEY = "camera_zoom"
+        private const val CAMERA_TILT_KEY = "camera_tilt"
+        private const val CAMERA_BEARING_KEY = "camera_bearing"
+        private val coordinatePartDelimiterRegex = Regex("[,;\\n]+")
+        private val coordinateNumberRegex = Regex("[-+]?\\d+(?:\\.\\d+)?")
+        private val hemisphereRegex = Regex("[NSEW]", RegexOption.IGNORE_CASE)
+        private val coordinateWithHemisphereRegex = Regex(
+            pattern = """(?i)(?:[NSEW]\s*[-+]?\d+(?:\.\d+)?(?:[^\dNSEW+-]+\d+(?:\.\d+)?){0,2}|[-+]?\d+(?:\.\d+)?(?:[^\dNSEW+-]+\d+(?:\.\d+)?){0,2}(?:[^\dNSEW+-]+)?\s*[NSEW])"""
+        )
+    }
 
     private var layerManager: LayerEngine? = null
 
     fun setLayerEngine(engine: LayerEngine) {
         layerManager = engine
-        if (selectedLayerId != null) {
+        if (_state.value.activeLayerIds.isNotEmpty()) {
             applyLayer()
         }
     }
@@ -45,13 +76,27 @@ class MapStore @Inject constructor() : ViewModel() {
     val isEngineReady: Boolean
         get() = layerManager != null
 
-    private val _state = MutableStateFlow(MapState())
+    private val _state = MutableStateFlow(
+        MapState(
+            camera = CameraModel(
+                lat = savedStateHandle[CAMERA_LAT_KEY] ?: 0.0,
+                lng = savedStateHandle[CAMERA_LNG_KEY] ?: 0.0,
+                zoom = savedStateHandle[CAMERA_ZOOM_KEY] ?: 0f,
+                tilt = savedStateHandle[CAMERA_TILT_KEY] ?: 0f,
+                bearing = savedStateHandle[CAMERA_BEARING_KEY] ?: 0f,
+            ),
+            activeLayerIds = when (val savedLayerId = savedStateHandle.get<String>(SELECTED_LAYER_ID_KEY)) {
+                null -> persistentSetOf(DEFAULT_LAYER_ID)
+                NONE_LAYER_ID -> persistentSetOf()
+                else -> persistentSetOf(savedLayerId)
+            }
+        )
+    )
     val state = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<MapEffect>(extraBufferCapacity = 1)
+    private val _effects = MutableSharedFlow<MapEffect>(extraBufferCapacity = 3)
     val effects = _effects.asSharedFlow()
 
-    private var selectedLayerId: String? = null
     private var lastBearing: Float = 0f
 
     private var applyLayerJob: Job? = null
@@ -59,6 +104,8 @@ class MapStore @Inject constructor() : ViewModel() {
     private var lastLocationUpdate: Long = 0L
     private val locationUpdateDebounceMs = 100L
     private var hasReceivedInitialLocation: Boolean = false
+    private var lastKnownUserLocation: LatLngModel? = null
+    private var lastKnownAccuracyM: Double = 0.0
 
     fun dispatch(event: MapEvent) {
         when (event) {
@@ -72,8 +119,19 @@ class MapStore @Inject constructor() : ViewModel() {
                 _state.update { it.copy(sheet = it.sheet.copy(visibility = event.visibility)) }
             }
             is MapEvent.SelectLayer -> {
-                selectedLayerId = event.id
-                _state.update { it.copy(activeLayerIds = persistentSetOf(event.id)) }
+                _state.update { current ->
+                    val updatedLayerIds = if (event.id == NONE_LAYER_ID) {
+                        persistentSetOf()
+                    } else {
+                        persistentSetOf(event.id)
+                    }
+                    current.copy(activeLayerIds = updatedLayerIds)
+                }
+                savedStateHandle[SELECTED_LAYER_ID_KEY] = if (event.id == NONE_LAYER_ID) {
+                    NONE_LAYER_ID
+                } else {
+                    event.id
+                }
                 applyLayer()
             }
             is MapEvent.ToggleFollow -> {
@@ -89,18 +147,7 @@ class MapStore @Inject constructor() : ViewModel() {
                         }
                         cur.copy(overlays = persistentListOf(*updatedOverlays.toTypedArray()))
                     }
-                    val overlays = _state.value.overlays
-                    val user = overlays.firstOrNull { it is MapOverlayState.UserMarker } as? MapOverlayState.UserMarker
-                    user?.let {
-                        val delta = 0.001
-                        val bounds = CoordinateBounds(
-                            topBound = it.latLng.lat + delta,
-                            rightBound = it.latLng.lng + delta,
-                            bottomBound = it.latLng.lat - delta,
-                            leftBound = it.latLng.lng - delta
-                        )
-                        _effects.tryEmit(MapEffect.CenterCamera(bounds))
-                    }
+                    emitCenterOnUser()
                     _effects.tryEmit(MapEffect.SetCameraBearing(lastBearing))
                 }
             }
@@ -117,25 +164,66 @@ class MapStore @Inject constructor() : ViewModel() {
                 applyLayer()
             }
             is MapEvent.UpdateSearchQuery -> {
-                _state.update { it.copy(search = it.search.copy(query = event.query)) }
+                _state.update {
+                    it.copy(
+                        search = it.search.copy(query = event.query, resultStatus = SearchResultStatus.Idle),
+                        overlays = if (event.query.isBlank()) {
+                            persistentListOf(
+                                *it.overlays.filterNot { overlay ->
+                                    overlay is MapOverlayState.SearchMarker
+                                }.toTypedArray()
+                            )
+                        } else {
+                            it.overlays
+                        }
+                    )
+                }
             }
             is MapEvent.SetSearchFocus -> {
                 _state.update { it.copy(search = it.search.copy(hasFocus = event.hasFocus)) }
             }
             is MapEvent.SubmitSearch -> {
                 val q = _state.value.search.query.trim()
-                if (q.isNotEmpty()) {
-                    _effects.tryEmit(MapEffect.PerformGeocode(q))
+                if (q.isEmpty()) {
+                    _effects.tryEmit(MapEffect.ShowSearchFormatHint)
+                    return
                 }
-            }
-            is MapEvent.GeocodeResult -> {
-                val b = event.bounds
-                if (b != null) {
-                    _effects.tryEmit(MapEffect.CenterCamera(b))
+                val coordinate = parseCoordinateQuery(q)
+                if (coordinate == null) {
+                    _state.update { it.copy(search = it.search.copy(resultStatus = SearchResultStatus.NotFound)) }
+                    _effects.tryEmit(MapEffect.ShowSearchFormatHint)
+                    return
                 }
+                _state.update { current ->
+                    current.copy(
+                        isFollowing = false,
+                        search = current.search.copy(resultStatus = SearchResultStatus.Found),
+                        overlays = persistentListOf(
+                            *(current.overlays
+                                .filterNot { overlay -> overlay is MapOverlayState.SearchMarker } +
+                                MapOverlayState.SearchMarker(coordinate)).toTypedArray()
+                        )
+                    )
+                }
+                val delta = 0.005
+                _effects.tryEmit(
+                    MapEffect.CenterCamera(
+                        CoordinateBounds(
+                            topBound = coordinate.lat + delta,
+                            rightBound = coordinate.lng + delta,
+                            bottomBound = coordinate.lat - delta,
+                            leftBound = coordinate.lng - delta
+                        )
+                    )
+                )
             }
             is MapEvent.CameraMoved -> {
                 _state.update { it.copy(camera = event.position) }
+                savedStateHandle[CAMERA_LAT_KEY] = event.position.lat
+                savedStateHandle[CAMERA_LNG_KEY] = event.position.lng
+                savedStateHandle[CAMERA_ZOOM_KEY] = event.position.zoom
+                savedStateHandle[CAMERA_TILT_KEY] = event.position.tilt
+                savedStateHandle[CAMERA_BEARING_KEY] = event.position.bearing
             }
             is MapEvent.SetUserLocation -> {
                 val now = System.currentTimeMillis()
@@ -186,6 +274,8 @@ class MapStore @Inject constructor() : ViewModel() {
         if (isInitial) {
             hasReceivedInitialLocation = true
         }
+        lastKnownUserLocation = latLng
+        lastKnownAccuracyM = accuracyM
 
         _state.update { st ->
             val userOverlayIndices = mutableListOf<Int>()
@@ -204,18 +294,26 @@ class MapStore @Inject constructor() : ViewModel() {
             st.copy(overlays = persistentListOf(*(filteredOverlays + newUserOverlays).toTypedArray()))
         }
         if (isInitial || _state.value.isFollowing) {
-            val delta = kotlin.math.max(0.001, accuracyM / 111000.0)
-            val bounds = CoordinateBounds(
-                topBound = latLng.lat + delta,
-                rightBound = latLng.lng + delta,
-                bottomBound = latLng.lat - delta,
-                leftBound = latLng.lng - delta
-            )
-            _effects.tryEmit(MapEffect.CenterCamera(bounds))
+            emitCenterOnUser()
             if (_state.value.isFollowing) {
                 _effects.tryEmit(MapEffect.SetCameraBearing(lastBearing))
             }
         }
+    }
+
+    private fun emitCenterOnUser() {
+        val location = lastKnownUserLocation ?: return
+        val delta = kotlin.math.max(0.001, lastKnownAccuracyM / 111000.0)
+        _effects.tryEmit(
+            MapEffect.CenterCamera(
+                CoordinateBounds(
+                    topBound = location.lat + delta,
+                    rightBound = location.lng + delta,
+                    bottomBound = location.lat - delta,
+                    leftBound = location.lng - delta,
+                )
+            )
+        )
     }
 
     private fun applyLayer() {
@@ -226,40 +324,173 @@ class MapStore @Inject constructor() : ViewModel() {
             try {
                 val s = _state.value
                 withContext(Dispatchers.Default) {
-                    engine.selectSingleLayer(selectedLayerId, s.quality, s.dateRange)
+                    engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange)
                 }
                 val legend = engine.activeLegend()
                 val config = engine.activeLayerConfig()
                 val overlays = engine.overlays()
+                val legendLabel = s.activeLayerIds.joinToString(", ").ifBlank { "Unknown" }
 
                 if (legend != null) {
                     _state.update { state ->
+                        val mergedOverlays = mergeOverlays(state.overlays, overlays)
                         state.copy(
                             legend = persistentListOf(*legend.legend.valueList.map { v ->
                                 LegendItem(
-                                    label = selectedLayerId ?: "Unknown",
+                                    label = legendLabel,
                                     color = v.color
                                 )
                             }.toTypedArray()),
                             layerConfig = config,
-                            overlays = overlays,
+                            overlays = mergedOverlays,
                             layerLoadingProgress = 0
                         )
                     }
                 } else {
-                    _state.update { it.copy(legend = persistentListOf(), layerConfig = config, overlays = overlays, layerLoadingProgress = 0) }
+                    _state.update { state ->
+                        state.copy(
+                            legend = persistentListOf(),
+                            layerConfig = config,
+                            overlays = mergeOverlays(state.overlays, overlays),
+                            layerLoadingProgress = 0
+                        )
+                    }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 _state.update {
                     it.copy(
                         legend = persistentListOf(),
                         layerConfig = null,
-                        overlays = persistentListOf(),
                         layerLoadingProgress = 0
                     )
                 }
             }
         }
+    }
+
+    private fun mergeOverlays(
+        existingOverlays: List<MapOverlayState>,
+        engineOverlays: List<MapOverlayState>
+    ) = persistentListOf(
+        *(existingOverlays.filter {
+            it is MapOverlayState.UserMarker ||
+                it is MapOverlayState.AccuracyCircle ||
+                it is MapOverlayState.SearchMarker
+        } + engineOverlays).toTypedArray()
+    )
+
+    private fun parseCoordinateQuery(query: String): LatLngModel? {
+        val normalizedQuery = query.trim()
+        return parseDelimitedCoordinateQuery(normalizedQuery)
+            ?: parseHemisphereCoordinateQuery(normalizedQuery)
+            ?: parseWhitespaceDecimalCoordinateQuery(normalizedQuery)
+    }
+
+    private fun parseDelimitedCoordinateQuery(query: String): LatLngModel? {
+        val parts = query
+            .split(coordinatePartDelimiterRegex)
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+        if (parts.size != 2) return null
+
+        return buildCoordinatePair(
+            parseCoordinatePart(parts[0], expectedAxis = CoordinateAxis.Latitude),
+            parseCoordinatePart(parts[1], expectedAxis = CoordinateAxis.Longitude)
+        )
+    }
+
+    private fun parseHemisphereCoordinateQuery(query: String): LatLngModel? {
+        val parts = coordinateWithHemisphereRegex
+            .findAll(query)
+            .map { it.value.trim() }
+            .toList()
+        if (parts.size != 2) return null
+
+        return buildCoordinatePair(
+            parseCoordinatePart(parts[0], expectedAxis = null),
+            parseCoordinatePart(parts[1], expectedAxis = null)
+        )
+    }
+
+    private fun parseWhitespaceDecimalCoordinateQuery(query: String): LatLngModel? {
+        if (hemisphereRegex.containsMatchIn(query)) return null
+
+        val values = coordinateNumberRegex
+            .findAll(query)
+            .mapNotNull { it.value.toDoubleOrNull() }
+            .toList()
+        if (values.size != 2) return null
+
+        return buildCoordinatePair(
+            ParsedCoordinateComponent(CoordinateAxis.Latitude, values[0]),
+            ParsedCoordinateComponent(CoordinateAxis.Longitude, values[1])
+        )
+    }
+
+    private fun parseCoordinatePart(
+        part: String,
+        expectedAxis: CoordinateAxis?
+    ): ParsedCoordinateComponent? {
+        val hemispheres = hemisphereRegex.findAll(part).map { it.value.uppercase()[0] }.toList()
+        if (hemispheres.size > 1) return null
+
+        val hemisphere = hemispheres.singleOrNull()
+        val axis = when (hemisphere) {
+            'N', 'S' -> CoordinateAxis.Latitude
+            'E', 'W' -> CoordinateAxis.Longitude
+            null -> expectedAxis ?: return null
+            else -> return null
+        }
+        if (expectedAxis != null && axis != expectedAxis) return null
+
+        val numericValues = coordinateNumberRegex
+            .findAll(part)
+            .mapNotNull { it.value.toDoubleOrNull() }
+            .toList()
+        if (numericValues.isEmpty() || numericValues.size > 3) return null
+
+        val sign = when (hemisphere) {
+            'S', 'W' -> -1
+            'N', 'E' -> 1
+            null -> if (numericValues.first() < 0) -1 else 1
+            else -> return null
+        }
+
+        val absoluteValue = when (numericValues.size) {
+            1 -> abs(numericValues[0])
+            2, 3 -> {
+                val degrees = abs(numericValues[0])
+                val minutes = abs(numericValues[1])
+                val seconds = numericValues.getOrElse(2) { 0.0 }.let(::abs)
+                if (minutes >= 60.0 || seconds >= 60.0) return null
+                degrees + (minutes / 60.0) + (seconds / 3600.0)
+            }
+            else -> return null
+        }
+
+        return ParsedCoordinateComponent(axis = axis, value = sign * absoluteValue)
+    }
+
+    private fun buildCoordinatePair(
+        first: ParsedCoordinateComponent?,
+        second: ParsedCoordinateComponent?
+    ): LatLngModel? {
+        if (first == null || second == null) return null
+
+        val latitude = when {
+            first.axis == CoordinateAxis.Latitude -> first.value
+            second.axis == CoordinateAxis.Latitude -> second.value
+            else -> return null
+        }
+        val longitude = when {
+            first.axis == CoordinateAxis.Longitude -> first.value
+            second.axis == CoordinateAxis.Longitude -> second.value
+            else -> return null
+        }
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
+
+        return LatLngModel(lat = latitude, lng = longitude)
     }
 
     override fun onCleared() {

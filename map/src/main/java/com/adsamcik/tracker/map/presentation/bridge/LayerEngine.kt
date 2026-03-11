@@ -9,7 +9,10 @@ import kotlinx.collections.immutable.ImmutableList
  * Produces [MapLibreLayerConfig] data for rendering and [MapOverlayState] for overlays.
  */
 interface LayerEngine {
-    suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange)
+    suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange)
+    suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange) {
+        selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange)
+    }
     fun clear()
     fun activeLegend(): MapLayerData?
     fun activeLayerConfig(): MapLibreLayerConfig?
