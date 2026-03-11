@@ -84,11 +84,6 @@ dependencies {
     implementation(libs.sqlite.android)
     androidTestImplementation(libs.androidx.room.testing)
 
-    // GPX
-    implementation(libs.stax.api)
-    implementation(libs.aalto.xml)
-    implementation(libs.jpx)
-
     // Core
     implementation(libs.kotlin.stdlib.jdk8)
     implementation(libs.kotlinx.coroutines.android)
