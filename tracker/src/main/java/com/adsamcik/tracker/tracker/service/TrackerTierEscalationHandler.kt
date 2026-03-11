@@ -9,11 +9,9 @@ import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
-import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.policy.PolicyIntervalMapper
 import com.adsamcik.tracker.tracker.policy.PolicyTierMapper
@@ -51,10 +49,9 @@ internal class TrackerTierEscalationHandler(
 	lateinit var timerAccessor: TimerAccessor
 
 	/**
-	 * Mutable component lists owned by the service — handler appends during escalation.
+	 * Mutable component list owned by the service — handler appends during escalation.
 	 */
 	lateinit var dataComponentList: MutableList<DataTrackerComponent>
-	lateinit var postComponentList: MutableList<PostTrackerComponent>
 
 	/**
 	 * Callback invoked when escalation creates a new DataProducerManager.
@@ -63,7 +60,6 @@ internal class TrackerTierEscalationHandler(
 	var onProducerManagerChanged: ((DataProducerManager) -> Unit)? = null
 
 	var dataProducerManager: DataProducerManager? = null
-	var persistenceErrorCollector: DefaultPersistenceErrorCollector? = null
 	var processorPipeline: ProcessorPipeline? = null
 
 	/**
@@ -122,13 +118,6 @@ internal class TrackerTierEscalationHandler(
 				// Add GPS-dependent data components
 				val newDataComponents = componentFactory.buildEscalationDataComponents(context)
 				dataComponentList.addAll(newDataComponents)
-
-				// Add GPS-dependent post components
-				val newPostComponents = componentFactory.buildEscalationPostComponents(
-					context,
-					persistenceErrorCollector,
-				)
-				postComponentList.addAll(newPostComponents)
 
 				// Escalate the stats ProcessorPipeline
 				processorPipeline?.escalate(newTier, EpochMs(Time.nowMillis))

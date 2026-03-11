@@ -16,11 +16,12 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
-import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
+import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
+import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
@@ -63,7 +64,8 @@ internal class TrackingOrchestrator(
 	private var persistenceErrorCollector: PersistenceErrorCollector? = null
 
 	private val preComponentList = mutableListOf<PreTrackerComponent>()
-	private val postComponentList = mutableListOf<PostTrackerComponent>()
+	private var skiTrackingComponent: SkiTrackingComponent? = null
+	private var skiSegmentWriter: SkiSegmentWriter? = null
 	private val dataComponentList = mutableListOf<DataTrackerComponent>()
 
 	val notificationComponent: NotificationComponent = NotificationComponent()
@@ -104,10 +106,13 @@ internal class TrackingOrchestrator(
 		// if onStartCommand is called multiple times or concurrently with onUpdate.
 		preComponentList.forEach { tryWithReport { it.onDisable(context) } }
 		dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
-		postComponentList.forEach { tryWithReport { it.onDisable(context) } }
+		tryWithReport { notificationComponent.onDisable(context) }
+		skiTrackingComponent?.let { tryWithReport { it.onDisable(context) } }
+		skiSegmentWriter?.let { tryWithReport { it.onDisable(context) } }
 		preComponentList.clear()
 		dataComponentList.clear()
-		postComponentList.clear()
+		skiTrackingComponent = null
+		skiSegmentWriter = null
 
 		// Cleanup previous managers if re-initializing
 		dataProducerManager?.onDisable()
@@ -145,9 +150,7 @@ internal class TrackingOrchestrator(
 		).apply {
 			this.currentTier = initialTier
 			this.dataComponentList = this@TrackingOrchestrator.dataComponentList
-			this.postComponentList = this@TrackingOrchestrator.postComponentList
 			this.dataProducerManager = this@TrackingOrchestrator.dataProducerManager
-			this.persistenceErrorCollector = null // set below after factory creates it
 			this.processorPipeline = null // set below after pipeline creation
 			this.onProducerManagerChanged = { newManager ->
 				this@TrackingOrchestrator.dataProducerManager = newManager
@@ -190,7 +193,8 @@ internal class TrackingOrchestrator(
 		sessionComponent = componentSet.sessionComponent
 		preComponentList.addAll(componentSet.preComponents)
 		dataComponentList.addAll(componentSet.dataComponents)
-		postComponentList.addAll(componentSet.postComponents)
+		skiTrackingComponent = componentSet.skiTrackingComponent
+		skiSegmentWriter = componentSet.skiSegmentWriter
 
 		persistenceErrorCollector = componentSet.errorCollector
 		controller.updatePersistenceErrorFlow(componentSet.errorCollector.errors)
@@ -212,8 +216,6 @@ internal class TrackingOrchestrator(
 		)
 
 		// Wire mutable references into tier escalation handler
-		tierEscalationHandler.persistenceErrorCollector =
-			persistenceErrorCollector as? DefaultPersistenceErrorCollector
 		tierEscalationHandler.processorPipeline = processorPipeline
 	}
 
@@ -314,13 +316,26 @@ internal class TrackingOrchestrator(
 		controller.updateSession(session)
 		controller.updateCollectionData(collectionData)
 
-		val postComponentsRun = postComponentList
-				.filter { it.requirementsMet(tempData) }
-		postComponentsRun.forEach {
-					tryWithReport {
-						it.onNewData(context, session, collectionData, tempData)
-					}
+		// Explicit post-component calls (no longer via generic list)
+		if (notificationComponent.requirementsMet(tempData)) {
+			tryWithReport {
+				notificationComponent.onNewData(context, session, collectionData, tempData)
+			}
+		}
+		skiSegmentWriter?.let { writer ->
+			if (writer.requirementsMet(tempData)) {
+				tryWithReport {
+					writer.onNewData(context, session, collectionData, tempData)
 				}
+			}
+		}
+		skiTrackingComponent?.let { ski ->
+			if (ski.requirementsMet(tempData)) {
+				tryWithReport {
+					ski.onNewData(context, session, collectionData, tempData)
+				}
+			}
+		}
 
 		// Feed data to the ProcessorPipeline
 		processorPipeline?.let { pipeline ->
@@ -393,7 +408,11 @@ internal class TrackingOrchestrator(
 		trackingPolicyManager = null
 		preComponentList.forEach { tryWithReport { it.onDisable(context) } }
 		dataComponentList.forEach { tryWithReport { it.onDisable(context) } }
-		postComponentList.forEach { tryWithReport { it.onDisable(context) } }
+		tryWithReport { notificationComponent.onDisable(context) }
+		skiTrackingComponent?.let { tryWithReport { it.onDisable(context) } }
+		skiSegmentWriter?.let { tryWithReport { it.onDisable(context) } }
+		skiTrackingComponent = null
+		skiSegmentWriter = null
 		sessionComponent?.let { component ->
 			tryWithReport {
 				component.onDisable(context)

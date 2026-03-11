@@ -7,7 +7,6 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
-import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
@@ -33,7 +32,8 @@ import kotlinx.coroutines.launch
 internal data class ComponentSet(
 	val preComponents: List<PreTrackerComponent>,
 	val dataComponents: List<DataTrackerComponent>,
-	val postComponents: List<PostTrackerComponent>,
+	val skiTrackingComponent: SkiTrackingComponent?,
+	val skiSegmentWriter: SkiSegmentWriter?,
 	val sessionComponent: SessionTrackerComponent,
 	val errorCollector: DefaultPersistenceErrorCollector,
 )
@@ -82,11 +82,13 @@ internal class TrackerComponentFactory(
 		val preComponents = buildPreComponents(context, trackingPolicyManager)
 		val dataComponents = buildDataComponents(context, tier)
 		val errorCollector = DefaultPersistenceErrorCollector()
-		val postComponents = buildPostComponents(
+
+		// Enable notification component directly (no longer in generic list)
+		notificationComponent.onEnable(context)
+
+		// Build and enable ski components (if ski detection is enabled)
+		val (skiTracking, skiWriter) = buildSkiComponents(
 			context = context,
-			tier = tier,
-			notificationComponent = notificationComponent,
-			errorCollector = errorCollector,
 			escalationEngine = escalationEngine,
 			controller = controller,
 			scope = scope,
@@ -95,7 +97,8 @@ internal class TrackerComponentFactory(
 		return ComponentSet(
 			preComponents = preComponents,
 			dataComponents = dataComponents,
-			postComponents = postComponents,
+			skiTrackingComponent = skiTracking,
+			skiSegmentWriter = skiWriter,
 			sessionComponent = sessionComponent,
 			errorCollector = errorCollector,
 		)
@@ -112,20 +115,6 @@ internal class TrackerComponentFactory(
 		)
 		for (component in components) { component.onEnable(context) }
 		return components
-	}
-
-	/**
-	 * Build GPS-dependent post components added during tier escalation.
-	 *
-	 * Persistence is now handled by [PersistenceProcessor] in the stats pipeline,
-	 * so no database post-components are created here.
-	 */
-	@Suppress("UNUSED_PARAMETER")
-	suspend fun buildEscalationPostComponents(
-		context: Context,
-		errorCollector: DefaultPersistenceErrorCollector?,
-	): List<PostTrackerComponent> {
-		return emptyList()
 	}
 
 	private suspend fun buildPreComponents(
@@ -159,34 +148,27 @@ internal class TrackerComponentFactory(
 		return components
 	}
 
-	private suspend fun buildPostComponents(
+	private suspend fun buildSkiComponents(
 		context: Context,
-		tier: PolicyTier,
-		notificationComponent: NotificationComponent,
-		errorCollector: DefaultPersistenceErrorCollector,
 		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
-	): List<PostTrackerComponent> {
-		val components = mutableListOf<PostTrackerComponent>()
-		components.add(notificationComponent)
+	): Pair<SkiTrackingComponent?, SkiSegmentWriter?> {
 		val skiEnabled = trackingParamsRepository.data.first().skiDetectionEnabled
-		if (skiEnabled) {
-			val segmentWriter = SkiSegmentWriter()
-			components.add(segmentWriter)
-			components.add(SkiTrackingComponent().also { skiComponent ->
-				skiComponent.setEscalationEngine(escalationEngine)
-				skiComponent.setSecondaryListener(segmentWriter)
-				scope.launch {
-					skiComponent.skiState.collect { skiState ->
-						controller.updateSkiState(skiState)
-					}
+		if (!skiEnabled) return null to null
+
+		val segmentWriter = SkiSegmentWriter()
+		val skiComponent = SkiTrackingComponent().also {
+			it.setEscalationEngine(escalationEngine)
+			it.setSecondaryListener(segmentWriter)
+			scope.launch {
+				it.skiState.collect { skiState ->
+					controller.updateSkiState(skiState)
 				}
-			})
+			}
 		}
-		// Persistence (location, cell, wifi, pressure) is now handled by PersistenceProcessor
-		// in the stats pipeline — no database post-components are created here.
-		for (component in components) { component.onEnable(context) }
-		return components
+		segmentWriter.onEnable(context)
+		skiComponent.onEnable(context)
+		return skiComponent to segmentWriter
 	}
 }

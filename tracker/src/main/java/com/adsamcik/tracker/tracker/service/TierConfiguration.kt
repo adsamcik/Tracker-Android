@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.service
 
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
-import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 
 /**
@@ -17,16 +16,17 @@ import com.adsamcik.tracker.tracker.component.PreTrackerComponent
  * `var currentConfig: TierConfiguration` that is swapped atomically
  * on tier change.
  *
+ * Post-components (notification, ski) are called explicitly by the
+ * orchestrator and are not part of the per-tier configuration.
+ *
  * @property tier           the [PolicyTier] this configuration represents.
  * @property preComponents  pre-processing components (location filtering, etc.).
  * @property dataComponents data-collection components active at this tier.
- * @property postComponents post-processing components (notification, ski, etc.).
  * @property producerTier   the [PolicyTier] used for [DataProducerManager] construction.
  */
 internal data class TierConfiguration(
 	val tier: PolicyTier,
 	val preComponents: List<PreTrackerComponent>,
 	val dataComponents: List<DataTrackerComponent>,
-	val postComponents: List<PostTrackerComponent>,
 	val producerTier: PolicyTier,
 )

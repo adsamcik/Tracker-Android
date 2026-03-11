@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.service
 
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
-import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
@@ -45,7 +44,6 @@ class TierConfigurationTest {
 			tier = tier,
 			preComponents = listOf(mockk<PreTrackerComponent>(relaxed = true)),
 			dataComponents = dataComponents,
-			postComponents = listOf(mockk<PostTrackerComponent>(relaxed = true)),
 			producerTier = tier,
 		)
 	}
@@ -60,7 +58,6 @@ class TierConfigurationTest {
 				tier = PolicyTier.ACTIVE,
 				preComponents = emptyList(),
 				dataComponents = emptyList(),
-				postComponents = emptyList(),
 				producerTier = PolicyTier.ACTIVE,
 			)
 			config.tier shouldBe PolicyTier.ACTIVE
@@ -71,36 +68,32 @@ class TierConfigurationTest {
 		fun `captures component lists immutably`() {
 			val pre = listOf(mockk<PreTrackerComponent>(relaxed = true))
 			val data = listOf(mockk<DataTrackerComponent>(relaxed = true))
-			val post = listOf(mockk<PostTrackerComponent>(relaxed = true))
 			val config = TierConfiguration(
 				tier = PolicyTier.AMBIENT,
 				preComponents = pre,
 				dataComponents = data,
-				postComponents = post,
 				producerTier = PolicyTier.AMBIENT,
 			)
 			config.preComponents shouldBe pre
 			config.dataComponents shouldBe data
-			config.postComponents shouldBe post
 		}
 
 		@Test
 		fun `data class equality works`() {
 			val pre = emptyList<PreTrackerComponent>()
 			val data = emptyList<DataTrackerComponent>()
-			val post = emptyList<PostTrackerComponent>()
-			val a = TierConfiguration(PolicyTier.ACTIVE, pre, data, post, PolicyTier.ACTIVE)
-			val b = TierConfiguration(PolicyTier.ACTIVE, pre, data, post, PolicyTier.ACTIVE)
+			val a = TierConfiguration(PolicyTier.ACTIVE, pre, data, PolicyTier.ACTIVE)
+			val b = TierConfiguration(PolicyTier.ACTIVE, pre, data, PolicyTier.ACTIVE)
 			a shouldBe b
 		}
 
 		@Test
 		fun `different tiers are not equal`() {
 			val config1 = TierConfiguration(
-				PolicyTier.AMBIENT, emptyList(), emptyList(), emptyList(), PolicyTier.AMBIENT,
+				PolicyTier.AMBIENT, emptyList(), emptyList(), PolicyTier.AMBIENT,
 			)
 			val config2 = TierConfiguration(
-				PolicyTier.ACTIVE, emptyList(), emptyList(), emptyList(), PolicyTier.ACTIVE,
+				PolicyTier.ACTIVE, emptyList(), emptyList(), PolicyTier.ACTIVE,
 			)
 			config1 shouldNotBe config2
 		}
@@ -177,11 +170,11 @@ class TierConfigurationTest {
 				mockk<DataTrackerComponent>(relaxed = true),
 				mockk<DataTrackerComponent>(relaxed = true),
 			)
-			val post = listOf(mockk<PostTrackerComponent>(relaxed = true))
 			val componentSet = ComponentSet(
 				preComponents = pre,
 				dataComponents = data,
-				postComponents = post,
+				skiTrackingComponent = null,
+				skiSegmentWriter = null,
 				sessionComponent = mockk<SessionTrackerComponent>(relaxed = true),
 				errorCollector = mockk<DefaultPersistenceErrorCollector>(relaxed = true),
 			)
@@ -195,7 +188,6 @@ class TierConfigurationTest {
 			config.producerTier shouldBe PolicyTier.ACTIVE
 			config.preComponents shouldBe pre
 			config.dataComponents shouldBe data
-			config.postComponents shouldBe post
 		}
 
 		@Test
@@ -205,7 +197,8 @@ class TierConfigurationTest {
 			val componentSet = ComponentSet(
 				preComponents = emptyList(),
 				dataComponents = emptyList(),
-				postComponents = emptyList(),
+				skiTrackingComponent = null,
+				skiSegmentWriter = null,
 				sessionComponent = session,
 				errorCollector = errorCollector,
 			)
@@ -220,7 +213,6 @@ class TierConfigurationTest {
 			config.tier shouldBe PolicyTier.PRECISION
 			config.preComponents shouldHaveSize 0
 			config.dataComponents shouldHaveSize 0
-			config.postComponents shouldHaveSize 0
 		}
 	}
 }

@@ -36,7 +36,6 @@ internal class TierConfigurationResolver(
 			tier = tier,
 			preComponents = componentSet.preComponents,
 			dataComponents = componentSet.dataComponents,
-			postComponents = componentSet.postComponents,
 			producerTier = tier,
 		)
 	}
