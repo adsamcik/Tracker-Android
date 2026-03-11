@@ -27,7 +27,6 @@ import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import kotlinx.coroutines.delay
 
 private const val BAR_COUNT = 7
-private const val STAGGER_DELAY_MS = 50L
 private const val MIN_BAR_FRACTION = 0.05f
 
 /**
@@ -57,7 +56,7 @@ internal fun WeeklyTrendBars(
 
 	LaunchedEffect(dailyValues) {
 		barAnimations.forEachIndexed { index, animatable ->
-			delay(index * STAGGER_DELAY_MS)
+			delay(index.coerceAtMost(MotionTokens.STAGGER_MAX_DEPTH) * MotionTokens.STAGGER_MS.toLong())
 			animatable.animateTo(
 				targetValue = dailyValues[index].coerceIn(0f, 1f),
 				animationSpec = spring(

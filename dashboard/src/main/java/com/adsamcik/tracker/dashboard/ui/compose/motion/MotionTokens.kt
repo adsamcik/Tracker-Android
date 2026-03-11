@@ -86,7 +86,10 @@ object MotionTokens {
 	const val BACKGROUND_LOOP_MS = 4000
 
 	/** Stagger interval between sequential card entrances. */
-	const val STAGGER_MS = 80
+	const val STAGGER_MS = 60
+
+	/** Maximum index depth that receives incremental stagger delay. */
+	const val STAGGER_MAX_DEPTH = 6
 
 	// ─── TWEEN HELPERS ───────────────────────────────────────────────────
 

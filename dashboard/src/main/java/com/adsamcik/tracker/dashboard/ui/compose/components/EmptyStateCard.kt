@@ -22,10 +22,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationSearching
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -213,6 +216,88 @@ internal fun EmptyStateCard(modifier: Modifier = Modifier) {
 	}
 }
 
+@Composable
+internal fun GettingStartedCard(modifier: Modifier = Modifier) {
+	Card(
+		modifier = modifier.fillMaxWidth(),
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+		),
+	) {
+		Column(
+			modifier = Modifier
+				.fillMaxWidth()
+				.padding(20.dp),
+			verticalArrangement = Arrangement.spacedBy(16.dp),
+		) {
+			Text(
+				text = stringResource(R.string.dashboard_empty_quick_start_title),
+				style = MaterialTheme.typography.titleLarge,
+				fontWeight = FontWeight.SemiBold,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = stringResource(R.string.dashboard_empty_quick_start_subtitle),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+			QuickStartStep(
+				icon = Icons.Default.Tune,
+				title = stringResource(R.string.dashboard_empty_step_customize_title),
+				description = stringResource(R.string.dashboard_empty_step_customize_desc),
+			)
+			QuickStartStep(
+				icon = Icons.Default.PlayArrow,
+				title = stringResource(R.string.dashboard_empty_step_start_title),
+				description = stringResource(R.string.dashboard_empty_step_start_desc),
+			)
+			QuickStartStep(
+				icon = Icons.Default.Map,
+				title = stringResource(R.string.dashboard_empty_step_review_title),
+				description = stringResource(R.string.dashboard_empty_step_review_desc),
+			)
+		}
+	}
+}
+
+@Composable
+internal fun EmptyStateStartHintCard(modifier: Modifier = Modifier) {
+	Card(
+		modifier = modifier.fillMaxWidth(),
+		colors = CardDefaults.cardColors(
+			containerColor = MaterialTheme.colorScheme.secondaryContainer,
+		),
+	) {
+		Row(
+			modifier = Modifier
+				.fillMaxWidth()
+				.padding(20.dp),
+			horizontalArrangement = Arrangement.spacedBy(12.dp),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			Icon(
+				imageVector = Icons.Default.LocationSearching,
+				contentDescription = null,
+				tint = MaterialTheme.colorScheme.onSecondaryContainer,
+				modifier = Modifier.size(28.dp),
+			)
+			Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+				Text(
+					text = stringResource(R.string.dashboard_empty_fab_hint_title),
+					style = MaterialTheme.typography.titleMedium,
+					fontWeight = FontWeight.SemiBold,
+					color = MaterialTheme.colorScheme.onSecondaryContainer,
+				)
+				Text(
+					text = stringResource(R.string.dashboard_empty_fab_hint_desc),
+					style = MaterialTheme.typography.bodyMedium,
+					color = MaterialTheme.colorScheme.onSecondaryContainer,
+				)
+			}
+		}
+	}
+}
+
 /**
  * Feature highlights grid for the empty state.
  */
@@ -256,6 +341,48 @@ private fun FeatureHighlights(modifier: Modifier = Modifier) {
 				title = stringResource(R.string.dashboard_empty_feature_privacy),
 				description = stringResource(R.string.dashboard_empty_feature_privacy_desc),
 				modifier = Modifier.weight(1f),
+			)
+		}
+	}
+}
+
+@Composable
+private fun QuickStartStep(
+	icon: ImageVector,
+	title: String,
+	description: String,
+	modifier: Modifier = Modifier,
+) {
+	Row(
+		modifier = modifier.fillMaxWidth(),
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+		verticalAlignment = Alignment.Top,
+	) {
+		Box(
+			modifier = Modifier
+				.size(40.dp)
+				.clip(MaterialTheme.shapes.medium)
+				.background(MaterialTheme.colorScheme.primaryContainer),
+			contentAlignment = Alignment.Center,
+		) {
+			Icon(
+				imageVector = icon,
+				contentDescription = null,
+				tint = MaterialTheme.colorScheme.onPrimaryContainer,
+				modifier = Modifier.size(20.dp),
+			)
+		}
+		Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+			Text(
+				text = title,
+				style = MaterialTheme.typography.titleSmall,
+				fontWeight = FontWeight.SemiBold,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = description,
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 		}
 	}

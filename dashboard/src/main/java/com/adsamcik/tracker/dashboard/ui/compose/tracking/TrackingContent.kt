@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -38,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.components.SensorDetailsCard
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.AltitudeSparkline
@@ -49,7 +52,6 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.utils.extension.formatDistance
 import com.adsamcik.tracker.shared.utils.extension.formatSpeed
-import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.tracker.R as TrackerR
 
 /**
@@ -64,6 +66,7 @@ import com.adsamcik.tracker.tracker.R as TrackerR
 @Composable
 internal fun TrackingContent(
 	state: DashboardUiState,
+	bottomClearance: Dp = DashboardLayoutDefaults.PillClearance,
 	onMapClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -72,6 +75,7 @@ internal fun TrackingContent(
 			modifier = Modifier
 				.fillMaxSize()
 				.padding(horizontal = 16.dp),
+			contentPadding = PaddingValues(bottom = bottomClearance),
 			verticalArrangement = Arrangement.spacedBy(16.dp),
 		) {
 			item(key = "map_hero") {
@@ -143,11 +147,6 @@ internal fun TrackingContent(
 					isTracking = state.isTracking,
 				)
 			}
-
-			// Bottom spacer to clear FAB
-			item(key = "bottom_spacer") {
-				Spacer(Modifier.height(AppDimensions.FloatingNavBarClearance))
-			}
 		}
 
 		// Milestone celebration overlay at the top
@@ -207,7 +206,14 @@ private fun MapHeroCard(
 						.height(200.dp),
 				)
 			} else {
-				// Empty map placeholder
+				// Placeholder while path is being recorded.
+				// Distinguish between "no GPS fix yet" and "GPS acquired but < 2 path points".
+				val hasGpsFix = collectionData?.location != null
+				val placeholderText = if (hasGpsFix) {
+					stringResource(R.string.dashboard_tracking_recording_route)
+				} else {
+					stringResource(R.string.dashboard_tracking_awaiting_gps)
+				}
 				Box(
 					modifier = Modifier
 						.fillMaxWidth()
@@ -216,7 +222,7 @@ private fun MapHeroCard(
 					contentAlignment = Alignment.Center,
 				) {
 					Text(
-						text = stringResource(R.string.dashboard_tracking_awaiting_gps),
+						text = placeholderText,
 						style = MaterialTheme.typography.bodyMedium,
 						color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
 					)

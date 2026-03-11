@@ -2,6 +2,8 @@ plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.compose)
+	alias(libs.plugins.ksp)
+	alias(libs.plugins.hilt)
 	alias(libs.plugins.robolectric.junit5)
 }
 
@@ -61,6 +63,9 @@ dependencies {
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	implementation(libs.androidx.lifecycle.viewmodel.compose)
 	implementation(libs.androidx.datastore.preferences)
+	implementation(libs.hilt.navigation.compose)
+	implementation(libs.hilt.android)
+	ksp(libs.hilt.compiler)
 
 	// Compose
 	implementation(platform(libs.compose.bom))
@@ -86,9 +91,13 @@ dependencies {
 	testImplementation(libs.kotlinx.coroutines.test)
 	testImplementation(libs.mockk)
 	testImplementation(libs.kotest.assertions.core)
+	testImplementation(libs.junit4)
 	testImplementation(libs.androidx.test.core)
 	testImplementation(libs.robolectric)
 	testImplementation(libs.junit5.robolectric)
+	testImplementation(libs.compose.ui.test.junit4)
+	testRuntimeOnly(libs.junit5.vintage.engine)
+	debugImplementation(libs.compose.ui.test.manifest)
 }
 
 tasks.withType<Test>().configureEach {

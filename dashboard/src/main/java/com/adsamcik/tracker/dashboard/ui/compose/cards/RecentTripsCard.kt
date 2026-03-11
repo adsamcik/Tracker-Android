@@ -3,10 +3,12 @@ package com.adsamcik.tracker.dashboard.ui.compose.cards
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -48,8 +50,6 @@ internal fun RecentTripsCard(
 	onTripClick: ((Long) -> Unit)?,
 	modifier: Modifier = Modifier,
 ) {
-	if (trips.isEmpty()) return
-
 	val context = LocalContext.current
 	val settings = TrackerSettingsQuick.snapshot(context)
 
@@ -72,28 +72,36 @@ internal fun RecentTripsCard(
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 
-			trips.forEach { trip ->
-				key(trip.id) {
-					RecentTripRow(
-						trip = trip,
-						distanceText = context.resources.formatDistance(
-							trip.distanceM,
-							1,
-							settings.lengthSystem,
-						),
-						durationText = trip.durationMs.formatAsDuration(context),
-						timeText = DateUtils.getRelativeTimeSpanString(
-							trip.startTimeMs,
-							System.currentTimeMillis(),
-							DateUtils.MINUTE_IN_MILLIS,
-							DateUtils.FORMAT_ABBREV_RELATIVE,
-						).toString(),
-						onClick = if (onTripClick != null) {
-							{ onTripClick(trip.id) }
-						} else {
-							null
-						},
-					)
+			if (trips.isEmpty()) {
+				Text(
+					text = stringResource(R.string.dashboard_recent_trips_empty),
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+			} else {
+				trips.forEach { trip ->
+					key(trip.id) {
+						RecentTripRow(
+							trip = trip,
+							distanceText = context.resources.formatDistance(
+								trip.distanceM,
+								1,
+								settings.lengthSystem,
+							),
+							durationText = trip.durationMs.formatAsDuration(context),
+							timeText = DateUtils.getRelativeTimeSpanString(
+								trip.startTimeMs,
+								System.currentTimeMillis(),
+								DateUtils.MINUTE_IN_MILLIS,
+								DateUtils.FORMAT_ABBREV_RELATIVE,
+							).toString(),
+							onClick = if (onTripClick != null) {
+								{ onTripClick(trip.id) }
+							} else {
+								null
+							},
+						)
+					}
 				}
 			}
 		}
@@ -114,12 +122,14 @@ private fun RecentTripRow(
 	val rowModifier = if (onClick != null) {
 		modifier
 			.fillMaxWidth()
+			.heightIn(min = 48.dp)
 			.clip(MaterialTheme.shapes.medium)
 			.clickable(onClick = onClick)
 			.padding(vertical = 8.dp, horizontal = 4.dp)
 	} else {
 		modifier
 			.fillMaxWidth()
+			.heightIn(min = 48.dp)
 			.padding(vertical = 8.dp, horizontal = 4.dp)
 	}
 
@@ -143,21 +153,26 @@ private fun RecentTripRow(
 			Text(
 				text = durationText,
 				style = MaterialTheme.typography.bodySmall,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				color = MaterialTheme.colorScheme.onSurface,
 			)
 		}
 		Text(
 			text = timeText,
 			style = MaterialTheme.typography.labelSmall,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
+			color = MaterialTheme.colorScheme.onSurface,
 		)
 		if (onClick != null) {
-			Icon(
-				imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-				contentDescription = stringResource(R.string.dashboard_cd_forward_arrow),
-				tint = MaterialTheme.colorScheme.onSurfaceVariant,
-				modifier = Modifier.size(16.dp),
-			)
+			Box(
+				modifier = Modifier.size(48.dp),
+				contentAlignment = Alignment.Center,
+			) {
+				Icon(
+					imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+					contentDescription = stringResource(R.string.dashboard_cd_forward_arrow),
+					tint = MaterialTheme.colorScheme.onSurface,
+					modifier = Modifier.size(20.dp),
+				)
+			}
 		}
 	}
 }

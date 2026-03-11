@@ -83,7 +83,7 @@ internal fun AltitudeSparkline(
 			Text(
 				text = noDataText,
 				style = MaterialTheme.typography.bodySmall,
-				color = onSurfaceVariant.copy(alpha = 0.5f),
+				color = MaterialTheme.colorScheme.onSurface,
 			)
 		}
 		return
