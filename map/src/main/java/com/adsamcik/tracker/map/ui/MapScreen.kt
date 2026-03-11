@@ -411,15 +411,8 @@ fun MapScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .then(
-                        if (sheetVisibility == com.adsamcik.tracker.map.presentation.udf.SheetVisibility.Expanded) {
-                            Modifier.fillMaxSize()
-                        } else {
-                            Modifier
-                                .fillMaxWidth()
-                                .height(bottomPaddingDp)
-                        }
-                    )
+                    .fillMaxSize()
+                    .padding(bottom = bottomPaddingDp)
                     .pointerInput(sheetVisibility, bottomPaddingPx) {
                         awaitPointerEventScope {
                             while (true) {

@@ -117,9 +117,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@MainThread
 	private fun initializeImportantSingletons() {
-		Reporter.initialize(this)
-		Logger.initialize(this)
-		CrashHandler(this).initialize()
 		ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
 			override fun onStart(owner: LifecycleOwner) {
 				ActivityWatcherService.poke(this@Application)
@@ -164,10 +161,16 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
 			try {
-				preloadNativeLibraries()
-				MapLibreInitializer.initialize(this@Application)
-				initializeWorkManager()
-				appGraph.warmUp()
+				Reporter.initialize(this@Application)
+				Logger.initialize(this@Application)
+				CrashHandler(this@Application).initialize()
+
+				coroutineScope {
+					launch { preloadNativeLibraries() }
+					launch { MapLibreInitializer.initialize(this@Application) }
+					launch { initializeWorkManager() }
+					launch { appGraph.warmUp() }
+				}
 			} catch (t: Throwable) {
 				Log.e("App", "Background startup initialization failed", t)
 			} finally {
@@ -176,7 +179,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 			launch(dispatchers.io) {
 				try {
-					// Keep StrictMode noisy: only dependency wiring stays on the main thread.
+					appGraph.warmUpDeferred()
 					initializeClasses()
 					initializeModules()
 					initializeFeatures()

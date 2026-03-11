@@ -63,9 +63,14 @@ class AppGraph(
 
     @WorkerThread
     fun warmUp() {
-        database.openHelper.writableDatabase
+        // Phase 1: resolve lightweight singletons (no DB access)
         trackerServiceController
         lockManager
+    }
+
+    @WorkerThread
+    fun warmUpDeferred() {
+        // Phase 2: resolve DB-touching providers (lazy DB init on first query)
         dailySummaryProvider
         dailyPointsProvider
         goalProgressProvider
