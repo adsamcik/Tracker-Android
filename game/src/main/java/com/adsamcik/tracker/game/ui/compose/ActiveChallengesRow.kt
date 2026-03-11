@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
+import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 
 @Composable
 fun ActiveChallengesRow(
@@ -154,16 +155,22 @@ private fun ProgressArc(progress: Float) {
 
 @Composable
 private fun EmptySlotCard(onStartStreakClick: () -> Unit) {
-	val infiniteTransition = rememberInfiniteTransition(label = "emptySlotPulse")
-	val alpha by infiniteTransition.animateFloat(
-		initialValue = 0.3f,
-		targetValue = 1f,
-		animationSpec = infiniteRepeatable(
-			animation = tween(durationMillis = 1000),
-			repeatMode = RepeatMode.Reverse,
-		),
-		label = "emptySlotAlpha",
-	)
+	val reducedMotion = LocalReducedMotion.current
+	val alpha = if (reducedMotion) {
+		0.65f
+	} else {
+		val infiniteTransition = rememberInfiniteTransition(label = "emptySlotPulse")
+		val animated by infiniteTransition.animateFloat(
+			initialValue = 0.3f,
+			targetValue = 1f,
+			animationSpec = infiniteRepeatable(
+				animation = tween(durationMillis = 1000),
+				repeatMode = RepeatMode.Reverse,
+			),
+			label = "emptySlotAlpha",
+		)
+		animated
+	}
 
 	GlassCard(
 		modifier = Modifier

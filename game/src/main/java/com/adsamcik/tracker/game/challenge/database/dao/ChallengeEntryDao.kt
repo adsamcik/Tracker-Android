@@ -39,7 +39,7 @@ interface ChallengeEntryDao : BaseDao<ChallengeEntry> {
 	 * Inserts a challenge entry and sets its database id as id.
 	 */
 	@Transaction
-	fun insertSetId(item: ChallengeEntry) {
+	suspend fun insertSetId(item: ChallengeEntry) {
 		val id = insert(item)
 		if (id != -1L) {
 			item.id = id

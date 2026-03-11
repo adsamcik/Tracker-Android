@@ -31,7 +31,7 @@ class ProgressionRepository @Inject constructor(
 	 * Assigns medal, records history, awards XP, updates streak, checks records.
 	 * @return Summary of progression events
 	 */
-	fun onChallengeCompleted(
+	suspend fun onChallengeCompleted(
 		context: Context,
 		instance: ChallengeInstanceNew,
 	): CompletionResult {
@@ -99,7 +99,7 @@ class ProgressionRepository @Inject constructor(
 	 * Called when challenges expire (batch).
 	 * Records history for each, updates streak (freeze or break).
 	 */
-	fun onChallengesExpired(
+	suspend fun onChallengesExpired(
 		context: Context,
 		expired: List<ChallengeInstanceNew>,
 	): ExpiryResult {
@@ -139,7 +139,7 @@ class ProgressionRepository @Inject constructor(
 	/**
 	 * Called after a tracking session to award passive XP.
 	 */
-	fun onTrackingSession(
+	suspend fun onTrackingSession(
 		context: Context,
 		session: TrackerSession,
 		isVehicleOrStill: Boolean = false,
@@ -167,7 +167,7 @@ class ProgressionRepository @Inject constructor(
 		updatePlayerProfile(database)
 	}
 
-	private fun checkPersonalRecords(
+	private suspend fun checkPersonalRecords(
 		database: ChallengeDatabase,
 		challengeType: String,
 		entity: com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity,
@@ -219,7 +219,7 @@ class ProgressionRepository @Inject constructor(
 	 * Recomputes player profile from XP ledger total.
 	 * @return Pair of (profile, didLevelUp)
 	 */
-	private fun updatePlayerProfile(database: ChallengeDatabase): Pair<PlayerProfileEntity, Boolean> {
+	private suspend fun updatePlayerProfile(database: ChallengeDatabase): Pair<PlayerProfileEntity, Boolean> {
 		val profileDao = database.playerProfileDao()
 		profileDao.ensureExists()
 		val current = profileDao.get() ?: PlayerProfileEntity()

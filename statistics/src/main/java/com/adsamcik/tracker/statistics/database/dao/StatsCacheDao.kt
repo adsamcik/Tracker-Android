@@ -16,7 +16,7 @@ interface StatsCacheDao : BaseDao<CacheStatData> {
 	 * Update if exists, insert otherwise
 	 */
 	@Transaction
-	fun upsert(obj: CacheStatData) {
+	suspend fun upsert(obj: CacheStatData) {
 		val id = insert(obj)
 		if (id == -1L) {
 			update(obj)
@@ -27,7 +27,7 @@ interface StatsCacheDao : BaseDao<CacheStatData> {
 	 * Update if exists, insert otherwise
 	 */
 	@Transaction
-	fun upsert(objList: Collection<CacheStatData>) {
+	suspend fun upsert(objList: Collection<CacheStatData>) {
 		val insertResult = insert(objList)
 		val updateList = objList.filterIndexed { index, _ -> insertResult[index] == -1L }
 

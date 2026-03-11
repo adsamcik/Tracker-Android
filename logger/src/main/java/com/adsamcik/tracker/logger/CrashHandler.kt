@@ -22,6 +22,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.runBlocking
 
 /**
  * Handles application crashes and stores them safely
@@ -143,17 +144,21 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             // Use a separate thread with timeout for database operations
             val future = executor.submit<Boolean> {
                 try {
-                    val crashDao = LogDatabase.database(application).crashDataDao()
-                    crashDao.insert(crashData)
-                    
-                    // Also log to regular log
-                    val logDao = LogDatabase.database(application).genericLogDao()
-                    logDao.insert(
-                        LogData(
-                            message = "Application crashed: ${redactPii(crashData.exceptionMessage)}",
-                            source = CRASH_LOG_SOURCE
+                    runBlocking {
+                        // Crash handling originates from uncaughtException(), so this path cannot be suspend.
+                        // Block briefly here to persist the crash before the process may terminate.
+                        val crashDao = LogDatabase.database(application).crashDataDao()
+                        crashDao.insert(crashData)
+
+                        // Also log to regular log
+                        val logDao = LogDatabase.database(application).genericLogDao()
+                        logDao.insert(
+                            LogData(
+                                message = "Application crashed: ${redactPii(crashData.exceptionMessage)}",
+                                source = CRASH_LOG_SOURCE
+                            )
                         )
-                    )
+                    }
                     true
                 } catch (e: Exception) {
                     Log.e(TAG, "Database storage failed", e)
@@ -241,7 +246,10 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                         // Parse crash file and convert to CrashData
                         val crashData = parseCrashFile(file)
                         if (crashData != null) {
-                            crashDao.insert(crashData)
+                            runBlocking {
+                                // Migration reuses the crash-path DAO writes, which are not invoked from a suspend caller.
+                                crashDao.insert(crashData)
+                            }
                             file.delete() // Remove file after successful migration
                         }
                     } catch (e: Exception) {

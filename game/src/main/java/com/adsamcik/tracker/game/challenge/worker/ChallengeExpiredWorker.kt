@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.Worker
+import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.game.challenge.ChallengeManager
 import com.adsamcik.tracker.shared.base.Time
@@ -14,7 +14,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
 
-internal class ChallengeExpiredWorker(context: Context, workerParams: WorkerParameters) : Worker(
+internal class ChallengeExpiredWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(
 		context,
 		workerParams
 ) {
@@ -25,7 +25,7 @@ internal class ChallengeExpiredWorker(context: Context, workerParams: WorkerPara
 		fun challengeManager(): ChallengeManager
 	}
 
-	override fun doWork(): Result {
+	override suspend fun doWork(): Result {
 		val challengeManager = EntryPointAccessors.fromApplication(
 			applicationContext,
 			ChallengeManagerEntryPoint::class.java

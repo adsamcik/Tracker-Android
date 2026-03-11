@@ -22,7 +22,7 @@ interface NotificationPreferenceDao : BaseDao<NotificationPreference> {
 	 * @param preference preference value
 	 */
 	@Transaction
-	fun upsert(preference: NotificationPreference) {
+	suspend fun upsert(preference: NotificationPreference) {
 		val id = insert(preference)
 		if (id == -1L) {
 			update(preference)
@@ -35,7 +35,7 @@ interface NotificationPreferenceDao : BaseDao<NotificationPreference> {
 	 * @param preferenceList List of preferences
 	 */
 	@Transaction
-	fun upsert(preferenceList: Collection<NotificationPreference>) {
+	suspend fun upsert(preferenceList: Collection<NotificationPreference>) {
 		val insertResult = insert(preferenceList)
 		val updateList = preferenceList.filterIndexed { index, _ -> insertResult[index] == -1L }
 

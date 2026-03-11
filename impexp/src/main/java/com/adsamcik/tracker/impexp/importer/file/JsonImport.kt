@@ -58,7 +58,7 @@ internal class JsonImport : FileImport {
 		ImportResult(successCount = successCount)
 	}
 
-	private fun importLocations(reader: JsonReader, database: AppDatabase): Int {
+	private suspend fun importLocations(reader: JsonReader, database: AppDatabase): Int {
 		val sampleDao = database.locationSampleDao()
 		val batch = mutableListOf<LocationSample>()
 		var count = 0
@@ -141,7 +141,7 @@ internal class JsonImport : FileImport {
 		}
 	}
 
-	private fun importSessions(reader: JsonReader, database: AppDatabase): Int {
+	private suspend fun importSessions(reader: JsonReader, database: AppDatabase): Int {
 		val segmentDao = database.sessionSegmentDao()
 		var count = 0
 

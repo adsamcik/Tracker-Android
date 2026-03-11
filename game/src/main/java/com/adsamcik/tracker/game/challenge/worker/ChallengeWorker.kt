@@ -4,7 +4,7 @@ import android.content.Context
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
-import androidx.work.Worker
+import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.R
 import com.adsamcik.tracker.game.CHALLENGE_LOG_SOURCE
@@ -21,7 +21,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 
-internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : Worker(
+internal class ChallengeWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(
 		context,
 		workerParams
 ) {
@@ -32,7 +32,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 		fun challengeManager(): ChallengeManager
 	}
 
-	private fun getSession(database: ChallengeDatabase, id: Long): ChallengeSessionData {
+	private suspend fun getSession(database: ChallengeDatabase, id: Long): ChallengeSessionData {
 		val databaseSession = database.sessionDao().get(id)
 		return if (databaseSession == null) {
 			val newSession = ChallengeSessionData(id, false)
@@ -44,7 +44,7 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 	}
 
 	@Suppress("ReturnCount")
-	override fun doWork(): Result {
+	override suspend fun doWork(): Result {
 		val applicationContext = applicationContext
 
 		logGame(LogData(message = "Started Challenge Worker", source = CHALLENGE_LOG_SOURCE))
@@ -58,9 +58,8 @@ internal class ChallengeWorker(context: Context, workerParams: WorkerParameters)
 
 		if (challengeSession.isChallengeProcessed) return Result.success()
 
-		val trip = kotlinx.coroutines.runBlocking {
-			AppDatabase.database(applicationContext).tripDao().getById(sessionId)
-		} ?: return Result.failure()
+		val trip = AppDatabase.database(applicationContext).tripDao().getById(sessionId)
+			?: return Result.failure()
 
 		val trackerSession = com.adsamcik.tracker.shared.base.data.TrackerSession(
 			id = trip.id,

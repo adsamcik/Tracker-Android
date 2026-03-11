@@ -143,7 +143,7 @@ internal class SessionTrackerComponent(
 		job.cancel()
 	}
 
-	private fun upsertSessionSegment(session: TrackerSession) {
+	private suspend fun upsertSessionSegment(session: TrackerSession) {
 		if (session.end < session.start) return
 
 		val durationMs = session.end - session.start
@@ -209,7 +209,7 @@ internal class SessionTrackerComponent(
 	}
 
 	@WorkerThread
-	private fun initializeSession() {
+	private suspend fun initializeSession() {
 		val now = Time.nowMillis
 		// Always start a new session segment — resume logic is handled at the
 		// SessionSegment level (the segment is upserted on every update).

@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.points.work
 
 import android.content.Context
-import androidx.work.Worker
+import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.Logger
@@ -24,9 +24,8 @@ import com.adsamcik.tracker.shared.base.extension.format
 import com.adsamcik.tracker.shared.utils.extension.getPositiveLongReportNull
 import kotlin.math.abs
 import kotlin.math.max
-import kotlinx.coroutines.runBlocking
 
-internal class PointsWorker(context: Context, workerParams: WorkerParameters) : Worker(
+internal class PointsWorker(context: Context, workerParams: WorkerParameters) : CoroutineWorker(
 	context,
 	workerParams
 ) {
@@ -38,11 +37,10 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 		return result
 	}
 
-	override fun doWork(): Result {
+	override suspend fun doWork(): Result {
 		val id = this.inputData.getPositiveLongReportNull(ARG_ID) ?: return Result.failure()
-		val trip = runBlocking {
-			AppDatabase.database(applicationContext).tripDao().getById(id)
-		} ?: return logResult("Found no session for point calculation.", Result.failure())
+		val trip = AppDatabase.database(applicationContext).tripDao().getById(id)
+			?: return logResult("Found no session for point calculation.", Result.failure())
 		val awardTime = trip.endTimeMs.takeIf { it > 0L } ?: Time.nowMillis
 		val pointsDao = PointsDatabase
 			.database(applicationContext)
@@ -52,11 +50,9 @@ internal class PointsWorker(context: Context, workerParams: WorkerParameters) : 
 			return logResult("Points already awarded for session $id at $awardTime, skipping duplicate.", Result.success())
 		}
 
-		val locationData = runBlocking {
-			AppDatabase.database(applicationContext)
-				.locationSampleDao()
-				.getAllBetween(trip.startTimeMs, trip.endTimeMs)
-		}
+		val locationData = AppDatabase.database(applicationContext)
+			.locationSampleDao()
+			.getAllBetween(trip.startTimeMs, trip.endTimeMs)
 			.mapNotNull { it.toDatabaseLocation() }
 			.filter { it.altitude != null }
 

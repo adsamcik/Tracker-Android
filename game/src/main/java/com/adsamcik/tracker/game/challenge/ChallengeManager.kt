@@ -23,10 +23,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.concurrent.locks.ReentrantLock
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.concurrent.withLock
 import kotlin.random.Random
 
 /**
@@ -45,7 +45,7 @@ class ChallengeManager @Inject constructor(
 	private val _activeChallenges: MutableStateFlow<List<ChallengeInstanceNew>> =
 		MutableStateFlow(emptyList())
 
-	private val lock = ReentrantLock()
+	private val lock = Mutex()
 
 	/**
 	 * Observable list of currently active challenges.
@@ -72,14 +72,14 @@ class ChallengeManager @Inject constructor(
 			lock.withLock {
 				activeChallengeList.clear()
 				activeChallengeList.addAll(active)
-				fillEmptyChallengeSlots(context)
+				fillEmptyChallengeSlotsLocked(context)
 				_activeChallenges.value = activeChallengeList.toList()
 			}
 			onInitialized?.invoke()
 		}
 	}
 
-	fun processSession(
+	suspend fun processSession(
 		context: Context,
 		session: TrackerSession,
 		onChallengeCompletedListener: (ChallengeInstanceNew) -> Unit
@@ -87,7 +87,9 @@ class ChallengeManager @Inject constructor(
 		if (activeChallengeList.isEmpty()) {
 			initialize(context) {
 				if (activeChallengeList.isEmpty()) return@initialize
-				processSession(context, session, onChallengeCompletedListener)
+				scope.launch {
+					processSession(context, session, onChallengeCompletedListener)
+				}
 			}
 			return
 		}
@@ -134,21 +136,26 @@ class ChallengeManager @Inject constructor(
 		progressionRepository.onTrackingSession(context, session)
 	}
 
-	private fun fillEmptyChallengeSlots(context: Context) {
+	private suspend fun fillEmptyChallengeSlots(context: Context) {
+		lock.withLock {
+			fillEmptyChallengeSlotsLocked(context)
+		}
+	}
+
+	// Must be called while [lock] is already held
+	private suspend fun fillEmptyChallengeSlotsLocked(context: Context) {
 		if (activeChallengeList.size >= MAX_CHALLENGE_COUNT) return
 
-		lock.withLock {
-			while (activeChallengeList.size < MAX_CHALLENGE_COUNT) {
-				val newChallenge = activateRandomChallenge(context)
-				if (newChallenge != null) {
-					activeChallengeList.add(newChallenge)
-				} else {
-					break
-				}
+		while (activeChallengeList.size < MAX_CHALLENGE_COUNT) {
+			val newChallenge = activateRandomChallenge(context)
+			if (newChallenge != null) {
+				activeChallengeList.add(newChallenge)
+			} else {
+				break
 			}
-			if (activeChallengeList.isNotEmpty()) {
-				scheduleNextExpiry(context)
-			}
+		}
+		if (activeChallengeList.isNotEmpty()) {
+			scheduleNextExpiry(context)
 		}
 	}
 
@@ -165,7 +172,7 @@ class ChallengeManager @Inject constructor(
 		)
 	}
 
-	internal fun checkExpiredChallenges(context: Context) {
+	internal suspend fun checkExpiredChallenges(context: Context) {
 		val now = Time.nowMillis
 		lock.withLock {
 			val expired = activeChallengeList.filter { it.entity.endTime <= now && !it.isCompleted }
@@ -178,13 +185,13 @@ class ChallengeManager @Inject constructor(
 					)
 				)
 				activeChallengeList.removeAll(expired.toSet())
-				fillEmptyChallengeSlots(context)
+				fillEmptyChallengeSlotsLocked(context)
 				_activeChallenges.value = activeChallengeList.toList()
 			}
 		}
 	}
 
-	private fun activateRandomChallenge(context: Context): ChallengeInstanceNew? {
+	private suspend fun activateRandomChallenge(context: Context): ChallengeInstanceNew? {
 		val activeTypes = activeChallengeList.map { it.entity.type }.toSet()
 		val availableProcessors = registry.all.filter { it.type !in activeTypes }
 		if (availableProcessors.isEmpty()) return null
@@ -254,4 +261,3 @@ class ChallengeManager @Inject constructor(
 		}
 	}
 }
-

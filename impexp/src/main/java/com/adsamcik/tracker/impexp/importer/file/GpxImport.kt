@@ -35,7 +35,7 @@ internal class GpxImport : FileImport {
 	): ImportResult = withContext(Dispatchers.IO) {
 		var successCount = 0
 		val gpx = GPX.Reader.DEFAULT.read(stream)
-		gpx.tracks().forEach { track ->
+		for (track in gpx.tracks()) {
 			val type: String? = if (track.type.isPresent) track.type.get() else null
 			val activity = if (type != null) {
 				prepareActivity(database, type)
@@ -43,7 +43,7 @@ internal class GpxImport : FileImport {
 				null
 			}
 
-			track.segments().forEach { segment ->
+			for (segment in track.segments()) {
 				prepareSession(segment, activity)?.let { session ->
 					successCount += handleSegment(database, segment, session)
 				}
@@ -52,7 +52,7 @@ internal class GpxImport : FileImport {
 		ImportResult(successCount = successCount)
 	}
 
-	private fun prepareActivity(database: AppDatabase, type: String): SessionActivity {
+	private suspend fun prepareActivity(database: AppDatabase, type: String): SessionActivity {
 		val activityDao = database.activityDao()
 
 		return activityDao.find(type) ?: SessionActivity(name = type).also {
@@ -89,7 +89,7 @@ internal class GpxImport : FileImport {
 		return session
 	}
 
-	private fun handleSegment(
+	private suspend fun handleSegment(
 			database: AppDatabase,
 			segment: TrackSegment,
 			session: MutableTrackerSession
@@ -113,14 +113,16 @@ internal class GpxImport : FileImport {
 		}
 
 		database.locationSampleDao().let { dao ->
-			sampleList.chunked(100).forEach { dao.insert(it) }
+			for (chunk in sampleList.chunked(100)) {
+				dao.insert(chunk)
+			}
 		}
 
 		saveSession(database, session)
 		return sampleList.size
 	}
 
-	private fun saveSession(
+	private suspend fun saveSession(
 			database: AppDatabase,
 			session: MutableTrackerSession
 	) {
@@ -171,4 +173,3 @@ internal class GpxImport : FileImport {
 		)
 	}
 }
-

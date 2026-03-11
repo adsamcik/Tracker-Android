@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -111,7 +110,7 @@ internal object GoalTracker : CoroutineScope {
 		}
 	}
 
-	private fun onGoalReached(goal: Goal) {
+	private suspend fun onGoalReached(goal: Goal) {
 		Logger.log(
 				LogData(
 						message = "Reached goal of $goal steps at ${Time.now}",
@@ -122,7 +121,7 @@ internal object GoalTracker : CoroutineScope {
 		awardGoalPoints(goal)
 	}
 
-	private fun awardGoalPoints(goal: Goal) {
+	private suspend fun awardGoalPoints(goal: Goal) {
 		val pointsDao = PointsDatabase.database(requireContext()).pointsAwardedDao()
 		pointsDao.insert(
 				PointsAwarded(
@@ -155,16 +154,14 @@ internal object GoalTracker : CoroutineScope {
 	/**
 	 * Called when new session data is available.
 	 */
-	internal fun update(session: TrackerSession) {
-		runBlocking {
-			mutex.withLock {
-				val isNewSession = mLastSessionId != session.id
-				mLastSessionId = session.id
+	internal suspend fun update(session: TrackerSession) {
+		mutex.withLock {
+			val isNewSession = mLastSessionId != session.id
+			mLastSessionId = session.id
 
-				goalList.forEach {
-					if (it.onSessionUpdated(session, isNewSession)) {
-						onGoalReached(it.goal)
-					}
+			goalList.forEach {
+				if (it.onSessionUpdated(session, isNewSession)) {
+					onGoalReached(it.goal)
 				}
 			}
 		}

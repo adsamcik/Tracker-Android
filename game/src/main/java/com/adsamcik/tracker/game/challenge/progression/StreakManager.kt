@@ -26,7 +26,7 @@ class StreakManager @Inject constructor() {
 	 * Increments streak, potentially earns a freeze.
 	 * @return Updated streak state
 	 */
-	fun onChallengeCompleted(database: ChallengeDatabase, now: Long): ChallengeStreakEntity {
+	suspend fun onChallengeCompleted(database: ChallengeDatabase, now: Long): ChallengeStreakEntity {
 		val dao = database.challengeStreakDao()
 		dao.ensureExists()
 		val current = dao.get() ?: ChallengeStreakEntity()
@@ -57,7 +57,7 @@ class StreakManager @Inject constructor() {
 	 * Otherwise, resets the streak to 0.
 	 * @return Pair of (updated streak, wasFreezed)
 	 */
-	fun onChallengesExpired(database: ChallengeDatabase): Pair<ChallengeStreakEntity, Boolean> {
+	suspend fun onChallengesExpired(database: ChallengeDatabase): Pair<ChallengeStreakEntity, Boolean> {
 		val dao = database.challengeStreakDao()
 		dao.ensureExists()
 		val current = dao.get() ?: ChallengeStreakEntity()

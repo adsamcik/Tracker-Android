@@ -50,7 +50,7 @@ internal class KmlImport : FileImport {
 		ImportResult(successCount = successCount)
 	}
 
-	private fun importPlacemark(
+	private suspend fun importPlacemark(
 		parser: XmlPullParser,
 		database: AppDatabase,
 		syntheticTimeCursor: Long
@@ -85,7 +85,7 @@ internal class KmlImport : FileImport {
 		var importedLocations = 0
 		var nextCursor = placemarkTimestamp ?: syntheticTimeCursor
 
-		coordinateSequences.forEach { sequence ->
+		for (sequence in coordinateSequences) {
 			val importResult = importCoordinateSequence(database, sequence, activity, nextCursor)
 			importedLocations += importResult.importedLocations
 			nextCursor = importResult.nextTimeCursor
@@ -167,7 +167,7 @@ internal class KmlImport : FileImport {
 			}
 	}
 
-	private fun importCoordinateSequence(
+	private suspend fun importCoordinateSequence(
 		database: AppDatabase,
 		coordinates: List<KmlPoint>,
 		activity: SessionActivity?,
@@ -209,7 +209,9 @@ internal class KmlImport : FileImport {
 		session.end = timestamp - POINT_TIME_DELTA_MS
 
 		database.locationSampleDao().let { dao ->
-			sampleList.chunked(BATCH_SIZE).forEach { dao.insert(it) }
+			for (chunk in sampleList.chunked(BATCH_SIZE)) {
+				dao.insert(chunk)
+			}
 		}
 		saveSession(database, session)
 
@@ -219,7 +221,7 @@ internal class KmlImport : FileImport {
 		)
 	}
 
-	private fun prepareActivity(database: AppDatabase, name: String): SessionActivity {
+	private suspend fun prepareActivity(database: AppDatabase, name: String): SessionActivity {
 		val activityDao = database.activityDao()
 		return activityDao.find(name) ?: SessionActivity(name = name).also {
 			val id = activityDao.insert(it)
@@ -227,7 +229,7 @@ internal class KmlImport : FileImport {
 		}
 	}
 
-	private fun saveSession(
+	private suspend fun saveSession(
 		database: AppDatabase,
 		session: MutableTrackerSession
 	) {
