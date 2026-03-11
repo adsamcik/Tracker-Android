@@ -97,7 +97,7 @@ interface TrackerComponent {
 
 interface TrackerDataConsumerComponent : TrackerComponent {
     val requiredData: Collection<TrackerComponentRequirement>
-    fun requirementsMet(tempData: CollectionTempData): Boolean
+    fun requirementsMet(cycle: TrackingCycle): Boolean
 }
 
 // Pipeline stages: Pre -> Data -> Post

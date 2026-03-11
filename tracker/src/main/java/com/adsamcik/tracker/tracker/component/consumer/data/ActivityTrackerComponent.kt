@@ -8,8 +8,7 @@ import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.google.android.gms.location.DetectedActivity
 
 internal class ActivityTrackerComponent : DataTrackerComponent {
@@ -65,17 +64,17 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 	}
 
 	@Suppress("ReturnCount", "MagicNumber")
-	private fun determineActivity(speed: Float?, tempData: CollectionTempData): ActivityInfo {
-		val activity = tempData.getActivity(this)
+	private fun determineActivity(speed: Float?, cycle: TrackingCycle): ActivityInfo {
+		val activity = requireNotNull(cycle.activity)
 
 		//Bicycle activity is impossible to guess from position
 		if (activity.activityType == DetectedActivity.ON_BICYCLE) return activity
 
-		val stepCount = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG)
+		val stepCount = cycle.stepDelta
 
 		@Suppress("ComplexCondition")
 		if (stepCount != null &&
-				stepCount >= tempData.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
+				stepCount >= cycle.elapsedRealtimeNanos / Time.SECOND_IN_NANOSECONDS &&
 				(speed == null || speed <= MAX_GUESS_RUN_SPEED_METERS_PER_SECOND)) {
 			if (isOnFoot(activity)) {
 				return activity
@@ -99,13 +98,30 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 		val location = locationResult.lastLocation
 		return when {
 			location.hasSpeed() -> location.speed
-			previousLocation != null -> distance / ((location.time - previousLocation.time) / Time.SECOND_IN_MILLISECONDS)
+			previousLocation != null -> {
+				val elapsedRealtimeDelta = location.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos
+				val deltaSeconds = when {
+					location.elapsedRealtimeNanos > 0L &&
+							previousLocation.elapsedRealtimeNanos > 0L &&
+							elapsedRealtimeDelta > 0L -> {
+						elapsedRealtimeDelta.toDouble() / Time.SECOND_IN_NANOSECONDS.toDouble()
+					}
+					location.time > previousLocation.time -> {
+						(location.time - previousLocation.time).toDouble() / Time.SECOND_IN_MILLISECONDS.toDouble()
+					}
+					else -> null
+				}
+
+				deltaSeconds
+					?.takeIf { it > 0.0 }
+					?.let { (distance / it).toFloat() }
+			}
 			else -> null
 		}
 	}
 
-	private fun determineSpeed(tempData: CollectionTempData): Float? {
-		val locationData = tempData.tryGetLocationData() ?: return null
+	private fun determineSpeed(cycle: TrackingCycle): Float? {
+		val locationData = cycle.location ?: return null
 		val previousLocation = locationData.previousLocation ?: return null
 		val distance = requireNotNull(locationData.distance)
 
@@ -113,12 +129,12 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 	}
 
 	override suspend fun onDataUpdated(
-			tempData: CollectionTempData,
+			cycle: TrackingCycle,
 			collectionData: MutableCollectionData
 	) {
-		val speed = determineSpeed(tempData)
+		val speed = determineSpeed(cycle)
 
-		collectionData.activity = determineActivity(speed, tempData)
+		collectionData.activity = determineActivity(speed, cycle)
 	}
 
 	override suspend fun onDisable(context: Context) = Unit
@@ -137,4 +153,3 @@ internal class ActivityTrackerComponent : DataTrackerComponent {
 	}
 
 }
-

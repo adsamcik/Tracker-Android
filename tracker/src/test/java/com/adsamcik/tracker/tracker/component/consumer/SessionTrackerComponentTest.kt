@@ -5,7 +5,7 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -152,7 +152,7 @@ class SessionTrackerComponentTest {
 			setIsNewSession(component, true)
 
 			component.onDataUpdated(
-				tempData = MutableCollectionTempData(timeMillis = 1_000L, elapsedRealtimeNanos = 1_000L),
+				cycle = TrackingCycle(timestampMs = 1_000L, elapsedRealtimeNanos = 1_000L),
 				collectionData = MutableCollectionData(1_000L),
 			)
 			component.onDisable(context)

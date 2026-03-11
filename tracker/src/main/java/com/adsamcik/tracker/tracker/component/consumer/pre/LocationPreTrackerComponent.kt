@@ -8,7 +8,7 @@ import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,8 +53,8 @@ internal class LocationPreTrackerComponent : PreTrackerComponent, CoroutineScope
 		}
 	}
 
-	override suspend fun onNewData(data: MutableCollectionTempData): Boolean {
-		val location = data.getLocation(this)
+	override suspend fun onNewData(cycle: TrackingCycle): Boolean {
+		val location = requireNotNull(cycle.location).lastLocation
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 			if (location.isMock) return false

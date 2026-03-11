@@ -8,7 +8,7 @@ import com.adsamcik.tracker.shared.base.extension.LocationExtensions
 import com.adsamcik.tracker.shared.base.extension.wifiManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
 import kotlin.math.abs
 
@@ -22,11 +22,11 @@ internal class WifiTrackerComponent : DataTrackerComponent {
 
 
 	override suspend fun onDataUpdated(
-			tempData: CollectionTempData,
+			cycle: TrackingCycle,
 			collectionData: MutableCollectionData
 	) {
-		val scanData = tempData.getWifiData(this)
-		val locationData = tempData.tryGetLocationData()
+		val scanData = requireNotNull(cycle.wifiScan)
+		val locationData = cycle.location
 		if (locationData != null) {
 			val location = locationData.lastLocation
 			val locations = locationData.locations

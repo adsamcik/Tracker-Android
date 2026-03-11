@@ -37,7 +37,6 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 	private val locationCallback: LocationCallback = object : LocationCallback() {
 		override fun onLocationResult(result: LocationResult) {
 			if (receiver == null) {
-				Reporter.report("Received location update with null callback")
 				return
 			}
 
@@ -75,9 +74,20 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 			.setMinUpdateIntervalMillis(minUpdateDelayInSeconds * Time.SECOND_IN_MILLISECONDS)
 			.build()
 
-		// checked by component manager
-		@Suppress("MissingPermission")
-		client.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+		try {
+			// checked by component manager
+			@Suppress("MissingPermission")
+			client.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+		} catch (e: SecurityException) {
+			Reporter.report(e)
+			receiver.onError(
+				TrackerTimerErrorData(
+					TrackerTimerErrorSeverity.STOP_SERVICE,
+					R.string.notification_looking_for_gps,
+					"Location permission revoked: ${e.message}"
+				)
+			)
+		}
 	}
 
 	override fun onDisable(context: Context) {
@@ -104,9 +114,19 @@ internal class FusedLocationCollectionTrigger : LocationCollectionTrigger(), Dyn
 			.setMinUpdateIntervalMillis(intervalSeconds * Time.SECOND_IN_MILLISECONDS)
 			.build()
 
-		// checked by component manager
-		@Suppress("MissingPermission")
-		client.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+		try {
+			// checked by component manager
+			@Suppress("MissingPermission")
+			client.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+		} catch (e: SecurityException) {
+			Reporter.report(e)
+			receiver?.onError(
+				TrackerTimerErrorData(
+					TrackerTimerErrorSeverity.STOP_SERVICE,
+					R.string.notification_looking_for_gps,
+					"Location permission revoked during interval update: ${e.message}"
+				)
+			)
+		}
 	}
 }
-

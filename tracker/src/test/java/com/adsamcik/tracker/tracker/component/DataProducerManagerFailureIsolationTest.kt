@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -48,11 +48,11 @@ class DataProducerManagerFailureIsolationTest {
 		activateProducer(manager, throwingProducer)
 		activateProducer(manager, recordingProducer)
 
-		val tempData = MutableCollectionTempData(
-			System.currentTimeMillis(),
-			System.nanoTime(),
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = System.nanoTime(),
 		)
-		manager.getData(tempData)
+		manager.getData(cycle)
 
 		assertTrue(recordingProducer.wasInvoked, "Recording producer should have been called despite sibling failure")
 	}
@@ -66,12 +66,12 @@ class DataProducerManagerFailureIsolationTest {
 		val cancellingProducer = ThrowingProducer(CancellationException("cancelled"))
 		activateProducer(manager, cancellingProducer)
 
-		val tempData = MutableCollectionTempData(
-			System.currentTimeMillis(),
-			System.nanoTime(),
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = System.nanoTime(),
 		)
 		assertFailsWith<CancellationException> {
-			manager.getData(tempData)
+			manager.getData(cycle)
 		}
 	}
 
@@ -87,11 +87,11 @@ class DataProducerManagerFailureIsolationTest {
 		activateProducer(manager, producer1)
 		activateProducer(manager, producer2)
 
-		val tempData = MutableCollectionTempData(
-			System.currentTimeMillis(),
-			System.nanoTime(),
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = System.nanoTime(),
 		)
-		manager.getData(tempData)
+		manager.getData(cycle)
 
 		assertTrue(producer1.wasInvoked)
 		assertTrue(producer2.wasInvoked)

@@ -8,7 +8,8 @@ import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 
 /**
  * Collection trigger for AMBIENT mode. Fires at a fixed interval without
@@ -33,15 +34,15 @@ internal class AmbientCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	private val handlerCallback: Runnable = object : Runnable {
 		override fun run() {
-			this@AmbientCollectionTrigger.receiver?.onUpdate(createCollectionData())
+			this@AmbientCollectionTrigger.receiver?.onUpdate(createCycle())
 			handler.postDelayed(this, repeatEveryMs)
 		}
 	}
 
-	private fun createCollectionData(): MutableCollectionTempData = MutableCollectionTempData(
+	private fun createCycle(): TrackingCycle = TrackingCycleBuilder(
 		Time.nowMillis,
 		Time.elapsedRealtimeNanos
-	)
+	).build()
 
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		this.receiver = receiver

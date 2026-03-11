@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Looper
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.locationManager
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
@@ -17,9 +18,9 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 
 /**
- * Collection trigger that uses native Android location manager.
+ * Collection trigger that uses native Android location manager with GPS_PROVIDER.
  * Supports dynamic interval updates for policy-based adaptation.
- * Accepts either fine (precise) or coarse (approximate) location permission.
+ * Requires ACCESS_FINE_LOCATION since GPS_PROVIDER needs precise location.
  */
 internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), DynamicIntervalCollectionTrigger {
 	override val requiredPermissions: Collection<String>
@@ -27,6 +28,11 @@ internal class AndroidLocationCollectionTrigger : LocationCollectionTrigger(), D
 			Manifest.permission.ACCESS_FINE_LOCATION,
 			Manifest.permission.ACCESS_COARSE_LOCATION
 		)
+
+	// GPS_PROVIDER requires FINE location — override OR-logic from base interface
+	override fun hasRequiredPermissions(context: Context): Boolean {
+		return context.hasSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+	}
 
 	override val titleRes: Int
 		get() = R.string.settings_tracker_timer_location

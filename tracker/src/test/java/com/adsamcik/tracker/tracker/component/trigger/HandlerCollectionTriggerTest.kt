@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.test.FakePreferencesHelper
 import io.mockk.mockk
 import io.mockk.slot
@@ -84,11 +84,11 @@ class HandlerCollectionTriggerTest {
 		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(30))
 
 		// Verify callback was triggered
-		val dataSlot = slot<MutableCollectionTempData>()
+		val dataSlot = slot<TrackingCycle>()
 		verify(atLeast = 1) { receiver.onUpdate(capture(dataSlot)) }
 		
 		// Verify data has valid timestamp
-		assertTrue(dataSlot.captured.timeMillis > 0)
+		assertTrue(dataSlot.captured.timestampMs > 0)
 	}
 
 	@Test

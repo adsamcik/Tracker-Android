@@ -4,15 +4,15 @@ import android.content.Context
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 
 internal interface PostTrackerComponent : TrackerComponent, TrackerDataConsumerComponent {
 	@WorkerThread
 	fun onNewData(
-			context: Context,
-			session: TrackerSession,
-			collectionData: CollectionData,
-			tempData: CollectionTempData
+		context: Context,
+		session: TrackerSession,
+		collectionData: CollectionData,
+		cycle: TrackingCycle
 	)
 }
 

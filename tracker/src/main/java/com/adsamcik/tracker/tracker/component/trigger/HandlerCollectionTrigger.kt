@@ -10,7 +10,8 @@ import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.DynamicIntervalCollectionTrigger
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 
 /**
  * Collection trigger that uses handler to periodically trigger collections.
@@ -34,15 +35,15 @@ internal class HandlerCollectionTrigger : DynamicIntervalCollectionTrigger {
 
 	private val handlerCallback: Runnable = object : Runnable {
 		override fun run() {
-			this@HandlerCollectionTrigger.receiver?.onUpdate(createCollectionData())
+			this@HandlerCollectionTrigger.receiver?.onUpdate(createCycle())
 			handler.postDelayed(this, repeatEveryMs)
 		}
 	}
 
-	private fun createCollectionData(): MutableCollectionTempData = MutableCollectionTempData(
-			Time.nowMillis,
-			Time.elapsedRealtimeNanos
-	)
+	private fun createCycle(): TrackingCycle = TrackingCycleBuilder(
+		Time.nowMillis,
+		Time.elapsedRealtimeNanos
+	).build()
 
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		val minUpdateDelayInSeconds = BackgroundTrackingApi.cachedParams.minTimeSeconds

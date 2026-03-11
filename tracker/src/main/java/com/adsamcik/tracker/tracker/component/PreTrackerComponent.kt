@@ -1,7 +1,7 @@
 package com.adsamcik.tracker.tracker.component
 
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 
 internal interface PreTrackerComponent : TrackerComponent, TrackerDataConsumerComponent {
-	suspend fun onNewData(data: MutableCollectionTempData): Boolean
+	suspend fun onNewData(cycle: TrackingCycle): Boolean
 }

@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.component
 
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 
 /**
  * Requirements that show which data is essential for a given component.
@@ -13,7 +13,11 @@ internal enum class TrackerComponentRequirement {
 	STEP,
 	ACTIVITY;
 
-	fun isRequirementFulfilled(component: CollectionTempData): Boolean {
-		return component.containsKey(name)
+	fun isRequirementFulfilled(cycle: TrackingCycle): Boolean = when (this) {
+		WIFI -> cycle.wifiScan != null
+		CELL -> cycle.cellScan != null
+		LOCATION -> cycle.location != null
+		STEP -> cycle.stepDelta != null
+		ACTIVITY -> cycle.activity != null
 	}
 }

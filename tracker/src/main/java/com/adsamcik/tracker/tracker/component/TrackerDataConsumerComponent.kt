@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.component
 
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 
 /**
  * Interface for tracker data consumers.
@@ -14,7 +14,7 @@ internal interface TrackerDataConsumerComponent {
 	/**
 	 * Returns true if all requirements are met
 	 */
-	fun requirementsMet(data: CollectionTempData): Boolean {
-		return requiredData.all { it.isRequirementFulfilled(data) }
+	fun requirementsMet(cycle: TrackingCycle): Boolean {
+		return requiredData.all { it.isRequirementFulfilled(cycle) }
 	}
 }

@@ -14,10 +14,7 @@ import com.adsamcik.tracker.stats.engine.ski.SkiState
 import com.adsamcik.tracker.stats.engine.ski.SkiStateListener
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.component.producer.BarometerDataProducer
-import com.adsamcik.tracker.tracker.component.producer.PressureReading
-import com.adsamcik.tracker.tracker.component.producer.StepDataProducer
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -103,6 +100,10 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		escalationEngine?.clearMinimumTier()
 		_skiState.value = null
 		lastCollectionTimeMs = 0L
+		// M7 fix: close infrastructure manager to release resources
+		try {
+			(infrastructureManager as? java.io.Closeable)?.close()
+		} catch (_: Exception) { /* best effort */ }
 		infrastructureManager = null
 		proximityChecked = false
 		nearbyLifts = emptyList()
@@ -112,13 +113,12 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		context: Context,
 		session: TrackerSession,
 		collectionData: CollectionData,
-		tempData: CollectionTempData
+		cycle: TrackingCycle
 	) {
-		val reading = tempData.tryGet<PressureReading>(BarometerDataProducer.PRESSURE_KEY)
-			?: return
+		val reading = cycle.pressure ?: return
 
 		val speedMps = collectionData.location?.speed ?: 0f
-		val timeMs = tempData.timeMillis
+		val timeMs = cycle.timestampMs
 
 		// Track last known GPS position for proximity check
 		collectionData.location?.let { loc ->
@@ -127,7 +127,7 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		}
 
 		// Compute step rate from step delta and elapsed time
-		val newSteps = tempData.tryGet<Int>(StepDataProducer.NEW_STEPS_ARG) ?: 0
+		val newSteps = cycle.stepDelta ?: 0
 		val stepRatePerMin = if (lastCollectionTimeMs > 0L && newSteps > 0) {
 			val deltaMs = timeMs - lastCollectionTimeMs
 			if (deltaMs > 0) (newSteps.toFloat() / deltaMs) * 60_000f else 0f

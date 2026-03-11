@@ -1,10 +1,19 @@
 package com.adsamcik.tracker.tracker.component.consumer.pre
 
 import android.content.Context
+import com.adsamcik.tracker.shared.preferences.Preferences
+import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -13,12 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
  * Allows tracking to proceed without precise location when policy permits (PASSIVE_LOW, MOVEMENT_SUSPECTED).
  * Only requires location when policy demands it (ACTIVE_MODERATE, ACTIVE_ELEVATED, USER_INITIATED).
  *
- * Contract:
- * - Input: MutableCollectionTempData with optional location
- * - Output: Boolean (true = proceed with tracking, false = skip this cycle)
- * - Behavior: Consults TrackingPolicyManager.shouldRequestLocation()
- *
- * Phase 3: Enables location-optional tracking for passive collection modes.
+ * For USER_INITIATED mode, reads the user-configured accuracy threshold from preferences
+ * and observes changes live (matching LocationPreTrackerComponent behavior).
  */
 internal class PolicyAwareLocationPreTrackerComponent(
 	private val policyFlow: StateFlow<com.adsamcik.tracker.tracker.policy.TrackingPolicy>
@@ -26,12 +31,31 @@ internal class PolicyAwareLocationPreTrackerComponent(
 
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
+	@Volatile
+	private var userAccuracyThreshold: Int = DEFAULT_ACCURACY
+	private var scope: CoroutineScope? = null
+	private var accuracyJob: Job? = null
+
 	override suspend fun onEnable(context: Context) {
-		// No initialization needed
+		scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+		userAccuracyThreshold = Preferences.getPref(context).fetchIntRes(
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
+		)
+		// Observe live preference changes (matching LocationPreTrackerComponent)
+		accuracyJob = PreferenceFlows.int(
+			context,
+			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
+			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
+		).onEach { userAccuracyThreshold = it }
+			.launchIn(requireNotNull(scope))
 	}
 
 	override suspend fun onDisable(context: Context) {
-		// No cleanup needed
+		accuracyJob?.cancel()
+		accuracyJob = null
+		scope?.cancel()
+		scope = null
 	}
 
 	/**
@@ -43,10 +67,9 @@ internal class PolicyAwareLocationPreTrackerComponent(
 	 *
 	 * @return true if tracking should proceed, false to skip this cycle
 	 */
-	override suspend fun onNewData(data: MutableCollectionTempData): Boolean {
+	override suspend fun onNewData(cycle: TrackingCycle): Boolean {
 		val currentPolicy = policyFlow.value
 
-		// Check if current policy requires location
 		val requiresLocation = when (currentPolicy) {
 			com.adsamcik.tracker.tracker.policy.TrackingPolicy.PASSIVE_LOW -> false
 			com.adsamcik.tracker.tracker.policy.TrackingPolicy.MOVEMENT_SUSPECTED -> false
@@ -56,19 +79,33 @@ internal class PolicyAwareLocationPreTrackerComponent(
 		}
 
 		if (!requiresLocation) {
-			// Location-optional mode: proceed even without location
-			// Cell/Wi-Fi/activity/steps can be collected without GPS
 			return true
 		}
 
-		// Location required: validate quality
-		val location = data.tryGetLocation() ?: return false
+		// Location required: validate quality (H7 fix — restore checks from LocationPreTrackerComponent)
+		val location = cycle.location?.lastLocation ?: return false
 
-		// Basic quality checks
+		// Mock location check
+		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+			if (location.isMock) return false
+		} else {
+			@Suppress("deprecation")
+			if (location.isFromMockProvider) return false
+		}
+
 		if (!location.hasAccuracy()) return false
 
-		// Accept any accuracy for now; more strict checks can be added via preferences
-		// (e.g., skip if accuracy > threshold specific to policy level)
-		return true
+		// Accept accuracy based on policy level (use user preference for USER_INITIATED)
+		val maxAccuracy = when (currentPolicy) {
+			com.adsamcik.tracker.tracker.policy.TrackingPolicy.ACTIVE_MODERATE -> 100
+			com.adsamcik.tracker.tracker.policy.TrackingPolicy.ACTIVE_ELEVATED -> 50
+			com.adsamcik.tracker.tracker.policy.TrackingPolicy.USER_INITIATED -> userAccuracyThreshold
+			else -> 200
+		}
+		return location.accuracy <= maxAccuracy
+	}
+
+	companion object {
+		private const val DEFAULT_ACCURACY = 100
 	}
 }

@@ -5,7 +5,7 @@ import com.adsamcik.tracker.shared.base.data.CellData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 
 internal class CellTrackerComponent : DataTrackerComponent {
 	override suspend fun onDisable(context: Context) = Unit
@@ -17,10 +17,10 @@ internal class CellTrackerComponent : DataTrackerComponent {
 	)
 
 	override suspend fun onDataUpdated(
-			tempData: CollectionTempData,
+			cycle: TrackingCycle,
 			collectionData: MutableCollectionData
 	) {
-		val cellData = tempData.getCellData(this)
+		val cellData = requireNotNull(cycle.cellScan)
 		collectionData.cell = CellData(cellData.registeredCells, cellData.cellScanData.size)
 	}
 

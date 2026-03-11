@@ -2,7 +2,7 @@ package com.adsamcik.tracker.stats.api
 
 /**
  * Per-cycle input signal for the StreamingAggregator.
- * Built from CollectionData/CollectionTempData in the tracker module.
+ * Built from CollectionData/TrackingCycle in the tracker module.
  *
  * @param timestampMs Wall clock time for this cycle (epoch millis)
  * @param distanceDeltaM Distance traveled since last cycle (null if no GPS)

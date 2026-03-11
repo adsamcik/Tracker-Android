@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
@@ -90,9 +90,9 @@ class AmbientCollectionTriggerTest {
 		trigger.onEnable(context, receiver)
 		shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(60))
 
-		val dataSlot = slot<MutableCollectionTempData>()
+		val dataSlot = slot<TrackingCycle>()
 		verify(atLeast = 1) { receiver.onUpdate(capture(dataSlot)) }
-		assertTrue(dataSlot.captured.timeMillis > 0)
+		assertTrue(dataSlot.captured.timestampMs > 0)
 	}
 
 	@Test

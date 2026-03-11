@@ -13,7 +13,7 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
@@ -89,7 +89,7 @@ internal class NotificationComponent :
 			context: Context,
 			session: TrackerSession,
 			collectionData: CollectionData,
-			tempData: CollectionTempData
+			cycle: TrackingCycle
 	) {
 		notify(generateNotification(context, collectionData, session))
 	}

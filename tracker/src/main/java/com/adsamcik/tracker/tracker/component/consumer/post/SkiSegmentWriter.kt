@@ -13,7 +13,7 @@ import com.adsamcik.tracker.stats.engine.ski.SkiState
 import com.adsamcik.tracker.stats.engine.ski.SkiStateListener
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.data.collection.CollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
  *
  * Listens for state transitions from [SkiTrackingComponent]'s detector.
  * On each transition, writes the *completed* previous segment as a
- * [SkiRunSegment] row. Follows the same pattern as [PressureSampleWriter].
+ * [SkiRunSegment] row.
  */
 internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
@@ -59,10 +59,12 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	}
 
 	override suspend fun onDisable(context: Context) {
-		// Flush the last in-progress segment
+		// Flush the last in-progress segment synchronously
 		if (segmentStartTimeMs > 0L && sessionId > 0L) {
-			writeSegment(Time.nowMillis)
+			writeSegmentImmediate(Time.nowMillis)
 		}
+		// Join all in-flight async writes before cancelling
+		scope?.coroutineContext?.get(Job)?.children?.toList()?.forEach { it.join() }
 		scope?.cancel()
 		scope = null
 	}
@@ -71,7 +73,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 		context: Context,
 		session: TrackerSession,
 		collectionData: CollectionData,
-		tempData: CollectionTempData
+		cycle: TrackingCycle
 	) {
 		sessionId = session.id
 
@@ -116,6 +118,30 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	}
 
 	private fun writeSegment(endTimeMs: Long) {
+		val segment = buildSegment(endTimeMs)
+		runIndex++
+		scope?.launch(Dispatchers.IO) {
+			try {
+				database.skiRunSegmentDao().insert(segment)
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				ReporterFacade.report(e)
+			}
+		}
+	}
+
+	private suspend fun writeSegmentImmediate(endTimeMs: Long) {
+		val segment = buildSegment(endTimeMs)
+		runIndex++
+		kotlinx.coroutines.withContext(Dispatchers.IO) {
+			try {
+				database.skiRunSegmentDao().insert(segment)
+			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+				ReporterFacade.report(e)
+			}
+		}
+	}
+
+	private fun buildSegment(endTimeMs: Long): SkiRunSegment {
 		val verticalM = segmentStartAltitudeM - lastAltitudeM
 		val avgSpeed = if (segmentSpeedSamples > 0) {
 			segmentSpeedSum / segmentSpeedSamples
@@ -137,14 +163,7 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 			createdAt = Time.nowMillis
 		)
 
-		runIndex++
-		scope?.launch(Dispatchers.IO) {
-			try {
-				database.skiRunSegmentDao().insert(segment)
-			} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-				ReporterFacade.report(e)
-			}
-		}
+		return segment
 	}
 
 	companion object {

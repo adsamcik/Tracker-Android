@@ -8,7 +8,8 @@ import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
 import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycleBuilder
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -26,10 +27,13 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 
 	protected val newDataLock = ReentrantLock()
 
-	private fun isLocationYoungEnough(location: Location, previousLocation: Location): Boolean {
-		val locationAge = location.elapsedRealtimeNanos - previousLocation.elapsedRealtimeNanos
-		val maxAge = PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS
-		return locationAge < maxAge
+	private fun isLocationFreshEnough(location: Location): Boolean {
+		val elapsedRealtimeNanos = location.elapsedRealtimeNanos
+		if (elapsedRealtimeNanos <= 0L || startedAtElapsedRealtimeNanos == Long.MIN_VALUE) {
+			return true
+		}
+
+		return elapsedRealtimeNanos + MAX_LOCATION_AGE_IN_NANOS > startedAtElapsedRealtimeNanos
 	}
 
 	private fun isLocationValid(location: Location): Boolean {
@@ -45,38 +49,38 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 			val receiver = receiver ?: return
 
 			val lastLocation = locations.last()
-			if (lastLocation.elapsedRealtimeNanos + MAX_LOCATION_AGE_IN_NANOS > startedAtElapsedRealtimeNanos &&
-					isLocationValid(lastLocation)) {
-				val tempData = createCollectionTempData(locations)
-				receiver.onUpdate(tempData)
+			if (isLocationFreshEnough(lastLocation) && isLocationValid(lastLocation)) {
+				val cycle = createTrackingCycle(locations)
+				receiver.onUpdate(cycle)
 
 				previousLocation = lastLocation
 			}
 		}
 	}
 
-	private fun createCollectionTempData(locations: List<Location>): MutableCollectionTempData {
+	private fun createTrackingCycle(locations: List<Location>): TrackingCycle {
 		require(locations.isNotEmpty())
 		val location = locations.last()
-		return MutableCollectionTempData(location.time, location.elapsedRealtimeNanos).apply {
-			val builder = LocationData.Builder()
-			builder.setLocations(locations)
+		val builder = TrackingCycleBuilder(location.time, location.elapsedRealtimeNanos)
 
-			val previousLocation = previousLocation
-			if (previousLocation != null &&
-					isLocationYoungEnough(location, previousLocation)) {
-				val distance = location.distanceTo(previousLocation)
-				builder.setPreviousLocation(previousLocation, distance)
-			}
+		val locationBuilder = LocationData.Builder()
+		locationBuilder.setLocations(locations)
 
-			setLocationData(builder.build())
+		val previousLocation = previousLocation
+		if (previousLocation != null) {
+			val distance = location.distanceTo(previousLocation)
+			locationBuilder.setPreviousLocation(previousLocation, distance)
 		}
+
+		builder.location = locationBuilder.build()
+		return builder.build()
 	}
 
 	@CallSuper
 	override fun onEnable(context: Context, receiver: TrackerTimerReceiver) {
 		newDataLock.withLock {
 			this.receiver = receiver
+			previousLocation = null
 			startedAtElapsedRealtimeNanos = Time.elapsedRealtimeNanos
 		}
 	}
@@ -85,11 +89,11 @@ internal abstract class LocationCollectionTrigger : CollectionTriggerComponent {
 	override fun onDisable(context: Context) {
 		newDataLock.withLock {
 			this.receiver = null
+			previousLocation = null
 		}
 	}
 
 	companion object {
-		private const val PREVIOUS_LOCATION_MAX_AGE_IN_SECONDS = 30
 		private const val MAX_LOCATION_AGE_IN_NANOS = 10 * Time.SECOND_IN_NANOSECONDS
 	}
 

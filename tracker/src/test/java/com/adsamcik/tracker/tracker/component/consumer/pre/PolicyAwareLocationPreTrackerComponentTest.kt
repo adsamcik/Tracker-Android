@@ -3,7 +3,7 @@ package com.adsamcik.tracker.tracker.component.consumer.pre
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.tracker.data.collection.MutableCollectionTempData
+import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.policy.TrackingPolicy
 import io.mockk.every
 import io.mockk.mockk
@@ -45,13 +45,13 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val component = PolicyAwareLocationPreTrackerComponent(policyFlow)
 		component.onEnable(context)
 
-		val tempData = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
 		)
 		// No location added
 
-		val result = component.onNewData(tempData)
+		val result = component.onNewData(cycle)
 
 		assertTrue(result, "PASSIVE_LOW should allow tracking without location")
 	}
@@ -62,13 +62,13 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val component = PolicyAwareLocationPreTrackerComponent(policyFlow)
 		component.onEnable(context)
 
-		val tempData = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
 		)
 		// No location added
 
-		val result = component.onNewData(tempData)
+		val result = component.onNewData(cycle)
 
 		assertTrue(result, "MOVEMENT_SUSPECTED should allow tracking without location")
 	}
@@ -79,13 +79,13 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val component = PolicyAwareLocationPreTrackerComponent(policyFlow)
 		component.onEnable(context)
 
-		val tempData = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
 		)
 		// No location added
 
-		val result = component.onNewData(tempData)
+		val result = component.onNewData(cycle)
 
 		assertFalse(result, "ACTIVE_MODERATE should reject tracking without location")
 	}
@@ -100,17 +100,16 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		every { mockLocation.hasAccuracy() } returns true
 		every { mockLocation.accuracy } returns 20f
 
-		val tempData = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
-		)
-		// Use LocationData with lastLocation - tryGetLocation() retrieves LocationData.lastLocation
 		val locationData = com.adsamcik.tracker.shared.base.data.LocationData.Builder()
 			.apply { setLocation(mockLocation) }
 			.build()
-		tempData.setLocationData(locationData)
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
+			location = locationData,
+		)
 
-		val result = component.onNewData(tempData)
+		val result = component.onNewData(cycle)
 
 		assertTrue(result, "ACTIVE_MODERATE should accept valid location")
 	}
@@ -124,13 +123,16 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val mockLocation = mockk<android.location.Location>(relaxed = true)
 		every { mockLocation.hasAccuracy() } returns false
 
-		val tempData = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
+		val locationData = com.adsamcik.tracker.shared.base.data.LocationData.Builder()
+			.apply { setLocation(mockLocation) }
+			.build()
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
+			location = locationData,
 		)
-		tempData.set("location", mockLocation)
 
-		val result = component.onNewData(tempData)
+		val result = component.onNewData(cycle)
 
 		assertFalse(result, "ACTIVE_MODERATE should reject location without accuracy")
 	}
@@ -141,13 +143,13 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val component = PolicyAwareLocationPreTrackerComponent(policyFlow)
 		component.onEnable(context)
 
-		val tempData = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
 		)
 		// No location added
 
-		val result = component.onNewData(tempData)
+		val result = component.onNewData(cycle)
 
 		assertFalse(result, "USER_INITIATED should require location")
 	}
@@ -158,20 +160,20 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val component = PolicyAwareLocationPreTrackerComponent(policyFlow)
 		component.onEnable(context)
 
-		val tempDataNoLocation = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
+		val cycleNoLocation = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
 		)
 
 		// Initially should allow without location
-		var result = component.onNewData(tempDataNoLocation)
+		var result = component.onNewData(cycleNoLocation)
 		assertTrue(result, "PASSIVE_LOW should allow without location")
 
 		// Transition to ACTIVE_MODERATE
 		policyFlow.value = TrackingPolicy.ACTIVE_MODERATE
 
 		// Now should require location
-		result = component.onNewData(tempDataNoLocation)
+		result = component.onNewData(cycleNoLocation)
 		assertFalse(result, "ACTIVE_MODERATE should require location")
 	}
 
@@ -184,13 +186,16 @@ class PolicyAwareLocationPreTrackerComponentTest {
 		val mockLocation = mockk<android.location.Location>(relaxed = true)
 		every { mockLocation.hasAccuracy() } returns true
 
-		val tempData = MutableCollectionTempData(
-			timeMillis = System.currentTimeMillis(),
-			elapsedRealtimeNanos = 0L
+		val locationData = com.adsamcik.tracker.shared.base.data.LocationData.Builder()
+			.apply { setLocation(mockLocation) }
+			.build()
+		val cycle = TrackingCycle(
+			timestampMs = System.currentTimeMillis(),
+			elapsedRealtimeNanos = 0L,
+			location = locationData,
 		)
-		tempData.set("location", mockLocation)
 
-		val result = component.onNewData(tempData)
+		val result = component.onNewData(cycle)
 
 		assertTrue(result, "PASSIVE_LOW should accept tracking with location")
 	}
