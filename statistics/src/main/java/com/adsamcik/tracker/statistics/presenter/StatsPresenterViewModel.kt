@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.repository.SessionRepository
+import com.adsamcik.tracker.statistics.repository.SessionStatsResult
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -112,13 +113,13 @@ class StatsPresenterViewModel @Inject constructor(
 	fun loadSummaryStats() {
 		viewModelScope.launch {
 			_summaryStatsState.value = StatsLoadState.Loading
-			try {
-				val stats = sessionRepository.getSummaryStats()
-				_summaryStatsState.value = StatsLoadState.Success(stats)
-			} catch (e: Exception) {
-				_summaryStatsState.value = StatsLoadState.Error(
-					e.message ?: "Failed to load summary statistics",
-				)
+			when (val result = sessionRepository.getSummaryStats()) {
+				is SessionStatsResult.Success -> {
+					_summaryStatsState.value = StatsLoadState.Success(result.stats)
+				}
+				is SessionStatsResult.Failure -> {
+					_summaryStatsState.value = StatsLoadState.Error(result.message)
+				}
 			}
 		}
 	}
@@ -130,13 +131,13 @@ class StatsPresenterViewModel @Inject constructor(
 	fun loadWeeklyStats() {
 		viewModelScope.launch {
 			_weeklyStatsState.value = StatsLoadState.Loading
-			try {
-				val stats = sessionRepository.getWeeklyStats()
-				_weeklyStatsState.value = StatsLoadState.Success(stats)
-			} catch (e: Exception) {
-				_weeklyStatsState.value = StatsLoadState.Error(
-					e.message ?: "Failed to load weekly statistics",
-				)
+			when (val result = sessionRepository.getWeeklyStats()) {
+				is SessionStatsResult.Success -> {
+					_weeklyStatsState.value = StatsLoadState.Success(result.stats)
+				}
+				is SessionStatsResult.Failure -> {
+					_weeklyStatsState.value = StatsLoadState.Error(result.message)
+				}
 			}
 		}
 	}

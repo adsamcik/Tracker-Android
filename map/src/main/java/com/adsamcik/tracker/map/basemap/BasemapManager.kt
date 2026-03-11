@@ -5,7 +5,6 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 
 /**
  * Manages user-imported PMTiles basemap files.
@@ -18,16 +17,29 @@ class BasemapManager(private val context: Context) {
 
     private val basemapDir = File(context.filesDir, "basemap")
 
-    /** Copy a user-selected PMTiles file to internal storage. Returns the absolute path. */
-    suspend fun importBasemap(uri: Uri): String = withContext(Dispatchers.IO) {
+    /** Copy a user-selected PMTiles file to internal storage. */
+    suspend fun importBasemap(uri: Uri): BasemapImportResult = withContext(Dispatchers.IO) {
         basemapDir.mkdirs()
         val target = File(basemapDir, "custom.pmtiles")
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output ->
-                input.copyTo(output)
+
+        val input = try {
+            context.contentResolver.openInputStream(uri)
+        } catch (e: Exception) {
+            return@withContext BasemapImportResult.SourceOpenFailed(uri)
+        } ?: return@withContext BasemapImportResult.SourceOpenFailed(uri)
+
+        try {
+            input.use { source ->
+                target.outputStream().use { output ->
+                    source.copyTo(output)
+                }
             }
-        } ?: throw IOException("Cannot open URI: $uri")
-        target.absolutePath
+
+            BasemapImportResult.Success(target.absolutePath)
+        } catch (e: Exception) {
+            target.delete()
+            BasemapImportResult.CopyFailed(e)
+        }
     }
 
     /** Delete the custom basemap and revert to bundled default. */

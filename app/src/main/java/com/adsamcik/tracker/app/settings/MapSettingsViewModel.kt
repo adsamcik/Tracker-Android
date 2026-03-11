@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.activity.ski.SkiInfrastructureImportResult
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
+import com.adsamcik.tracker.map.basemap.BasemapImportResult
 import com.adsamcik.tracker.map.basemap.BasemapManager
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
@@ -63,9 +65,14 @@ class MapSettingsViewModel @Inject constructor(
 
     fun importBasemap(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
-            val path = basemapManager.importBasemap(uri)
-            prefs.edit { setString(basemapPathKey, path) }
-            _basemapPath.value = path
+            when (val result = basemapManager.importBasemap(uri)) {
+                is BasemapImportResult.Success -> {
+                    prefs.edit { setString(basemapPathKey, result.path) }
+                    _basemapPath.value = result.path
+                }
+                is BasemapImportResult.SourceOpenFailed,
+                is BasemapImportResult.CopyFailed -> Unit
+            }
         }
     }
 
@@ -77,11 +84,15 @@ class MapSettingsViewModel @Inject constructor(
 
     fun importSkiInfrastructure(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                skiInfrastructureManager.importDatabase(uri)
-                _skiInfraLoaded.value = true
-            } catch (_: Exception) {
-                // Import failed — already cleaned up by manager
+            when (skiInfrastructureManager.importDatabase(uri)) {
+                is SkiInfrastructureImportResult.Success -> {
+                    _skiInfraLoaded.value = true
+                }
+                is SkiInfrastructureImportResult.SourceOpenFailed,
+                is SkiInfrastructureImportResult.CopyFailed,
+                is SkiInfrastructureImportResult.InvalidDatabase -> {
+                    // Import failed — already cleaned up by manager
+                }
             }
         }
     }

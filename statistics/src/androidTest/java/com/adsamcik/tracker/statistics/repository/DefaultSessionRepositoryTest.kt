@@ -8,16 +8,15 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.statistics.data.Stat
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 
 /**
@@ -73,9 +72,11 @@ class DefaultSessionRepositoryTest {
     @Test
     fun getSummaryStats_emptyDatabase_returnsZeroStats() = runTest(testDispatcher) {
         // When: requesting summary stats from empty DB
-        val stats = repository.getSummaryStats()
+        val result = repository.getSummaryStats()
 
         // Then: returns stats with zero values
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         assertTrue("Stats list should not be empty even with no data", stats.isNotEmpty())
         
         // Verify expected stat types exist (time, distance, steps, collections, counts)
@@ -102,9 +103,11 @@ class DefaultSessionRepositoryTest {
         segmentDao.insert(segment)
         
         // When: requesting summary stats
-        val stats = repository.getSummaryStats()
+        val result = repository.getSummaryStats()
 
         // Then: stats reflect the single session
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         assertTrue("Should have stat entries", stats.isNotEmpty())
         
         // Note: Exact value assertions depend on formatting logic in SummaryGenerator
@@ -162,15 +165,17 @@ class DefaultSessionRepositoryTest {
         segments.forEach { segmentDao.insert(it) }
 
         // When: requesting summary stats
-        val stats = repository.getSummaryStats()
+        val result = repository.getSummaryStats()
 
         // Then: aggregates sum correctly
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         // Total: 10000m distance, 6500m on foot, 3500m in vehicle, 6500 steps, 90 collections
         assertTrue("Should have session count stat", stats.isNotEmpty())
         
         // Verify session count stat exists
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null)
+        assertNotNull(sessionCountStat)
     }
 
     @Test
@@ -199,24 +204,28 @@ class DefaultSessionRepositoryTest {
 
         // When: requesting summary stats (measure time implicitly via test timeout)
         val startTime = System.currentTimeMillis()
-        val stats = repository.getSummaryStats()
+        val result = repository.getSummaryStats()
         val duration = System.currentTimeMillis() - startTime
 
         // Then: completes and returns data
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         assertTrue("Summary generation for 1000 sessions should complete within 5s, took ${duration}ms", stats.isNotEmpty())
         assertTrue(duration < 5000)
         
         // Verify session count reflects all 1000 sessions
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue("Should have session count stat for large dataset", sessionCountStat != null)
+        assertNotNull("Should have session count stat for large dataset", sessionCountStat)
     }
 
     @Test
     fun getWeeklyStats_emptyDatabase_returnsZeroStats() = runTest(testDispatcher) {
         // When: requesting weekly stats from empty DB
-        val stats = repository.getWeeklyStats()
+        val result = repository.getWeeklyStats()
 
         // Then: returns stats with zero values
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         assertTrue("Weekly stats list should not be empty even with no data", stats.isNotEmpty())
     }
 
@@ -243,14 +252,16 @@ class DefaultSessionRepositoryTest {
         segmentDao.insert(oldSegment)
 
         // When: requesting weekly stats
-        val stats = repository.getWeeklyStats()
+        val result = repository.getWeeklyStats()
 
         // Then: returns zero aggregates (no sessions in last 7 days)
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         assertTrue("Should have session count stat", stats.isNotEmpty())
         
         // Session count for the week should be zero (or reflect no recent sessions)
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null)
+        assertNotNull(sessionCountStat)
     }
 
     @Test
@@ -295,14 +306,16 @@ class DefaultSessionRepositoryTest {
         segmentDao.insert(oldSegment)
 
         // When: requesting weekly stats
-        val stats = repository.getWeeklyStats()
+        val result = repository.getWeeklyStats()
 
         // Then: only recent session is aggregated
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         assertTrue("Should have session count stat for weekly data", stats.isNotEmpty())
         
         // Verify structure (exact values depend on formatting)
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null)
+        assertNotNull(sessionCountStat)
     }
 
     @Test
@@ -356,14 +369,16 @@ class DefaultSessionRepositoryTest {
         recentSegments.forEach { segmentDao.insert(it) }
 
         // When: requesting weekly stats
-        val stats = repository.getWeeklyStats()
+        val result = repository.getWeeklyStats()
 
         // Then: aggregates all three sessions
+        assertTrue(result is SessionStatsResult.Success)
+        val stats = (result as SessionStatsResult.Success).stats
         // Total: 4500m distance, 3000m on foot, 1500m in vehicle, 3000 steps, 45 collections
         assertTrue("Should have session count for recent sessions", stats.isNotEmpty())
         
         val sessionCountStat = stats.find { it.nameRes == com.adsamcik.tracker.statistics.R.string.stats_session_count }
-        assertTrue(sessionCountStat != null)
+        assertNotNull(sessionCountStat)
     }
 
     @Test

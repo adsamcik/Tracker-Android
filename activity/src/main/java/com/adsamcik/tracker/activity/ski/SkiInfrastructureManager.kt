@@ -7,7 +7,6 @@ import com.adsamcik.tracker.stats.engine.ski.SkiLift
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 
 /**
  * Manages the optional ski infrastructure database.
@@ -26,29 +25,47 @@ class SkiInfrastructureManager(private val context: Context) {
 	fun isAvailable(): Boolean = dbFile.exists() && dbFile.length() > 0
 
 	/** Import a ski infrastructure database from a URI (SAF picker) */
-	suspend fun importDatabase(uri: Uri): String = withContext(Dispatchers.IO) {
+	suspend fun importDatabase(uri: Uri): SkiInfrastructureImportResult = withContext(Dispatchers.IO) {
 		dataDir.mkdirs()
-		context.contentResolver.openInputStream(uri)?.use { input ->
-			dbFile.outputStream().use { output ->
-				input.copyTo(output)
+
+		val input = try {
+			context.contentResolver.openInputStream(uri)
+		} catch (e: Exception) {
+			return@withContext SkiInfrastructureImportResult.SourceOpenFailed(uri)
+		} ?: return@withContext SkiInfrastructureImportResult.SourceOpenFailed(uri)
+
+		try {
+			input.use { source ->
+				dbFile.outputStream().use { output ->
+					source.copyTo(output)
+				}
 			}
-		} ?: throw IOException("Cannot open URI: $uri")
+		} catch (e: Exception) {
+			dbFile.delete()
+			return@withContext SkiInfrastructureImportResult.CopyFailed(e)
+		}
 
 		// Validate it's a valid SQLite with expected tables
 		try {
 			openDatabase().use { db ->
 				db.rawQuery("SELECT COUNT(*) FROM ski_lift", null).use { cursor ->
 					cursor.moveToFirst()
-					val count = cursor.getInt(0)
-					if (count == 0) throw IOException("Database contains no lift data")
+					if (cursor.getInt(0) == 0) {
+						dbFile.delete()
+						return@withContext SkiInfrastructureImportResult.InvalidDatabase(
+							"Database contains no lift data",
+						)
+					}
 				}
 			}
 		} catch (e: Exception) {
 			dbFile.delete()
-			throw IOException("Invalid ski infrastructure database: ${e.message}", e)
+			return@withContext SkiInfrastructureImportResult.InvalidDatabase(
+				"Invalid ski infrastructure database: ${e.message ?: "Unknown validation error"}",
+			)
 		}
 
-		dbFile.absolutePath
+		SkiInfrastructureImportResult.Success(dbFile.absolutePath)
 	}
 
 	/** Clear the imported database */

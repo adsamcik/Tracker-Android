@@ -2,8 +2,6 @@ package com.adsamcik.tracker.statistics.repository
 
 import androidx.paging.PagingSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
-import com.adsamcik.tracker.statistics.data.Stat
-
 /**
  * Repository interface for accessing tracker session data.
  * Provides abstraction over direct DAO access for testing and modularity.
@@ -17,13 +15,13 @@ interface SessionRepository {
     
     /**
      * Get overall summary statistics for all sessions.
-     * @return List of formatted summary statistics
+     * @return Sealed result containing formatted summary statistics or a failure
      */
-    suspend fun getSummaryStats(): List<Stat>
+    suspend fun getSummaryStats(): SessionStatsResult
     
     /**
      * Get summary statistics for the last 7 days.
-     * @return List of formatted weekly statistics  
+     * @return Sealed result containing formatted weekly statistics or a failure
      */
-    suspend fun getWeeklyStats(): List<Stat>
+    suspend fun getWeeklyStats(): SessionStatsResult
 }

@@ -5,7 +5,6 @@ import androidx.paging.PagingSource
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.Trip
-import com.adsamcik.tracker.statistics.data.Stat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -30,11 +29,25 @@ class DefaultSessionRepository @Inject constructor(
         return tripDao.getAllPaged()
     }
     
-    override suspend fun getSummaryStats(): List<Stat> = withContext(dispatchers.io) {
-        SessionStatsAdapter.buildSummary(context)
+    override suspend fun getSummaryStats(): SessionStatsResult = withContext(dispatchers.io) {
+        try {
+            SessionStatsResult.Success(SessionStatsAdapter.buildSummary(context))
+        } catch (e: Exception) {
+            SessionStatsResult.Failure(
+                message = e.message ?: "Failed to load summary statistics",
+                cause = e,
+            )
+        }
     }
     
-    override suspend fun getWeeklyStats(): List<Stat> = withContext(dispatchers.io) {
-        SessionStatsAdapter.buildSevenDaySummary(context)
+    override suspend fun getWeeklyStats(): SessionStatsResult = withContext(dispatchers.io) {
+        try {
+            SessionStatsResult.Success(SessionStatsAdapter.buildSevenDaySummary(context))
+        } catch (e: Exception) {
+            SessionStatsResult.Failure(
+                message = e.message ?: "Failed to load weekly statistics",
+                cause = e,
+            )
+        }
     }
 }
