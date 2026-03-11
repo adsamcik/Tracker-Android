@@ -126,7 +126,7 @@ val TrailGoldLight = Color(0xFF857010)
 val TrailGoldDark = Color(0xFFD0B24A)
 ```
 
-> **Implementation note:** The existing `Color.kt` contains a teal-based palette (`#006874`). This is **superseded**. When implementing, regenerate all tokens from `#1B6B3A` via Material Theme Builder, then replace every value in `Color.kt`. The table structure and token names remain identical.
+> **Implementation note:** The existing `Color.kt` is aligned to the implemented Canopy Green seed (`#1B6B3A`). Keep docs and token references consistent with this palette.
 
 ---
 
@@ -2577,7 +2577,7 @@ Four canonical card types. All use the Ridgeline asymmetric shape scale.
 
 
 ## 15. Per-Screen Component Specifications
-*   **Map Screen:** Standard FAB (`WaypointShape`, Secure Teal, TactileActive). Quick-Stat Cards for metrics overlay.
+*   **Map Screen:** Standard FAB (`WaypointShape`, Canopy Green, TactileActive). Quick-Stat Cards for metrics overlay.
 *   **Dashboard:** Large FAB (96dp) for tracking. Stats Summary Card at top. Challenge Cards in carousel. Quick-Stat Cards for secondary metrics.
 *   **Statistics Screen:** Trip Cards in list. Section headers with accent bar. Stats Summary Card for period totals.
 *   **Trip Detail Screen:** Stats Summary Card for trip aggregate. Quick-Stat Cards for individual metrics. Sunset Rust for peak values.

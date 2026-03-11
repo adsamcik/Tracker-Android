@@ -15,7 +15,7 @@ Before diving into R23–25, resolving the six micro-differences flagged:
 | Sheet damping | 0.85 | 0.82 | **HOLD: 0.85** | Overdamped = more controlled. 0.82 introduces perceptible oscillation on fast flings. 0.85 settles 1 frame faster. |
 | Versioning | No semver | Semver | **HOLD: No semver** | Single-consumer, single-repo internal DS. Semver adds process overhead with zero benefit. DESIGN_ROUND_*.md files ARE the changelog. |
 | Component count | 35 | ~44 | **HOLD: 35** | 35 = 18 composable primitives + 17 token objects. GPT's 44 counted screen compositions as DS artifacts. They're consumers, not the contract. |
-| Palette seed | `#006874` (Secure Teal) | `#1B6B3A` (Canopy Green) | **LOCKED: `#006874`** | `#1B6B3A` was a GPT hallucination from an earlier draft. The actual `Color.kt` has `#006874`. The entire hand-crafted HCT palette derives from this seed. Every color in §2 of DESIGN_SYSTEM.md is built on it. Not negotiable. |
+| Palette seed | `#1B6B3A` (Canopy Green) | `#006874` (Secure Teal) | **LOCKED: `#1B6B3A`** | Updated to match implemented `Color.kt` and the current hand-crafted HCT palette. Canopy Green is the active source-of-truth seed in code. |
 
 **Action items from resolutions:**
 - Update `MotionTokens.STAGGER_MS` from 80 → 60 in code and spec.
@@ -58,7 +58,7 @@ Before diving into R23–25, resolving the six micro-differences flagged:
 
 **Token groundwork to lay NOW (zero implementation, just design decisions):**
 
-1.  **Widget color mapping:** Widgets will use `@android:color/system_accent1_*` (Monet) on Android 12+ and fall back to `#006874` (Secure Teal primary) on older versions. This aligns with our Monet policy (§11) — surfaces adapt to wallpaper, brand colors are locked. Widget backgrounds: `system_neutral1_900` (dark) / `system_neutral1_50` (light).
+1.  **Widget color mapping:** Widgets will use `@android:color/system_accent1_*` (Monet) on Android 12+ and fall back to `#1B6B3A` (Canopy Green primary) on older versions. This aligns with our Monet policy (§11) — surfaces adapt to wallpaper, brand colors are locked. Widget backgrounds: `system_neutral1_900` (dark) / `system_neutral1_50` (light).
 
 2.  **Widget corner radius:** Android 12+ exposes `system_app_widget_background_radius` (~28dp on most devices). Use it. Pre-12: 16dp fallback. This matches our `extraLarge` shape spirit without needing our asymmetric shapes (which don't work in `RemoteViews`).
 
@@ -182,7 +182,7 @@ Every point where GPT and I diverged across rounds 8–22, with final resolution
 | 4 | R9 | Glass + reduced motion | Two-axis (motion ≠ transparency) | Collapse to one axis | **HOLD** (two-axis) | Android 15 confirmed separate "Reduce Transparency" setting. Two-axis is future-proof and already spec'd in §12. |
 | 5 | R9 | Mini FAB | Reject (48dp minimum) | Allow 40dp | **HOLD** (reject) | WCAG touch target, Android accessibility guidelines. 40dp fails. |
 | 6 | R12 | Activity colors | Okabe-Ito hues + M3 lightness | Different Okabe-Ito mapping | **ACCEPT GPT partially** | Converged on Okabe-Ito base hues; I adjusted lightness for M3 dark/light contrast. Final values in `AppColors`. Both happy. |
-| 7 | R12 | Palette seed | `#006874` (Secure Teal) | `#1B6B3A` (Canopy Green) | **HOLD** (`#006874`) | `#1B6B3A` was never implemented. `Color.kt` has `#006874`. Entire palette built on it. GPT referenced a draft that was superseded. |
+| 7 | R12 | Palette seed | `#1B6B3A` (Canopy Green) | `#006874` (Secure Teal) | **HOLD** (`#1B6B3A`) | Updated to match implemented Canopy Green seed in `Color.kt`; prior teal resolution is superseded. |
 | 8 | R17 | Peek height | 72dp | 64dp | **HOLD** (72dp) | 72dp = drag handle (24dp touch) + first content row. 64dp clips content row on large font. |
 | 9 | R17 | Menu max items | 7 | 5 | **HOLD** (7) | M3 spec allows up to 10. 7 covers our longest menu (trip detail actions) without scrolling. 5 would force overflow-within-overflow. |
 | 10 | R17 | Celebrations | Snackbar only | Modal + confetti | **HOLD** (snackbar) | "The app celebrates by being useful." Modal interrupts flow. Confetti is antithetical to privacy-serious brand. |
@@ -210,9 +210,11 @@ Every point where GPT and I diverged across rounds 8–22, with final resolution
 
 This table lists ONLY items where both models agreed from the start OR converged to agreement. These are the undisputed foundations:
 
+**Note:** Updated to match implemented Canopy Green (#1B6B3A) palette.
+
 | # | Topic | Agreed Value | Spec Section |
 |---|-------|-------------|-------------|
-| 1 | Color seed | `#006874` Secure Teal | §2 |
+| 1 | Color seed | `#1B6B3A` Canopy Green | §2 |
 | 2 | HCT color space | Hand-crafted, not generated | §2 |
 | 3 | Primary typeface | Outfit (display/headline/title) | §3 |
 | 4 | Body typeface | System font (Roboto/Noto Sans) | §3 |

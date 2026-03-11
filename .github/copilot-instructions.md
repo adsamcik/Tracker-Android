@@ -119,3 +119,8 @@ Fakes: `FakeLocationSource`, `FakeTrackerSettingsRepository`. `TestAppGraphBuild
 5. Capture terminal output to files for analysis.
 
 <!-- context-init:user-content-below -->
+
+## QC Testing
+
+To run QC on the app, use the `/android-qc` skill or say "run QC on the app".
+The skill is defined in `.github/skills/android-qc/SKILL.md`.

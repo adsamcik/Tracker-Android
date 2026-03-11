@@ -1178,16 +1178,16 @@ Privacy-first, fully local location & activity tracker for Android. Reliable, se
 
 ## 2. Color Palette
 
-**Seed:** `#006874` (Secure Teal). Generated via Material 3 HCT color space.
+**Seed:** `#1B6B3A` (Canopy Green). Generated via Material 3 HCT color space.
 Balances trust and security (deep, reliable cool tones) with adventure and activity (vibrant, energetic warm tones).
 
 ### 2.1 Core Palette — Complete Token Reference
 
-#### Primary: Secure Teal
+#### Primary: Canopy Green
 
 | Token | Light | Dark |
 |-------|-------|------|
-| `primary` | `#006874` | `#4FD8EB` |
+| `primary` | `#1B6B3A` | `#7BDA97` |
 | `onPrimary` | `#FFFFFF` | `#00363D` |
 | `primaryContainer` | `#97F0FF` | `#004F58` |
 | `onPrimaryContainer` | `#001F24` | `#97F0FF` |
@@ -1229,7 +1229,7 @@ Balances trust and security (deep, reliable cool tones) with adventure and activ
 | `onSurfaceVariant` | `#3F484A` | `#BFC8CA` |
 | `surfaceBright` | `#F8FDFF` | `#353B3D` |
 | `surfaceDim` | `#D5DBDC` | `#0E1415` |
-| `surfaceTint` | `#006874` | `#4FD8EB` |
+| `surfaceTint` | `#1B6B3A` | `#7BDA97` |
 | `surfaceContainerLowest` | `#FFFFFF` | `#060B0C` |
 | `surfaceContainerLow` | `#EFF3F8` | `#151B1D` |
 | `surfaceContainer` | `#EBF4F6` | `#1A2022` |
@@ -1246,7 +1246,7 @@ Balances trust and security (deep, reliable cool tones) with adventure and activ
 | `outlineVariant` | `#C4C7CF` | `#3F484A` |
 | `inverseSurface` | `#2B3133` | `#DFE4E5` |
 | `inverseOnSurface` | `#ECF2F3` | `#2B3133` |
-| `inversePrimary` | `#4FD8EB` | `#006874` |
+| `inversePrimary` | `#7BDA97` | `#1B6B3A` |
 | `scrim` | `#000000` | `#000000` |
 
 ### 2.4 Semantic Colors (Extended)
@@ -1704,7 +1704,7 @@ Four canonical card types. All use the Ridgeline asymmetric shape scale.
 *   FAB not shown on settings, import/export, or detail screens.
 
 ## 15. Per-Screen Component Specifications
-*   **Map Screen:** Standard FAB (`WaypointShape`, Secure Teal, TactileActive). Quick-Stat Cards for metrics overlay.
+*   **Map Screen:** Standard FAB (`WaypointShape`, Canopy Green, TactileActive). Quick-Stat Cards for metrics overlay.
 *   **Dashboard:** Large FAB (96dp) for tracking. Stats Summary Card at top. Challenge Cards in carousel. Quick-Stat Cards for secondary metrics.
 *   **Statistics Screen:** Trip Cards in list. Section headers with accent bar. Stats Summary Card for period totals.
 *   **Trip Detail Screen:** Stats Summary Card for trip aggregate. Quick-Stat Cards for individual metrics. Sunset Rust for peak values.
