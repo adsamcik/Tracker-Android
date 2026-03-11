@@ -39,20 +39,11 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
         private const val MAX_CRASH_FILES = 50
         private const val CRASH_TIMEOUT_MS = 2000L
 
-        private val COORDINATE_PATTERN = Regex("""-?\d+\.\d{4,}""")
-        private val LAT_LON_PATTERN =
-            Regex("""(?i)(lat(?:itude)?|lon(?:gitude)?)\s*[=:]\s*-?\d+\.?\d*""")
-        private const val REDACTED = "[REDACTED]"
-
         /**
          * Redacts potential PII (coordinates) from crash messages.
-         * Replaces decimal numbers with 4+ decimal places and explicit lat/lon references.
+         * Delegates to [PiiRedactor] for centralized redaction.
          */
-        internal fun redactPii(message: String): String {
-            var result = LAT_LON_PATTERN.replace(message, REDACTED)
-            result = COORDINATE_PATTERN.replace(result, REDACTED)
-            return result
-        }
+        internal fun redactPii(message: String): String = PiiRedactor.redact(message)
     }
 
     private val crashDir: File by lazy {
@@ -113,9 +104,9 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
             
             CrashData(
                 exceptionName = exception.javaClass.simpleName,
-                exceptionMessage = exception.message ?: "No message",
-                stackTrace = getStackTraceStringSafely(exception),
-                cause = getCauseSafely(exception),
+                exceptionMessage = PiiRedactor.redact(exception.message ?: "No message"),
+                stackTrace = PiiRedactor.redact(getStackTraceStringSafely(exception)),
+                cause = getCauseSafely(exception)?.let { PiiRedactor.redact(it) },
                 threadName = thread.name,
                 appVersion = getAppVersionSafely(context),
                 androidVersion = Build.VERSION.RELEASE,
@@ -200,7 +191,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     crashData.cause?.let { writer.println("Cause: ${redactPii(it)}") }
                     writer.println()
                     writer.println("STACK TRACE:")
-                    writer.println(crashData.stackTrace)
+                    writer.println(PiiRedactor.redact(crashData.stackTrace))
                     writer.flush()
                 }
             }
@@ -227,7 +218,7 @@ class CrashHandler(private val application: Application) : Thread.UncaughtExcept
                     writer.println("Exception: ${exception.javaClass.simpleName}")
                     writer.println("Message: ${redactPii(exception.message ?: "")}")
                     writer.println("Stack Trace:")
-                    writer.println(getStackTraceStringSafely(exception))
+                    writer.println(PiiRedactor.redact(getStackTraceStringSafely(exception)))
                     writer.flush()
                 }
             }

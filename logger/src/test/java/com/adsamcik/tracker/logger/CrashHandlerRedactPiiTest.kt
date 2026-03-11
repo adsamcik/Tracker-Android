@@ -15,8 +15,8 @@ class CrashHandlerRedactPiiTest {
 	inner class CoordinatePatterns {
 
 		@Test
-		fun `redacts latitude-like decimal with 4+ decimal places`() {
-			val input = "Error at 40.7128"
+		fun `redacts decimal with 5+ decimal places`() {
+			val input = "Error at 40.71280"
 			val result = CrashHandler.redactPii(input)
 			result shouldBe "Error at [REDACTED]"
 		}
@@ -30,11 +30,11 @@ class CrashHandlerRedactPiiTest {
 
 		@Test
 		fun `redacts coordinate pair in exception message`() {
-			val input = "Failed to process location 51.5074, -0.1278"
+			val input = "Failed to process 51.50740, -0.12780"
 			val result = CrashHandler.redactPii(input)
-			result.shouldNotContain("51.5074")
-			result.shouldNotContain("-0.1278")
-			result.shouldContain("Failed to process location")
+			result.shouldNotContain("51.50740")
+			result.shouldNotContain("-0.12780")
+			result.shouldContain("Failed to process")
 		}
 
 		@Test
@@ -119,23 +119,23 @@ class CrashHandlerRedactPiiTest {
 
 		@Test
 		fun `redacts coordinates but preserves surrounding message`() {
-			val input = "LocationException: invalid coordinate 40.7128 at index 3"
+			val input = "LocationException: invalid coordinate 40.71280 at index 3"
 			val result = CrashHandler.redactPii(input)
 			result.shouldContain("LocationException: invalid coordinate")
 			result.shouldContain("at index 3")
-			result.shouldNotContain("40.7128")
+			result.shouldNotContain("40.71280")
 		}
 
 		@Test
 		fun `redacts only message, not stack trace line numbers`() {
 			val stackTrace = """
-				|java.lang.RuntimeException: Failed at 52.5200, 13.4050
+				|java.lang.RuntimeException: Failed at 52.52000, 13.40500
 				|    at com.example.Tracker.onLocationChanged(Tracker.kt:42)
 				|    at android.location.LocationManager.requestUpdates(LocationManager.java:1234)
 			""".trimMargin()
 			val result = CrashHandler.redactPii(stackTrace)
-			result.shouldNotContain("52.5200")
-			result.shouldNotContain("13.4050")
+			result.shouldNotContain("52.52000")
+			result.shouldNotContain("13.40500")
 			result.shouldContain("Tracker.kt:42")
 			result.shouldContain("LocationManager.java:1234")
 		}

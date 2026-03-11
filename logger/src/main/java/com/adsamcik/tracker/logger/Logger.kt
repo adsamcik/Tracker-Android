@@ -55,16 +55,21 @@ object Logger : CoroutineScope {
 
     @AnyThread
     fun log(data: LogData) {
+        val sanitized = data.copy(
+            message = PiiRedactor.redact(data.message),
+            data = PiiRedactor.redact(data.data)
+        )
+
         if (BuildConfig.DEBUG) {
-            Log.d("com.adsamcik.tracker.debug.${data.source}", data.toString())
+            Log.d("com.adsamcik.tracker.debug.${sanitized.source}", sanitized.toString())
         }
 
         if (!isInitialized) {
-            logBuffer.add(data)
+            logBuffer.add(sanitized)
             return
         }
 
-        logInternal(data)
+        logInternal(sanitized)
     }
     
     private fun logInternal(data: LogData) {

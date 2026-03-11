@@ -70,7 +70,7 @@ object CrashExporter {
     private fun writeCrashData(writer: java.io.Writer, crash: CrashData) {
         writer.write("Time: ${crash.timeStamp.formatAsDateTime()}\n")
         writer.write("Exception: ${crash.exceptionName}\n")
-        writer.write("Message: ${crash.exceptionMessage}\n")
+        writer.write("Message: ${PiiRedactor.redact(crash.exceptionMessage)}\n")
         writer.write("Thread: ${crash.threadName}\n")
         writer.write("App Version: ${crash.appVersion}\n")
         writer.write("Android Version: ${crash.androidVersion}\n")
@@ -79,9 +79,9 @@ object CrashExporter {
         writer.write("Battery: ${crash.batteryLevel}% ${if (crash.isCharging) "(Charging)" else "(Not Charging)"}\n")
         writer.write("Network: ${crash.networkType}\n")
         writer.write("Background: ${if (crash.isInBackground) "Yes" else "No"}\n")
-        crash.cause?.let { writer.write("Cause: $it\n") }
+        crash.cause?.let { writer.write("Cause: ${PiiRedactor.redact(it)}\n") }
         writer.write("\nStack Trace:\n")
-        writer.write(crash.stackTrace)
+        writer.write(PiiRedactor.redact(crash.stackTrace))
     }
     
     /**
