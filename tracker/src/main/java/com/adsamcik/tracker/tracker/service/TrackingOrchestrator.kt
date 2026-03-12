@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
+import android.util.Log
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -14,6 +15,7 @@ import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
+import com.adsamcik.tracker.tracker.BuildConfig
 import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.PreTrackerComponent
@@ -27,8 +29,17 @@ import com.adsamcik.tracker.tracker.data.DefaultPersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.PersistenceErrorCollector
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
+import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.SignalAdapter
+import com.adsamcik.tracker.tracker.pipeline.StageResult
+import com.adsamcik.tracker.tracker.pipeline.TrackingPipeline
+import com.adsamcik.tracker.tracker.pipeline.stages.DataCollectionStage
+import com.adsamcik.tracker.tracker.pipeline.stages.PolicyUpdateStage
+import com.adsamcik.tracker.tracker.pipeline.stages.PostProcessingStage
+import com.adsamcik.tracker.tracker.pipeline.stages.PreValidationStage
+import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
+import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -277,7 +288,6 @@ internal class TrackingOrchestrator(
 	 * Collects data from producers/components, feeds the processor pipeline,
 	 * updates the tracking policy, and notifies listeners.
 	 */
-	@Suppress("LongMethod")
 	private suspend fun collectAndProcess(
 		context: Context,
 		triggerCycle: TrackingCycle,
@@ -285,115 +295,37 @@ internal class TrackingOrchestrator(
 	) {
 		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
 
-		// if we don't know the accuracy the location is worthless
-		if (!preComponentList.all {
-					if (it.requirementsMet(cycle)) {
-						tryWithResultAndReport(
-								{ true }) {
-							it.onNewData(cycle)
-						}
-					} else {
-						true
-					}
-				}) {
-			return
-		}
+		val cycleContext = CycleContext(
+			cycle = cycle,
+			collectionData = MutableCollectionData(cycle.timestampMs),
+		)
 
-		val collectionData = MutableCollectionData(cycle.timestampMs)
+		val pipeline = TrackingPipeline(
+			stages = listOf(
+				PreValidationStage(preComponentList),
+				DataCollectionStage(dataComponentList),
+				SessionUpdateStage(requireNotNull(sessionComponent), controller),
+				PostProcessingStage(notificationComponent, skiSegmentWriter, skiTrackingComponent),
+				SignalDispatchStage(processorPipeline, currentTier),
+				PolicyUpdateStage(policyFeeder, trackingPolicyManager, scope),
+			),
+		)
 
-		dataComponentList
-				.asSequence()
-				.filter { it.requirementsMet(cycle) }
-				.forEach {
-					tryWithReport {
-						it.onDataUpdated(cycle, collectionData)
-					}
-				}
+		val result = pipeline.execute(context, cycleContext)
 
-		requireNotNull(sessionComponent).onDataUpdated(cycle, collectionData)
-
-		// Emit updated session and collection data via controller
-		controller.updateSession(session)
-		controller.updateCollectionData(collectionData)
-
-		// Explicit post-component calls (no longer via generic list)
-		if (notificationComponent.requirementsMet(cycle)) {
-			tryWithReport {
-				notificationComponent.onNewData(context, session, collectionData, cycle)
-			}
-		}
-		skiSegmentWriter?.let { writer ->
-			if (writer.requirementsMet(cycle)) {
-				tryWithReport {
-					writer.onNewData(context, session, collectionData, cycle)
-				}
-			}
-		}
-		skiTrackingComponent?.let { ski ->
-			if (ski.requirementsMet(cycle)) {
-				tryWithReport {
-					ski.onNewData(context, session, collectionData, cycle)
-				}
+		if (BuildConfig.DEBUG) {
+			result.metrics.forEach { m ->
+				Log.d("TrackingPipeline", "${m.stageName}: ${m.durationMs}ms -> ${m.result}")
 			}
 		}
 
-		// Feed data to the ProcessorPipeline
-		processorPipeline?.let { pipeline ->
-			tryWithReport {
-				val cellTowers = cycle.cellScan?.registeredCells?.map { cell ->
-					com.adsamcik.tracker.stats.api.signal.CellTowerReading(
-						cellId = cell.cellId,
-						mcc = cell.networkOperator.mcc,
-						mnc = cell.networkOperator.mnc,
-						networkType = cell.type.ordinal,
-						signalStrength = cell.asu,
-					)
-				}
-
-				val wifiNetworks = cycle.wifiScan?.data?.map { sr ->
-					com.adsamcik.tracker.stats.api.signal.WifiNetworkReading(
-						bssid = sr.BSSID ?: "",
-						ssid = sr.SSID ?: "",
-						capabilities = sr.capabilities ?: "",
-						frequency = sr.frequency,
-						level = sr.level,
-					)
-				}
-
-				val signal = SignalAdapter.buildSignal(
-					timestampMs = cycle.timestampMs,
-					elapsedRealtimeNanos = cycle.elapsedRealtimeNanos,
-					latitude = collectionData.location?.latitude,
-					longitude = collectionData.location?.longitude,
-					accuracy = collectionData.location?.horizontalAccuracy,
-					speed = collectionData.location?.speed,
-					altitude = collectionData.location?.altitude?.toFloat(),
-					rawGpsAltitude = cycle.rawGpsAltitude?.toFloat(),
-					activityTypeCode = collectionData.activity?.activityType,
-					activityConfidence = collectionData.activity?.confidence,
-					stepDelta = cycle.stepDelta,
-					totalStepsSinceBoot = cycle.totalStepsSinceBoot,
-					stepSensorValueStart = cycle.stepSensorValueStart,
-					stepSensorValueEnd = cycle.stepSensorValueEnd,
-					stepSensorReset = cycle.stepSensorReset,
-					cellTowers = cellTowers,
-					wifiNetworks = wifiNetworks,
-					pressureHpa = cycle.pressure?.pressureHpa,
-					pressureAltitudeM = cycle.pressure?.altitudeM,
-					policyTier = currentTier,
-				)
-				pipeline.onSignal(signal)
+		// Notify listeners only when the pipeline completed (not skipped)
+		if (result.completedSuccessfully) {
+			val session = requireNotNull(cycleContext.session) {
+				"Session must be populated by SessionUpdateStage"
 			}
+			trackerListenerManager.send(context, session, cycleContext.collectionData)
 		}
-
-		// Update tracking policy based on collected data (adaptive tracking)
-		trackingPolicyManager?.let { policyMgr ->
-			tryWithReport {
-				policyFeeder.feed(policyMgr, collectionData, cycle, scope)
-			}
-		}
-
-		trackerListenerManager.send(context, session, collectionData)
 	}
 
 	private suspend fun destroyComponents(context: Context) {
