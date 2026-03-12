@@ -3,8 +3,8 @@ package com.adsamcik.tracker.impexp.exporter
 import android.content.Context
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedWriter
 import java.io.OutputStream
@@ -36,7 +36,7 @@ class JsonExporter : Exporter {
 		val db = AppDatabase.database(context)
 
 		val sessions = try {
-			val trips = withContext(Dispatchers.IO) { db.tripDao().getBetween(0L, Long.MAX_VALUE) }
+			val trips = withContext(DefaultDispatchersProvider.io) { db.tripDao().getBetween(0L, Long.MAX_VALUE) }
 			trips.map { t ->
 				SessionSnapshot(
 					id = t.id,

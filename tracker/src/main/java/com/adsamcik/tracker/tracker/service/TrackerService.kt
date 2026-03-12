@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.PowerManager
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
 import com.adsamcik.tracker.shared.base.service.CoreService
@@ -33,7 +34,6 @@ import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -75,6 +75,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@Inject
 	lateinit var appDatabase: AppDatabase
+
+	@Inject
+	lateinit var dispatchers: DispatchersProvider
 
 	private lateinit var orchestrator: TrackingOrchestrator
 
@@ -181,7 +184,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				}
 			}
 
-			async(Dispatchers.Default) {
+			async(dispatchers.default) {
 				orchestrator.initialize(
 					context = this@TrackerService,
 					isSessionUserInitiated = isUserInitiated,
@@ -221,7 +224,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
-	override fun onUpdate(cycle: TrackingCycle): Job = launch(Dispatchers.Default) {
+	override fun onUpdate(cycle: TrackingCycle): Job = launch(dispatchers.default) {
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
 			orchestrator.onCycleUpdate(this@TrackerService, cycle, this@TrackerService)
@@ -267,7 +270,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// CoreService.onDestroy() already cancelled our CoroutineScope, so we use a standalone
 		// scope with a bounded lifetime to ensure cleanup completes without causing ANR.
 		val cleanupScope = kotlinx.coroutines.CoroutineScope(
-			Dispatchers.Default + kotlinx.coroutines.SupervisorJob()
+			dispatchers.default + kotlinx.coroutines.SupervisorJob()
 		)
 		cleanupScope.launch {
 			try {

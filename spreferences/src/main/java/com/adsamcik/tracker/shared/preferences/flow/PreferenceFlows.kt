@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * Flow-based accessors replacing the deprecated LiveData/SharedPreferences observer scaffolding.
+ * Flow-based accessors for callers that need Flow/StateFlow-friendly preference streams.
  * Values are backed by DataStore and emit immediately with current state, then on every change.
  */
 object PreferenceFlows {

@@ -13,11 +13,12 @@ import com.adsamcik.tracker.game.challenge.worker.ChallengeExpiredWorker
 import com.adsamcik.tracker.game.logGame
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.utils.extension.tryWithResultAndReport
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,8 +38,9 @@ import kotlin.random.Random
 class ChallengeManager @Inject constructor(
 	private val registry: ChallengeTypeRegistry,
 	private val progressionRepository: ProgressionRepository,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) {
-	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+	private val scope = CoroutineScope(SupervisorJob() + dispatchers.default)
 
 	private val activeChallengeList = mutableListOf<ChallengeInstanceNew>()
 

@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.shared.preferences.settings
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.stateIn
  * Plan 5 migration: Removed runBlocking; uses default values until first emission arrives.
  */
 internal object TrackerSettingsAccess {
+    private val dispatchers = DefaultDispatchersProvider
+
     /**
      * Application-scoped CoroutineScope for settings state collection.
      *
@@ -24,7 +26,7 @@ internal object TrackerSettingsAccess {
      * cancellation, as it will be cleaned up when the process terminates.
      * Uses [SupervisorJob] to prevent failure propagation between independent operations.
      */
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + dispatchers.default)
 
     @Volatile
     private var stateFlow: StateFlow<TrackerSettingsState>? = null
@@ -37,7 +39,7 @@ internal object TrackerSettingsAccess {
             if (again != null) return again
             val repo = DefaultTrackerSettingsRepository(
                 context.applicationContext,
-                Dispatchers.IO
+                dispatchers.io
             ) { msg -> /* no-op default; app layer may provide structured logger by constructing repo directly */ }
             // Use sensible defaults as initial value; actual settings arrive asynchronously.
             // SharingStarted.Eagerly ensures flow starts collecting immediately.

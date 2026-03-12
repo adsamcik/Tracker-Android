@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.dashboard.ui.compose.state.ChallengeUiModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
@@ -113,7 +114,8 @@ class DashboardViewModel @Inject constructor(
 
 					loadExplorationData(appDatabase)
 					loadStreakData(appDatabase)
-				} catch (_: Exception) {
+				} catch (e: Exception) {
+					Reporter.report(e)
 					// DB errors are non-fatal — cards simply won't show
 				}
 			}

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
 import android.content.Context
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
@@ -103,7 +104,9 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		// M7 fix: close infrastructure manager to release resources
 		try {
 			(infrastructureManager as? java.io.Closeable)?.close()
-		} catch (_: Exception) { /* best effort */ }
+		} catch (e: Exception) {
+			Reporter.report(e)
+		}
 		infrastructureManager = null
 		proximityChecked = false
 		nearbyLifts = emptyList()

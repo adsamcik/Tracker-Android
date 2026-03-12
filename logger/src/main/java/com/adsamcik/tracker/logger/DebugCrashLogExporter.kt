@@ -3,6 +3,11 @@ package com.adsamcik.tracker.logger
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.io.PrintWriter
@@ -55,7 +60,7 @@ object DebugCrashLogExporter {
                     writeExceptionInfo(writer, thread, exception)
                     writeDeviceInfo(writer, context)
                     writeStackTrace(writer, exception)
-                    writeRecentLogs(writer, context)
+                    runBlocking { writeRecentLogs(writer, context) }
                     writer.flush()
                 }
             }
@@ -130,39 +135,37 @@ object DebugCrashLogExporter {
         writer.println()
     }
 
-    private fun writeRecentLogs(writer: PrintWriter, context: Context) {
+    private suspend fun writeRecentLogs(writer: PrintWriter, context: Context) {
         writer.println("-".repeat(40))
         writer.println("RECENT APPLICATION LOGS (last $MAX_RECENT_LOGS entries)")
         writer.println("-".repeat(40))
 
         try {
-            var recentLogs: List<LogData> = emptyList()
-            
-            // Database queries might be disallowed on main thread (which crashes often happen on).
-            // Fetch logs on a background thread with timeout.
-            val thread = Thread {
-                try {
-                   val logDao = LogDatabase.database(context).genericLogDao()
-                   recentLogs = logDao.getLastOrderedDesc(MAX_RECENT_LOGS)
-                } catch (e: Exception) {
-                    writer.println("Failed to retrieve logs in background: ${e.message}")
+            val recentLogs = try {
+                withContext(DefaultDispatchersProvider.io) {
+                    withTimeout(1000) {
+                        LogDatabase.database(context).genericLogDao().getLastOrderedDesc(MAX_RECENT_LOGS)
+                    }
                 }
-            }
-            thread.start()
-            thread.join(1000) // Wait up to 1 second for logs
-            
-            if (thread.isAlive) {
+            } catch (_: TimeoutCancellationException) {
                 writer.println("Timeout retrieving recent logs")
-                thread.interrupt()
-            } else if (recentLogs.isEmpty()) {
-                writer.println("No recent logs available")
-            } else {
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
-                recentLogs.reversed().forEach { log ->
-                    val time = dateFormat.format(Date(log.timeStamp))
-                    writer.println("[$time] [${log.source}] ${log.message}")
-                    if (log.data.isNotEmpty()) {
-                        writer.println("  Data: ${log.data}")
+                null
+            } catch (e: Exception) {
+                writer.println("Failed to retrieve logs: ${e.message}")
+                null
+            }
+
+            when {
+                recentLogs == null -> Unit
+                recentLogs.isEmpty() -> writer.println("No recent logs available")
+                else -> {
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+                    recentLogs.reversed().forEach { log ->
+                        val time = dateFormat.format(Date(log.timeStamp))
+                        writer.println("[$time] [${log.source}] ${log.message}")
+                        if (log.data.isNotEmpty()) {
+                            writer.println("  Data: ${log.data}")
+                        }
                     }
                 }
             }

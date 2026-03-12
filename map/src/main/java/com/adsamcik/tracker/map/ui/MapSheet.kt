@@ -58,6 +58,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
+import com.adsamcik.tracker.logger.Reporter
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -373,7 +374,9 @@ fun MapSheet(
                                 onClick = {
                                     try {
                                         store.dispatch(MapEvent.SelectLayer(layer.id))
-                                    } catch (_: Exception) { }
+                                    } catch (e: Exception) {
+                                        Reporter.report(e)
+                                    }
                                 },
                                 label = {
                                     Text(

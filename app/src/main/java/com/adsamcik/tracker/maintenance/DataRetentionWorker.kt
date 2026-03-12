@@ -10,6 +10,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -93,7 +94,8 @@ class DataRetentionWorker @AssistedInject constructor(
         private fun syncScheduling(context: Context, enabled: Boolean) {
             try {
                 if (enabled) ensureScheduled(context) else cancel(context)
-            } catch (_: IllegalStateException) {
+            } catch (e: IllegalStateException) {
+                Reporter.report(e)
                 // WorkManager may not be initialized in tests; ignore the exception as before.
             }
         }

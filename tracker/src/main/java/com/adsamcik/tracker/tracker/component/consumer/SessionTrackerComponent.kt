@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.component.consumer
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.adsamcik.tracker.logger.assertMoreOrEqual
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
@@ -21,7 +22,6 @@ import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
@@ -41,7 +41,7 @@ internal class SessionTrackerComponent(
 
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Default + job
+		get() = DefaultDispatchersProvider.default + job
 
 	private val sessionMutex = Mutex()
 

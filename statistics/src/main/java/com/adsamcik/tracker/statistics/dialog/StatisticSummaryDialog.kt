@@ -24,7 +24,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.statistics.data.Stat
-import kotlinx.coroutines.Dispatchers
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import kotlinx.coroutines.withContext
 import com.adsamcik.tracker.shared.base.R as BaseR
 
@@ -42,7 +42,7 @@ fun StatisticSummaryDialog(
 
 	LaunchedEffect(Unit) {
 		isLoading = true
-		stats = withContext(Dispatchers.Default) { dataLoader().toList() }
+		stats = withContext(DefaultDispatchersProvider.default) { dataLoader().toList() }
 		isLoading = false
 	}
 

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.shared.base.data.CollectionData
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -18,7 +19,6 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationComponent
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationProvider
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
@@ -57,7 +57,7 @@ internal class NotificationComponent :
 	}
 
 	override suspend fun onEnable(context: Context) = coroutineScope<Unit> {
-		val preferenceUpdate = async(Dispatchers.Default) {
+		val preferenceUpdate = async(DefaultDispatchersProvider.default) {
 			TrackerNotificationProvider.updatePreferences(context)
 			contentComponentList.addAll(TrackerNotificationProvider.internalActiveList
 					                            .filter { it.preference.isInContent }

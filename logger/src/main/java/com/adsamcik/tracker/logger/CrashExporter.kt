@@ -103,6 +103,7 @@ object CrashExporter {
             try {
                 file.delete()
             } catch (e: Exception) {
+                Reporter.report(e)
                 // Log but don't fail the operation
             }
         }

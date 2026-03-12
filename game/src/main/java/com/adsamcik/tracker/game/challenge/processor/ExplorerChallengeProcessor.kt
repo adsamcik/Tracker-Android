@@ -7,13 +7,16 @@ import com.adsamcik.tracker.game.challenge.database.entity.ChallengeEntity
 import com.adsamcik.tracker.shared.base.data.Location
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-class ExplorerChallengeProcessor @Inject constructor() : ChallengeProcessor {
+class ExplorerChallengeProcessor @Inject constructor(
+	private val dispatchers: DispatchersProvider,
+) : ChallengeProcessor {
 	override val type: ChallengeType = ChallengeType.Explorer
 
 	override val titleRes: Int = R.string.challenge_explorer_title
@@ -27,7 +30,7 @@ class ExplorerChallengeProcessor @Inject constructor() : ChallengeProcessor {
 
 	override suspend fun extractProgress(context: Context, session: TrackerSession): Double {
 		val dao = AppDatabase.database(context).locationSampleDao()
-		val locations = withContext(Dispatchers.IO) {
+		val locations = withContext(dispatchers.io) {
 			dao.getAllBetween(session.start, session.end)
 		}
 		// Limit lookback to 6 months (fix for #103)
@@ -59,7 +62,7 @@ class ExplorerChallengeProcessor @Inject constructor() : ChallengeProcessor {
 		val maxLon = newLocations.maxOf { it.longitude } + Location.longitudeAccuracy(ACCURACY_IN_METERS, maxLat)
 
 		// Filter in-memory since LocationSampleDao lacks a spatial query
-		val existingLocations = withContext(Dispatchers.IO) { dao.getAllBetween(from, to) }
+		val existingLocations = withContext(dispatchers.io) { dao.getAllBetween(from, to) }
 			.mapNotNull { sample ->
 				val lat = sample.latE7?.div(1e7) ?: return@mapNotNull null
 				val lon = sample.lonE7?.div(1e7) ?: return@mapNotNull null

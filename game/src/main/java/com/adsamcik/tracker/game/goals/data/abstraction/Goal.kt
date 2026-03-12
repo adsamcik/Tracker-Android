@@ -8,8 +8,8 @@ import java.time.ZonedDateTime
 /**
  * Public interface for goal definitions.
  *
- * Interface avoids the use of LiveData to always reflect
- * the current state and provide immediate callbacks when changes occur.
+ * Interface exposes immediate callbacks instead of owning Flow/StateFlow state.
+ * Implementations can bridge into reactive streams at higher layers when needed.
  */
 interface Goal {
 	/**

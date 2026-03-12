@@ -5,7 +5,7 @@ package com.adsamcik.tracker.tracker.ui.compose
  *
  * First Compose iteration of the Tracker screen. Uses Material3 and is structured
  * to be progressively enhanced with the expressive design/animations detailed in the design docs.
- * Currently binds to existing LiveData and routes actions back to the hosting Fragment.
+ * Currently binds to Flow/StateFlow-backed dashboard state and routes actions back to the host.
  */
 
 import android.content.Context

@@ -7,6 +7,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
 import androidx.annotation.RequiresPermission
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
@@ -80,7 +81,7 @@ class LocationAndSensorsManager(private val context: Context) {
             try {
                 client.removeLocationUpdates(callback)
             } catch (e: Exception) {
-                // Ignore cleanup errors
+                Reporter.report(e)
             }
         }
     }
@@ -145,7 +146,7 @@ class LocationAndSensorsManager(private val context: Context) {
             try {
                 sm.unregisterListener(listener)
             } catch (e: Exception) {
-                // Ignore cleanup errors
+                Reporter.report(e)
             }
         }
     }

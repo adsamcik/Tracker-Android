@@ -3,7 +3,10 @@ package com.adsamcik.tracker.map.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.map.data.cameraToBounds
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.map.presentation.bridge.LayerEngine
 import com.adsamcik.tracker.map.presentation.udf.LegendItem
 import com.adsamcik.tracker.map.presentation.udf.CameraModel
@@ -19,7 +22,6 @@ import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -41,6 +43,7 @@ import kotlin.math.abs
 class MapStore @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     val trackerController: TrackerServiceController,
+    private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) : ViewModel() {
 
     private enum class CoordinateAxis { Latitude, Longitude }
@@ -337,7 +340,7 @@ class MapStore @Inject constructor(
             try {
                 val s = _state.value
                 val bounds = cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
-                withContext(Dispatchers.Default) {
+                withContext(dispatchers.default) {
                     engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds)
                 }
                 val legend = engine.activeLegend()
@@ -514,8 +517,8 @@ class MapStore @Inject constructor(
         overlayUpdateJob?.cancel()
         try {
             layerManager?.destroy()
-        } catch (_: Exception) {
-            // Ignore cleanup errors
+        } catch (e: Exception) {
+            Reporter.report(e)
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.points
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
@@ -10,7 +11,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -27,7 +27,7 @@ interface PointsConsumerEntryPoint {
  * Points are now awarded via [PointsDomainEventConsumer] on SessionEnded events.
  */
 class PointsInitializer : ModuleInitializer {
-	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+	private val scope = CoroutineScope(SupervisorJob() + DefaultDispatchersProvider.default)
 
 	override fun initialize(context: Context) {
 		initializeDomainEventConsumer(context)

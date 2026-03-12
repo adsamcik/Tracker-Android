@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.shared.base.service
 
 import androidx.lifecycle.LifecycleService
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlin.coroutines.CoroutineContext
 
@@ -12,7 +12,7 @@ import kotlin.coroutines.CoroutineContext
 abstract class CoreService : LifecycleService(), CoroutineScope {
 	private val job = SupervisorJob()
 	override val coroutineContext: CoroutineContext
-		get() = Dispatchers.Default + job
+		get() = DefaultDispatchersProvider.default + job
 
 	override fun onDestroy() {
 		super.onDestroy()
