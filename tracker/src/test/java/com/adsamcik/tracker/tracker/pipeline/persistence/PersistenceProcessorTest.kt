@@ -73,12 +73,12 @@ class PersistenceProcessorTest {
 		activityDao = mockk(relaxed = true)
 		errorCollector = mockk(relaxed = true)
 
-		every { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
-		every { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
-		every { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
-		every { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
-		every { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
-		every { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
+		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
+		coEvery { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
+		coEvery { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
+		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
+		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
+		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
@@ -325,7 +325,7 @@ class PersistenceProcessorTest {
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 
 			// Cell DAO throws
-			every { cellDao.insert(any<Collection<CellSample>>()) } throws RuntimeException("DB locked")
+			coEvery { cellDao.insert(any<Collection<CellSample>>()) } throws RuntimeException("DB locked")
 
 			val locationSig = signalWithLocation().location
 			processor.onSignal(signalWithCells(location = locationSig))
@@ -346,7 +346,7 @@ class PersistenceProcessorTest {
 		fun `CancellationException propagates from flush`() = runTest {
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 
-			every {
+			coEvery {
 				locationDao.insert(any<Collection<LocationSample>>())
 			} throws CancellationException("cancelled")
 

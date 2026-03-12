@@ -1,24 +1,17 @@
 package com.adsamcik.tracker.logger
 
-import android.content.Context
-import android.content.SharedPreferences
-import com.adsamcik.tracker.shared.base.logging.ReporterFacade
-import com.adsamcik.tracker.shared.preferences.Preferences
+import android.util.Log
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import java.lang.reflect.Field
 
 @DisplayName("Reporter")
 class ReporterTest {
@@ -33,6 +26,20 @@ class ReporterTest {
 		isEnabledField.set(Reporter, false)
 	}
 
+	private fun setReporterInitialized() {
+		val isInitField = Reporter::class.java.getDeclaredField("isInitialized")
+		isInitField.isAccessible = true
+		isInitField.set(Reporter, true)
+	}
+
+	private fun mockLog() {
+		mockkStatic(Log::class)
+		every { Log.e(any(), any()) } returns 0
+		every { Log.e(any(), any(), any()) } returns 0
+		every { Log.w(any<String>(), any<String>()) } returns 0
+		every { Log.println(any(), any(), any()) } returns 0
+	}
+
 	@AfterEach
 	fun tearDown() {
 		resetReporter()
@@ -44,30 +51,27 @@ class ReporterTest {
 	inner class Initialization {
 
 		@Test
-		fun `throws when report called before initialization`() {
+		fun `logs warning when report called before initialization`() {
 			resetReporter()
-			// In DEBUG mode, report(String) throws an Exception wrapping the message.
-			// If not DEBUG, it would throw UninitializedPropertyAccessException.
-			// We verify that calling report without init does not silently succeed.
-			assertThrows<Exception> {
-				Reporter.report("test message")
-			}
+			mockLog()
+			Reporter.report("test message")
+			verify { Log.w(any<String>(), eq("Reporter used before initialization")) }
 		}
 
 		@Test
-		fun `throws when report exception called before initialization`() {
+		fun `logs warning when report exception called before initialization`() {
 			resetReporter()
-			assertThrows<Exception> {
-				Reporter.report(RuntimeException("test"))
-			}
+			mockLog()
+			Reporter.report(RuntimeException("test"))
+			verify { Log.w(any<String>(), eq("Reporter used before initialization")) }
 		}
 
 		@Test
-		fun `throws when log called before initialization`() {
+		fun `logs warning when log called before initialization`() {
 			resetReporter()
-			assertThrows<Exception> {
-				Reporter.log("test log")
-			}
+			mockLog()
+			Reporter.log("test log")
+			verify { Log.w(any<String>(), eq("Reporter used before initialization")) }
 		}
 	}
 
@@ -76,19 +80,21 @@ class ReporterTest {
 	inner class ReportStringDebug {
 
 		@Test
-		fun `throws exception containing the message in debug`() {
-			// In debug builds Reporter.report(String) throws Exception(message)
-			val exception = assertThrows<Exception> {
-				Reporter.report("specific error message")
-			}
-			exception.message shouldBe "specific error message"
+		fun `logs error containing the message in debug`() {
+			mockLog()
+			setReporterInitialized()
+			val msgSlot = slot<String>()
+			Reporter.report("specific error message")
+			verify { Log.e(any(), capture(msgSlot)) }
+			msgSlot.captured shouldBe "specific error message"
 		}
 
 		@Test
-		fun `throws for empty message`() {
-			assertThrows<Exception> {
-				Reporter.report("")
-			}
+		fun `logs for empty message`() {
+			mockLog()
+			setReporterInitialized()
+			Reporter.report("")
+			verify { Log.e(any(), any()) }
 		}
 	}
 
@@ -97,21 +103,23 @@ class ReporterTest {
 	inner class ReportThrowableDebug {
 
 		@Test
-		fun `throws wrapping exception in debug`() {
+		fun `logs error for throwable in debug`() {
+			mockLog()
+			setReporterInitialized()
 			val cause = IllegalStateException("root cause")
-			val exception = assertThrows<Exception> {
-				Reporter.report(cause)
-			}
-			exception.cause shouldBe cause
+			Reporter.report(cause)
+			verify { Log.e(any(), any(), any()) }
 		}
 
 		@Test
-		fun `preserves original exception type as cause`() {
+		fun `logs exception message from original throwable`() {
+			mockLog()
+			setReporterInitialized()
 			val original = NullPointerException("null ref")
-			val thrown = assertThrows<Exception> {
-				Reporter.report(original)
-			}
-			(thrown.cause is NullPointerException) shouldBe true
+			val msgSlot = slot<String>()
+			Reporter.report(original)
+			verify { Log.e(any(), capture(msgSlot), any()) }
+			msgSlot.captured shouldBe "null ref"
 		}
 	}
 
@@ -120,11 +128,13 @@ class ReporterTest {
 	inner class LogDebug {
 
 		@Test
-		fun `throws exception with message in debug`() {
-			val exception = assertThrows<Exception> {
-				Reporter.log("debug log entry")
-			}
-			exception.message shouldBe "debug log entry"
+		fun `logs error with message in debug`() {
+			mockLog()
+			setReporterInitialized()
+			val msgSlot = slot<String>()
+			Reporter.log("debug log entry")
+			verify { Log.e(any(), capture(msgSlot)) }
+			msgSlot.captured shouldBe "debug log entry"
 		}
 	}
 
@@ -133,10 +143,9 @@ class ReporterTest {
 	inner class Privacy {
 
 		@Test
-		fun `report message must not contain latitude-longitude patterns`() {
-			// Verify that coordinate-like data would be caught by message inspection.
-			// The Reporter does not strip coordinates itself, but callers must not pass them.
-			// This test documents the privacy contract.
+		fun `report logs message for each coordinate pattern`() {
+			mockLog()
+			setReporterInitialized()
 			val coordinatePatterns = listOf(
 				"48.8566, 2.3522",
 				"lat=48.8566",
@@ -145,24 +154,20 @@ class ReporterTest {
 				"longitude: 2.3522"
 			)
 			coordinatePatterns.forEach { pattern ->
-				// If someone mistakenly passes coordinates, the message is propagated as-is.
-				// In debug mode it throws, so we catch and verify the message content is there.
-				val exception = assertThrows<Exception> {
-					Reporter.report("Error at location $pattern")
-				}
-				// Document that coordinates would leak if passed — callers must redact.
-				exception.message shouldBe "Error at location $pattern"
+				Reporter.report("Error at location $pattern")
 			}
+			verify(exactly = 5) { Log.e(any(), any()) }
 		}
 
 		@Test
 		fun `report messages should use redacted placeholders instead of coordinates`() {
-			// Best practice: callers should redact coordinates before reporting
+			mockLog()
+			setReporterInitialized()
 			val redactedMessage = "Error at location [REDACTED]"
-			val exception = assertThrows<Exception> {
-				Reporter.report(redactedMessage)
-			}
-			exception.message!!.shouldNotContain(Regex("""\d+\.\d{4,}"""))
+			val msgSlot = slot<String>()
+			Reporter.report(redactedMessage)
+			verify { Log.e(any(), capture(msgSlot)) }
+			msgSlot.captured.shouldNotContain(Regex("""\d+\.\d{4,}"""))
 		}
 	}
 
@@ -172,7 +177,6 @@ class ReporterTest {
 
 		@Test
 		fun `Reporter implements ErrorReporter interface`() {
-			// Verify Reporter can be assigned to the facade delegate type
 			val reporter: com.adsamcik.tracker.shared.base.logging.ErrorReporter = Reporter
 			(reporter is com.adsamcik.tracker.shared.base.logging.ErrorReporter) shouldBe true
 		}

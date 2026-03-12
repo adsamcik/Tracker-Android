@@ -42,9 +42,11 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.every
+import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import io.mockk.coVerify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -83,12 +85,12 @@ class ShadowValidationTest {
 		activityDao = mockk(relaxed = true)
 		errorCollector = mockk(relaxed = true)
 
-		every { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
-		every { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
-		every { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
-		every { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
-		every { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
-		every { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
+		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
+		coEvery { cellDao.insert(any<Collection<CellSample>>()) } returns emptyList()
+		coEvery { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
+		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
+		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
+		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 
 		processor = PersistenceProcessor(
 			locationSampleDao = locationDao,
@@ -205,7 +207,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			val rows = captured.captured.toList()
 			rows shouldHaveSize 1
 
@@ -236,7 +238,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().quality shouldBe SampleQuality.HIGH
 		}
 
@@ -249,7 +251,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().quality shouldBe SampleQuality.MEDIUM
 		}
 
@@ -262,7 +264,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().quality shouldBe SampleQuality.MEDIUM
 		}
 
@@ -275,7 +277,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().quality shouldBe SampleQuality.LOW
 		}
 
@@ -288,7 +290,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().quality shouldBe SampleQuality.LOW
 		}
 
@@ -301,7 +303,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().quality shouldBe SampleQuality.HIGH
 		}
 
@@ -316,7 +318,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().motionState shouldBe MotionState.STILL
 		}
 
@@ -331,7 +333,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().motionState shouldBe MotionState.UNKNOWN
 		}
 
@@ -342,7 +344,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().motionState.shouldBeNull()
 		}
 
@@ -355,7 +357,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().provider shouldBe "gps"
 		}
 
@@ -368,7 +370,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().provider shouldBe "network"
 		}
 
@@ -379,7 +381,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().policy.shouldBeNull()
 		}
 	}
@@ -405,7 +407,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<PressureSample>>()
-			verify(exactly = 1) { pressureDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { pressureDao.insert(capture(captured)) }
 			val rows = captured.captured.toList()
 			rows shouldHaveSize 1
 
@@ -430,7 +432,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<PressureSample>>()
-			verify(exactly = 1) { pressureDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { pressureDao.insert(capture(captured)) }
 			val sample = captured.captured.first()
 			sample.pressureHpa shouldBe 540.2f
 			sample.altitudeM shouldBe 5000f
@@ -469,7 +471,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<CellSample>>()
-			verify(exactly = 1) { cellDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { cellDao.insert(capture(captured)) }
 			val rows = captured.captured.toList()
 			rows shouldHaveSize 1
 
@@ -508,7 +510,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<CellSample>>()
-			verify(exactly = 1) { cellDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { cellDao.insert(capture(captured)) }
 			val cell = captured.captured.first()
 			cell.latE7.shouldBeNull()
 			cell.lonE7.shouldBeNull()
@@ -534,7 +536,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<CellSample>>()
-			verify(exactly = 1) { cellDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { cellDao.insert(capture(captured)) }
 			val rows = captured.captured.toList()
 			rows shouldHaveSize 3
 
@@ -581,7 +583,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<CellSample>>()
-			verify(exactly = 1) { cellDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { cellDao.insert(capture(captured)) }
 			val cell = captured.captured.first()
 			cell.mcc shouldBe 0
 			cell.mnc shouldBe 0
@@ -598,7 +600,7 @@ class ShadowValidationTest {
 			processor.onSignal(signal)
 			processor.onFlush()
 
-			verify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
 		}
 	}
 
@@ -633,7 +635,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<WifiObservation>>()
-			verify(exactly = 1) { wifiDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { wifiDao.insert(capture(captured)) }
 			val rows = captured.captured.toList()
 			rows shouldHaveSize 1
 
@@ -671,7 +673,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<WifiObservation>>()
-			verify(exactly = 1) { wifiDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { wifiDao.insert(capture(captured)) }
 			val wifi = captured.captured.first()
 			wifi.latE7.shouldBeNull()
 			wifi.lonE7.shouldBeNull()
@@ -700,7 +702,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<WifiObservation>>()
-			verify(exactly = 1) { wifiDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { wifiDao.insert(capture(captured)) }
 			captured.captured.first().ssid shouldBe "<unknown>"
 		}
 
@@ -726,7 +728,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<WifiObservation>>()
-			verify(exactly = 1) { wifiDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { wifiDao.insert(capture(captured)) }
 			captured.captured.first().ssid shouldBe "Kavárna ☕ Čerstvá"
 		}
 
@@ -748,7 +750,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<WifiObservation>>()
-			verify(exactly = 1) { wifiDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { wifiDao.insert(capture(captured)) }
 			val rows = captured.captured.toList()
 			rows shouldHaveSize 2
 			rows[0].bssid shouldBe "AA:AA:AA:AA:AA:AA"
@@ -772,12 +774,12 @@ class ShadowValidationTest {
 			processor.onSignal(signal)
 			processor.onFlush()
 
-			verify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
-			verify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
-			verify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
-			verify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
-			verify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
-			verify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
+			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
 		}
 	}
 
@@ -803,15 +805,15 @@ class ShadowValidationTest {
 
 			// Location was written
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured shouldHaveSize 1
 
 			// Nothing else
-			verify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
-			verify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
-			verify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
-			verify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
-			verify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
+			coVerify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
 		}
 
 		@Test
@@ -825,12 +827,12 @@ class ShadowValidationTest {
 			processor.onSignal(signal)
 			processor.onFlush()
 
-			verify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
-			verify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
-			verify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
-			verify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
-			verify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
-			verify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
+			coVerify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
+			coVerify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
 		}
 
 		@Test
@@ -851,12 +853,12 @@ class ShadowValidationTest {
 			processor.onSignal(signal)
 			processor.onFlush()
 
-			verify(exactly = 1) { stepDao.insert(any<Collection<StepInterval>>()) }
-			verify(exactly = 1) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
-			verify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
-			verify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
-			verify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
-			verify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 1) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
+			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
 		}
 
 		@Test
@@ -877,7 +879,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<StepInterval>>()
-			verify(exactly = 1) { stepDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { stepDao.insert(capture(captured)) }
 			val step = captured.captured.first()
 			step.startTimeMs shouldBe BASE_TIME
 			step.endTimeMs shouldBe BASE_TIME
@@ -902,7 +904,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<ActivitySnapshot>>()
-			verify(exactly = 1) { activityDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { activityDao.insert(capture(captured)) }
 			val snapshot = captured.captured.first()
 			snapshot.timeMs shouldBe BASE_TIME
 			snapshot.activityType shouldBe DetectedActivityType.IN_VEHICLE.ordinal
@@ -937,7 +939,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			val rows = captured.captured.toList()
 			rows shouldHaveSize 10
 
@@ -969,7 +971,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			// Should be 3 batch inserts (5, 5, 5) based on PRESSURE_BATCH_SIZE=5
-			verify(exactly = 3) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 3) { pressureDao.insert(any<Collection<PressureSample>>()) }
 		}
 
 		@Test
@@ -986,21 +988,21 @@ class ShadowValidationTest {
 
 			// Each type should have been flushed once with 3 items
 			val locCapture = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(locCapture)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(locCapture)) }
 			locCapture.captured shouldHaveSize 3
 
 			val pressCapture = slot<Collection<PressureSample>>()
-			verify(exactly = 1) { pressureDao.insert(capture(pressCapture)) }
+			coVerify(exactly = 1) { pressureDao.insert(capture(pressCapture)) }
 			pressCapture.captured shouldHaveSize 3
 
 			// Cells: 3 signals × 1 tower each = 3 CellSamples
 			val cellCapture = slot<Collection<CellSample>>()
-			verify(exactly = 1) { cellDao.insert(capture(cellCapture)) }
+			coVerify(exactly = 1) { cellDao.insert(capture(cellCapture)) }
 			cellCapture.captured shouldHaveSize 3
 
 			// Wifi: 3 signals × 1 network each = 3 WifiObservations
 			val wifiCapture = slot<Collection<WifiObservation>>()
-			verify(exactly = 1) { wifiDao.insert(capture(wifiCapture)) }
+			coVerify(exactly = 1) { wifiDao.insert(capture(wifiCapture)) }
 			wifiCapture.captured shouldHaveSize 3
 		}
 
@@ -1013,8 +1015,8 @@ class ShadowValidationTest {
 			processor.onFlush() // second flush with empty buffers
 
 			// Only one insert per DAO
-			verify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
-			verify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { pressureDao.insert(any<Collection<PressureSample>>()) }
 		}
 	}
 
@@ -1038,22 +1040,22 @@ class ShadowValidationTest {
 
 			// Locations were flushed
 			val locCapture = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(locCapture)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(locCapture)) }
 			locCapture.captured shouldHaveSize 2
 
 			// Pressure was flushed
 			val pressCapture = slot<Collection<PressureSample>>()
-			verify(exactly = 1) { pressureDao.insert(capture(pressCapture)) }
+			coVerify(exactly = 1) { pressureDao.insert(capture(pressCapture)) }
 			pressCapture.captured shouldHaveSize 2
 
 			// Steps were flushed
 			val stepCapture = slot<Collection<StepInterval>>()
-			verify(exactly = 1) { stepDao.insert(capture(stepCapture)) }
+			coVerify(exactly = 1) { stepDao.insert(capture(stepCapture)) }
 			stepCapture.captured shouldHaveSize 2
 
 			// Activities were flushed
 			val actCapture = slot<Collection<ActivitySnapshot>>()
-			verify(exactly = 1) { activityDao.insert(capture(actCapture)) }
+			coVerify(exactly = 1) { activityDao.insert(capture(actCapture)) }
 			actCapture.captured shouldHaveSize 2
 		}
 
@@ -1065,14 +1067,14 @@ class ShadowValidationTest {
 			processor.onSignal(fullSignal(timestampMs = BASE_TIME))
 			processor.onFlush()
 
-			verify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
 
 			// Second signal → stop
 			processor.onSignal(fullSignal(timestampMs = BASE_TIME + 1000L))
 			processor.onStop()
 
 			// Two total inserts: one from flush, one from stop
-			verify(exactly = 2) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 2) { locationDao.insert(any<Collection<LocationSample>>()) }
 		}
 
 		@Test
@@ -1081,12 +1083,12 @@ class ShadowValidationTest {
 
 			processor.onStop()
 
-			verify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
-			verify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
-			verify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
-			verify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
-			verify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
-			verify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
+			coVerify(exactly = 0) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 0) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 0) { wifiDao.insert(any<Collection<WifiObservation>>()) }
+			coVerify(exactly = 0) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 0) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
 		}
 	}
 
@@ -1124,7 +1126,7 @@ class ShadowValidationTest {
 				processor.onFlush()
 
 				val captured = slot<Collection<ActivitySnapshot>>()
-				verify(exactly = 1) { activityDao.insert(capture(captured)) }
+				coVerify(exactly = 1) { activityDao.insert(capture(captured)) }
 				captured.captured.first().activityType shouldBe type.ordinal
 			}
 		}
@@ -1151,7 +1153,7 @@ class ShadowValidationTest {
 				processor.onFlush()
 
 				val captured = slot<Collection<LocationSample>>()
-				verify(exactly = 1) { locationDao.insert(capture(captured)) }
+				coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 				captured.captured.first().motionState shouldBe MotionState.MOVING
 			}
 		}
@@ -1178,7 +1180,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<CellSample>>()
-			verify(exactly = 1) { cellDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { cellDao.insert(capture(captured)) }
 			captured.captured.first().cellId shouldBe 68_719_476_735L
 		}
 
@@ -1189,7 +1191,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val locCapture = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(locCapture)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(locCapture)) }
 			val createdAt = locCapture.captured.first().createdAt
 			// createdAt should be a reasonable epoch time (after year 2000)
 			(createdAt > 946_684_800_000L) shouldBe true
@@ -1202,7 +1204,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val locCapture = slot<Collection<LocationSample>>()
-			verify(exactly = 1) { locationDao.insert(capture(locCapture)) }
+			coVerify(exactly = 1) { locationDao.insert(capture(locCapture)) }
 			// Room auto-generates IDs; we pass 0 which tells Room to generate
 			locCapture.captured.first().id shouldBe 0L
 		}
@@ -1225,7 +1227,7 @@ class ShadowValidationTest {
 			processor.onFlush()
 
 			val captured = slot<Collection<StepInterval>>()
-			verify(exactly = 1) { stepDao.insert(capture(captured)) }
+			coVerify(exactly = 1) { stepDao.insert(capture(captured)) }
 			val step = captured.captured.first()
 			step.sensorReset shouldBe true
 			step.stepCount shouldBe 0
@@ -1247,12 +1249,12 @@ class ShadowValidationTest {
 			processor.onStop()
 
 			// Two flush calls total: one explicit, one from onStop
-			verify(exactly = 2) { locationDao.insert(any<Collection<LocationSample>>()) }
-			verify(exactly = 2) { pressureDao.insert(any<Collection<PressureSample>>()) }
-			verify(exactly = 2) { cellDao.insert(any<Collection<CellSample>>()) }
-			verify(exactly = 2) { wifiDao.insert(any<Collection<WifiObservation>>()) }
-			verify(exactly = 2) { stepDao.insert(any<Collection<StepInterval>>()) }
-			verify(exactly = 2) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
+			coVerify(exactly = 2) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 2) { pressureDao.insert(any<Collection<PressureSample>>()) }
+			coVerify(exactly = 2) { cellDao.insert(any<Collection<CellSample>>()) }
+			coVerify(exactly = 2) { wifiDao.insert(any<Collection<WifiObservation>>()) }
+			coVerify(exactly = 2) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 2) { activityDao.insert(any<Collection<ActivitySnapshot>>()) }
 		}
 	}
 

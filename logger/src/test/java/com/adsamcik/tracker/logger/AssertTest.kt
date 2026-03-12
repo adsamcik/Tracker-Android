@@ -3,7 +3,10 @@ package com.adsamcik.tracker.logger
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockkObject
+import io.mockk.runs
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
@@ -11,16 +14,26 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 /**
  * Tests for Assert.kt utility functions.
  *
- * In DEBUG builds, Reporter.report() throws an Exception, so assertion failures
- * propagate as exceptions. These tests verify that behavior.
+ * Reporter.report() logs via Log.e() and does not throw. These tests mock
+ * Reporter and verify that the correct message is reported on assertion failure.
  */
 @DisplayName("Assert")
 class AssertTest {
+
+	@BeforeEach
+	fun setUp() {
+		mockkObject(Reporter)
+		every { Reporter.report(any<String>()) } just runs
+	}
+
+	@AfterEach
+	fun tearDown() {
+		unmockkAll()
+	}
 
 	@Nested
 	@DisplayName("assertTrue")
@@ -33,19 +46,17 @@ class AssertTest {
 
 		@Test
 		fun `reports when value is false`() {
-			val exception = assertThrows<Exception> {
-				assertTrue(false)
-			}
-			exception.message shouldBe "Assertion failed. Expected true but got false."
+			assertTrue(false)
+			verify { Reporter.report("Assertion failed. Expected true but got false.") }
 		}
 
 		@Test
 		fun `includes custom message when value is false`() {
-			val exception = assertThrows<Exception> {
-				assertTrue(false) { "custom context" }
-			}
-			exception.message!!.shouldContain("Expected true but got false.")
-			exception.message!!.shouldContain("custom context")
+			val msgSlot = slot<String>()
+			assertTrue(false) { "custom context" }
+			verify { Reporter.report(capture(msgSlot)) }
+			msgSlot.captured.shouldContain("Expected true but got false.")
+			msgSlot.captured.shouldContain("custom context")
 		}
 
 		@Test
@@ -70,19 +81,17 @@ class AssertTest {
 
 		@Test
 		fun `reports when value is true`() {
-			val exception = assertThrows<Exception> {
-				assertFalse(true)
-			}
-			exception.message shouldBe "Assertion failed. Expected false but got true."
+			assertFalse(true)
+			verify { Reporter.report("Assertion failed. Expected false but got true.") }
 		}
 
 		@Test
 		fun `includes custom message when value is true`() {
-			val exception = assertThrows<Exception> {
-				assertFalse(true) { "detail info" }
-			}
-			exception.message!!.shouldContain("Expected false but got true.")
-			exception.message!!.shouldContain("detail info")
+			val msgSlot = slot<String>()
+			assertFalse(true) { "detail info" }
+			verify { Reporter.report(capture(msgSlot)) }
+			msgSlot.captured.shouldContain("Expected false but got true.")
+			msgSlot.captured.shouldContain("detail info")
 		}
 
 		@Test
@@ -112,21 +121,21 @@ class AssertTest {
 
 		@Test
 		fun `reports when values differ`() {
-			val exception = assertThrows<Exception> {
-				assertEqual(1, 2)
-			}
-			exception.message!!.shouldContain("Expected: 1")
-			exception.message!!.shouldContain("Actual: 2")
+			val msgSlot = slot<String>()
+			assertEqual(1, 2)
+			verify { Reporter.report(capture(msgSlot)) }
+			msgSlot.captured.shouldContain("Expected: 1")
+			msgSlot.captured.shouldContain("Actual: 2")
 		}
 
 		@Test
 		fun `includes custom message when values differ`() {
-			val exception = assertThrows<Exception> {
-				assertEqual("a", "b") { "string comparison" }
-			}
-			exception.message!!.shouldContain("Expected: a")
-			exception.message!!.shouldContain("Actual: b")
-			exception.message!!.shouldContain("string comparison")
+			val msgSlot = slot<String>()
+			assertEqual("a", "b") { "string comparison" }
+			verify { Reporter.report(capture(msgSlot)) }
+			msgSlot.captured.shouldContain("Expected: a")
+			msgSlot.captured.shouldContain("Actual: b")
+			msgSlot.captured.shouldContain("string comparison")
 		}
 	}
 
@@ -141,18 +150,17 @@ class AssertTest {
 
 		@Test
 		fun `reports when Long value equals threshold`() {
-			assertThrows<Exception> {
-				assertMore(5L, 5L)
-			}
+			assertMore(5L, 5L)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
 		fun `reports when Long value is below threshold`() {
-			val exception = assertThrows<Exception> {
-				assertMore(3L, 5L)
-			}
-			exception.message!!.shouldContain("3")
-			exception.message!!.shouldContain("5")
+			val msgSlot = slot<String>()
+			assertMore(3L, 5L)
+			verify { Reporter.report(capture(msgSlot)) }
+			msgSlot.captured.shouldContain("3")
+			msgSlot.captured.shouldContain("5")
 		}
 
 		@Test
@@ -162,9 +170,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Int value equals threshold`() {
-			assertThrows<Exception> {
-				assertMore(5, 5)
-			}
+			assertMore(5, 5)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -174,9 +181,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Double value is at threshold`() {
-			assertThrows<Exception> {
-				assertMore(5.0, 5.0)
-			}
+			assertMore(5.0, 5.0)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -186,17 +192,16 @@ class AssertTest {
 
 		@Test
 		fun `reports when Float value is at threshold`() {
-			assertThrows<Exception> {
-				assertMore(5.0f, 5.0f)
-			}
+			assertMore(5.0f, 5.0f)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
 		fun `Long overload includes custom message`() {
-			val exception = assertThrows<Exception> {
-				assertMore(1L, 5L) { "custom msg" }
-			}
-			exception.message!!.shouldContain("custom msg")
+			val msgSlot = slot<String>()
+			assertMore(1L, 5L) { "custom msg" }
+			verify { Reporter.report(capture(msgSlot)) }
+			msgSlot.captured.shouldContain("custom msg")
 		}
 	}
 
@@ -216,9 +221,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Int value is below threshold`() {
-			assertThrows<Exception> {
-				assertMoreOrEqual(3, 5)
-			}
+			assertMoreOrEqual(3, 5)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -228,9 +232,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Long value is below threshold`() {
-			assertThrows<Exception> {
-				assertMoreOrEqual(3L, 5L)
-			}
+			assertMoreOrEqual(3L, 5L)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -255,16 +258,14 @@ class AssertTest {
 
 		@Test
 		fun `reports when Long value equals threshold`() {
-			assertThrows<Exception> {
-				assertLess(5L, 5L)
-			}
+			assertLess(5L, 5L)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
 		fun `reports when Long value exceeds threshold`() {
-			assertThrows<Exception> {
-				assertLess(10L, 5L)
-			}
+			assertLess(10L, 5L)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -274,9 +275,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Int value equals threshold`() {
-			assertThrows<Exception> {
-				assertLess(5, 5)
-			}
+			assertLess(5, 5)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -306,9 +306,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Int value exceeds threshold`() {
-			assertThrows<Exception> {
-				assertLessOrEqual(10, 5)
-			}
+			assertLessOrEqual(10, 5)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -318,9 +317,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Long value exceeds threshold`() {
-			assertThrows<Exception> {
-				assertLessOrEqual(10L, 5L)
-			}
+			assertLessOrEqual(10L, 5L)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -335,9 +333,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Float value exceeds threshold`() {
-			assertThrows<Exception> {
-				assertLessOrEqual(10.0f, 5.0f)
-			}
+			assertLessOrEqual(10.0f, 5.0f)
+			verify { Reporter.report(any<String>()) }
 		}
 	}
 
@@ -362,18 +359,17 @@ class AssertTest {
 
 		@Test
 		fun `reports when Int value is below lower bound`() {
-			val exception = assertThrows<Exception> {
-				assertWithin(0, 1, 10)
-			}
-			exception.message!!.shouldContain("not within bounds")
-			exception.message!!.shouldContain("1..10")
+			val msgSlot = slot<String>()
+			assertWithin(0, 1, 10)
+			verify { Reporter.report(capture(msgSlot)) }
+			msgSlot.captured.shouldContain("not within bounds")
+			msgSlot.captured.shouldContain("1..10")
 		}
 
 		@Test
 		fun `reports when Int value exceeds upper bound`() {
-			assertThrows<Exception> {
-				assertWithin(11, 1, 10)
-			}
+			assertWithin(11, 1, 10)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -383,9 +379,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Long value is outside bounds`() {
-			assertThrows<Exception> {
-				assertWithin(0L, 1L, 10L)
-			}
+			assertWithin(0L, 1L, 10L)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -395,9 +390,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Double value is outside bounds`() {
-			assertThrows<Exception> {
-				assertWithin(0.5, 1.0, 10.0)
-			}
+			assertWithin(0.5, 1.0, 10.0)
+			verify { Reporter.report(any<String>()) }
 		}
 
 		@Test
@@ -407,9 +401,8 @@ class AssertTest {
 
 		@Test
 		fun `reports when Float value is outside bounds`() {
-			assertThrows<Exception> {
-				assertWithin(0.5f, 1.0f, 10.0f)
-			}
+			assertWithin(0.5f, 1.0f, 10.0f)
+			verify { Reporter.report(any<String>()) }
 		}
 	}
 
@@ -429,10 +422,8 @@ class AssertTest {
 
 		@Test
 		fun `reports for null value`() {
-			val exception = assertThrows<Exception> {
-				assertNotNull(null)
-			}
-			exception.message shouldBe "Assertion failed. Value is null."
+			assertNotNull(null)
+			verify { Reporter.report("Assertion failed. Value is null.") }
 		}
 	}
 
@@ -442,52 +433,44 @@ class AssertTest {
 
 		@Test
 		fun `assertEqual formats expected and actual in message`() {
-			val exception = assertThrows<Exception> {
-				assertEqual("expected_val", "actual_val")
+			assertEqual("expected_val", "actual_val")
+			verify {
+				Reporter.report(
+					"Assertion failed. Expected not equal to actual. Expected: expected_val. Actual: actual_val."
+				)
 			}
-			exception.message shouldBe
-				"Assertion failed. Expected not equal to actual. Expected: expected_val. Actual: actual_val."
 		}
 
 		@Test
 		fun `assertMore formats value and threshold with lte symbol`() {
-			val exception = assertThrows<Exception> {
-				assertMore(3L, 5L)
-			}
-			exception.message shouldBe "Assertion failed. 3 ≤ 5."
+			assertMore(3L, 5L)
+			verify { Reporter.report("Assertion failed. 3 ≤ 5.") }
 		}
 
 		@Test
 		fun `assertLess formats value and threshold with gte symbol`() {
-			val exception = assertThrows<Exception> {
-				assertLess(5L, 5L)
-			}
-			exception.message shouldBe "Assertion failed. 5 ≥ 5."
+			assertLess(5L, 5L)
+			verify { Reporter.report("Assertion failed. 5 ≥ 5.") }
 		}
 
 		@Test
 		fun `assertMoreOrEqual formats value and threshold with lt symbol`() {
-			val exception = assertThrows<Exception> {
-				assertMoreOrEqual(3, 5)
-			}
-			exception.message shouldBe "Assertion failed. 3 < 5."
+			assertMoreOrEqual(3, 5)
+			verify { Reporter.report("Assertion failed. 3 < 5.") }
 		}
 
 		@Test
 		fun `assertLessOrEqual formats value and threshold with gt symbol`() {
-			val exception = assertThrows<Exception> {
-				assertLessOrEqual(10, 5)
-			}
-			exception.message shouldBe "Assertion failed. 10 > 5."
+			assertLessOrEqual(10, 5)
+			verify { Reporter.report("Assertion failed. 10 > 5.") }
 		}
 
 		@Test
 		fun `assertWithin formats bounds in message`() {
-			val exception = assertThrows<Exception> {
-				assertWithin(100, 0, 50)
+			assertWithin(100, 0, 50)
+			verify {
+				Reporter.report("Assertion failed. 100 is not within bounds (0..50).")
 			}
-			exception.message shouldBe
-				"Assertion failed. 100 is not within bounds (0..50)."
 		}
 	}
 }

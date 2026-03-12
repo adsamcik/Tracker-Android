@@ -35,9 +35,9 @@ class KmlExporterTest {
         return LocationSample(
             timeMs = time,
             elapsedRealtimeNanos = 0L,
-            latE7 = (latitude * 1e7).toInt(),
-            lonE7 = (longitude * 1e7).toInt(),
-            altitudeM = altitude?.toFloat(),
+            latE7 = latitude.takeIf { it.isFinite() }?.times(1e7)?.toInt(),
+            lonE7 = longitude.takeIf { it.isFinite() }?.times(1e7)?.toInt(),
+            altitudeM = altitude?.takeIf { it.isFinite() }?.toFloat(),
             rawGpsAltitudeM = null,
             hAccM = 10f,
             vAccM = null,

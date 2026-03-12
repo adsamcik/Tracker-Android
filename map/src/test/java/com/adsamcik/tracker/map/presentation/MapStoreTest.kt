@@ -8,6 +8,7 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SheetStateModel
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.map.shared.MapLayerData
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Test
 class MapStoreTest {
 
     private val mockLayerEngine: LayerEngine = mockk(relaxed = true)
+    private val mockTrackerController: TrackerServiceController = mockk(relaxed = true)
 
     private lateinit var mapStore: MapStore
     private val testDispatcher = StandardTestDispatcher()
@@ -48,7 +50,7 @@ class MapStoreTest {
         every { mockLayerEngine.activeLegend() } returns null
         every { mockLayerEngine.activeLayerConfig() } returns null
         every { mockLayerEngine.overlays() } returns persistentListOf()
-        mapStore = MapStore(SavedStateHandle())
+        mapStore = MapStore(SavedStateHandle(), mockTrackerController)
         mapStore.setLayerEngine(mockLayerEngine)
         io.mockk.clearMocks(mockLayerEngine, answers = false)
     }

@@ -10,6 +10,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -35,7 +36,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `insert and retrieve activity by id`() {
+	fun `insert and retrieve activity by id`() = runTest {
 		val activity = SessionActivity(name = "Running", iconName = "ic_running")
 		val id = dao.insert(activity)
 
@@ -47,12 +48,12 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `get returns null for nonexistent id`() {
+	fun `get returns null for nonexistent id`() = runTest {
 		dao.get(999L).shouldBeNull()
 	}
 
 	@Test
-	fun `getAll returns all activities`() {
+	fun `getAll returns all activities`() = runTest {
 		dao.insert(SessionActivity(name = "Running"))
 		dao.insert(SessionActivity(name = "Walking"))
 		dao.insert(SessionActivity(name = "Cycling"))
@@ -61,7 +62,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `getAllUser returns only user-created activities`() {
+	fun `getAllUser returns only user-created activities`() = runTest {
 		// User activities get auto-generated positive IDs
 		dao.insert(SessionActivity(name = "Custom Running"))
 		dao.insert(SessionActivity(name = "Custom Walking"))
@@ -75,7 +76,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `getAllUser returns empty when only native activities exist`() {
+	fun `getAllUser returns empty when only native activities exist`() = runTest {
 		dao.insert(SessionActivity(id = -1, name = "Native Walking"))
 		dao.insert(SessionActivity(id = -2, name = "Native Running"))
 
@@ -83,7 +84,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `getAll includes both user and native activities`() {
+	fun `getAll includes both user and native activities`() = runTest {
 		dao.insert(SessionActivity(name = "Custom Activity"))
 		dao.insert(SessionActivity(id = -1, name = "Native Walking"))
 
@@ -91,7 +92,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `find returns activity with matching name`() {
+	fun `find returns activity with matching name`() = runTest {
 		dao.insert(SessionActivity(name = "Running"))
 		dao.insert(SessionActivity(name = "Walking"))
 
@@ -101,21 +102,21 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `find returns null for nonexistent name`() {
+	fun `find returns null for nonexistent name`() = runTest {
 		dao.insert(SessionActivity(name = "Running"))
 
 		dao.find("Swimming").shouldBeNull()
 	}
 
 	@Test
-	fun `find is case sensitive`() {
+	fun `find is case sensitive`() = runTest {
 		dao.insert(SessionActivity(name = "Running"))
 
 		dao.find("running").shouldBeNull()
 	}
 
 	@Test
-	fun `delete by id removes activity`() {
+	fun `delete by id removes activity`() = runTest {
 		val id = dao.insert(SessionActivity(name = "Running"))
 
 		dao.delete(id)
@@ -124,7 +125,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `delete by id does not affect other activities`() {
+	fun `delete by id does not affect other activities`() = runTest {
 		val id1 = dao.insert(SessionActivity(name = "Running"))
 		val id2 = dao.insert(SessionActivity(name = "Walking"))
 
@@ -135,7 +136,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `delete by object removes activity`() {
+	fun `delete by object removes activity`() = runTest {
 		val activity = SessionActivity(name = "Running")
 		val id = dao.insert(activity)
 
@@ -146,7 +147,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `update activity persists changes`() {
+	fun `update activity persists changes`() = runTest {
 		val id = dao.insert(SessionActivity(name = "Runing", iconName = "ic_old"))
 
 		val activity = dao.get(id)!!
@@ -159,7 +160,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `insert with null iconName stores null`() {
+	fun `insert with null iconName stores null`() = runTest {
 		val id = dao.insert(SessionActivity(name = "Custom"))
 
 		val result = dao.get(id)!!
@@ -167,7 +168,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `insert native activity with negative id preserves id`() {
+	fun `insert native activity with negative id preserves id`() = runTest {
 		val nativeActivity = SessionActivity(id = -5, name = "Driving", iconName = "ic_car")
 		dao.insert(nativeActivity)
 
@@ -178,7 +179,7 @@ class ActivityDaoTest {
 	}
 
 	@Test
-	fun `batch insert inserts all activities`() {
+	fun `batch insert inserts all activities`() = runTest {
 		val activities = listOf(
 			SessionActivity(name = "Running"),
 			SessionActivity(name = "Walking"),

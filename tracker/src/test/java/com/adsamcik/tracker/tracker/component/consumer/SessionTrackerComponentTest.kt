@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -112,8 +114,8 @@ class SessionTrackerComponentTest {
 
 			component.onDisable(context)
 
-			verify(exactly = 1) { mockSegmentDao.deleteById(any()) }
-			verify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
+			coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
+			coVerify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
 		}
 
 		@Test
@@ -125,8 +127,8 @@ class SessionTrackerComponentTest {
 
 			component.onDisable(context)
 
-			verify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
-			verify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
+			coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
+			coVerify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
 		}
 
 		@Test
@@ -139,9 +141,9 @@ class SessionTrackerComponentTest {
 
 			component.onDisable(context)
 
-			verify(exactly = 1) { mockSegmentDao.deleteById(any()) }
-			verify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
-			verify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
+			coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
+			coVerify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
+			coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
 		}
 
 		@Test
@@ -157,8 +159,8 @@ class SessionTrackerComponentTest {
 			)
 			component.onDisable(context)
 
-			verify(exactly = 1) { mockSegmentDao.deleteById(any()) }
-			verify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
+			coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
+			coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
 		}
 	}
 
@@ -176,9 +178,9 @@ class SessionTrackerComponentTest {
 
 			component.onDisable(context)
 
-			verify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+			coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
 			// session.id = 42 > 0 → update (segment was pre-inserted in initializeSession)
-			verify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
+			coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
 		}
 
 		@Test
@@ -186,14 +188,14 @@ class SessionTrackerComponentTest {
 		fun preservesSingleCollectionSession() = runTest {
 			// First GPS fix has no distance (distance is delta between points)
 			val component = createComponent()
-			every { mockSegmentDao.insert(any<SessionSegment>()) } returns 1L
+			coEvery { mockSegmentDao.insert(any<SessionSegment>()) } returns 1L
 			setSession(component, nonEmptySession(collections = 1, distanceInM = 0f))
 			setIsNewSession(component, true)
 			setCollectedLocationCount(component, 1)
 
 			component.onDisable(context)
 
-			verify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+			coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
 		}
 
 		@Test
@@ -205,9 +207,9 @@ class SessionTrackerComponentTest {
 
 			component.onDisable(context)
 
-			verify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+			coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
 			// session.id = 42 > 0 → update (segment was pre-inserted in initializeSession)
-			verify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
+			coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
 		}
 	}
 }

@@ -23,6 +23,7 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.runs
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -41,6 +42,7 @@ class ActivityRecognitionWorkerTest {
 	private val context: Context
 		get() = androidx.test.core.app.ApplicationProvider.getApplicationContext()
 	private val database: AppDatabase = mockk(relaxed = true)
+	private val skiInfrastructureManager: com.adsamcik.tracker.activity.ski.SkiInfrastructureManager = mockk(relaxed = true)
 	private val tripDao: TripDao = mockk(relaxed = true)
 	private val locationSampleDao: LocationSampleDao = mockk(relaxed = true)
 	private val segmentDao: SessionSegmentDao = mockk(relaxed = true)
@@ -74,7 +76,7 @@ class ActivityRecognitionWorkerTest {
 			every { getInputData() } returns inputData
 		}
 
-		return ActivityRecognitionWorker(context, params)
+		return ActivityRecognitionWorker(context, params, database, skiInfrastructureManager)
 	}
 
 	private fun buildWorkerWithNoSessionId(): ActivityRecognitionWorker {
@@ -84,7 +86,7 @@ class ActivityRecognitionWorkerTest {
 			every { getInputData() } returns inputData
 		}
 
-		return ActivityRecognitionWorker(context, params)
+		return ActivityRecognitionWorker(context, params, database, skiInfrastructureManager)
 	}
 
 	private fun createTrip(
@@ -162,7 +164,7 @@ class ActivityRecognitionWorkerTest {
 
 		@Test
 		fun `returns failure when session not found in database`()  { runTest {
-			every { tripDao.getById(42L) } returns null
+			coEvery { tripDao.getById(42L) } returns null
 			val worker = buildWorker(42L)
 
 			val result = worker.doWork()
@@ -173,7 +175,7 @@ class ActivityRecognitionWorkerTest {
 		@Test
 		fun `returns success when no recognizer produces a result`()  { runTest {
 			val trip = createTrip()
-			every { tripDao.getById(1L) } returns trip
+			coEvery { tripDao.getById(1L) } returns trip
 			// Empty locations and no segments needing recognition → success
 			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns emptyList()
 			coEvery { segmentDao.getAllBetween(any(), any()) } returns emptyList()
@@ -187,12 +189,12 @@ class ActivityRecognitionWorkerTest {
 		@Test
 		fun `returns success and updates segment for walking activity`()  { runTest {
 			val trip = createTrip(id = 5L)
-			every { tripDao.getById(5L) } returns trip
+			coEvery { tripDao.getById(5L) } returns trip
 			val samples = createLocationSamples(count = 20)
 			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns samples
 			val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
 			coEvery { segmentDao.getAllBetween(any(), any()) } returns listOf(segment)
-			every { segmentDao.update(any<SessionSegment>()) } just runs
+			coEvery { segmentDao.update(any<SessionSegment>()) } just runs
 
 			val worker = buildWorker(5L)
 			val result = worker.doWork()
@@ -203,12 +205,12 @@ class ActivityRecognitionWorkerTest {
 		@Test
 		fun `returns success and updates segment for vehicle activity`()  { runTest {
 			val trip = createTrip(id = 10L)
-			every { tripDao.getById(10L) } returns trip
+			coEvery { tripDao.getById(10L) } returns trip
 			val samples = createLocationSamples(count = 20)
 			coEvery { locationSampleDao.getAllBetween(any(), any()) } returns samples
 			val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
 			coEvery { segmentDao.getAllBetween(any(), any()) } returns listOf(segment)
-			every { segmentDao.update(any<SessionSegment>()) } just runs
+			coEvery { segmentDao.update(any<SessionSegment>()) } just runs
 
 			val worker = buildWorker(10L)
 			val result = worker.doWork()
@@ -224,7 +226,7 @@ class ActivityRecognitionWorkerTest {
 			val params: WorkerParameters = mockk(relaxed = true) {
 				every { getInputData() } returns inputData
 			}
-			val worker = ActivityRecognitionWorker(context, params)
+			val worker = ActivityRecognitionWorker(context, params, database, skiInfrastructureManager)
 
 			val result = worker.doWork()
 

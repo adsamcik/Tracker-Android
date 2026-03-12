@@ -14,8 +14,13 @@ import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
 import com.adsamcik.tracker.shared.base.database.data.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
+import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
+import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -49,6 +54,12 @@ class DashboardViewModelTest {
 	private lateinit var explorationCellDao: ExplorationCellDao
 	private lateinit var explorationStreakDao: ExplorationStreakDao
 	private lateinit var dispatchers: DispatchersProvider
+	private lateinit var trackerController: TrackerServiceController
+	private lateinit var lockManager: LockManager
+	private lateinit var dailySummaryProvider: DailySummaryProvider
+	private lateinit var dailyPointsProvider: DailyPointsProvider
+	private lateinit var goalProgressProvider: GoalProgressProvider
+	private lateinit var activeChallengesProvider: ActiveChallengesProvider
 
 	@BeforeEach
 	fun setup() {
@@ -77,6 +88,13 @@ class DashboardViewModelTest {
 			override val unconfined: CoroutineDispatcher = testDispatcher
 		}
 
+		trackerController = mockk(relaxed = true)
+		lockManager = mockk(relaxed = true)
+		dailySummaryProvider = mockk(relaxed = true)
+		dailyPointsProvider = mockk(relaxed = true)
+		goalProgressProvider = mockk(relaxed = true)
+		activeChallengesProvider = mockk(relaxed = true)
+
 		mockkStatic(androidx.core.content.ContextCompat::class)
 		every {
 			androidx.core.content.ContextCompat.checkSelfPermission(any(), any())
@@ -90,7 +108,12 @@ class DashboardViewModelTest {
 	}
 
 	private fun createViewModel(): DashboardViewModel {
-		return DashboardViewModel(context, dispatchers, database)
+		return DashboardViewModel(
+			context, dispatchers, database,
+			trackerController, lockManager,
+			dailySummaryProvider, dailyPointsProvider,
+			goalProgressProvider, activeChallengesProvider
+		)
 	}
 
 	@Nested
@@ -196,17 +219,16 @@ class DashboardViewModelTest {
 	inner class RefreshTodaySummary {
 		@Test
 		fun `successful fetch updates state`() = runTest {
-			val vm = createViewModel()
-			val provider = mockk<DailySummaryProvider>()
 			val summary = DailySummary(
 				totalDistanceM = 5000f,
 				totalSteps = 8000,
 				totalDurationMs = 3_600_000L,
 				sessionCount = 2,
 			)
-			coEvery { provider.fetchTodaySummary() } returns summary
+			coEvery { dailySummaryProvider.fetchTodaySummary() } returns summary
+			val vm = createViewModel()
 
-			vm.refreshTodaySummary(provider)
+			vm.refreshTodaySummary()
 			advanceUntilIdle()
 
 			vm.todaySummary.value shouldBe summary
@@ -214,11 +236,10 @@ class DashboardViewModelTest {
 
 		@Test
 		fun `exception yields null`() = runTest {
+			coEvery { dailySummaryProvider.fetchTodaySummary() } throws RuntimeException("DB error")
 			val vm = createViewModel()
-			val provider = mockk<DailySummaryProvider>()
-			coEvery { provider.fetchTodaySummary() } throws RuntimeException("DB error")
 
-			vm.refreshTodaySummary(provider)
+			vm.refreshTodaySummary()
 			advanceUntilIdle()
 
 			vm.todaySummary.value shouldBe null

@@ -49,7 +49,7 @@ class DatabaseMaintenanceWorkerTest {
 		}
 
 		private fun executeDoWork(): ListenableWorker.Result {
-			return DatabaseMaintenanceWorker(context, workerParams).doWork()
+			return DatabaseMaintenanceWorker(context, workerParams, mockDb).doWork()
 		}
 
 		@Test

@@ -4,13 +4,17 @@ import android.content.Context
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
-import androidx.work.WorkInfo
 import androidx.work.ListenableWorker
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -27,6 +31,7 @@ import org.robolectric.annotation.Config
 class DataRetentionWorkerTest {
     private lateinit var context: Context
     private lateinit var retentionStore: RetentionConfigStore
+    private val mockDatabase: AppDatabase = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -46,7 +51,19 @@ class DataRetentionWorkerTest {
             retentionStore.update { copy(autoCleanupEnabled = false) }
         }
 
-        val worker = TestListenableWorkerBuilder<DataRetentionWorker>(context).build()
+        val workerFactory = object : WorkerFactory() {
+            override fun createWorker(
+                appContext: Context,
+                workerClassName: String,
+                workerParameters: WorkerParameters
+            ): ListenableWorker {
+                return DataRetentionWorker(appContext, workerParameters, retentionStore, mockDatabase)
+            }
+        }
+
+        val worker = TestListenableWorkerBuilder<DataRetentionWorker>(context)
+            .setWorkerFactory(workerFactory)
+            .build()
         val result = worker.startWork().get()
         assertEquals(ListenableWorker.Result.success()::class, result::class)
     }
