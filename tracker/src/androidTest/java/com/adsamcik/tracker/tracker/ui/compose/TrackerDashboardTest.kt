@@ -38,6 +38,10 @@ class TrackerDashboardTest {
     private var trackingToggled = false
     private var trackingToggledValue: Boolean? = null
 
+    private val fakeDailyPointsProvider = FakeDailyPointsProvider()
+    private val fakeDailySummaryProvider = FakeDailySummaryProvider()
+    private val fakeGoalProgressProvider = FakeGoalProgressProvider()
+
     // Simple HapticFeedback implementation for testing
     private val testHapticFeedback = object : HapticFeedback {
         override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
@@ -62,6 +66,9 @@ class TrackerDashboardTest {
                 MaterialTheme(colorScheme = lightColorScheme()) {
                     TrackerDashboard(
                         state = state,
+                        dailyPointsProvider = fakeDailyPointsProvider,
+                        dailySummaryProvider = fakeDailySummaryProvider,
+                        goalProgressProvider = fakeGoalProgressProvider,
                         onSettingsClick = { settingsClicked = true },
                         onMapClick = { /* No-op for test */ },
                         onRequestPermission = { permissionRequested = true },

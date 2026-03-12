@@ -25,19 +25,7 @@ import com.adsamcik.tracker.app.ui.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Stats
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
-import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
-import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
-import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
-import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
-import com.adsamcik.tracker.shared.base.di.LocalTrackerController
-import com.adsamcik.tracker.shared.base.di.LocalLockManager
-import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
-import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
-import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
-import com.adsamcik.tracker.shared.base.di.LocalActiveChallengesProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
-import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.flow.first
@@ -54,12 +42,6 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivityCompose : ComponentActivity() {
 
-    @Inject lateinit var trackerServiceController: TrackerServiceController
-    @Inject lateinit var lockManager: LockManager
-    @Inject lateinit var dailySummaryProvider: DailySummaryProvider
-    @Inject lateinit var dailyPointsProvider: DailyPointsProvider
-    @Inject lateinit var goalProgressProvider: GoalProgressProvider
-    @Inject lateinit var activeChallengesProvider: ActiveChallengesProvider
     @Inject lateinit var dispatchers: DispatchersProvider
 
     private val selectedTab = mutableStateOf<AppRoute>(Dashboard)
@@ -174,27 +156,16 @@ class MainActivityCompose : ComponentActivity() {
             StartupDestination.Main -> Unit
         }
 
-        val appRef = this@MainActivityCompose
-
         AppTheme(darkTheme = darkTheme) {
-            CompositionLocalProvider(
-                LocalTrackerController provides appRef.trackerServiceController,
-                LocalLockManager provides appRef.lockManager,
-                LocalDailySummaryProvider provides appRef.dailySummaryProvider,
-                LocalDailyPointsProvider provides appRef.dailyPointsProvider,
-                LocalGoalProgressProvider provides appRef.goalProgressProvider,
-                LocalActiveChallengesProvider provides appRef.activeChallengesProvider
-            ) {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    Box(Modifier.fillMaxSize()) {
-                        // Compose Navigation root with all app routes
-                        MainRoot(
-                            startDestination = selected.value,
-                            deepNavigationRequest = deepNavigationRequest.value,
-                            onDeepNavigationHandled = { deepNavigationRequest.value = null }
-                        ) { route ->
-                            if (selected.value != route) selected.value = route
-                        }
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Box(Modifier.fillMaxSize()) {
+                    // Compose Navigation root with all app routes
+                    MainRoot(
+                        startDestination = selected.value,
+                        deepNavigationRequest = deepNavigationRequest.value,
+                        onDeepNavigationHandled = { deepNavigationRequest.value = null }
+                    ) { route ->
+                        if (selected.value != route) selected.value = route
                     }
                 }
             }

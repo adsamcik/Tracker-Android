@@ -24,20 +24,12 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
-import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
-import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
-import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
-import com.adsamcik.tracker.shared.base.di.LocalActiveChallengesProvider
-import com.adsamcik.tracker.shared.base.di.LocalLockManager
-import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.R as PrefR
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
-import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -59,13 +51,12 @@ fun DashboardRoute(
 	val context = LocalContext.current
 	val viewModel: DashboardViewModel = hiltViewModel()
 
-	// Dependencies via CompositionLocal
-	val controller = LocalTrackerController.current as TrackerServiceController
-	val lockManager = LocalLockManager.current as LockManager
-	val dailySummaryProvider = LocalDailySummaryProvider.current
-	val dailyPointsProvider = LocalDailyPointsProvider.current
-	val goalProgressProvider = LocalGoalProgressProvider.current
-	val activeChallengesProvider = LocalActiveChallengesProvider.current
+	// Dependencies via ViewModel (Hilt-injected)
+	val controller = viewModel.trackerController
+	val lockManager = viewModel.lockManager
+	val dailyPointsProvider = viewModel.dailyPointsProvider
+	val goalProgressProvider = viewModel.goalProgressProvider
+	val activeChallengesProvider = viewModel.activeChallengesProvider
 
 	// Permission state from ViewModel
 	val hasLocationPermission by viewModel.hasLocationPermission.collectAsState()
@@ -100,7 +91,7 @@ fun DashboardRoute(
 
 	// Fetch daily summary and historical data reactively
 	LaunchedEffect(isTracking, sessionData) {
-		viewModel.refreshTodaySummary(dailySummaryProvider)
+		viewModel.refreshTodaySummary()
 		viewModel.loadHistoricalData(isTracking, lastSessionData)
 	}
 

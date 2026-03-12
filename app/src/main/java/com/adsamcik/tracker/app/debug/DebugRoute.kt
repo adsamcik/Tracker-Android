@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.logger.LogDatabase
@@ -56,7 +57,6 @@ import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.shared.base.extension.formatAsDateTime
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.compose.ConfirmDialog
-import com.adsamcik.tracker.shared.base.di.LocalLockManager
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.tracker.controller.LockManager
 import kotlinx.coroutines.launch
@@ -70,8 +70,9 @@ private val defaultDispatchers = DefaultDispatchersProvider
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun DebugRoute(onNavigateBack: () -> Unit = {}) {
+fun DebugRoute(onNavigateBack: () -> Unit = {}, viewModel: DebugViewModel = hiltViewModel()) {
     val ctx = LocalContext.current
+    val lockManager = viewModel.lockManager
     val clearDialog = remember { mutableStateOf(false) }
     var statusExpanded by remember { mutableStateOf(false) }
     var logsExpanded by remember { mutableStateOf(false) }
@@ -115,6 +116,7 @@ fun DebugRoute(onNavigateBack: () -> Unit = {}) {
 
             item {
                 SystemStatusSection(
+                    lockManager = lockManager,
                     expanded = statusExpanded,
                     onToggle = { statusExpanded = !statusExpanded }
                 )
@@ -143,11 +145,11 @@ fun DebugRoute(onNavigateBack: () -> Unit = {}) {
 @OptIn(ExperimentalStdlibApi::class)
 @Composable
 private fun SystemStatusSection(
+    lockManager: LockManager,
     expanded: Boolean,
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current
-    val lockManager = LocalLockManager.current as LockManager
     val isLocked by lockManager.isLockedFlow.collectAsState()
     val isTimeLocked = lockManager.isTimeLocked
     val isChargeLocked = lockManager.isChargeLocked

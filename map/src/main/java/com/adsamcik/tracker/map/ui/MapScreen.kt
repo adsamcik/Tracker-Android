@@ -47,13 +47,11 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.MapOverlayState
 import com.adsamcik.tracker.map.shared.MapStyleProvider
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
-import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.shared.preferences.Preferences
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
@@ -118,7 +116,7 @@ fun MapScreen(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val appContext = context.applicationContext
-    val trackerController = LocalTrackerController.current as TrackerServiceController
+    val trackerController = store.trackerController
     val isTracking by trackerController.isServiceRunningFlow.collectAsState()
     val activeSession by trackerController.sessionFlow.collectAsState()
     val livePathPoints by trackerController.pathPointsFlow.collectAsState()

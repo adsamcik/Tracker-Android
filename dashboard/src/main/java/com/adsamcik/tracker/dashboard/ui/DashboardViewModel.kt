@@ -15,13 +15,20 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.di.ActiveChallengeInfo
+import com.adsamcik.tracker.shared.base.di.ActiveChallengesProvider
+import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
@@ -31,15 +38,25 @@ import javax.inject.Inject
  * ViewModel for the Dashboard screen.
  *
  * Owns historical data (loaded from Room), permission state, and derived computations.
- * CompositionLocal-provided dependencies (tracker controller, lock manager, providers)
- * remain in the composable layer.
+ * All AppGraph dependencies are injected via Hilt constructor.
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
 	@ApplicationContext private val appContext: Context,
 	private val dispatchers: DispatchersProvider,
 	private val appDatabase: AppDatabase,
+	val trackerController: TrackerServiceController,
+	val lockManager: LockManager,
+	private val dailySummaryProvider: DailySummaryProvider,
+	val dailyPointsProvider: DailyPointsProvider,
+	val goalProgressProvider: GoalProgressProvider,
+	val activeChallengesProvider: ActiveChallengesProvider,
 ) : ViewModel() {
+
+	val isTracking: StateFlow<Boolean> = trackerController.isServiceRunningFlow
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+	val isLocked: StateFlow<Boolean> = lockManager.isLockedFlow
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
 	private val _todaySummary = MutableStateFlow<DailySummary?>(null)
 	val todaySummary: StateFlow<DailySummary?> = _todaySummary.asStateFlow()
@@ -67,13 +84,12 @@ class DashboardViewModel @Inject constructor(
 	val permissionDenied: StateFlow<Boolean> = _permissionDenied.asStateFlow()
 
 	/**
-	 * Fetches today's summary via the provided [DailySummaryProvider].
-	 * The provider comes from a CompositionLocal so it must be passed in.
+	 * Fetches today's summary via the injected [DailySummaryProvider].
 	 */
-	fun refreshTodaySummary(provider: DailySummaryProvider) {
+	fun refreshTodaySummary() {
 		viewModelScope.launch {
 			_todaySummary.value = try {
-				provider.fetchTodaySummary()
+				dailySummaryProvider.fetchTodaySummary()
 			} catch (_: Exception) {
 				null
 			}

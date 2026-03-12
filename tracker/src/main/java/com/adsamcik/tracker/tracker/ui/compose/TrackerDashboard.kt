@@ -150,9 +150,9 @@ import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.di.DailySummary
-import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
-import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
-import com.adsamcik.tracker.shared.base.di.LocalGoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
+import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
+import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.data.LengthUnit
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
@@ -186,6 +186,9 @@ internal data class TrackerDashboardUiState(
 @Composable
 internal fun TrackerDashboard(
     state: TrackerDashboardUiState,
+    dailyPointsProvider: DailyPointsProvider,
+    dailySummaryProvider: DailySummaryProvider,
+    goalProgressProvider: GoalProgressProvider,
     onSettingsClick: () -> Unit,
     onMapClick: () -> Unit,
     onRequestPermission: () -> Unit,
@@ -221,6 +224,7 @@ internal fun TrackerDashboard(
                 isLocked = isLocked,
                 policyTier = state.policyTier,
                 precisionModePreset = state.precisionModePreset,
+                dailyPointsProvider = dailyPointsProvider,
                 onSettingsClick = onSettingsClick,
                 onGameClick = onGameClick,
                 onPrecisionModeToggle = onPrecisionModeToggle
@@ -254,6 +258,8 @@ internal fun TrackerDashboard(
                 isTracking = isTracking,
                 isLocked = isLocked,
                 wallClockNowMillis = wallClockNowMillis,
+                dailySummaryProvider = dailySummaryProvider,
+                goalProgressProvider = goalProgressProvider,
                 onSettingsClick = onSettingsClick,
                 onMapClick = onMapClick,
                 onSessionDetailClick = onSessionDetailClick,
@@ -324,13 +330,13 @@ private fun TrackerTopBar(
     isLocked: Boolean,
     policyTier: PolicyTier = PolicyTier.OFF,
     precisionModePreset: TrackingPreset,
+    dailyPointsProvider: DailyPointsProvider,
     onSettingsClick: () -> Unit,
     onGameClick: (() -> Unit)? = null,
     onPrecisionModeToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val dailyPointsProvider = LocalDailyPointsProvider.current
     val pointsToday by dailyPointsProvider.pointsTodayFlow.collectAsState()
     
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surface) {
@@ -446,6 +452,8 @@ private fun TrackingContent(
     isTracking: Boolean,
     isLocked: Boolean,
     wallClockNowMillis: Long,
+    dailySummaryProvider: DailySummaryProvider,
+    goalProgressProvider: GoalProgressProvider,
     onSettingsClick: () -> Unit,
     onMapClick: () -> Unit,
     onSessionDetailClick: ((Long) -> Unit)? = null,
@@ -534,7 +542,9 @@ private fun TrackingContent(
                 ) {
                     TodayProgressCard(
                         isTracking = isTracking,
-                        settings = trackerSettings
+                        settings = trackerSettings,
+                        dailySummaryProvider = dailySummaryProvider,
+                        goalProgressProvider = goalProgressProvider
                     )
                 }
             }
@@ -2299,12 +2309,13 @@ private fun copyToClipboard(
 private fun TodayProgressCard(
     isTracking: Boolean,
     settings: TrackerSettingsState,
+    dailySummaryProvider: DailySummaryProvider,
+    goalProgressProvider: GoalProgressProvider,
     modifier: Modifier = Modifier,
     onStartTrackingHint: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val resources = context.resources
-    val dailySummaryProvider = LocalDailySummaryProvider.current
     
     var todaySummary by remember { mutableStateOf<DailySummary?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -2420,7 +2431,7 @@ private fun TodayProgressCard(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.padding(start = 16.dp)
                 ) {
-                    GoalProgressRing()
+                    GoalProgressRing(goalProgressProvider = goalProgressProvider)
                 }
             }
         }
@@ -2435,9 +2446,9 @@ private fun TodayProgressCard(
  */
 @Composable
 private fun GoalProgressRing(
+    goalProgressProvider: GoalProgressProvider,
     modifier: Modifier = Modifier
 ) {
-    val goalProgressProvider = LocalGoalProgressProvider.current
     val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
     
     if (!goalProgress.gamificationEnabled || goalProgress.goalSteps <= 0) return

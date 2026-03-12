@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.ui.compose
 
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -8,10 +7,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.Location
-import com.adsamcik.tracker.shared.base.di.LocalDailyPointsProvider
-import com.adsamcik.tracker.shared.base.di.LocalDailySummaryProvider
-import com.adsamcik.tracker.shared.base.di.LocalLockManager
-import com.adsamcik.tracker.shared.base.di.LocalTrackerController
 import com.adsamcik.tracker.testing.data.TestDataFactory
 import com.adsamcik.tracker.testing.fake.FakeLockManager
 import com.adsamcik.tracker.testing.fake.FakeTrackerServiceController
@@ -45,14 +40,15 @@ class TrackerRouteTest {
 
         // Act
         composeRule.setContent {
-            CompositionLocalProvider(
-                LocalTrackerController provides fakeController,
-                LocalLockManager provides fakeLockManager,
-                LocalDailyPointsProvider provides fakeDailyPointsProvider,
-                LocalDailySummaryProvider provides fakeDailySummaryProvider
-            ) {
-                TrackerRoute()
-            }
+            TrackerRoute(
+                viewModel = TrackerRouteViewModel(
+                    trackerController = fakeController,
+                    lockManager = fakeLockManager,
+                    dailySummaryProvider = fakeDailySummaryProvider,
+                    dailyPointsProvider = fakeDailyPointsProvider,
+                    goalProgressProvider = FakeGoalProgressProvider(),
+                )
+            )
         }
 
         // Assert

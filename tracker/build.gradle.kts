@@ -93,6 +93,7 @@ dependencies {
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)
 	implementation(libs.hilt.work)
+	implementation(libs.hilt.navigation.compose)
 
 	// Compose (UI migration)
 	implementation(platform(libs.compose.bom))

@@ -15,6 +15,7 @@ import com.adsamcik.tracker.map.presentation.udf.LatLngModel
 import com.adsamcik.tracker.map.presentation.udf.SearchResultStatus
 import com.adsamcik.tracker.map.presentation.udf.SheetVisibility
 import com.adsamcik.tracker.map.shared.CoordinateBounds
+import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -38,7 +39,8 @@ import kotlin.math.abs
  */
 @HiltViewModel
 class MapStore @Inject constructor(
-    private val savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle,
+    val trackerController: TrackerServiceController,
 ) : ViewModel() {
 
     private enum class CoordinateAxis { Latitude, Longitude }

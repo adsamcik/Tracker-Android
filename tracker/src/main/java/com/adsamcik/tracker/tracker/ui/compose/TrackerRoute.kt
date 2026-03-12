@@ -10,20 +10,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.shared.base.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.base.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.base.permission.PermissionType
-import com.adsamcik.tracker.shared.base.di.LocalTrackerController
-import com.adsamcik.tracker.shared.base.di.LocalLockManager
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
-import com.adsamcik.tracker.tracker.controller.TrackerServiceController
-import com.adsamcik.tracker.tracker.controller.LockManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -51,14 +48,15 @@ fun TrackerRoute(
     onOpenMap: () -> Unit = {},
     onOpenGame: (() -> Unit)? = null,
     onSessionDetailClick: ((Long) -> Unit)? = null,
-    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+    viewModel: TrackerRouteViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    // Access dependencies via CompositionLocal (no app.Application import needed!)
-    val controller = LocalTrackerController.current as TrackerServiceController
-    val lockManager = LocalLockManager.current as LockManager
+    // Access dependencies via Hilt ViewModel
+    val controller = viewModel.trackerController
+    val lockManager = viewModel.lockManager
     val trackingParamsRepository = remember(context) {
         EntryPointAccessors.fromApplication(
             context.applicationContext,
@@ -157,6 +155,9 @@ fun TrackerRoute(
             policyTier = policyTier,
             precisionModePreset = precisionModePreset
         ),
+        dailyPointsProvider = viewModel.dailyPointsProvider,
+        dailySummaryProvider = viewModel.dailySummaryProvider,
+        goalProgressProvider = viewModel.goalProgressProvider,
         onSettingsClick = onOpenSettings,
         onMapClick = onOpenMap,
         onRequestPermission = { showLocationPermissionRequest = true },
