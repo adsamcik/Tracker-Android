@@ -11,10 +11,12 @@ import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
 
 /**
  * SignalProcessor wrapping [AchievementEvaluator].
- * Evaluates accumulated metrics against achievements and emits unlock events.
  *
- * This is a "consumer" processor — it does not process raw signals but rather
- * reacts to accumulated metrics from other processors (via the metric provider).
+ * Tracks in-memory progress for live UI updates during a tracking session.
+ * Emits only [DomainEvent.AchievementProgress] events — **never** unlock events
+ * or XP awards. Unlock persistence is the sole responsibility of
+ * [com.adsamcik.tracker.stats.data.worker.AchievementWorker] (via WorkManager)
+ * to prevent double-unlock races between real-time and background evaluation.
  */
 class AchievementProcessor(
 	private val evaluator: AchievementEvaluator = AchievementEvaluator(),
@@ -28,11 +30,9 @@ class AchievementProcessor(
 		priority = 100, // Run after all other processors
 	)
 
-	private val pendingEvents = mutableListOf<DomainEvent>()
 	private val previousProgress = mutableMapOf<String, Pair<Long, com.adsamcik.tracker.stats.api.AchievementTier?>>()
 
 	override suspend fun onStart(context: ProcessorContext) {
-		pendingEvents.clear()
 		previousProgress.clear()
 	}
 
@@ -43,37 +43,26 @@ class AchievementProcessor(
 	override suspend fun onFlush(): List<DomainEvent> {
 		val metrics = metricsProvider()
 		val now = EpochMs(com.adsamcik.tracker.stats.api.platform.currentTimeMillis())
+		val events = mutableListOf<DomainEvent>()
 
 		for ((metric, value) in metrics) {
 			val snapshots = evaluator.evaluate(metric, value, previousProgress)
 			for (snap in snapshots) {
 				previousProgress[snap.definition.id] = Pair(snap.currentValue, snap.currentTier)
 
-				if (snap.currentTier != null) {
-					pendingEvents.add(
-						DomainEvent.AchievementUnlocked(
-							timestampMs = now,
-							processorId = descriptor.id,
-							achievementId = snap.definition.id,
-							tier = snap.currentTier!!.name,
-						),
-					)
-				} else {
-					pendingEvents.add(
-						DomainEvent.AchievementProgress(
-							timestampMs = now,
-							processorId = descriptor.id,
-							achievementId = snap.definition.id,
-							currentValue = snap.currentValue,
-							targetValue = snap.nextTierTarget ?: 0L,
-						),
-					)
-				}
+				// Only emit progress events for live UI. Unlocks are handled by AchievementWorker.
+				events.add(
+					DomainEvent.AchievementProgress(
+						timestampMs = now,
+						processorId = descriptor.id,
+						achievementId = snap.definition.id,
+						currentValue = snap.currentValue,
+						targetValue = snap.nextTierTarget ?: snap.currentValue,
+					),
+				)
 			}
 		}
 
-		val events = pendingEvents.toList()
-		pendingEvents.clear()
 		return events
 	}
 

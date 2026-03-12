@@ -66,4 +66,34 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	 */
 	@Query("DELETE FROM daily_summary WHERE date_epoch_day < :beforeDay")
 	suspend fun deleteOlderThan(beforeDay: Long): Int
+
+	/**
+	 * Sum total tracked distance across all days (meters).
+	 */
+	@Query("SELECT COALESCE(SUM(total_distance_m), 0) FROM daily_summary")
+	suspend fun sumTotalDistance(): Long
+
+	/**
+	 * Sum total steps across all days.
+	 */
+	@Query("SELECT COALESCE(SUM(total_steps), 0) FROM daily_summary")
+	suspend fun sumTotalSteps(): Long
+
+	/**
+	 * Sum total trip count across all days.
+	 */
+	@Query("SELECT COALESCE(SUM(trip_count), 0) FROM daily_summary")
+	suspend fun sumTotalTrips(): Long
+
+	/**
+	 * Best single-day step count.
+	 */
+	@Query("SELECT COALESCE(MAX(total_steps), 0) FROM daily_summary")
+	suspend fun maxDailySteps(): Long
+
+	/**
+	 * Count days that have any tracking data.
+	 */
+	@Query("SELECT COUNT(*) FROM daily_summary")
+	suspend fun countDays(): Long
 }

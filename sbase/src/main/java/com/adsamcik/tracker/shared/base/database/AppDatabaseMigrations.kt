@@ -966,3 +966,19 @@ val MIGRATION_22_23: Migration = object : Migration(22, 23) {
 		}
 	}
 }
+
+/**
+ * Version 23 → 24: Add notified_at column to achievement_progress for tracking
+ * whether the user has seen an unlock notification.
+ */
+val MIGRATION_23_24: Migration = object : Migration(23, 24) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN notified_at INTEGER DEFAULT NULL")
+			android.util.Log.i(
+				"AppDatabase",
+				"Migration 23->24: Added notified_at column to achievement_progress"
+			)
+		}
+	}
+}

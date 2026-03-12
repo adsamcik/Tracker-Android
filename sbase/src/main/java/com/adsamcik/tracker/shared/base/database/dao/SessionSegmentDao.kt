@@ -65,4 +65,28 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	 */
 	@Query("DELETE FROM session_segment WHERE end_time_ms < :beforeMs")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
+
+	/**
+	 * Count total session segments.
+	 */
+	@Query("SELECT COUNT(*) FROM session_segment")
+	suspend fun countTotal(): Long
+
+	/**
+	 * Count distinct primary_activity values (transport modes used).
+	 */
+	@Query("SELECT COUNT(DISTINCT primary_activity) FROM session_segment WHERE primary_activity IS NOT NULL")
+	suspend fun countDistinctActivities(): Long
+
+	/**
+	 * Count segments by primary activity type.
+	 */
+	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity = :activityType")
+	suspend fun countByActivity(activityType: Int): Long
+
+	/**
+	 * Find the maximum single-segment distance in meters.
+	 */
+	@Query("SELECT COALESCE(MAX(distance_m), 0) FROM session_segment")
+	suspend fun maxSegmentDistance(): Long
 }

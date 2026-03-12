@@ -1,19 +1,23 @@
 package com.adsamcik.tracker.stats.data.di
 
+import com.adsamcik.tracker.stats.api.repository.AchievementMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
 import com.adsamcik.tracker.stats.api.repository.LiveStatsRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultAchievementMetricsProvider
 import com.adsamcik.tracker.stats.data.repository.DefaultAchievementRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDomainEventRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultExplorationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
+import com.adsamcik.tracker.stats.engine.achievement.AchievementEvaluator
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -45,4 +49,16 @@ abstract class StatsDataModule {
 	@Binds
 	@Singleton
 	abstract fun bindDomainEventRepository(impl: DefaultDomainEventRepository): DomainEventRepository
+
+	@Binds
+	@Singleton
+	abstract fun bindAchievementMetricsProvider(
+		impl: DefaultAchievementMetricsProvider,
+	): AchievementMetricsProvider
+
+	companion object {
+		@Provides
+		@Singleton
+		fun provideAchievementEvaluator(): AchievementEvaluator = AchievementEvaluator()
+	}
 }

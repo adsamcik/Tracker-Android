@@ -21,6 +21,12 @@ interface ExplorationCellDao {
 	@Query("SELECT COUNT(*) FROM exploration_cell WHERE level = :level")
 	suspend fun countAtLevel(level: Int): Int
 
+	/**
+	 * Count cells at a given level, returning Long for achievement metrics.
+	 */
+	@Query("SELECT COUNT(*) FROM exploration_cell WHERE level = :level")
+	suspend fun countAtLevelLong(level: Int): Long
+
 	@Query("SELECT COUNT(*) FROM exploration_cell WHERE level = :level")
 	fun countAtLevelFlow(level: Int): Flow<Int>
 

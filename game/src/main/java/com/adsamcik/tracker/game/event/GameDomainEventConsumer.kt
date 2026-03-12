@@ -64,10 +64,14 @@ class GameDomainEventConsumer @Inject constructor(
 	/**
 	 * Replaces ChallengeSessionReceiver.onReceive().
 	 * Enqueues ChallengeWorker if challenges are enabled.
+	 * Always enqueues AchievementWorker for post-session evaluation.
 	 */
 	private fun onSessionEnded(event: DomainEvent.SessionEnded) {
 		val sessionId = event.sessionId
 		if (sessionId <= 0L) return
+
+		// Always enqueue achievement evaluation (the single unlock path)
+		enqueueAchievementWorker()
 
 		@Suppress("DEPRECATION")
 		val challengesEnabled = Preferences.getPref(context).getBooleanRes(
@@ -187,9 +191,34 @@ class GameDomainEventConsumer @Inject constructor(
 		}
 	}
 
+	private fun enqueueAchievementWorker() {
+		Logger.log(
+			LogData(
+				message = "SessionEnded event → scheduling AchievementWorker",
+				source = GAME_LOG_SOURCE,
+			),
+		)
+
+		val workManager = WorkManager.getInstance(context)
+		val workRequest = OneTimeWorkRequestBuilder<com.adsamcik.tracker.stats.data.worker.AchievementWorker>()
+			.addTag(ACHIEVEMENT_WORK_TAG)
+			.setConstraints(
+				Constraints.Builder()
+					.setRequiresBatteryNotLow(true)
+					.build(),
+			)
+			.build()
+		workManager.enqueueUniqueWork(
+			com.adsamcik.tracker.stats.data.worker.AchievementWorker.UNIQUE_WORK_NAME,
+			ExistingWorkPolicy.REPLACE,
+			workRequest,
+		)
+	}
+
 	companion object {
 		const val CONSUMER_ID = "game-module"
 		private const val CHALLENGE_WORK_TAG = "Challenge"
+		private const val ACHIEVEMENT_WORK_TAG = "Achievement"
 		private const val ACHIEVEMENT_PROGRESS_NOTIFY_THRESHOLD = 0.90
 	}
 

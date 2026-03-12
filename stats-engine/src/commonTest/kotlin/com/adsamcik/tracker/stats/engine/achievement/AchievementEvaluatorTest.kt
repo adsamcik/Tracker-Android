@@ -386,4 +386,91 @@ class AchievementEvaluatorTest {
 			snap.currentTier shouldBe AchievementTier.BRONZE
 		}
 	}
+
+	@Nested
+	inner class EvaluateForUnlocksTests {
+
+		@Test
+		fun `no previous tier - value at bronze - returns only bronze`() {
+			val unlocks = evaluator.evaluateForUnlocks(testDefinition, 10L, null)
+
+			unlocks shouldHaveSize 1
+			unlocks[0].tier shouldBe AchievementTier.BRONZE
+			unlocks[0].achievementId shouldBe "test_achievement"
+		}
+
+		@Test
+		fun `no previous tier - value at gold - returns bronze, silver, gold`() {
+			val unlocks = evaluator.evaluateForUnlocks(testDefinition, 200L, null)
+
+			unlocks shouldHaveSize 3
+			unlocks[0].tier shouldBe AchievementTier.BRONZE
+			unlocks[1].tier shouldBe AchievementTier.SILVER
+			unlocks[2].tier shouldBe AchievementTier.GOLD
+		}
+
+		@Test
+		fun `previous bronze - value at diamond - returns silver, gold, diamond`() {
+			val unlocks = evaluator.evaluateForUnlocks(
+				testDefinition,
+				1000L,
+				AchievementTier.BRONZE,
+			)
+
+			unlocks shouldHaveSize 3
+			unlocks[0].tier shouldBe AchievementTier.SILVER
+			unlocks[1].tier shouldBe AchievementTier.GOLD
+			unlocks[2].tier shouldBe AchievementTier.DIAMOND
+		}
+
+		@Test
+		fun `previous diamond - value at diamond - returns empty`() {
+			val unlocks = evaluator.evaluateForUnlocks(
+				testDefinition,
+				5000L,
+				AchievementTier.DIAMOND,
+			)
+
+			unlocks.shouldBeEmpty()
+		}
+
+		@Test
+		fun `value below any tier - returns empty`() {
+			val unlocks = evaluator.evaluateForUnlocks(testDefinition, 5L, null)
+
+			unlocks.shouldBeEmpty()
+		}
+
+		@Test
+		fun `single-tier milestone - no previous - value met - returns bronze`() {
+			val unlocks = evaluator.evaluateForUnlocks(singleTierDefinition, 1L, null)
+
+			unlocks shouldHaveSize 1
+			unlocks[0].tier shouldBe AchievementTier.BRONZE
+		}
+
+		@Test
+		fun `single-tier milestone - already bronze - returns empty`() {
+			val unlocks = evaluator.evaluateForUnlocks(
+				singleTierDefinition,
+				10L,
+				AchievementTier.BRONZE,
+			)
+
+			unlocks.shouldBeEmpty()
+		}
+
+		@Test
+		fun `import scenario - jump from none to diamond`() {
+			val unlocks = evaluator.evaluateForUnlocks(testDefinition, 5000L, null)
+
+			unlocks shouldHaveSize 4
+			unlocks.map { it.tier } shouldBe listOf(
+				AchievementTier.BRONZE,
+				AchievementTier.SILVER,
+				AchievementTier.GOLD,
+				AchievementTier.DIAMOND,
+			)
+		}
+	}
 }

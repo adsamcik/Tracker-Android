@@ -71,7 +71,7 @@ class AchievementProcessorTest {
 	}
 
 	@Test
-	fun `flush with real metrics produces achievement events`() = runTest {
+	fun `flush with real metrics produces achievement progress events`() = runTest {
 		val processor = AchievementProcessor(
 			evaluator = AchievementEvaluator(),
 			metricsProvider = {
@@ -81,7 +81,9 @@ class AchievementProcessorTest {
 		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1000L)))
 
 		val events = processor.onFlush()
-		// total_steps=15_000 should trigger BRONZE tier (10_000) on "steps_total" achievement
+		// total_steps=15_000 triggers a tier change on "steps_total" → emits progress event
 		events.shouldHaveSize(1)
+		// Processor only emits progress events now, never unlock events
+		assert(events.all { it is com.adsamcik.tracker.stats.api.event.DomainEvent.AchievementProgress })
 	}
 }

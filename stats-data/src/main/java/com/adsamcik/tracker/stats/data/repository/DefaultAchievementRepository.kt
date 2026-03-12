@@ -27,7 +27,7 @@ class DefaultAchievementRepository @Inject constructor(
 
 	override fun observeRecent(): Flow<List<AchievementProgressData>> {
 		return observeAll().map { all ->
-			all.filter { it.isUnlocked }.takeLast(10)
+			all.filter { it.isUnlocked }.take(10)
 		}
 	}
 }

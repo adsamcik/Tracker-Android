@@ -18,7 +18,8 @@ data class AchievementProgressEntity(
 	@ColumnInfo(name = "achievement_id") val achievementId: String,
 	@ColumnInfo(name = "current_value") val currentValue: Long = 0,
 	@ColumnInfo(name = "target_value") val targetValue: Long,
-	val tier: Int = 0,
+	val tier: Int? = null,
 	@ColumnInfo(name = "unlocked_at") val unlockedAt: Long? = null,
-	@ColumnInfo(name = "updated_at") val updatedAt: Long = 0
+	@ColumnInfo(name = "updated_at") val updatedAt: Long = 0,
+	@ColumnInfo(name = "notified_at") val notifiedAt: Long? = null
 )

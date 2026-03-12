@@ -3,6 +3,7 @@ package com.adsamcik.tracker.stats.engine.achievement
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementSnapshot
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.TierUnlock
 
 /**
  * Evaluates metric values against achievement definitions to produce snapshots.
@@ -53,6 +54,33 @@ class AchievementEvaluator(
 				null
 			}
 		}
+	}
+
+	/**
+	 * Evaluate a single achievement and return ALL newly crossed tiers.
+	 *
+	 * Fixes the tier-skip bug: if a user jumps from no tier to GOLD (e.g. on import),
+	 * this returns [BRONZE, SILVER, GOLD] so each tier's XP bonus is awarded.
+	 *
+	 * @param definition The achievement definition to evaluate.
+	 * @param currentValue Current cumulative metric value.
+	 * @param previousTier The highest tier previously persisted (null if none).
+	 *   Only tiers strictly greater than [previousTier] are returned.
+	 * @return List of [TierUnlock] for each newly crossed tier, ordered lowest→highest.
+	 *   Empty if no new tiers were crossed.
+	 */
+	fun evaluateForUnlocks(
+		definition: AchievementDefinition,
+		currentValue: Long,
+		previousTier: AchievementTier?,
+	): List<TierUnlock> {
+		return definition.tiers.entries
+			.sortedBy { it.key.ordinal }
+			.filter { (tier, threshold) ->
+				currentValue >= threshold &&
+					(previousTier == null || tier.ordinal > previousTier.ordinal)
+			}
+			.map { (tier, _) -> TierUnlock(definition.id, tier) }
 	}
 
 	/**

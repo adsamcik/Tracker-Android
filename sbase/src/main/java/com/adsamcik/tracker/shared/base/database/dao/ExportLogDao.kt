@@ -35,4 +35,10 @@ interface ExportLogDao {
 	 */
 	@Query("DELETE FROM export_log")
 	fun deleteAll()
+
+	/**
+	 * Count total exports.
+	 */
+	@Query("SELECT COUNT(*) FROM export_log")
+	suspend fun countTotal(): Long
 }

@@ -86,6 +86,10 @@ dependencies {
 	// Hilt
 	implementation(libs.hilt.android)
 	ksp(libs.hilt.compiler)
+	implementation(libs.hilt.work)
+
+	// WorkManager
+	implementation(libs.androidx.work.runtime.ktx)
 
 	// DI annotations
 	implementation(libs.javax.inject)
