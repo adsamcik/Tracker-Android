@@ -4,12 +4,14 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
+import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.just
@@ -27,6 +29,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.robolectric.annotation.Config
 import tech.apter.junit.jupiter.robolectric.RobolectricExtension
+
 @DisplayName("ActivityReceiver")
 @ExtendWith(RobolectricExtension::class)
 @Config(sdk = [28])
@@ -35,6 +38,8 @@ class ActivityReceiverTest {
 	private val receiver = ActivityReceiver()
 	private val context: Context
 		get() = ApplicationProvider.getApplicationContext()
+
+	private lateinit var mockBackend: GmsActivityRecognitionBackend
 
 	@BeforeEach
 	fun setUp() {
@@ -46,6 +51,16 @@ class ActivityReceiverTest {
 
 		every { Logger.logWithPreference(any(), any(), any()) } just runs
 		every { Time.elapsedRealtimeMillis } returns 5000L
+
+		// Mock the Hilt EntryPoint so the receiver can obtain a backend
+		mockBackend = mockk(relaxed = true)
+		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
+			every { backend() } returns mockBackend
+		}
+		mockkStatic(EntryPointAccessors::class)
+		every {
+			EntryPointAccessors.fromApplication(any(), ActivityReceiverEntryPoint::class.java)
+		} returns mockEntryPoint
 	}
 
 	@AfterEach
@@ -55,7 +70,7 @@ class ActivityReceiverTest {
 
 	private fun mockGmsDetectedActivity(
 		activityType: Int,
-		confidenceValue: Int
+		confidenceValue: Int,
 	): com.google.android.gms.location.DetectedActivity = mockk {
 		every { type } returns activityType
 		every { confidence } returns confidenceValue
@@ -63,7 +78,7 @@ class ActivityReceiverTest {
 
 	private fun intentWithActivityResult(
 		activityType: Int,
-		confidenceValue: Int
+		confidenceValue: Int,
 	): Intent {
 		val gmsDetectedActivity = mockGmsDetectedActivity(activityType, confidenceValue)
 		val result: ActivityRecognitionResult = mockk {
@@ -80,7 +95,7 @@ class ActivityReceiverTest {
 	}
 
 	private fun intentWithTransitionResult(
-		transitions: List<ActivityTransitionEvent>
+		transitions: List<ActivityTransitionEvent>,
 	): Intent {
 		val result: ActivityTransitionResult = mockk {
 			every { transitionEvents } returns transitions
@@ -100,33 +115,39 @@ class ActivityReceiverTest {
 	inner class ActivityResult {
 
 		@Test
-		fun `updates lastActivity on activity recognition result`() {
+		fun `updates backend lastActivity on activity recognition result`() {
 			val intent = intentWithActivityResult(
-				com.google.android.gms.location.DetectedActivity.WALKING, 85
+				com.google.android.gms.location.DetectedActivity.WALKING, 85,
 			)
 
 			receiver.onReceive(context, intent)
 
-			ActivityReceiver.lastActivity.activityType shouldBe DetectedActivity.WALKING.value
-			ActivityReceiver.lastActivity.confidence shouldBe 85
+			verify {
+				mockBackend.onActivityResult(
+					match { it.activityType == DetectedActivity.WALKING.value && it.confidence == 85 },
+					any(),
+				)
+			}
 		}
 
 		@Test
-		fun `updates lastActivityElapsedTimeMillis on result`() {
+		fun `passes elapsed time to backend`() {
 			every { Time.elapsedRealtimeMillis } returns 12345L
 			val intent = intentWithActivityResult(
-				com.google.android.gms.location.DetectedActivity.RUNNING, 70
+				com.google.android.gms.location.DetectedActivity.RUNNING, 70,
 			)
 
 			receiver.onReceive(context, intent)
 
-			ActivityReceiver.lastActivityElapsedTimeMillis shouldBe 12345L
+			verify {
+				mockBackend.onActivityResult(any(), eq(12345L))
+			}
 		}
 
 		@Test
 		fun `calls ActivityRequestManager onActivityUpdate`() {
 			val intent = intentWithActivityResult(
-				com.google.android.gms.location.DetectedActivity.IN_VEHICLE, 90
+				com.google.android.gms.location.DetectedActivity.IN_VEHICLE, 90,
 			)
 
 			receiver.onReceive(context, intent)
@@ -146,6 +167,7 @@ class ActivityReceiverTest {
 			val transitionEvent: ActivityTransitionEvent = mockk {
 				every { activityType } returns com.google.android.gms.location.DetectedActivity.WALKING
 				every { elapsedRealTimeNanos } returns 9999L
+				every { transitionType } returns 0
 			}
 			val intent = intentWithTransitionResult(listOf(transitionEvent))
 
@@ -157,35 +179,45 @@ class ActivityReceiverTest {
 		}
 
 		@Test
-		fun `sets lastActivity from transition when no activity result present`() {
+		fun `forwards transition to backend`() {
 			val transitionEvent: ActivityTransitionEvent = mockk {
 				every { activityType } returns com.google.android.gms.location.DetectedActivity.ON_BICYCLE
 				every { elapsedRealTimeNanos } returns 7777L
+				every { transitionType } returns 0
 			}
 			val intent = intentWithTransitionResult(listOf(transitionEvent))
 
 			receiver.onReceive(context, intent)
 
-			ActivityReceiver.lastActivity.activityType shouldBe DetectedActivity.ON_BICYCLE.value
-			ActivityReceiver.lastActivity.confidence shouldBe 100
+			verify { mockBackend.onTransitionResult(any()) }
+			verify {
+				mockBackend.onTransitionActivityResult(
+					match { it.activityType == DetectedActivity.ON_BICYCLE.value && it.confidence == 100 },
+					eq(7777L),
+				)
+			}
 		}
 
 		@Test
-		fun `sets lastActivityElapsedTimeMillis from last transition event`() {
+		fun `forwards last transition event elapsed time to backend`() {
 			val event1: ActivityTransitionEvent = mockk {
 				every { activityType } returns com.google.android.gms.location.DetectedActivity.STILL
 				every { elapsedRealTimeNanos } returns 1000L
+				every { transitionType } returns 0
 			}
 			val event2: ActivityTransitionEvent = mockk {
 				every { activityType } returns com.google.android.gms.location.DetectedActivity.WALKING
 				every { elapsedRealTimeNanos } returns 2000L
+				every { transitionType } returns 0
 			}
 			val intent = intentWithTransitionResult(listOf(event1, event2))
 
 			receiver.onReceive(context, intent)
 
 			// setActivityResultFromTransition uses the last event
-			ActivityReceiver.lastActivityElapsedTimeMillis shouldBe 2000L
+			verify {
+				mockBackend.onTransitionActivityResult(any(), eq(2000L))
+			}
 		}
 	}
 

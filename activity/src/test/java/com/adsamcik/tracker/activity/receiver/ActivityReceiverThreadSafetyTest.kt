@@ -3,13 +3,15 @@ package com.adsamcik.tracker.activity.receiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionResult
+import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.just
@@ -18,6 +20,7 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.unmockkAll
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -38,6 +41,8 @@ class ActivityReceiverThreadSafetyTest {
 
 	private val receiver = ActivityReceiver()
 
+	private lateinit var mockBackend: GmsActivityRecognitionBackend
+
 	@BeforeEach
 	fun setUp() {
 		mockkStatic(ActivityRecognitionResult::class)
@@ -47,6 +52,19 @@ class ActivityReceiverThreadSafetyTest {
 		mockkObject(Time)
 
 		every { Logger.logWithPreference(any(), any(), any()) } just runs
+
+		// Mock the Hilt EntryPoint
+		mockBackend = mockk(relaxed = true)
+		every { mockBackend.lastActivity } returns ActivityInfo(DetectedActivity.UNKNOWN, 0)
+		every { mockBackend.lastActivityElapsedTimeMillis } returns 0L
+
+		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
+			every { backend() } returns mockBackend
+		}
+		mockkStatic(EntryPointAccessors::class)
+		every {
+			EntryPointAccessors.fromApplication(any(), ActivityReceiverEntryPoint::class.java)
+		} returns mockEntryPoint
 	}
 
 	@AfterEach
@@ -55,8 +73,9 @@ class ActivityReceiverThreadSafetyTest {
 	}
 
 	@Test
-	fun `concurrent onReceive calls do not corrupt companion state`() {
+	fun `concurrent onReceive calls do not throw`() {
 		val mockContext = mockk<Context>(relaxed = true)
+		every { mockContext.applicationContext } returns mockContext
 
 		val gmsActivity = mockk<com.google.android.gms.location.DetectedActivity> {
 			every { type } returns com.google.android.gms.location.DetectedActivity.WALKING
@@ -96,11 +115,9 @@ class ActivityReceiverThreadSafetyTest {
 		}
 
 		latch.await(30, TimeUnit.SECONDS) shouldBe true
-
 		errors.toList().shouldBeEmpty()
 
-		ActivityReceiver.lastActivity.activityType shouldBe DetectedActivity.WALKING.value
-		ActivityReceiver.lastActivity.confidence shouldBe 85
-		ActivityReceiver.lastActivityElapsedTimeMillis shouldBeGreaterThan 0L
+		// Verify the backend received activity updates
+		verify(atLeast = 1) { mockBackend.onActivityResult(any(), any()) }
 	}
 }

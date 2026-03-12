@@ -1,282 +1,209 @@
 package com.adsamcik.tracker.activity.receiver
 
-import android.annotation.SuppressLint
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
-import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
+import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.logger.LogData
-import com.adsamcik.tracker.logger.Logger
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
-import com.adsamcik.tracker.shared.base.data.DetectedActivity
-import com.google.android.gms.location.ActivityRecognition
-import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityRecognitionResult
-import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.ActivityTransitionEvent
-import com.google.android.gms.location.ActivityTransitionRequest
 import com.google.android.gms.location.ActivityTransitionResult
-import com.google.android.gms.tasks.Task
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 
 /**
- * Intent service that receives all activity updates.
- * Handles logging if it is enabled.
+ * Hilt EntryPoint for accessing the activity recognition backend from
+ * the BroadcastReceiver (which cannot use constructor injection).
  */
-// Permissions are checked earlier which is not seen by analyzer, lets not pollute the code with checks everywhere
-@SuppressLint("MissingPermission")
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ActivityReceiverEntryPoint {
+	fun backend(): GmsActivityRecognitionBackend
+}
+
+/**
+ * BroadcastReceiver that receives PendingIntent callbacks from Google Play
+ * Services activity recognition.
+ *
+ * This receiver is a thin relay: it parses the GMS intent and forwards the
+ * results to [GmsActivityRecognitionBackend], which exposes them as Flows
+ * via the [ActivityRecognitionBackend] interface.
+ *
+ * It also notifies [ActivityRequestManager] for backward-compatible callback
+ * dispatching to existing request holders.
+ */
 internal class ActivityReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
-        val hasActivityTransitionResult = ActivityTransitionResult.hasResult(intent)
+	override fun onReceive(context: Context, intent: Intent) {
+		val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
+		val hasActivityTransitionResult = ActivityTransitionResult.hasResult(intent)
 
-        logActivity(LogData(
-            message = "Received activity update with activity:$hasActivityResult and activity transition:$hasActivityTransitionResult",
-            source = ACTIVITY_LOG_SOURCE))
+		logActivity(
+			LogData(
+				message = "Received activity update with activity:$hasActivityResult and activity transition:$hasActivityTransitionResult",
+				source = ACTIVITY_LOG_SOURCE,
+			),
+		)
 
-        if (hasActivityResult) {
-            val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
-            onActivityResult(context, result)
-        }
+		val backend = EntryPointAccessors.fromApplication(
+			context.applicationContext,
+			ActivityReceiverEntryPoint::class.java,
+		).backend()
 
-        if (hasActivityTransitionResult) {
-            val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
-            onActivityTransitionResult(context, result)
+		if (hasActivityResult) {
+			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
+			onActivityResult(context, result, backend)
+		}
 
-            if (!hasActivityResult) {
-                setActivityResultFromTransition(result.transitionEvents.last())
-            }
-        }
-    }
+		if (hasActivityTransitionResult) {
+			val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
+			onActivityTransitionResult(context, result, backend)
 
-    private fun onActivityResult(context: Context, result: ActivityRecognitionResult) {
-        val detectedActivity = ActivityInfo(result.mostProbableActivity)
-        val elapsedTimeMillis = Time.elapsedRealtimeMillis
+			if (!hasActivityResult) {
+				setActivityResultFromTransition(result.transitionEvents.last(), backend)
+			}
+		}
+	}
 
-        synchronized(activityStateLock) {
-            lastActivity = detectedActivity
-            lastActivityElapsedTimeMillis = elapsedTimeMillis
-        }
+	private fun onActivityResult(
+		context: Context,
+		result: ActivityRecognitionResult,
+		backend: GmsActivityRecognitionBackend,
+	) {
+		val detectedActivity = ActivityInfo(result.mostProbableActivity)
+		val elapsedTimeMillis = Time.elapsedRealtimeMillis
 
-        logActivity(
-            LogData(
-                message = "new activity",
-                data = detectedActivity,
-                source = ACTIVITY_LOG_SOURCE
-            )
-        )
+		backend.onActivityResult(detectedActivity, elapsedTimeMillis)
 
-        ActivityRequestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
-    }
+		logActivity(
+			LogData(
+				message = "new activity",
+				data = detectedActivity,
+				source = ACTIVITY_LOG_SOURCE,
+			),
+		)
 
-    /**
-     * Sets last activity from transition.
-     * Does not call callbacks as this should only update last activity for better access.
-     */
-    private fun setActivityResultFromTransition(transition: ActivityTransitionEvent) {
-        val detectedActivity = ActivityInfo(transition.activityType, TRANSITION_ACTIVITY_CONFIDENCE)
-        synchronized(activityStateLock) {
-            lastActivity = detectedActivity
-            lastActivityElapsedTimeMillis = transition.elapsedRealTimeNanos
-        }
+		ActivityRequestManager.onActivityUpdate(context, detectedActivity, elapsedTimeMillis)
+	}
 
-        logActivity(
-            LogData(
-                message = "new activity from transition",
-                data = detectedActivity,
-                source = ACTIVITY_LOG_SOURCE
-            )
-        )
-    }
+	/**
+	 * Sets last activity from transition.
+	 * Does not call callbacks as this should only update last activity for better access.
+	 */
+	private fun setActivityResultFromTransition(
+		transition: ActivityTransitionEvent,
+		backend: GmsActivityRecognitionBackend,
+	) {
+		val detectedActivity = ActivityInfo(transition.activityType, TRANSITION_ACTIVITY_CONFIDENCE)
+		backend.onTransitionActivityResult(detectedActivity, transition.elapsedRealTimeNanos)
 
-    private fun onActivityTransitionResult(context: Context, result: ActivityTransitionResult) {
-        result.transitionEvents.forEach {
-            logActivity(
-                LogData(
-                    message = "new transition",
-                    data = it,
-                    source = ACTIVITY_LOG_SOURCE
-                )
-            )
-        }
+		logActivity(
+			LogData(
+				message = "new activity from transition",
+				data = detectedActivity,
+				source = ACTIVITY_LOG_SOURCE,
+			),
+		)
+	}
 
-        ActivityRequestManager.onActivityTransition(context, result)
-    }
+	private fun onActivityTransitionResult(
+		context: Context,
+		result: ActivityTransitionResult,
+		backend: GmsActivityRecognitionBackend,
+	) {
+		result.transitionEvents.forEach {
+			logActivity(
+				LogData(
+					message = "new transition",
+					data = it,
+					source = ACTIVITY_LOG_SOURCE,
+				),
+			)
+		}
 
+		val transitionUpdates = result.transitionEvents.map { event ->
+			TransitionUpdate(
+				activityType = event.activityType,
+				transitionType = event.transitionType,
+				elapsedRealTimeNanos = event.elapsedRealTimeNanos,
+			)
+		}
+		backend.onTransitionResult(transitionUpdates)
 
-    /**
-     * Singleton part of the service that holds information about active requests and last known activity.
-     */
-    companion object {
-        private const val REQUEST_CODE_PENDING_INTENT = 4561201
-        private const val ACTIVITY_INTENT = "com.adsamcik.tracker.ACTIVITY_RESULT"
-        private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
+		ActivityRequestManager.onActivityTransition(context, result)
+	}
 
-        private val activityStateLock = Any()
+	/**
+	 * Companion providing backward-compatible static accessors.
+	 *
+	 * [lastActivity] and [lastActivityElapsedTimeMillis] delegate to the
+	 * [GmsActivityRecognitionBackend] singleton so that existing callers
+	 * (e.g. [ActivityRequestManager], [ActivityWatcherService]) continue
+	 * working without modification.
+	 *
+	 * [startActivityRecognition] and [stopActivityRecognition] delegate to
+	 * the backend as well, keeping the existing call-sites intact while the
+	 * actual GMS logic now lives in a backend that can be swapped.
+	 */
+	companion object {
+		private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
 
-        @Volatile
-        private var recognitionClientTask: Task<*>? = null
+		// Resolved lazily and cached — safe because the Hilt SingletonComponent
+		// outlives any caller.
+		@Volatile
+		private var cachedBackend: GmsActivityRecognitionBackend? = null
 
-        @Volatile
-        private var transitionClientTask: Task<*>? = null
+		private fun backend(context: Context): GmsActivityRecognitionBackend {
+			return cachedBackend ?: EntryPointAccessors.fromApplication(
+				context.applicationContext,
+				ActivityReceiverEntryPoint::class.java,
+			).backend().also { cachedBackend = it }
+		}
 
+		/** Last known activity — delegates to the backend. */
+		val lastActivity: ActivityInfo
+			get() = cachedBackend?.lastActivity
+				?: ActivityInfo(com.adsamcik.tracker.shared.base.data.DetectedActivity.UNKNOWN, 0)
 
-        /**
-         * Contains instance of last known activity
-         * Initialization value is Unknown activity with 0 confidence
-         */
-        @Volatile
-        var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
-            private set
+		/** Elapsed time of the last known activity — delegates to the backend. */
+		val lastActivityElapsedTimeMillis: Long
+			get() = cachedBackend?.lastActivityElapsedTimeMillis ?: 0L
 
-        @Volatile
-        var lastActivityElapsedTimeMillis: Long = 0L
-            private set
+		/**
+		 * Start activity recognition via the backend.
+		 * Delegates to [GmsActivityRecognitionBackend.startUpdates].
+		 */
+		@Synchronized
+		fun startActivityRecognition(
+			context: Context,
+			delayInS: Int,
+			requestedTransitions: Collection<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		): Boolean {
+			val backend = backend(context)
+			return backend.startUpdates(
+				com.adsamcik.tracker.activity.api.backend.RecognitionConfig(
+					intervalSeconds = delayInS,
+					requestedTransitions = requestedTransitions,
+				),
+			)
+		}
 
-        @Volatile
-        private var isSubscribed = false
-
-
-        /**
-         * Start activity recognition
-         *
-         * @param context Context
-         * @param delayInS Delay between collections in seconds
-         * @param requestedTransitions Transitions to subscribe to
-         *
-         * @return true if successfully started
-         */
-        @Synchronized
-        fun startActivityRecognition(
-            context: Context,
-            delayInS: Int,
-            requestedTransitions: Collection<ActivityTransitionData>
-        ): Boolean {
-            return if (Assist.isPlayServicesAvailable(context)) {
-                val client = ActivityRecognition.getClient(context)
-
-                val intent = getActivityDetectionPendingIntent(context)
-
-                logActivity(
-                    LogData(
-                        message = "requested activity",
-                        data = "delay $delayInS s and transitions $requestedTransitions",
-                        source = ACTIVITY_LOG_SOURCE
-                    )
-                )
-
-                isSubscribed = true
-
-                if (delayInS > 0) {
-                    requestActivityRecognition(client, intent, delayInS)
-                } else {
-                    client.removeActivityUpdates(intent)
-                }
-
-                if (requestedTransitions.isNotEmpty()) {
-                    requestActivityTransition(client, intent, requestedTransitions)
-                } else {
-                    client.removeActivityTransitionUpdates(intent)
-                }
-
-                true
-            } else {
-                com.adsamcik.tracker.logger.Reporter.report(Throwable("Unavailable play services"))
-                false
-            }
-        }
-
-        private fun requestActivityRecognition(
-            client: ActivityRecognitionClient,
-            intent: PendingIntent,
-            delayInS: Int
-        ) {
-            recognitionClientTask = client.requestActivityUpdates(
-                delayInS * Time.SECOND_IN_MILLISECONDS,
-                intent
-            )
-                .apply {
-                    addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
-                    addOnSuccessListener {
-                        logActivity(
-                            LogData(
-                                message = "started activity updates",
-                                data = "delay $delayInS s",
-                                source = ACTIVITY_LOG_SOURCE
-                            )
-                        )
-                    }
-                }
-        }
-
-        private fun requestActivityTransition(
-            client: ActivityRecognitionClient,
-            intent: PendingIntent,
-            requestedTransitions: Collection<ActivityTransitionData>
-        ) {
-            val transitions = buildTransitions(requestedTransitions)
-            val request = ActivityTransitionRequest(transitions)
-            transitionClientTask = client.requestActivityTransitionUpdates(request, intent).apply {
-                addOnFailureListener { com.adsamcik.tracker.logger.Reporter.report(it) }
-                addOnSuccessListener {
-                    logActivity(
-                        LogData(
-                            message = "started transition updates",
-                            data = requestedTransitions.toString(),
-                            source = ACTIVITY_LOG_SOURCE
-                        )
-                    )
-                }
-            }
-        }
-
-        private fun buildTransitions(requestedTransitions: Collection<ActivityTransitionData>): List<ActivityTransition> {
-            return requestedTransitions.distinct().map { buildTransition(it) }
-        }
-
-        private fun buildTransition(transition: ActivityTransitionData): ActivityTransition {
-            return ActivityTransition.Builder()
-                .setActivityType(transition.activity.value)
-                .setActivityTransition(transition.type.value)
-                .build()
-        }
-
-
-        /**
-         * Stop activity recognition
-         */
-        @Synchronized
-        fun stopActivityRecognition(context: Context) {
-            if (!isSubscribed) return
-            isSubscribed = false
-
-            ActivityRecognition.getClient(context).run {
-                val intent = getActivityDetectionPendingIntent(context)
-                removeActivityUpdates(intent)
-                removeActivityTransitionUpdates(intent)
-            }
-        }
-
-        /**
-         * Gets a PendingIntent to be sent for each activity detection.
-         */
-        private fun getActivityDetectionPendingIntent(context: Context): PendingIntent {
-            val intent = Intent(context, ActivityReceiver::class.java)
-            // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
-            // requestActivityUpdates() and removeActivityUpdates().
-            return PendingIntent.getBroadcast(
-                context,
-                REQUEST_CODE_PENDING_INTENT,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_MUTABLE)
-            )
-        }
-    }
+		/**
+		 * Stop activity recognition via the backend.
+		 * Delegates to [GmsActivityRecognitionBackend.stopUpdates].
+		 */
+		@Synchronized
+		fun stopActivityRecognition(context: Context) {
+			backend(context).stopUpdates()
+		}
+	}
 }
 

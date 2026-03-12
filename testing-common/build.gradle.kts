@@ -57,6 +57,7 @@ dependencies {
 	implementation(project(":sbase"))
 	implementation(project(":spreferences"))
 	implementation(project(":tracker"))
+	implementation(project(":activity"))
 	implementation(project(":stats-api"))
 	implementation(project(":stats-engine"))
 
