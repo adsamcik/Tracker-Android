@@ -128,4 +128,76 @@ class TileGeoJsonGeneratorTest {
             clipped.size shouldBeGreaterThan 0
         }
     }
+
+    @Nested
+    inner class ClipLineToTileSegments {
+
+        @Test
+        fun `line re-entering tile produces two segments`() {
+            val points = listOf(
+                LatLngModel(48.86, 2.35),    // inside
+                LatLngModel(48.855, 2.345),  // inside
+                LatLngModel(50.0, 10.0),     // far outside
+                LatLngModel(51.0, 11.0),     // far outside
+                LatLngModel(48.865, 2.355),  // inside again
+                LatLngModel(48.86, 2.35),    // inside
+            )
+            val segments = TileGeoJsonGenerator.clipLineToTileSegments(points, tileBounds)
+            segments.size shouldBe 2
+            // First segment: 2 inside + 1 exit = 3 points
+            segments[0].size shouldBe 3
+            // Second segment: 1 entry + 2 inside = 3 points
+            segments[1].size shouldBe 3
+        }
+
+        @Test
+        fun `single inside run produces one segment`() {
+            val points = listOf(
+                LatLngModel(50.0, 10.0),     // outside
+                LatLngModel(48.86, 2.35),    // inside
+                LatLngModel(48.855, 2.345),  // inside
+                LatLngModel(50.0, 10.0),     // outside
+            )
+            val segments = TileGeoJsonGenerator.clipLineToTileSegments(points, tileBounds)
+            segments.size shouldBe 1
+            // entry + 2 inside + exit = 4
+            segments[0].size shouldBe 4
+        }
+
+        @Test
+        fun `all outside produces empty segments`() {
+            val points = listOf(
+                LatLngModel(50.0, 10.0),
+                LatLngModel(51.0, 11.0),
+                LatLngModel(52.0, 12.0),
+            )
+            val segments = TileGeoJsonGenerator.clipLineToTileSegments(points, tileBounds)
+            segments.shouldBeEmpty()
+        }
+
+        @Test
+        fun `trailing inside segment is flushed`() {
+            val points = listOf(
+                LatLngModel(50.0, 10.0),     // outside
+                LatLngModel(48.86, 2.35),    // inside
+                LatLngModel(48.855, 2.345),  // inside — ends inside
+            )
+            val segments = TileGeoJsonGenerator.clipLineToTileSegments(points, tileBounds)
+            segments.size shouldBe 1
+            segments[0].size shouldBe 3 // entry + 2 inside
+        }
+
+        @Test
+        fun `single inside point between two outside is discarded as too short`() {
+            // Only 1 inside point → segment = [outside, inside] = 2 points
+            // But if the line exits immediately, segment = [outside, inside, outside] = 3
+            val points = listOf(
+                LatLngModel(50.0, 10.0),     // outside
+                LatLngModel(48.86, 2.35),    // inside
+                LatLngModel(50.0, 10.0),     // outside
+            )
+            val segments = TileGeoJsonGenerator.clipLineToTileSegments(points, tileBounds)
+            segments.size shouldBe 1
+        }
+    }
 }

@@ -128,5 +128,70 @@ class TileCacheTest {
             // No ConcurrentModificationException means we pass
             bigCache.size() shouldBe 100
         }
+
+        @Test
+        fun `concurrent invalidation does not crash`() {
+            val bigCache = TileCache(maxSize = 200)
+            // Pre-fill with 2 layers × 50 tiles each
+            repeat(50) { i ->
+                bigCache.put("layerA/$i/0/0", "a-$i")
+                bigCache.put("layerB/$i/0/0", "b-$i")
+            }
+
+            val writers = (0 until 5).map { t ->
+                Thread {
+                    repeat(20) { i ->
+                        bigCache.put("layerA/${50 + t * 20 + i}/0/0", "new-$t-$i")
+                    }
+                }
+            }
+            val invalidator = Thread {
+                repeat(10) {
+                    bigCache.invalidateLayer("layerA")
+                    Thread.sleep(1)
+                }
+            }
+
+            (writers + invalidator).forEach { it.start() }
+            (writers + invalidator).forEach { it.join() }
+            // Should not throw ConcurrentModificationException
+        }
+
+        @Test
+        fun `mixed reads writes and invalidation do not crash`() {
+            val bigCache = TileCache(maxSize = 200)
+            repeat(50) { i ->
+                bigCache.put("layerA/$i/0/0", "a-$i")
+                bigCache.put("layerB/$i/0/0", "b-$i")
+            }
+
+            val readers = (0 until 4).map {
+                Thread {
+                    repeat(200) { i ->
+                        bigCache.get("layerA/${i % 50}/0/0")
+                        bigCache.get("layerB/${i % 50}/0/0")
+                    }
+                }
+            }
+            val writers = (0 until 3).map { t ->
+                Thread {
+                    repeat(50) { i ->
+                        bigCache.put("layerA/${50 + t * 50 + i}/0/0", "w-$t-$i")
+                    }
+                }
+            }
+            val invalidators = (0 until 2).map {
+                Thread {
+                    repeat(15) {
+                        bigCache.invalidateLayer("layerA")
+                        Thread.sleep(1)
+                    }
+                }
+            }
+
+            (readers + writers + invalidators).forEach { it.start() }
+            (readers + writers + invalidators).forEach { it.join() }
+            // Success = no ConcurrentModificationException or deadlock
+        }
     }
 }

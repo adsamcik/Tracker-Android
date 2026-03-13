@@ -28,12 +28,13 @@ object TileGeoJsonGenerator {
         points: List<WeightedGeoFeature>,
         tileBounds: Bounds,
     ): String {
-        val buffer = (tileBounds.north - tileBounds.south) * 0.1
+        val latBuffer = (tileBounds.north - tileBounds.south) * 0.1
+        val lonBuffer = (tileBounds.east - tileBounds.west) * 0.1
         val buffered = Bounds(
-            north = (tileBounds.north + buffer).coerceAtMost(90.0),
-            south = (tileBounds.south - buffer).coerceAtLeast(-90.0),
-            east = (tileBounds.east + buffer).coerceAtMost(180.0),
-            west = (tileBounds.west - buffer).coerceAtLeast(-180.0),
+            north = (tileBounds.north + latBuffer).coerceAtMost(90.0),
+            south = (tileBounds.south - latBuffer).coerceAtLeast(-90.0),
+            east = tileBounds.east + lonBuffer,
+            west = tileBounds.west - lonBuffer,
         )
 
         val tilePoints = points.filter {
@@ -49,9 +50,10 @@ object TileGeoJsonGenerator {
     }
 
     /**
-     * Generate a GeoJSON FeatureCollection with a clipped LineString for a single tile.
+     * Generate a GeoJSON FeatureCollection with clipped LineString segments for a single tile.
      *
      * Extracts the segments of the polyline that intersect the tile bounds.
+     * Lines that exit and re-enter the tile produce separate LineString features.
      *
      * @param points Ordered polyline coordinates.
      * @param tileBounds The geographic bounds of the tile.
@@ -67,29 +69,31 @@ object TileGeoJsonGenerator {
         val buffered = Bounds(
             north = (tileBounds.north + buffer).coerceAtMost(90.0),
             south = (tileBounds.south - buffer).coerceAtLeast(-90.0),
-            east = (tileBounds.east + buffer).coerceAtMost(180.0),
-            west = (tileBounds.west - buffer).coerceAtLeast(-180.0),
+            east = tileBounds.east + buffer,
+            west = tileBounds.west - buffer,
         )
 
-        val clipped = clipLineToTile(points, buffered)
-        return if (clipped.isEmpty()) {
+        val segments = clipLineToTileSegments(points, buffered)
+        return if (segments.isEmpty()) {
             EMPTY_FEATURE_COLLECTION
         } else {
-            GeoJsonConverter.lineToFeatureCollection(clipped)
+            GeoJsonConverter.segmentsToFeatureCollection(segments)
         }
     }
 
     /**
-     * Clip a polyline to the given bounds, keeping segments where at least
-     * one endpoint is inside the bounds.
+     * Clip a polyline to the given bounds, producing separate segments
+     * for each contiguous run of points that intersects the bounds.
+     * Each segment includes one-point overlap at entry/exit for line continuity.
      */
-    internal fun clipLineToTile(
+    internal fun clipLineToTileSegments(
         points: List<LatLngModel>,
         bounds: Bounds,
-    ): List<LatLngModel> {
+    ): List<List<LatLngModel>> {
         if (points.size < 2) return emptyList()
 
-        val result = mutableListOf<LatLngModel>()
+        val segments = mutableListOf<List<LatLngModel>>()
+        var currentSegment = mutableListOf<LatLngModel>()
         var prevInside = false
 
         for (i in points.indices) {
@@ -98,19 +102,36 @@ object TileGeoJsonGenerator {
                 p.lng in bounds.west..bounds.east
 
             if (inside) {
-                // If previous point was outside but this one is inside, include both
-                // for line continuity
-                if (!prevInside && i > 0 && result.isEmpty()) {
-                    result.add(points[i - 1])
+                // Entering the tile — include the outside predecessor for continuity
+                if (!prevInside && i > 0) {
+                    currentSegment.add(points[i - 1])
                 }
-                result.add(p)
-            } else if (prevInside && result.isNotEmpty()) {
-                // Exiting the tile — include this point for continuity, then stop segment
-                result.add(p)
+                currentSegment.add(p)
+            } else if (prevInside && currentSegment.isNotEmpty()) {
+                // Exiting the tile — include exit point, then close the segment
+                currentSegment.add(p)
+                segments.add(currentSegment)
+                currentSegment = mutableListOf()
             }
             prevInside = inside
         }
 
-        return result
+        // Flush any trailing in-bounds segment
+        if (currentSegment.size >= 2) {
+            segments.add(currentSegment)
+        }
+
+        return segments
+    }
+
+    /**
+     * Legacy single-list clip. Delegates to [clipLineToTileSegments] and
+     * returns the first segment (for backward compatibility).
+     */
+    internal fun clipLineToTile(
+        points: List<LatLngModel>,
+        bounds: Bounds,
+    ): List<LatLngModel> {
+        return clipLineToTileSegments(points, bounds).firstOrNull() ?: emptyList()
     }
 }

@@ -47,6 +47,19 @@ class TiledDataSource(
          * that a single query is fine.
          */
         private const val MIN_TILE_ZOOM = 3
+
+        /**
+         * Maximum tiles to request in a single [getVisibleTilesGeoJson] call.
+         * If more tiles are needed, the effective zoom is reduced until the
+         * count fits. Prevents runaway DB queries at high zoom with wide viewport.
+         */
+        private const val MAX_TILES_PER_REQUEST = 64
+
+        /**
+         * Per-tile point limit for [getTile] single-tile queries.
+         * Prevents a low-zoom tile from returning the entire database.
+         */
+        private const val MAX_POINTS_PER_TILE = 10_000
     }
 
     /**
@@ -84,6 +97,7 @@ class TiledDataSource(
                 weight = weightColumn,
                 timeFrom = timeFrom,
                 timeTo = timeTo,
+                limit = MAX_POINTS_PER_TILE,
             )
             val points = repo.queryWeighted(query, weightColumn).first()
 
@@ -124,23 +138,14 @@ class TiledDataSource(
         timeTo: Long? = null,
         maxPoints: Int = 40_000,
     ): String {
-        val tileZoom = zoom.toInt().coerceIn(MIN_TILE_ZOOM, MAX_TILE_ZOOM)
-        val tiles = TileMath.tilesForBounds(viewportBounds, tileZoom)
+        var tileZoom = zoom.toInt().coerceIn(MIN_TILE_ZOOM, MAX_TILE_ZOOM)
+        var tiles = TileMath.tilesForBounds(viewportBounds, tileZoom)
 
-        if (tiles.isEmpty()) {
-            return withContext(dispatchers.io) {
-                val query = GeoQuery(
-                    source = source,
-                    bounds = viewportBounds,
-                    weight = weightColumn,
-                    timeFrom = timeFrom,
-                    timeTo = timeTo,
-                    limit = maxPoints,
-                )
-                val points = repo.queryWeighted(query, weightColumn).first()
-                val processed = applyZoomAggregation(points, tileZoom)
-                GeoJsonConverter.pointsToFeatureCollection(processed)
-            }
+        // Cap tile count to avoid flooding the DB with hundreds of queries.
+        // If too many tiles, back off the zoom level until manageable.
+        while (tiles.size > MAX_TILES_PER_REQUEST && tileZoom > MIN_TILE_ZOOM) {
+            tileZoom--
+            tiles = TileMath.tilesForBounds(viewportBounds, tileZoom)
         }
 
         val allFeatures = mutableListOf<WeightedGeoFeature>()
@@ -151,33 +156,22 @@ class TiledDataSource(
 
             val tileBounds = TileMath.tileToBounds(z, x, y)
             val tilePoints = withContext(dispatchers.io) {
-                val cacheKey = cache.key(layerId, z, x, y)
-                val cachedJson = cache.get(cacheKey)
-
-                if (cachedJson != null) {
-                    // Cache hit: we already have JSON, parse is expensive, so query fresh
-                    // For merge, it's cheaper to re-query than parse JSON
-                    null
-                } else {
-                    val query = GeoQuery(
-                        source = source,
-                        bounds = tileBounds,
-                        weight = weightColumn,
-                        timeFrom = timeFrom,
-                        timeTo = timeTo,
-                        limit = pointBudget,
-                    )
-                    val points = repo.queryWeighted(query, weightColumn).first()
-                    applyZoomAggregation(points, z)
-                }
+                val query = GeoQuery(
+                    source = source,
+                    bounds = tileBounds,
+                    weight = weightColumn,
+                    timeFrom = timeFrom,
+                    timeTo = timeTo,
+                    limit = pointBudget,
+                )
+                val points = repo.queryWeighted(query, weightColumn).first()
+                applyZoomAggregation(points, z)
             }
 
-            if (tilePoints != null) {
-                allFeatures.addAll(tilePoints)
-                // Cache the tile GeoJSON for future single-tile requests
-                val tileJson = TileGeoJsonGenerator.generatePointTile(tilePoints, tileBounds)
-                cache.put(cache.key(layerId, z, x, y), tileJson)
-            }
+            allFeatures.addAll(tilePoints)
+            // Cache the tile GeoJSON for future single-tile requests
+            val tileJson = TileGeoJsonGenerator.generatePointTile(tilePoints, tileBounds)
+            cache.put(cache.key(layerId, z, x, y), tileJson)
         }
 
         // Final aggregation pass if we exceeded budget

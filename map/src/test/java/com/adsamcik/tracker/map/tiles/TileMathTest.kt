@@ -7,6 +7,7 @@ import io.kotest.matchers.ints.shouldBeLessThan as intShouldBeLessThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 
@@ -55,6 +56,36 @@ class TileMathTest {
                     }
                 }
             }
+        }
+
+        @Test
+        fun `negative zoom throws`() {
+            assertThrows<IllegalArgumentException> {
+                TileMath.tileToBounds(-1, 0, 0)
+            }
+        }
+
+        @Test
+        fun `zoom beyond MAX_ZOOM throws`() {
+            assertThrows<IllegalArgumentException> {
+                TileMath.tileToBounds(TileMath.MAX_ZOOM + 1, 0, 0)
+            }
+        }
+
+        @Test
+        fun `tile coordinates out of range throws`() {
+            assertThrows<IllegalArgumentException> {
+                TileMath.tileToBounds(1, 2, 0) // only 0 and 1 valid at zoom 1
+            }
+        }
+
+        @Test
+        fun `zoom 20 high zoom tile has tiny bounds`() {
+            val bounds = TileMath.tileToBounds(20, 524288, 349525)
+            bounds.north shouldBeGreaterThan bounds.south
+            // At zoom 20, a tile is roughly 0.00034° ≈ 38 meters
+            val height = bounds.north - bounds.south
+            (height < 0.001) shouldBe true
         }
     }
 
@@ -114,6 +145,66 @@ class TileMathTest {
                 (lon <= bounds.east) shouldBe true
             }
         }
+
+        @Test
+        fun `polar latitude is clamped to Mercator limit`() {
+            // At lat 90.0 (North Pole), math should not produce NaN or crash
+            val (x, y) = TileMath.latLonToTile(90.0, 0.0, 10)
+            x intShouldBeGreaterThan -1
+            y shouldBe 0 // Clamped to northernmost tile
+        }
+
+        @Test
+        fun `south pole latitude is clamped`() {
+            val (_, y) = TileMath.latLonToTile(-90.0, 0.0, 10)
+            val n = 1 shl 10
+            y shouldBe (n - 1)
+        }
+
+        @Test
+        fun `near-Mercator-limit latitudes produce valid tiles`() {
+            for (lat in listOf(85.05, -85.05, 85.0, -85.0)) {
+                for (z in listOf(1, 5, 10, 16)) {
+                    val (x, y) = TileMath.latLonToTile(lat, 0.0, z)
+                    val bounds = TileMath.tileToBounds(z, x, y)
+                    bounds.north shouldBeGreaterThan bounds.south
+                }
+            }
+        }
+
+        @Test
+        fun `antimeridian longitude 180 maps to valid tile`() {
+            val (x, _) = TileMath.latLonToTile(0.0, 180.0, 10)
+            val n = 1 shl 10
+            x shouldBe (n - 1)
+        }
+
+        @Test
+        fun `antimeridian longitude minus 180 maps to tile 0`() {
+            val (x, _) = TileMath.latLonToTile(0.0, -180.0, 10)
+            x shouldBe 0
+        }
+
+        @Test
+        fun `negative zoom throws`() {
+            assertThrows<IllegalArgumentException> {
+                TileMath.latLonToTile(0.0, 0.0, -1)
+            }
+        }
+
+        @Test
+        fun `zoom beyond MAX_ZOOM throws`() {
+            assertThrows<IllegalArgumentException> {
+                TileMath.latLonToTile(0.0, 0.0, TileMath.MAX_ZOOM + 1)
+            }
+        }
+
+        @Test
+        fun `zoom 0 maps everything to tile 0-0`() {
+            val (x, y) = TileMath.latLonToTile(48.856, 2.352, 0)
+            x shouldBe 0
+            y shouldBe 0
+        }
     }
 
     @Nested
@@ -141,6 +232,21 @@ class TileMathTest {
             px intShouldBeGreaterThan extent - 10
             py intShouldBeGreaterThan extent - 10
         }
+
+        @Test
+        fun `polar coordinates produce finite pixel values`() {
+            // lat = 90.0 should be clamped, not produce Infinity
+            val (px, py) = TileMath.coordinateToTilePixel(90.0, 0.0, 1, 0, 0)
+            px.isFinite() shouldBe true
+            py.isFinite() shouldBe true
+        }
+
+        @Test
+        fun `negative polar coordinates produce finite pixel values`() {
+            val (px, py) = TileMath.coordinateToTilePixel(-90.0, 0.0, 1, 1, 1)
+            px.isFinite() shouldBe true
+            py.isFinite() shouldBe true
+        }
     }
 
     @Nested
@@ -164,5 +270,36 @@ class TileMathTest {
             val tilesZ14 = TileMath.tilesForBounds(bounds, 14)
             tilesZ14.size intShouldBeGreaterThan tilesZ10.size
         }
+
+        @Test
+        fun `point-sized bounds still returns at least one tile`() {
+            val bounds = com.adsamcik.tracker.map.data.Bounds(
+                north = 48.86, south = 48.86, east = 2.35, west = 2.35
+            )
+            val tiles = TileMath.tilesForBounds(bounds, 14)
+            tiles.size shouldBe 1
+        }
+
+        @Test
+        fun `negative zoom throws`() {
+            val bounds = com.adsamcik.tracker.map.data.Bounds(
+                north = 48.87, south = 48.85, east = 2.36, west = 2.34
+            )
+            assertThrows<IllegalArgumentException> {
+                TileMath.tilesForBounds(bounds, -1)
+            }
+        }
+
+        @Test
+        fun `zoom 0 returns exactly one tile`() {
+            val bounds = com.adsamcik.tracker.map.data.Bounds(
+                north = 48.87, south = 48.85, east = 2.36, west = 2.34
+            )
+            val tiles = TileMath.tilesForBounds(bounds, 0)
+            tiles.size shouldBe 1
+            tiles[0] shouldBe Triple(0, 0, 0)
+        }
     }
+
+    private fun Int.isFinite(): Boolean = this != Int.MAX_VALUE && this != Int.MIN_VALUE
 }

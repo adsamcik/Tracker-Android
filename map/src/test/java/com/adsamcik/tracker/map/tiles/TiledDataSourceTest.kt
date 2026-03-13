@@ -164,5 +164,39 @@ class TiledDataSourceTest {
             dataSource.invalidateAll()
             cache.size() shouldBe 0
         }
+
+        @Test
+        fun `second call still returns data (cache does not drop tiles)`() = runTest(testDispatcher) {
+            val points = makePoints(5, latBase = 48.855, lonBase = 2.345)
+            coEvery { repo.queryWeighted(any(), eq("hor_acc")) } returns flowOf(points)
+
+            val viewport = Bounds(
+                north = 48.88,
+                south = 48.84,
+                east = 2.38,
+                west = 2.32,
+            )
+
+            val first = dataSource.getVisibleTilesGeoJson(
+                viewportBounds = viewport,
+                zoom = 14f,
+                source = GeoSource.LOCATION,
+                weightColumn = "hor_acc",
+                layerId = "heatmap",
+            )
+
+            // Second call should also return data (regression: cache-hit path
+            // previously returned null causing tiles to silently vanish).
+            val second = dataSource.getVisibleTilesGeoJson(
+                viewportBounds = viewport,
+                zoom = 14f,
+                source = GeoSource.LOCATION,
+                weightColumn = "hor_acc",
+                layerId = "heatmap",
+            )
+
+            first shouldContain "Feature"
+            second shouldContain "Feature"
+        }
     }
 }
