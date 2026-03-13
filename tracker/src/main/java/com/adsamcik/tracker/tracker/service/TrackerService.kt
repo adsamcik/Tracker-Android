@@ -26,6 +26,7 @@ import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
 import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
+import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionInfo
 import com.adsamcik.tracker.tracker.module.TrackerListenerManager
@@ -78,6 +79,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 
 	@Inject
 	lateinit var dispatchers: DispatchersProvider
+
+	@Inject
+	lateinit var activityWatcherController: ActivityWatcherServiceController
 
 	private lateinit var orchestrator: TrackingOrchestrator
 
@@ -170,7 +174,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 		}
 
-		ActivityWatcherService.poke(this, trackerRunning = true)
+		activityWatcherController.poke(trackerRunning = true)
 
 		launch {
 			if (initialTier != PolicyTier.AMBIENT) {
@@ -283,7 +287,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 		}
 
-		ActivityWatcherService.poke(this@TrackerService, trackerRunning = false)
+		activityWatcherController.poke(trackerRunning = false)
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
 			Shortcuts.updateShortcut(

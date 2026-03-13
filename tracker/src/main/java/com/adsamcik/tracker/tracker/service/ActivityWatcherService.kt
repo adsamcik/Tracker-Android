@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.service
 
-import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,14 +8,11 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.extension.notificationManager
-import com.adsamcik.tracker.shared.base.extension.startForegroundService
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -51,6 +47,9 @@ class ActivityWatcherService : CoreService() {
 	@Inject
 	lateinit var lockManager: LockManager
 
+	@Inject
+	lateinit var activityWatcherController: ActivityWatcherServiceController
+
 	private var pollingJob: Job? = null
 
 	private lateinit var notificationManager: NotificationManager
@@ -58,7 +57,7 @@ class ActivityWatcherService : CoreService() {
 	override fun onCreate() {
 		super.onCreate()
 
-		instance = this
+		activityWatcherController.attachService(this)
 
 		val updatePreferenceInSeconds = BackgroundTrackingApi.activityFreqSeconds
 
@@ -84,7 +83,7 @@ class ActivityWatcherService : CoreService() {
 
 	override fun onDestroy() {
 		super.onDestroy()
-		instance = null
+		activityWatcherController.detachService()
 		pollingJob?.cancel()
 		pollingJob = null
 	}
@@ -134,8 +133,6 @@ class ActivityWatcherService : CoreService() {
 		private const val TAG = "ActivityWatcherService"
 		private const val NOTIFICATION_ID = -568465
 
-		private var instance: ActivityWatcherService? = null
-
 		/**
 		 * Called when watcher preference is changed.
 		 */
@@ -157,13 +154,12 @@ class ActivityWatcherService : CoreService() {
 			poke(context, updateInterval = value)
 		}
 
-
 		/**
-		 * Pokes [ActivityWatcherService] which checks if it should run
+		 * Static bridge for non-Hilt callers (BroadcastReceivers, Activities without
+		 * @AndroidEntryPoint, etc.).  Resolves [ActivityWatcherServiceController] via
+		 * EntryPointAccessors and delegates to it with the same parameter semantics.
 		 *
-		 * Note: This method cannot use preference observer, because it needs context.
-		 *
-		 * @param context context
+		 * Hilt-injected callers should inject [ActivityWatcherServiceController] directly.
 		 */
 		@Synchronized
 		@Suppress("LongParameterList")
@@ -179,46 +175,10 @@ class ActivityWatcherService : CoreService() {
 				.fromApplication(context.applicationContext, ActivityWatcherEntryPoint::class.java)
 				.trackerServiceController().isServiceRunning
 		) {
-
-			if (updateInterval > 0 && autoTracking > 0) {
-				if (watcherPreference && !trackerLocked && !trackerRunning) {
-					if (instance == null) {
-						if (!canStartForegroundService()) {
-							Log.i(
-								TAG,
-								"Skipping ActivityWatcherService start because the app is not in the foreground"
-							)
-							return
-						}
-						try {
-							context.startForegroundService<ActivityWatcherService> { }
-						} catch (exception: SecurityException) {
-							Log.w(TAG, "Activity watcher start blocked by security policy", exception)
-						} catch (exception: RuntimeException) {
-							val isForegroundStartRestricted =
-								Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-										exception::class.java.name == "android.app.ForegroundServiceStartNotAllowedException"
-							if (isForegroundStartRestricted) {
-								Log.w(TAG, "Skipped starting ActivityWatcherService from background-restricted context")
-							} else {
-								throw exception
-							}
-						}
-					}
-					return
-				}
-			}
-
-			instance?.stopSelf()
-		}
-
-		private fun canStartForegroundService(): Boolean {
-			if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-				return true
-			}
-
-			return ProcessLifecycleOwner.get().lifecycle.currentState
-				.isAtLeast(Lifecycle.State.STARTED)
+			val controller = dagger.hilt.android.EntryPointAccessors
+				.fromApplication(context.applicationContext, ActivityWatcherControllerEntryPoint::class.java)
+				.activityWatcherServiceController()
+			controller.poke(watcherPreference, updateInterval, autoTracking, trackerLocked, trackerRunning)
 		}
 	}
 }

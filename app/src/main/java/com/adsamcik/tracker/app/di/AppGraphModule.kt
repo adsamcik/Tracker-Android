@@ -19,12 +19,14 @@ import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.utils.module.TrackerSessionChannel
 import com.adsamcik.tracker.tracker.controller.DefaultLockManager
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.di.DefaultDailySummaryProvider
+import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -46,14 +48,21 @@ object AppGraphModule {
 
     @Provides
     @Singleton
+    fun providePreferences(@ApplicationContext context: Context): Preferences = Preferences(context)
+
+    @Provides
+    @Singleton
     fun provideTrackerServiceController(): TrackerServiceController {
         return DefaultTrackerServiceController()
     }
 
     @Provides
     @Singleton
-    fun provideLockManager(controller: TrackerServiceController): LockManager {
-        return DefaultLockManager(controller)
+    fun provideLockManager(
+        controller: TrackerServiceController,
+        watcherController: ActivityWatcherServiceController,
+    ): LockManager {
+        return DefaultLockManager(controller, watcherController)
     }
 
     @Provides

@@ -227,18 +227,7 @@ open class Preferences {
     }
 
     companion object {
-        @Volatile
-        private var preferences: Preferences? = null
-
-        fun getPref(context: Context): Preferences {
-            val existing = preferences
-            if (existing != null) return existing
-            return synchronized(this) {
-                val doubleCheck = preferences
-                if (doubleCheck != null) doubleCheck
-                else Preferences(context).also { preferences = it }
-            }
-        }
+        fun getPref(context: Context): Preferences = Preferences(context)
     }
 }
 

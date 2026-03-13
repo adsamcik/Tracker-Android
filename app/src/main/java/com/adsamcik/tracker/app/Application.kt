@@ -18,10 +18,10 @@ import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.NotificationChannels
 import com.adsamcik.tracker.points.PointsInitializer
-import com.adsamcik.tracker.maintenance.DataRetentionWorker
+import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.map.MapLibreInitializer
 import com.adsamcik.tracker.shared.utils.module.ModuleInitializer
-import com.adsamcik.tracker.tracker.service.ActivityWatcherService
+import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.activity.ActivityModuleInitializer
@@ -70,6 +70,12 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@ApplicationScope
 	lateinit var appScope: CoroutineScope
 
+	@Inject
+	lateinit var dataRetentionScheduler: DataRetentionScheduler
+
+	@Inject
+	lateinit var activityWatcherController: ActivityWatcherServiceController
+
 	@Volatile
 	var isStartupReady: Boolean = false
 		private set
@@ -95,16 +101,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 		fun exportAutomationController(): ExportAutomationController
 	}
 
-	companion object {
-		/**
-		 * Global application instance.
-		 * Used sparingly for backward compatibility with static access patterns.
-		 * 
-		 * @deprecated Prefer Hilt injection when possible.
-		 */
-		lateinit var instance: Application
-			private set
-	}
+	companion object
 
 	@SuppressLint("DefaultLocale")
 	@WorkerThread
@@ -133,7 +130,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun initializeImportantSingletons() {
 		ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
 			override fun onStart(owner: LifecycleOwner) {
-				ActivityWatcherService.poke(this@Application)
+				activityWatcherController.poke()
 			}
 		})
 	}
@@ -148,11 +145,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 		}
 		// Ensure weekly auto-cleanup job is in sync with preference
 		try {
-			DataRetentionWorker.initialize(this)
+			dataRetentionScheduler.initialize()
 		} catch (e: IllegalStateException) {
 			// In unit tests (Robolectric), WorkManager might not be initialized yet.
-			// Tests that need it will initialize WorkManager manually.
-			Log.w("App", "Skipping DataRetentionWorker.initialize during unit tests: ${e.message}")
+			Log.w("App", "Skipping DataRetentionScheduler.initialize during unit tests: ${e.message}")
 		}
 		// Schedule daily summary materialization (stats rearchitecture Phase 3)
 		try {
@@ -248,7 +244,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 		PointsInitializer().initialize(this)
 
 		// Activities
-		ActivityWatcherService.poke(this)
+		activityWatcherController.poke()
 		
 		// Precision upgrade — consume domain events for upgrade prompt logic
 		initializePrecisionUpgradeConsumer()
@@ -295,7 +291,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 		super.onCreate()
 		enableStrictMode()
 
-		instance = this
 		initializeImportantSingletons()
 
 		// Flush pending DataStore writes when the app goes to background

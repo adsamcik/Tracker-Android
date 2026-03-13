@@ -15,7 +15,7 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.locker.DisableTillRechargeWorker
 import com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver
-import com.adsamcik.tracker.tracker.service.ActivityWatcherService
+import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.service.TrackerService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +36,8 @@ import kotlinx.coroutines.flow.StateFlow
  * Persists lock state to DataStore for cross-session restoration.
  */
 class DefaultLockManager(
-    private val trackerServiceController: TrackerServiceController
+    private val trackerServiceController: TrackerServiceController,
+    private val activityWatcherController: ActivityWatcherServiceController,
 ) : LockManager {
     
     /**
@@ -134,7 +135,7 @@ class DefaultLockManager(
             context.alarmManager.cancel(getTimeUnlockBroadcastIntent(context))
             setTimeLock(context, 0)
             
-            ActivityWatcherService.poke(context, isLockedRightNow())
+            activityWatcherController.poke(watcherPreference = isLockedRightNow())
         }
     }
     
@@ -186,7 +187,7 @@ class DefaultLockManager(
     }
     
     private fun pokeWatcherService(context: Context) {
-        ActivityWatcherService.poke(context, trackerLocked = isLockedRightNow())
+        activityWatcherController.poke(trackerLocked = isLockedRightNow())
     }
     
     private fun getTimeUnlockBroadcastIntent(context: Context): PendingIntent {

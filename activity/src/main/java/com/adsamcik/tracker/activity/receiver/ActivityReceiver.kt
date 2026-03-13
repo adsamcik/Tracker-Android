@@ -3,15 +3,18 @@ package com.adsamcik.tracker.activity.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ACTIVITY_LOG_SOURCE
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.activity.logActivity
 import com.adsamcik.tracker.logger.LogData
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
@@ -81,6 +84,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		val detectedActivity = ActivityInfo(result.mostProbableActivity)
 		val elapsedTimeMillis = Time.elapsedRealtimeMillis
 
+		Companion.lastActivity = detectedActivity
 		backend.onActivityResult(detectedActivity, elapsedTimeMillis)
 
 		logActivity(
@@ -103,6 +107,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		backend: GmsActivityRecognitionBackend,
 	) {
 		val detectedActivity = ActivityInfo(transition.activityType, TRANSITION_ACTIVITY_CONFIDENCE)
+		Companion.lastActivity = detectedActivity
 		backend.onTransitionActivityResult(detectedActivity, transition.elapsedRealTimeNanos)
 
 		logActivity(
@@ -141,68 +146,45 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		ActivityRequestManager.onActivityTransition(context, result)
 	}
 
-	/**
-	 * Companion providing backward-compatible static accessors.
-	 *
-	 * [lastActivity] and [lastActivityElapsedTimeMillis] delegate to the
-	 * [GmsActivityRecognitionBackend] singleton so that existing callers
-	 * (e.g. [ActivityRequestManager], [ActivityWatcherService]) continue
-	 * working without modification.
-	 *
-	 * [startActivityRecognition] and [stopActivityRecognition] delegate to
-	 * the backend as well, keeping the existing call-sites intact while the
-	 * actual GMS logic now lives in a backend that can be swapped.
-	 */
 	companion object {
 		private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
 
-		// Resolved lazily and cached — safe because the Hilt SingletonComponent
-		// outlives any caller.
+		/**
+		 * The most recently detected activity.  Updated on each activity or transition
+		 * broadcast received.  Defaults to UNKNOWN before the first update.
+		 *
+		 * Written only by [ActivityReceiver.onReceive]; read by callers like
+		 * [ActivityRequestManager] that need last-known activity without a context.
+		 */
 		@Volatile
-		private var cachedBackend: GmsActivityRecognitionBackend? = null
-
-		private fun backend(context: Context): GmsActivityRecognitionBackend {
-			return cachedBackend ?: EntryPointAccessors.fromApplication(
-				context.applicationContext,
-				ActivityReceiverEntryPoint::class.java,
-			).backend().also { cachedBackend = it }
-		}
-
-		/** Last known activity — delegates to the backend. */
-		val lastActivity: ActivityInfo
-			get() = cachedBackend?.lastActivity
-				?: ActivityInfo(com.adsamcik.tracker.shared.base.data.DetectedActivity.UNKNOWN, 0)
-
-		/** Elapsed time of the last known activity — delegates to the backend. */
-		val lastActivityElapsedTimeMillis: Long
-			get() = cachedBackend?.lastActivityElapsedTimeMillis ?: 0L
+		var lastActivity: ActivityInfo = ActivityInfo(DetectedActivity.UNKNOWN, 0)
+			internal set
 
 		/**
-		 * Start activity recognition via the backend.
-		 * Delegates to [GmsActivityRecognitionBackend.startUpdates].
+		 * Starts activity recognition via the Hilt-provided backend.
+		 * Callers should check [android.Manifest.permission.ACTIVITY_RECOGNITION] before calling.
 		 */
-		@Synchronized
 		fun startActivityRecognition(
 			context: Context,
-			delayInS: Int,
-			requestedTransitions: Collection<com.adsamcik.tracker.activity.ActivityTransitionData>,
+			interval: Int,
+			transitions: Collection<ActivityTransitionData>,
 		): Boolean {
-			val backend = backend(context)
-			return backend.startUpdates(
-				com.adsamcik.tracker.activity.api.backend.RecognitionConfig(
-					intervalSeconds = delayInS,
-					requestedTransitions = requestedTransitions,
-				),
-			)
+			val backend = EntryPointAccessors.fromApplication(
+				context.applicationContext,
+				ActivityReceiverEntryPoint::class.java,
+			).backend()
+			return backend.startUpdates(RecognitionConfig(interval, transitions))
 		}
 
 		/**
-		 * Stop activity recognition via the backend.
-		 * Delegates to [GmsActivityRecognitionBackend.stopUpdates].
+		 * Stops activity recognition via the Hilt-provided backend.
 		 */
-		@Synchronized
 		fun stopActivityRecognition(context: Context) {
-			backend(context).stopUpdates()
+			val backend = EntryPointAccessors.fromApplication(
+				context.applicationContext,
+				ActivityReceiverEntryPoint::class.java,
+			).backend()
+			backend.stopUpdates()
 		}
 	}
 }

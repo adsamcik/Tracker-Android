@@ -11,14 +11,13 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.logger.Reporter
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
@@ -55,22 +54,18 @@ class DataRetentionWorker @AssistedInject constructor(
         private const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
     private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
 
-        private val dispatchers = DefaultDispatchersProvider
-        private val preferenceScope = CoroutineScope(SupervisorJob() + dispatchers.default)
-        private var preferenceJob: Job? = null
-
         /**
          * Initialize observation of the auto-cleanup setting and sync schedule.
+         * Legacy entry point for non-Hilt callers (OnboardingActivity, tests).
+         * Production code should use [DataRetentionScheduler] instead.
          */
+        @Deprecated("Inject DataRetentionScheduler and call initialize() instead")
         fun initialize(context: Context) {
             val appContext = context.applicationContext
-            val store = RetentionConfigStore(appContext, dispatchers.default)
-            preferenceJob?.cancel()
-            preferenceJob = store.config
-                .map { it.autoCleanupEnabled }
-                .onEach { enabled ->
-                    syncScheduling(appContext, enabled)
-                }.launchIn(preferenceScope)
+            val store = RetentionConfigStore(appContext, Dispatchers.IO)
+            store.config.map { it.autoCleanupEnabled }.onEach { enabled ->
+                syncScheduling(appContext, enabled)
+            }.launchIn(CoroutineScope(SupervisorJob()))
         }
 
         /** Schedule weekly cleanup with unique work policy. */
@@ -91,7 +86,7 @@ class DataRetentionWorker @AssistedInject constructor(
             WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
         }
 
-        private fun syncScheduling(context: Context, enabled: Boolean) {
+        internal fun syncScheduling(context: Context, enabled: Boolean) {
             try {
                 if (enabled) ensureScheduled(context) else cancel(context)
             } catch (e: IllegalStateException) {
