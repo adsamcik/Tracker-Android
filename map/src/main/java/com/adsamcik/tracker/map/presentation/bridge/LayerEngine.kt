@@ -10,9 +10,9 @@ import kotlinx.collections.immutable.ImmutableList
  * Produces [MapLibreLayerConfig] data for rendering and [MapOverlayState] for overlays.
  */
 interface LayerEngine {
-    suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange, bounds: Bounds? = null)
-    suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange, bounds: Bounds? = null) {
-        selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange, bounds)
+    suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange, bounds: Bounds? = null, zoom: Float = 10f)
+    suspend fun selectSingleLayer(id: String?, quality: Float, dateRange: LongRange, bounds: Bounds? = null, zoom: Float = 10f) {
+        selectLayers(id?.let(::setOf) ?: emptySet(), quality, dateRange, bounds, zoom)
     }
     fun clear()
     fun activeLegend(): MapLayerData?

@@ -54,7 +54,11 @@ class WifiHeatmapLayer(
         val aggregated = aggregateWifiCells(
             input = input,
             maxPoints = budgets.maxPoints,
-            cellSizeDegrees = (0.00045 / quality.coerceAtLeast(0.6f)).toFloat()
+            cellSizeDegrees = run {
+                val zoomCellSize = com.adsamcik.tracker.map.graphics.GridAggregator.cellSizeForZoom(zoom)
+                val qualityCellSize = (0.00045 / quality.coerceAtLeast(0.6f)).toDouble()
+                maxOf(zoomCellSize, qualityCellSize).toFloat()
+            }
         )
         return GeoJsonConverter.pointsToFeatureCollection(aggregated)
     }

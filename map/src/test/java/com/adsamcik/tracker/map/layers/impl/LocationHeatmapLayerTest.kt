@@ -35,6 +35,7 @@ class LocationHeatmapLayerTest {
         repo: GeoRepository,
         perf: PerformanceManager = PerformanceManager()
     ) : LocationHeatmapLayer(repo, perf) {
+        init { zoom = 17f }
         fun testColorStops() = colorStops()
         fun testGeoJsonFrom(processed: String) = geoJsonFrom(processed)
         fun testRadiusPx() = radiusPx()

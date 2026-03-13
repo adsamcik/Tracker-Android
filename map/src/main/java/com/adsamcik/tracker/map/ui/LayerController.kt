@@ -34,9 +34,10 @@ class LayerController {
         descriptor: LayerDescriptor?,
         quality: Float,
         dateRange: LongRange,
-        bounds: Bounds? = null
+        bounds: Bounds? = null,
+        zoom: Float = 10f,
     ) {
-        setLayers(context, listOfNotNull(descriptor), quality, dateRange, bounds)
+        setLayers(context, listOfNotNull(descriptor), quality, dateRange, bounds, zoom)
     }
 
     /**
@@ -48,7 +49,8 @@ class LayerController {
         descriptors: List<LayerDescriptor>,
         quality: Float,
         dateRange: LongRange,
-        bounds: Bounds? = null
+        bounds: Bounds? = null,
+        zoom: Float = 10f,
     ) {
         try {
             if (currentLayers.isNotEmpty()) {
@@ -77,7 +79,7 @@ class LayerController {
                             builtLayer.dateRange = dateRange
                         }
 
-                        builtLayer.enable(context, quality, bounds).join()
+                        builtLayer.enable(context, quality, bounds, zoom).join()
                         builtLayer.lastConfig?.let(configs::add)
                     }
                 } catch (e: CancellationException) {

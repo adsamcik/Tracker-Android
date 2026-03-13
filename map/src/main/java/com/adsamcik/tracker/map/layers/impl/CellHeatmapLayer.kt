@@ -8,6 +8,7 @@ import com.adsamcik.tracker.map.data.GeoQuery
 import com.adsamcik.tracker.map.data.GeoRepository
 import com.adsamcik.tracker.map.data.GeoSource
 import com.adsamcik.tracker.map.data.WeightedGeoFeature
+import com.adsamcik.tracker.map.graphics.GridAggregator
 import com.adsamcik.tracker.map.layers.base.HeatmapLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import kotlinx.coroutines.flow.first
@@ -48,12 +49,19 @@ class CellHeatmapLayer(
         input: List<WeightedGeoFeature>,
         budgets: PerformanceManager.PerformanceBudgets
     ): String {
-        val capped = if (input.size > budgets.maxPoints) {
-            val step = (input.size / budgets.maxPoints).coerceAtLeast(1)
-            input.filterIndexed { index, _ -> index % step == 0 }
+        val cellSize = GridAggregator.cellSizeForZoom(zoom)
+
+        val processed = if (cellSize > 0.0) {
+            val cells = GridAggregator.aggregate(input, cellSize)
+            GridAggregator.toWeightedFeatures(cells)
         } else {
-            input
+            if (input.size > budgets.maxPoints) {
+                val step = (input.size / budgets.maxPoints).coerceAtLeast(1)
+                input.filterIndexed { index, _ -> index % step == 0 }
+            } else {
+                input
+            }
         }
-        return GeoJsonConverter.pointsToFeatureCollection(capped)
+        return GeoJsonConverter.pointsToFeatureCollection(processed)
     }
 }

@@ -36,6 +36,9 @@ abstract class BaseMapLayer<I, P>(
     protected var quality: Float = 1.0f
         private set
 
+    @Volatile
+    protected var zoom: Float = 10f
+
     private var runningTask: Job? = null
 
     /** The last produced layer config, available for the engine to read. */
@@ -47,7 +50,7 @@ abstract class BaseMapLayer<I, P>(
      * Start the layer. If already enabled, the running work is cancelled and the layer restarts.
      * @param bounds Optional viewport bounds for spatial filtering. Null loads all data.
      */
-    fun enable(context: Context, quality: Float, bounds: Bounds? = null): Job {
+    fun enable(context: Context, quality: Float, bounds: Bounds? = null, zoom: Float = 10f): Job {
         val startTime = System.currentTimeMillis()
 
         synchronized(this@BaseMapLayer) {
@@ -55,6 +58,7 @@ abstract class BaseMapLayer<I, P>(
                 disable()
             }
             this.quality = quality
+            this.zoom = zoom
             enabled = true
         }
 
@@ -67,7 +71,7 @@ abstract class BaseMapLayer<I, P>(
                 val loadDuration = System.currentTimeMillis() - loadStartTime
 
                 val processStartTime = System.currentTimeMillis()
-                val budgets = performanceManager.budgets(quality)
+                val budgets = performanceManager.budgets(quality, zoom)
                 val processed = processData(input, budgets)
                 val processDuration = System.currentTimeMillis() - processStartTime
 

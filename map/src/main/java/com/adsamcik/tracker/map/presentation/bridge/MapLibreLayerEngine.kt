@@ -21,9 +21,9 @@ class MapLibreLayerEngine(
 
     private val controller = LayerController()
 
-    override suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange, bounds: Bounds?) {
+    override suspend fun selectLayers(ids: Set<String>, quality: Float, dateRange: LongRange, bounds: Bounds?, zoom: Float) {
         val descriptors = ids.mapNotNull { registry.findById(it) }
-        controller.setLayers(context, descriptors, quality, dateRange, bounds)
+        controller.setLayers(context, descriptors, quality, dateRange, bounds, zoom)
     }
 
     override fun clear() {

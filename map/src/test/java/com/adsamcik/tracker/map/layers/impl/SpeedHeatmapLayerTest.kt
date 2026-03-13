@@ -37,6 +37,7 @@ class SpeedHeatmapLayerTest {
         repo: GeoRepository,
         perf: PerformanceManager = PerformanceManager()
     ) : SpeedHeatmapLayer(repo, perf) {
+        init { zoom = 17f }
         fun testColorStops() = colorStops()
         fun testGeoJsonFrom(processed: String) = geoJsonFrom(processed)
         fun testRadiusPx() = radiusPx()

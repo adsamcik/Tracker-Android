@@ -341,7 +341,7 @@ class MapStore @Inject constructor(
                 val s = _state.value
                 val bounds = cameraToBounds(s.camera.lat, s.camera.lng, s.camera.zoom.toDouble())
                 withContext(dispatchers.default) {
-                    engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds)
+                    engine.selectLayers(s.activeLayerIds, s.quality, s.dateRange, bounds, s.camera.zoom)
                 }
                 val legend = engine.activeLegend()
                 val config = engine.activeLayerConfig()
