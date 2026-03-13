@@ -655,4 +655,40 @@
     <string name="action_navigate_back">Navigate back</string>
     <string name="action_help">Help</string>
 
+    <!-- App Widgets -->
+    <string name="widget_loading">Loading…</string>
+    <string name="widget_quick_start_name">Tracker Quick Start</string>
+    <string name="widget_quick_start_description">Start or stop location tracking with a single tap.</string>
+    <string name="widget_start_tracking">Start Tracking</string>
+    <string name="widget_stop_tracking">Stop Tracking</string>
+    <string name="widget_tracking_active">Tracking Active</string>
+    <string name="widget_tracking_inactive">Tracking Inactive</string>
+
+    <string name="widget_today_summary_name">Today\'s Summary</string>
+    <string name="widget_today_summary_description">See your tracking stats for today at a glance.</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_distance">Distance</string>
+    <string name="widget_steps">Steps</string>
+    <string name="widget_sessions">Sessions</string>
+    <string name="widget_duration">Duration</string>
+    <string name="widget_no_data_today">No tracking data today</string>
+
+    <string name="widget_active_session_name">Active Session</string>
+    <string name="widget_active_session_description">Monitor your current tracking session in real time.</string>
+    <string name="widget_no_active_session">No active session</string>
+    <string name="widget_tap_to_start">Tap to start tracking</string>
+    <string name="widget_session_distance">Session Distance</string>
+    <string name="widget_session_steps">Session Steps</string>
+    <string name="widget_session_duration">Session Duration</string>
+    <string name="widget_collections">Collections</string>
+    <string name="widget_distance_on_foot">On Foot</string>
+    <string name="widget_goal_label">Goal:</string>
+    <string name="widget_goal_progress">%1$s / %2$s steps</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Off</string>
+    <string name="widget_tier_ambient">Ambient</string>
+    <string name="widget_tier_active">Active</string>
+    <string name="widget_tier_precision">Precision</string>
+
 </resources>

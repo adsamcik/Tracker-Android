@@ -148,10 +148,18 @@ dependencies {
 	implementation(libs.hilt.navigation.compose)
 	implementation(libs.hilt.work)
 
+	// Glance App Widgets
+	implementation(libs.androidx.glance.appwidget)
+	implementation(libs.androidx.glance.material3)
+
 	// Compose
 	implementation(platform(libs.compose.bom))
 	androidTestImplementation(platform(libs.compose.bom))
 	implementation(libs.compose.material3)
+
+	// Glance (App Widgets)
+	implementation(libs.glance.appwidget)
+	implementation(libs.glance.material3)
 	implementation(libs.compose.ui.tooling.preview)
 	debugImplementation(libs.compose.ui.tooling)
 	implementation(libs.activity.compose)
@@ -242,4 +250,5 @@ afterEvaluate {
 	tasks.named("kspReleaseKotlin") {
 		dependsOn("processReleaseResources")
 	}
+	tasks.findByName("kspDevKotlin")?.dependsOn("processDevResources")
 }

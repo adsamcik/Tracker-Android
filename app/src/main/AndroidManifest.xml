@@ -126,6 +126,43 @@
             </intent-filter>
         </receiver>
 
+        <!-- Glance App Widgets -->
+        <receiver
+            android:name="com.adsamcik.tracker.app.widget.glance.QuickStartWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_quick_start_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_start_info" />
+        </receiver>
+
+        <receiver
+            android:name="com.adsamcik.tracker.app.widget.glance.TodaySummaryWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_today_summary_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_summary_info" />
+        </receiver>
+
+        <receiver
+            android:name="com.adsamcik.tracker.app.widget.glance.ActiveSessionWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_active_session_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_active_session_info" />
+        </receiver>
+
     </application>
 
 </manifest>
