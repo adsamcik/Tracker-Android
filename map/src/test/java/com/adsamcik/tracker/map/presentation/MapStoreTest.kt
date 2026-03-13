@@ -134,7 +134,7 @@ class MapStoreTest {
         
         val state = mapStore.state.first()
         state.activeLayerIds.contains(layerId) shouldBe true
-        coVerify { mockLayerEngine.selectLayers(eq(setOf(layerId)), eq(1f), any()) }
+        coVerify { mockLayerEngine.selectLayers(eq(setOf(layerId)), eq(1f), any(), any(), any()) }
     }
 
     @Test
@@ -168,7 +168,7 @@ class MapStoreTest {
         
         val state = mapStore.state.first()
         state.quality shouldBe newQuality
-        coVerify { mockLayerEngine.selectLayers(eq(setOf("location_polyline")), eq(newQuality), any()) }
+        coVerify { mockLayerEngine.selectLayers(eq(setOf("location_polyline")), eq(newQuality), any(), any(), any()) }
     }
 
     @Test
@@ -181,7 +181,7 @@ class MapStoreTest {
         
         val state = mapStore.state.first()
         state.dateRange shouldBe newRange
-        coVerify { mockLayerEngine.selectLayers(eq(setOf("location_polyline")), eq(1f), eq(newRange)) }
+        coVerify { mockLayerEngine.selectLayers(eq(setOf("location_polyline")), eq(1f), eq(newRange), any(), any()) }
     }
 
     @Test
