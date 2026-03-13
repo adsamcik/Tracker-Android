@@ -55,4 +55,10 @@ class PerformanceManager {
         QualityBucket.MEDIUM -> medium
         QualityBucket.HIGH -> high
     }
+
+    /**
+     * Overload accepting zoom level for future zoom-aware budget tuning.
+     * Currently delegates to the quality-only variant; zoom is reserved for later use.
+     */
+    fun budgets(rawQuality: Float, zoom: Float): PerformanceBudgets = budgets(rawQuality)
 }
