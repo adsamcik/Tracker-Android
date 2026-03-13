@@ -62,12 +62,17 @@ object TrackerServiceApi {
 	/**
 	 * Checks the Android service manager directly to detect stale UI state after
 	 * unexpected foreground-service termination.
+	 *
+	 * Uses the deprecated [ActivityManager.getRunningServices] because no modern
+	 * replacement exists. Android deprecated it to prevent apps from discovering
+	 * *other* apps' services, but it still returns the caller's own services.
 	 */
-	@Suppress("DEPRECATION")
 	fun isRunningInSystem(context: Context): Boolean {
 		val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
 			?: return false
-		return activityManager.getRunningServices(Int.MAX_VALUE).any { info ->
+		@Suppress("DEPRECATION")
+		val runningServices = activityManager.getRunningServices(Int.MAX_VALUE)
+		return runningServices.any { info ->
 			info.service.className == TrackerService::class.java.name
 		}
 	}

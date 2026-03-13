@@ -3,8 +3,10 @@ package com.adsamcik.tracker.shared.base.assist
 import android.app.Activity
 import android.content.Context
 import android.graphics.Point
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.util.TypedValue
+import android.view.Display
 import android.view.Surface
 import android.view.View
 import android.view.Window
@@ -24,9 +26,12 @@ import com.adsamcik.tracker.shared.base.misc.NavBarPosition
  */
 @Suppress("unused")
 object DisplayAssist {
-	private fun getDisplay(context: Context) = when {
+	private fun getDisplay(context: Context): Display = when {
 		Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> requireNotNull(context.display)
-		else -> @Suppress("DEPRECATION") context.windowManager.defaultDisplay
+		else -> {
+			val dm = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+			requireNotNull(dm.getDisplay(Display.DEFAULT_DISPLAY))
+		}
 	}
 
 	/**
@@ -66,9 +71,10 @@ object DisplayAssist {
 						realSize.y - bounds.top - bounds.bottom
 				)
 			}
-			else -> @Suppress("DEPRECATION") {
-				val display = context.windowManager.defaultDisplay
+			else -> {
+				val display = getDisplay(context)
 				val appUsableSize = Point()
+				@Suppress("DEPRECATION")
 				display.getSize(appUsableSize)
 
 				Int2(appUsableSize.x, appUsableSize.y)

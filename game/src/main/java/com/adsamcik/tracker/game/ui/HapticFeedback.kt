@@ -51,13 +51,7 @@ object HapticFeedback {
 			context.getSystemService<Vibrator>()
 		} ?: return
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			vibrator.vibrate(
-				VibrationEffect.createWaveform(pattern, -1),
-			)
-		} else {
-			@Suppress("DEPRECATION")
-			vibrator.vibrate(pattern, -1)
-		}
+		// minSdk 26 (O) guarantees VibrationEffect is always available
+		vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
 	}
 }

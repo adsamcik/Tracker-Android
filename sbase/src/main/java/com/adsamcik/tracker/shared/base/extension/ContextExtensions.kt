@@ -25,6 +25,7 @@ import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.PackageInfoCompat
 
 
 
@@ -131,12 +132,7 @@ inline fun <reified T : Any> Context.newIntent(): Intent =
  */
 fun Context.appVersion(): Long {
 	val packageInfo = packageManager.getPackageInfo(packageName, 0)
-	return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-		packageInfo.longVersionCode
-	} else {
-		@Suppress("DEPRECATION")
-		packageInfo.versionCode.toLong()
-	}
+	return PackageInfoCompat.getLongVersionCode(packageInfo)
 }
 
 /**
