@@ -2,14 +2,15 @@ package com.adsamcik.tracker.shared.preferences.onboarding
 
 import android.content.Context
 import android.util.Log
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
+import androidx.datastore.migrations.SharedPreferencesMigration
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -53,10 +54,59 @@ private object OnboardingStateSerializer : Serializer<OnboardingStateProto> {
     override suspend fun writeTo(t: OnboardingStateProto, output: OutputStream) { t.writeTo(output) }
 }
 
+private const val ONBOARDING_SHARED_PREFS_NAME = "onboarding"
+private const val ONBOARDING_COMPLETED_KEY = "completed"
+private const val ONBOARDING_COMPLETED_TIME_KEY = "completed_time"
+
 private val Context.onboardingDataStore: DataStore<OnboardingStateProto> by dataStore(
     fileName = "onboarding_state.pb",
-    serializer = OnboardingStateSerializer
+    serializer = OnboardingStateSerializer,
+    produceMigrations = { context ->
+        listOf(
+            SharedPreferencesMigration(
+                context = context,
+                sharedPreferencesName = ONBOARDING_SHARED_PREFS_NAME,
+                keysToMigrate = setOf(ONBOARDING_COMPLETED_KEY, ONBOARDING_COMPLETED_TIME_KEY),
+                shouldRunMigration = { current -> !current.legacyMigrated }
+            ) { prefs, current ->
+                current.toBuilder()
+                    .setCompleted(prefs.getBoolean(ONBOARDING_COMPLETED_KEY, false))
+                    .setCompletedTime(prefs.getLong(ONBOARDING_COMPLETED_TIME_KEY, 0L))
+                    .setLegacyMigrated(true)
+                    .build()
+            },
+            onboardingLegacyMarkerMigration()
+        )
+    }
 )
+
+internal fun resetOnboardingForTests() {
+    resetDataStoreDelegate(
+        fileClassName = "com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepositoryKt",
+        delegateFieldName = "onboardingDataStore\$delegate"
+    )
+}
+
+private fun onboardingLegacyMarkerMigration(): DataMigration<OnboardingStateProto> =
+    object : DataMigration<OnboardingStateProto> {
+        override suspend fun shouldMigrate(currentData: OnboardingStateProto): Boolean =
+            !currentData.legacyMigrated
+
+        override suspend fun migrate(currentData: OnboardingStateProto): OnboardingStateProto =
+            currentData.toBuilder()
+                .setLegacyMigrated(true)
+                .build()
+
+        override suspend fun cleanUp() = Unit
+    }
+
+private fun resetDataStoreDelegate(fileClassName: String, delegateFieldName: String) {
+    val fileClass = Class.forName(fileClassName)
+    val delegateField = fileClass.getDeclaredField(delegateFieldName).apply { isAccessible = true }
+    val delegate = delegateField.get(null)
+    val instanceField = delegate.javaClass.getDeclaredField("INSTANCE").apply { isAccessible = true }
+    instanceField.set(delegate, null)
+}
 
 /** Default DataStore-backed implementation. */
 class DefaultOnboardingRepository(
@@ -88,29 +138,8 @@ class DefaultOnboardingRepository(
     override suspend fun ensureInitialized() {
         withContext(io) {
             android.util.Log.d("Startup", "ensureInitialized: Starting migration check")
-            ensureMigrated()
+            context.onboardingDataStore.data.first()
             android.util.Log.d("Startup", "ensureInitialized: Migration check done")
-        }
-    }
-
-    private suspend fun ensureMigrated() {
-        context.onboardingDataStore.updateData { current ->
-            if (current.legacyMigrated) return@updateData current
-
-            // One-time import from legacy SharedPreferences
-            // Note: We do this inside updateData to ensure atomicity,
-            // but we need to be careful about blocking.
-            // SharedPreferences I/O is disk I/O, but updateData blocks the DataStore writer.
-            // This is acceptable for a one-time migration.
-            val prefs = context.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
-            val legacyCompleted = prefs.getBoolean("completed", false)
-            val legacyTime = prefs.getLong("completed_time", 0L)
-
-            current.toBuilder()
-                .setCompleted(legacyCompleted)
-                .setCompletedTime(legacyTime)
-                .setLegacyMigrated(true)
-                .build()
         }
     }
 }

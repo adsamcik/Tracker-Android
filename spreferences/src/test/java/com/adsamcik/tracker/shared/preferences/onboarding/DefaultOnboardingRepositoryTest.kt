@@ -15,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -29,11 +30,12 @@ class DefaultOnboardingRepositoryTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        // Use a unique file name or cleanup data store if possible, 
-        // but for simple robolectric run, context isolation usually suffices per test method 
-        // if not reusing the same app instance or if we mock the file setup.
-        // However, DataStore is tricky with singletons. 
-        // Given the constraints, we'll instantiate it directly.
+        context.getSharedPreferences("onboarding", Context.MODE_PRIVATE).edit().clear().commit()
+        val dsDir = context.filesDir.resolve("datastore")
+        if (dsDir.exists()) {
+            dsDir.listFiles()?.forEach { file -> file.delete() }
+        }
+        resetOnboardingForTests()
         repository = DefaultOnboardingRepository(context, testDispatcher)
     }
 
@@ -72,5 +74,9 @@ class DefaultOnboardingRepositoryTest {
         
         val state = repository.state.first()
         assertTrue("State should reflect migrated completion", state.completed)
+        assertFalse("Legacy onboarding prefs file should be deleted after migration", onboardingPrefsFile().exists())
     }
+
+    private fun onboardingPrefsFile(): File =
+        File(File(context.applicationInfo.dataDir, "shared_prefs"), "onboarding.xml")
 }

@@ -10,11 +10,13 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -36,7 +38,7 @@ class DefaultTrackerSettingsRepositoryTest {
         // Also clear the in-memory DataStore cache (file deletion alone is insufficient because the
         // delegated DataStore instance is retained across tests). Using runBlocking since @Before
         // cannot be suspend.
-        kotlinx.coroutines.runBlocking { resetTrackerSettingsForTests(context) }
+        resetTrackerSettingsForTests()
     }
 
     private class FakeKeys : TrackerSettingsKeyProvider {
@@ -75,6 +77,7 @@ class DefaultTrackerSettingsRepositoryTest {
         assertEquals(true, value.autoUnitSwitch)
         assertEquals(com.adsamcik.tracker.shared.preferences.type.LengthSystem.Imperial, value.lengthSystem)
         assertEquals(com.adsamcik.tracker.shared.preferences.type.SpeedFormat.Minute, value.speedFormat)
+        assertFalse("Migrated default SharedPreferences file should be deleted when empty", defaultSharedPreferencesFile().exists())
     }
 
     @Test
@@ -100,7 +103,7 @@ class DefaultTrackerSettingsRepositoryTest {
 
         val repo = DefaultTrackerSettingsRepository(context, Dispatchers.IO, FakeKeys())
 
-        // Act: launch many concurrent reads that all trigger ensureMigrated via onStart
+        // Act: launch many concurrent reads that all trigger DataStore initialization and migration
         val results = (1..20).map {
             async(Dispatchers.IO) { repo.data.first() }
         }.awaitAll()
@@ -118,4 +121,7 @@ class DefaultTrackerSettingsRepositoryTest {
             )
         }
     }
+
+    private fun defaultSharedPreferencesFile(): File =
+        File(File(context.applicationInfo.dataDir, "shared_prefs"), "${context.packageName}_preferences.xml")
 }

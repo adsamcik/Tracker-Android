@@ -1,17 +1,17 @@
 package com.adsamcik.tracker.shared.preferences.settings
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
+import androidx.datastore.migrations.SharedPreferencesMigration
 import com.adsamcik.tracker.shared.preferences.R
 import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -41,7 +41,13 @@ private object TrackerSettingsSerializer : Serializer<TrackerSettingsProto> {
 
 private val Context.trackerSettingsDataStore: DataStore<TrackerSettingsProto> by dataStore(
     fileName = "tracker_settings.pb",
-    serializer = TrackerSettingsSerializer
+    serializer = TrackerSettingsSerializer,
+    produceMigrations = { context ->
+        listOf(
+            trackerSettingsSharedPreferencesMigration(context),
+            trackerSettingsLegacyMarkerMigration(context)
+        )
+    }
 )
 
 // Visible for testing: provides a deterministic way to clear in-memory DataStore cache between tests
@@ -49,8 +55,11 @@ private val Context.trackerSettingsDataStore: DataStore<TrackerSettingsProto> by
 // test method executions. Robolectric keeps the same application Context instance; the DataStore
 // delegate caches the instance in memory, meaning simply deleting the backing file is insufficient.
 // Contract: Only invoke from test sources. Safe no-op in production code paths.
-internal suspend fun resetTrackerSettingsForTests(context: Context) {
-    context.trackerSettingsDataStore.updateData { TrackerSettingsProto.getDefaultInstance() }
+internal fun resetTrackerSettingsForTests() {
+    resetDataStoreDelegate(
+        fileClassName = "com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepositoryKt",
+        delegateFieldName = "trackerSettingsDataStore\$delegate"
+    )
 }
 
 interface TrackerSettingsKeyProvider {
@@ -77,6 +86,59 @@ private class ResourceTrackerSettingsKeyProvider(private val context: Context) :
         get() = context.getString(R.string.settings_speed_format_default)
 }
 
+private fun defaultSharedPreferencesName(context: Context): String = "${context.packageName}_preferences"
+
+private fun trackerSettingsSharedPreferencesMigration(context: Context): DataMigration<TrackerSettingsProto> {
+    val keys = ResourceTrackerSettingsKeyProvider(context)
+    return SharedPreferencesMigration(
+        context = context,
+        sharedPreferencesName = defaultSharedPreferencesName(context),
+        keysToMigrate = setOf(
+            keys.autoUnitSwitchKey,
+            keys.lengthSystemKey,
+            keys.speedFormatKey
+        ),
+        shouldRunMigration = { current -> !current.legacyMigrated }
+    ) { prefs, current ->
+        val auto = prefs.getBoolean(keys.autoUnitSwitchKey, keys.autoUnitSwitchDefault)
+        val lengthStr = prefs.getString(keys.lengthSystemKey, keys.lengthSystemDefault) ?: keys.lengthSystemDefault
+        val speedStr = prefs.getString(keys.speedFormatKey, keys.speedFormatDefault) ?: keys.speedFormatDefault
+
+        current.toBuilder()
+            .setAutoUnitSwitch(auto)
+            .setLengthSystem(lengthStr.toLengthSystemProto())
+            .setSpeedFormat(speedStr.toSpeedFormatProto())
+            .setLegacyMigrated(true)
+            .build()
+    }
+}
+
+private fun trackerSettingsLegacyMarkerMigration(context: Context): DataMigration<TrackerSettingsProto> =
+    object : DataMigration<TrackerSettingsProto> {
+        private val defaults = ResourceTrackerSettingsKeyProvider(context)
+
+        override suspend fun shouldMigrate(currentData: TrackerSettingsProto): Boolean =
+            !currentData.legacyMigrated
+
+        override suspend fun migrate(currentData: TrackerSettingsProto): TrackerSettingsProto =
+            currentData.toBuilder()
+                .setAutoUnitSwitch(defaults.autoUnitSwitchDefault)
+                .setLengthSystem(defaults.lengthSystemDefault.toLengthSystemProto())
+                .setSpeedFormat(defaults.speedFormatDefault.toSpeedFormatProto())
+                .setLegacyMigrated(true)
+                .build()
+
+        override suspend fun cleanUp() = Unit
+    }
+
+private fun resetDataStoreDelegate(fileClassName: String, delegateFieldName: String) {
+    val fileClass = Class.forName(fileClassName)
+    val delegateField = fileClass.getDeclaredField(delegateFieldName).apply { isAccessible = true }
+    val delegate = delegateField.get(null)
+    val instanceField = delegate.javaClass.getDeclaredField("INSTANCE").apply { isAccessible = true }
+    instanceField.set(delegate, null)
+}
+
 class DefaultTrackerSettingsRepository(
     private val context: Context,
     private val io: CoroutineDispatcher,
@@ -92,7 +154,6 @@ class DefaultTrackerSettingsRepository(
     }
 
     override val data: Flow<TrackerSettingsState> = context.trackerSettingsDataStore.data
-        .onStart { ensureMigrated() }
         .map { proto ->
             TrackerSettingsState(
                 autoUnitSwitch = proto.autoUnitSwitch,
@@ -101,40 +162,10 @@ class DefaultTrackerSettingsRepository(
             )
         }
 
-    private suspend fun ensureMigrated() {
-        context.trackerSettingsDataStore.updateData { current ->
-            if (current.legacyMigrated) return@updateData current
-            val migrated = migrateFromLegacy(current)
-            log("SET-MIGRATION: imported legacy SharedPreferences → DataStore (auto=${migrated.autoUnitSwitch} length=${migrated.lengthSystem.name} speed=${migrated.speedFormat.name})")
-            migrated
-        }
-    }
-
-    private fun legacyPrefs(): SharedPreferences {
-        return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
-    }
-
-    // One-time import of legacy SharedPreferences value.
-    private fun migrateFromLegacy(current: TrackerSettingsProto): TrackerSettingsProto {
-        if (current.legacyMigrated) return current
-        val prefs = legacyPrefs()
-        val auto = prefs.getBoolean(keys.autoUnitSwitchKey, keys.autoUnitSwitchDefault)
-        val lengthStr = prefs.getString(keys.lengthSystemKey, keys.lengthSystemDefault) ?: keys.lengthSystemDefault
-        val speedStr = prefs.getString(keys.speedFormatKey, keys.speedFormatDefault) ?: keys.speedFormatDefault
-        val lengthProto = lengthStr.toLengthSystemProto()
-        val speedProto = speedStr.toSpeedFormatProto()
-        return current.toBuilder()
-            .setAutoUnitSwitch(auto)
-            .setLengthSystem(lengthProto)
-            .setSpeedFormat(speedProto)
-            .setLegacyMigrated(true)
-            .build()
-    }
-
     override suspend fun setAutoUnitSwitch(enabled: Boolean) {
         withContext(io) {
-            ensureMigrated()
-            val updated = context.trackerSettingsDataStore.data.first().toBuilder()
+            val current = context.trackerSettingsDataStore.data.first()
+            val updated = current.toBuilder()
                 .setAutoUnitSwitch(enabled)
                 .build()
             context.trackerSettingsDataStore.updateData { updated }
@@ -143,8 +174,8 @@ class DefaultTrackerSettingsRepository(
 
     override suspend fun setLengthSystem(system: com.adsamcik.tracker.shared.preferences.type.LengthSystem) {
         withContext(io) {
-            ensureMigrated()
-            val updated = context.trackerSettingsDataStore.data.first().toBuilder()
+            val current = context.trackerSettingsDataStore.data.first()
+            val updated = current.toBuilder()
                 .setLengthSystem(system.toProto())
                 .build()
             context.trackerSettingsDataStore.updateData { updated }
@@ -153,8 +184,8 @@ class DefaultTrackerSettingsRepository(
 
     override suspend fun setSpeedFormat(format: com.adsamcik.tracker.shared.preferences.type.SpeedFormat) {
         withContext(io) {
-            ensureMigrated()
-            val updated = context.trackerSettingsDataStore.data.first().toBuilder()
+            val current = context.trackerSettingsDataStore.data.first()
+            val updated = current.toBuilder()
                 .setSpeedFormat(format.toProto())
                 .build()
             context.trackerSettingsDataStore.updateData { updated }
