@@ -2,13 +2,12 @@ package com.adsamcik.tracker.maintenance
 
 import android.content.Context
 import androidx.hilt.work.HiltWorker
+import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.Worker
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.utils.extension.tryWithReport
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.util.concurrent.TimeUnit
@@ -17,21 +16,11 @@ import java.util.concurrent.TimeUnit
 class DatabaseMaintenanceWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
-    private val appDatabase: AppDatabase,
-) : Worker(context, workerParams) {
+    private val sessionSegmentDao: SessionSegmentDao,
+) : CoroutineWorker(context, workerParams) {
 
-    override fun doWork(): Result {
-        tryWithReport {
-            val clearInvalidSessions = appDatabase.compileStatement(
-                "DELETE FROM tracker_session WHERE start >= `end` OR (collections <= 1 AND steps <= 10)"
-            )
-            clearInvalidSessions.executeUpdateDelete()
-
-            val clearEmptySegments = appDatabase.compileStatement(
-                "DELETE FROM session_segment WHERE sample_count = 0"
-            )
-            clearEmptySegments.executeUpdateDelete()
-        }
+    override suspend fun doWork(): Result {
+        sessionSegmentDao.deleteEmpty()
         return Result.success()
     }
 

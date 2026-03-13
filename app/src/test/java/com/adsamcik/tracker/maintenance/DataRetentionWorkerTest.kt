@@ -13,6 +13,10 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +36,10 @@ class DataRetentionWorkerTest {
     private lateinit var context: Context
     private lateinit var retentionStore: RetentionConfigStore
     private val mockDatabase: AppDatabase = mockk(relaxed = true)
+    private val locationSampleDao: LocationSampleDao = mockk(relaxed = true)
+    private val wifiObservationDao: WifiObservationDao = mockk(relaxed = true)
+    private val cellSampleDao: CellSampleDao = mockk(relaxed = true)
+    private val sessionSegmentDao: SessionSegmentDao = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -57,7 +65,16 @@ class DataRetentionWorkerTest {
                 workerClassName: String,
                 workerParameters: WorkerParameters
             ): ListenableWorker {
-                return DataRetentionWorker(appContext, workerParameters, retentionStore, mockDatabase)
+                return DataRetentionWorker(
+                    appContext,
+                    workerParameters,
+                    retentionStore,
+                    mockDatabase,
+                    locationSampleDao,
+                    wifiObservationDao,
+                    cellSampleDao,
+                    sessionSegmentDao,
+                )
             }
         }
 

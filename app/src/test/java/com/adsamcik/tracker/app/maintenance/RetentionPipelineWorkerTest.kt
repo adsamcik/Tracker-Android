@@ -112,42 +112,6 @@ class RetentionPipelineWorkerTest {
 	}
 
 	@Nested
-	inner class LegacyTableColumnMapping {
-		private val expectedMapping = listOf(
-			"tracker_session" to "start",
-			"location_data" to "time",
-			"wifi_data" to "last_seen",
-			"cell_location" to "time",
-		)
-
-		@Test
-		fun trackerSessionUsesStartColumn() {
-			val (_, column) = expectedMapping.first { it.first == "tracker_session" }
-			assertEquals("start", column)
-		}
-
-		@Test
-		fun wifiDataUsesLastSeenColumn() {
-			val (_, column) = expectedMapping.first { it.first == "wifi_data" }
-			assertEquals("last_seen", column)
-		}
-
-		@Test
-		fun allFourLegacyTablesAreMapped() {
-			assertEquals(4, expectedMapping.size)
-		}
-
-		@Test
-		fun sqlDeleteUsesCorrectColumnPerTable() {
-			for ((table, column) in expectedMapping) {
-				val sql = "DELETE FROM $table WHERE $column < 12345"
-				assertTrue(sql.contains(table))
-				assertTrue(sql.contains(column))
-			}
-		}
-	}
-
-	@Nested
 	inner class ExportBeforePurgeGuard {
 		@Test
 		fun exportBeforePurgeDefaultsToFalse() {

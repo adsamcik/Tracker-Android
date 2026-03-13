@@ -12,6 +12,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.logger.Reporter
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.utils.extension.tryWithReport
 import dagger.assisted.Assisted
@@ -34,6 +38,10 @@ class DataRetentionWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters,
     private val retentionConfigStore: RetentionConfigStore,
     private val appDatabase: AppDatabase,
+    private val locationSampleDao: LocationSampleDao,
+    private val wifiObservationDao: WifiObservationDao,
+    private val cellSampleDao: CellSampleDao,
+    private val sessionSegmentDao: SessionSegmentDao,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -45,14 +53,14 @@ class DataRetentionWorker @AssistedInject constructor(
         val years = config.dataRetentionYears
         val cutoff = System.currentTimeMillis() - yearsToMillis(years)
         tryWithReport {
-            pruneOlderThan(appDatabase, cutoff)
+            pruneOlderThan(cutoff)
         }
         return Result.success()
     }
 
     companion object {
         private const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_WEEKLY"
-    private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
+        private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
 
         /**
          * Initialize observation of the auto-cleanup setting and sync schedule.
@@ -96,37 +104,23 @@ class DataRetentionWorker @AssistedInject constructor(
         }
 
         @WorkerThread
-        private suspend fun pruneOlderThan(db: AppDatabase, cutoffMillis: Long) {
-            db.withTransaction {
-                // Locations
-                db.compileStatement("DELETE FROM location_data WHERE time < ?")
-                    .apply { bindLong(1, cutoffMillis); executeUpdateDelete() }
-
-                // Wi-Fi networks by last seen
-                db.compileStatement("DELETE FROM wifi_data WHERE last_seen < ?")
-                    .apply { bindLong(1, cutoffMillis); executeUpdateDelete() }
-
-                // Cell locations
-                db.compileStatement("DELETE FROM cell_location WHERE time < ?")
-                    .apply { bindLong(1, cutoffMillis); executeUpdateDelete() }
-
-                // Aggregated Wi-Fi count locations
-                db.compileStatement("DELETE FROM location_wifi_count WHERE time < ?")
-                    .apply { bindLong(1, cutoffMillis); executeUpdateDelete() }
-
-                // Sessions that fully ended before cutoff
-                db.compileStatement("DELETE FROM tracker_session WHERE `end` < ?")
-                    .apply { bindLong(1, cutoffMillis); executeUpdateDelete() }
-            }
-        }
-
-    private fun yearsToMillis(years: Int): Long = years * ONE_YEAR_MILLIS
+        private fun yearsToMillis(years: Int): Long = years * ONE_YEAR_MILLIS
 
         /** Visible for tests to validate cutoff calculation for different retention values. */
         @JvmStatic
         @VisibleForTesting
         fun computeCutoffMillis(years: Int, nowMillis: Long = System.currentTimeMillis()): Long {
             return nowMillis - yearsToMillis(years)
+        }
+    }
+
+    @WorkerThread
+    private suspend fun pruneOlderThan(cutoffMillis: Long) {
+        appDatabase.withTransaction {
+            locationSampleDao.deleteOlderThan(cutoffMillis)
+            wifiObservationDao.deleteOlderThan(cutoffMillis)
+            cellSampleDao.deleteOlderThan(cutoffMillis)
+            sessionSegmentDao.deleteOlderThan(cutoffMillis)
         }
     }
 }

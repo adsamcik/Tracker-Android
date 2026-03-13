@@ -45,7 +45,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
             purgeTripData(appDatabase, config, now)
             purgeDailySummaries(appDatabase, config, now)
             purgeExplorationData(appDatabase, config, now)
-            purgeLegacySessions(appDatabase, config, now)
 
             Result.success()
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -95,24 +94,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
         db.personalRecordDao().deleteOlderThan(cutoff)
     }
 
-    private fun purgeLegacySessions(db: AppDatabase, config: RetentionConfigState, now: Long) {
-        if (config.legacySessionRetentionDays == 0) return
-        val cutoff = now - config.legacySessionRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
-        val sqLiteDb = db.openHelper.writableDatabase
-        for ((table, column) in LEGACY_TABLE_COLUMNS) {
-            sqLiteDb.execSQL("DELETE FROM $table WHERE $column < ?", arrayOf(cutoff))
-        }
-    }
-
     companion object {
         private const val WORK_NAME = "retention_pipeline"
-
-        private val LEGACY_TABLE_COLUMNS = listOf(
-            "tracker_session" to "start",
-            "location_data" to "time",
-            "wifi_data" to "last_seen",
-            "cell_location" to "time",
-        )
 
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<RetentionPipelineWorker>(

@@ -67,6 +67,12 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 
 	/**
+	 * Delete empty session segments created without any samples.
+	 */
+	@Query("DELETE FROM session_segment WHERE sample_count = 0")
+	suspend fun deleteEmpty(): Int
+
+	/**
 	 * Count total session segments.
 	 */
 	@Query("SELECT COUNT(*) FROM session_segment")
