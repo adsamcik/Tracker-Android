@@ -11,7 +11,7 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkObject
+import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
 import io.mockk.spyk
 import io.mockk.unmockkAll
@@ -62,7 +62,6 @@ class OnAppUpdateReceiverTest {
 	inner class AppUpdate {
 
 		private val mockMutable = mockk<MutablePreferences>(relaxed = true)
-		private val mockPrefs = mockk<Preferences>(relaxed = true)
 		private val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
 		private val context = mockk<Context>(relaxed = true)
 		private val receiver = spyk(OnAppUpdateReceiver())
@@ -72,9 +71,8 @@ class OnAppUpdateReceiverTest {
 			every { receiver.goAsync() } returns pendingResult
 			every { context.getString(any<Int>()) } returns "key_last_app_version"
 
-			mockkObject(Preferences)
-			every { Preferences.getPref(any()) } returns mockPrefs
-			every { mockPrefs.edit(any()) } answers {
+			mockkConstructor(Preferences::class)
+			every { anyConstructed<Preferences>().edit(any()) } answers {
 				firstArg<MutablePreferences.() -> Unit>().invoke(mockMutable)
 			}
 
@@ -88,7 +86,7 @@ class OnAppUpdateReceiverTest {
 
 		@Test
 		fun `removes goal preferences when upgrading from pre-359`() {
-			coEvery { mockPrefs.fetchLong(any(), any()) } returns 100L
+			coEvery { anyConstructed<Preferences>().fetchLong(any(), any()) } returns 100L
 
 			receiver.onReceive(context, updateIntent())
 
@@ -98,7 +96,7 @@ class OnAppUpdateReceiverTest {
 
 		@Test
 		fun `skips goal removal when upgrading from 359 or later`() {
-			coEvery { mockPrefs.fetchLong(any(), any()) } returns 359L
+			coEvery { anyConstructed<Preferences>().fetchLong(any(), any()) } returns 359L
 
 			receiver.onReceive(context, updateIntent())
 
@@ -110,7 +108,7 @@ class OnAppUpdateReceiverTest {
 
 		@Test
 		fun `updates stored version after handling`() {
-			coEvery { mockPrefs.fetchLong(any(), any()) } returns 400L
+			coEvery { anyConstructed<Preferences>().fetchLong(any(), any()) } returns 400L
 
 			receiver.onReceive(context, updateIntent())
 
@@ -121,7 +119,7 @@ class OnAppUpdateReceiverTest {
 
 		@Test
 		fun `finishes pending result after processing`() {
-			coEvery { mockPrefs.fetchLong(any(), any()) } returns 100L
+			coEvery { anyConstructed<Preferences>().fetchLong(any(), any()) } returns 100L
 
 			receiver.onReceive(context, updateIntent())
 

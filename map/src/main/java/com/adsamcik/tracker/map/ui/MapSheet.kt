@@ -695,7 +695,7 @@ fun MapSheet(
     }
 
     // First-visit onboarding tip
-    val mapPrefs = remember { com.adsamcik.tracker.shared.preferences.Preferences.getPref(context) }
+    val mapPrefs = remember { com.adsamcik.tracker.shared.preferences.Preferences(context) }
     val tipShown = remember { mapPrefs.getBoolean("map_tips_shown_v2", false) }
     if (!tipShown) {
         LaunchedEffect(Unit) {

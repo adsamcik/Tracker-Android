@@ -179,7 +179,7 @@ internal class SessionTrackerComponent(
 	}
 
 	override suspend fun onEnable(context: Context) {
-		val prefs = Preferences.getPref(context)
+		val prefs = Preferences(context)
 		minDistanceInMeters = prefs.fetchIntRes(
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_min_distance_key,
 			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_min_distance_default

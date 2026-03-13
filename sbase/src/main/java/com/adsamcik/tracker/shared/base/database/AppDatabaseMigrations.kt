@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
+ * │ 25         │ 385         │ 🚧 UNRELEASED - Durable signal WAL       │
+ * │            │             │    (pending_signal)                      │
  * │ 21         │ 385         │ 🚧 UNRELEASED - Drop legacy tables       │
  * │            │             │    (tracker_session, location_data,      │
  * │            │             │    wifi_data, cell_location,             │
@@ -978,6 +980,33 @@ val MIGRATION_23_24: Migration = object : Migration(23, 24) {
 			android.util.Log.i(
 				"AppDatabase",
 				"Migration 23->24: Added notified_at column to achievement_progress"
+			)
+		}
+	}
+}
+
+val MIGRATION_24_25: Migration = object : Migration(24, 25) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS pending_signal (
+					id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+					session_id INTEGER NOT NULL,
+					signal_json TEXT NOT NULL,
+					created_at INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE INDEX IF NOT EXISTS idx_pending_signal_session_time
+				ON pending_signal (session_id, created_at)
+				""".trimIndent(),
+			)
+			android.util.Log.i(
+				"AppDatabase",
+				"Migration 24->25: Created pending_signal WAL table",
 			)
 		}
 	}

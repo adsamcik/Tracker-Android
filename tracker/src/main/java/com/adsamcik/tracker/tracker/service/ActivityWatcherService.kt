@@ -66,7 +66,7 @@ class ActivityWatcherService : CoreService() {
 		notificationManager = (this as Context).notificationManager
 
 		BackgroundTrackingApi.initialize(this)
-		poke(this)
+		activityWatcherController.poke()
 
 		// M2 fix: Replace java.util.Timer with coroutine-based polling
 		pollingJob = launch {
@@ -132,53 +132,5 @@ class ActivityWatcherService : CoreService() {
 	companion object {
 		private const val TAG = "ActivityWatcherService"
 		private const val NOTIFICATION_ID = -568465
-
-		/**
-		 * Called when watcher preference is changed.
-		 */
-		fun onWatcherPreferenceChange(context: Context, value: Boolean) {
-			poke(context, watcherPreference = value)
-		}
-
-		/**
-		 * Called when auto tracking preference is changed.
-		 */
-		fun onAutoTrackingPreferenceChange(context: Context, value: Int) {
-			poke(context, autoTracking = value)
-		}
-
-		/**
-		 * Called when activity interval preference is changed.
-		 */
-		fun onActivityIntervalPreferenceChange(context: Context, value: Int) {
-			poke(context, updateInterval = value)
-		}
-
-		/**
-		 * Static bridge for non-Hilt callers (BroadcastReceivers, Activities without
-		 * @AndroidEntryPoint, etc.).  Resolves [ActivityWatcherServiceController] via
-		 * EntryPointAccessors and delegates to it with the same parameter semantics.
-		 *
-		 * Hilt-injected callers should inject [ActivityWatcherServiceController] directly.
-		 */
-		@Synchronized
-		@Suppress("LongParameterList")
-		fun poke(
-			context: Context,
-			watcherPreference: Boolean = BackgroundTrackingApi.activityWatcherEnabled,
-			updateInterval: Int = BackgroundTrackingApi.activityFreqSeconds,
-			autoTracking: Int = BackgroundTrackingApi.cachedParams.autoTrackingMode,
-			trackerLocked: Boolean = dagger.hilt.android.EntryPointAccessors
-				.fromApplication(context.applicationContext, ActivityWatcherEntryPoint::class.java)
-				.lockManager().isLocked,
-			trackerRunning: Boolean = dagger.hilt.android.EntryPointAccessors
-				.fromApplication(context.applicationContext, ActivityWatcherEntryPoint::class.java)
-				.trackerServiceController().isServiceRunning
-		) {
-			val controller = dagger.hilt.android.EntryPointAccessors
-				.fromApplication(context.applicationContext, ActivityWatcherControllerEntryPoint::class.java)
-				.activityWatcherServiceController()
-			controller.poke(watcherPreference, updateInterval, autoTracking, trackerLocked, trackerRunning)
-		}
 	}
 }

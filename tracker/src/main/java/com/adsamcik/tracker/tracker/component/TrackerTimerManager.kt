@@ -75,8 +75,7 @@ object TrackerTimerManager {
 	 * @return Selected timer key or default
 	 */
 	suspend fun getSelectedKey(context: Context): String {
-		return Preferences
-			.getPref(context)
+		return Preferences(context)
 			.fetchStringRes(com.adsamcik.tracker.shared.preferences.R.string.settings_tracker_timer_key)
 			?: getKey(default)
 	}

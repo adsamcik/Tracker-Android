@@ -3,33 +3,16 @@ package com.adsamcik.tracker.shared.preferences
 import android.content.Context
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PreferencesAssistTest {
 
-	private val context: Context = mockk(relaxed = true)
 	private val mockPreferences: Preferences = mockk()
-
-	@BeforeEach
-	fun setUp() {
-		mockkObject(Preferences.Companion)
-		every { Preferences.getPref(any()) } returns mockPreferences
-	}
-
-	@AfterEach
-	fun tearDown() {
-		unmockkObject(Preferences.Companion)
-	}
 
 	private fun stubTrackingFlags(
 		location: Boolean = false,
@@ -77,31 +60,31 @@ class PreferencesAssistTest {
 				wifiCount = false,
 				wifiNetwork = false,
 			)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe false
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe false
 		}
 
 		@Test
 		fun `returns true when only location enabled`() = runTest {
 			stubTrackingFlags(location = true)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe true
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe true
 		}
 
 		@Test
 		fun `returns true when only cell enabled`() = runTest {
 			stubTrackingFlags(cell = true)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe true
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe true
 		}
 
 		@Test
 		fun `returns true when only wifi count enabled`() = runTest {
 			stubTrackingFlags(wifiCount = true)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe true
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe true
 		}
 
 		@Test
 		fun `returns true when only wifi network enabled`() = runTest {
 			stubTrackingFlags(wifiNetwork = true)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe true
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe true
 		}
 
 		@Test
@@ -112,19 +95,19 @@ class PreferencesAssistTest {
 				wifiCount = true,
 				wifiNetwork = true,
 			)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe true
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe true
 		}
 
 		@Test
 		fun `returns true when location and cell enabled`() = runTest {
 			stubTrackingFlags(location = true, cell = true)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe true
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe true
 		}
 
 		@Test
 		fun `returns true when both wifi flags enabled`() = runTest {
 			stubTrackingFlags(wifiCount = true, wifiNetwork = true)
-			PreferencesAssist.hasAnythingToTrackAsync(context) shouldBe true
+			PreferencesAssist.hasAnythingToTrackAsync(mockPreferences) shouldBe true
 		}
 	}
 

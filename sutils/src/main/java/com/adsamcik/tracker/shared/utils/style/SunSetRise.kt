@@ -117,7 +117,7 @@ class SunSetRise {
 
         requestLocationUpdates(appContext)
 
-        val preferences = Preferences.getPref(appContext)
+        val preferences = Preferences(appContext)
         val lastLatitude = preferences.getDouble(LAST_LATITUDE_KEY, Double.NaN)
         val lastLongitude = preferences.getDouble(LAST_LONGITUDE_KEY, Double.NaN)
 
@@ -162,7 +162,7 @@ class SunSetRise {
             }
 
             if (distance > MIN_DIFFERENCE_IN_KILOMETERS) {
-                Preferences.getPref(context).edit {
+                Preferences(context).edit {
                     setDouble(LAST_LATITUDE_KEY, loc.latitude)
                     setDouble(LAST_LONGITUDE_KEY, loc.longitude)
                 }

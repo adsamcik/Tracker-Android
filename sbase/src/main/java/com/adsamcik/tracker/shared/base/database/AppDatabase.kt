@@ -46,6 +46,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
@@ -53,6 +54,7 @@ import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
+import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.PersonalRecordEntity
 import com.adsamcik.tracker.shared.base.database.data.RouteCacheEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
@@ -67,11 +69,11 @@ import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 24 (App versionCode: 385 - UNRELEASED)
+ * CURRENT VERSION: 25 (App versionCode: 385 - UNRELEASED)
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 24,
+		version = 25,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -105,6 +107,8 @@ import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
 			// Ski detection entities (Phase 7)
 			PressureSample::class,
 			SkiRunSegment::class,
+			// Durable write-ahead log for tracking signals
+			PendingSignalEntity::class,
 		]
 )
 @TypeConverters(
@@ -261,6 +265,13 @@ abstract class AppDatabase : RoomDatabase() {
 	 */
 	abstract fun skiRunSegmentDao(): SkiRunSegmentDao
 
+	// Durable signal buffer DAO
+
+	/**
+	 * Provides access to the pending signal write-ahead log.
+	 */
+	abstract fun pendingSignalDao(): PendingSignalDao
+
 	companion object : ObjectBaseDatabase<AppDatabase>(AppDatabase::class.java) {
 		override val databaseName: String = "main_database"
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -286,7 +297,8 @@ abstract class AppDatabase : RoomDatabase() {
 				MIGRATION_20_21,
 				MIGRATION_21_22,
 				MIGRATION_22_23,
-				MIGRATION_23_24
+				MIGRATION_23_24,
+				MIGRATION_24_25
 				)
 		}
 
@@ -329,6 +341,9 @@ abstract class AppDatabase : RoomDatabase() {
 				// Ski detection tables
 				database.pressureSampleDao().deleteAll()
 				database.skiRunSegmentDao().deleteAll()
+
+				// Pending signal WAL
+				database.pendingSignalDao().deleteAll()
 			}
 		}
 	}

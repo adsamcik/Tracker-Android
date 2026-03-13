@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.preferences.R as PrefR
 class PrecisionUpgradeDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	@ApplicationContext private val context: Context,
+	private val preferences: Preferences,
 ) {
 	/** Process any unconsumed events for the precision-upgrade module. */
 	suspend fun processUnconsumed() {
@@ -56,7 +57,7 @@ class PrecisionUpgradeDomainEventConsumer @Inject constructor(
 			),
 		)
 
-		val prefs = Preferences.getPref(context)
+		val prefs = preferences
 
 		// Check if user already dismissed the prompt
 		val dismissedKey = context.getString(PrefR.string.settings_precision_upgrade_dismissed_key)

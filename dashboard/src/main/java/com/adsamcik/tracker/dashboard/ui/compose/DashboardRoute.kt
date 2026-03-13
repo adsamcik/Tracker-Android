@@ -272,7 +272,7 @@ private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
 }
 
 private fun hasAnyTrackingOptionEnabled(context: Context): Boolean {
-	val preferences = Preferences.getPref(context)
+	val preferences = Preferences(context)
 	return preferences.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default) ||
 		preferences.getBooleanRes(PrefR.string.settings_steps_enabled_key, PrefR.string.settings_steps_enabled_default) ||
 		preferences.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default) ||

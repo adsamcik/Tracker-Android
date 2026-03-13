@@ -24,7 +24,7 @@ import com.adsamcik.tracker.shared.preferences.R as PrefR
 @Composable
 internal fun PrecisionUpgradeOverlay() {
     val context = LocalContext.current
-    val prefs = remember { Preferences.getPref(context) }
+    val prefs = remember { Preferences(context) }
 
     var shouldShowUpgradePrompt by remember {
         mutableStateOf(

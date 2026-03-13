@@ -104,7 +104,7 @@ fun MainRoot(
     
     // Phase 2: Precision upgrade prompt state
     val context = LocalContext.current
-    val prefs = remember { Preferences.getPref(context) }
+    val prefs = remember { Preferences(context) }
     
     var shouldShowUpgradePrompt by remember {
         mutableStateOf(

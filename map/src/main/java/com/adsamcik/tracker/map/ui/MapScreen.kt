@@ -140,7 +140,7 @@ fun MapScreen(
     // PMTiles requires random-access I/O, so the bundled asset must be
     // extracted to the filesystem before MapLibre can read it.
     val basemapManager = remember { BasemapManager(context) }
-    val prefs = remember { Preferences.getPref(context) }
+    val prefs = remember { Preferences(context) }
     val basemapPathKey = remember {
         context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
     }

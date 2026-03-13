@@ -36,16 +36,16 @@ class PreferencesSingletonTest {
 	}
 
 	@Test
-	fun `getPref returns a Preferences instance`() {
-		val pref = Preferences.getPref(mockContext)
+	fun `constructor returns a Preferences instance`() {
+		val pref = Preferences(mockContext)
 		pref.shouldBeInstanceOf<Preferences>()
 	}
 
 	@Test
-	fun `getPref returns a new instance on each call`() {
-		val first = Preferences.getPref(mockContext)
-		val second = Preferences.getPref(mockContext)
-		// Each call now produces a fresh lightweight wrapper; callers must not rely on identity
+	fun `constructor returns a new instance on each call`() {
+		val first = Preferences(mockContext)
+		val second = Preferences(mockContext)
+		// Each call produces a fresh lightweight wrapper; callers must not rely on identity
 		first shouldNotBe second
 	}
 }

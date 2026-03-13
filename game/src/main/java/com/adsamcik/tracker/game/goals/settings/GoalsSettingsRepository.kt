@@ -80,7 +80,7 @@ class DefaultGoalsSettingsRepository(
 ) : GoalsSettingsRepository {
 
     private val prefs: Preferences
-        get() = Preferences.getPref(context)
+        get() = Preferences(context)
 
     private val notificationDefault by lazy {
         context.getString(R.string.settings_game_goals_notification_enabled_default).toBoolean()

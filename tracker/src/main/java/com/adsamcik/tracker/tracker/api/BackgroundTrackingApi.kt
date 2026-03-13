@@ -28,7 +28,8 @@ import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.R
-import com.adsamcik.tracker.tracker.service.ActivityWatcherService
+import com.adsamcik.tracker.tracker.service.ActivityWatcherControllerEntryPoint
+import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
@@ -229,7 +230,13 @@ object BackgroundTrackingApi {
 		}
 
 		ActivityRequestManager.requestActivity(context, requestData)
-		ActivityWatcherService.poke(context)
+		getWatcherController(context).poke()
+	}
+
+	private fun getWatcherController(context: Context): ActivityWatcherServiceController {
+		return EntryPointAccessors
+			.fromApplication(context.applicationContext, ActivityWatcherControllerEntryPoint::class.java)
+			.activityWatcherServiceController()
 	}
 
 	private fun enable(context: Context) {
@@ -242,7 +249,7 @@ object BackgroundTrackingApi {
 		assertTrue(isActive)
 
 		ActivityRequestManager.removeActivityRequest(context, this::class)
-		ActivityWatcherService.poke(context)
+		getWatcherController(context).poke()
 
 		isActive = false
 	}

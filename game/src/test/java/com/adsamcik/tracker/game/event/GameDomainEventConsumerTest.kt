@@ -29,7 +29,8 @@ class GameDomainEventConsumerTest {
 
 	private val domainEventRepository: DomainEventRepository = mockk(relaxed = true)
 	private val context: Context = mockk(relaxed = true)
-	private val consumer = GameDomainEventConsumer(domainEventRepository, context)
+	private val mockPreferences: Preferences = mockk(relaxed = true)
+	private val consumer = GameDomainEventConsumer(domainEventRepository, context, mockPreferences)
 
 	@AfterEach
 	fun tearDown() {
@@ -39,9 +40,6 @@ class GameDomainEventConsumerTest {
 	private fun stubSessionEndedInfrastructure() {
 		mockkObject(WorkManager)
 		every { WorkManager.getInstance(context) } returns mockk(relaxed = true)
-
-		mockkObject(Preferences)
-		every { Preferences.getPref(context) } returns mockk(relaxed = true)
 
 		mockkObject(Logger)
 		every { Logger.log(any()) } returns Unit

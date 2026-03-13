@@ -72,7 +72,7 @@ class RetentionConfigStore(
             dataStore.updateData { current ->
                 if (current.dataSettingsLegacyMigrated) return@updateData current
 
-                val prefs = Preferences.getPref(context)
+                val prefs = Preferences(context)
                 val autoCleanup = runCatching {
                     prefs.getBooleanSync("autoCleanupOldData", false)
                 }.getOrDefault(false)

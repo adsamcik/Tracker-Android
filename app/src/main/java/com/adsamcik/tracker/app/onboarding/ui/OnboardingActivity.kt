@@ -35,25 +35,33 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.onboarding.DefaultOnboardingRepository
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
-import com.adsamcik.tracker.tracker.service.ActivityWatcherService
-import com.adsamcik.tracker.shared.preferences.R as PrefR
-import com.adsamcik.tracker.app.activity.MainActivityCompose
+import com.adsamcik.tracker.maintenance.DataRetentionScheduler
+import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.R as BaseR
 import com.adsamcik.tracker.activity.R as ActivityR
 import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
-import com.adsamcik.tracker.maintenance.DataRetentionWorker
-import com.adsamcik.tracker.app.Application
+import com.adsamcik.tracker.shared.preferences.R as PrefR
+import com.adsamcik.tracker.app.activity.MainActivityCompose
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Coordinator activity for the new onboarding flow.
  * Replaces the old first-run dialog system with a modern Compose-based experience.
  */
 @OptIn(ExperimentalStdlibApi::class)
+@AndroidEntryPoint
 class OnboardingActivity : ComponentActivity() {
     private val dispatchers = DefaultDispatchersProvider
+
+    @Inject
+    lateinit var activityWatcherController: ActivityWatcherServiceController
+
+    @Inject
+    lateinit var dataRetentionScheduler: DataRetentionScheduler
     
     private val viewModel: OnboardingViewModel by viewModels()
     private lateinit var permissionManager: IOnboardingPermissionManager
@@ -253,7 +261,7 @@ class OnboardingActivity : ComponentActivity() {
     }
     
     private fun applyOnboardingPreferences(prefs: UserPreferences) {
-        val preferences = Preferences.getPref(this)
+        val preferences = Preferences(this)
         val hasPrimaryTrackingSource =
             prefs.enableLocationTracking || prefs.enableActivityTracking || prefs.enableStepsTracking
         val locationEnabled = prefs.enableLocationTracking || !hasPrimaryTrackingSource
@@ -305,15 +313,13 @@ class OnboardingActivity : ComponentActivity() {
         }
         preferences.edit { setInt(PrefR.string.settings_tracking_activity_key, autoTrackingValue) }
 
-        // Apply side-effects for auto tracking changes (use computed value, not re-read from prefs)
-        ActivityWatcherService.onAutoTrackingPreferenceChange(this, autoTrackingValue)
+        activityWatcherController.poke(autoTracking = autoTrackingValue)
         if (autoTrackingValue > 0) {
-            // Ensure watcher evaluates immediately
-            ActivityWatcherService.poke(this)
+            activityWatcherController.poke()
         }
 
     // Sync weekly data retention schedule with preference
-    DataRetentionWorker.initialize(this)
+    dataRetentionScheduler.initialize()
     }
 
     private fun markOnboardingCompleted() {

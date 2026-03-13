@@ -81,7 +81,7 @@ class DefaultMapSettingsRepository(
 
         // One-time import from legacy Preferences DataStore
         @Suppress("DEPRECATION")
-        val prefs = Preferences.getPref(context)
+        val prefs = Preferences(context)
         val legacyQuality = prefs.getFloat("mapHeatmapQuality", MapSettingsState.DEFAULT_QUALITY)
         val legacyMaxHeat = prefs.getInt("mapMaxHeat", MapSettingsState.DEFAULT_MAX_HEAT)
         val legacyVisit = prefs.getInt("mapVisitThreshold", MapSettingsState.DEFAULT_VISIT_THRESHOLD)

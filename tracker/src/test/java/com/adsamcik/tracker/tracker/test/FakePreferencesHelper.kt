@@ -57,18 +57,10 @@ object FakePreferencesHelper {
             data[firstArg<Int>()] = secondArg<Int>()
         }
 
-        // Inject into static field
-        val field = Preferences::class.java.getDeclaredField("preferences")
-        field.isAccessible = true
-        field.set(null, mockPrefs)
-
         return mockPrefs
     }
 
     fun tearDown() {
-        val field = Preferences::class.java.getDeclaredField("preferences")
-        field.isAccessible = true
-        field.set(null, null)
         data.clear()
     }
 }

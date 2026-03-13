@@ -81,7 +81,7 @@ class PrecisionUpgradeDomainEventConsumerTest {
 			setString(PrefR.string.settings_location_precision_key, "APPROXIMATE")
 		}
 
-		consumer = PrecisionUpgradeDomainEventConsumer(repository, context)
+		consumer = PrecisionUpgradeDomainEventConsumer(repository, context, prefs)
 	}
 
 	@After

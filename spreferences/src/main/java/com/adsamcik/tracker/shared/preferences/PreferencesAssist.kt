@@ -12,9 +12,13 @@ object PreferencesAssist {
 	 * @param context context
 	 * @return true if at least one of location, cell and wifi tracking is enabled
 	 */
-	suspend fun hasAnythingToTrackAsync(context: Context): Boolean {
-		val preferences = Preferences.getPref(context)
+	suspend fun hasAnythingToTrackAsync(context: Context): Boolean =
+		hasAnythingToTrackAsync(Preferences(context))
 
+	/**
+	 * Overload for direct Preferences injection (test-friendly; avoids static factory).
+	 */
+	suspend fun hasAnythingToTrackAsync(preferences: Preferences): Boolean {
 		return preferences.fetchBooleanRes(
 				R.string.settings_location_enabled_key,
 				R.string.settings_location_enabled_default

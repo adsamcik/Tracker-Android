@@ -68,7 +68,7 @@ class DefaultLockManager(
     }
     
     override suspend fun initializeFromPersistence(context: Context) {
-        val preferences = Preferences.getPref(context)
+        val preferences = Preferences(context)
 
         val timeKey = context.getString(R.string.settings_disabled_time_key)
         val timeDefault = context.getString(R.string.settings_disabled_time_default).toLong()
@@ -149,7 +149,7 @@ class DefaultLockManager(
     private fun setRechargeLock(context: Context, lock: Boolean) {
         val keyDisabledRecharge = context.getString(R.string.settings_disabled_recharge_key)
         synchronized(this) {
-            Preferences.getPref(context).edit {
+            Preferences(context).edit {
                 setBoolean(keyDisabledRecharge, lock)
             }
             
@@ -161,7 +161,7 @@ class DefaultLockManager(
     
     private fun setTimeLock(context: Context, time: Long) {
         synchronized(this) {
-            Preferences.getPref(context).edit {
+            Preferences(context).edit {
                 setLong(R.string.settings_disabled_time_key, time)
             }
             

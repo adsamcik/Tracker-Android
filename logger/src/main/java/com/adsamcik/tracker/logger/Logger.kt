@@ -40,7 +40,7 @@ object Logger : CoroutineScope {
         if (isInitialized) return
         
         launch(dispatchers.io) {
-            preferences = Preferences.getPref(context)
+            preferences = Preferences(context)
             genericDao = LogDatabase.database(context).genericLogDao()
             isInitialized = true
             initDeferred.complete(Unit)

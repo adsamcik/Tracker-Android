@@ -5,7 +5,6 @@ import com.adsamcik.tracker.shared.preferences.Preferences
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import java.lang.reflect.Field
 
 /**
  * Test helper for mocking Preferences in Robolectric tests.
@@ -113,18 +112,10 @@ object FakePreferencesHelper {
             keyMappings[resId]?.let { stringKeyData[it] = value }
         }
 
-        // Inject into static field
-        val field = Preferences::class.java.getDeclaredField("preferences")
-        field.isAccessible = true
-        field.set(null, mockPrefs)
-
         return mockPrefs
     }
 
     fun tearDown() {
-        val field = Preferences::class.java.getDeclaredField("preferences")
-        field.isAccessible = true
-        field.set(null, null)
         data.clear()
         stringKeyData.clear()
         keyMappings.clear()

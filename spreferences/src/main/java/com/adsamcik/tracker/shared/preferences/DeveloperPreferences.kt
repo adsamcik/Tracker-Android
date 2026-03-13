@@ -21,7 +21,7 @@ object DeveloperPreferences {
      * Emits current value immediately and on every change.
      */
     fun observeDeveloperMode(context: Context): Flow<Boolean> {
-        return Preferences.getPref(context).observeBoolean(PREF_DEVELOPER_MODE, false)
+        return Preferences(context).observeBoolean(PREF_DEVELOPER_MODE, false)
     }
 
     /**
@@ -31,7 +31,7 @@ object DeveloperPreferences {
      */
     fun isDeveloperModeEnabled(context: Context): Boolean {
         @Suppress("DEPRECATION")
-        return Preferences.getPref(context).getBoolean(PREF_DEVELOPER_MODE, false)
+        return Preferences(context).getBoolean(PREF_DEVELOPER_MODE, false)
     }
 
     /**
@@ -39,7 +39,7 @@ object DeveloperPreferences {
      * When enabled, debug settings menu becomes visible in release builds.
      */
     fun setDeveloperMode(context: Context, enabled: Boolean) {
-        Preferences.getPref(context).edit {
+        Preferences(context).edit {
             setBoolean(PREF_DEVELOPER_MODE, enabled)
         }
     }

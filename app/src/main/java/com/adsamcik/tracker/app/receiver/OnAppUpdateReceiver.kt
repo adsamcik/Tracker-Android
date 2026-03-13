@@ -29,7 +29,7 @@ class OnAppUpdateReceiver : BroadcastReceiver() {
 	}
 	
 	private suspend fun handleAppUpdate(context: Context) {
-		val prefs = Preferences.getPref(context)
+		val prefs = Preferences(context)
 		val keyLastVersion = context.getString(R.string.key_last_app_version)
 		val lastVersion = prefs.fetchLong(keyLastVersion, 0L)
 

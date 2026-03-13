@@ -40,7 +40,7 @@ internal class PolicyAwareLocationPreTrackerComponent(
 
 	override suspend fun onEnable(context: Context) {
 		scope = CoroutineScope(SupervisorJob() + dispatchers.main)
-		userAccuracyThreshold = Preferences.getPref(context).fetchIntRes(
+		userAccuracyThreshold = Preferences(context).fetchIntRes(
 			com.adsamcik.tracker.shared.preferences.R.string.settings_tracking_required_accuracy_key,
 			com.adsamcik.tracker.shared.preferences.R.integer.settings_tracking_required_accuracy_default
 		)

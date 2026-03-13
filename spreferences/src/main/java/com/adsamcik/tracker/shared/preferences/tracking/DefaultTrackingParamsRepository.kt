@@ -101,7 +101,7 @@ class DefaultTrackingParamsRepository(
             val current = context.trackingParamsDataStore.data.first()
             if (current.legacyMigrated) return@withContext
 
-            val prefs = Preferences.getPref(context)
+            val prefs = Preferences(context)
 
             val locationEnabled = prefs.getBooleanRes(PrefR.string.settings_location_enabled_key, PrefR.string.settings_location_enabled_default)
             val activityEnabled = prefs.getBooleanRes(PrefR.string.settings_activity_enabled_key, PrefR.string.settings_activity_enabled_default)

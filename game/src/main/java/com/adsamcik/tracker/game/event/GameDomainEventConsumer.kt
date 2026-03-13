@@ -35,6 +35,7 @@ import javax.inject.Singleton
 class GameDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	@ApplicationContext private val context: Context,
+	private val preferences: Preferences,
 ) {
 	/** Process any unconsumed events for the game module. */
 	suspend fun processUnconsumed() {
@@ -74,7 +75,7 @@ class GameDomainEventConsumer @Inject constructor(
 		enqueueAchievementWorker()
 
 		@Suppress("DEPRECATION")
-		val challengesEnabled = Preferences.getPref(context).getBooleanRes(
+		val challengesEnabled = preferences.getBooleanRes(
 			R.string.settings_game_challenge_enable_key,
 			R.string.settings_game_challenge_enable_default,
 		)

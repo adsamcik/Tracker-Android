@@ -393,5 +393,5 @@ private fun redactCoordinates(text: String): String {
 }
 
 private fun clearPreferences(context: Context) {
-    Preferences.getPref(context).edit { clear() }
+    Preferences(context).edit { clear() }
 }

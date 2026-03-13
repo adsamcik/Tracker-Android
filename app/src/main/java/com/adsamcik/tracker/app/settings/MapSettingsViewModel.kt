@@ -25,6 +25,7 @@ class MapSettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val mapSettingsRepository: MapSettingsRepository,
     private val dispatchers: DispatchersProvider,
+    private val preferences: Preferences,
 ) : ViewModel() {
 
     val basemapManager = BasemapManager(context, dispatchers)
@@ -32,7 +33,7 @@ class MapSettingsViewModel @Inject constructor(
 
     // Basemap path key for legacy preference (basemap path not in proto — it's file-system state)
     private val basemapPathKey = context.getString(com.adsamcik.tracker.map.R.string.settings_map_basemap_path_key)
-    private val prefs = Preferences.getPref(context)
+    private val prefs get() = preferences
 
     // Basemap state (file-system, not in proto)
     private val _basemapPath = MutableStateFlow(basemapManager.customBasemapPath())

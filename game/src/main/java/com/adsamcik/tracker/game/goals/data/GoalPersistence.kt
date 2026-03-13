@@ -19,7 +19,7 @@ interface GoalPersistence {
 }
 
 class PreferencesGoalPersistence(context: Context) : GoalPersistence {
-	private val preferences: Preferences = Preferences.getPref(context)
+	private val preferences: Preferences = Preferences(context)
 
 	override suspend fun persist(key: String, value: Int) {
 		require(value >= 0)

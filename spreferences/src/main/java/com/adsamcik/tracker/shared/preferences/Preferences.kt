@@ -226,8 +226,5 @@ open class Preferences {
         return resources.getString(keyRes)
     }
 
-    companion object {
-        fun getPref(context: Context): Preferences = Preferences(context)
-    }
 }
 
