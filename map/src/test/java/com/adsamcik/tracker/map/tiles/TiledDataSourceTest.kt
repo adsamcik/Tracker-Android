@@ -198,5 +198,41 @@ class TiledDataSourceTest {
             first shouldContain "Feature"
             second shouldContain "Feature"
         }
+
+        @Test
+        fun `empty data returns empty feature collection`() = runTest(testDispatcher) {
+            coEvery { repo.queryWeighted(any(), any()) } returns flowOf(emptyList())
+
+            val result = dataSource.getVisibleTilesGeoJson(
+                viewportBounds = Bounds(
+                    north = 48.88, south = 48.84, east = 2.38, west = 2.32,
+                ),
+                zoom = 14f,
+                source = GeoSource.LOCATION,
+                weightColumn = "hor_acc",
+                layerId = "heatmap",
+            )
+
+            result shouldContain "FeatureCollection"
+            result shouldNotContain "Point"
+        }
+
+        @Test
+        fun `low zoom does not produce excessive tiles`() = runTest(testDispatcher) {
+            val points = makePoints(3, latBase = 48.855, lonBase = 2.345)
+            coEvery { repo.queryWeighted(any(), eq("hor_acc")) } returns flowOf(points)
+
+            val result = dataSource.getVisibleTilesGeoJson(
+                viewportBounds = Bounds(
+                    north = 60.0, south = 30.0, east = 40.0, west = -10.0,
+                ),
+                zoom = 3f,
+                source = GeoSource.LOCATION,
+                weightColumn = "hor_acc",
+                layerId = "heatmap",
+            )
+
+            result shouldContain "FeatureCollection"
+        }
     }
 }
